@@ -17,7 +17,8 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // counting helpers it reads.
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
-  'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture']);
+  'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
+  'private.sidearm_live', 'public.record_live_score']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -29,7 +30,7 @@ const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json
 const db = await PGlite.create();
 await db.exec(`
   set timezone = 'UTC';
-  create role anon; create role authenticated;
+  create role anon; create role authenticated; create role service_role;
   create schema auth;
   grant usage on schema auth to anon, authenticated;
   create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
@@ -1060,11 +1061,11 @@ test('a game carries its sport, special night and both teams, the host first; an
   assert.deepEqual(games, [
     ['Albany Volleyball vs Foley', { sport: 'Volleyball', occasion: null, teams: [
       { name: 'albany', short: 'albany', logo: null, color: null, local: false, colors: null, nickname: null },
-      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null, nickname: null }], final: null }],
+      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null }],
     ['Fall fair', null],
     ['SJU Football vs Concordia: Homecoming', { sport: 'Football', occasion: 'Homecoming', teams: [
       { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430', local: false, colors: null, nickname: null },
-      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null, nickname: null }], final: null }]]);
+      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null }]]);
 });
 
 test("a game's final rides its game, host first, and keeps its card a day past the game", async () => {
@@ -1135,6 +1136,95 @@ test("a college final is read from SIDEARM's file: complete, that day, the host 
                                                 VisitingTeam: { ...g.VisitingTeam, Name: 'Concordia', Score: 23 } } },
                                       '2026-10-14', 'john'), [33, 23], 'a ranked host');
   assert.equal(await sidearmFinal(csbHamline, '2026-10-14', 'john'), null, 'neither side ours');
+});
+
+// Live scores (game-card 03): SIDEARM's pushed Game to the card's live score, on the 2026-10-24 test's files.
+const sjuLive = JSON.parse(readFileSync(join(here, 'sidearm-live-sju-msoc.json'), 'utf8'));
+const sjuFinal = JSON.parse(readFileSync(join(here, 'sidearm-final-sju-msoc.json'), 'utf8'));
+const csbOld = JSON.parse(readFileSync(join(here, 'sidearm-old-csb-wvball.json'), 'utf8'));
+const sidearmLive = async (game, day, host, file) => (await db.query(
+  'select private.sidearm_live($1::jsonb, $2::date, $3, $4) as l', [JSON.stringify(game), day, host, file])).rows[0].l;
+
+test("a live score is read from SIDEARM's Game: host first, the sport's period and clock, another day's game none", async () => {
+  // SJU 0-0 Carleton, 94 s into the first half: soccer's clock counts up, so its minute.
+  assert.deepEqual(await sidearmLive(sjuLive, '2026-10-24', 'john', 'csbsju/msoc'),
+                   { score: [0, 0], period: '1st half', clock: "2'", clock_s: 94, complete: false });
+  assert.deepEqual(await sidearmLive({ Game: sjuFinal }, '2026-10-24', 'john', 'csbsju/msoc'),
+                   { score: [2, 1], period: '2nd half', clock: "91'", clock_s: 5400, complete: true }, 'the file form too');
+  assert.equal(await sidearmLive(csbOld, '2026-10-24', 'benedict', 'csb/wvball'), null,
+               "the file still holding last week's game (Oct 17) before Saturday's began");
+  assert.deepEqual(await sidearmLive(csbOld, '2026-10-17', 'benedict', 'csb/wvball'),
+                   { score: [3, 0], period: 'Set 3', clock: null, clock_s: null, complete: true }, 'volleyball: the set, no clock');
+  const away = { ...sjuLive, HomeTeam: { ...sjuLive.VisitingTeam, Score: 7 }, VisitingTeam: { ...sjuLive.HomeTeam, Score: 14 },
+                 Period: 3, ClockSeconds: 252 };
+  assert.deepEqual(await sidearmLive(away, '2026-10-24', 'john', 'csbsju/football'),
+                   { score: [14, 7], period: 'Q3', clock: '4:12', clock_s: 252, complete: false }, 'the host away, football counting down');
+  assert.equal((await sidearmLive({ ...away, Period: 5 }, '2026-10-24', 'john', 'csbsju/football')).period, 'OT');
+  assert.equal((await sidearmLive({ ...away, Period: 2 }, '2026-10-24', 'john', 'csbsju/mbball')).period, '2nd half',
+               "men's basketball plays halves");
+  assert.equal((await sidearmLive({ ...away, Period: 2 }, '2026-10-24', 'john', 'csb/wbball')).period, 'Q2',
+               "women's quarters");
+  assert.equal(await sidearmLive({ ...sjuLive, HasStarted: false }, '2026-10-24', 'john', 'csbsju/msoc'), null, 'not started');
+  assert.equal(await sidearmLive(sjuLive, '2026-10-24', 'benedict', 'csbsju/msoc'), null, 'the host on neither side');
+});
+
+test('a pushed score lands on its game; two complete reads in a row make the final, and a final clears it', async () => {
+  await reset();
+  const game = await add('SJU Soccer vs Carleton', '2026-10-24', { start_time: '1 PM', source_name: 'SJU Athletics' });
+  await add('SJU Soccer vs Carleton', '2026-10-31', { start_time: '1 PM', source_name: 'SJU Athletics' });
+  await db.query(`update public.club_events set sport = 'Soccer', team_ids = array['saint-johns', 'carleton']
+    where source_name = 'SJU Athletics'`);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const row = async () => (await db.query('select live_score, final_score from public.club_events where id = $1', [game])).rows[0];
+  // Which games a listener joins: this one from 15 minutes before its start, by its school and sport's channel.
+  const on = async (t) => (await db.query(`select id, grp from private.live_games(($1::timestamp at time zone 'America/Chicago'))`,
+                                          [t])).rows;
+  assert.deepEqual(await on('2026-10-24 12:40'), []);
+  assert.deepEqual(await on('2026-10-24 12:50'), [{ id: game, grp: 'livestats/csbsju/msoc/game' }]);
+  assert.equal(await record(csbOld), 'ignored', 'not its game');
+  assert.equal(await record(sjuLive), 'live');
+  const live = (await row()).live_score;
+  assert.deepEqual([live.score, live.period, live.complete], [[0, 0], '1st half', false]);
+  const at = live.at;
+  await record(sjuLive);
+  assert.equal((await row()).live_score.at, at, 'a push that changed nothing writes nothing, so realtime stays quiet');
+  // The feed sends it in the game and keeps a game being played two more hours: still there at 5:30.
+  await db.exec('set role anon');
+  const feed = async (t) => (await db.query(`select game from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))
+    where game is not null`, [t])).rows;
+  assert.deepEqual((await feed('2026-10-24 13:05'))[0].game.live.score, [0, 0]);
+  assert.equal((await feed('2026-10-24 17:30')).length, 1);
+  await db.exec('reset role');
+  assert.equal(await record(sjuFinal), 'live', 'complete once is not yet final: the 2026-10-24 volleyball flickered');
+  assert.equal((await row()).live_score.complete, true);
+  assert.equal(await record(sjuFinal), 'final');
+  assert.deepEqual(await row(), { live_score: null, final_score: [2, 1] });
+  assert.equal(await record(sjuLive), 'ignored', 'nothing moves a final');
+  assert.deepEqual(await on('2026-10-24 13:30'), [], 'a final game is no longer listened to');
+  // A doubleheader can't be told apart on one channel: neither is listened to.
+  await db.query(`update public.club_events set final_score = null where id = $1`, [game]);
+  await add('SJU Soccer vs Augsburg', '2026-10-24', { start_time: '4 PM', source_name: 'SJU Athletics' });
+  await db.query(`update public.club_events set sport = 'Soccer', team_ids = array['saint-johns', 'augsburg']
+    where title = 'SJU Soccer vs Augsburg'`);
+  assert.deepEqual(await on('2026-10-24 13:30'), []);
+});
+
+test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {
+  await db.exec('delete from private.live_listener');
+  const start = async () => (await db.query('select count(*)::int as n from public.start_live_scores()')).rows[0].n;
+  const claimed = async () => (await db.query('select count(*)::int as n from private.live_listener')).rows[0].n;
+  await start();
+  assert.equal(await claimed(), 1);
+  const until = (await db.query('select until from private.live_listener')).rows[0].until;
+  await start();
+  assert.deepEqual((await db.query('select until from private.live_listener')).rows[0].until, until, 'the second start does nothing');
+  await db.exec(`update private.live_listener set until = now() - interval '1 second'`);
+  await start();
+  assert.ok((await db.query('select until from private.live_listener')).rows[0].until > until, 'free again after it runs out');
+  for (const fn of ['public.start_live_scores()', 'public.record_live_score(uuid, jsonb)'])
+    assert.equal((await db.query(`select has_function_privilege('anon', $1, 'execute') as ok`, [fn])).rows[0].ok, false,
+                 `${fn}: the service role only`);
 });
 
 test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {

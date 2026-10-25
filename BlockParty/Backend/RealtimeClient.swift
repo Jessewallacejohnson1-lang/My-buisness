@@ -27,7 +27,7 @@ final class RealtimeClient {
         /// primary key (id) — Supabase Realtime sends just the replica-identity
         /// key on delete (verified empirically, even with REPLICA IDENTITY FULL)
         /// — so delete relevance is matched by id (see MapModel.currentlyShown).
-        struct Row: Sendable {
+        struct Row: Sendable, Equatable {
             let id: String?
             let eventDate: String?
             let startTime: String?
@@ -35,6 +35,15 @@ final class RealtimeClient {
             let kind: String?
             let title: String?
             let location: String?
+            /// A game's scores (BP app game-card 03): `final_score`, and `live_score` as its JSON.
+            var finalScore: [Int]? = nil
+            var liveScore: Data? = nil
+
+            /// Everything but the scores: an update that moved only a score changes nothing the map shows.
+            var withoutScores: Row {
+                Row(id: id, eventDate: eventDate, startTime: startTime, status: status, kind: kind,
+                    title: title, location: location)
+            }
         }
 
         let kind: Kind
@@ -233,9 +242,11 @@ final class RealtimeClient {
     private func row(from dict: [String: Any]?) -> Change.Row? {
         guard let d = dict, !d.isEmpty else { return nil }
         func str(_ k: String) -> String? { d[k] as? String }
+        let live = d["live_score"].flatMap { $0 is NSNull ? nil : try? JSONSerialization.data(withJSONObject: $0) }
         return Change.Row(id: str("id"), eventDate: str("event_date"),
                           startTime: str("start_time"), status: str("status"),
-                          kind: str("kind"), title: str("title"), location: str("location"))
+                          kind: str("kind"), title: str("title"), location: str("location"),
+                          finalScore: d["final_score"] as? [Int], liveScore: live)
     }
 
     // MARK: Reconnect (capped exponential backoff)

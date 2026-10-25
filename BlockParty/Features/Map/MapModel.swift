@@ -259,6 +259,10 @@ final class MapModel: ObservableObject {
             guard let id else { return false }
             return todayEvents.contains { $0.id == id }
         }
+        // A game's score coming in (game-card 03) moves nothing on the map: no refetch for it.
+        if change.kind == .update, let new = change.new, let old = change.old,
+           new.withoutScores == old.withoutScores,
+           new.finalScore != old.finalScore || new.liveScore != old.liveScore { return }
         let relevant: Bool
         switch change.kind {
         case .insert: relevant = touchesToday(change.new)

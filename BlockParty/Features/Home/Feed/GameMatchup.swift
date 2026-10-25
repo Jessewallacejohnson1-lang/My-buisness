@@ -6,6 +6,7 @@
 //  ticket 01; Jesse, 2026-10-20: "I want idea E", "keep names"; taste.md). X's and Apple
 //  Sports' game headers: the left team's color to 40% of the width, the right team's from
 //  60%, each logo on a white disc with the school's short name under it, VS between them;
+//  while it's being played, the live score in VS's place over the period and clock (ticket 03);
 //  once the final is in, the score in VS's place and the loser's side faded (ticket 02).
 //  The title, place line and day chip stay the card's own, over this.
 //
@@ -50,11 +51,14 @@ struct GameMatchup: View {
                                .init(color: fill(game.teams[1]), location: 1)],
                        startPoint: .leading, endPoint: .trailing)
             .overlay(alignment: .top) {
-                HStack(alignment: .top, spacing: game.final == nil ? Metric.gap : Metric.scoreGap) {
+                HStack(alignment: .top, spacing: game.final == nil && game.live == nil ? Metric.gap : Metric.scoreGap) {
                     TeamColumn(team: game.teams[0])
                         .opacity(game.winner == 1 ? Metric.faded : 1)
                     if let final = game.final {
                         FinalScore(final: final, winner: game.winner)
+                            .transition(.opacity)
+                    } else if let live = game.live {
+                        LiveScore(live: live)
                             .transition(.opacity)
                     } else {
                         Text("VS")
@@ -67,8 +71,9 @@ struct GameMatchup: View {
                         .opacity(game.winner == 0 ? Metric.faded : 1)
                 }
                 .padding(.top, Metric.rowTop)
-                // A refresh that brings the final cross-fades VS into it.
+                // A refresh that brings the live score or the final cross-fades VS into it.
                 .animation(Motion.smooth, value: game.final)
+                .animation(Motion.smooth, value: game.live == nil)
             }
     }
 
@@ -108,6 +113,39 @@ private struct FinalScore: View {
                 .background(.white.opacity(0.22), in: Capsule())
         }
         // Up to the mock's 112 pt, narrower on a 375 pt phone, where three columns would overrun the card.
+        .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
+    }
+}
+
+/// The score while it's on, where VS was: FinalScore's look with neither side faded, each new
+/// number rolling in as the scoreboard's do, over a pill with the period and clock ("Q3 · 4:12";
+/// the mock's Picked row, Live phone). A clock that stops coming in is hidden, not left frozen.
+private struct LiveScore: View {
+    let live: Game.Live
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("\(live.score[0]) – \(live.score[1])")
+                .font(.eventDisplay(34))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText(countsDown: false))
+                .animation(reduceMotion ? nil : Motion.smooth, value: live.score)
+            // Each second, so soccer's minute turns over on time and a stale clock goes.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(live.line(at: context.date))
+                    .font(.sansSemibold(12))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .frame(height: 22)
+                    .background(.white.opacity(0.22), in: Capsule())
+            }
+        }
         .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
     }
 }

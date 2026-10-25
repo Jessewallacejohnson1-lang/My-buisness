@@ -368,6 +368,60 @@ final class TownFeedEventsTests: XCTestCase {
         }
     }
 
+    /// A game's live score (game-card 03) reads in its teams' order with the period and clock; the
+    /// clock goes once it's two minutes old and Live after ten; only the server's final ends it; a bad one is none.
+    func testAGamesLiveScoreReadsAndCompleteCountsAsTheFinal() throws {
+        func game(_ more: String) throws -> Game {
+            let json = #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Concordia"}]"# + more + "}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let on = try game(#","final":null,"live":{"score":[14,7],"period":"Q3","clock":"4:12","complete":false,"at":"2026-10-31T19:40:00.123456+00:00"}"#)
+        let live = try XCTUnwrap(on.live)
+        XCTAssertEqual(live.score, [14, 7])
+        XCTAssertNil(on.final)
+        XCTAssertNil(on.winner, "nobody fades while it's on")
+        XCTAssertEqual(on.spoken, "Football, Saint John's 14, Concordia 7, Q3", "the chip says Live")
+        let at = try XCTUnwrap(live.at)
+        XCTAssertEqual(live.line(at: at.addingTimeInterval(60)), "Q3 · 4:12")
+        XCTAssertEqual(live.line(at: at.addingTimeInterval(121)), "Q3", "a clock that stopped coming in is hidden")
+        XCTAssertTrue(live.isLive(at: at.addingTimeInterval(599)))
+        XCTAssertFalse(live.isLive(at: at.addingTimeInterval(601)), "ten quiet minutes: no longer Live")
+        // Soccer's minute runs on between pushes and holds at the half's end through stoppage time.
+        let soccer = try XCTUnwrap(try game(#","live":{"score":[0,0],"period":"1st half","clock":"2'","clock_s":94,"complete":false,"at":"2026-10-24T18:01:34Z"}"#).live)
+        let pushed = try XCTUnwrap(soccer.at)
+        XCTAssertEqual(soccer.line(at: pushed), "1st half · 2'")
+        XCTAssertEqual(soccer.line(at: pushed.addingTimeInterval(65 * 60)), "1st half · 45'", "held at 45 through the break")
+        XCTAssertEqual(soccer.line(at: pushed.addingTimeInterval(10 * 60)), "1st half · 12'", "no push for ten minutes, still running")
+        let volleyball = try game(#","live":{"score":[2,0],"period":"Set 3","clock":null,"complete":false}"#)
+        XCTAssertEqual(volleyball.live?.line(at: .now), "Set 3")
+
+        let once = try game(#","live":{"score":[3,0],"period":"Set 3","clock":null,"complete":true}"#)
+        XCTAssertNil(once.final, "complete once is not the final: volleyball took one back on 2026-10-24")
+        XCTAssertEqual(once.live?.score, [3, 0])
+        let both = try game(#","final":[33,23],"live":{"score":[30,23],"period":"Q4","complete":false}"#)
+        XCTAssertEqual(both.final, [33, 23], "a final always wins over a live score")
+        XCTAssertNil(both.live)
+        for bad in [#","live":{"score":[1],"period":"Q1"}"#, #","live":{"score":[1,-2],"period":"Q1"}"#, #","live":"7-0""#] {
+            XCTAssertNil(try game(bad).live, bad)
+        }
+
+        // The map refetches for a change it shows, never for a score alone (game-card 03).
+        let row = RealtimeClient.Change.Row(id: "g1", eventDate: "2026-10-31", startTime: "1 PM", status: "approved",
+                                            kind: "event", title: "SJU Football vs Gustavus", location: "Clemens Stadium")
+        var scored = row
+        scored.liveScore = Data(#"{"score":[7,0]}"#.utf8)
+        scored.finalScore = [7, 0]
+        XCTAssertNotEqual(row, scored)
+        XCTAssertEqual(row.withoutScores, scored.withoutScores)
+
+        // A realtime update moves the scores on the card's game, and back to none.
+        let updated = on.with(final: nil, live: try JSONDecoder().decode(Game.Live.self, from: Data(
+            #"{"score":[21,7],"period":"Q4","clock":"0:45","complete":false}"#.utf8)))
+        XCTAssertEqual(updated.live?.score, [21, 7])
+        XCTAssertEqual(updated.with(final: [21, 7], live: nil).final, [21, 7])
+        XCTAssertNil(updated.with(final: [21, 7], live: nil).live)
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {

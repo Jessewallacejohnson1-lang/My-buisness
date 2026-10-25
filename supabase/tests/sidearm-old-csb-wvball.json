@@ -1,0 +1,232 @@
+{
+ "Type": "VolleyballGame",
+ "HasStarted": true,
+ "IsComplete": true,
+ "Source": "sidearm",
+ "Date": "10/17/2026",
+ "DateUTC": null,
+ "StartTime": "5:00 PM",
+ "EndTime": "",
+ "UseLiveStatsAutomation": "false",
+ "NcaaGameId": "235235",
+ "SidearmGameId": "",
+ "ClientId": "223",
+ "ClientAbbrev": "csb",
+ "ClientLiveStatsUrl": "https://gobennies.com/sidearmstats/wvball",
+ "Notes": [],
+ "Location": "Claire Lynch Hall",
+ "GlobalSportShortname": "wvball",
+ "BannerMessage": "Watch live at miacsportsnetwork.com/saintbenedict",
+ "StadiumImage": null,
+ "SiteImage": null,
+ "ClientHostname": "gobennies.com",
+ "Officials": "1st referee: Andrea Cervena, 2nd referee: Trevor Beres, Line judge: Marnie Korstuem, Line judge: Emma Berran",
+ "Attendance": 504,
+ "PeriodsRegulation": 5,
+ "Period": 3,
+ "ClockSeconds": -1,
+ "Context": "",
+ "Rules": {
+  "PeriodMinutes": -1,
+  "PeriodName": "Set",
+  "OTMinutes": 0,
+  "ShowExtraPeriodsAsOT": true,
+  "ClockDirection": "None",
+  "ClockSegmentation": "Periods"
+ },
+ "HomeTeam": {
+  "Id": "CSB",
+  "Name": "Saint Benedict",
+  "Score": 3,
+  "SetScore": 25,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "595",
+  "Color": "#BD0F34",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csb/wvball/logos/CSB_ATH_Logomark_061224_RedwBlueOutline.png",
+  "Url": "http://gobennies.com",
+  "PeriodScores": [
+   25,
+   25,
+   25
+  ],
+  "PeriodTimeouts": []
+ },
+ "VisitingTeam": {
+  "Id": "SMU",
+  "Name": "Saint Mary's",
+  "Score": 0,
+  "SetScore": 21,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "612",
+  "Color": "#002146",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csb/wvball/logos/r7.png",
+  "Url": "http://www.saintmaryssports.com",
+  "PeriodScores": [
+   13,
+   18,
+   21
+  ],
+  "PeriodTimeouts": []
+ },
+ "LastPlays": [
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Karley",
+    "LastName": "Dunham",
+    "UniformNumber": "7",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wvball&uni=7&name=Dunham%2cKarley",
+    "PersonId": "143495"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Izzy",
+     "LastName": "Torve",
+     "UniformNumber": "2",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wvball&uni=2&name=Torve%2cIzzy",
+     "PersonId": "133517"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "[Torve,Izzy] Kill by Dunham,Karley",
+   "Context": "",
+   "Id": "172+611BDF89",
+   "Type": "KILL",
+   "Action": "CSB",
+   "Period": 3,
+   "ClockSeconds": -1,
+   "Coordinate": null,
+   "Score": {
+    "HomeTeam": 25,
+    "VisitingTeam": 21
+   }
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Izzy",
+    "LastName": "Torve",
+    "UniformNumber": "2",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wvball&uni=2&name=Torve%2cIzzy",
+    "PersonId": "133517"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Mackenzie",
+     "LastName": "Wenger",
+     "UniformNumber": "11",
+     "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=11&name=Wenger%2cMackenzie",
+     "PersonId": "158983"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "[Torve,Izzy] Service ace (Wenger,Mackenzie).",
+   "Context": "",
+   "Id": "171+11F692B8",
+   "Type": "SERVICE ACE",
+   "Action": "CSB",
+   "Period": 3,
+   "ClockSeconds": -1,
+   "Coordinate": null,
+   "Score": {
+    "HomeTeam": 24,
+    "VisitingTeam": 21
+   }
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": null,
+   "Narrative": "Timeout SMU.",
+   "Context": "",
+   "Id": "170+E97D3997",
+   "Type": "TIMEOUT",
+   "Action": null,
+   "Period": 3,
+   "ClockSeconds": -1,
+   "Coordinate": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Claire",
+     "LastName": "Rahman",
+     "UniformNumber": "6",
+     "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=6&name=Rahman%2cClaire",
+     "PersonId": "145369"
+    },
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Kaia",
+     "LastName": "DePaolo",
+     "UniformNumber": "10",
+     "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=10&name=DePaolo%2cKaia",
+     "PersonId": "158980"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "[Rahman,Claire] Attack error by DePaolo,Kaia.",
+   "Context": "",
+   "Id": "169+1119837A",
+   "Type": "ATTACK ERROR",
+   "Action": "CSB",
+   "Period": 3,
+   "ClockSeconds": -1,
+   "Coordinate": null,
+   "Score": {
+    "HomeTeam": 23,
+    "VisitingTeam": 21
+   }
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Kaia",
+    "LastName": "DePaolo",
+    "UniformNumber": "10",
+    "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=10&name=DePaolo%2cKaia",
+    "PersonId": "158980"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Claire",
+     "LastName": "Rahman",
+     "UniformNumber": "6",
+     "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=6&name=Rahman%2cClaire",
+     "PersonId": "145369"
+    },
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Kinlee",
+     "LastName": "Grattan",
+     "UniformNumber": "16",
+     "Photo": "https://www.saintmaryssports.com/services/stat_handler.aspx?path=wvball&uni=16&name=Grattan%2cKinlee",
+     "PersonId": "133686"
+    }
+   ],
+   "Team": "VisitingTeam",
+   "Narrative": "[Rahman,Claire] Kill by DePaolo,Kaia (from Grattan,Kinlee).",
+   "Context": "",
+   "Id": "168+AE5C555",
+   "Type": "KILL",
+   "Action": "SMU",
+   "Period": 3,
+   "ClockSeconds": -1,
+   "Coordinate": null,
+   "Score": {
+    "HomeTeam": 22,
+    "VisitingTeam": 21
+   }
+  }
+ ]
+}
