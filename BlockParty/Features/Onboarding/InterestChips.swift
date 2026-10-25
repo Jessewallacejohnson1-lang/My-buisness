@@ -53,7 +53,8 @@ struct InterestChips: View {
             Image(systemName: "magnifyingglass")
                 .font(.glyph(15, weight: .semibold))
                 .foregroundStyle(Hue.inkSecondary)
-            TextField("Search interests", text: $query)
+            TextField("Search interests", text: $query,
+                      prompt: Text("Search interests").foregroundStyle(Hue.inkSecondary))
                 .font(.sans(15))
                 .foregroundStyle(Hue.ink)
                 .autocorrectionDisabled()
