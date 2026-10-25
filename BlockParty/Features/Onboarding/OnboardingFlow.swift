@@ -210,7 +210,7 @@ struct OnboardingFlow: View {
 }
 
 /// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): a St. Joseph
-/// photo full bleed (a stand-in until Jesse's comes), the white wordmark and headline top
+/// the Millstream street fair photo full bleed, the white wordmark and headline top
 /// left, three white pills where Nextdoor's last three sit, the Terms line and Log in. Until
 /// ticket 25 wires Apple and Google, all three pills go to the first question. Log in opens the existing
 /// sign-in.
@@ -296,22 +296,26 @@ struct OnboardingWelcome: View {
             .contentShape(Rectangle())
     }
 
-    /// The photo, with Nextdoor's scrims: darker at the top for the headline and at the bottom
-    /// for the small print. ponytail: a drawn stand-in; swap in Jesse's St. Joseph photo (ticket 25).
+    /// The Millstream street fair, full bleed (Jesse, 2026-10-25; © Rubinski Visual, used with
+    /// their OK), under Nextdoor's fades: a light one at the top for the headline, and a dark
+    /// one from mid-screen down for the pills and small print.
     private var photo: some View {
         ZStack {
-            LinearGradient(stops: [.init(color: Hue.welcomeStandInTop, location: 0),
-                                   .init(color: Hue.welcomeStandInMid, location: 0.55),
-                                   .init(color: Hue.welcomeStandInLow, location: 1)],
-                           startPoint: .top, endPoint: .bottom)
-            EllipticalGradient(colors: [Hue.welcomeStandInGreen, Hue.welcomeStandInGreen.opacity(0)],
-                               center: UnitPoint(x: 0.3, y: 0.55), endRadiusFraction: 0.7)
-            EllipticalGradient(colors: [Hue.welcomeStandInWarm, Hue.welcomeStandInWarm.opacity(0)],
-                               center: UnitPoint(x: 0.8, y: 0.75), endRadiusFraction: 0.7)
+            Hue.welcomeScrim
+                .overlay {
+                    if let image = UIImage(named: "welcome-millstream.jpg") {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    }
+                }
+                .clipped()
             LinearGradient(stops: [.init(color: Hue.welcomeScrim.opacity(0.45), location: 0),
-                                   .init(color: Hue.welcomeScrim.opacity(0), location: 0.34),
-                                   .init(color: Hue.welcomeScrim.opacity(0), location: 0.58),
-                                   .init(color: Hue.welcomeScrim.opacity(0.5), location: 1)],
+                                   .init(color: Hue.welcomeScrim.opacity(0), location: 0.32)],
+                           startPoint: .top, endPoint: .bottom)
+            LinearGradient(stops: [.init(color: Hue.welcomeScrim.opacity(0), location: 0.45),
+                                   .init(color: Hue.welcomeScrim.opacity(0.18), location: 0.58),
+                                   .init(color: Hue.welcomeScrim.opacity(0.45), location: 0.70),
+                                   .init(color: Hue.welcomeScrim.opacity(0.70), location: 0.84),
+                                   .init(color: Hue.welcomeScrim.opacity(0.82), location: 1)],
                            startPoint: .top, endPoint: .bottom)
         }
         .accessibilityHidden(true)

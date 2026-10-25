@@ -214,13 +214,6 @@ nonisolated enum Hue {
     static let welcomePillDown = Color(hex: 0xECECEA)
     /// The Welcome's scrims over its photo, black at the mock's strengths.
     static let welcomeScrim  = Color(hex: 0x000000)
-    /// The Welcome's stand-in for Jesse's St. Joseph photo until it comes (ticket 25 mock):
-    /// a green field over a dark olive ground, a warm patch low right.
-    static let welcomeStandInGreen = Color(hex: 0x6D7A5A)
-    static let welcomeStandInWarm  = Color(hex: 0x8A6F55)
-    static let welcomeStandInTop   = Color(hex: 0x2D3527)
-    static let welcomeStandInMid   = Color(hex: 0x4A4A3C)
-    static let welcomeStandInLow   = Color(hex: 0x3B3A33)
     /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
     /// The second red after `heart`, and for this one pill only.
     static let canceled      = Color(uiColor: .systemRed)
