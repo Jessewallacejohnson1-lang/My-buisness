@@ -340,10 +340,21 @@ private struct ProfilePhotoView: View {
         ZStack(alignment: .topTrailing) {
             Color.black.ignoresSafeArea()
             if let url {
-                FeedCardURLPhoto(url: url, loadingFill: Hue.ink)
-                    .aspectRatio(1, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityLabel("\(name)'s photo")
+                GeometryReader { proxy in
+                    let side = min(proxy.size.width, proxy.size.height)
+                    ZStack {
+                        // The round photo's bitmap, already decoded at its size, stands in
+                        // until the whole one lands, so the zoom never opens on black.
+                        FeedCardURLPhoto(url: url, loadingFill: Hue.ink)
+                            .frame(width: ProfileMetric.photo, height: ProfileMetric.photo)
+                            .scaleEffect(side / ProfileMetric.photo)
+                        FeedCardURLPhoto(url: url, loadingFill: .clear)
+                            .frame(width: side, height: side)
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+                .accessibilityElement()
+                .accessibilityLabel("\(name)'s photo")
             }
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
