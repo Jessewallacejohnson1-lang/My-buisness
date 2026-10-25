@@ -28,6 +28,8 @@ ANON_KEY = (
 REPO = "ios"
 SUMMARY_MAX = 300
 TEXT_FIELD_MAX = 400
+# Shared secret the edge function checks; lives outside git. Missing file = no log row.
+LOG_KEY_FILE = os.path.expanduser("~/.config/block-party/log-key")
 POST_TIMEOUT_S = 5
 GIT_TIMEOUT_S = 3
 
@@ -63,6 +65,11 @@ def main() -> None:
         "raw": slim(hook),
     }
 
+    try:
+        with open(LOG_KEY_FILE) as f:
+            log_key = f.read().strip()
+    except OSError:
+        return
     request = urllib.request.Request(
         FUNCTION_URL,
         data=json.dumps(row).encode(),
@@ -70,6 +77,7 @@ def main() -> None:
             "Authorization": f"Bearer {ANON_KEY}",
             "apikey": ANON_KEY,
             "Content-Type": "application/json",
+            "x-bp-log-key": log_key,
         },
         method="POST",
     )

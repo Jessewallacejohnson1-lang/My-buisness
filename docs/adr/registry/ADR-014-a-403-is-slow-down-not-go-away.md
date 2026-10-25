@@ -66,7 +66,7 @@ host that will not serve its own robots.txt is usually throttling, not welcoming
 blocked.** A source demoted to manual work fails silently — nothing errors, it just
 quietly costs a human every month. That asymmetry justifies the retries.
 
-**Impersonating a browser remains forbidden**, and this is the reinforcement: it does not
+**Superseded 2026-10-25 by ADR-023.** **Impersonating a browser remains forbidden**, and this is the reinforcement: it does not
 work, and a site that filters browser-shaped strings is stating a preference as clearly
 as a robots rule. We identify ourselves and take what we are given.
 

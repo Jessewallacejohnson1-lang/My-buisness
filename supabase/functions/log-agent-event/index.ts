@@ -6,6 +6,10 @@
 // on); the insert itself runs with the service credentials, and this
 // function's code scopes that power to exactly one table.
 //
+// The anon key ships inside the app, so it proves nothing. Callers must also send
+// x-bp-log-key matching the LOG_AGENT_EVENT_KEY secret; the hooks read it from
+// ~/.config/block-party/log-key, outside git.
+//
 // Deploy: supabase functions deploy log-agent-event
 
 const SUMMARY_MAX = 500
@@ -14,6 +18,8 @@ const RAW_MAX_CHARS = 20_000
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405)
+  const logKey = Deno.env.get("LOG_AGENT_EVENT_KEY")
+  if (!logKey || req.headers.get("x-bp-log-key") !== logKey) return json({ error: "unauthorized" }, 401)
   try {
     const supaUrl = Deno.env.get("SUPABASE_URL")
     const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}")
