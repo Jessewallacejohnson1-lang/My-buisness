@@ -493,7 +493,8 @@ struct CommunityAPI {
     /// interest chips' "Popular in St. Joseph" (BP app onboarding 20).
     func upcomingInterests() async throws -> [[String]] {
         struct Row: Decodable { let interests: [String]?; let category: String?; let interestsTaggedAt: String? }
-        let t = try await token()
+        // Before the account exists (step 7 comes before phone sign-in lands), the public key reads.
+        let t = await readToken()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
             query: "select=interests,category,interests_tagged_at&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(BriefingModel.townToday())\(Self.realOnly)",
             accessToken: t)

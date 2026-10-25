@@ -159,8 +159,26 @@ struct OnboardingFlow: View {
             .padding(.trailing, 32)
             .padding(.top, 56)
             .ignoresSafeArea(.container)
+
+            if store.step == .interests { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) { bottom }
+    }
+
+    /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
+    /// 190 pt, clear at the top and solid from 38% down (the mock's foot).
+    private var foot: some View {
+        OnboardingBackdrop()
+            .mask {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.38)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: 190)
+                }
+                .ignoresSafeArea()
+            }
+            .allowsHitTesting(false)
     }
 
     private var question: some View {

@@ -136,10 +136,13 @@ enum Interests {
 
     /// "Popular in St. Joseph": the interests with the most upcoming Events, each Event's
     /// interests given as a list. Only interests with at least `minimum` Events count, and the
-    /// row is empty, so hidden, when fewer than 3 do.
+    /// row is empty, so hidden, when fewer than 3 do. An Event's old id counts as the first of the
+    /// new ones, as the server maps it: an old game is Watch sports, not Play sports too.
     static func popular(_ events: [[String]], limit: Int = 6, minimum: Int = 3) -> [String] {
         var counts: [String: Int] = [:]
-        for tags in events { for id in Set(migrate(tags)) { counts[id, default: 0] += 1 } }
+        for tags in events {
+            for id in Set(migrate(tags.map { legacy[$0]?.first ?? $0 })) { counts[id, default: 0] += 1 }
+        }
         let order = all.map(\.id)
         let ranked = order.filter { (counts[$0] ?? 0) >= minimum }
             .sorted { (counts[$0] ?? 0) > (counts[$1] ?? 0) }

@@ -41,8 +41,9 @@ final class InterestsTests: XCTestCase {
 
     func testPopularCountsRealEvents() {
         let events = Array(repeating: ["watch_sports"], count: 5) + Array(repeating: ["faith", "live_music"], count: 4)
-            + Array(repeating: ["sports_leagues"], count: 2) + [["coffee"], ["coffee"]]
-        // Old ids count as their new ones; under 3 events doesn't make the row.
+            + Array(repeating: ["sports_leagues"], count: 3) + [["coffee"], ["coffee"]]
+        // An old id counts as its first new one (a game is Watch sports, not Play sports too);
+        // under 3 events doesn't make the row.
         XCTAssertEqual(Interests.popular(events), ["watch_sports", "live_music", "faith"])
         XCTAssertEqual(Interests.popular(events, limit: 2), ["watch_sports", "live_music"])
         // Fewer than 3 interests with enough events: no row.

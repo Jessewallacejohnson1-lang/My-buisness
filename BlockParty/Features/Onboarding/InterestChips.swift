@@ -17,8 +17,11 @@ struct InterestChips: View {
     var bottomInset: CGFloat = 160
 
     @State private var query = ""
-    /// Popular as it was when the list opened, so counts landing late never push the chips down.
+    /// Popular as it was when the list opened, or when the counts land before the first tap:
+    /// once a finger is on the chips, counts landing late never push them down.
     @State private var shownPopular: [String]?
+    @State private var touched = false
+    @FocusState private var searching: Bool
     /// The chip just picked, whose check pops as it lands in Added.
     @State private var landing: String?
     @Namespace private var glide
@@ -39,6 +42,10 @@ struct InterestChips: View {
             .scrollDismissesKeyboard(.immediately)
         }
         .onAppear { if shownPopular == nil { shownPopular = popular } }
+        .onChange(of: popular) { _, new in
+            guard !touched, query.isEmpty else { return }
+            withAnimation(.easeOut(duration: 0.25)) { shownPopular = new }
+        }
     }
 
     private var search: some View {
@@ -52,21 +59,23 @@ struct InterestChips: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.search)
+                .focused($searching)
         }
         .padding(.horizontal, 12)
         .frame(height: 44)
         .background(Hue.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Hue.hairline, lineWidth: 1.5))
+        // The whole 44 pt box takes the tap, not only the line of text.
+        .contentShape(Rectangle())
+        .onTapGesture { searching = true }
         .padding(.top, 24)
     }
 
     @ViewBuilder private var groups: some View {
         let open = { (ids: [String]) in ids.filter { !picked.contains($0) } }
-        if !picked.isEmpty {
-            group("Added", picked)
-        }
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty {
+            if !picked.isEmpty { group("Added", picked) }
             let popular = open(shownPopular ?? [])
             if !popular.isEmpty { group("Popular in St. Joseph", popular) }
             ForEach(Interests.sections, id: \.title) { section in
@@ -74,6 +83,7 @@ struct InterestChips: View {
                 if !left.isEmpty { group(section.title, left) }
             }
         } else {
+            // What's found comes first, so it shows above the keyboard and the Next bar riding it.
             let found = open(Interests.search(q).map(\.id))
             if found.isEmpty {
                 Text("No interest matches \u{201C}\(q)\u{201D}")
@@ -83,6 +93,7 @@ struct InterestChips: View {
             } else {
                 group(nil, found)
             }
+            if !picked.isEmpty { group("Added", picked) }
         }
     }
 
@@ -108,6 +119,7 @@ struct InterestChips: View {
     }
 
     private func toggle(_ id: String) {
+        touched = true
         withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.glideCurve) {
             if let i = picked.firstIndex(of: id) {
                 picked.remove(at: i)

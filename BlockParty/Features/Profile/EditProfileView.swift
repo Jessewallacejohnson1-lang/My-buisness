@@ -233,7 +233,11 @@ private struct InterestsSheet: View {
                 Haptics.selection(); dismiss()
             }
             .padding(.horizontal, 24)
+            .padding(.top, 32)
             .padding(.bottom, 8)
+            // The chips scroll away under a paper fade, as onboarding's do under its Next bar.
+            .background(LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .center)
+                .ignoresSafeArea())
         }
         .background(Hue.paper.ignoresSafeArea())
         .presentationDragIndicator(.visible)
