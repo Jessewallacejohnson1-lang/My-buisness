@@ -101,7 +101,7 @@ seeder, and mounts `RootView` directly.
 ### The tab bar
 
 `MainTabsView` owns **four** tabs (`Tab`: town/daily/search/you), the custom
-`BlockPartyTabBar`, the full-screen map cover, and town-menu presentation. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
+`BlockPartyTabBar` and the full-screen map cover. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
 (town feed ∩ what the neighbour follows), **Search** is BP's traced magnifier (`MagnifierGlyph`,
 thicker when selected, as Instagram's is) — it took Business's slot on 2026-09-29, when the
 Town bar's leading control became a friends mark — and **You** mounts
@@ -127,8 +127,7 @@ Town bar's leading control became a friends mark — and **You** mounts
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
 - **The bar is four slots built from `Tab.allCases`** `[test]`, pinned by
   `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
-  so **there is no compose entry anywhere in the app** — not in the bar, not on the map, not
-  in the town menu. Do not add one back without Jesse saying posting is on again.
+  so **there is no compose entry anywhere in the app** — not in the bar, not on the map. Do not add one back without Jesse saying posting is on again.
 - **It is BP's own bar, not Apple's `TabView`, copying Instagram's iOS 26 bar with BP's
   icons** (2026-09-27; Apple's `TabView` was rejected on 2026-09-25, the why is in
   `DECISIONS.md`). One floating glass capsule, the same gap from each side and from the
@@ -190,19 +189,19 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
   shape if a subscriber comes back.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
-- Supporting: `Session`, `Storage`, `Moderation`, `Reminders`, `Interests`, `TrailServices`,
+- Supporting: `Session`, `Storage`, `Reminders`, `Interests`, `TrailServices`,
   `KnownVenues`, `DateHelpers`, `Models`, `LocationPermission` + `UserLocation`.
 
 ## Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
 
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
 class … ObservableObject`) that owns state and API calls. Top-level folders: `Home`, `Add`,
-`Auth`, `Board`, `Civic`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, `Share`.
+`Auth`, `Board`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, `Share`.
 
-- **`Civic/Parked/` is unreferenced on purpose and must not be swept up as dead code.**
-  `[prose]` It has its own README; read it before touching anything under it. The utility
-  subsystem lives verbatim and still tested under `Features/Civic/Parked/Utility/`, and
-  `user_utility_prefs` still holds real per-user configuration that a rebuild must re-hydrate.
+- **The parked utility row (`Civic/Parked/`) was deleted on 2026-10-25** (BP app
+  codebase-health 09). `user_utility_prefs` still holds real per-user configuration: a Civic
+  tab built later must re-hydrate it rather than start from defaults.
+  `docs/archive/GUTTING-LEDGER.md` says how to get the code back.
 - **If onboarding is rebuilt, `ONBOARDING.md` is the spec — read it first.** `[prose]` Its
   locked rule: the primary CTA occupies one fixed position for the whole flow and never moves
   between steps (only its title and enabled state change), with the shell owning the chrome
@@ -255,29 +254,18 @@ which holds `TodayTopBar` and the feed.
   other read keeps the order on screen: cards update in place, ones that went drop out, new ones
   wait for the next fresh order. This keeps the database's last order; it never re-sorts.
   Back within 30 minutes the feed lands where it was (`scrollY`), which a tab switch used to
-  lose. The last list is kept on disk (`TownFeedCache`, raw bytes like `BriefingCache`,
+  lose. The last list is kept on disk (`TownFeedCache`, raw bytes,
   cleared on sign-out), so a relaunch shows it at once, offline too. Overlapping reads keep
   only the newest one's answer.
 - `DailyFeedColumn` shows its items in the order given. Events only for now; posts, updates
   and news join when they exist.
 
-**The module machinery above the feed is intact.** `FeedRegistry` still
-owns the only production array — now a literal `[]` — and the module protocol, the
-phase/visibility contract, the erased-view renderer and the order/offset tie-break all still
-work. **Adding a module back is one entry in that literal and nothing else** `[prose]`;
-`FeedView` never changes. `FeedModuleID` keeps its five named constants as stable names for
-exactly that, and unknown string-backed ids still decode and are skipped safely.
-
-**The briefing read contract is untouched and still fires.** `BriefingAPI.today()` still makes
-one authenticated `POST` to `rpc/get_today_briefing`; the model still paints the disk cache
-first, reconciles with the RPC, keeps cached content through an outage, and owns the poll's
-optimistic vote with rollback. **Keep that contract rather than ripping it out** `[prose]` —
-a rebuilt module should find its data already there. Its RSVP copy is gone (2026-10-10): Going
-anywhere in the app is `RealLifeActions`'.
-
-**Every `FeedRoute` presents its own sheet.** `[prose]` There is no longer a route with a nil
-`destination` that `FeedView` hands to `MainTabsView` for a tab change; the three surviving
-cases each carry a destination and open as a modal.
+**No module machinery and no briefing call** (deleted 2026-10-25, BP app codebase-health 09).
+`FeedRegistry`, `FeedController`, `FeedModule*`, `FeedRoute` and the `Briefing*` stack are
+gone: the Town tab is the top bar over the Town feed, and a load makes no
+`rpc/get_today_briefing` call and logs no `briefingOpen`. The server side (`daily_briefings`,
+`compose_briefing`, `get_today_briefing`) was left as it was. `docs/archive/GUTTING-LEDGER.md`
+says how to get the client back.
 
 ### Town top bar (`Features/Home/TodayTopBar.swift`)
 
@@ -364,17 +352,15 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 
 ### Other surfaces
 
-- **Town menu** (`TownMenuView` + `GlassShowcaseOverlay`) — still wired, still **UNREACHABLE
-  in the UI**; the avatar was its only entry point, and its "Add an event" row went on
-  2026-09-24 with posting, leaving three actions (`TownMenuAction`: map, invite, profile).
-  What the drawer alone still reaches is the appearance switch. DEBUG `-open-menu` raises it; re-attaching is a one-line `onMenu`
-  hook wherever its next entry point lands.
+- **Town menu** — deleted on 2026-10-25 (`TownMenuView`, `GlassShowcaseOverlay`,
+  `-open-menu`); only that flag reached it. Its appearance switch went with it: a saved
+  System / Light / Dark choice still applies (`AppearanceStore`), and nothing sets one now.
 - **You** (`Features/You/`) — the fourth tab: the neighbour's three weeks of Going on a
   Lapse-style Calendar, with the Agenda for the picked day under it, read by
   `get_my_going` and kept in the shell (`YouModel`) like the Town feed (BP app
   `docs/plans/you-tab`).
-- **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You
-  (and the town menu): identity and settings, **no fabricated counts** `[prose]`. Its Saved
+- **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You:
+  identity and settings, **no fabricated counts** `[prose]`. Its Saved
   row pushes the saved Events inside the sheet's own stack (`SavedPage`), read by
   `get_my_saves` and kept in the shell (`YouModel.saves()`), with this session's saves laid
   over it from `RealLifeActions` (BP app `docs/plans/you-tab`, ticket 04). `EditProfileView` writes

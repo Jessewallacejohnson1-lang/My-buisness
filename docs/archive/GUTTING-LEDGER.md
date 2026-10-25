@@ -248,6 +248,26 @@ files named in the commit that deleted them.
 
 ---
 
+## 2026-10-25 — code nothing reached (BP app codebase-health 08 and 09)
+
+Branch `chore/prune-unreachable`, from `e628d4b`. Every item below was unreachable for a
+neighbour (no caller, or only a DEBUG flag). Jesse approved 09's picks on 2026-10-25.
+**Recover any of it:** `git checkout e628d4b -- <path>` (the last commit with all of it).
+
+| Area | Deleted | Notes |
+| --- | --- | --- |
+| Shell | `AroundTownCarousel.swift` (with `PlaceExpandedCard`), RootView's `expandedPlace` overlay, HomeView's `onMenu` / `menuOpen` / `expandedPlace` / `cardNS` / `profileShown` | `expandedPlace` was only ever set to nil |
+| Town menu | `TownMenuView.swift`, `GlassShowcaseOverlay.swift`, `-open-menu`, `-menu-autoclose`, the `town-menu` UI-audit surface | Only `-open-menu` opened it. Its appearance switch went too; a saved choice still applies and `-appearance` still sets one |
+| Old Today feed | `TodayFeedView`, `TodayFeedPreview`, `FeedSectioning`, `FeedRecurrence`, `FeedPipelineSelfCheck`, `FeedCardItem(from: FeedPosting)`, `FeedPostingSection.mapped`, `FeedCardSection`, `FeedPosting`, `GoingPreview`, `Home/CommunityFeed/`, `WeatherBackground.swift`, `FeedDebugFocus.swift`, `BlockMotifSpinner.swift`, `-today-feed-*` | Reached only by DEBUG flags |
+| Briefing | `Home/Briefing/` (5 files), `BriefingAPI`, `BriefingAnalytics`, `BriefingCache`, `BriefingPayload`, `FeedRegistry`, `FeedController`, `FeedModule`, `FeedModuleContext`, `FeedModuleID` (with `BriefingDate`), `FeedPhase`, `FeedRoute`, FeedView's briefing call, `briefingOpen` analytics and reveal hold, `FeedUnavailableCard`, `FeedSkeletonStrip`, two module error lines, `firstNameFromEmail`, `blockPartyCard`, repo-root `fixtures/` and `scripts/generate_briefing_samples.py`; tests `BriefingFeelTests`, `BriefingLiveParityTests`, `BriefingModelTests`, `BriefingPayloadTests`, `FeedRegistryTests`, `FeedRouteAndCopyTests`' route tests | The registry was empty, yet every Town load made one signed-in `rpc/get_today_briefing` call. The server side (`daily_briefings`, `compose_briefing`, its cron, `app_events`) was left alone. A phone's old `briefing-cache.json` stays on disk, unread |
+| Civic | `Features/Civic/` (Parked utility row, `CivicTabDestination`), `UtilityPrefsAPI`, `TownStatusAPI`, `WeatherService`, `RealtimeClient.onAnyChange`, `Motion.tilePress` / `tileEntrance`, `ProfileAvatar`, `SupabaseCoding.encoder`; tests `Utility*Tests` (7), `GarbageScheduleTests`, `LibraryHoursTests`, four `TownTimezoneTests` | **`user_utility_prefs` rows stay in the database**: a Civic tab built later must re-hydrate them. `docs/adr/ADR-001-utility-tile-persistence.md` still describes the design |
+| Day schedule | `Feed/DaySchedule/` (14 files), `EventCompletionsAPI`, `DateProvider`, `Modules/DayItem.swift`, `YourDayItems.swift`, `YourDayRailSpec.swift`, most of `YourDayLogic`, `DateHelpers.weekdayLabel`, `-day-sheet-*`; tests: the day-sheet classes in `FeedPolishTests`, `FeedPlaceholderRuleTests`, most of `YourDayLogicTests`, `DayCompletionStoreTests` | Kept: `DayScheduleLogic.directionsURL(forPlace:)`, now `Directions.url(forPlace:)` beside `InfoPill` (event page and business page), with its test; `YourDayLogic.minutes`, `townDay`, `assumedEventDuration` and `changeIsRelevant` |
+| Trivia | `TriviaAPI.swift`, `Modules/TriviaModel.swift`, `TriviaTests`, `-trivia-*` | It carried a streak. The `trivia_*` tables and functions are still in the database |
+| Backend | `Moderation.swift`, `PostingDismissalsAPI.swift`, `GeocoderService.coordinate`, `CommunityAPI.getEventsByDate` / `getMonthEventCounts` / `getMonthEventDates` / `getEventsForRange` / `getTrails` / `setQuest` / `submitClub` / `currentUserId`, `SocialAPI.deleteComment`, `GooglePlacesService.newSessionToken`, `ClubInput`, `DateRow`, `AgendaRow`, `AgendaEvent` | No callers. Posting (`addEvent`, `addTrail`) stays: it comes back |
+| Skills | `.claude/skills/ui-ux-pro-max`, `design`, `design-system`, `ui-styling`, `brand`, `banner-design`, `slides` | Web (shadcn, Tailwind, HTML slides) skills nothing used. `title-and-place` stays: the morning job's step 5 uses it |
+
+---
+
 ## Recovering something from a round
 
 1. Find the commit that removed it: `git log --oneline --diff-filter=D -- <path>`
