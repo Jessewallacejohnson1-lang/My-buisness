@@ -13,7 +13,7 @@ import SwiftUI
 enum OnboardingStep: Int, CaseIterable {
     case welcome, phone, code, name, photo, birthday, interests, follow, friends, contacts
 
-    static let barTotal = 9
+    static let barTotal = allCases.count - 1
 
     var question: String {
         switch self {
@@ -55,7 +55,9 @@ final class OnboardingStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        step = OnboardingStep(rawValue: defaults.integer(forKey: Self.stepKey)) ?? .welcome
+        // Saved by name, so a step added or moved later still resumes on the right one.
+        let saved = defaults.string(forKey: Self.stepKey)
+        step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         finished = defaults.bool(forKey: Self.finishedKey)
     }
 
@@ -90,7 +92,7 @@ final class OnboardingStore {
     private func move(to new: OnboardingStep, forward: Bool) {
         self.forward = forward
         step = new
-        defaults.set(new.rawValue, forKey: Self.stepKey)
+        defaults.set("\(new)", forKey: Self.stepKey)
     }
 }
 
@@ -216,8 +218,6 @@ struct OnboardingFlow: View {
 struct OnboardingWelcome: View {
     let start: () -> Void
 
-    @EnvironmentObject private var auth: AuthStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
     @State private var loggingIn = false
 
@@ -230,9 +230,9 @@ struct OnboardingWelcome: View {
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
         .onAppear { shown = true }
-        .sheet(isPresented: $loggingIn) { LoginView() }
-        // Signed into a real account: the sheet's job is done.
-        .onChange(of: auth.isAnonymous) { _, anonymous in if !anonymous && auth.isSignedIn { loggingIn = false } }
+        // Large text grows the headline and pills, never into each other.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .signInSheet(isPresented: $loggingIn)
     }
 
     /// The white wordmark at 88 pt and the headline at 150 pt, 24 pt from the left.
@@ -278,7 +278,7 @@ struct OnboardingWelcome: View {
                 .padding(.top, 18)
                 .rise(shown, delay: 0.3)
             Button { loggingIn = true } label: { logIn }
-                .buttonStyle(WelcomePress(scale: 0.96, dim: 0.7))
+                .buttonStyle(OnboardingPress(scale: 0.96, dim: 0.7))
                 .padding(.top, 10)
                 .rise(shown, delay: 0.3)
         }
@@ -330,23 +330,9 @@ private struct WelcomePill: View {
             }
             .foregroundStyle(Hue.onBrandDisc)
             .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(Capsule())
         }
-        .buttonStyle(WelcomePress(scale: 0.97, dim: 1, pill: true))
-    }
-}
-
-private struct WelcomePress: ButtonStyle {
-    let scale: CGFloat
-    let dim: Double
-    var pill = false
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed
-        configuration.label
-            .background { if pill { Capsule().fill(down ? Hue.welcomePillDown : .white) } }
-            .scaleEffect(down ? scale : 1)
-            .opacity(down ? dim : 1)
-            .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62), value: down)
-            .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+        .buttonStyle(OnboardingPress(scale: 0.97, pill: Hue.welcomePillDown))
     }
 }
 

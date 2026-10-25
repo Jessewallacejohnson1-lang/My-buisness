@@ -53,7 +53,7 @@ struct OnboardingBackChevron: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SinkStyle(scale: 0.88))
+        .buttonStyle(OnboardingPress(scale: 0.88))
         .accessibilityLabel("Back")
     }
 }
@@ -72,6 +72,8 @@ struct OnboardingProgressBar: View {
     static let advance: Animation = .spring(response: 0.355, dampingFraction: 0.636)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Counts steps forward only, so Back runs no glint.
+    @State private var forwardMoves = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -96,6 +98,7 @@ struct OnboardingProgressBar: View {
                 }
         }
         .frame(height: 16)
+        .onChange(of: index) { old, new in if new > old { forwardMoves += 1 } }
         .accessibilityElement()
         .accessibilityLabel("Step \(index) of \(total)")
     }
@@ -106,7 +109,7 @@ struct OnboardingProgressBar: View {
         LinearGradient(colors: [.white.opacity(0), .white.opacity(0.85), .white.opacity(0)],
                        startPoint: .leading, endPoint: .trailing)
             .frame(width: 30)
-            .keyframeAnimator(initialValue: CGFloat(1), trigger: index) { band, t in
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: forwardMoves) { band, t in
                 band
                     .offset(x: t * (width - 30))
                     .opacity(t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75)
@@ -202,20 +205,23 @@ struct OnboardingLink: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SinkStyle(scale: 0.95, dim: 0.6))
+        .buttonStyle(OnboardingPress(scale: 0.95, dim: 0.6))
     }
 }
 
-/// A press that sinks on touch-down (80 ms) and springs back (70 ms), for the chevron and links.
-private struct SinkStyle: ButtonStyle {
+/// A press that sinks on touch-down (80 ms) and springs back (70 ms): the chevron, the links
+/// and the Welcome's white pills, which also grey to `pill` under the finger.
+struct OnboardingPress: ButtonStyle {
     let scale: CGFloat
     var dim: Double = 1
+    var pill: Color?
     func makeBody(configuration: Configuration) -> some View {
+        let down = configuration.isPressed
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
-            .opacity(configuration.isPressed ? dim : 1)
-            .animation(configuration.isPressed ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62),
-                       value: configuration.isPressed)
+            .background { if let pill { Capsule().fill(down ? pill : .white) } }
+            .scaleEffect(down ? scale : 1)
+            .opacity(down ? dim : 1)
+            .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62), value: down)
     }
 }
 
