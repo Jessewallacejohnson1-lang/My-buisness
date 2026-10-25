@@ -6,9 +6,15 @@ looks up each registry place by its name and address on its own schedule (task a
 `bp-monthly-places`, the 1st at 5am Chicago, about 0.5¢ a place) and reads the place's own
 website for its social links. `report` then matches each result to its place and lists what
 the social watch's page list (sources/social/<town>.json) is missing: new pages, pages that
-changed, and places Google now calls closed. Nothing is written: Jesse approves the list, and
-a session adds the pages and runs `social.py setup`. Finding places nobody has listed yet stays
-with town-discovery.
+changed, and places Google now calls closed. Nothing is written for those: Jesse approves the
+list, and a session adds the pages and runs `social.py setup`. Finding places nobody has listed
+yet stays with town-discovery.
+
+The same results carry each place's Google hours, and those go live on their own (Jesse,
+2026-10-25: hours are a fact; BP app business-hours): `report` writes every place whose hours
+changed or that has hours for the first time to `places.hours`, the business page's open-till
+row, and lists them. It needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; without them it only
+lists. A place Google gives no hours keeps the ones it has.
 
 A Google result is the place only when its phone, its street (house number and first street
 word) or its website's domain matches the registry's (the 2026-10-22 pass's rule). A link
@@ -20,7 +26,7 @@ handle names the place when several do.
   python3 sources/scripts/accounts.py --selftest
 """
 
-import argparse, json, re, sys
+import argparse, json, os, re, sys, urllib.parse, urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -124,11 +130,62 @@ def pick(name, urls, freq):
     return None
 
 
+DAYS = {"Sunday": "sun", "Monday": "mon", "Tuesday": "tue", "Wednesday": "wed", "Thursday": "thu",
+        "Friday": "fri", "Saturday": "sat"}
+TIME = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)?", re.I)
+
+
+def clock(text, meridiem):
+    """"9:30 PM" (or "9:30" with the range's other half's PM) as "21:30"; None when unreadable."""
+    m = TIME.fullmatch(text.strip())
+    if not m or not (m.group(3) or meridiem):
+        return None
+    h, mins, pm = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or meridiem).upper() == "PM"
+    if not 1 <= h <= 12 or mins > 59:
+        return None
+    return f"{h % 12 + (12 if pm else 0):02d}:{mins:02d}"
+
+
+def day_ranges(text):
+    """One day's Google words, "11 AM to 2 PM, 4 to 10 PM", as [["11:00","14:00"],["16:00","22:00"]];
+    [] closed; None when any part is unreadable, so a misread day never stands in for a real one."""
+    text = re.sub(r"[\u202f\u2009\xa0]", " ", text).strip()
+    if text.lower() == "closed":
+        return []
+    if text.lower().startswith("open 24"):
+        return [["00:00", "24:00"]]
+    out = []
+    for part in re.split(r"\s*,\s*", text):
+        ends = re.split(r"\s*(?:to|–|-)\s*", part)
+        if len(ends) != 2:
+            return None
+        end_m = TIME.fullmatch(ends[1].strip())
+        end = clock(ends[1], None)
+        start = clock(ends[0], end_m.group(3) if end_m else None)
+        # "11 to 2 PM" is 11 AM: a start borrowed the end's PM and landed after it.
+        if start and end and not TIME.fullmatch(ends[0].strip()).group(3) and start > end and end != "00:00":
+            start = clock(ends[0], "AM")
+        if not start or not end:
+            return None
+        out.append([start, end])
+    return out
+
+
+def hours_of(item):
+    """Google's week, as `places.hours` keeps it ({"sun": [...], ..., "sat": [...]}); None when Google
+    gives none or any day is unreadable."""
+    days = {DAYS.get(d.get("day")): day_ranges(d.get("hours") or "") for d in item.get("openingHours") or []}
+    keys = list(DAYS.values())
+    if set(days) != set(keys) or any(v is None for v in days.values()):
+        return None
+    return {k: days[k] for k in keys}
+
+
 def match(entries, results, pages):
     """What the page list is missing: {'new': [...], 'changed': [...], 'closed': [...], 'counts': {...}}."""
     by_search = {search_of(e): e for e in entries}
     have = {(p["entry_id"], p["kind"]): p["url"].rstrip("/").lower() for p in pages}
-    matched, closed, counts = [], [], Counter(results=len(results))
+    matched, closed, hours, counts = [], [], [], Counter(results=len(results))
     for it in results:
         e = by_search.get(it.get("searchString"))
         if not e or not same_place(e, it):
@@ -138,6 +195,8 @@ def match(entries, results, pages):
         if it.get("permanentlyClosed"):
             closed.append({"entry_id": e["id"], "name": e["_name"]})
         matched.append((e, links_of(it)))
+        if hours_of(it):
+            hours.append({"entry_id": e["id"], "name": e["_name"], "hours": hours_of(it)})
     freq = Counter(u.lower() for _, found in matched for urls in found.values() for u in urls)
     new, changed = [], []
     for e, found in matched:
@@ -152,7 +211,36 @@ def match(entries, results, pages):
             elif old != url.rstrip("/").lower():
                 changed.append({**row, "was": old})
     counts.update(new=len(new), changed=len(changed), closed=len(closed))
-    return {"new": new, "changed": changed, "closed": closed, "counts": dict(counts)}
+    return {"new": new, "changed": changed, "closed": closed, "hours": hours, "counts": dict(counts)}
+
+
+def db(method, path, body=None):
+    """The project's REST API with the service key; None when the keys aren't here."""
+    url, key = os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not key:
+        return None
+    h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    req = urllib.request.Request(url + path, json.dumps(body).encode() if body is not None else None, h, method=method)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        text = r.read()
+    return json.loads(text) if text.strip() else []
+
+
+def new_hours(found, live):
+    """The places whose Google hours differ from the page's (`live`: entry id to `places.hours`)."""
+    return [{**f, "was": live.get(f["entry_id"])} for f in found
+            if f["entry_id"] in live and f["hours"] != live[f["entry_id"]]]
+
+
+def write_hours(found):
+    """Puts each changed week on its place; returns the changes and whether they were written."""
+    rows = db("GET", "/rest/v1/places?select=entry_id,hours&entry_id=not.is.null")
+    if rows is None:
+        return found, False
+    changes = new_hours(found, {r["entry_id"]: r["hours"] for r in rows})
+    for c in changes:
+        db("PATCH", f"/rest/v1/places?entry_id=eq.{urllib.parse.quote(c['entry_id'])}", {"hours": c["hours"]})
+    return changes, True
 
 
 def setup():
@@ -193,6 +281,12 @@ def report():
         print(f"  ~ {r['name']}: {r['kind']} {r['was']} -> {r['url']}")
     for r in out["closed"]:
         print(f"  x {r['name']}: Google says permanently closed")
+    changes, written = write_hours(out["hours"])
+    print(f"[accounts] hours: {len(changes)} " + ("places updated on their pages" if written else
+          "places with Google hours (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY not set: nothing written)"))
+    if written:
+        for c in changes:
+            print(f"  h {c['name']}: " + ("hours added" if c["was"] is None else "hours changed"))
 
 
 def selftest():
@@ -210,7 +304,16 @@ def selftest():
     assert pick("Krewe", ["https://www.facebook.com/a", "https://www.facebook.com/krewe"], Counter()) == "https://www.facebook.com/krewe"
     closed = match([e], [{**hit, "permanentlyClosed": True}], [])
     assert closed["closed"] == [{"entry_id": "krewe", "name": "Krewe"}], "a place Google calls closed"
-    print("accounts.py selftest: 6 passed, 0 failed")
+    assert day_ranges("11\u202fAM to 2\u202fPM, 4 to 10\u202fPM") == [["11:00", "14:00"], ["16:00", "22:00"]], "two ranges"
+    assert day_ranges("11 to 2 PM") == [["11:00", "14:00"]] and day_ranges("4 PM to 1 AM") == [["16:00", "01:00"]]
+    assert day_ranges("Closed") == [] and day_ranges("Open 24 hours") == [["00:00", "24:00"]]
+    assert day_ranges("12 to 8 PM") == [["12:00", "20:00"]] and day_ranges("by appointment") is None
+    week = [{"day": d, "hours": "9 AM to 5 PM"} for d in DAYS]
+    assert hours_of({"openingHours": week})["mon"] == [["09:00", "17:00"]], "a whole week"
+    assert hours_of({"openingHours": week[:6]}) is None, "a week missing a day is no week"
+    found = [{"entry_id": "a", "name": "A", "hours": {"mon": []}}, {"entry_id": "b", "name": "B", "hours": {"mon": []}}]
+    assert [c["entry_id"] for c in new_hours(found, {"a": {"mon": []}, "b": None})] == ["b"], "only changed hours"
+    print("accounts.py selftest: 13 passed, 0 failed")
 
 
 def main():
