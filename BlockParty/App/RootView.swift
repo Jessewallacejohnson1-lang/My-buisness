@@ -199,17 +199,42 @@ struct RootView: View {
     /// a session.
     private static let requiresSignIn = false
 
-    @ViewBuilder
+    /// Whether a first launch shows onboarding (BP app docs/plans/onboarding). Off until its
+    /// steps are real (ticket 24 turns it on): every screenshot run reinstalls the app, so
+    /// with it on, every other screen's proof and every UI test would land on placeholder
+    /// steps. DEBUG `-onboarding` shows it now, as a first launch would.
+    private static let showsOnboarding = false
+
+    @State private var onboarding = OnboardingStore()
+    /// The server already had `onboarded_at`: finishing from it must not re-stamp the date
+    /// Profile shows as "since".
+    @State private var stampedOnServer = false
+
+    private var onboardingUp: Bool {
+        guard !onboarding.finished else { return false }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-onboarding") { return true }
+        #endif
+        return Self.showsOnboarding
+    }
+
     private var gate: some View {
-        // One state while sign-in is off; two when it is back on. The pre-auth
-        // 20-screen flow and the signed-in onboarding wizard were both deleted on
-        // 2026-09-18, along with the launch splash, so nothing sits in front of the
-        // tabs at all — cold launch lands on Town.
-        if auth.isSignedIn || !Self.requiresSignIn {
-            MainTabsView()
-                .task(id: auth.userId) { await hydrateIfNeeded() }
-        } else {
-            LoginView()
+        // Onboarding, then the tabs; Login only once sign-in is required again.
+        Group {
+            if auth.isSignedIn || !Self.requiresSignIn {
+                if onboardingUp {
+                    OnboardingFlow(store: onboarding).transition(.opacity)
+                } else {
+                    MainTabsView().transition(.opacity)
+                }
+            } else {
+                LoginView()
+            }
+        }
+        .animation(.smooth(duration: 0.35), value: onboardingUp)
+        .task(id: auth.userId) { await hydrateIfNeeded() }
+        .onChange(of: onboarding.finished) { _, done in
+            if done, !stampedOnServer { Task { try? await ProfileAPI(auth: .shared).markOnboarded() } }
         }
     }
 
@@ -222,8 +247,14 @@ struct RootView: View {
         guard hydratedUserId != uid else { return }
         hydratedUserId = uid
 
-        let fetched = try? await ProfileAPI(auth: .shared).getMyProfile()
-        guard let profile = fetched ?? nil else { return }
+        let fetched: TownProfile?
+        do { fetched = try await ProfileAPI(auth: .shared).getMyProfile() } catch { return }
+        // Finished here but never stamped (offline at the time, or no account yet): stamp now.
+        if fetched?.onboardedAt == nil, onboarding.finished {
+            try? await ProfileAPI(auth: .shared).markOnboarded()
+        }
+        guard let profile = fetched else { return }
+        if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
         if !profile.interests.isEmpty { Interests.set(profile.interests) }
         if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
     }

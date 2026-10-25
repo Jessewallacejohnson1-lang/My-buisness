@@ -65,8 +65,7 @@ struct EditProfileView: View {
         .sheet(isPresented: $showInterests) {
             InterestPickerView(selected: $interests, name: name,
                                onBack: { showInterests = false },
-                               onContinue: { showInterests = false },
-                               showsProgress: false)
+                               onContinue: { showInterests = false })
         }
     }
 

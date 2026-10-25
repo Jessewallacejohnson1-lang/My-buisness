@@ -55,6 +55,20 @@ struct ProfileAPI {
             prefer: "resolution=merge-duplicates,return=minimal")
     }
 
+    /// Stamp `onboarded_at` on the caller's row, making it if there is none yet (the quiet
+    /// anonymous account has none). Only those two columns travel, so a name, photo or
+    /// interests already there are left alone (BP app onboarding 16).
+    func markOnboarded() async throws {
+        let t = try await token()
+        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let body = try JSONSerialization.data(withJSONObject: ["user_id": uid, "onboarded_at": iso.string(from: Date())])
+        _ = try await SupabaseHTTP.rest("town_profiles", method: "POST",
+            query: "on_conflict=user_id", accessToken: t, body: body,
+            prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
     /// One of Profile's switches, "plans_to_friends" (town-feed 28) or "suggest_me" (daily-tab
     /// 22): only that column of the caller's own row, so a tap never touches their name or photo.
     func setSwitch(_ column: String, _ on: Bool) async throws {

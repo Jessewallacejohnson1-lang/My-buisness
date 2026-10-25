@@ -168,7 +168,9 @@ nonisolated enum Hue {
     ///
     /// DESIGN.md's "accents are small by rule" still holds: the map disc, the saved
     /// bookmark, Daily's top and the poster's date are the four, each scoped in by Jesse.
-    /// A fifth is his call, not an agent's.
+    /// A fifth is his call, not an agent's. Onboarding is the fifth (Jesse, 2026-10-24): its
+    /// progress bar fills with it, and its question screens sit on a faint wash of it
+    /// (`OnboardingBackdrop`), the one exception to taste's never-tint line.
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
@@ -200,6 +202,25 @@ nonisolated enum Hue {
     static let pillBottom    = Color(hex: 0x353439)
     /// The 1 pt line of light along the pill's inside top: white at 8%.
     static let pillRim       = Color(hex: 0xFFFFFF, alpha: 0.08)
+
+    // MARK: Onboarding's Next bar (BP app docs/plans/onboarding, mock v7)
+
+    /// The 4 pt edge under the Next bar's charcoal face, Duolingo's build: the face sinks onto it.
+    static let nextEdge      = Color(hex: 0x0A0A0B)
+    /// The Next bar while not allowed: a grey face on a darker grey edge.
+    static let nextOffFace   = Color(hex: 0xE6E5DF)
+    static let nextOffEdge   = Color(hex: 0xCFCEC7)
+    /// The Welcome's white pills pressed (ticket 25 mock).
+    static let welcomePillDown = Color(hex: 0xECECEA)
+    /// The Welcome's scrims over its photo, black at the mock's strengths.
+    static let welcomeScrim  = Color(hex: 0x000000)
+    /// The Welcome's stand-in for Jesse's St. Joseph photo until it comes (ticket 25 mock):
+    /// a green field over a dark olive ground, a warm patch low right.
+    static let welcomeStandInGreen = Color(hex: 0x6D7A5A)
+    static let welcomeStandInWarm  = Color(hex: 0x8A6F55)
+    static let welcomeStandInTop   = Color(hex: 0x2D3527)
+    static let welcomeStandInMid   = Color(hex: 0x4A4A3C)
+    static let welcomeStandInLow   = Color(hex: 0x3B3A33)
     /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
     /// The second red after `heart`, and for this one pill only.
     static let canceled      = Color(uiColor: .systemRed)

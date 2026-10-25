@@ -166,6 +166,13 @@ extension Font {
     static func sansSemibold(_ size: CGFloat) -> Font { body(Face.bodySemi, size) }
     static func sansBold(_ size: CGFloat) -> Font { body(Face.bodyBold, size) }
 
+    /// BP Body Bold at an exact size, for a headline set in the body face: the onboarding
+    /// Welcome's "Love where you live." at 36 (BP app onboarding 25 mock). `sansBold` would
+    /// snap 36 to the large title's 34.
+    static func sansHeadline(_ size: CGFloat) -> Font {
+        .custom(Face.bodyBold, size: size, relativeTo: nearestTextStyle(to: size))
+    }
+
     // Data — paired with `.monospacedDigit()` at the call site for tabular figures
     // (was Geist Mono). Same metrics as the sans helpers by design; the separate
     // name records the intent at the call site.
