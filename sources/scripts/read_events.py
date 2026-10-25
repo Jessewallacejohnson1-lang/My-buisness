@@ -65,7 +65,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
-from run import fetch, to_text
+from run import fetch, read_page, to_text
 from discover import TOWNS
 
 DAYS_AHEAD = 90
@@ -682,7 +682,7 @@ def read_league(src, entry, today):
 # Bound (gobound.com) posts every activity of seven nearby schools (BP app school-activities, ticket 05).
 # Its iCal export carries each event's activity in fields of its own (X-BND-ACTIVITYKEY "volleyball",
 # -ACTIVITYNAME "Volleyball, Girls", -ACTIVITYLEVEL "Varsity", -ACTIVITYSEX), the venue's GEO and
-# STATUS:CANCELLED; robots allows it, and the calendar page itself 403s a headless browser (REA, 2026-10-25).
+# STATUS:CANCELLED; the calendar page itself 403s a headless browser (REA, 2026-10-25).
 # Varsity games keep coming from the league reader; Bound adds the plays, concerts and clubs, and the
 # levels a source names in `game_levels` (Kennedy's "Middle School") as games (Jesse, 2026-10-25).
 BOUND_ARTS = {"band", "jazzband", "choir", "orchestra", "theatre", "drama", "speech", "knowledgebowl", "robotics",
@@ -729,6 +729,9 @@ def bound_items(text, entry, src, today):
             if not level or BOUND_LEVEL.fullmatch(f" ({level})"):
                 continue
             name = level
+        quoted = re.search(r'"([^"]+)"', name)
+        if quoted and len(name) > 40:  # 'SRRHS Fall Musical, "Disney, The Little Mermaid"': the show's own name
+            name = re.sub(r"^Disney,\s*", "", quoted[1])
         start_at = start.isoformat()
         if key in BOUND_ARTS or (not key and BOUND_SHOW.search(title)):
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
@@ -767,7 +770,9 @@ def one_each(items):
 
 
 def read_bound(src, entry, today):
-    return bound_items(fetch(src["url"])[1], entry, src, today)
+    # Bound's robots.txt keeps crawlers off /*/calendar*, so our fetch is refused and Firecrawl reads the
+    # feed raw (run.py's read_page; Jesse, 2026-10-25: "fire crawl"). Seven a morning, of the run's 30.
+    return bound_items(read_page(src["url"], "ical")[1], entry, src, today)
 
 
 # Rec1: a city's registration catalog ------------------------------------------------------
@@ -1283,6 +1288,7 @@ def t_gobound():
         ev("a7", "Choir:  vs  (High School Choir)", "choir", "High School Choir", "Choir"),
         ev("a8", "Fall Play", start="20261029T190000"),
         ev("a9", "Prom", start="20270501T190000"),
+        ev("a10", 'SRRHS Fall Musical\\, "Disney\\, The Little Mermaid"', start="20261112T190000"),
         ev("k1", "Soccer\\, Boys: Melrose Area vs Kennedy Community MS (Middle School)", "soccer", "Middle School",
            "Soccer\\, Boys", place="Kennedy Community School Kennedy Field"),
         ev("k2", "Volleyball\\, Girls: TBD vs Kennedy Community MS (Middle School)", "volleyball", "Middle School",
@@ -1291,7 +1297,7 @@ def t_gobound():
     src = {"url": "https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical", "trust": "official"}
     got = bound_items(ics, {"_name": "Apollo High School"}, src, date(2026, 10, 25))
     assert [i["title"] for i in got if i["kind"] == "event"] == [
-        "Apollo Theater Presents: The SpongeBob Musical", "Fall Show", "Fall Play"], got
+        "Apollo Theater Presents: The SpongeBob Musical", "Fall Show", "Fall Play", "The Little Mermaid"], got
     assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
     assert got[-1] == {"kind": "schedule", "uid_prefix": "bound:", "from": "2026-10-25", "through": "2027-01-23",
                        "sources": ["Apollo High School"]}, "the schedule line: a dropped event was called off"
