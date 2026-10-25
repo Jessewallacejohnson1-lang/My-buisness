@@ -47,9 +47,10 @@ nonisolated enum SearchMetric {
     static let titleBottom: CGFloat = 14
     static let titleGap: CGFloat = 6
     /// Photoroom's logo squares; the logo fills 66 of 78, its centre 47% down.
-    static let logoTile: CGFloat = 78
     static let logoOnTile: CGFloat = 66
-    static let logoGap: CGFloat = 8
+    /// The Businesses row's logos, bare on the page with no tile (Jesse, 2026-10-24).
+    static let logoOnRow: CGFloat = 80
+    static let logoGap: CGFloat = 10
     static let logoCenterY: CGFloat = 0.47
     /// Airbnb's photo cards.
     static let cardWidth: CGFloat = 167
@@ -547,7 +548,7 @@ private struct Shelf: View {
                     case .person:
                         SearchFace(item: item)
                     case .business:
-                        if let logo = item.logo { LogoTile(item: item, logo: logo) }
+                        if let logo = item.logo { RowLogo(item: item, logo: logo) }
                     default:
                         PhotoCard(item: item)
                     }
@@ -579,7 +580,7 @@ private struct ShelfSkeleton: View {
             ForEach(0..<6, id: \.self) { _ in
                 if kind == .business {
                     SkeletonBlock(cornerRadius: Radius.logoTile)
-                        .frame(width: SearchMetric.logoTile, height: SearchMetric.logoTile)
+                        .frame(width: SearchMetric.logoOnRow, height: SearchMetric.logoOnRow)
                 } else {
                     VStack(alignment: .leading, spacing: SearchMetric.cardTextTop) {
                         SkeletonBlock(cornerRadius: Radius.photoCard)
@@ -622,7 +623,7 @@ private struct SearchFace: View {
     }
 }
 
-private struct LogoTile: View {
+private struct RowLogo: View {
     let item: SearchItem
     let logo: SearchLogo
     @Environment(SearchModel.self) private var model
@@ -630,29 +631,21 @@ private struct LogoTile: View {
     @State private var frame = FrameBox()
 
     var body: some View {
-        let side = SearchMetric.logoTile, size = SearchMetric.logoOnTile
+        let size = SearchMetric.logoOnRow
         Button {
-            let box = frame.rect
+            // No tile to grow out of: the backdrop grows from the logo, as from the wall.
+            let rect = frame.rect
             model.remember(item.id)
-            opener.open(item, from: .init(
-                logo: CGRect(x: box.midX - size / 2, y: box.minY + box.height * SearchMetric.logoCenterY - size / 2,
-                             width: size, height: size),
-                box: box, radius: Radius.logoTile, shadow: logo.shadow))
+            opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow))
         } label: {
-            ZStack(alignment: .top) {
-                SearchBackdrop(colors: logo.backdrop)
-                SearchFloor()
-                CastLogo(logo: logo, side: size)
-                    .padding(.top, side * SearchMetric.logoCenterY - size / 2)
-                    .opacity(opener.isAway(item) ? 0 : 1)
-                    .animation(nil, value: opener.isAway(item))
-            }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.logoTile, style: .continuous))
-            .trackFrame(frame)
+            CastLogo(logo: logo, side: size)
+                .opacity(opener.isAway(item) ? 0 : 1)
+                .animation(nil, value: opener.isAway(item))
+                .contentShape(Rectangle())
+                .trackFrame(frame)
         }
         .buttonStyle(SquishStyle())
-        .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: side, height: side))
+        .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: size, height: size))
         .accessibilityLabel(item.name)
     }
 }
