@@ -68,7 +68,8 @@ struct RootView: View {
     @State private var debugIntroDismissed = false
     #endif
 
-    /// The neighbour's System / Light / Dark choice, set in the town menu. Held
+    /// The neighbour's System / Light / Dark choice (its switch went with the town
+    /// menu on 2026-10-25; a saved choice still applies). Held
     /// here because THIS is the root of the presentation `.preferredColorScheme`
     /// acts on — the request has to be made once, at the top, or a sheet and the
     /// screen behind it can disagree about what appearance they are in.
@@ -86,28 +87,11 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
-            } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
-                // Mount the real Today briefing composition (bypassing the auth
-                // gate) with BriefingModel seeded from a canned payload and no
-                // network, so module order, spacing and every payload state can be
-                // screenshotted. Pair with `-briefing-state <name>`.
-                BriefingHomePreview()
             } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the
                 // real trigger is a touch on the town pill, which can't be automated.
                 TownRainPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-utility-row-preview") {
-                // Preview the Today Utility Row full-screen (bypassing the auth gate)
-                // so the tiles + tap-expand can be verified headlessly. Weather /
-                // garbage / library render live; roads shows its no-session state.
-                UtilityRowPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-today-feed-preview")
-                        || ProcessInfo.processInfo.arguments.contains("-today-feed-empty")
-                        || ProcessInfo.processInfo.arguments.contains("-today-feed-skeleton") {
-                // Preview the real Today feed pipeline and its empty/loading variants
-                // full-screen, without auth or onboarding.
-                TodayFeedPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-daily-feed-preview") {
                 // The Daily social feed over fixtures, without auth or network, so
                 // both card shapes and the ranked order can be screenshotted.
@@ -127,18 +111,6 @@ struct RootView: View {
                 // can be verified headlessly in the simulator. No effect in release or
                 // without the flag.
                 MapIntroView { debugIntroDismissed = true }
-            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-demo") {
-                // The whole day-sheet TRANSITION, driven programmatically over the
-                // real Today feed: open on a rail card, scroll, tick a checkbox,
-                // dismiss — on a loop. There is no tap or scroll automation here,
-                // so this is the only way the accent-bar morph can be recorded.
-                DayScheduleDemoView()
-            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-preview") {
-                // The Your Day schedule sheet, mounted from fixtures with no auth
-                // and no network. Its only real entry point is a tap on a rail
-                // card, which this simulator setup cannot drive. Pair with
-                // `-day-sheet-state upcoming|inprogress|completed|empty`.
-                DaySchedulePreview()
             } else {
                 gate
             }
@@ -350,7 +322,6 @@ struct MainTabsView: View {
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
         _showMap = State(initialValue: MainTabsView.debugOpenMap())
-        _showMenu = State(initialValue: resolved == .town && MainTabsView.debugOpenMenu())
         _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
         let actions = RealLifeActions()
         _actions = State(initialValue: actions)
@@ -389,16 +360,8 @@ struct MainTabsView: View {
         return .town
     }
 
-    /// DEBUG-only: `-open-menu` unfolds the town menu on launch; `-open-profile`
-    /// presents the profile sheet. Both for headless screenshots. No effect in
-    /// release or without the flag.
-    private static func debugOpenMenu() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-open-menu")
-        #else
-        return false
-        #endif
-    }
+    /// DEBUG-only: `-open-profile` presents the profile sheet, for headless
+    /// screenshots. No effect in release or without the flag.
     private static func debugOpenProfile() -> Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-open-profile")
@@ -421,7 +384,6 @@ struct MainTabsView: View {
         #endif
     }
 
-    @State private var expandedPlace: Place?
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
     /// the Town's places again each time it comes back. Its groups reads tell `actions`.
     @State private var searchModel: SearchModel
@@ -465,22 +427,8 @@ struct MainTabsView: View {
     /// behind it, and a named empty room is the same call `BlankTab` makes for the
     /// unbuilt tabs. The friends mark beside it pushes the Friends page (`openFriends`).
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
-    /// The town menu — a glass panel grown from the top-right corner. Nothing in the
-    /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
-    /// does. Owned here (not in HomeView) so it renders above the tab bar.
-    @State private var showMenu = false
     /// Profile, in Apple's standard sheet, from the photo at the top left of You.
     @State private var showProfileSheet = false
-    @Namespace private var cardNS
-    /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
-    ///
-    /// Both live HERE rather than in the Today tab because the day sheet is
-    /// presented in-hierarchy (a `.sheet` cannot carry a namespace across its
-    /// boundary, so the morph the spec asks for is impossible through one), and an
-    /// in-hierarchy full-height surface has to be a sibling of the tab bar or the
-    /// tab bar floats over its bottom rows. Same lane as the town menu.
-    @Namespace private var dayNS
-    @StateObject private var daySchedule = DaySchedulePresentation()
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -678,14 +626,9 @@ struct MainTabsView: View {
                         switch tab {
                         case .town:
                             HomeView(
-                                onMenu: { showMenu = true },
-                                menuOpen: showMenu,
-                                profileShown: showProfileSheet,
                                 onOpenMap: { showMap = true },
                                 onOpenFriends: openFriends,
                                 onOpenNotifications: { showNotifications = true },
-                                expandedPlace: $expandedPlace,
-                                cardNS: cardNS,
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay
                             )
@@ -755,40 +698,7 @@ struct MainTabsView: View {
             // light-v11 cartography in both modes, so map INK is pinned to its light
             // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
         }
-        .overlay {
-            // Place-expansion overlay
-            if expandedPlace != nil {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                            expandedPlace = nil
-                        }
-                    }
-            }
-            if let place = expandedPlace {
-                PlaceExpandedCard(place: place, ns: cardNS) {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                        expandedPlace = nil
-                    }
-                }
-                .padding(.horizontal, 18)
-                .transition(.opacity)
-            }
-        }
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: expandedPlace?.id)
-        // The town menu — frosts the whole app into glass and grows its panel from the
-        // top-right corner (its own overlay lane, above the tab bar).
-        .overlay {
-            GlassShowcaseOverlay(isPresented: $showMenu) { close in
-                TownMenuView(onClose: close) { action in
-                    close()
-                    handleMenu(action)
-                }
-            }
-        }
-        // Profile: Apple's standard sheet, from the photo on You (and the town menu).
+        // Profile: Apple's standard sheet, from the photo on You.
         // It drags down to close, so it draws no close button of its own.
         .sheet(isPresented: $showProfileSheet) {
             // Its own stack, for Saved and the event pages it opens (architecture.md: a sheet
@@ -821,10 +731,6 @@ struct MainTabsView: View {
                 .environment(actions)
                 .environment(friendsBook)
         }
-        // The Your Day sheet's own lane, applied LAST so it sits above the tab bar
-        // and the town menu. Injects the namespace and the presenter the Your Day
-        // rail reaches for.
-        .dayScheduleHost(daySchedule, namespace: dayNS)
         #if DEBUG
         .onAppear {
             // `-tab-cycle` walks the bar end to end on a loop so the bubble travel, the
@@ -857,20 +763,6 @@ struct MainTabsView: View {
         }
     }
     #endif
-
-    /// Route a town-menu tap. The drawer is already collapsing, so every action
-    /// waits for the collapse to finish and two presentations don't fight.
-    private func handleMenu(_ action: TownMenuAction) {
-        switch action {
-        case .map:        afterMenuClose { showMap = true }
-        case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
-        case .profile:    afterMenuClose { showProfileSheet = true }
-        }
-    }
-
-    private func afterMenuClose(_ action: @escaping () -> Void) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: action)
-    }
 
     /// A tab-bar tap. The haptic lives here (not the button) so it fires once per
     /// real change — re-tapping the current tab is a no-op.

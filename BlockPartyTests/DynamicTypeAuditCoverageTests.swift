@@ -43,20 +43,14 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
         "RootView.swift:$showProfileSheet": .notYetAudited(reason: "The You tab's profile. Not a developed page yet — see DynamicTypeAuditTests.notDevelopedYet. High priority the day it settles: a profile is user-generated text of any length."),
 
-        // The town menu is audited through `-open-menu`; it is not a sheet, so it
-        // has no key here — it is listed to explain why the walk has more surfaces
-        // than this ledger has entries.
-
         "OnboardingNamePhoto.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Needs a launch flag; its own text is mostly frozen map-marker chrome, so the payoff is the search and filter row, not the map."),
         "FriendMenu.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "RootView.swift:$showNotifications": .notYetAudited(reason: "The Today bar's bell. Reserved screen, same shape as friends above. A real notification list is user-generated text of any length, so it moves to high priority the day it has rows."),
-        "FeedView.swift:$route": .notYetAudited(reason: "Feed detail routes. Needs a fixture-driven launch flag."),
         "FeedEventCard.swift:$commentsPresented": .notYetAudited(reason: "Event comments. User-generated text of any length — high priority."),
         "FeedCardMenu.swift:$isPresented": .notYetAudited(reason: "A Town feed card's and the Event of the day poster's ••• sheet (one `FeedCardMenuSheet`, ticket 21). Three short lines and a row; its height follows its content. The admin's ten-row Score box has no scroll, so at the largest sizes it can run off the screen. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FeedCardMenu.swift:$editingInterests": .notYetAudited(reason: "Edit profile, opened from the ••• sheet: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "PostingCard.swift:$commentsPresented": .notYetAudited(reason: "Post comments. Same as above."),
-        "DayScheduleSheet.swift:$detailEvent": .notYetAudited(reason: "Day event detail. Reached from the Your Day sheet."),
         "PinDetailSheet.swift:$showingFullDetails": .notYetAudited(reason: "Full place details, behind the map."),
         "SJMapView.swift:$showingHelp": .notYetAudited(reason: "Map help. Long explanatory copy — likely to truncate."),
         "ProfileView.swift:$editing": .notYetAudited(reason: "Edit profile. A form at AX5 is exactly where truncation hurts — high priority."),
@@ -67,7 +61,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ModerationView.swift:$link": .notYetAudited(reason: "Safari view on a found event's page — system UI, scales on its own."),
         "TownNewsCard.swift:$link": .notYetAudited(reason: "Safari view on a town news post (town-feed 35) — system UI, scales on its own."),
         "RootView.swift:$helloLink": .notYetAudited(reason: "Safari view on the hello pill's news post (hello-drop 03) — system UI, scales on its own."),
-        "UtilityRowView.swift:$model.showCustomize": .notYetAudited(reason: "Utility customise sheet."),
     ]
 
     /// A new screen must be a deliberate decision, not a silent gap.
