@@ -63,4 +63,50 @@ final class OnboardingStoreTests: XCTestCase {
         midway.serverSaysFinished()
         XCTAssertTrue(midway.finished)
     }
+
+    // MARK: Name and photo (ticket 18)
+
+    func testNameNeedsAFirstNameAndJoinsTheLastOne() {
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertNil(store.displayName)
+        store.lastName = "Lund"
+        store.firstName = "   "
+        XCTAssertNil(store.displayName, "spaces or a last name alone don't make a name")
+        store.firstName = " Avery "
+        XCTAssertEqual(store.displayName, "Avery Lund")
+        store.lastName = ""
+        XCTAssertEqual(store.displayName, "Avery")
+    }
+
+    func testNameAndPhotoSurviveARelaunch() {
+        let store = OnboardingStore(defaults: defaults)
+        store.firstName = "Avery"
+        store.lastName = "Lund"
+        store.photo = Data([1, 2, 3])
+        let again = OnboardingStore(defaults: defaults)
+        XCTAssertEqual(again.displayName, "Avery Lund")
+        XCTAssertEqual(again.photo, Data([1, 2, 3]))
+        XCTAssertTrue(again.answersPending)
+    }
+
+    func testAnswersSaveOnceAndWaitAfterAFailure() async {
+        let store = OnboardingStore(defaults: defaults)
+        var calls: [(String?, Data?)] = []
+        await store.saveAnswers { calls.append(($0, $1)) }
+        XCTAssertTrue(calls.isEmpty, "nothing answered, nothing sent")
+
+        store.firstName = "Avery"
+        store.photo = Data([9])
+        await store.saveAnswers { _, _ in throw URLError(.notConnectedToInternet) }
+        XCTAssertTrue(OnboardingStore(defaults: defaults).answersPending, "a failed save keeps them waiting")
+
+        await store.saveAnswers { calls.append(($0, $1)) }
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.0, "Avery")
+        XCTAssertEqual(calls.first?.1, Data([9]))
+        XCTAssertFalse(OnboardingStore(defaults: defaults).answersPending)
+
+        await store.saveAnswers { calls.append(($0, $1)) }
+        XCTAssertEqual(calls.count, 1, "saved answers aren't sent again")
+    }
 }
