@@ -93,6 +93,22 @@ struct PhotoCounter: View {
     }
 }
 
+/// The Maps search for a named place in this town, or nil when there is none. There is no
+/// coordinate on an Event, so this is a text search against the town — good enough to open
+/// the right pin, and honest about being a search. An Event's place pill and a business's
+/// address pill open it. (Was `DayScheduleLogic.directionsURL(forPlace:)` until 2026-10-25.)
+nonisolated enum Directions {
+    static func url(forPlace place: String?) -> URL? {
+        guard let location = place?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty
+        else { return nil }
+
+        var components = URLComponents(string: "http://maps.apple.com/")
+        components?.queryItems = [URLQueryItem(name: "q", value: "\(location), \(Town.display)")]
+        return components?.url
+    }
+}
+
 /// A grey row that opens something outside the app: an Event's place, a business's address
 /// (Maps) and its website and social pages. The Reference's location pill: 44 pt tall, its
 /// glyph 15 pt in and its words after it.
