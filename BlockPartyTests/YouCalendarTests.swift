@@ -505,4 +505,37 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(YouPage.firstName(""))
         XCTAssertNil(YouPage.firstName("   "))
     }
+
+    // MARK: Profile (BP app references/profile-remake)
+
+    /// "24 friends · 1 group · 9 going": a zero or an unknown is left out, never said.
+    func testProfileCountsLeaveOutZerosAndUnknowns() {
+        let words = { (parts: [(number: Int, word: String)]) in parts.map { "\($0.number) \($0.word)" } }
+        XCTAssertEqual(words(ProfileFace.counts(friends: 24, groups: 1, going: 9)), ["24 friends", "1 group", "9 going"])
+        XCTAssertEqual(words(ProfileFace.counts(friends: 1, groups: 0, going: nil)), ["1 friend"])
+        XCTAssertEqual(words(ProfileFace.counts(friends: nil, groups: 3, going: 0)), ["3 groups"])
+        XCTAssertTrue(ProfileFace.counts(friends: 0, groups: 0, going: nil).isEmpty)
+    }
+
+    /// Your next plans: only those not over, three at most, in the Calendar's order, and how many.
+    func testProfileNextPlansSkipWhatIsOver() {
+        let now = town("2026-10-14 20:00")
+        let events = [row("over", "2026-10-14", "9 AM", endAt: town("2026-10-14 11:00")),
+                      row("on", "2026-10-14", "7 PM", endAt: town("2026-10-14 22:00")),
+                      row("b", "2026-10-15", "9 AM"), row("c", "2026-10-16", "9 AM"), row("d", "2026-10-17", "9 AM")]
+            .compactMap(YouCalendar.event(from:))
+        let plans = ProfileFace.nextPlans(events, now: now)
+        XCTAssertEqual(plans.rows.map(\.id), ["on", "b", "c"])
+        XCTAssertEqual(plans.count, 4)
+        XCTAssertTrue(ProfileFace.nextPlans([], now: now).rows.isEmpty)
+    }
+
+    /// A Going row's line: the Group page's day, then the card's time; an all-day one says so.
+    func testProfileGoingLine() {
+        let now = town("2026-10-14 08:00")
+        let timed = YouCalendar.event(from: row("a", "2026-10-31", "9 AM"))!
+        XCTAssertEqual(ProfileFace.goingLine(timed, now: now), "Sat, Oct 31 · 9 AM")
+        let allDay = YouCalendar.event(from: row("b", "2026-11-01", nil, allDay: true))!
+        XCTAssertEqual(ProfileFace.goingLine(allDay, now: now), "Sun, Nov 1 · All day")
+    }
 }

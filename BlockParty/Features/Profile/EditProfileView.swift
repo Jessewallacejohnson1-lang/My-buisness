@@ -1,6 +1,7 @@
 //
 //  EditProfileView.swift
-//  Block Party — edit your community profile: photo · name · interests. Mirrors the
+//  Block Party — edit your community profile: cover · photo · name · bio · interests (the
+//  cover and bio for a real account only, BP app references/profile-remake). Mirrors the
 //  onboarding steps (same avatar well, the shared interest grid) and saves through
 //  ProfileModel.save (upload avatar → town_profiles upsert). A clean opaque form —
 //  glass is for the profile display, input reads calmer on paper.
@@ -17,6 +18,9 @@ struct EditProfileView: View {
     @State private var image: UIImage?
     @State private var interests: Set<String> = []
     @State private var pick: PhotosPickerItem?
+    @State private var bio = ""
+    @State private var cover: UIImage?
+    @State private var coverPick: PhotosPickerItem?
     @State private var showInterests = EditProfileView.debugOpenInterests()
     @State private var saving = false
     @State private var saveFailed = false
@@ -38,10 +42,15 @@ struct EditProfileView: View {
             header
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 26) {
+                    if model.canDescribe {
+                        PhotosPicker(selection: $coverPick, matching: .images, photoLibrary: .shared()) { coverWell }
+                            .buttonStyle(PressableStyle())
+                    }
                     PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { avatarWell }
                         .buttonStyle(.plain)
                         .padding(.top, 8)
                     nameField
+                    if model.canDescribe { bioField }
                     interestsSection
                 }
                 .padding(24)
@@ -53,6 +62,15 @@ struct EditProfileView: View {
         .onAppear {
             if name.isEmpty { name = model.displayName }
             if interests.isEmpty { interests = Set(model.interestIds) }
+            if bio.isEmpty { bio = model.bio }
+        }
+        .onChange(of: coverPick) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { cover = ui }
+                }
+            }
         }
         .onChange(of: pick) { _, item in
             guard let item else { return }
@@ -105,7 +123,8 @@ struct EditProfileView: View {
                 saveFailed = false
                 saving = true
                 Task {
-                    let ok = await model.save(name: name, image: image, interests: Array(interests))
+                    let ok = await model.save(name: name, image: image, interests: Array(interests),
+                                              bio: model.canDescribe ? bio : nil, cover: cover)
                     saving = false
                     if ok {
                         Haptics.success()
@@ -177,6 +196,48 @@ struct EditProfileView: View {
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
                 .onChange(of: name) { _, v in if v.count > 24 { name = String(v.prefix(24)) } }
+        }
+    }
+
+    /// The cover, as wide as the field, at the profile's own shape; a tap picks a new one.
+    private var coverWell: some View {
+        Hue.fill
+            .aspectRatio(GroupPage.Metric.heroAspect, contentMode: .fit)
+            .overlay {
+                if let cover {
+                    Image(uiImage: cover).resizable().scaledToFill()
+                } else if let url = model.coverUrl.flatMap(URL.init(string:)) {
+                    FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                }
+            }
+            .overlay {
+                Label("Change cover", systemImage: "photo")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Hue.surface, in: Capsule())
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .accessibilityLabel("Change cover photo")
+    }
+
+    /// Nextdoor's bio: their words for the empty box, 150 letters, the count under it.
+    private var bioField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bio").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
+            TextField("Tell your neighbors a little about yourself", text: $bio, axis: .vertical)
+                .font(.sans(17)).foregroundStyle(Hue.ink)
+                .lineLimit(3...5)
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .onChange(of: bio) { _, v in
+                    if v.count > ProfileModel.bioLimit { bio = String(v.prefix(ProfileModel.bioLimit)) }
+                }
+            Text("\(bio.count)/\(ProfileModel.bioLimit)")
+                .font(.sans(12)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 

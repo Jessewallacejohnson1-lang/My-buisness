@@ -24,7 +24,7 @@ struct SavedPage: View {
 
     /// The sheet's edge to the top bar: where Apple's own bar sat in this sheet, its
     /// back button's centre 42pt down (measured on BP Build, 2026-10-13).
-    private static let barTop: CGFloat = 20
+    static let barTop: CGFloat = 20
 
     var body: some View {
         ScrollView(showsIndicators: false) {

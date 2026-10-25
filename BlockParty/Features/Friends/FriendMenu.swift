@@ -77,7 +77,7 @@ struct FriendMenu: View {
             .accessibilityAddTraits(.isHeader)
             Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline)
             VStack(spacing: 0) {
-                if relation == .friends { followRow }
+                if relation != .blocked { followRow }
                 ForEach(FriendsBook.menuChoices(for: relation), id: \.self) { row($0) }
             }
             .padding(.vertical, FriendsMetric.menuRowsPad)
@@ -89,7 +89,7 @@ struct FriendMenu: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
-        .task { if relation == .friends { await actions.refreshFollow(follow) } }
+        .task { if relation != .blocked { await actions.refreshFollow(follow) } }
         .onAppear { book.menuOnScreen = true }
         .onDisappear { book.menuOnScreen = false }
         // `unfriend-confirm` and `block-confirm`, in Apple's alert.
@@ -127,7 +127,7 @@ struct FriendMenu: View {
                     Text("\(following ? "Unfollow" : "Follow") \(person.firstName)")
                         .font(.sans(17))
                         .foregroundStyle(Hue.ink)
-                    if following {
+                    if following && relation == .friends {
                         Text("Stay friends")
                             .font(.sans(13))
                             .foregroundStyle(Hue.inkSecondary)

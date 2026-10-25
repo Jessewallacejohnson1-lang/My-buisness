@@ -544,6 +544,8 @@ struct MainTabsView: View {
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
         .environment(friendsBook)
+        // A neighbour's page lays their groups and your shared plans over the You tab's reads.
+        .environment(you)
         // `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert.
         .alert((friendsBook.problem ?? said).title,
                isPresented: Binding(get: { friendsBook.problem != nil },
@@ -814,6 +816,7 @@ struct MainTabsView: View {
             }
             .environment(calendarSync)
             .environment(friendsBook)
+            .environment(you)
             .environment(townFeed)
             .environment(actions)
             .presentationDetents([.large])

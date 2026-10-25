@@ -378,6 +378,8 @@ private struct NameAndMutual: View {
 struct RelationButtons: View {
     let person: Neighbor
     var onPage = false
+    /// The profile page's one pill at the bottom: Meetup's, as the Group page's Join group.
+    var pill = false
     let logIn: () -> Void
     @Environment(FriendsBook.self) private var book
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -409,8 +411,29 @@ struct RelationButtons: View {
     }
 
     /// One button. VoiceOver hears whose it is: "Confirm, Sarah Lindgren".
+    @ViewBuilder
     private func face(_ title: String, ink: Bool, spoken: String? = nil, icon: String? = nil, hint: String = "",
                       action: @escaping () -> Void) -> some View {
+        if pill {
+            Button(action: action) {
+                HStack(spacing: FriendsMetric.iconGap) {
+                    if let icon { Image(systemName: icon).font(.glyph(15, weight: .bold)) }
+                    Text(title)
+                }
+                .font(.apple(17, weight: .semibold))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(MeetupPillStyle(height: GroupPage.Metric.pillHeight, light: !ink))
+            .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
+            .accessibilityHint(hint)
+        } else {
+            pageFace(title, ink: ink, spoken: spoken, icon: icon, hint: hint, action: action)
+        }
+    }
+
+    private func pageFace(_ title: String, ink: Bool, spoken: String?, icon: String?, hint: String,
+                          action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: FriendsMetric.iconGap) {
                 if let icon { Image(systemName: icon).font(.glyph(13, weight: .bold)) }
@@ -438,46 +461,41 @@ struct RelationButtons: View {
     }
 }
 
-/// A neighbour's page: their photo, name, Neighbor since and the friends you share, under
-/// the same head as your own Profile (Jesse, 2026-10-13), and the one button. Never their
-/// plans.
+/// A neighbour's page: the profile page (`ProfilePage`, BP app references/profile-remake) with
+/// their cover, bio, friends and groups, the Events you're both Going to when you're friends,
+/// and the one pill at the bottom. Never their plans beyond those (friends spec, 2026-10-13).
+/// The photo, name and pill show at once from what the list knew; the rest fades in once
+/// `get_profile` answers, and stays away if it fails.
 struct NeighborPage: View {
     let neighbor: Neighbor
     @Environment(FriendsBook.self) private var book
     @Environment(RealLifeActions.self) private var actions
+    /// Your Going and the Town's groups, the You tab's (`RootView`).
+    @Environment(YouModel.self) private var you
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var signingIn = false
+    @State private var extras: ProfileExtras?
+    @State private var pushedEvent: FeedCardItem?
+    @State private var pushedGroup: TownGroup?
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Hue.paper.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    ProfileHead(url: neighbor.avatarUrl, name: neighbor.displayName,
-                                line: [neighbor.sinceLine, neighbor.mutualLine].compactMap { $0 }
-                                    .joined(separator: "  ·  "))
-                    HStack(spacing: FriendsMetric.buttonGap) {
-                        RelationButtons(person: neighbor, onPage: true) { signingIn = true }
-                        // Facebook's way: Add friend stays the main button, and a smaller grey
-                        // Follow sits beside it. Friends already follow each other (follows 02).
-                        if [.stranger, .sent].contains(book.relation(neighbor)) {
-                            FollowButton(target: follow, name: neighbor.displayName, size: .beside)
-                                .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: RealLifeActions.flip), value: book.relation(neighbor))
-                    .padding(.top, FriendsMetric.pageButtonTop)
+        TimelineView(.everyMinute) { context in
+            ProfilePage(face: face(now: context.date)) {
+                HStack(spacing: 0) {
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
+                                                            reduceMotion: reduceMotion) { dismiss() }
+                    Spacer(minLength: 0)
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "ellipsis"),
+                                                            label: "More options, \(neighbor.displayName)",
+                                                            reduceMotion: reduceMotion) { book.menu = neighbor }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, FriendsMetric.side)
-                .padding(.top, SearchMetric.pageBar + FriendsMetric.headTop)
-            }
-            FriendsTitleBar(title: neighbor.displayName, titleUnder: false) {
-                MoreButton(person: neighbor)
-            }
-            .accessibilitySortPriority(1)
+            } bar: {
+                ProfilePillBar { RelationButtons(person: neighbor, pill: true) { signingIn = true } }
+            } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }
+        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         // Blocked: back to where you came from, as on Facebook, once the sheet is down (ticket 04).
         .onChange(of: book.relation(neighbor) == .blocked && !book.menuOnScreen) { _, gone in
             if gone { dismiss() }
@@ -485,10 +503,40 @@ struct NeighborPage: View {
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .task { await actions.refreshFollow(follow) }
+        .task(id: book.relation(neighbor)) { await read() }
         .signInSheet(isPresented: $signingIn)
     }
 
     private var follow: FollowTarget { FollowTarget(type: .profile, id: neighbor.id) }
+
+    /// A friend's shared plans come from your own three weeks of Going, so the rows are yours.
+    private func face(now: Date) -> ProfileFace {
+        let town = Town.display.components(separatedBy: ",").first ?? Town.display
+        let shared = extras.map { extras in
+            (you.going ?? []).filter { extras.bothGoing.contains($0.item.id) && !$0.item.cancelled }
+        }
+        let byId = Dictionary((you.groups ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ProfileFace(
+            name: neighbor.displayName,
+            avatarUrl: neighbor.avatarUrl,
+            coverUrl: extras?.coverUrl,
+            bio: extras?.bio,
+            line: ([town] + [neighbor.sinceLine, neighbor.mutualLine].compactMap { $0 }).joined(separator: " · "),
+            friends: extras?.friends,
+            groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
+            going: shared.map { ProfileFace.nextPlans($0, now: now).rows })
+    }
+
+    /// Their extras, again when where you stand changes (a new friend sees your shared plans).
+    /// An anonymous account can't ask; a failure keeps what's on screen.
+    private func read() async {
+        guard !book.isAnonymous() else { return }
+        if you.groups == nil { await you.refreshGroups() }
+        if you.going == nil { await you.refresh() }
+        if let read = try? await ProfileAPI(auth: AuthStore.shared).getProfile(neighbor.userId) {
+            extras = read
+        }
+    }
 }
 
 /// A neighbour's round photo, or the person icon your own Profile shows without one.

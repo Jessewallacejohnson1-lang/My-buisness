@@ -70,36 +70,6 @@ struct ProfileAvatar: View {
     }
 }
 
-/// The mock's head: photo, name and the line under it. Your own Profile's, and a neighbour's
-/// page (BP app docs/plans/friends: Jesse, 2026-10-13), so the two can't drift apart.
-struct ProfileHead: View {
-    let url: String?
-    let name: String
-    var nameInk: Color = Hue.ink
-    let line: String?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ProfileAvatar(url: url, size: 104)
-                .accessibilityHidden(true)
-            Text(name)
-                .font(.display(26))
-                .foregroundStyle(nameInk)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .padding(.top, 12)
-                .accessibilityAddTraits(.isHeader)
-            if let line {
-                Text(line)
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, 4)
-            }
-        }
-    }
-}
-
 // MARK: - Interest chips
 
 /// A soft grey interest pill.

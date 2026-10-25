@@ -35,12 +35,14 @@ struct Storage {
     }
 
     /// Upload an avatar to the public `avatars` bucket at `{userId}/avatar-{ts}.jpg`
-    /// (folder-scoped RLS). Returns the public URL, nil on any failure so the
-    /// caller finishes onboarding without an avatar rather than breaking.
-    func uploadAvatar(_ data: Data, userId: String, contentType: String = "image/jpeg") async -> String? {
+    /// (folder-scoped RLS), or a profile's cover at `{userId}/cover-{ts}.jpg` with `name`
+    /// "cover". Returns the public URL, nil on any failure so the caller finishes
+    /// onboarding without an avatar rather than breaking.
+    func uploadAvatar(_ data: Data, userId: String, name: String = "avatar",
+                      contentType: String = "image/jpeg") async -> String? {
         guard let token = try? await auth.validAccessToken() else { return nil }
         let ts = Int(Date().timeIntervalSince1970 * 1000)
-        let path = "\(userId)/avatar-\(ts).jpg"
+        let path = "\(userId)/\(name)-\(ts).jpg"
 
         var req = URLRequest(url: SupabaseConfig.storageURL.appendingPathComponent("object/avatars/\(path)"))
         req.httpMethod = "POST"

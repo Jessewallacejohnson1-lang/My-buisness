@@ -23,16 +23,29 @@ struct ProfileAPI {
     func getMyProfile() async throws -> TownProfile? {
         let t = try await token()
         let (data, _) = try await SupabaseHTTP.rest("town_profiles",
-            query: "select=user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,suggest_me&limit=1",
+            query: "select=user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,suggest_me,bio,cover_url,created_at&limit=1",
             accessToken: t)
         let rows: [TownProfile] = try decode(data)
         return rows.first
     }
 
+    /// One profile's page extras (`get_profile`), yours or a neighbour's; nil for someone you
+    /// may not find. Only a real account may ask.
+    func getProfile(_ userId: String) async throws -> ProfileExtras? {
+        let t = try await token()
+        let body = try JSONSerialization.data(withJSONObject: ["p_user": userId])
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_profile", method: "POST", accessToken: t, body: body)
+        let rows: [ProfileExtras] = try decode(data)
+        return rows.first
+    }
+
     /// Upsert the caller's profile. `onboarded` stamps `onboarded_at` so a
     /// reinstall/new device can skip onboarding. Idempotent (PK = user_id).
+    /// `bio` and `coverUrl` travel only when given: an anonymous account may set neither, so
+    /// its Edit profile leaves them out (an empty bio goes as nil, "" clears it).
     func upsert(displayName: String?, avatarUrl: String?,
-                interests: [String], onboarded: Bool) async throws {
+                interests: [String], onboarded: Bool,
+                bio: String? = nil, coverUrl: String? = nil) async throws {
         let t = try await token()
         guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
 
@@ -48,6 +61,8 @@ struct ProfileAPI {
         b["display_name"] = displayName ?? NSNull()
         b["avatar_url"]   = avatarUrl ?? NSNull()
         if onboarded { b["onboarded_at"] = now }
+        if let bio { b["bio"] = bio.isEmpty ? NSNull() : bio }
+        if let coverUrl { b["cover_url"] = coverUrl }
 
         let body = try JSONSerialization.data(withJSONObject: b)
         _ = try await SupabaseHTTP.rest("town_profiles", method: "POST",
