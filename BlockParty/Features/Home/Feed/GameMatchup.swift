@@ -15,6 +15,10 @@ import SwiftUI
 
 struct GameMatchup: View {
     let game: Game
+    /// The row of logos this far below the art's top: the card's 62 pt, or the Event page band's (ticket 05).
+    var rowTop: CGFloat = Metric.rowTop
+    /// On a card the art rubber-bands sideways; the Event page's band holds still.
+    var swipes = true
 
     /// The mock's Picked row, on its 370 pt card (BP app references/game-card/mock.html).
     enum Metric {
@@ -34,22 +38,31 @@ struct GameMatchup: View {
     }
 
     var body: some View {
-        // One page that still rubber-bands, as a one-photo card does, so a sideways swipe moves
-        // it instead of reaching the link under it, which opens the Event page (event-card 02).
-        ScrollView(.horizontal, showsIndicators: false) {
-            art.containerRelativeFrame(.horizontal)
+        if swipes {
+            // One page that still rubber-bands, as a one-photo card does, so a sideways swipe moves
+            // it instead of reaching the link under it, which opens the Event page (event-card 02).
+            ScrollView(.horizontal, showsIndicators: false) {
+                art.containerRelativeFrame(.horizontal)
+            }
+            .scrollBounceBehavior(.always, axes: .horizontal)
+            // The card's title says the matchup ("Football, Saint John's versus Gustavus").
+            .accessibilityHidden(true)
+        } else {
+            art.accessibilityHidden(true)
         }
-        .scrollBounceBehavior(.always, axes: .horizontal)
-        // The card's title says the matchup ("Football, Saint John's versus Gustavus").
-        .accessibilityHidden(true)
     }
 
-    private var art: some View {
+    /// The two schools' colors, the left one's to 40% of the width, the right one's from 60%.
+    static func backdrop(_ game: Game) -> LinearGradient {
         LinearGradient(stops: [.init(color: fill(game.teams[0]), location: 0),
                                .init(color: fill(game.teams[0]), location: 0.4),
                                .init(color: fill(game.teams[1]), location: 0.6),
                                .init(color: fill(game.teams[1]), location: 1)],
                        startPoint: .leading, endPoint: .trailing)
+    }
+
+    private var art: some View {
+        Self.backdrop(game)
             .overlay(alignment: .top) {
                 HStack(alignment: .top, spacing: game.final == nil && game.live == nil ? Metric.gap : Metric.scoreGap) {
                     TeamColumn(team: game.teams[0])
@@ -70,7 +83,7 @@ struct GameMatchup: View {
                     TeamColumn(team: game.teams[1])
                         .opacity(game.winner == 0 ? Metric.faded : 1)
                 }
-                .padding(.top, Metric.rowTop)
+                .padding(.top, rowTop)
                 // A refresh that brings the live score or the final cross-fades VS into it.
                 .animation(Motion.smooth, value: game.final)
                 .animation(Motion.smooth, value: game.live == nil)
@@ -79,7 +92,7 @@ struct GameMatchup: View {
 
     /// The school's color; one not known yet is ink, so two of them make Apple Sports' dark
     /// header. Ink as it is on paper: the card is the same in dark mode.
-    private func fill(_ team: Game.Team) -> Color {
+    static func fill(_ team: Game.Team) -> Color {
         team.rgb.map { Color(hex: $0) } ?? Hue.ink.onLightCanvas
     }
 }
@@ -147,6 +160,85 @@ private struct LiveScore: View {
             }
         }
         .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
+    }
+}
+
+/// A game's scoring plays on its Event page, newest first (BP app game-card 05; Jesse, 2026-10-25: "copy
+/// sidearm"): SIDEARM's own words, the time under each, the score after it with the scoring side in ink,
+/// and a thin bar of the scoring school's color on its side, as Apple Sports' Key Plays draw them
+/// (`references/live-plays/`). Volleyball shows its sets instead: every point would be a play.
+struct GameScoring: View {
+    let game: Game
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let rowGap: CGFloat = 8
+    static let bar: CGFloat = 3
+
+    var body: some View {
+        if !game.plays.isEmpty {
+            section("Scoring plays") {
+                ForEach(game.plays.reversed()) { play in
+                    row(text: play.text, when: play.when, score: play.score, side: play.side)
+                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
+        } else if game.sport.localizedCaseInsensitiveContains("volleyball"), game.periods.count == 2 {
+            section("Sets") {
+                ForEach(game.periods[0].indices, id: \.self) { set in
+                    let score = [game.periods[0][set], game.periods[1][set]]
+                    row(text: "Set \(set + 1)", when: nil, score: score,
+                        side: score[0] == score[1] ? nil : (score[0] > score[1] ? 0 : 1))
+                }
+            }
+        }
+    }
+
+    private func section<Rows: View>(_ title: String, @ViewBuilder rows: () -> Rows) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.sansBold(20))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: Self.rowGap) { rows() }
+        }
+    }
+
+    private func row(text: String, when: String?, score: [Int], side: Int?) -> some View {
+        let home = Text("\(score[0])"), away = Text("\(score[1])")
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(text)
+                .font(.sans(15))
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                if let when { Text(when).monospacedDigit() }
+                Spacer(minLength: 8)
+                Text("\(side == 0 ? home.foregroundStyle(Hue.ink).bold() : home) – \(side == 1 ? away.foregroundStyle(Hue.ink).bold() : away)")
+                    .monospacedDigit()
+            }
+            .font(.sans(13))
+            .foregroundStyle(Hue.inkSecondary)
+        }
+        .padding(.vertical, 12)
+        .padding(.leading, side == 1 ? 16 : 20)
+        .padding(.trailing, side == 1 ? 20 : 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        // The scoring school's color, on its side of the row.
+        .overlay(alignment: side == 1 ? .trailing : .leading) {
+            if let side, game.teams.indices.contains(side) {
+                Capsule()
+                    .fill(GameMatchup.fill(game.teams[side]))
+                    .frame(width: Self.bar)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 8)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([text, when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
+            .compactMap { $0 }.joined(separator: ", "))
     }
 }
 

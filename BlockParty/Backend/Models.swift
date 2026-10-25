@@ -189,6 +189,25 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     private(set) var final: [Int]?
     /// The score while it's being played (ticket 03); nil before, after, and for a high school game.
     private(set) var live: Live?
+    /// Each period's score in `teams` order, as SIDEARM last sent them: volleyball's sets (ticket 05).
+    /// Kept after the final, which the live score is not.
+    private(set) var periods: [[Int]] = []
+    /// SIDEARM's scoring plays, oldest first (ticket 05): every play that changed the score, in its words.
+    private(set) var plays: [Play] = []
+
+    /// One scoring play as `club_events.scoring_plays` keeps it (`private.sidearm_scoring`).
+    nonisolated struct Play: Decodable, Hashable, Sendable, Identifiable {
+        let id: String
+        let text: String
+        let period: String
+        let clock: String?
+        /// 0 for the first team (the host), 1 for the other.
+        let side: Int
+        let score: [Int]
+
+        /// "Q3 · 4:12", or the period alone.
+        var when: String { clock.map { "\(period) · \($0)" } ?? period }
+    }
 
     /// SIDEARM's score as `club_events.live_score` keeps it (`private.sidearm_live`): `teams` order,
     /// the period as the sport says it ("Q3", "2nd half", "Set 3"), and the clock ("4:12", "67'").
@@ -199,6 +218,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         /// The clock in seconds as last pushed: soccer's counts up and runs between pushes.
         let seconds: Int?
         let complete: Bool
+        /// Each period's score in `teams` order (volleyball's sets); empty for an old read.
+        let periods: [[Int]]
         /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen, and a
         /// score older than `quietAfter` no longer says Live (a weather delay, a feed gone quiet).
         let at: Date?
@@ -223,7 +244,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             return since < Self.staleAfter ? "\(period) · \(clock)" : period
         }
 
-        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, at }
+        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, periods, at }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -235,6 +256,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             clock = (try? c.decodeIfPresent(String.self, forKey: .clock)) ?? nil
             seconds = (try? c.decodeIfPresent(Int.self, forKey: .seconds)) ?? nil
             complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
+            let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
+            self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
             at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
         }
 
@@ -248,7 +271,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live }
+    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live, plays }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -256,20 +279,29 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         occasion = try c.decodeIfPresent(String.self, forKey: .occasion)
         teams = try c.decode([Team].self, forKey: .teams)
         let final = (try? c.decodeIfPresent([Int].self, forKey: .final)) ?? nil
-        setScores(final: final, live: (try? c.decodeIfPresent(Live.self, forKey: .live)) ?? nil)
+        setScores(final: final, live: (try? c.decodeIfPresent(Live.self, forKey: .live)) ?? nil,
+                  plays: ((try? c.decodeIfPresent([LenientItem<Play>].self, forKey: .plays)) ?? nil)?.compactMap(\.value) ?? [])
     }
 
-    /// The same game with a realtime update's scores (`club_events.final_score`, `live_score`).
-    func with(final: [Int]?, live: Live?) -> Game {
+    /// The same game with a realtime update's scores (`club_events.final_score`, `live_score`, `scoring_plays`).
+    func with(final: [Int]?, live: Live?, plays: [Play]? = nil) -> Game {
         var game = self
-        game.setScores(final: final, live: live)
+        game.setScores(final: final, live: live, plays: plays ?? self.plays)
         return game
     }
 
-    private mutating func setScores(final: [Int]?, live: Live?) {
+    private mutating func setScores(final: [Int]?, live: Live?, plays: [Play]) {
         let final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
         self.final = final
         self.live = final == nil ? live : nil
+        self.periods = live?.periods ?? []
+        self.plays = plays.filter { $0.score.count == 2 && (0...1).contains($0.side) }
+    }
+
+    /// One element of a list that doesn't read is left out, not the whole list.
+    nonisolated struct LenientItem<T: Decodable & Sendable>: Decodable, Sendable {
+        let value: T?
+        init(from decoder: Decoder) { value = try? T(from: decoder) }
     }
 
     /// The side with more, 0 or 1; nil before the final and on a tie, which fades neither side.

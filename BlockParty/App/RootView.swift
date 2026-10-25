@@ -508,6 +508,8 @@ struct MainTabsView: View {
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
+                        // A game's score and plays as they come in (game-card 05).
+                        .environment(townFeed)
                         // An open, for popularity (ticket 20): only from the Town feed,
                         // not Daily, which pushes the same page.
                         .onAppear { if tab == .town { townFeed.opened(item.id) } }

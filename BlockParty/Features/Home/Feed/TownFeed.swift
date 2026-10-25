@@ -358,7 +358,8 @@ final class TownFeed {
             guard let card = entry.card, let game = card.game, game.final == nil else { return false }
             return game.live != nil || card.isNow(at: now)
         } ?? false
-        guard playing, awaySince == nil else { scores?.stop(); return }
+        // A game's Event page, pushed over the feed, keeps the scores coming (game-card 05).
+        guard playing, awaySince == nil || heldBy > 0 else { scores?.stop(); return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-town-live") { replayLiveGame(); return }
         #endif
@@ -370,17 +371,31 @@ final class TownFeed {
         scores?.start()
     }
 
+    @ObservationIgnored private var heldBy = 0
+
+    /// A game's Event page is open (`true`) or closed (`false`): the scores keep coming while it's
+    /// up, though the feed under it has gone.
+    func holdScores(_ on: Bool, at now: Date = Date()) {
+        heldBy = max(0, heldBy + (on ? 1 : -1))
+        watchScores(at: now)
+    }
+
     /// A game's row changed: its card takes the new scores. Anything else waits for the next read.
     private func scored(_ change: RealtimeClient.Change) {
         guard change.kind == .update, let row = change.new, let id = row.id else { return }
         let live = row.liveScore.flatMap { try? JSONDecoder().decode(Game.Live.self, from: $0) }
-        score(id, final: row.finalScore, live: live)
+        var plays: [Game.Play]?
+        if let data = row.scoringPlays,
+           let read = try? JSONDecoder().decode([Game.LenientItem<Game.Play>].self, from: data) {
+            plays = read.compactMap { (entry: Game.LenientItem<Game.Play>) in entry.value }
+        }
+        score(id, final: row.finalScore, live: live, plays: plays)
     }
 
-    private func score(_ id: String, final: [Int]?, live: Game.Live?) {
+    private func score(_ id: String, final: [Int]?, live: Game.Live?, plays: [Game.Play]? = nil) {
         guard let index = entries?.firstIndex(where: { $0.id == id }),
               let entry = entries?[index], var card = entry.card, let game = card.game else { return }
-        let scored = game.with(final: final, live: live)
+        let scored = game.with(final: final, live: live, plays: plays)
         guard scored != game else { return }
         card.game = scored
         entries?[index] = TownFeedEntry(card: card, leavesAt: entry.leavesAt)
@@ -392,18 +407,27 @@ final class TownFeed {
     @ObservationIgnored private var replaying = false
 
     /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score
-    /// changes every 4 seconds through the same path a realtime update takes, to its final.
+    /// and scoring plays change every 4 seconds through the same path a realtime update takes, to its
+    /// final. The plays' names are made up.
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
-        let steps = [#"[0,0],"period":"Q1","clock":"15:00""#, #"[7,0],"period":"Q1","clock":"9:41""#,
-                     #"[7,3],"period":"Q2","clock":"2:10""#, #"[14,3],"period":"Q3","clock":"4:12""#,
-                     #"[14,10],"period":"Q4","clock":"6:05""#, #"[21,10],"period":"Q4","clock":"0:45""#]
+        // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
+        let steps: [(String, String?)] = [
+            (#"[0,0],"period":"Q1","clock":"15:00""#, nil),
+            (#"[7,0],"period":"Q1","clock":"9:18""#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
+            (#"[7,3],"period":"Q2","clock":"0:03""#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
+            (#"[14,3],"period":"Q3","clock":"4:12""#, #"{"id":"3","text":"J. Jeffrey 52 yd TD run (M. Olson kick)","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
+            (#"[14,10],"period":"Q4","clock":"6:05""#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
+            (#"[21,10],"period":"Q4","clock":"0:45""#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
+        ]
         Task { @MainActor [weak self] in
-            for step in steps {
-                let json = #"{"score":"# + step + #","complete":false,"at":""#
+            var plays: [Game.Play] = []
+            for (score, play) in steps {
+                let json = #"{"score":"# + score + #","complete":false,"at":""#
                     + ISO8601DateFormatter().string(from: .now) + #""}"#
-                self?.score("g1", final: nil, live: try? JSONDecoder().decode(Game.Live.self, from: Data(json.utf8)))
+                if let play, let decoded = try? JSONDecoder().decode(Game.Play.self, from: Data(play.utf8)) { plays.append(decoded) }
+                self?.score("g1", final: nil, live: try? JSONDecoder().decode(Game.Live.self, from: Data(json.utf8)), plays: plays)
                 try? await Task.sleep(for: .seconds(4))
             }
             self?.score("g1", final: [21, 10], live: nil)
