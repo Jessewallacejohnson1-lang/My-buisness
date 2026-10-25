@@ -134,7 +134,8 @@ private struct LiveScore: View {
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText(countsDown: false))
                 .animation(reduceMotion ? nil : Motion.smooth, value: live.score)
-            TimelineView(.periodic(from: .now, by: 30)) { context in
+            // Each second, so soccer's minute turns over on time and a stale clock goes.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(live.line(at: context.date))
                     .font(.sansSemibold(12))
                     .foregroundStyle(.white)

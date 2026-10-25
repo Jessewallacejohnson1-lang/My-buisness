@@ -63,6 +63,8 @@ as $$
       when cs is null or cs < 0 or sport = 'wvball' then null
       when sport in ('msoc', 'wsoc') then (cs / 60 + 1) || ''''
       else (cs / 60) || ':' || lpad((cs % 60)::text, 2, '0') end,
+    -- The clock in seconds, so a soccer card can run its minute on between pushes.
+    'clock_s', case when cs >= 0 and sport <> 'wvball' then cs end,
     'complete', coalesce(g->>'IsComplete', '') = 'true')
   from (select coalesce(p_game->'Game', p_game) as g, split_part(p_file, '/', 2) as sport) f,
        lateral (select case when g->>'Period' ~ '^\d+$' then (g->>'Period')::int end as per,

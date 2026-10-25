@@ -1148,17 +1148,17 @@ const sidearmLive = async (game, day, host, file) => (await db.query(
 test("a live score is read from SIDEARM's Game: host first, the sport's period and clock, another day's game none", async () => {
   // SJU 0-0 Carleton, 94 s into the first half: soccer's clock counts up, so its minute.
   assert.deepEqual(await sidearmLive(sjuLive, '2026-10-24', 'john', 'csbsju/msoc'),
-                   { score: [0, 0], period: '1st half', clock: "2'", complete: false });
+                   { score: [0, 0], period: '1st half', clock: "2'", clock_s: 94, complete: false });
   assert.deepEqual(await sidearmLive({ Game: sjuFinal }, '2026-10-24', 'john', 'csbsju/msoc'),
-                   { score: [2, 1], period: '2nd half', clock: "91'", complete: true }, 'the file form too');
+                   { score: [2, 1], period: '2nd half', clock: "91'", clock_s: 5400, complete: true }, 'the file form too');
   assert.equal(await sidearmLive(csbOld, '2026-10-24', 'benedict', 'csb/wvball'), null,
                "the file still holding last week's game (Oct 17) before Saturday's began");
   assert.deepEqual(await sidearmLive(csbOld, '2026-10-17', 'benedict', 'csb/wvball'),
-                   { score: [3, 0], period: 'Set 3', clock: null, complete: true }, 'volleyball: the set, no clock');
+                   { score: [3, 0], period: 'Set 3', clock: null, clock_s: null, complete: true }, 'volleyball: the set, no clock');
   const away = { ...sjuLive, HomeTeam: { ...sjuLive.VisitingTeam, Score: 7 }, VisitingTeam: { ...sjuLive.HomeTeam, Score: 14 },
                  Period: 3, ClockSeconds: 252 };
   assert.deepEqual(await sidearmLive(away, '2026-10-24', 'john', 'csbsju/football'),
-                   { score: [14, 7], period: 'Q3', clock: '4:12', complete: false }, 'the host away, football counting down');
+                   { score: [14, 7], period: 'Q3', clock: '4:12', clock_s: 252, complete: false }, 'the host away, football counting down');
   assert.equal((await sidearmLive({ ...away, Period: 5 }, '2026-10-24', 'john', 'csbsju/football')).period, 'OT');
   assert.equal((await sidearmLive({ ...away, Period: 2 }, '2026-10-24', 'john', 'csbsju/mbball')).period, '2nd half',
                "men's basketball plays halves");

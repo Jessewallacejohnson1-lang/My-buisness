@@ -386,6 +386,12 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(live.line(at: at.addingTimeInterval(121)), "Q3", "a clock that stopped coming in is hidden")
         XCTAssertTrue(live.isLive(at: at.addingTimeInterval(599)))
         XCTAssertFalse(live.isLive(at: at.addingTimeInterval(601)), "ten quiet minutes: no longer Live")
+        // Soccer's minute runs on between pushes and holds at the half's end through stoppage time.
+        let soccer = try XCTUnwrap(try game(#","live":{"score":[0,0],"period":"1st half","clock":"2'","clock_s":94,"complete":false,"at":"2026-10-24T18:01:34Z"}"#).live)
+        let pushed = try XCTUnwrap(soccer.at)
+        XCTAssertEqual(soccer.line(at: pushed), "1st half · 2'")
+        XCTAssertEqual(soccer.line(at: pushed.addingTimeInterval(65 * 60)), "1st half · 45'", "held at 45 through the break")
+        XCTAssertEqual(soccer.line(at: pushed.addingTimeInterval(10 * 60)), "1st half · 12'", "no push for ten minutes, still running")
         let volleyball = try game(#","live":{"score":[2,0],"period":"Set 3","clock":null,"complete":false}"#)
         XCTAssertEqual(volleyball.live?.line(at: .now), "Set 3")
 

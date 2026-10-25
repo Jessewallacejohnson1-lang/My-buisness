@@ -196,6 +196,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         let score: [Int]
         let period: String
         let clock: String?
+        /// The clock in seconds as last pushed: soccer's counts up and runs between pushes.
+        let seconds: Int?
         let complete: Bool
         /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen, and a
         /// score older than `quietAfter` no longer says Live (a weather delay, a feed gone quiet).
@@ -206,13 +208,22 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
         func isLive(at now: Date) -> Bool { at.map { now.timeIntervalSince($0) < Self.quietAfter } ?? false }
 
-        /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none.
+        /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none. Soccer's
+        /// clock never stops, so its minute runs on from the last push ("2nd half · 67'"), holding
+        /// at 45' and 90' through stoppage time and the break; football's and basketball's stop
+        /// on every whistle, so theirs shows as the scorer last sent it.
         func line(at now: Date) -> String {
-            guard let clock, let at, now.timeIntervalSince(at) < Self.staleAfter else { return period }
-            return "\(period) · \(clock)"
+            guard let clock, let at else { return period }
+            let since = now.timeIntervalSince(at)
+            if clock.hasSuffix("'"), let seconds {
+                let minute = (seconds + Int(max(0, since))) / 60 + 1
+                let end: Int? = switch period { case "1st half": 45; case "2nd half": 90; default: nil }
+                return "\(period) · \(end.map { min(minute, $0) } ?? minute)'"
+            }
+            return since < Self.staleAfter ? "\(period) · \(clock)" : period
         }
 
-        private enum CodingKeys: String, CodingKey { case score, period, clock, complete, at }
+        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, at }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -222,6 +233,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             }
             period = try c.decode(String.self, forKey: .period)
             clock = (try? c.decodeIfPresent(String.self, forKey: .clock)) ?? nil
+            seconds = (try? c.decodeIfPresent(Int.self, forKey: .seconds)) ?? nil
             complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
             at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
         }
