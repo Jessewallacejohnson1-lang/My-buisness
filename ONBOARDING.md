@@ -5,41 +5,27 @@ changing any first-run screen.
 
 ## Status
 
-There is no onboarding in the app right now. The pre-auth 20-screen `BPOnboardingFlow`
-and the signed-in `OnboardingView` wizard were both deleted on 2026-09-18, along with
-`Backend/OnboardingAPI.swift` and `OnboardingFlowTests`. Sign-in is switched off
-(`RootView.requiresSignIn = false`), so a cold launch hands straight to the tabs.
+The flow shell is built (BP app onboarding ticket 16, 2026-10-24): `Features/Onboarding/
+OnboardingFlow.swift` holds the steps, the saved place (`OnboardingStore`) and the Welcome;
+`OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar. The nine
+question steps are placeholders that tickets 17 to 24 fill. It is switched off
+(`RootView.showsOnboarding = false`) until ticket 24 turns it on; DEBUG `-onboarding` shows it
+as a first launch would. Finishing stamps `town_profiles.onboarded_at`, and a stamp already on
+the server skips the flow on a reinstall.
 
-What survived, and what a rebuild starts from:
-
-- `Features/Onboarding/OnboardingChrome.swift` — `ContinueButton` (the full-width ink
-  CTA), `OnboardingBackButton`, `OnboardingProgressBar`, `OnboardingTopBar`.
-- `Features/Onboarding/InterestPickerView.swift` + `InterestCard.swift` — the interest
-  grid, still live because Edit Profile presents it (`showsProgress: false`).
-- `Features/Onboarding/MapIntroView.swift` — the map's help sheet.
-- `refs/onboarding/REFERENCE-SPEC.md` — measured, pixel-scanned metrics from the
-  Duolingo reference frames (`refs/onboarding/duolingo/S01–S20.png`): button height
-  48pt with a 4pt bottom edge, 16pt side margin, circular corners, progress bar
-  geometry, and the motion/haptics measurements. Numbers there are measured, not
-  estimated — use them rather than re-deriving by eye.
-- `supabase/migrations/20260929000000_schema.sql` — the answers live on `town_profiles`.
+`refs/onboarding/REFERENCE-SPEC.md` still holds the measured Duolingo press and progress
+numbers the Next bar and progress bar use (section 8).
 
 ## Direction — Jesse's calls
 
-- It is a near 1:1 clone of Duolingo's iOS onboarding — interactions, button feel, top
-  progress bar. Only colours and question content change.
-- **Any deviation from Duolingo must be raised as a question. Jesse approves every change.**
-  Do not improve it on your own judgment.
-- The Block Party mark replaces Duo as the guide on every screen. Voice is "we" — the mark
-  stays a logo, never a named character.
-- All 20 screens are decided, 6 questions. Screen 4 reads "Just 6 quick questions and you're
-  in." Taglines: "Join the neighborhood." (screen 2), "JOIN THE PARTY" (screen 20).
-- Screen 13 reads "200+ events a month in {town}" (BP app's words page, `onboard-13`,
-  2026-10-12). The 200+ is `MEMORY.md`'s public estimate for St. Joseph; `{town}` and the
-  number come from each town's real Events, checked against them before ship.
-- Reference frames exist twice over: the measured PNGs at `refs/onboarding/duolingo/S01–S20.png`
-  are authoritative for any number; the original Mobbin captures live in Figma, ids in
-  `docs/rules/identifiers.md`.
+**The spec is BP app `docs/plans/onboarding/SPEC.md`** (charted with Jesse 2026-10-23 and
+2026-10-24), with its build tickets in `docs/plans/onboarding/issues/`. The Reference for every
+screen is the approved mock (v7, `docs/plans/onboarding/assets/08-mock/`) and, for the Welcome,
+the ticket 25 mock (`references/welcome-screen/mock.html`). It replaces the old direction here
+(a near 1:1 Duolingo clone, 20 screens, 6 questions): only Duolingo's progress bar and button
+press are kept. Everything below this section still holds, except where the spec says
+otherwise: between steps only the question slides (Reduce Motion: a cross-fade), not a
+cross-fade of the whole step.
 
 ## The bar
 
@@ -97,9 +83,8 @@ the scroll view, so the button never rides the content. `InterestPickerView`'s `
 is the shape to copy (hairline, then `ContinueButton` with fixed padding, on a
 `Hue.paper` bar).
 
-Cross-fade the step transition; do not slide the whole screen including the chrome —
-the chrome is not part of the transition. Reduce Motion degrades the step change to an
-instant swap.
+Slide only the question between steps; do not move the chrome — the chrome is not part of
+the transition. Reduce Motion degrades the step change to a cross-fade.
 
 **Verify it, don't assume it.** A rebuild lands with a test that walks every step and
 asserts the CTA's frame is identical throughout — a UI test reading the button's frame

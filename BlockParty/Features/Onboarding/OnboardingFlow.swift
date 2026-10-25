@@ -105,16 +105,17 @@ struct OnboardingFlow: View {
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
 
     var body: some View {
+        // The question frame sits under the Welcome the whole time, so the Welcome fades off
+        // the chrome rather than off a blank screen, and only the question slides in.
         ZStack {
+            questions
+                .accessibilityHidden(store.step == .welcome)
             if store.step == .welcome {
                 OnboardingWelcome(start: go { [store] in store.next() })
-                    .transition(.opacity)
-            } else {
-                questions
+                    .zIndex(1)
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? .easeOut(duration: 0.2) : Self.slide, value: store.step == .welcome)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
         }
@@ -129,11 +130,13 @@ struct OnboardingFlow: View {
         ZStack(alignment: .top) {
             OnboardingBackdrop()
 
-            question
-                .id(store.step)
-                .transition(reduceMotion ? .opacity : .asymmetric(
-                    insertion: .offset(x: store.forward ? 36 : -36).combined(with: .opacity),
-                    removal: .opacity.animation(.easeOut(duration: 0.12))))
+            if store.step != .welcome {
+                question
+                    .id(store.step)
+                    .transition(reduceMotion ? .opacity : .asymmetric(
+                        insertion: .offset(x: store.forward ? 36 : -36).combined(with: .opacity),
+                        removal: .opacity.animation(.easeOut(duration: 0.12))))
+            }
 
             HStack(spacing: 6) {
                 OnboardingBackChevron(action: go { [store] in store.back() })
@@ -153,6 +156,7 @@ struct OnboardingFlow: View {
                 .foregroundStyle(Hue.ink)
             Text(store.step.question)
                 .font(.display(30))
+                .lineSpacing(-6)   // Jost's 44 pt line to the mock's 38
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -173,8 +177,9 @@ struct OnboardingFlow: View {
             if !keyboardUp { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, keyboardUp ? 12 : 34)
-        .ignoresSafeArea(keyboardUp ? [] : .container, edges: .bottom)
+        // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
+        // safe area carries the bar up with it.
+        .padding(.bottom, keyboardUp ? 12 : 0)
     }
 
     /// Skip on Photo, Not now on Find your friends (which skips Contacts too), else empty.
@@ -239,6 +244,7 @@ struct OnboardingWelcome: View {
                 .rise(shown, delay: 0)
             Text(OnboardingStep.welcome.question)
                 .font(.sansHeadline(36))
+                .lineSpacing(-4)   // BP Body's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)
@@ -249,11 +255,9 @@ struct OnboardingWelcome: View {
     }
 
     private var terms: Text {
-        Text("By continuing, you agree to our ")
-            + Text("Terms").fontWeight(.semibold).underline()
-            + Text(" and ")
-            + Text("Privacy Policy").fontWeight(.semibold).underline()
-            + Text(".")
+        let terms = Text("Terms").fontWeight(.semibold).underline()
+        let privacy = Text("Privacy Policy").fontWeight(.semibold).underline()
+        return Text("By continuing, you agree to our \(terms) and \(privacy).")
     }
 
     /// The two pills, the Terms line and Log in, from the bottom up.
@@ -279,11 +283,11 @@ struct OnboardingWelcome: View {
                 .rise(shown, delay: 0.3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .padding(.bottom, 52)
+        .padding(.bottom, 61)
     }
 
     private var logIn: some View {
-        (Text("Already have an account? ") + Text("Log in").fontWeight(.semibold))
+        Text("Already have an account? \(Text("Log in").fontWeight(.semibold))")
             .font(.sans(15))
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
