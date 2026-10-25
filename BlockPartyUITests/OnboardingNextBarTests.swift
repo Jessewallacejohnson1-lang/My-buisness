@@ -2,7 +2,8 @@
 //  OnboardingNextBarTests.swift
 //  Block Party — onboarding's locked rule (ONBOARDING.md): the Next bar never moves, except
 //  to ride with the keyboard. Walks every question step and reads the bar's frame on each,
-//  then steps back once. Name needs a first name to go on and Photo is skipped (ticket 18).
+//  then steps back once. Name needs a first name to go on and Photo is skipped (ticket 18);
+//  Birthday starts on a saved one, so Next is allowed (ticket 19).
 //
 //  `-onboarding` shows the flow as a first launch would; the `-onboarding.*` pairs set its
 //  saved place and name through the launch arguments' defaults domain, so every run starts
@@ -32,7 +33,7 @@ final class OnboardingNextBarTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-tests", "-onboarding",
                                "-onboarding.step", "0", "-onboarding.finished", "NO",
-                               "-onboarding.firstName", ""]
+                               "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24"]
         app.launch()
 
         let phone = app.buttons["Continue with phone"]
@@ -58,11 +59,11 @@ final class OnboardingNextBarTests: XCTestCase {
                 next.tap()
             }
             XCTAssertTrue(bar(app, step).waitForExistence(timeout: 3), "never reached step \(step)")
-            if step == 3 {
-                // Name opens the keyboard: the bar rides above it, or stays put on a
-                // simulator with a hardware keyboard.
-                XCTAssertEqual(next.frame.width, home.width, "Next bar changed width on step 3")
-                XCTAssertLessThanOrEqual(next.frame.minY, home.minY, "Next bar dropped on step 3")
+            if step == 3 || step == 5 {
+                // Name opens the keyboard and Birthday its wheel (ticket 19): the bar rides above
+                // it, or stays put on a simulator with a hardware keyboard.
+                XCTAssertEqual(next.frame.width, home.width, "Next bar changed width on step \(step)")
+                XCTAssertLessThanOrEqual(next.frame.minY, home.minY, "Next bar dropped on step \(step)")
             } else {
                 XCTAssertEqual(settled(next, at: home), home, "Next bar moved on step \(step)")
             }
