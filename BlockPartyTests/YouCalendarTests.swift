@@ -534,7 +534,9 @@ final class YouCalendarTests: XCTestCase {
     func testProfileGoingLine() {
         let now = town("2026-10-14 08:00")
         let timed = YouCalendar.event(from: row("a", "2026-10-31", "9 AM"))!
-        XCTAssertEqual(ProfileFace.goingLine(timed, now: now), "Sat, Oct 31 · 9 AM")
+        // The clock's space is the formatter's narrow one ("9\u{202F}AM").
+        XCTAssertEqual(ProfileFace.goingLine(timed, now: now), "Sat, Oct 31 · \(DailyEvent.clock(timed.starts))")
+        XCTAssertTrue(ProfileFace.goingLine(timed, now: now).hasPrefix("Sat, Oct 31 · 9"))
         let allDay = YouCalendar.event(from: row("b", "2026-11-01", nil, allDay: true))!
         XCTAssertEqual(ProfileFace.goingLine(allDay, now: now), "Sun, Nov 1 · All day")
     }
