@@ -67,6 +67,19 @@ struct ProfileFace {
     }
 }
 
+/// The mock's sizes on a 402 pt phone (round 4). The cover, the sheet, the round buttons, the
+/// sections and the date tiles are the Group page's (`GroupPage.Metric`, the Event page's).
+enum ProfileMetric {
+    /// The photo: 96 pt in a 4 pt paper ring, its middle on the sheet's edge, its left 20 pt in.
+    static let photo: CGFloat = 96
+    static let ring: CGFloat = 4
+    /// The name starts 10 pt under the photo.
+    static let nameTop: CGFloat = photo / 2 + 10
+    static let rowText: CGFloat = 3
+    /// "+ Add bio" sits where About's title would, in a 44 pt tap box around its 20 pt line.
+    static let addBioLine: CGFloat = 20
+}
+
 struct ProfilePage<Buttons: View, Bar: View>: View {
     let face: ProfileFace
     /// The round buttons on the cover: your pencil and ☰, or a neighbour's back and •••.
@@ -81,19 +94,6 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
     @State private var showingPhoto = false
-
-    /// The mock's sizes on a 402 pt phone (round 4). The cover, the sheet, the round buttons, the
-    /// sections and the date tiles are the Group page's (`GroupPage.Metric`, the Event page's).
-    enum Metric {
-        /// The photo: 96 pt in a 4 pt paper ring, its middle on the sheet's edge, its left 20 pt in.
-        static let photo: CGFloat = 96
-        static let ring: CGFloat = 4
-        /// The name starts 10 pt under the photo.
-        static let nameTop: CGFloat = photo / 2 + 10
-        static let rowText: CGFloat = 3
-        /// "+ Add bio" sits where About's title would, in a 44 pt tap box around its 20 pt line.
-        static let addBioLine: CGFloat = 20
-    }
 
     private typealias Event = FeedEventDetailDestination.Metric
     private typealias Sizes = GroupPage.Metric
@@ -162,7 +162,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.top, Metric.nameTop)
+                .padding(.top, ProfileMetric.nameTop)
 
             if let line = face.line {
                 Text(line)
@@ -195,7 +195,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
-                .padding(.top, Sizes.sectionTop - (SearchMetric.tapMin - Metric.addBioLine) / 2)
+                .padding(.top, Sizes.sectionTop - (SearchMetric.tapMin - ProfileMetric.addBioLine) / 2)
             }
 
             if let going = face.going, !going.isEmpty {
@@ -231,14 +231,14 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             Haptics.light()
             showingPhoto = true
         } label: {
-            NeighborFace(url: face.avatarUrl, size: Metric.photo)
-                .padding(Metric.ring)
+            NeighborFace(url: face.avatarUrl, size: ProfileMetric.photo)
+                .padding(ProfileMetric.ring)
                 .background(Hue.paper, in: Circle())
         }
         .buttonStyle(PressableStyle())
         .disabled(face.avatarUrl == nil)
         .matchedTransitionSource(id: "photo", in: zoom)
-        .offset(x: Event.inset - Metric.ring, y: -(Metric.photo / 2 + Metric.ring))
+        .offset(x: Event.inset - ProfileMetric.ring, y: -(ProfileMetric.photo / 2 + ProfileMetric.ring))
         .accessibilityLabel("\(face.name)'s photo")
         .accessibilityHint(face.avatarUrl == nil ? "" : "Opens it larger")
     }
@@ -305,7 +305,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     }
 
     private func rowWords<Line: View>(_ title: String, @ViewBuilder line: () -> Line) -> some View {
-        VStack(alignment: .leading, spacing: Metric.rowText) {
+        VStack(alignment: .leading, spacing: ProfileMetric.rowText) {
             Text(title)
                 .font(.apple(15, weight: .semibold))
                 .foregroundStyle(Hue.ink)
