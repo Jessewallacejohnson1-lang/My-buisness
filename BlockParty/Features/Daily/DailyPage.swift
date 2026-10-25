@@ -36,7 +36,7 @@ struct DailySpotlight {
 
     #if DEBUG
     /// INVENTED: a made-up neighbour and business, over the warm photos from Jesse's
-    /// Reference (the onboarding interest images). A real Spotlight's photo is the
+    /// Reference (the old onboarding interest images). A real Spotlight's photo is the
     /// person; the sample has no real face to show.
     static let sample = DailySpotlight(
         name: "Marta Reyes",

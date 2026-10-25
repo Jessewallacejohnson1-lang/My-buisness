@@ -120,7 +120,7 @@ enum TownSearch {
             }
         }
 
-        // Concepts — the interest taxonomy. A hit ("pint" → Breweries & Taprooms)
+        // Concepts — the interest taxonomy. A hit ("taproom" → Bars & breweries)
         // becomes a "Search …" row whose term re-expands in the results list.
         for interest in Interests.all {
             if let s = score(q, name: interest.label, extra: [], aliases: interest.keywords) {
@@ -328,24 +328,27 @@ enum TownSearch {
     /// magnifying glass for anything unmapped).
     private static func conceptIcon(_ id: String) -> String {
         switch id {
-        case "trails_hiking":  return "figure.hiking"
-        case "lakes_swimming": return "drop.fill"
-        case "parks_gardens":  return "tree.fill"
-        case "biking":         return "bicycle"
-        case "coffee":         return "cup.and.saucer.fill"
-        case "dining":         return "fork.knife"
-        case "farmers_market": return "basket.fill"
-        case "breweries":      return "mug.fill"
-        case "live_music":     return "music.note"
-        case "art_exhibits":   return "paintpalette.fill"
-        case "faith":          return "building.columns.fill"
-        case "festivals":      return "party.popper.fill"
-        case "books":          return "book.fill"
-        case "fitness_yoga":   return "figure.yoga"
-        case "sports_leagues": return "sportscourt.fill"
-        case "health_wellness":return "heart.fill"
-        case "families_kids":  return "figure.2.and.child.holdinghands"
-        case "volunteering":   return "hands.sparkles.fill"
+        case "outdoors":      return "tree.fill"
+        case "lakes_biking":  return "bicycle"
+        case "coffee":        return "cup.and.saucer.fill"
+        case "dining":        return "fork.knife"
+        case "bars":          return "mug.fill"
+        case "markets":       return "basket.fill"
+        case "live_music":    return "music.note"
+        case "art_theater":   return "theatermasks.fill"
+        case "crafts":        return "scissors"
+        case "talks":         return "mic.fill"
+        case "books":         return "book.fill"
+        case "games":         return "die.face.5.fill"
+        case "festivals":     return "party.popper.fill"
+        case "watch_sports":  return "sportscourt.fill"
+        case "play_sports":   return "figure.run"
+        case "health":        return "heart.fill"
+        case "faith":         return "building.columns.fill"
+        case "families_kids": return "figure.2.and.child.holdinghands"
+        case "campus":        return "graduationcap.fill"
+        case "town_meetings": return "building.2.fill"
+        case "volunteering":  return "hands.sparkles.fill"
         default:               return "magnifyingglass"
         }
     }

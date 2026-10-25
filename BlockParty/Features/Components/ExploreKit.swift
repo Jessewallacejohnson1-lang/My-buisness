@@ -9,6 +9,22 @@ import Combine
 
 // MARK: - Motion primitives
 
+/// A card's press: a soft scale-in on touch. Born on onboarding's old photo cards; Daily's
+/// cards and the You tab's rows kept it.
+struct PressableCardStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Also Daily's Event of the day card's, which squishes from its link's press.
+    static let pressedScale: CGFloat = 0.97
+    static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
+            .animation(Self.press, value: configuration.isPressed)
+    }
+}
+
 /// Card / control press feedback: a tap "pop". On the press-DOWN edge a one-shot
 /// keyframe plays start-to-finish — scale in to `scale`, then spring back with a
 /// tiny overshoot — so it reads even on a fast tap (a plain scale-while-held barely

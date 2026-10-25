@@ -721,7 +721,7 @@ def report(items, r):
             print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
 
 
-INTERESTS = ["live_music", "families_kids", "breweries", "farmers_market", "art_exhibits", "sports_leagues"]
+INTERESTS = ["live_music", "families_kids", "bars", "markets", "art_theater", "watch_sports"]
 TODAY = date(2026, 10, 14)
 
 
@@ -774,7 +774,7 @@ def item(**kw):
             "end": "2026-10-24T18:30:00-05:00", "all_day": False,
             "place": "Milk & Honey Ciders, 11738 County Road 51", "town": "St. Joseph", "area": "town",
             "source_name": "Milk & Honey Ciders", "source_url": "https://www.milkandhoneyciders.com/events",
-            "trust": "official", "sure": True, "size": "notable", "interest": "breweries",
+            "trust": "official", "sure": True, "size": "notable", "interest": "bars",
             "blurb": "Plant bingo for Angel Reins Stable, $30."}
     base.update(kw)
     return base
@@ -804,7 +804,7 @@ def t_event_or_news():
     assert r["news"][0]["category"] == "business" and r["news"][0]["status"] == "published"
     assert outcome(r, 0) == "published" and outcome(r, 1) == "news"
     # News matches neighbours by its interest and shows its place's logo (town-feed 35).
-    assert r["news"][0]["interests"] == ["breweries"] and r["news"][0]["place_entry_id"] == "milk-and-honey-ciders", r["news"]
+    assert r["news"][0]["interests"] == ["bars"] and r["news"][0]["place_entry_id"] == "milk-and-honey-ciders", r["news"]
     r = run([item(kind="news", title="Pumpkin latte", start=None, category="business", interest="lattes")])
     assert r["news"][0]["interests"] is None and "'lattes' is not on the list" in r["notes"][0], r
 
@@ -979,7 +979,7 @@ def t_cancelled():
     back = listed(**dict(game, cancelled_at="2026-10-15T11:00:00Z"))
     seen = item(title="Sartell Volleyball vs ROCORI", start="2026-10-20T19:00:00-05:00", end=None, place="ROCORI High School",
                 town="Cold Spring", area="game", source_name="ROCORI High School", source_uid=game["source_uid"],
-                interest="sports_leagues", size="everyday")
+                interest="watch_sports", size="everyday")
     r = run([seen, line], [back])
     assert not r["cancelled"] and [o["id"] for o in r["restored"]] == [back["id"]], r
     g = r["events"][0]
@@ -1040,7 +1040,7 @@ def t_interest_checked():
 
 def t_place_entry():
     arena = item(title="SJU Hockey vs Augsburg", place="Sexton Arena", town="Collegeville", area="campus",
-                 source_name="SJU Athletics", interest="sports_leagues")
+                 source_name="SJU Athletics", interest="watch_sports")
     shelter = item(title="Picnic in the Park", place="Centennial Park shelter", source_name="City of St. Joseph",
                    source_url="https://www.stjosephmn.gov/")
     zoo = item(title="Family Zoo Day", place="Hemker Park & Zoo", town="Freeport", area="announced",
@@ -1061,7 +1061,7 @@ def t_area():
     campus = item(title="Animal Tracking", start="2027-01-09T13:00:00-06:00", place="Saint John's Abbey Arboretum",
                   town="Collegeville", area="campus", source_name="City of St. Joseph")
     game = item(title="Cathedral vs Sartell football", start="2026-10-23T19:00:00-05:00", place="Cathedral High School",
-                town="St. Cloud", area="game", source_name="Sartell-St. Stephen Schools", interest="sports_leagues")
+                town="St. Cloud", area="game", source_name="Sartell-St. Stephen Schools", interest="watch_sports")
     away = item(title="Waite Park fair", area="outside", town="Waite Park")
     zoo = item(title="Family Zoo Day", start="2026-10-17T10:00:00-05:00", place="Hemker Park & Zoo",
                town="Freeport", area="announced", source_name="City of St. Joseph")
@@ -1103,7 +1103,7 @@ def t_writes_are_one_safe_call():
 
 def t_interest_list_is_the_apps():
     ids = interest_ids()
-    assert {"live_music", "families_kids", "trails_hiking", "volunteering"} <= set(ids), ids
+    assert {"live_music", "families_kids", "outdoors", "volunteering"} <= set(ids), ids
 
 
 WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on the card
@@ -1175,9 +1175,9 @@ def t_game():
     titles, 2026-10-20); a meet or a finale is no game."""
     league = item(title="Sartell Girls Soccer vs Sauk Rapids-Rice", place="Sartell High School", town="Sartell",
                   area="game", source_name="Sartell High School", source_url="https://www.mshsl.org/group/504/full-schedule",
-                  interest="sports_leagues", game={"sport": "Girls Soccer", "teams": ["Sartell", "Sauk Rapids-Rice"]})
+                  interest="watch_sports", game={"sport": "Girls Soccer", "teams": ["Sartell", "Sauk Rapids-Rice"]})
     campus = lambda title, host="SJU Athletics": item(title=title, place="Clemens Stadium", town="Collegeville",
-                                                      area="campus", source_name=host, interest="sports_leagues")
+                                                      area="campus", source_name=host, interest="watch_sports")
     rows = {g["row"]["title"]: g["row"] for g in run([
         league,
         campus("Saint John's University Football vs Concordia (Homecoming)"),

@@ -32,7 +32,7 @@ in the summary and the others carry on.
 
 What the readers keep (Jesse, 2026-10-14): events in the next 90 days, and News. Each is one
 sure mention at its source's trust, sized everyday (it shows two weeks ahead), with an
-interest only where the calendar says what it is: games Sports & leagues, the library
+interest only where the calendar says what it is: games Watch sports, the library
 Library & books, the Monastery Faith. CSB/SJU: the public calendars named in the registry,
 home games only (no away games, rec-center classes or halftime shows), and a repeating
 event once, at its next date, with its calendar's description but a game's (only its title and
@@ -192,7 +192,7 @@ CAMPUS_HOSTS = {"Campus Events": "CSB SJU Campus Events", "CSB Athletics": "CSB 
                 "School of Theology": "Saint John's School of Theology"}
 # A calendar whose events are at home gives only the street address; the card names the place.
 CAMPUS_HOMES = {"St. Benedict's Monastery": ("104 Chapel Lane", "Saint Benedict's Monastery")}
-CAMPUS_INTERESTS = {"CSB Athletics": "sports_leagues", "SJU Athletics": "sports_leagues",
+CAMPUS_INTERESTS = {"CSB Athletics": "watch_sports", "SJU Athletics": "watch_sports",
                     "Library": "books", "St. Benedict's Monastery": "faith"}
 # Campus Events also lists what only students go to: career workshops and fairs (Jesse, 2026-10-14).
 STUDENT_ONLY = re.compile(r"admission event|networking workshop|charting conversations|employer tabling|"
@@ -640,7 +640,7 @@ def games(listings, today):
         items.append({"kind": "event", "title": title, "start": start, "end": None, "all_day": all_day,
                       "place": first["venue"], "town": town, "area": "game", "source_name": host,
                       "source_url": first["page"], "source_uid": uid, "trust": "official", "sure": True,
-                      "size": "notable" if PLAYOFF.search(title) else "everyday", "interest": "sports_leagues",
+                      "size": "notable" if PLAYOFF.search(title) else "everyday", "interest": "watch_sports",
                       "blurb": None, **({"game": game} if game else {})})
     return sorted(items, key=lambda i: (i["start"], i["title"])), left
 
@@ -879,7 +879,7 @@ def t_pathify():
     salvage = next(i for i in got if i["title"] == "Salvage")
     assert salvage["start"] == "2026-10-14T14:00:00-05:00" and salvage["town"] == "Collegeville" and salvage["interest"] is None
     football = next(i for i in got if "Football" in i["title"])
-    assert (football["town"], football["interest"], football["source_name"]) == ("Collegeville", "sports_leagues", "SJU Athletics")
+    assert (football["town"], football["interest"], football["source_name"]) == ("Collegeville", "watch_sports", "SJU Athletics")
     homecoming = next(i for i in got if i["title"] == "Homecoming 2026")
     assert (homecoming["start"], homecoming["all_day"], homecoming["end"]) == ("2026-10-17", True, None), homecoming
     closed = next(i for i in got if "Closed" in i["title"])
@@ -1002,7 +1002,7 @@ def t_league():
     assert (soccer["start"], soccer["place"], soccer["town"], soccer["source_name"], soccer["area"]) == (
         "2026-10-15T19:00:00-05:00", "Sartell High School", "Sartell", "Sartell High School", "game"), soccer
     assert soccer["source_uid"] == "mshsl:142:sartell|st. cloud:2", "the second meeting this season"
-    assert soccer["source_url"] == f"{LEAGUE}/group/504/full-schedule" and soccer["interest"] == "sports_leagues"
+    assert soccer["source_url"] == f"{LEAGUE}/group/504/full-schedule" and soccer["interest"] == "watch_sports"
     assert rows["Tech Girls Swim vs Sartell"]["source_name"] == "Tech High School", "the home school hosts"
     # The game card's teams and sport (game-card 01), the host first, as neighbours say them.
     assert soccer["game"] == {"sport": "Girls Soccer", "teams": ["Sartell", "St. Cloud"]}, soccer
@@ -1117,7 +1117,7 @@ def t_items_fit_the_writer():
     assert rows["Fix-It Clinic"]["location"] == "Clemens Library", "St. Joseph needs no town on its place line"
     assert rows["Christmas Craft Sale at Saint Scholastica Convent"]["location"] == "Saint Scholastica Convent, St. Cloud"
     assert rows["Tech Girls Swim vs Sartell"]["location"] == "St. Cloud Tech High School", "the venue already names its town"
-    assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "sports_leagues"
+    assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "watch_sports"
 
 
 TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,

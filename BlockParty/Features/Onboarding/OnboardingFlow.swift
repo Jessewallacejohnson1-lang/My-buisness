@@ -102,6 +102,11 @@ struct OnboardingFlow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
+    /// Step 7's picks, kept on the phone as they're made so a relaunch keeps them. They reach the
+    /// server once an account exists (ticket 24).
+    @State private var interests = Interests.get()
+    /// "Popular in St. Joseph", read while the earlier steps are up.
+    @State private var popular: [String] = []
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -116,6 +121,12 @@ struct OnboardingFlow: View {
                 OnboardingWelcome(start: go { [store] in store.next() })
                     .zIndex(1)
                     .transition(.opacity)
+            }
+        }
+        .onChange(of: interests) { _, ids in Interests.set(ids) }
+        .task {
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
+                popular = Interests.popular(events)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -162,19 +173,36 @@ struct OnboardingFlow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($questionFocused)
+            answer
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 32)
         .padding(.top, 128)
         .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
     }
 
+    /// What the step asks for, under its question. Steps still placeholders show nothing.
+    @ViewBuilder private var answer: some View {
+        switch store.step {
+        case .interests:
+            VStack(alignment: .leading, spacing: 0) {
+                Text("We'll show events, groups and places that match.")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, 8 - 32)
+                InterestChips(picked: $interests, popular: popular)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
     /// The Next bar, 84 pt from the bottom with a fixed 44 pt slot under it, or 12 pt above an
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: "Next", allowed: nextAllowed, action: go { [store] in store.next() })
+            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, action: go { [store] in store.next() })
             if !keyboardUp { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
@@ -194,12 +222,19 @@ struct OnboardingFlow: View {
         }
     }
 
+    /// "Pick 2 more" until step 7 has its 3.
+    private var nextTitle: String {
+        if store.step == .interests, interests.count < 3 { return "Pick \(3 - interests.count) more" }
+        return "Next"
+    }
+
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-onboarding-not-yet") { return false }
         #endif
+        if store.step == .interests { return interests.count >= 3 }
         return true
     }
 

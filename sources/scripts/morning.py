@@ -482,10 +482,10 @@ def selftest():
                    "a page's own clock doesn't change its fingerprint; an event's time does"))
     events = [{"id": "e1", "category": None}, {"id": "e2", "category": "live_music"}, {"id": "e3", "category": None}]
     writes = plan_tags([{"id": "e1", "interests": ["dining", "faith", "dining", "made_up"], "draw": 3},
-                        {"id": "e2", "interests": ["breweries", "live_music"], "draw": 7}, {"id": "zz", "interests": ["dining"]},
-                        "unreadable line: {", {"id": "e3"}], events, ["dining", "faith", "breweries", "live_music"])
+                        {"id": "e2", "interests": ["bars", "live_music"], "draw": 7}, {"id": "zz", "interests": ["dining"]},
+                        "unreadable line: {", {"id": "e3"}], events, ["dining", "faith", "bars", "live_music"])
     checks.append((writes == {"e1": {"interests": ["dining", "faith"], "draw": 3, "category": "dining"},
-                              "e2": {"interests": ["breweries", "live_music"]}},
+                              "e2": {"interests": ["bars", "live_music"]}},
                    "tags keep known interests once each and a draw of 1-3, fill an empty category, and skip Events not given or not answered"))
     checks.append((plan_tags([{"id": "e1", "interests": [], "draw": 1}], events, ["dining"]) == {"e1": {"interests": [], "draw": 1}},
                    "an Event nothing fits is tagged with none, so it isn't read again"))
@@ -513,8 +513,8 @@ def selftest():
                    "nine standouts at most"))
     line = event_line({"id": "g", "title": "Home game", "all_day": False, "start_time": "7 PM", "location": "Field",
                        "clubs": None, "source_name": "Sartell High School", "description": "  Rivals\n night  ",
-                       "interests": [], "interests_tagged_at": None, "category": "sports_leagues", "draw": 3}, 3, 1)
-    checks.append((line["interests"] == ["sports_leagues"] and line["host"] == "Sartell High School"
+                       "interests": [], "interests_tagged_at": None, "category": "watch_sports", "draw": 3}, 3, 1)
+    checks.append((line["interests"] == ["watch_sports"] and line["host"] == "Sartell High School"
                    and line["start"] == "7 PM" and line["about"] == "Rivals night" and line["draw"] == 3
                    and (line["going"], line["hearts"]) == (3, 1),
                    "an untagged Event's interest is its category, as the feed matches it"))

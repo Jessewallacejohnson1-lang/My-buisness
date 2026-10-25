@@ -3,8 +3,8 @@
 //  Block Party — the pieces every onboarding question screen shares (BP app
 //  docs/plans/onboarding, mock v7): the faint yellow backdrop, the back chevron, Duolingo's
 //  chunky yellow progress bar and the one Next bar. `OnboardingFlow` owns where they sit;
-//  the steps draw none of them. `OnboardingBackButton` and `ContinueButton` are Edit
-//  Profile's interest picker's, kept from the deleted wizard.
+//  the steps draw none of them. `ContinueButton` is Edit Profile's interests' Done, kept from
+//  the deleted wizard.
 //
 
 import SwiftUI
@@ -225,27 +225,8 @@ struct OnboardingPress: ButtonStyle {
     }
 }
 
-/// Edit Profile's interest picker's back button.
-struct OnboardingBackButton: View {
-    let action: () -> Void
-    var body: some View {
-        Button(action: { Haptics.selection(); action() }) {
-            Image(systemName: "chevron.left")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .frame(width: 44, height: 44)
-                .background(Hue.surface, in: Circle())
-                .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Back")
-    }
-}
-
-/// The full-width ink CTA. It was the wizard's shared pill; the interest picker
-/// outlived the wizard (Edit Profile presents it), so the button moved here with
-/// the rest of that screen's chrome when the onboarding flow was deleted on
-/// 2026-09-18.
+/// The full-width ink CTA: Edit Profile's interests' Done. It was the old wizard's pill,
+/// moved here when that flow was deleted on 2026-09-18.
 struct ContinueButton: View {
     let title: String
     var enabled: Bool = true
