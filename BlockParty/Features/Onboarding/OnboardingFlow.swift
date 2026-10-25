@@ -49,16 +49,31 @@ final class OnboardingStore {
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
     /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
-    /// the account with the rest at the end, so an under-13 who stops here leaves nothing behind.
+    /// the account with the onboarded stamp, so an under-13 who stops here leaves nothing behind.
     var birthday: Date? {
         didSet { defaults.set(birthday.map { OnboardingAge.day.format($0) }, forKey: Self.birthdayKey) }
     }
     /// "Come back when you're 13" is up over the birthday step.
     private(set) var tooYoung = false
 
+    /// Name and Photo's answers (ticket 18), kept on the phone until they reach
+    /// `town_profiles` (`saveAnswers`).
+    var firstName: String { didSet { keep(firstName, Self.firstKey) } }
+    var lastName: String { didSet { keep(lastName, Self.lastKey) } }
+    /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
+    var photo: Data? { didSet { keep(photo, Self.photoKey) } }
+    /// An answer changed since the last save reached the server.
+    private(set) var answersPending: Bool
+    /// A save is out, so a second caller doesn't upload the photo again.
+    private var saving = false
+
     private let defaults: UserDefaults
     private static let stepKey = "onboarding.step"
     private static let finishedKey = "onboarding.finished"
+    private static let firstKey = "onboarding.firstName"
+    private static let lastKey = "onboarding.lastName"
+    private static let photoKey = "onboarding.photo"
+    private static let pendingKey = "onboarding.answersPending"
     private static let birthdayKey = "onboarding.birthday"
 
     init(defaults: UserDefaults = .standard) {
@@ -67,11 +82,35 @@ final class OnboardingStore {
         let saved = defaults.string(forKey: Self.stepKey)
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         finished = defaults.bool(forKey: Self.finishedKey)
+        firstName = defaults.string(forKey: Self.firstKey) ?? ""
+        lastName = defaults.string(forKey: Self.lastKey) ?? ""
+        photo = defaults.data(forKey: Self.photoKey)
+        answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
+
+    /// "Avery Lund", or "Avery" alone; nil before a first name is typed.
+    var displayName: String? {
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !first.isEmpty else { return nil }
+        return last.isEmpty ? first : "\(first) \(last)"
+    }
+
+    /// Hands the name and photo to `write` (the account's `town_profiles` row) when either
+    /// changed since it last succeeded. A failure, or no account yet, keeps them waiting on
+    /// the phone for the next try.
+    func saveAnswers(_ write: (_ name: String?, _ photo: Data?) async throws -> Void) async {
+        guard answersPending, !saving, displayName != nil || photo != nil else { return }
+        saving = true
+        defer { saving = false }
+        do { try await write(displayName, photo) } catch { return }
+        answersPending = false
+        defaults.set(false, forKey: Self.pendingKey)
+    }
 
     func next(now: Date = .now) {
         if step == .birthday, let birthday, OnboardingAge.years(from: birthday, to: now) < 13 {
@@ -90,13 +129,17 @@ final class OnboardingStore {
     /// Back from "Come back when you're 13" to the wheel.
     func notTooYoung() { tooYoung = false }
 
-    /// Close on "Come back when you're 13": every answer the device kept is cleared (each step's
-    /// `onboarding.` key) and the flow starts over on the Welcome.
+    /// Close on "Come back when you're 13": every answer is dropped, then every `onboarding.` key the
+    /// device kept, and the flow starts over on the Welcome.
     func leaveTooYoung() {
+        firstName = ""
+        lastName = ""
+        photo = nil
+        birthday = nil
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
-        birthday = nil
+        answersPending = false
         tooYoung = false
         forward = false
         step = .welcome
@@ -115,6 +158,12 @@ final class OnboardingStore {
     func serverSaysFinished() {
         guard step == .welcome else { return }
         finish()
+    }
+
+    private func keep(_ value: Any?, _ key: String) {
+        defaults.set(value, forKey: key)
+        answersPending = true
+        defaults.set(true, forKey: Self.pendingKey)
     }
 
     private func move(to new: OnboardingStep, forward: Bool) {
@@ -207,14 +256,14 @@ struct OnboardingFlow: View {
         VStack(alignment: .leading, spacing: 32) {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
-            Text(store.step.question)
-                .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($questionFocused)
-            if store.step == .birthday {
-                OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(store.step.question)
+                    .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityFocused($questionFocused)
+                answer
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -222,6 +271,25 @@ struct OnboardingFlow: View {
         .padding(.top, 128)
         .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
+    }
+
+    /// What the step asks for, under its question; nothing yet on the placeholder steps.
+    @ViewBuilder private var answer: some View {
+        switch store.step {
+        case .name:
+            OnboardingNameFields(store: store, done: go { [store] in store.next() })
+        case .photo:
+            Text("So friends know it's you.")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, 8)
+            OnboardingPhotoCircle(store: store)
+        case .birthday:
+            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+                .padding(.top, 32)
+        default:
+            EmptyView()
+        }
     }
 
     /// The Next bar, 84 pt from the bottom with a fixed 44 pt slot under it, or 12 pt above an
@@ -251,12 +319,18 @@ struct OnboardingFlow: View {
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
+    /// Name waits for a first name, Photo for a photo (Skip moves on without one).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-onboarding-not-yet") { return false }
         #endif
-        return store.step != .birthday || store.birthday != nil
+        switch store.step {
+        case .name:  return store.displayName != nil
+        case .photo: return store.photo != nil
+        case .birthday: return store.birthday != nil
+        default:     return true
+        }
     }
 
     /// A move between steps, on the slide's timing.

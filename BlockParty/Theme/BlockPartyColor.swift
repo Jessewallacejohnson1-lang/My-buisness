@@ -214,6 +214,10 @@ nonisolated enum Hue {
     static let welcomePillDown = Color(hex: 0xECECEA)
     /// The Welcome's scrims over its photo, black at the mock's strengths.
     static let welcomeScrim  = Color(hex: 0x000000)
+    /// Onboarding's empty photo, Instagram's blank profile picture measured from its sign-up
+    /// (BP app references/onboarding-name-photo): a blue-grey circle and a near-white figure.
+    static let blankAvatar   = Color(hex: 0xCBD2DA)
+    static let blankAvatarFigure = Color(hex: 0xF4F5F9)
     /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
     /// The second red after `heart`, and for this one pill only.
     static let canceled      = Color(uiColor: .systemRed)
