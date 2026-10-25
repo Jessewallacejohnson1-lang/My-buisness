@@ -64,6 +64,8 @@ struct EditProfileView: View {
             if interests.isEmpty { interests = Set(model.interestIds) }
             if bio.isEmpty { bio = model.bio }
         }
+        // Opened before Profile's read landed: its bio comes in then, unless you've typed one.
+        .onChange(of: model.bio) { old, new in if bio == old { bio = new } }
         .onChange(of: coverPick) { _, item in
             guard let item else { return }
             Task {
@@ -208,6 +210,8 @@ struct EditProfileView: View {
                     Image(uiImage: cover).resizable().scaledToFill()
                 } else if let url = model.coverUrl.flatMap(URL.init(string:)) {
                     FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                } else if let town = ProfileFace.town {
+                    Image(uiImage: town).resizable().scaledToFill()
                 }
             }
             .overlay {
