@@ -234,7 +234,28 @@ struct RootView: View {
         .animation(.smooth(duration: 0.35), value: onboardingUp)
         .task(id: auth.userId) { await hydrateIfNeeded() }
         .onChange(of: onboarding.finished) { _, done in
-            if done, !stampedOnServer { Task { try? await ProfileAPI(auth: .shared).markOnboarded() } }
+            guard done else { return }
+            if let name = onboarding.displayName { Interests.displayName = name }
+            if !stampedOnServer { Task { try? await ProfileAPI(auth: .shared).markOnboarded() } }
+            Task { await saveOnboardingAnswers() }
+        }
+    }
+
+    /// Onboarding's name and photo reach `town_profiles` once the flow is done and an account
+    /// exists; till then they wait on the phone (BP app onboarding 18). The photo uploads to
+    /// the avatar the app already shows.
+    private func saveOnboardingAnswers() async {
+        guard onboarding.finished else { return }
+        await onboarding.saveAnswers { name, photo in
+            let auth = AuthStore.shared
+            guard let uid = auth.userId else { throw SupabaseError(message: "No account yet.", status: 401) }
+            var url: String?
+            if let photo {
+                url = await Storage(auth: auth).uploadAvatar(photo, userId: uid)
+                if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
+            }
+            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url)
+            if let name { Interests.displayName = name }
         }
     }
 
@@ -253,10 +274,13 @@ struct RootView: View {
         if fetched?.onboardedAt == nil, onboarding.finished {
             try? await ProfileAPI(auth: .shared).markOnboarded()
         }
-        guard let profile = fetched else { return }
-        if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
-        if !profile.interests.isEmpty { Interests.set(profile.interests) }
-        if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
+        if let profile = fetched {
+            if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
+            if !profile.interests.isEmpty { Interests.set(profile.interests) }
+            if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
+        }
+        // After the mirror, so a name typed in onboarding beats the one read before it saved.
+        await saveOnboardingAnswers()
     }
 }
 

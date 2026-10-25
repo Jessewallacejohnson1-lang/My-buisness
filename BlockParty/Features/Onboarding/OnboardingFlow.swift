@@ -30,14 +30,6 @@ enum OnboardingStep: Int, CaseIterable {
         }
     }
 
-    /// The line under the question, where the step has one.
-    var subtitle: String? {
-        switch self {
-        case .interests: "We'll show events, groups and places that match."
-        default:         nil
-        }
-    }
-
     /// The link in the slot under the Next bar, where the step has one.
     var slot: String? {
         switch self {
@@ -57,9 +49,24 @@ final class OnboardingStore {
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
 
+    /// Name and Photo's answers (ticket 18), kept on the phone until they reach
+    /// `town_profiles` (`saveAnswers`).
+    var firstName: String { didSet { keep(firstName, Self.firstKey) } }
+    var lastName: String { didSet { keep(lastName, Self.lastKey) } }
+    /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
+    var photo: Data? { didSet { keep(photo, Self.photoKey) } }
+    /// An answer changed since the last save reached the server.
+    private(set) var answersPending: Bool
+    /// A save is out, so a second caller doesn't upload the photo again.
+    private var saving = false
+
     private let defaults: UserDefaults
     private static let stepKey = "onboarding.step"
     private static let finishedKey = "onboarding.finished"
+    private static let firstKey = "onboarding.firstName"
+    private static let lastKey = "onboarding.lastName"
+    private static let photoKey = "onboarding.photo"
+    private static let pendingKey = "onboarding.answersPending"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -67,10 +74,34 @@ final class OnboardingStore {
         let saved = defaults.string(forKey: Self.stepKey)
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         finished = defaults.bool(forKey: Self.finishedKey)
+        firstName = defaults.string(forKey: Self.firstKey) ?? ""
+        lastName = defaults.string(forKey: Self.lastKey) ?? ""
+        photo = defaults.data(forKey: Self.photoKey)
+        answersPending = defaults.bool(forKey: Self.pendingKey)
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
+
+    /// "Avery Lund", or "Avery" alone; nil before a first name is typed.
+    var displayName: String? {
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !first.isEmpty else { return nil }
+        return last.isEmpty ? first : "\(first) \(last)"
+    }
+
+    /// Hands the name and photo to `write` (the account's `town_profiles` row) when either
+    /// changed since it last succeeded. A failure, or no account yet, keeps them waiting on
+    /// the phone for the next try.
+    func saveAnswers(_ write: (_ name: String?, _ photo: Data?) async throws -> Void) async {
+        guard answersPending, !saving, displayName != nil || photo != nil else { return }
+        saving = true
+        defer { saving = false }
+        do { try await write(displayName, photo) } catch { return }
+        answersPending = false
+        defaults.set(false, forKey: Self.pendingKey)
+    }
 
     func next() {
         guard let after = OnboardingStep(rawValue: step.rawValue + 1) else { return finish() }
@@ -95,6 +126,12 @@ final class OnboardingStore {
     func serverSaysFinished() {
         guard step == .welcome else { return }
         finish()
+    }
+
+    private func keep(_ value: Any?, _ key: String) {
+        defaults.set(value, forKey: key)
+        answersPending = true
+        defaults.set(true, forKey: Self.pendingKey)
     }
 
     private func move(to new: OnboardingStep, forward: Bool) {
@@ -190,24 +227,18 @@ struct OnboardingFlow: View {
     }
 
     private var question: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 32) {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
-                .padding(.bottom, 32)
-            Text(store.step.question)
-                .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($questionFocused)
-            if let subtitle = store.step.subtitle {
-                Text(subtitle)
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(store.step.question)
+                    .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
+                    .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityFocused($questionFocused)
+                answer
             }
-            answer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 32)
@@ -216,10 +247,22 @@ struct OnboardingFlow: View {
         .onAppear { questionFocused = true }
     }
 
-    /// What the step asks for, under its question. Steps still placeholders show nothing.
+    /// What the step asks for, under its question; nothing yet on the placeholder steps.
     @ViewBuilder private var answer: some View {
         switch store.step {
+        case .name:
+            OnboardingNameFields(store: store, done: go { [store] in store.next() })
+        case .photo:
+            Text("So friends know it's you.")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, 8)
+            OnboardingPhotoCircle(store: store)
         case .interests:
+            Text("We'll show events, groups and places that match.")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, 8)
             InterestChips(picked: $interests, popular: popular)
         default:
             EmptyView()
@@ -257,13 +300,18 @@ struct OnboardingFlow: View {
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
+    /// Name waits for a first name, Photo for a photo (Skip moves on without one).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-onboarding-not-yet") { return false }
         #endif
-        if store.step == .interests { return interests.count >= 3 }
-        return true
+        switch store.step {
+        case .name:  return store.displayName != nil
+        case .photo: return store.photo != nil
+        case .interests: return interests.count >= 3
+        default:     return true
+        }
     }
 
     /// A move between steps, on the slide's timing.
