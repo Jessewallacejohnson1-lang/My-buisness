@@ -103,6 +103,10 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-25 — A place's weekly hours may be saved from Google Maps (Jesse: "its a fact were not
+  copying"): `places.hours`, read once through Composio's Google Maps tool, else from the place's
+  own website or Facebook. **Supersedes**, for hours only, "only `place_id`s are persisted" below
+  and in sources/README.md. Photos, names, ratings and reviews still never come from Google.
 - 2026-10-19 — Two Events with the same date, start time and place are one Event (Jesse). No place on
   either counts as the same place when the titles match (`write_judged.same_event`): the City's
   calendar feed and its web page each listed six St. Joseph meetings without one (Council Oct 19 and
