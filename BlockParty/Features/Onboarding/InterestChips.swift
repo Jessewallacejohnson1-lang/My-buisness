@@ -43,7 +43,7 @@ struct InterestChips: View {
         }
         .onAppear { if shownPopular == nil { shownPopular = popular } }
         .onChange(of: popular) { _, new in
-            guard !touched, query.isEmpty else { return }
+            guard !touched else { return }
             withAnimation(.easeOut(duration: 0.25)) { shownPopular = new }
         }
     }
@@ -111,7 +111,9 @@ struct InterestChips: View {
                                  on: picked.contains(id), pops: landing == id && !reduceMotion) {
                         toggle(id)
                     }
+                    // One chip that moves, never two copies cross-fading.
                     .matchedGeometryEffect(id: id, in: glide)
+                    .transition(.identity)
                 }
             }
         }
@@ -159,6 +161,7 @@ private struct InterestChip: View {
         }
         .buttonStyle(InterestChipStyle(on: on))
         .accessibilityLabel(label)
+        .accessibilityIdentifier("interest-chip")
         .accessibilityAddTraits(on ? .isSelected : [])
         .onAppear {
             guard pops else { return }

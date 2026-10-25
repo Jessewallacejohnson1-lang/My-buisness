@@ -41,7 +41,16 @@ final class OnboardingNextBarTests: XCTestCase {
             if step == 7 {
                 // Interests asks for 3 before it lets you on (ticket 20).
                 XCTAssertEqual(next.label, "Pick 3 more")
-                for name in ["Live music", "Coffee shops", "Campus"] { app.buttons[name].firstMatch.tap() }
+                // Popular in St. Joseph slides in when its counts land; let it, so no chip moves mid-tap.
+                _ = app.staticTexts["Popular in St. Joseph"].waitForExistence(timeout: 10)
+                for picked in 1...3 {
+                    // The first chip not yet picked, once the last one has glided into Added.
+                    let chip = app.buttons.matching(NSPredicate(format: "identifier == 'interest-chip' AND isSelected == NO"))
+                        .element(boundBy: 0)
+                    XCTAssertTrue(chip.waitForExistence(timeout: 3), "no chip to pick \(picked)")
+                    Thread.sleep(forTimeInterval: 0.6)
+                    chip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                }
                 XCTAssertEqual(next.label, "Next")
             }
             next.tap()

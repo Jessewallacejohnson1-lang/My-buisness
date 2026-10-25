@@ -30,6 +30,14 @@ enum OnboardingStep: Int, CaseIterable {
         }
     }
 
+    /// The line under the question, where the step has one.
+    var subtitle: String? {
+        switch self {
+        case .interests: "We'll show events, groups and places that match."
+        default:         nil
+        }
+    }
+
     /// The link in the slot under the Next bar, where the step has one.
     var slot: String? {
         switch self {
@@ -182,15 +190,23 @@ struct OnboardingFlow: View {
     }
 
     private var question: some View {
-        VStack(alignment: .leading, spacing: 32) {
+        VStack(alignment: .leading, spacing: 0) {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
+                .padding(.bottom, 32)
             Text(store.step.question)
                 .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($questionFocused)
+            if let subtitle = store.step.subtitle {
+                Text(subtitle)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
             answer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -204,13 +220,7 @@ struct OnboardingFlow: View {
     @ViewBuilder private var answer: some View {
         switch store.step {
         case .interests:
-            VStack(alignment: .leading, spacing: 0) {
-                Text("We'll show events, groups and places that match.")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, 8 - 32)
-                InterestChips(picked: $interests, popular: popular)
-            }
+            InterestChips(picked: $interests, popular: popular)
         default:
             EmptyView()
         }
