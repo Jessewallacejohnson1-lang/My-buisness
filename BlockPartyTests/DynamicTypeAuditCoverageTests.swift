@@ -49,7 +49,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
 
         "OnboardingNamePhoto.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Needs a launch flag; its own text is mostly frozen map-marker chrome, so the payoff is the search and filter row, not the map."),
-        "RootView.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),
+        "FriendMenu.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "RootView.swift:$showNotifications": .notYetAudited(reason: "The Today bar's bell. Reserved screen, same shape as friends above. A real notification list is user-generated text of any length, so it moves to high priority the day it has rows."),
         "FeedView.swift:$route": .notYetAudited(reason: "Feed detail routes. Needs a fixture-driven launch flag."),
         "FeedEventCard.swift:$commentsPresented": .notYetAudited(reason: "Event comments. User-generated text of any length — high priority."),

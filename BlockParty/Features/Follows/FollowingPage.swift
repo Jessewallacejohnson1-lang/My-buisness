@@ -154,7 +154,7 @@ struct FollowingPage: View {
             guard let item, let logo = item.logo else { return }
             // From its round picture: a logo flies out of it; a photo lets the logo fade in, as a
             // Search photo card does.
-            opener.open(item, from: .init(logo: picture, box: picture, radius: 0, shadow: logo.shadow,
+            opener.open(item, from: .init(logo: picture, box: picture, radius: picture.width / 2, shadow: logo.shadow,
                                           fades: row.pictureKind != "logo"))
         }
     }
@@ -215,7 +215,8 @@ private struct FollowingRow: View {
 
 /// A person's page from their Following row, which knows only who they are: it opens at once on
 /// their photo and name, and its pill waits for `get_neighbor` to say where you stand, so a friend
-/// never flashes Add friend. A failed read shows the pill as the Friends book has it.
+/// never flashes Add friend. A failed read shows the pill as the Friends book has it; nobody found
+/// (they blocked you since) shows none.
 private struct FollowedNeighborPage: View {
     let row: FollowRow
     @Environment(FriendsBook.self) private var book
@@ -225,8 +226,12 @@ private struct FollowedNeighborPage: View {
     var body: some View {
         NeighborPage(neighbor: read ?? standIn, settled: settled)
             .task {
-                read = try? await Self.read(row.targetId)
-                settled = true
+                do {
+                    read = try await Self.read(row.targetId)
+                    settled = read != nil
+                } catch {
+                    settled = true
+                }
             }
     }
 

@@ -187,7 +187,7 @@ private struct FriendSurfaces: ViewModifier {
         content
             .alert((book.problem ?? said).title,
                    isPresented: Binding(get: { active && book.problem != nil },
-                                        set: { if !$0 { book.problem = nil } }),
+                                        set: { if !$0 && active { book.problem = nil } }),
                    presenting: book.problem) { problem in
                 if problem == .nameNeeded {
                     Button("Cancel", role: .cancel) {}
