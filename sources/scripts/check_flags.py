@@ -6,7 +6,7 @@ ticket 04; the bar is Jesse's, 2026-10-13.)
 
 The fixture is the test run of 2026-10-13 (sources/evals/flag/): 35 pages from 11 watched and
 24 listed places, read through the registry's polite fetch, and the better model's 20
-findings on them. The check sends the pages to the cheap model in batches of 12 with the
+findings on them. The check sends the pages to the cheap model in batches of 12 (batch.py) with the
 instructions as its system prompt, through Claude Code on Jesse's plan (no API key, no bill),
 then matches its flags to the findings: same page, shared title words, and the same day when
 both give one.
@@ -27,30 +27,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from write_judged import words
+from batch import layout, page_id
 
 SOURCES = Path(__file__).resolve().parents[1]
 INSTRUCTIONS = SOURCES / "models" / "flag.md"
 FIXTURE = SOURCES / "evals" / "flag"
 FIXTURE_DAY = date(2026, 10, 13)  # the day the pages were read
-BATCH = 12
-PAGE_CHARS = 15_000  # the test run's cut; a page past it is a feed, which never comes here
 BAR = 0.9
-
-
-def batches(pages):
-    return [pages[i:i + BATCH] for i in range(0, len(pages), BATCH)]
-
-
-def page_id(name):
-    """A page is named by its file's stem; a model that adds or drops ".txt" names the same page."""
-    return Path(str(name)).name.removesuffix(".txt")
-
-
-def message(batch, today=FIXTURE_DAY, town="St. Joseph, Minnesota"):
-    parts = [f"Today is {today:%A, %B %-d, %Y}. The town is {town}. {len(batch)} pages follow.\n"]
-    for p in batch:
-        parts.append(f"=== PAGE {page_id(p['file'])} ===\nURL: {p['url']}\n{p['text'][:PAGE_CHARS]}\n")
-    return "\n".join(parts)
 
 
 def ask(model, system, text):
@@ -136,8 +119,6 @@ def selftest():
          "what is left over is extra"),
         (flags_in('{"page": "a", "kind": "none"}\nsome prose\n```\n{"page": "b", "kind": "event", "title": "x"},\n{bad')
          == [{"page": "a", "kind": "none"}, {"page": "b", "kind": "event", "title": "x"}], "reads JSON lines among prose"),
-        (len(batches(list(range(35)))) == 3 and "=== PAGE p ===\nURL: u\n" in message([{"file": "p.txt", "url": "u", "text": "t"}]),
-         "batches of 12, each page marked"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -164,7 +145,7 @@ def main():
     total = 0
     for n in range(1, args.runs + 1):
         with ThreadPoolExecutor(max_workers=3) as pool:
-            answers = list(pool.map(lambda b: ask(args.model, system, message(b)), batches(pages)))
+            answers = list(pool.map(lambda text: ask(args.model, system, text), layout(pages, FIXTURE_DAY)))
         flags = [f for text, _ in answers for f in flags_in(text)]
         tokens = sum(u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
                      + u.get("cache_read_input_tokens", 0) + u.get("output_tokens", 0) for _, u in answers)

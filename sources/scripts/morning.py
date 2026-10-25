@@ -5,7 +5,7 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
 
   prepare   fetch every watched page the polite way (run.fetch_watched; yesterday's
             fingerprints are in the database), read the feeds and data sources (read_events.py),
-            and lay out only the changed pages in batches of 12 for the cheap model, with
+            and lay out only the changed pages in batches of 12 for the cheap model (batch.py), with
             the events already listed for the judge
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
@@ -54,7 +54,7 @@ from urllib.parse import quote
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
-from check_flags import batches, message
+from batch import layout
 import write_judged
 from run import Supabase, fetch_watched
 
@@ -150,8 +150,8 @@ def prepare(today, out):
     pages = pages_to_read(report["changed"], entries)
     for p in pages:
         p["text"] = snapshot_text(run_dir / "snapshots" / p["snapshot"])
-    for i, b in enumerate(batches(pages), 1):
-        (out / "batches" / f"batch-{i}.txt").write_text(message(b, today))
+    for i, text in enumerate(layout(pages, today), 1):
+        (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in pages], indent=1))
     (out / "existing.json").write_text(json.dumps(write_judged.listed_in_db(), indent=1, default=str))
 

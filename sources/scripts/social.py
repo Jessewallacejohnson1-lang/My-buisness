@@ -45,7 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
-from check_flags import batches, message
+from batch import layout
 
 TOWN = "st-joseph-mn"
 API = "https://api.apify.com/v2"
@@ -335,8 +335,8 @@ def prepare(run, today, out, now):
         if p["file"] not in seen:
             seen.add(p["file"]), unique.append(p)
     posts = unique
-    for i, b in enumerate(batches(posts), 1):
-        (out / "batches" / f"batch-{i}.txt").write_text(message(b, today))
+    for i, text in enumerate(layout(posts, today), 1):
+        (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
     (out / "feeds.jsonl").write_text("")
     try:
