@@ -157,8 +157,7 @@ struct OnboardingFlow: View {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
             Text(store.step.question)
-                .font(.display(30))
-                .lineSpacing(-6)   // Jost's 44 pt line to the mock's 38
+                .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
