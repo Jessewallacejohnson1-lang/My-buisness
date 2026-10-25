@@ -110,6 +110,16 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(calls.count, 1, "saved answers aren't sent again")
     }
 
+    func testInterestPicksWaitToBeSaved() {
+        let saved = Interests.get()
+        defer { Interests.set(saved) }
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertFalse(store.answersPending)
+        store.interests = ["coffee", "campus", "faith"]
+        XCTAssertTrue(OnboardingStore(defaults: defaults).answersPending, "picks wait for the account")
+        XCTAssertEqual(Interests.get(), ["coffee", "campus", "faith"], "every screen reads them at once")
+    }
+
     func testTwoSavesAtOnceSendOnce() async {
         let store = OnboardingStore(defaults: defaults)
         store.photo = Data([7])

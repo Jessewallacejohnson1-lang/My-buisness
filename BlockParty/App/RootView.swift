@@ -241,8 +241,8 @@ struct RootView: View {
         }
     }
 
-    /// Onboarding's name and photo reach `town_profiles` once the flow is done and an account
-    /// exists; till then they wait on the phone (BP app onboarding 18). The photo uploads to
+    /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
+    /// account exists; till then they wait on the phone (BP app onboarding 18, 20). The photo uploads to
     /// the avatar the app already shows.
     private func saveOnboardingAnswers() async {
         guard onboarding.finished else { return }
@@ -254,8 +254,10 @@ struct RootView: View {
                 url = await Storage(auth: auth).uploadAvatar(photo, userId: uid)
                 if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
             }
-            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url)
+            let picks = onboarding.interests
+            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
             if let name { Interests.displayName = name }
+            if !picks.isEmpty { Interests.set(picks) }
         }
     }
 

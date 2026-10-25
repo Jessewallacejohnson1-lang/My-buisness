@@ -55,6 +55,15 @@ final class OnboardingStore {
     var lastName: String { didSet { keep(lastName, Self.lastKey) } }
     /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
     var photo: Data? { didSet { keep(photo, Self.photoKey) } }
+    /// Interests' picks (ticket 20), in the order made. They live where every screen reads
+    /// interests (`Interests`), and reach the server with the name and photo.
+    var interests: [String] {
+        didSet {
+            Interests.set(interests)
+            answersPending = true
+            defaults.set(true, forKey: Self.pendingKey)
+        }
+    }
     /// An answer changed since the last save reached the server.
     private(set) var answersPending: Bool
     /// A save is out, so a second caller doesn't upload the photo again.
@@ -78,6 +87,7 @@ final class OnboardingStore {
         lastName = defaults.string(forKey: Self.lastKey) ?? ""
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
+        interests = Interests.get()
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
@@ -147,9 +157,6 @@ struct OnboardingFlow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
-    /// Step 7's picks, kept on the phone as they're made so a relaunch keeps them. They reach the
-    /// server once an account exists (ticket 24).
-    @State private var interests = Interests.get()
     /// "Popular in St. Joseph", read while the earlier steps are up.
     @State private var popular: [String] = []
 
@@ -168,7 +175,6 @@ struct OnboardingFlow: View {
                     .transition(.opacity)
             }
         }
-        .onChange(of: interests) { _, ids in Interests.set(ids) }
         .task {
             if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
                 popular = Interests.popular(events)
@@ -263,7 +269,8 @@ struct OnboardingFlow: View {
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 8)
-            InterestChips(picked: $interests, popular: popular)
+            InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
+                          popular: popular)
         default:
             EmptyView()
         }
@@ -295,7 +302,7 @@ struct OnboardingFlow: View {
 
     /// "Pick 2 more" until step 7 has its 3.
     private var nextTitle: String {
-        if store.step == .interests, interests.count < 3 { return "Pick \(3 - interests.count) more" }
+        if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
         return "Next"
     }
 
@@ -309,7 +316,7 @@ struct OnboardingFlow: View {
         switch store.step {
         case .name:  return store.displayName != nil
         case .photo: return store.photo != nil
-        case .interests: return interests.count >= 3
+        case .interests: return store.interests.count >= 3
         default:     return true
         }
     }
