@@ -18,7 +18,7 @@ test('the story below loads every migration that makes the writer\'s functions',
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
                     '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
-                    '20261024090000_keep_longer_description.sql']);
+                    '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -125,6 +125,16 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   const longer = 'Senior night: the Storm honors its seniors before the game, then hosts Sartell in a Central Lakes match.';
   await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
   assert.equal(await about(), longer, 'a longer one replaces it');
+
+  // A re-read with no place keeps the one it had (Sal's, 2026-10-25); a new place still moves it.
+  await db.exec(migration('20261025090000_keep_place_on_reread.sql'));
+  const where = async () => (await db.query('select location as l from public.club_events')).rows[0].l;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, location: null })), [], [], []);
+  assert.equal(await where(), 'ROCORI High School, Cold Spring', 'an empty place keeps the old one');
+  await apply(placed('2026-10-21').map((g) => ({ ...g, location: '' })), [], [], []);
+  assert.equal(await where(), 'ROCORI High School, Cold Spring', 'a blank place keeps it too');
+  await apply(placed('2026-10-21').map((g) => ({ ...g, location: 'Sartell High School' })), [], [], []);
+  assert.equal(await where(), 'Sartell High School', 'a new place moves it');
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
