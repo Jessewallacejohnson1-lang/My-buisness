@@ -184,8 +184,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     let occasion: String?
     let teams: [Team]
     /// The final score in `teams` order (BP app docs/plans/game-card, ticket 02); nil before it's in,
-    /// and for one that doesn't read, so the card stays VS. A live score that says complete counts
-    /// as the final at once, before the server's second read makes it one (ticket 03).
+    /// and for one that doesn't read, so the card stays VS. Only the server makes a final: a live
+    /// score that says complete once can take it back (volleyball did, 2026-10-24).
     private(set) var final: [Int]?
     /// The score while it's being played (ticket 03); nil before, after, and for a high school game.
     private(set) var live: Live?
@@ -197,10 +197,14 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         let period: String
         let clock: String?
         let complete: Bool
-        /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen.
+        /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen, and a
+        /// score older than `quietAfter` no longer says Live (a weather delay, a feed gone quiet).
         let at: Date?
 
         static let staleAfter: TimeInterval = 120
+        static let quietAfter: TimeInterval = 600
+
+        func isLive(at now: Date) -> Bool { at.map { now.timeIntervalSince($0) < Self.quietAfter } ?? false }
 
         /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none.
         func line(at now: Date) -> String {
@@ -252,8 +256,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     private mutating func setScores(final: [Int]?, live: Live?) {
         let final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
-        self.final = final ?? (live?.complete == true ? live?.score : nil)
-        self.live = self.final == nil ? live : nil
+        self.final = final
+        self.live = final == nil ? live : nil
     }
 
     /// The side with more, 0 or 1; nil before the final and on a tie, which fades neither side.
@@ -313,12 +317,12 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     /// The card's title as VoiceOver says it, naming the teams the discs show: "Football,
     /// Saint John's versus Gustavus", and once it's over "Football, Saint John's 33, Concordia 23, final".
-    /// While it's on: "Football, Saint John's 14, Concordia 7, Q3, live".
+    /// While it's on: "Football, Saint John's 14, Concordia 7, Q3" (the chip before it says Live).
     var spoken: String {
         guard teams.count == 2 else { return sport }
         if let final { return "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final" }
         if let live {
-            return "\(sport), \(teams[0].short) \(live.score[0]), \(teams[1].short) \(live.score[1]), \(live.period), live"
+            return "\(sport), \(teams[0].short) \(live.score[0]), \(teams[1].short) \(live.score[1]), \(live.period)"
         }
         return "\(sport), \(teams.map(\.short).joined(separator: " versus "))"
     }

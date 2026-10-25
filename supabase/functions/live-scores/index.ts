@@ -77,7 +77,15 @@ async function listen(games: Game[], rpc: (name: string, body: unknown) => Promi
 async function gameOf(data: unknown): Promise<unknown | null> {
   if (typeof data !== "string") return data ?? null
   if (!data.startsWith("GET:")) return parse(data)
-  const res = await fetch(data.slice(4), { headers: UA })
+  // Only SIDEARM's own hosts: a push never sends this function anywhere else.
+  let url: URL
+  try {
+    url = new URL(data.slice(4))
+  } catch {
+    return null
+  }
+  if (url.protocol !== "https:" || !/(^|\.)(sidearmstats|sidearmsports)\.com$/.test(url.hostname)) return null
+  const res = await fetch(url, { headers: UA })
   return res.ok ? parse(await res.text()) : null
 }
 

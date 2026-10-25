@@ -408,7 +408,8 @@ struct FeedEventCard: View {
                         ZStack(alignment: .leading) {
                             // A game with its score coming in says Live behind the red dot, not
                             // Now (taste/town.md, 2026-10-20).
-                            if item.game?.live != nil {
+                            let live = item.game?.live?.isLive(at: context.date) == true
+                            if live {
                                 PhotoChip(text: "Live", spoken: "Live", dot: Hue.live)
                                     .transition(.opacity)
                             } else if now {
@@ -420,7 +421,7 @@ struct FeedEventCard: View {
                             }
                         }
                         .animation(motionIsReduced ? nil : Motion.smooth, value: now)
-                        .animation(motionIsReduced ? nil : Motion.smooth, value: item.game?.live != nil)
+                        .animation(motionIsReduced ? nil : Motion.smooth, value: item.game?.live?.isLive(at: context.date) == true)
                     }
                     .layoutPriority(1)
                 }

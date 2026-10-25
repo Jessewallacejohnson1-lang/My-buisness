@@ -350,12 +350,13 @@ final class TownFeed {
 
     // MARK: Live scores (game-card 03)
 
-    /// Listens while a game today has no final and the feed is showing; stops otherwise.
+    /// Listens while a game is being played (its score already coming, or on by its hours) and the
+    /// feed is showing; stops otherwise. A high school game on by its hours listens for nothing for
+    /// three hours: cheaper than the server marking which games will score.
     private func watchScores(at now: Date) {
-        let today = Town.calendar.startOfDay(for: now)
         let playing = entries?.contains { entry in
-            guard let card = entry.card, card.game != nil, card.game?.final == nil else { return false }
-            return FeedWhenLine.day(from: card.eventDate, calendar: Town.calendar) == today
+            guard let card = entry.card, let game = card.game, game.final == nil else { return false }
+            return game.live != nil || card.isNow(at: now)
         } ?? false
         guard playing, awaySince == nil else { scores?.stop(); return }
         #if DEBUG
@@ -383,6 +384,8 @@ final class TownFeed {
         guard scored != game else { return }
         card.game = scored
         entries?[index] = TownFeedEntry(card: card, leavesAt: entry.leavesAt)
+        // A final may have been the last game playing.
+        if scored.final != nil { watchScores(at: Date()) }
     }
 
     #if DEBUG
