@@ -110,18 +110,34 @@ def prepare(today, out):
     root = find_root()
     entries = [e for e in load(root)[0] if e.get("status") == "active"]
 
+    # The league's site is slow and no other source's server (twelve minutes for the schools
+    # on 2026-10-25, with its retries), so the schools are read while the pages are fetched.
+    games_log = open(out / "games.log", "w")
+    games = subprocess.Popen([sys.executable, str(SCRIPTS / "read_events.py"), "--reader", "mshsl", "--items",
+                              str(out / "games.jsonl"), "--today", str(today)],
+                             stdout=games_log, stderr=subprocess.STDOUT, text=True, cwd=find_root())
     fetched = run([str(SCRIPTS / "run.py"), "--write", "--tier", "watched"], out, "fetch")
     report_path = re.search(r"^report: (.+)$", fetched.stdout, re.M)
     if fetched.returncode or not report_path:
+        games.kill()
         sys.exit(f"[morning] fetching failed:\n{(fetched.stdout + fetched.stderr)[-1500:]}")
     report = json.loads(Path(report_path.group(1)).read_text())
     run_dir = Path(report["run_dir"])
 
-    feeds = run([str(SCRIPTS / "read_events.py"), "--items", str(out / "feeds.jsonl"), "--today", str(today)], out, "feeds")
-    readers = [ln for ln in feeds.stdout.splitlines() if ln.startswith("[read] ok") or ln.startswith("[read] FAILED")]
-    if feeds.returncode:
-        readers.append(f"[read] FAILED read_events.py itself: {feeds.stderr.strip()[-300:]}")
-        (out / "feeds.jsonl").write_text("")
+    feeds = run([str(SCRIPTS / "read_events.py"), "--skip-reader", "mshsl", "--items", str(out / "feeds.jsonl"),
+                 "--today", str(today)], out, "feeds")
+    games.wait()
+    games_log.close()
+    games_out = (out / "games.log").read_text()
+    readers = []
+    for code, stdout, stderr, items in ((feeds.returncode, feeds.stdout, feeds.stderr, out / "feeds.jsonl"),
+                                        (games.returncode, games_out, games_out, out / "games.jsonl")):
+        readers += [ln for ln in stdout.splitlines() if ln.startswith("[read] ok") or ln.startswith("[read] FAILED")]
+        if code:
+            readers.append(f"[read] FAILED read_events.py itself: {stderr.strip()[-300:]}")
+            items.write_text("")
+    with open(out / "feeds.jsonl", "a") as f:
+        f.write((out / "games.jsonl").read_text())
 
     pages = pages_to_read(report["changed"], entries)
     for p in pages:

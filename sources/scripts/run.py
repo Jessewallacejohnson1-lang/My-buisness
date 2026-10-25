@@ -201,16 +201,16 @@ def _respect_crawl_delay(url):
     _last_hit[host] = time.monotonic()
 
 
-def _open(req):
+def _open(req, timeout=TIMEOUT):
     """urlopen, with one retry after a dropped connection. stjosephmn.gov resets some
     connections outright (2026-10-15); an HTTP answer is never retried."""
     try:
-        return urllib.request.urlopen(req, timeout=TIMEOUT)
+        return urllib.request.urlopen(req, timeout=timeout)
     except urllib.error.HTTPError:
         raise
     except (urllib.error.URLError, ConnectionError, TimeoutError):
         time.sleep(RETRY_WAIT)
-        return urllib.request.urlopen(req, timeout=TIMEOUT)
+        return urllib.request.urlopen(req, timeout=timeout)
 
 
 def server_of(host):
@@ -235,7 +235,7 @@ def decoded(body, encoding):
     return body
 
 
-def fetch(url, data=None, headers=None):
+def fetch(url, data=None, headers=None, timeout=TIMEOUT):
     """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way,
     and one request at a time to any one server, a second apart: parallel requests made
     stjosephmn.gov drop connections, which then read as a robots refusal."""
@@ -254,7 +254,7 @@ def fetch(url, data=None, headers=None):
         _respect_crawl_delay(url)
         req = urllib.request.Request(url, data=data,
                                      headers={"User-Agent": UA, "Accept": "text/html,*/*", **(headers or {})})
-        with _open(req) as r:
+        with _open(req, timeout) as r:
             final_url[url] = r.geturl()
             body = r.read(MAX_BYTES + 1)
             if len(body) > MAX_BYTES:

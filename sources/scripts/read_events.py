@@ -643,14 +643,17 @@ def games(listings, today):
 # The league answers most calls in half a second, but about one in six hangs or comes back 502:
 # on 2026-10-25 six of twelve schools failed, from the cloud and from the Mac alike. One school
 # failing keeps every school's called-off games up that morning (read_all's schedule line), so
-# each call gets two more tries, a while apart.
-LEAGUE_WAITS = (5, 20)
+# each call gets three more tries, a while apart. A hang is given up after 8 seconds, not
+# run.py's 20: with 20, the retries made a read of the schools 11 to 18 minutes, and the
+# morning's prepare is stopped at 30.
+LEAGUE_WAITS = (3, 10, 20)
+LEAGUE_TIMEOUT = 8
 
 
 def league_fetch(url, wait=sleep):
     for pause in (*LEAGUE_WAITS, None):
         try:
-            return fetch(url)[1]
+            return fetch(url, timeout=LEAGUE_TIMEOUT)[1]
         except urllib.error.HTTPError as ex:
             if ex.code < 500 or pause is None:
                 raise
@@ -947,7 +950,7 @@ def t_roads():
 def t_league_retries():
     real, calls, waits = fetch, [], []
     def flaky(answers):
-        def f(u):
+        def f(u, timeout=None):
             calls.append(u)
             a = answers.pop(0)
             if isinstance(a, Exception):
@@ -956,12 +959,12 @@ def t_league_retries():
         return f
     busy = urllib.error.HTTPError("u", 502, "Bad Gateway", {}, None)
     try:
-        globals()["fetch"] = flaky([busy, TimeoutError("read"), "ok"])
-        assert league_fetch("u", waits.append) == "ok" and waits == [5, 20] and len(calls) == 3
-        globals()["fetch"] = flaky([busy, busy, busy])
+        globals()["fetch"] = flaky([busy, TimeoutError("read"), busy, "ok"])
+        assert league_fetch("u", waits.append) == "ok" and waits == [3, 10, 20] and len(calls) == 4
+        globals()["fetch"] = flaky([busy, busy, busy, busy])
         try:
             league_fetch("u", waits.append)
-            raise AssertionError("a third 502 is the school's failure")
+            raise AssertionError("a fourth 502 is the school's failure")
         except urllib.error.HTTPError:
             pass
         calls.clear()
@@ -1193,6 +1196,7 @@ def main():
                     help="also read proposed entries: a dry run to look at, never a live write (ADR-008)")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--reader", help="read only the sources with this reader, e.g. mshsl")
+    ap.add_argument("--skip-reader", help="read every source but those with this reader")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -1200,7 +1204,9 @@ def main():
 
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     statuses = {"active", "proposed"} if args.include_proposed else {"active"}
-    entries = [dict(e, sources=[s for s in e.get("sources") or [] if not args.reader or reader_of(s) == args.reader])
+    entries = [dict(e, sources=[s for s in e.get("sources") or []
+                                if (not args.reader or reader_of(s) == args.reader)
+                                and (not args.skip_reader or reader_of(s) != args.skip_reader)])
                for e in load(find_root(args.root))[0] if e.get("_town") == args.town and e.get("status") in statuses]
     items, summary = read_all(entries, today)
     shown = [i for i in items if i["kind"] != "schedule"]
