@@ -48,9 +48,9 @@ command or without a pass condition is a reminder, not a check, and reminders ro
 - **Command** — one uncontended simulator, nothing else running:
 
   ```bash
-  TEST_RUNNER_BP_SHIP_AUDIT=1 xcodebuild test \
+  TEST_RUNNER_BP_SHIP_AUDIT=1 lockf -k /tmp/bp-xc.lock xcodebuild test \
     -project BlockParty.xcodeproj -scheme BlockParty \
-    -destination 'platform=iOS Simulator,name=iPhone Air' \
+    -destination 'platform=iOS Simulator,name=BP Build' \
     -only-testing:BlockPartyUITests \
     CODE_SIGNING_ALLOWED=NO
   ```
@@ -66,8 +66,7 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   Resolve `-destination` against the machine (`xcrun simctl list devices available`) — a
   name that does not exist fails the whole invocation. Use a **non-primary** simulator: a
   test run replaces the installed app and wipes that simulator's app container, including
-  the signed-in session. If the machine has only one iPhone simulator, accept that it gets
-  wiped and sign back in afterwards, or add a second device first.
+  the signed-in session. `iPhone Air` is Jesse's screenshot simulator: never test on it.
 - **Pass looks like:** the suite passes with `knownIssueCounts` still empty in
   `BlockPartyUITests/DynamicTypeAuditTests.swift`. An empty map means every audited surface
   must report zero issues, so a pass is a real zero and not a tolerated number.
