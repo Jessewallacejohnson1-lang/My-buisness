@@ -728,8 +728,9 @@ final class RealLifeActions {
                 Log.network("RealLifeActions: \(key.kind) \(choice) for \(key.id) failed: \(error.localizedDescription)")
                 // A newer tap, or a new account, overtook this write: no turn back.
                 guard tap == taps[key], account == self.account else { continue }
-                if error is URLError {
-                    // No answer (offline, timed out): the tap stays and is sent again.
+                if SupabaseHTTP.noAnswer(error) {
+                    // No answer (offline, timed out, an expired token, the server busy or
+                    // down): the tap stays and is sent again.
                     // A request that did land is safe to send twice: every call is
                     // idempotent. A tap or a new account meanwhile is picked up above.
                     late.insert(key)

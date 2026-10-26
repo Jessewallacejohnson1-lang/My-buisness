@@ -463,7 +463,7 @@ final class TownFeed {
             try await sender(batch)
         } catch {
             Log.network("TownFeed: \(batch.count) views and opens not sent: \(error)")
-            if Self.triesAgain(error) { unsent = batch + unsent }
+            if SupabaseHTTP.noAnswer(error) { unsent = batch + unsent }
         }
     }
 
@@ -569,12 +569,6 @@ final class TownFeed {
             unmuteFailures[host.host, default: 0] += 1
             Haptics.error()
         }
-    }
-
-    nonisolated static func triesAgain(_ error: Error) -> Bool {
-        if error is URLError { return true }
-        guard let status = (error as? SupabaseError)?.status else { return false }
-        return status == 401 || status >= 500
     }
 
     /// Once per card per feed load, and only for a card still in the list.

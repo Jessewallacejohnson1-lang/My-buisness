@@ -33,11 +33,15 @@ final class RealLifeActionsTests: XCTestCase {
         var failing = false
         /// Never answers, as with no network.
         var offline = false
+        /// Answers with this status, as Supabase does during a blip (503) or with an expired
+        /// token (401).
+        var status: Int?
         var delay: Duration = .zero
 
         private func answer() throws {
             if offline { throw URLError(.notConnectedToInternet) }
             if failing { throw SupabaseError(message: "no", status: 403) }
+            if let status { throw SupabaseError(message: "blip", status: status) }
         }
 
         func write(_ eventID: String, _ going: Bool) async throws {
@@ -482,6 +486,28 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.hearts, [true], "sent again once back online")
         actions.read([card(hearts: 4, hearted: true)])
         XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4))
+    }
+
+    /// A Supabase blip (503) or an expired token (401) is no answer, not a "no": Going stays,
+    /// with no shake, and is sent again once the server answers (codebase-health 11).
+    func testABlipKeepsGoingAndSendsItAgain() async throws {
+        for status in [503, 401] {
+            let server = Server()
+            server.status = status
+            let actions = actions(server)
+            let item = card()
+            actions.pageOpened(item.id)
+
+            actions.toggleGoing(item)
+            try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+            XCTAssertEqual(actions.going(item), .init(isGoing: true, count: 5), "\(status): stays Going")
+            XCTAssertEqual(actions.failureCount(item.id), 0, "\(status): no shake, no buzz")
+
+            server.status = nil
+            server.writes = []
+            try await waitWhile(server.writes != [true])
+            XCTAssertEqual(server.writes, [true], "\(status): sent once the server answers")
+        }
     }
 
     // MARK: Offline (town-feed ticket 24)
