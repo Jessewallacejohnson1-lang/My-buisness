@@ -97,9 +97,22 @@ def search_of(entry):
     return f"{entry['_name']}, {entry['address']}, St. Joseph, MN"
 
 
-def places(root):
-    """The places worth a search: open ones with an address, so a result can be checked."""
-    return [e for e in load(root)[0] if e["status"] in ("active", "proposed") and e.get("address")]
+def places(root, app=None):
+    """The places worth a search: open ones with an address, so a result can be checked. The
+    registry's address comes first (non-Google sources only, ADR-016); else the app's page for the
+    place (`app`: entry id to `places.address`), so every place in the app is checked."""
+    out = []
+    for e in load(root)[0]:
+        address = e.get("address") or re.sub(r",\s*(St\.?|Saint) Joseph\b.*$", "", (app or {}).get(e["id"], ""))
+        if e["status"] in ("active", "proposed") and address:
+            out.append({**e, "address": address})
+    return out
+
+
+def app_addresses():
+    """The app's place pages' addresses by entry id; {} without the keys."""
+    rows = db("GET", "/rest/v1/places?select=entry_id,address&entry_id=not.is.null&address=not.is.null")
+    return {r["entry_id"]: r["address"] for r in rows or []}
 
 
 def same_place(entry, item):
@@ -259,7 +272,7 @@ def write_hours(found):
 
 def setup():
     root = find_root()
-    body = {"input": {"searchStringsArray": [search_of(e) for e in places(root)], "maxCrawledPlacesPerSearch": 1,
+    body = {"input": {"searchStringsArray": [search_of(e) for e in places(root, app_addresses())], "maxCrawledPlacesPerSearch": 1,
                       "language": "en", "scrapeContacts": True, "maxImages": 0, "maxReviews": 0},
             "options": {"timeoutSecs": 3600, "maxTotalChargeUsd": CAP}}
     tasks = by_name("/actor-tasks")
@@ -280,7 +293,7 @@ def report():
     if not run:
         return print("[accounts] no finished monthly run yet")
     pages = json.loads((root / "sources" / "social" / f"{TOWN}.json").read_text())
-    out = match(places(root), items(run["defaultDatasetId"]), pages)
+    out = match(places(root, app_addresses()), items(run["defaultDatasetId"]), pages)
     out["run"] = {k: run.get(k) for k in ("id", "status", "finishedAt", "usageTotalUsd")}
     dest = root / ".runs" / "accounts"
     dest.mkdir(parents=True, exist_ok=True)
