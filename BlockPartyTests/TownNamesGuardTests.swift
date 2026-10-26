@@ -22,7 +22,7 @@ final class TownNamesGuardTests: XCTestCase {
         "Models/Place.swift",             // its curated places, with addresses
     ]
 
-    private static var townName: Regex<Substring> { #/"[^"]*(\bS(ain)?t\.? ?Jo(seph|e)\b|[Jj]oe[Tt]own)/# }
+    private static var townName: Regex<Substring> { #/"[^"]*(?:\bS(?:ain)?t\.? ?Jo(?:seph|e)\b|[Jj]oe[Tt]own)/# }
 
     func testTheTownIsNamedOnlyThroughTown() throws {
         let sources = URL(fileURLWithPath: #filePath)
