@@ -19,7 +19,7 @@ for part in ${*:-rules db registry}; do
     case "$part" in
         rules)
             python3 scripts/bp_rules.py check
-            (cd scripts && python3 -m unittest -q test_bp_rules)
+            (cd scripts && python3 -m unittest -q test_bp_rules test_apply_migration)
             ;;
         db)
             (

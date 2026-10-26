@@ -34,6 +34,11 @@ source is a line in the summary; carry on with the rest.
    write an empty `flags.jsonl` and go to step 5. Done when every batch has its helper's lines.
 4. **Judge.** Read `sources/models/judge.md` and follow it: every flag becomes an item in
    `.runs/morning/judged.jsonl` or is dropped.
+   **Seasons.** `.runs/morning/seasons.txt` lists each seasonal place whose page changed, with the
+   season the app shows and the page's dated lines. When a page states a different first or last
+   day for the place's season ("Our 2027 season begins Friday, May 7"), keep it for your answer as
+   `[season] <place>: page says <first> to <last>, the app has <first> to <last>`. Nothing is
+   written: Jesse approves the new dates. An empty file: nothing to do.
 5. **Short titles.** Run `python3 sources/scripts/morning.py titles`. It lists every Event
    title still over 40 characters (games aside) in `.runs/morning/titles.txt`: three lines don't
    fit the Town's Event of the day poster. Give each a shorter one by
@@ -68,7 +73,7 @@ source is a line in the summary; carry on with the rest.
 10. **Answer** with the summary as `write` printed it, `tag`'s line, `describe`'s line and its
    `[check]` lines, the `standouts` lines and
    the line `python3 sources/scripts/social.py spend` prints (the social watch's Apify spend:
-   Jesse, 2026-10-22), then one line per flag you dropped that a neighbour might have wanted,
+   Jesse, 2026-10-22), every `[season]` line from step 4, then one line per flag you dropped that a neighbour might have wanted,
    and why.
 
 ## Rules

@@ -103,6 +103,11 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-26 — From Google, keep only hours and whether a place is still open (Jesse: "lets do
+  ur rec"). Addresses, phones and names come from other sources (ADR-016): Google's terms allow
+  storing only the place id, and the key the app uses is the risk. A place's own site beats Google
+  when its hours are newer (`hours_from: website` in the registry). The monthly accounts check
+  reads a missing registry address from the app's `places` row, never writing it to the registry.
 - 2026-10-25 — A place's weekly hours may be saved from Google Maps (Jesse: "its a fact were not
   copying"): `places.hours`, read once through Composio's Google Maps tool, else from the place's
   own website or Facebook. **Supersedes**, for hours only, "only `place_id`s are persisted" below

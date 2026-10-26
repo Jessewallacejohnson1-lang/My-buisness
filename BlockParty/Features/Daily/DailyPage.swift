@@ -270,6 +270,14 @@ struct DailyPage: View {
                                             now: clock, limit: 3)
             // Today looks a week ahead; a day picked in the week, that day (Jesse, daily-tab 21).
             let friendDays = Set(isToday ? days.map(\.id) : [day.id])
+            // What you follow is Following's: what that section shows, no section above takes
+            // (school-activities 03).
+            let following = DailyFollowing.showing(
+                DailyFollowing.today(from: cards, day: day.id, now: clock)
+                    .filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
+                now: clock, without: events, limit: 10)
+            let followed = Set(following.compactMap(\.event?.id))
+            let cards = self.cards.filter { !followed.contains($0.id) }
             let friendsGoing = (DailyEvent.sampleFriendsGoing(now: clock)
                 ?? DailyEvent.friendsGoing(from: cards, days: friendDays, now: clock, without: events))
                 .filter { fits($0.item) }
@@ -280,9 +288,6 @@ struct DailyPage: View {
                                    limit: DailyRowMetric.limit)
             } ?? DailyEvent.suggestions(from: cards, day: day.id, interests: interests, now: clock,
                                         without: events + friendsGoing, left: left)
-            let following = DailyFollowing.showing(
-                DailyFollowing.today(now: clock).filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
-                now: clock, without: events + friendsGoing + suggestions, limit: 10)
             return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following)
         }
         let all = lists(nil)

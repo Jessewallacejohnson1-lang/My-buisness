@@ -54,15 +54,33 @@ struct DailyFollowing: Identifiable {
         return formatter.localizedString(for: when, relativeTo: now)
     }
 
-    /// Today's from everyone you follow. There is no read for them yet, so there are none,
-    /// which hides the section; DEBUG `-daily-samples` gets the samples. When the read
-    /// exists, this is the one function that changes.
-    static func today(now: Date) -> [DailyFollowing] {
+    /// `day`'s from what you follow: the Town feed's cards it lifts for a follow, an activity or a
+    /// whole school so far (BP app school-activities 03; people, places and groups come with
+    /// town-feed 27). None hides the section; DEBUG `-daily-samples` gets the samples.
+    static func today(from cards: [FeedCardItem], day: String, now: Date) -> [DailyFollowing] {
         #if DEBUG
-        return DailySamples.on ? samples(on: now) : []
-        #else
-        return []
+        if DailySamples.on { return samples(on: now) }
         #endif
+        return cards.compactMap { card in
+            guard let name = card.followed, card.eventDate == day, !card.cancelled,
+                  let event = YouCalendar.event(from: card) else { return nil }
+            return DailyFollowing(id: "follow-\(card.id)", name: name, avatar: avatar(of: card, name: name),
+                                  what: what(card, name: name), opens: .event(event))
+        }
+    }
+
+    /// The school's logo for a game (the team the name starts with), else who puts it on.
+    private static func avatar(of card: FeedCardItem, name: String) -> URL? {
+        card.game?.teams.first { name.hasPrefix($0.short) }?.logo ?? card.hostPicture?.url ?? card.hostAvatar
+    }
+
+    /// After the name: "vs Sartell." for a game, else the Event's own title (Jesse, 2026-10-26).
+    private static func what(_ card: FeedCardItem, name: String) -> String {
+        if let teams = card.game?.teams, teams.contains(where: { name.hasPrefix($0.short) }),
+           let other = teams.first(where: { !name.hasPrefix($0.short) }) {
+            return "vs \(other.short)."
+        }
+        return "\(card.title)."
     }
 
     /// What the section shows (Jesse, 2026-10-06): today's events still on or to come,
