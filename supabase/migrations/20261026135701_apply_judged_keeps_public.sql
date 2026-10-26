@@ -1,6 +1,6 @@
 -- Followed activities (BP app school-activities 03), review: a re-read by Bound alone no longer turns an
 -- Event a public page listed back to followers only, and a re-read naming no activity keeps its activity.
--- 20261026160100_apply_judged_followers_only.sql's apply_judged line for line but for those.
+-- 20261026132256_apply_judged_followers_only.sql's apply_judged line for line but for those.
 
 create or replace function public.apply_judged(p_events jsonb, p_mentions jsonb, p_upgrades jsonb, p_news jsonb,
                                     p_cancelled jsonb default '[]', p_restored jsonb default '[]')

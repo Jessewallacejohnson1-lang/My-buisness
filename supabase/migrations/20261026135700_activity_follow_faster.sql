@@ -1,7 +1,7 @@
 -- Followed activities (BP app school-activities 03), review: the follow match ran for every Event in the
 -- feed's window, times every activity followed (a whole school is about 30), which tripled a signed-in
 -- read (live, 2026-10-26: 0.45 s signed out, 1.3 s following Apollo). An Event naming no school now skips it.
--- 20261026160000_activity_follow_lift.sql's get_town_feed line for line but for that.
+-- 20261026132204_activity_follow_lift.sql's get_town_feed line for line but for that.
 
 create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
 returns table (

@@ -1,6 +1,6 @@
 -- Followed activities (BP app docs/plans/school-activities, ticket 03): the morning writer stores
 -- whether an Event is for followers only, and its school and Bound activity name
--- (20261026160000_activity_follow_lift.sql adds the columns).
+-- (20261026132204_activity_follow_lift.sql adds the columns).
 -- 20261025090000_keep_place_on_reread.sql's apply_judged, writing followers_only and the activity.
 -- A writer from before them sends none: followers_only reads false.
 create or replace function public.apply_judged(p_events jsonb, p_mentions jsonb, p_upgrades jsonb, p_news jsonb,
