@@ -369,6 +369,13 @@ struct CommunityAPI {
                                         prefer: "return=minimal")
     }
 
+    /// Today's first open of the app, for the weekly numbers' reach (town-feed 26). The database
+    /// keeps one row per person per Town day, so calling it on every return is harmless.
+    func recordOpen() async throws {
+        _ = try await SupabaseHTTP.rest("rpc/record_open", method: "POST", accessToken: try await token(),
+                                        body: Data("{}".utf8))
+    }
+
     /// Not interested, Mute and their undoing (town-feed 21), straight away. A Mute answers with
     /// the host it muted, which Unmute names. Ids that aren't Events (samples) send nothing.
     func feedChoice(_ choice: FeedChoice) async throws -> String? {

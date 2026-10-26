@@ -28,6 +28,8 @@ struct SharePayload: Identifiable {
     let includesImage: Bool
     /// An Event's share, the one that counts toward "Shared your first event!" (hello-drop 02).
     var isEvent = false
+    /// The Event's id, so a share that went out counts in the weekly numbers (town-feed 26).
+    var eventID: String?
 
     init<V: View>(title: String,
                   shareText: String,
@@ -132,9 +134,10 @@ final class ShareCenter: ObservableObject {
         guard let presenter = overlayPresenter else { return }
         Haptics.light()
         let vc = UIActivityViewController(activityItems: activityItems(), applicationActivities: nil)
-        let event = isEvent
+        let event = isEvent, id = payload?.eventID
         vc.completionWithItemsHandler = { _, completed, _, _ in
             if completed, event { Task { @MainActor in HelloMoments.shared.reach(.firstShare) } }
+            if completed { Task { @MainActor in Self.recordShare(id) } }
         }
         vc.popoverPresentationController?.sourceView = presenter.view
         vc.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX,
@@ -147,11 +150,26 @@ final class ShareCenter: ObservableObject {
     func sendMessages() {
         guard let presenter = overlayPresenter else { return }
         Haptics.light()
-        let event = isEvent
+        let event = isEvent, id = payload?.eventID
         MessagesComposer.present(from: presenter,
                                  text: payload?.shareText ?? "",
                                  image: (payload?.includesImage ?? false) ? renderedImage() : nil,
-                                 sent: { if event { HelloMoments.shared.reach(.firstShare) } })
+                                 sent: {
+                                     if event { HelloMoments.shared.reach(.firstShare) }
+                                     Self.recordShare(id)
+                                 })
+    }
+
+    /// A share that went out, sent straight away; one that fails is dropped, as a lost view is.
+    private static func recordShare(_ eventID: String?) {
+        guard let eventID else { return }
+        Task {
+            do {
+                try await CommunityAPI(auth: AuthStore.shared).recordFeedActions([FeedAction(itemID: eventID, kind: .share)])
+            } catch {
+                Log.network("ShareCenter: share not recorded: \(error)")
+            }
+        }
     }
 
     /// "Save image" → write the rendered card to Photos (add-only auth).
@@ -182,7 +200,10 @@ extension SharePayload {
 
     /// A feed card's event: the card's share, and its event page's.
     static func event(_ item: FeedCardItem) -> SharePayload {
-        .event(title: item.title, dateLabel: item.dateChip, time: item.shareTime, location: item.shareLocation)
+        var payload = SharePayload.event(title: item.title, dateLabel: item.dateChip, time: item.shareTime,
+                                         location: item.shareLocation)
+        payload.eventID = item.id
+        return payload
     }
 
     /// A group, from its Group page: what it is, when and where it meets, and its own page.
