@@ -179,17 +179,9 @@ Several states are deliberately distinguished by value or weight alone:
 
 - **Dark mode.** The token set is light-mode only (ink on paper). There is also
   a pre-existing Dark Mode tab-bar contrast bug noted on the map branch.
-- **A single accent colour — IMPLEMENTED.** `Hue.accent` is plum/berry
-  `#8E3B6B`, deliberately distinct from the retired coral and from the basemap's
-  sage/sky terrain. It is meaning-scoped to **live events · active filters ·
-  selected/saved state · primary CTAs**. Body copy, cards, category glyphs, and
-  decorative backgrounds remain ink/paper; the accent is never filler.
-
-  Current map liveness uses the accent fill/static ring/pulse, and selected map
-  chrome/tab-shell controls route through the same token. Keep the value-step fixes
-  in `CalendarView.numberColor` and `InsightsMiniCalendar`: those distinguish
-  *has data* from *empty*, not active/selected state, so they should not consume the
-  accent.
+- **A single accent colour — RETIRED.** Plum `#8E3B6B` is gone from the code. The one
+  accent is the brand yellow `#FCE804` (`Theme/BlockPartyColor.swift`), small by rule; plum
+  is never used or mentioned again (MEMORY.md).
 - **App Store distribution work.** The original plan deferred a listing rename. The
   2026-08-09 bundle-id decision supersedes that plan: a new App Store Connect record is
   now required and remains outstanding in §1, along with marketing assets, screenshots,
@@ -311,7 +303,7 @@ produced two that would have regressed live behaviour.
   orange. The mark's lockup samples to `#F78067` (mean of the render's saturated
   coral pixels); the token holds that hue mixed to a pale wash, `#FDECE8` — the
   Flighty pale-card treatment in our coral, AA-checked for the card's ink and
-  `inkSecondary` text. Header dot/word stay ink (plum only while live). Note:
+  `inkSecondary` text. Header dot/word stay ink. Note:
   this is a *derived-from-the-mark* coral, distinct from the retired banned
   `#FF6B57`; the derivation was Jesse's explicit decision, not a precedent for
   reviving the coral ramp elsewhere.
