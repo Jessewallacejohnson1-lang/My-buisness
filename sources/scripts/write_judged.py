@@ -277,6 +277,20 @@ def team_id(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower().replace("'", "")).strip("-")
 
 
+def team_key(name):
+    """A team name as a lookup key: no ranking ("#21 "), nothing in brackets at its end, even a
+    bracket a feed cut off ("Kennedy Community MS (Mid")."""
+    return team_id(re.sub(r"\s*\([^)]*\)?\s*$", "", re.sub(r"^#\d+\s+", "", name.strip())))
+
+
+def known_teams():
+    """Every name a team goes by -> its id (public.teams: id, name, short name, aliases). Only a
+    name here gets a game card: no reader makes a team (Jesse, 2026-10-26)."""
+    rows = Supabase().call("GET", "teams?select=id,name,short_name,aliases") or []
+    return {team_key(n): r["id"] for r in rows
+            for n in (r["id"], r["name"], r.get("short_name"), *(r.get("aliases") or [])) if n}
+
+
 def game_of(it, title):
     """{"sport", "teams", "occasion"} for a game between two teams, else None."""
     if "game" in it:
@@ -443,7 +457,7 @@ def places():
     return _PLACES
 
 
-def event_of(it, today, interests, home, notes, titles=None):
+def event_of(it, today, interests, home, notes, titles=None, teams=None):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
         until = it.get("end") or ""
@@ -501,8 +515,12 @@ def event_of(it, today, interests, home, notes, titles=None):
            "activity_name": it.get("activity_name")}
     game = game_of(it, title)
     if game:
-        row.update(sport=game["sport"], team_ids=[team_id(t) for t in game["teams"]], team_names=game["teams"],
-                   occasion=game["occasion"])
+        ids = [team_id(t) if teams is None else teams.get(team_key(t)) for t in game["teams"]]
+        for t, i in zip(game["teams"], ids):
+            if not i:
+                notes.append(f"who is this: {t!r} ({title!r}) is no team's name, so a normal card until it's added")
+        if all(ids):
+            row.update(sport=game["sport"], team_ids=ids, team_names=game["teams"], occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
              "title": words(title)}
     return {"row": row, "facts": facts}, None
@@ -546,11 +564,13 @@ def group(old=None, facts=None, home="St. Joseph MN"):
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
-def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=None):
+def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=None, teams=None):
     """Judged items + the events already listed -> what to write, and each item's outcome.
-    `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles)."""
+    `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles).
+    `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
-    out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": []}
+    out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
+           "teams_checked": teams is not None}
     schedules = []
     groups, by_uid, news = [group(row, home=home) for row in existing], {}, {}
     for g in groups:
@@ -567,7 +587,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
         if not why and it["kind"] == "news":
             n, why = news_of(it, interests, out["notes"])
         elif not why:
-            ev, why = event_of(it, today, interests, home, out["notes"], titles)
+            ev, why = event_of(it, today, interests, home, out["notes"], titles, teams)
         if why:
             out["outcomes"][i] = ("skipped", why)
         elif it["kind"] == "news":
@@ -707,6 +727,8 @@ def to_sql(result, today):
 
 def apply(result):
     """The live write, over the service role key: one call, all or nothing."""
+    if not result.get("teams_checked"):
+        sys.exit("[judged] refused: the plan didn't look its games' teams up (plan(..., teams=known_teams()))")
     return Supabase().call("POST", "rpc/apply_judged", payloads(result))
 
 
@@ -1253,10 +1275,32 @@ def t_followers_only():
     assert "followers_only = club_events.followers_only and excluded.followers_only" in sql, "once public, stays public"
 
 
+def t_teams_only_from_their_names():
+    """A game's two names are looked up in the teams' names; a name no team goes by makes no team
+    and no game card, and is reported (Jesse, 2026-10-26: 11 cut-off copies in one morning)."""
+    teams = {"kennedy": "kennedy", "kennedy-community-ms": "kennedy", "stride-academy": "stride-academy",
+             "saint-johns": "saint-johns", "carleton": "carleton"}
+    g = lambda title, names, host="Kennedy Community School": item(
+        title=title, place="Kennedy Community School", area="game", source_name=host, interest="watch_sports",
+        game={"sport": "Girls Basketball", "teams": names})
+    r = plan([g("Kennedy Girls Basketball vs Stride Academy", ["Kennedy Community MS (Middle", "Stride Academy"]),
+              g("Kennedy Girls Basketball vs Holdingford", ["Kennedy", "Holdingford"]),
+              item(title="SJU Soccer vs #21 Carleton", place="Clemens Stadium", town="Collegeville", area="campus",
+                   source_name="SJU Athletics", interest="watch_sports")], [], TODAY, INTERESTS, teams=teams)
+    rows = {e["row"]["title"]: e["row"] for e in r["events"]}
+    assert rows["Kennedy Girls Basketball vs Stride Academy"]["team_ids"] == ["kennedy", "stride-academy"], "a cut-off alias"
+    assert rows["SJU Soccer vs #21 Carleton"]["team_ids"] == ["saint-johns", "carleton"]
+    unknown = rows["Kennedy Girls Basketball vs Holdingford"]
+    assert unknown["team_ids"] is None and unknown["sport"] is None, "an unknown name makes no team"
+    assert [n for n in r["notes"] if n.startswith("who is this: 'Holdingford'")], r["notes"]
+    assert r["teams_checked"] and not run([])["teams_checked"]
+    assert team_key("#21 Saint John's") == "saint-johns" and team_key("Kennedy Community MS (Mid") == "kennedy-community-ms"
+
+
 TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day,
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
          t_long_titles_shortened_and_kept]
 
 
@@ -1297,7 +1341,7 @@ def main():
     if not interests:
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
-    r = plan(items, existing, today, interests, TOWNS[args.town])
+    r = plan(items, existing, today, interests, TOWNS[args.town], teams=known_teams() if args.apply else None)
     report(items, r)
     if args.sql:
         Path(args.sql).write_text(to_sql(r, today))

@@ -248,7 +248,8 @@ def write(out, dry_run, today):
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
     items = feeds + judged
     existing = write_judged.listed_in_db()
-    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out))
+    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
+                               teams=write_judged.known_teams())
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
     print("\n".join(summary_lines(prep, items, result, written)))
