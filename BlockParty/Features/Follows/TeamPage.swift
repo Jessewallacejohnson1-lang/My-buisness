@@ -41,7 +41,23 @@ struct TeamPage: View {
                     .padding(.top, 22)
                 if let profile {
                     list(profile.activities)
-                } else if failed {
+                } else if !failed {
+                    // Rows in the list's own shape while it loads, as Apple Sports' list draws them.
+                    VStack(alignment: .leading, spacing: 0) {
+                        SkeletonLine(widthFraction: 0.45, height: 20).padding(.top, 30).padding(.bottom, 12)
+                        ForEach(0..<6, id: \.self) { _ in
+                            HStack(spacing: 16) {
+                                SkeletonCircle(diameter: Self.star)
+                                SkeletonCircle(diameter: Self.icon)
+                                SkeletonLine(widthFraction: 0.6, height: 16)
+                            }
+                            .frame(height: Self.rowHeight)
+                        }
+                    }
+                    .opacity(0.25)
+                    .shimmering()
+                    .accessibilityHidden(true)
+                } else {
                     Text("Check your connection and try again.")
                         .font(.sans(15))
                         .foregroundStyle(Hue.nameOnDark.opacity(0.6))
@@ -58,6 +74,7 @@ struct TeamPage: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .refreshable { await load() }
         .background(colors.deep.ignoresSafeArea())
         .overlay(alignment: .topLeading) {
             Button { dismiss() } label: {
@@ -124,7 +141,10 @@ struct TeamPage: View {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Hue.nameOnDark.opacity(0.55))
+                        .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                        .contentShape(Rectangle())
                 }
+                .padding(.trailing, -10)
                 .accessibilityLabel("Clear")
             }
         }
@@ -174,33 +194,39 @@ struct TeamPage: View {
                     actions.toggleFollow(target(activity))
                 }
             }
-            Image(systemName: Self.symbol(activity))
-                .font(.glyph(20, weight: .regular))
-                .foregroundStyle(Hue.nameOnDark)
-                .frame(width: Self.icon, height: Self.icon)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(activity.name)
-                    .font(.sans(20))
-                    .foregroundStyle(Hue.nameOnDark)
-                    .lineLimit(1)
-                Text(activity.next.map(Self.when) ?? "No events yet")
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.nameOnDark.opacity(0.5))
-                    .lineLimit(1)
+            Button { opened = activity } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: Self.symbol(activity))
+                        .font(.glyph(20, weight: .regular))
+                        .foregroundStyle(Hue.nameOnDark)
+                        .frame(width: Self.icon, height: Self.icon)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(activity.name)
+                            .font(.sans(20))
+                            .foregroundStyle(Hue.nameOnDark)
+                            .lineLimit(1)
+                        Text(activity.next.map(Self.when) ?? "No events yet")
+                            .font(.sans(13))
+                            .foregroundStyle(Hue.nameOnDark.opacity(0.5))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if activity.next != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(15, weight: .semibold))
+                            .foregroundStyle(Hue.nameOnDark.opacity(0.4))
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: Self.rowHeight)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if activity.next != nil {
-                Image(systemName: "chevron.right")
-                    .font(.glyph(15, weight: .semibold))
-                    .foregroundStyle(Hue.nameOnDark.opacity(0.4))
-                    .accessibilityHidden(true)
-            }
+            .buttonStyle(PressableStyle())
+            .disabled(activity.next == nil)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(activity.next == nil ? "" : "Shows what's coming up")
         }
-        .frame(minHeight: Self.rowHeight)
-        .contentShape(Rectangle())
-        .onTapGesture { if activity.next != nil { opened = activity } }
-        .accessibilityAction(named: "Coming up") { if activity.next != nil { opened = activity } }
         .matchedGeometryEffect(id: activity.id, in: rows)
     }
 
@@ -353,11 +379,14 @@ private struct ActivityEvents: View {
     let school: String
 
     @State private var events: [TeamProfile.ActivityEvent]?
+    @State private var failed = false
 
     var body: some View {
         NavigationStack {
             List {
-                if let events, events.isEmpty {
+                if failed {
+                    Text("Check your connection and try again.").foregroundStyle(Hue.inkSecondary)
+                } else if let events, events.isEmpty {
                     Text("No events yet").foregroundStyle(Hue.inkSecondary)
                 }
                 ForEach(events ?? []) { event in
@@ -373,9 +402,19 @@ private struct ActivityEvents: View {
             }
             .navigationTitle(activity.name)
             .navigationBarTitleDisplayMode(.inline)
-            .overlay { if events == nil { ProgressView() } }
+            .overlay {
+                if events == nil && !failed {
+                    VStack(spacing: 16) { ForEach(0..<3, id: \.self) { _ in SkeletonLine(height: 16) } }
+                        .padding(24)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .shimmering()
+                        .accessibilityHidden(true)
+                }
+            }
         }
         .presentationDetents([.medium, .large])
-        .task { events = (try? await CommunityAPI(auth: AuthStore.shared).activityEvents(activity.id)) ?? [] }
+        .task {
+            do { events = try await CommunityAPI(auth: AuthStore.shared).activityEvents(activity.id) } catch { failed = true }
+        }
     }
 }

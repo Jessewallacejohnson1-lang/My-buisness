@@ -55,6 +55,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "SJMapView.swift:$showingHelp": .notYetAudited(reason: "Map help. Long explanatory copy — likely to truncate."),
         "ProfileView.swift:$editing": .notYetAudited(reason: "Edit profile. A form at AX5 is exactly where truncation hurts — high priority."),
         "ProfileView.swift:$showAbout": .notYetAudited(reason: "About. Long copy."),
+        "TeamPage.swift:$opened": .notYetAudited(reason: "A school activity's coming events (school-activities 02): a plain List of dates and titles, which wraps at any size. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "ProfilePage.swift:$showingPhoto": .notYetAudited(reason: "A profile's photo, whole, with only a close button: no text to grow."),
         "ProfileView.swift:$showModeration": .notYetAudited(reason: "Moderation. Long copy."),
         "EditProfileView.swift:$showInterests": .notYetAudited(reason: "Interest picker; a grid of chips, which is what breaks first at AX5."),
