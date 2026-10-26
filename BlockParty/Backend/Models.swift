@@ -552,8 +552,9 @@ struct Trail: Identifiable, Hashable {
 // Supabase project; see docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §5.
 
 /// What a follow points at: a club, a community member's town_profile, or a Place
-/// (`public.places`, BP app docs/plans/follows ticket 02).
-enum FollowTargetType: String, Codable { case club, profile, place, team }
+/// (`public.places`, BP app docs/plans/follows ticket 02), a local team, or one of its activities
+/// (`team_activities`, BP app school-activities 02).
+enum FollowTargetType: String, Codable { case club, profile, place, team, activity }
 
 struct FollowTarget: Hashable, Codable {
     let type: FollowTargetType
@@ -568,6 +569,47 @@ struct TeamProfile: Decodable, Hashable {
     let logo: String?
     let colors: [String]?
     let games: [Game]
+    /// Every activity the school lists, in its order (school-activities 02); empty from an older read.
+    var activities: [Activity] = []
+
+    private enum CodingKeys: String, CodingKey { case id, name, short, logo, colors, games, activities }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        short = try c.decode(String.self, forKey: .short)
+        logo = try c.decodeIfPresent(String.self, forKey: .logo)
+        colors = try c.decodeIfPresent([String].self, forKey: .colors)
+        games = try c.decode([Game].self, forKey: .games)
+        activities = (try? c.decodeIfPresent([Activity].self, forKey: .activities)) ?? []
+    }
+
+    /// One of the school's activities: "Girls Soccer", its note ("St. Cloud Crush co-op"), whether
+    /// you follow it, and its next event, nil until one is read ("No events yet").
+    struct Activity: Decodable, Hashable, Identifiable {
+        let id: String
+        let name: String
+        let note: String?
+        let kind: String
+        let following: Bool
+        let next: Next?
+
+        struct Next: Decodable, Hashable {
+            let title: String
+            let date: String
+            let time: String?
+        }
+    }
+
+    /// One of an activity's coming events (`activity_events`).
+    struct ActivityEvent: Decodable, Hashable, Identifiable {
+        let id: String
+        let title: String
+        let date: String
+        let time: String?
+        let location: String?
+    }
 
     struct Game: Decodable, Hashable, Identifiable {
         let id: String

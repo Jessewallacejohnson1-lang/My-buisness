@@ -581,6 +581,12 @@ struct MainTabsView: View {
             // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
+            // `-open-team <uuid>` pushes that local school's page (school-activities 02).
+            if let i = args.firstIndex(of: "-open-team"), i + 1 < args.count,
+               let team = try? JSONDecoder().decode(Game.Team.self, from: Data(
+                   #"{"name":"","id":"\#(args[i + 1])","local":true}"#.utf8)) {
+                path.append(team)
+            }
             if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
                 let id = args[i + 1]
                 Task {

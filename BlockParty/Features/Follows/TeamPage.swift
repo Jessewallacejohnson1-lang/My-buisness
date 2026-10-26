@@ -1,9 +1,11 @@
 //
 //  TeamPage.swift
-//  Block Party — a local team's page (BP app hello-drop 03; Jesse, 2026-10-23: "tap profile picture
-//  and able to follow from there", "only have profiles for local teams"). Opened from a game card's
-//  host picture. A band in the colours read from its logo, the logo, its name, Follow, and its next
-//  games. The Reference is Roku's game page (`references/team-follow/`).
+//  Block Party — a local school's page (BP app hello-drop 03; school-activities 02). Opened from a game
+//  card's host picture. Jesse, 2026-10-25: Apple Sports' "Follow Your Favourites" in the school's own
+//  colours, "keep apples fading": its first colour at the top fading down into a deep shade of it. The
+//  school has the word Follow; each of its activities a star that, filled in the school's second colour,
+//  slides the row up into Following, and a search narrows both. Mock:
+//  https://claude.ai/artifact/5aSHdsrmdRsf13TTsAZtUU (`references/school-activities/`).
 //
 
 import SwiftUI
@@ -12,111 +14,283 @@ struct TeamPage: View {
     let team: Game.Team
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var profile: TeamProfile?
     @State private var failed = false
+    @State private var query = ""
+    @State private var opened: TeamProfile.Activity?
+    @Namespace private var rows
 
-    static let band: CGFloat = 170
-    static let logo: CGFloat = 96
+    // Measured off Apple Sports' list (references/school-activities/mobbin/5-Apple_Sports.jpg, 3x):
+    // 48 pt rows, a 24 pt star 24 pt in, the icon at 79 pt, the name at 110 pt in 20 pt type.
     static let side: CGFloat = 20
+    static let rowHeight: CGFloat = 48
+    static let star: CGFloat = 24
+    static let icon: CGFloat = 26
+    static let logo: CGFloat = 56
+    /// How far down the page the school's colour has faded into its deep shade (the mock's 560).
+    static let fade: CGFloat = 560
 
     var body: some View {
+        let colors = schoolColors
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                bandView
-                LogoDisc(logo: team.logo, initial: team.initial, logoSide: Self.logo * 0.72, letter: .sansSemibold(20))
-                    .frame(width: Self.logo, height: Self.logo)
-                    .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 4))
-                    .shadow(color: .black.opacity(0.15), radius: 9, y: 6)
-                    .padding(.top, -Self.logo / 2)
-                Text(team.name)
-                    .font(.sansBold(20))
-                    .foregroundStyle(Hue.ink)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 12)
-                if let id = team.id {
-                    FollowButton(target: FollowTarget(type: .team, id: id), name: team.short)
-                        .padding(.top, 16)
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                search
+                    .padding(.top, 22)
+                if let profile {
+                    list(profile.activities)
+                } else if !failed {
+                    // Rows in the list's own shape while it loads, as Apple Sports' list draws them.
+                    VStack(alignment: .leading, spacing: 0) {
+                        SkeletonLine(widthFraction: 0.45, height: 20).padding(.top, 30).padding(.bottom, 12)
+                        ForEach(0..<6, id: \.self) { _ in
+                            HStack(spacing: 16) {
+                                SkeletonCircle(diameter: Self.star)
+                                SkeletonCircle(diameter: Self.icon)
+                                SkeletonLine(widthFraction: 0.6, height: 16)
+                            }
+                            .frame(height: Self.rowHeight)
+                        }
+                    }
+                    .opacity(0.25)
+                    .shimmering()
+                    .accessibilityHidden(true)
+                } else {
+                    Text("Check your connection and try again.")
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.nameOnDark.opacity(0.6))
+                        .padding(.top, 24)
                 }
-                games
-                    .padding(.top, 26)
             }
+            .padding(.horizontal, Self.side)
+            .padding(.top, 70)
             .padding(.bottom, 40)
+            .background(alignment: .top) {
+                LinearGradient(colors: [colors.top, colors.deep], startPoint: .top, endPoint: .bottom)
+                    .frame(height: Self.fade)
+                    .padding(.top, -400) // under the overscroll too
+            }
         }
-        // The band starts under the status bar, so the clock stays ink on paper over every colour.
+        .scrollDismissesKeyboard(.interactively)
         .refreshable { await load() }
+        .background(colors.deep.ignoresSafeArea())
         .overlay(alignment: .topLeading) {
-            // On a white disc, so it reads over any team's colours (the mock's).
-            FriendsBackButton { dismiss() }
-                .background(Circle().fill(.white.opacity(0.92)).frame(width: 40, height: 40))
-                .padding(.leading, SearchMetric.pageBackLead)
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.glyph(20, weight: .semibold))
+                    .foregroundStyle(Hue.nameOnDark)
+                    .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                    .background(Circle().fill(Hue.nameOnDark.opacity(0.12)))
+                    .overlay(Circle().strokeBorder(Hue.nameOnDark.opacity(0.28), lineWidth: 1.5))
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Back")
+            .padding(.leading, Self.side)
         }
-        .background(Hue.paper.ignoresSafeArea())
+        .overlay(alignment: .topTrailing) {
+            if let id = team.id ?? profile?.id {
+                SchoolFollow(target: FollowTarget(type: .team, id: id), name: title)
+                    .padding(.trailing, Self.side)
+                    .padding(.top, 4)
+            }
+        }
+        // Light words on the school's colour.
+        .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $opened) { ActivityEvents(activity: $0, school: title) }
         .task { await load() }
+        // The clock goes white over the school's colour, as iOS inks it over any dark page (Jesse,
+        // 2026-10-25: this page only). The Town feed's hold on a black clock (`holdsClock`) is let go
+        // here; the feed takes it back when it shows again.
+        .onAppear { AppearanceStore.shared.holdsClock = false }
     }
 
-    /// The logo's colours: the first across, the second cut in on a slant, as the mock draws them.
-    private var bandView: some View {
-        let colors = (profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors).map { Color(hex: $0) }
-        let first = colors.first ?? Hue.ink
-        let second = colors.dropFirst().first ?? first
-        return LinearGradient(stops: [.init(color: first, location: 0), .init(color: first, location: 0.62),
-                                      .init(color: second, location: 0.62), .init(color: second, location: 1)],
-                              startPoint: .topLeading, endPoint: .bottomTrailing)
-            .frame(height: Self.band)
-            .accessibilityHidden(true)
+    private var title: String { profile?.name ?? team.name }
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            LogoDisc(logo: profile?.logo.flatMap(URL.init(string:)) ?? team.logo, initial: team.initial,
+                     logoSide: Self.logo * 0.72, letter: .sansSemibold(20))
+                .frame(width: Self.logo, height: Self.logo)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.sansBold(20))
+                    .foregroundStyle(Hue.nameOnDark)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let nickname = team.nickname {
+                    Text(nickname)
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.nameOnDark.opacity(0.6))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Apple's search field drawn in the body, since this page has no bar to put `.searchable` in.
+    private var search: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.glyph(15, weight: .medium))
+                .foregroundStyle(Hue.nameOnDark.opacity(0.55))
+            TextField("", text: $query, prompt: Text("Search activities").foregroundStyle(Hue.nameOnDark.opacity(0.5)))
+                .font(.sans(17))
+                .foregroundStyle(Hue.nameOnDark)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Hue.nameOnDark.opacity(0.55))
+                        .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                        .contentShape(Rectangle())
+                }
+                .padding(.trailing, -10)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(Hue.nameOnDark.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
-    private var games: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let profile, !profile.games.isEmpty {
-                Text("Next games")
-                    .font(.sansSemibold(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .textCase(.uppercase)
-                    .accessibilityAddTraits(.isHeader)
-                VStack(spacing: 0) {
-                    ForEach(profile.games) { game in
-                        row(game)
-                        if game != profile.games.last { Divider().overlay(Hue.hairline) }
-                    }
-                }
-                .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Hue.hairline, lineWidth: 1))
-            } else if profile != nil {
-                Text("No games coming up")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-            } else if failed {
-                Text("Check your connection and try again.")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-            }
+    private func list(_ all: [TeamProfile.Activity]) -> some View {
+        let shown = query.isEmpty ? all : all.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let mine = shown.filter { actions.follow(target($0)).isFollowing }
+        let rest = shown.filter { !actions.follow(target($0)).isFollowing }
+        if !mine.isEmpty {
+            heading("Following")
+            ForEach(mine) { row($0) }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Self.side)
+        if !rest.isEmpty {
+            heading("Follow Activities")
+            ForEach(rest) { row($0) }
+        }
+        if shown.isEmpty {
+            Text(all.isEmpty ? "No activities yet" : "No activities match")
+                .font(.sans(15))
+                .foregroundStyle(Hue.nameOnDark.opacity(0.55))
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
+        }
     }
 
-    private func row(_ game: TeamProfile.Game) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text([Self.day(game.date), game.time].compactMap { $0 }.joined(separator: " · "))
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-            Text([[game.sport, "vs \(game.other)"].compactMap { $0 }.joined(separator: " "), game.location]
-                    .compactMap { $0 }.joined(separator: " · "))
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(2)
+    private func heading(_ words: String) -> some View {
+        Text(words)
+            .font(.sansBold(20))
+            .foregroundStyle(Hue.nameOnDark)
+            .padding(.top, 26)
+            .padding(.bottom, 6)
+            .accessibilityAddTraits(.isHeader)
+            // Each heading moves with its rows, so the two never cross mid-slide.
+            .matchedGeometryEffect(id: words, in: rows)
+            .transition(.opacity)
+    }
+
+    private func row(_ activity: TeamProfile.Activity) -> some View {
+        HStack(spacing: 16) {
+            ActivityStar(target: target(activity), name: activity.name, fill: schoolColors.star) {
+                withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.select) {
+                    actions.toggleFollow(target(activity))
+                }
+            }
+            Button { opened = activity } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: Self.symbol(activity))
+                        .font(.glyph(20, weight: .regular))
+                        .foregroundStyle(Hue.nameOnDark)
+                        .frame(width: Self.icon, height: Self.icon)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(activity.name)
+                            .font(.sans(20))
+                            .foregroundStyle(Hue.nameOnDark)
+                            .lineLimit(1)
+                        Text(activity.next.map(Self.when) ?? "No events yet")
+                            .font(.sans(13))
+                            .foregroundStyle(Hue.nameOnDark.opacity(0.5))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if activity.next != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(15, weight: .semibold))
+                            .foregroundStyle(Hue.nameOnDark.opacity(0.4))
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: Self.rowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(activity.next == nil)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(activity.next == nil ? "" : "Shows what's coming up")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .accessibilityElement(children: .combine)
+        .matchedGeometryEffect(id: activity.id, in: rows)
+    }
+
+    private func target(_ activity: TeamProfile.Activity) -> FollowTarget {
+        FollowTarget(type: .activity, id: activity.id)
+    }
+
+    /// The school's first colour bright at the top fading to a deep shade of it, and its second for a
+    /// starred star; a school with no colours yet is ink.
+    private var schoolColors: (top: Color, deep: Color, star: Color) {
+        var hexes = profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors
+        // A light first colour (Cathedral's gold) fades to olive, so its darkest colour leads instead and
+        // the light one fills the star (Jesse, 2026-10-25).
+        if let first = hexes.first, Self.light(first), let darkest = hexes.min(by: { Self.luma($0) < Self.luma($1) }),
+           !Self.light(darkest) {
+            hexes = [darkest, first]
+        }
+        let top = hexes.first.map { Color(hex: $0) } ?? Hue.poster
+        let star = hexes.dropFirst().first.map { Color(hex: $0) } ?? Hue.nameOnDark
+        return (top, top.mix(with: Hue.nameShadow, by: 0.45), star)
+    }
+
+    /// How light a 0xRRGGBB colour reads, 0 to 1 (Rec. 601 weights).
+    static func luma(_ rgb: UInt32) -> Double {
+        (0.299 * Double(rgb >> 16 & 0xFF) + 0.587 * Double(rgb >> 8 & 0xFF) + 0.114 * Double(rgb & 0xFF)) / 255
+    }
+
+    /// Too light for white words to sit on.
+    static func light(_ rgb: UInt32) -> Bool { luma(rgb) > 0.6 }
+
+    /// An SF Symbol for what it is, from its name; a sport with none gets the generic one.
+    static func symbol(_ activity: TeamProfile.Activity) -> String {
+        let name = activity.name.lowercased()
+        let byWord: [(String, String)] = [
+            ("basketball", "basketball"), ("volleyball", "volleyball"), ("soccer", "soccerball"),
+            ("football", "football"), ("baseball", "baseball"), ("softball", "baseball"), ("hockey", "hockey.puck"),
+            ("tennis", "tennisball"), ("golf", "figure.golf"), ("swim", "figure.pool.swim"),
+            ("cross country", "figure.run"), ("track", "figure.run"), ("ski", "figure.skiing.crosscountry"),
+            ("wrestl", "figure.wrestling"), ("gymnast", "figure.gymnastics"), ("lacrosse", "figure.lacrosse"),
+            ("dance", "figure.dance"), ("bowling", "figure.bowling"), ("trap", "scope"), ("clay", "scope"),
+            ("band", "music.note"), ("orchestra", "music.note"), ("choir", "music.mic"), ("music", "music.note"),
+            ("theat", "theatermasks"), ("drama", "theatermasks"), ("play", "theatermasks"), ("musical", "theatermasks"),
+            ("robot", "gearshape.2"), ("math", "function"), ("knowledge", "brain.head.profile"),
+            ("speech", "text.bubble"), ("debate", "text.bubble"), ("art", "paintpalette"), ("chess", "checkerboard.rectangle"),
+        ]
+        if let hit = byWord.first(where: { name.contains($0.0) }) { return hit.1 }
+        switch activity.kind {
+        case "sport": return "sportscourt"
+        case "arts": return "paintpalette"
+        default: return "person.3"
+        }
+    }
+
+    /// "Tue, Oct 27 · 6 PM": its day and time, as the row says it.
+    static func when(_ next: TeamProfile.Activity.Next) -> String {
+        [day(next.date), next.time].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// "2026-10-31" as "Sat, Oct 31".
-    private static func day(_ date: String) -> String? {
+    static func day(_ date: String) -> String? {
         let parse = DateFormatter()
         parse.locale = Locale(identifier: "en_US_POSIX")
         parse.timeZone = Town.timeZone
@@ -130,9 +304,135 @@ struct TeamPage: View {
         guard let id = team.id else { return }
         do {
             profile = try await CommunityAPI(auth: AuthStore.shared).teamPage(id)
-            failed = false
+            if let profile { actions.read(activities: profile.activities) }
+            failed = profile == nil
         } catch {
             failed = profile == nil
+        }
+    }
+}
+
+/// The school's own Follow on its colour: white, then see-through "Following" (Jesse, 2026-10-25).
+/// Follow's rules otherwise: one tap each way, a refused one turns back with the shake, and an
+/// account that isn't signed up gets sign-up.
+private struct SchoolFollow: View {
+    let target: FollowTarget
+    let name: String
+
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tappedAt = 0
+    @State private var signingIn = false
+
+    var body: some View {
+        let following = actions.follow(target).isFollowing
+        let failures = actions.followFailureCount(target)
+        Button {
+            guard !actions.needsSignUp else { signingIn = true; return }
+            tappedAt = failures
+            actions.toggleFollow(target)
+        } label: {
+            Text(following ? "Following" : "Follow")
+                .font(.sansSemibold(15))
+                .foregroundStyle(following ? Hue.nameOnDark : Hue.onBrandDisc)
+                .padding(.horizontal, FollowMetric.pagePad)
+                .frame(minWidth: FollowMetric.pageWidth, minHeight: FollowMetric.pageHeight)
+                .background(following ? Hue.nameOnDark.opacity(0.18) : Hue.nameOnDark,
+                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .contentShape(Rectangle().inset(by: (FollowMetric.pageHeight - SearchMetric.tapMin) / 2))
+        }
+        .buttonStyle(PressableStyle())
+        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: following)
+        .accessibilityLabel("\(following ? "Following" : "Follow"), \(name)")
+        .accessibilityAddTraits(following ? .isSelected : [])
+        .onAppear { actions.followOpened(target) }
+        .onDisappear { actions.followClosed(target) }
+        .signInSheet(isPresented: $signingIn)
+    }
+}
+
+/// An activity's star: Apple Sports' circle, filled in the school's second colour once you follow it.
+private struct ActivityStar: View {
+    let target: FollowTarget
+    let name: String
+    let fill: Color
+    let toggle: () -> Void
+
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tappedAt = 0
+    @State private var signingIn = false
+
+    var body: some View {
+        let following = actions.follow(target).isFollowing
+        let failures = actions.followFailureCount(target)
+        Button {
+            guard !actions.needsSignUp else { signingIn = true; return }
+            tappedAt = failures
+            toggle()
+        } label: {
+            Image(systemName: following ? "star.fill" : "star")
+                .font(.glyph(13, weight: .semibold))
+                .foregroundStyle(following ? Hue.onBrandDisc : Hue.nameOnDark)
+                .frame(width: TeamPage.star, height: TeamPage.star)
+                .background(Circle().fill(following ? fill : Hue.nameOnDark.opacity(0.16)))
+                .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .padding(.horizontal, -(SearchMetric.tapMin - TeamPage.star) / 2)
+        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
+        .accessibilityLabel("Follow \(name)")
+        .accessibilityAddTraits(following ? .isSelected : [])
+        .onAppear { actions.followOpened(target) }
+        .onDisappear { actions.followClosed(target) }
+        .signInSheet(isPresented: $signingIn)
+    }
+}
+
+/// An activity's coming events, from its row's arrow: a plain list.
+private struct ActivityEvents: View {
+    let activity: TeamProfile.Activity
+    let school: String
+
+    @State private var events: [TeamProfile.ActivityEvent]?
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if failed {
+                    Text("Check your connection and try again.").foregroundStyle(Hue.inkSecondary)
+                } else if let events, events.isEmpty {
+                    Text("No events yet").foregroundStyle(Hue.inkSecondary)
+                }
+                ForEach(events ?? []) { event in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text([TeamPage.day(event.date), event.time].compactMap { $0 }.joined(separator: " · "))
+                            .font(.sansSemibold(15))
+                        Text([event.title, event.location].compactMap { $0 }.joined(separator: " · "))
+                            .font(.sans(15))
+                            .foregroundStyle(Hue.inkSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .navigationTitle(activity.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .overlay {
+                if events == nil && !failed {
+                    VStack(spacing: 16) { ForEach(0..<3, id: \.self) { _ in SkeletonLine(height: 16) } }
+                        .padding(24)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .shimmering()
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .task {
+            do { events = try await CommunityAPI(auth: AuthStore.shared).activityEvents(activity.id) } catch { failed = true }
         }
     }
 }
