@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent))
 from registry import find_root, load, validate, is_todo
+from db import Db, DbError
 import composio
 
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
@@ -369,6 +370,7 @@ def selftest():
         (case(RuntimeError("HTTP Error 403: Forbidden"), "ical")[2] == "firecrawl" and calls == ["rawHtml"],
          "a refused feed is read raw"),
         (case("", "ical")[2] == "fetch" and not calls, "a short feed is not taken for a JavaScript page"),
+        (one_bad_row_is_one_line(), "a row the database refuses is one report line; the rest are recorded"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -377,44 +379,63 @@ def selftest():
     sys.exit(1 if failed else 0)
 
 
+def one_bad_row_is_one_line():
+    """fetch_watched against a fake database that answers 500 to one page's PATCH, offline."""
+    import contextlib, io, tempfile
+    g = globals()
+    patched = {"read_page": lambda url, kind: (200, f"Plant Bingo Oct 24 at {url}", "fetch"),
+               "validate": lambda e: [], "NOW": datetime(2026, 10, 26, tzinfo=timezone.utc)}
+    saved = {k: g[k] for k in (*patched, "find_root")}, urllib.request.urlopen, dict(os.environ)
+    entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
+                "sources": [{"url": f"https://{i}/", "method": "fetch"}]} for i in ("a", "b", "c")]
+    recorded = []
+
+    def urlopen(req, timeout=None):
+        if req.get_method() == "PATCH":
+            if "b%2F" in req.full_url:
+                raise urllib.error.HTTPError(req.full_url, 500, "Internal Server Error", {},
+                                             io.BytesIO(b'{"message":"canceling statement due to statement timeout"}'))
+            recorded.append(req.full_url)
+        return contextlib.nullcontext(io.BytesIO(b"[]" if req.get_method() == "GET" else b""))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            g.update(patched, find_root=lambda *a: Path(tmp))
+            urllib.request.urlopen = urlopen
+            os.environ.update(SUPABASE_URL="https://fake.invalid", SUPABASE_SERVICE_ROLE_KEY="fake")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                report = fetch_watched(entries, Supabase())
+    finally:
+        g.update(saved[0])
+        urllib.request.urlopen = saved[1]
+        os.environ.clear()
+        os.environ.update(saved[2])
+    lines = [l for l in out.getvalue().splitlines() if "NOT RECORDED" in l]
+    return (len(lines) == 1 and "NOT RECORDED b https://b/: Supabase PATCH" in lines[0]
+            and "500" in lines[0] and "statement timeout" in lines[0]
+            and len(recorded) == 2 and [u["entry_id"] for u in report["unrecorded"]] == ["b"])
 
 
-class Supabase:
+class Supabase(Db):
+    """The `sources` table's runtime state, over the shared client (db.py)."""
+
     def __init__(self):
-        self.url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-        self.key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if not self.url or not self.key:
-            sys.exit("--write needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env. Never put the key in the repo.")
-
-    def call(self, method, path, body=None, prefer=None):
-        headers = {"apikey": self.key, "Authorization": f"Bearer {self.key}",
-                   "Content-Type": "application/json"}
-        if prefer:
-            headers["Prefer"] = prefer
-        data = json.dumps(body, default=str).encode() if body is not None else None
-        req = urllib.request.Request(f"{self.url}/rest/v1/{path}", data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                txt = r.read().decode()
-                return json.loads(txt) if txt else None
-        except urllib.error.HTTPError as e:
-            sys.exit(f"Supabase {method} {path} failed {e.code}: {e.read().decode()[:400]}\n"
-                     "Is the sources table migrated? See supabase/migrations/20261014120000_source_registry.sql")
+        super().__init__("--write needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env. Never put the key in the repo.")
 
     def upsert_registry(self, rows):
-        self.call("POST", "sources?on_conflict=entry_id,url", rows,
+        self.rest("POST", "sources?on_conflict=entry_id,url", rows,
                   prefer="resolution=merge-duplicates,return=minimal")
 
     def state(self):
         """Yesterday's fingerprints, and which pages were ever checked (a cleared fingerprint
         forces a read; a page never checked is new and only gets its starting copy)."""
-        rows = self.call("GET", "sources?select=entry_id,url,last_hash,last_checked_at") or []
+        rows = self.rest("GET", "sources?select=entry_id,url,last_hash,last_checked_at") or []
         return ({f"{r['entry_id']}|{r['url']}": r.get("last_hash") for r in rows},
                 {f"{r['entry_id']}|{r['url']}" for r in rows if r.get("last_checked_at")})
 
     def record(self, entry_id, url, fields):
         q = f"sources?entry_id=eq.{entry_id}&url=eq.{urllib.parse.quote(url, safe='')}"
-        self.call("PATCH", q, fields, prefer="return=minimal")
+        self.rest("PATCH", q, fields, prefer="return=minimal")
 
     def commit_fingerprints(self, changed):
         """Changed pages' new fingerprints (fetch_watched's report["changed"]), saved once
@@ -504,7 +525,7 @@ def fetch_watched(entries, db, picked=None, workers=6):
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(work, jobs))
 
-    new_state = dict(prev)
+    new_state, unrecorded = dict(prev), []
     for r in results:
         key = f"{r['entry_id']}|{r['url']}"
         if r["ok"]:
@@ -514,7 +535,10 @@ def fetch_watched(entries, db, picked=None, workers=6):
             fields.update({"last_error": None} if r["ok"] else {"last_error": r["error"]})
             if r["ok"] and r["changed"] and r["first_seen"]:
                 fields.update({"last_hash": r["hash"], "last_changed_at": NOW.isoformat()})
-            db.record(r["entry_id"], r["url"], fields)
+            try:
+                db.record(r["entry_id"], r["url"], fields)
+            except DbError as ex:  # one bad row is one report line; the rest still get recorded
+                unrecorded.append({"entry_id": r["entry_id"], "url": r["url"], "error": str(ex)[:300]})
     if not db:
         local_state_path.write_text(json.dumps(new_state, indent=1))
 
@@ -523,16 +547,19 @@ def fetch_watched(entries, db, picked=None, workers=6):
     report = {"mode": "write" if db else "dry-run", "at": NOW.isoformat(), "run_dir": str(run_dir),
               "fetched": len(results), "changed": changed, "failed": failed,
               "unchanged": [r["entry_id"] for r in results if r["ok"] and not r["changed"]],
-              "agent_tasks": agent_tasks, "skipped": skipped}
+              "agent_tasks": agent_tasks, "skipped": skipped, "unrecorded": unrecorded}
     (run_dir / "report.json").write_text(json.dumps(report, indent=1))
 
     print(f"[{report['mode']}] fetched {len(results)} | changed {len(changed)} | "
           f"failed {len(failed)} | agent tasks {len(agent_tasks)} | skipped {len(skipped)} | "
-          f"through Firecrawl {sum(r.get('via') == 'firecrawl' for r in results)}")
+          f"through Firecrawl {sum(r.get('via') == 'firecrawl' for r in results)}"
+          + (f" | not recorded {len(unrecorded)}" if unrecorded else ""))
     for r in changed:
         print(f"  CHANGED {r['entry_id']} {'(first seen) ' if r['first_seen'] else ''}-> snapshots/{r['snapshot']}")
     for r in failed:
         print(f"  FAILED  {r['entry_id']} {r['url']}: {r['error']}")
+    for u in unrecorded:
+        print(f"  NOT RECORDED {u['entry_id']} {u['url']}: {u['error']}")
     for t in agent_tasks:
         print(f"  SEARCH  {t['entry_id']}: \"{t['query']}\" site:{t['site']}")
     print(f"report: {run_dir / 'report.json'}")
