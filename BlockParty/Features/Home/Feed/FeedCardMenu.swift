@@ -211,7 +211,7 @@ private struct ScoreBox: View {
             row("Start", "1", idle: false)
             row("Your interests", "+" + Self.number(score.interest), idle: score.interest == 0)
             row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
-            row("You follow the host", "+" + Self.number(score.follow), idle: score.follow == 0)
+            row("You follow it", "+" + Self.number(score.follow), idle: score.follow == 0)
             row("Host you've been into", "+" + Self.number(score.tapped ?? 0), idle: (score.tapped ?? 0) == 0)
             row("Popular in town", "+" + Self.number(score.popular), idle: score.popular == 0)
             row((score.sizeStep == 3 ? "Big" : score.sizeStep == 2 ? "Medium" : "Small") + " event",

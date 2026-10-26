@@ -632,6 +632,9 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             row = dict(primary[1]["row"], status="approved" if ok else "pending")
             # Everyone's when any mention this morning is (a school's own page and Bound's followers-only copy).
             row["followers_only"] = all(ev["row"]["followers_only"] for _, ev in g["items"])
+            # Its activity from whichever mention names one (Bound's), so a public page's row still lands on it.
+            named = next((ev["row"] for _, ev in g["items"] if ev["row"]["activity_team"]), row)
+            row["activity_team"], row["activity_name"] = named["activity_team"], named["activity_name"]
             if old:
                 row["source_uid"] = old["source_uid"]
                 if old.get("shows_from") and str(old["event_date"])[:10] == row["event_date"]:
@@ -1243,7 +1246,8 @@ def t_followers_only():
     both = run([item(source_name="Apollo High School", source_url="https://gobound.com/c1", source_uid="bound:c1",
                      followers_only=True, activity_team="apollo", activity_name="Choir", **concert),
                 item(source_name="St. Cloud Area School District", source_url="https://isd742.org/x", **concert)])
-    assert [g["row"]["followers_only"] for g in both["events"]] == [False], both["events"]
+    assert [(g["row"]["followers_only"], g["row"]["activity_name"]) for g in both["events"]] == [(False, "Choir")], \
+        "everyone's, and still the choir's whichever page's row it is"
     assert run([item(followers_only="yes")])["outcomes"][0] == ("skipped", "invalid: followers_only must be true or false")
     sql = WRITES.read_text()
     assert "followers_only = excluded.followers_only" in sql, "the database keeps it"

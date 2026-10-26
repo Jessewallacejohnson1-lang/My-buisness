@@ -75,7 +75,7 @@ struct DailyFollowing: Identifiable {
     }
 
     /// After the name: "vs Sartell." for a game, else the Event's own title (Jesse, 2026-10-26).
-    static func what(_ card: FeedCardItem, name: String) -> String {
+    private static func what(_ card: FeedCardItem, name: String) -> String {
         if let teams = card.game?.teams, teams.contains(where: { name.hasPrefix($0.short) }),
            let other = teams.first(where: { !name.hasPrefix($0.short) }) {
             return "vs \(other.short)."

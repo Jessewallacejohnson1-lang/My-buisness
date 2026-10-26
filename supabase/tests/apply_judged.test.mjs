@@ -19,7 +19,7 @@ test('the story below loads every migration that makes the writer\'s functions',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
                     '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
                     '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql',
-                    '20261026160100_apply_judged_followers_only.sql']);
+                    '20261026160100_apply_judged_followers_only.sql', '20261026170100_apply_judged_keeps_public.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -149,6 +149,16 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.deepEqual(await marks(), [{ f: true, team: 'rocori', name: 'Volleyball, Girls' }]);
   await apply(placed('2026-10-21'), [], [], []);
   assert.deepEqual(await marks(), [{ f: false, team: null, name: null }]);
+
+  // Listed by a public page, it stays everyone's when Bound alone reads it again, and a re-read naming
+  // no activity keeps the one it had.
+  await db.exec(migration('20261026170100_apply_judged_keeps_public.sql'));
+  const bound = placed('2026-10-21').map((g) => ({ ...g, followers_only: true, activity_team: 'rocori',
+                                                  activity_name: 'Volleyball, Girls' }));
+  await apply(bound, [], [], []);
+  assert.deepEqual(await marks(), [{ f: false, team: 'rocori', name: 'Volleyball, Girls' }]);
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.deepEqual(await marks(), [{ f: false, team: 'rocori', name: 'Volleyball, Girls' }]);
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
