@@ -89,11 +89,6 @@ enum TodayBubbleRules {
         min(0.13, distance / 110 + speed / 5200)
     }
 
-    /// Seconds from midnight, in the Town's time.
-    static func seconds(of date: Date) -> Int {
-        let c = Town.gregorian.dateComponents([.hour, .minute, .second], from: date)
-        return (c.hour ?? 0) * 3600 + (c.minute ?? 0) * 60 + (c.second ?? 0)
-    }
 }
 
 // MARK: - Clock
@@ -115,7 +110,7 @@ enum TodayBubbleClock {
         let parts = a[i + 1].split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return 0 }
         let target = parts[0] * 3600 + parts[1] * 60
-        return TimeInterval(target - TodayBubbleRules.seconds(of: Date()))
+        return Town.gregorian.startOfDay(for: Date()).addingTimeInterval(TimeInterval(target)).timeIntervalSinceNow
         #else
         return 0
         #endif

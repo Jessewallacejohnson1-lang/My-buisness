@@ -24,7 +24,8 @@ final class EventWhenTests: XCTestCase {
         ("19:00", 19 * 60), ("19:00:00", 19 * 60), ("18:30", 18 * 60 + 30), ("07:30", 7 * 60 + 30),
         ("00:00", 0),
         ("noon", 12 * 60), ("Noon", 12 * 60), ("12 noon", 12 * 60),
-        ("midnight", 0), ("Midnight", 0),
+        ("midnight", 0), ("Midnight", 0), ("noon-2pm", 12 * 60), ("Noon to 2 PM", 12 * 60),
+        ("midnight to 2 AM", 0),
         ("7:00", nil), ("7 at dusk", nil), ("after dark", nil), ("TBA", nil), ("All day", nil),
         ("25:00", nil), ("13 PM", nil), ("", nil), ("  ", nil), (nil, nil),
     ]

@@ -52,10 +52,16 @@ extension EventWhen {
     /// The organizer's free-text time → minutes after midnight; nil when it can't be read.
     /// A 12-hour clock first, wherever it sits ("7pm-9pm" is 7 PM, "7 PM - midnight" too);
     /// then a 24-hour one, only with two hour digits or past 12 ("19:00", "07:30", not a
-    /// bare "7:00", which could be either); then "noon" or "midnight".
+    /// bare "7:00", which could be either); then "noon" or "midnight". A word before any
+    /// digit wins over all of them.
     static func minutes(_ raw: String?) -> Int? {
         guard let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !text.isEmpty
         else { return nil }
+        // A word ahead of any digit starts it: "noon-2pm" is noon, "midnight to 2 AM" midnight.
+        let firstDigit = text.firstIndex(where: \.isNumber) ?? text.endIndex
+        for (word, minutes) in [("noon", 12 * 60), ("midnight", 0)] {
+            if let found = text.range(of: word), found.lowerBound < firstDigit { return minutes }
+        }
         if let m = text.firstMatch(of: #/(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m?\.?(?![a-z])/#) {
             guard var hour = Int(m.1), (1...12).contains(hour) else { return nil }
             let minute = m.2.flatMap { Int($0) } ?? 0
