@@ -11,6 +11,8 @@ import Foundation
 
 /// `{"mon": [["16:00", "22:00"]], ..., "sun": []}`: each day's ranges, "HH:MM", an empty list
 /// closed. A range that ends at or before its start runs past midnight ("16:00"–"01:00").
+/// A seasonal place adds `"season": ["05-08", "10-16"]`, the first and last day it opens each year
+/// (BP app business-hours, Jesse 2026-10-26); out of season it says "Closed till May 8".
 nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
     /// Sunday first, as `Calendar` numbers weekdays (1 = Sunday).
     static let keys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
@@ -21,8 +23,24 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
 
     /// Minutes from local midnight, per weekday, Sunday first.
     let days: [[Range<Int>]]
+    let season: Season?
 
-    init(days: [[Range<Int>]]) { self.days = days }
+    /// The days of the year it opens, as month * 100 + day; `from` after `to` runs over New Year.
+    struct Season: Hashable, Sendable {
+        let from: Int
+        let to: Int
+
+        func contains(_ date: Date, calendar: Calendar) -> Bool {
+            let d = calendar.dateComponents([.month, .day], from: date)
+            let md = (d.month ?? 1) * 100 + (d.day ?? 1)
+            return from <= to ? (from...to).contains(md) : md >= from || md <= to
+        }
+    }
+
+    init(days: [[Range<Int>]], season: Season? = nil) {
+        self.days = days
+        self.season = season
+    }
 
     init(from decoder: Decoder) throws {
         // A day it can't read is a closed day, so one bad entry never costs the week.
@@ -30,6 +48,9 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
             let pairs: [[String]]
             init(from decoder: Decoder) { pairs = (try? [[String]](from: decoder)) ?? [] }
         }
+        struct SeasonKey: Decodable { let season: [String]? }
+        let ends = ((try? SeasonKey(from: decoder))?.season ?? []).compactMap(Self.monthDay)
+        season = ends.count == 2 ? Season(from: ends[0], to: ends[1]) : nil
         let raw = (try? [String: Day](from: decoder)) ?? [:]
         days = Self.keys.map { key in
             (raw[key]?.pairs ?? []).compactMap { pair in
@@ -37,6 +58,13 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
                 return start ..< (end <= start ? end + Self.day : end)
             }
         }
+    }
+
+    /// "05-08" as 508.
+    static func monthDay(_ text: String) -> Int? {
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 2, (1...12).contains(parts[0]), (1...31).contains(parts[1]) else { return nil }
+        return parts[0] * 100 + parts[1]
     }
 
     static func minutes(_ text: String) -> Int? {
@@ -52,6 +80,8 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
         /// `weekday` only when it isn't today, or tomorrow morning after a day it was open: on a
         /// closed Monday, "Closed till 9 AM" would read as this morning.
         case closed(opens: Int, weekday: Int?)
+        /// Out of season, or its next opening is: the day the season starts, month * 100 + day.
+        case offSeason(opens: Int)
         case always
     }
 
@@ -79,6 +109,7 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
     func status(at now: Date = .now, calendar: Calendar = Town.calendar) -> Status? {
         let spans = spans
         guard !spans.isEmpty else { return nil }
+        if let season, !season.contains(now, calendar: calendar) { return .offSeason(opens: season.from) }
         if spans.count == 1, spans[0].count >= Self.week { return .always }
         let weekday = calendar.component(.weekday, from: now) - 1
         let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
@@ -95,6 +126,10 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
         guard let next = shifted.map(\.lowerBound).filter({ $0 > t }).min() else { return nil }
         let opens = next % Self.day
         let ahead = next / Self.day - t / Self.day
+        if let season, let day = calendar.date(byAdding: .day, value: ahead, to: now),
+           !season.contains(day, calendar: calendar) {
+            return .offSeason(opens: season.from)
+        }
         let sameDay = ahead == 0 || (ahead == 1 && opens < 12 * 60 && !days[weekday].isEmpty)
         return .closed(opens: opens, weekday: sameDay ? nil : (next / Self.day) % 7 + 1)
     }
@@ -106,9 +141,18 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
         case .closesSoon(let closes): "Closes soon · \(clock(closes))"
         case .closed(let opens, let weekday):
             "Closed till " + (weekday.map { shortDays[$0 - 1] + " " } ?? "") + clock(opens)
+        case .offSeason(let opens): "Closed till " + Self.date(opens)
         case .always: "Open 24 hours"
         }
     }
+
+    static let shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    /// 508 as "May 8".
+    static func date(_ monthDay: Int) -> String { "\(shortMonths[monthDay / 100 - 1]) \(monthDay % 100)" }
+
+    /// The open week's top line for a seasonal place: "May 8 – Oct 16".
+    var seasonLine: String? { season.map { Self.date($0.from) + " – " + Self.date($0.to) } }
 
     static let shortDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     static let longDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -132,12 +176,13 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
         }.joined(separator: ", ")
     }
 
-    /// The week from today: ("Saturday", "12 – 9 PM", today?).
+    /// The week from today: ("Saturday", "12 – 9 PM", today?). Out of season no day is today's.
     func week(from now: Date = .now, calendar: Calendar = Town.calendar) -> [(day: String, hours: String, today: Bool)] {
         let today = calendar.component(.weekday, from: now) - 1
+        let inSeason = season?.contains(now, calendar: calendar) ?? true
         return (0..<7).map { offset in
             let d = (today + offset) % 7
-            return (Self.longDays[d], Self.line(days[d]), offset == 0)
+            return (Self.longDays[d], Self.line(days[d]), offset == 0 && inSeason)
         }
     }
 }

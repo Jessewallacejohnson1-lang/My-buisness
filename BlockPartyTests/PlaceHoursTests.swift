@@ -105,4 +105,44 @@ final class PlaceHoursTests: XCTestCase {
         XCTAssertEqual(week[2].hours, "Closed")
         XCTAssertEqual(PlaceHours.line([570 ..< 1020]), "9:30 AM – 5 PM")
     }
+
+    /// Fridays 3–6 PM, May 8 to Oct 16 (the Farmers' Market's 2026 season).
+    private let market = try! JSONDecoder().decode(PlaceHours.self, from: Data("""
+    {"sun": [], "mon": [], "tue": [], "wed": [], "thu": [], "fri": [["15:00","18:00"]], "sat": [],
+     "season": ["05-08", "10-16"]}
+    """.utf8))
+
+    private func on(_ month: Int, _ day: Int, _ h: Int) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: month, day: day, hour: h))!
+    }
+
+    func testOutOfSeasonSaysTheDayItComesBack() {
+        XCTAssertEqual(words(at(25, 12), market), "Closed till May 8")
+        XCTAssertEqual(words(on(3, 2, 12), market), "Closed till May 8")
+    }
+
+    func testInSeasonWorksLikeAnyWeek() {
+        // Fri Jun 12 4 PM, Sat Jun 13.
+        XCTAssertEqual(words(on(6, 12, 16), market), "Open till 6 PM")
+        XCTAssertEqual(words(on(6, 13, 10), market), "Closed till Fri 3 PM")
+    }
+
+    func testAfterTheLastDayTheNextOpeningIsNextSeason() {
+        // Fri Oct 16 7 PM: next Friday is past the season.
+        XCTAssertEqual(words(on(10, 16, 19), market), "Closed till May 8")
+        XCTAssertEqual(words(on(10, 16, 16), market), "Open till 6 PM")
+    }
+
+    func testSeasonCanRunOverNewYear() throws {
+        let rink = try JSONDecoder().decode(PlaceHours.self, from: Data(#"{"sun": [["12:00","20:00"]], "mon": [["12:00","20:00"]], "tue": [["12:00","20:00"]], "wed": [["12:00","20:00"]], "thu": [["12:00","20:00"]], "fri": [["12:00","20:00"]], "sat": [["12:00","20:00"]], "season": ["12-01", "02-28"]}"#.utf8))
+        XCTAssertEqual(words(on(1, 10, 14), rink), "Open till 8 PM")
+        XCTAssertEqual(words(at(25, 14), rink), "Closed till Dec 1")
+    }
+
+    func testSeasonLineAndBadSeasonIgnored() throws {
+        XCTAssertEqual(market.seasonLine, "May 8 – Oct 16")
+        let bad = try JSONDecoder().decode(PlaceHours.self, from: Data(#"{"fri": [["15:00","18:00"]], "season": ["May", "10-16"]}"#.utf8))
+        XCTAssertNil(bad.seasonLine)
+        XCTAssertEqual(bad.days[5], [900 ..< 1080])
+    }
 }
