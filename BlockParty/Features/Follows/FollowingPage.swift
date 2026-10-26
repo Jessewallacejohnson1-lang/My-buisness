@@ -161,55 +161,56 @@ struct FollowingPage: View {
 }
 
 /// One Following row: its picture and name open what it follows, pressed with the Friends rows'
-/// grey; its Following button sits over the row and keeps its own tap.
+/// grey; its Following button keeps its own tap. The row's press is a button behind it all, so the
+/// row draws one Following button and its picture and words let the finger through to it.
 private struct FollowingRow: View {
     let row: FollowRow
     let item: SearchItem?
     let open: (SearchItem?, CGRect) -> Void
     @State private var picture = FrameBox()
 
-    private var opens: Bool { row.targetType != .place || item != nil }
-
-    var body: some View {
-        if opens {
-            Button { open(item, picture.rect) } label: { content(button: false) }
-                .buttonStyle(RowPressStyle())
-                .overlay(alignment: .trailing) {
-                    followButton.padding(.trailing, FriendsMetric.side)
-                }
-        } else {
-            content(button: true)
+    /// A person, a team, or a Place Search can open. Anything else (an activity) has no page here.
+    private var opens: Bool {
+        switch row.targetType {
+        case .profile, .team: true
+        case .place: item != nil
+        default: false
         }
     }
 
-    private var followButton: some View {
-        FollowButton(target: row.target, name: row.name, size: .row, minWidth: FollowMetric.listWidth)
-    }
-
-    /// `button: false` keeps the button's room, hidden, for the one laid over the row.
-    private func content(button: Bool) -> some View {
+    var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
-            FollowPicture(row: row, size: FriendsMetric.neighborFace)
-                .trackFrame(picture)
-            VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
-                Text(row.name)
-                    .font(.sansSemibold(17))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
-                if let what = FollowPicture.what(row) {
-                    Text(what)
-                        .font(.sans(15))
-                        .foregroundStyle(Hue.inkSecondary)
+            Group {
+                FollowPicture(row: row, size: FriendsMetric.neighborFace)
+                    .trackFrame(picture)
+                VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+                    Text(row.name)
+                        .font(.sansSemibold(17))
+                        .foregroundStyle(Hue.ink)
                         .lineLimit(1)
+                    if let what = FollowPicture.what(row) {
+                        Text(what)
+                            .font(.sans(15))
+                            .foregroundStyle(Hue.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityHidden(opens)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            if button { followButton } else { followButton.hidden() }
+            .allowsHitTesting(false)
+            FollowButton(target: row.target, name: row.name, size: .row, minWidth: FollowMetric.listWidth)
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
-        .contentShape(Rectangle())
+        .background {
+            if opens {
+                Button { open(item, picture.rect) } label: { Color.clear.contentShape(Rectangle()) }
+                    .buttonStyle(RowPressStyle())
+                    .accessibilityLabel([row.name, FollowPicture.what(row)].compactMap { $0 }.joined(separator: ", "))
+            }
+        }
     }
 }
 
