@@ -563,6 +563,10 @@ struct MainTabsView: View {
                 await townFeed.send()
             }
         }
+        // A first launch makes its account after this screen appears.
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn { recordOpen() }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 Task { await townFeed.send(always: true) }
