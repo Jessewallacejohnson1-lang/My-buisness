@@ -434,10 +434,6 @@ struct MainTabsView: View {
     /// Friend requests, friends and the dot on the friends mark, kept here like `actions` so
     /// a row and a person's page agree (BP app docs/plans/friends, ticket 03).
     @State private var friendsBook = FriendsBook()
-    /// Edit profile, from a friend request refused for want of a name.
-    @State private var addingName = false
-    /// The last refusal said, kept while its alert fades so its words don't change.
-    @State private var said: FriendsBook.Problem = .limit
     /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
     /// to You shows the Calendar it left while it reads again behind it.
     @State private var you = YouModel()
@@ -557,20 +553,9 @@ struct MainTabsView: View {
         .environment(friendsBook)
         // A neighbour's page lays their groups and your shared plans over the You tab's reads.
         .environment(you)
-        // `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert.
-        .alert((friendsBook.problem ?? said).title,
-               isPresented: Binding(get: { friendsBook.problem != nil },
-                                    set: { if !$0 { friendsBook.problem = nil } }),
-               presenting: friendsBook.problem) { problem in
-            if problem == .nameNeeded {
-                Button("Cancel", role: .cancel) {}
-                Button("Add name") { addingName = true }
-            } else {
-                Button("OK", role: .cancel) {}
-            }
-        } message: { problem in
-            if let message = problem.message { Text(message) }
-        }
+        // The friend sheet and its refusals; the Profile sheet shows its own while it is up, since
+        // one sheet can't open over another from here (follows 05).
+        .friendSurfaces(friendsBook, actions: actions, active: !showProfileSheet)
         // An Event you're Going to was called off, in Apple's alert with OK alone (Jesse,
         // 2026-10-15). Told only on OK; leaving the app untold asks again on the next open,
         // so one that couldn't show (behind a sheet or the map) comes back.
@@ -580,14 +565,6 @@ struct MainTabsView: View {
         } message: {
             Text(CancelNotice.message(cancelNotice.said))
         }
-        // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
-        .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
-            FriendMenu(person: person, relation: friendsBook.relation(person))
-                .environment(friendsBook)
-                .environment(actions)
-        }
-        .onChange(of: friendsBook.problem) { _, problem in if let problem { said = problem } }
-        .sheet(isPresented: $addingName) { AddNameSheet() }
         // The dot: read at launch and on coming back to the app (and on each visit to Town),
         // and again for another account, or the same one logged in for real.
         .task { await friendsBook.refreshDot() }
@@ -830,6 +807,8 @@ struct MainTabsView: View {
             .environment(you)
             .environment(townFeed)
             .environment(actions)
+            .environment(searchModel)
+            .friendSurfaces(friendsBook, actions: actions)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows

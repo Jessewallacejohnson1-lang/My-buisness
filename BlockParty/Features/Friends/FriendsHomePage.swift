@@ -468,6 +468,8 @@ struct RelationButtons: View {
 /// `get_profile` answers, and stays away if it fails.
 struct NeighborPage: View {
     let neighbor: Neighbor
+    /// False while where you stand is still being read (a page opened from Following): the pill waits.
+    var settled = true
     @Environment(FriendsBook.self) private var book
     @Environment(RealLifeActions.self) private var actions
     /// Your Going and the Town's groups, the You tab's (`RootView`).
@@ -491,7 +493,13 @@ struct NeighborPage: View {
                                                             reduceMotion: reduceMotion) { book.menu = neighbor }
                 }
             } bar: {
-                ProfilePillBar { RelationButtons(person: neighbor, pill: true) { signingIn = true } }
+                ProfilePillBar {
+                    if settled {
+                        RelationButtons(person: neighbor, pill: true) { signingIn = true }
+                            .transition(.opacity)
+                    }
+                }
+                .animation(Motion.smooth, value: settled)
             } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
         .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }

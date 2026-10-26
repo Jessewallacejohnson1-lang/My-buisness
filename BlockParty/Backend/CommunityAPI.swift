@@ -530,6 +530,15 @@ struct CommunityAPI {
 
     // MARK: - Neighbours (BP app docs/plans/friends)
 
+    /// One neighbour by id, as search answers them: `get_neighbor`. nil for nobody you can find.
+    func getNeighbor(_ userId: String) async throws -> Neighbor? {
+        let body = try JSONSerialization.data(withJSONObject: ["p_user": userId])
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_neighbor", method: "POST",
+                                                    accessToken: try await token(), body: body)
+        let rows: [Neighbor] = try decode(data)
+        return rows.first
+    }
+
     /// Neighbours whose name, or a later word of it, starts with `words`: `search_neighbors`,
     /// which answers a real account only and never returns Anonymous or nameless accounts.
     func searchNeighbors(_ words: String) async throws -> [Neighbor] {

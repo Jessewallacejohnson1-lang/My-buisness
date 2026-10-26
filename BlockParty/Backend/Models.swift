@@ -665,6 +665,18 @@ struct FollowRow: Decodable, Identifiable, Hashable {
     var target: FollowTarget { FollowTarget(type: targetType, id: targetId) }
 }
 
+extension Game.Team {
+    /// A team you follow, from its Following row, for its page (follows 05): the page reads the rest.
+    init(followed row: FollowRow) {
+        name = row.name
+        short = row.name
+        logo = row.picture.flatMap(URL.init(string:))
+        rgb = nil
+        id = row.targetId
+        local = true
+    }
+}
+
 /// A flat comment ("note") on a posting (club_events row). No threading — see
 /// spec §3 ("No threaded/nested comments").
 struct EventComment: Identifiable {

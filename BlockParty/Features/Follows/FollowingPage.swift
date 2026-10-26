@@ -7,7 +7,9 @@
 //  Instagram's list (60 pt pictures, 76 pt rows, its 104 x 32 pt button). One tap unfollows; the
 //  row stays, as Follow, until you leave, so a slip is one tap to undo (Jesse's pick at Check-in
 //  1). Pushed from the Profile sheet's Following row, under Blocked's top. Groups aren't listed:
-//  the You tab's Groups row holds them.
+//  the You tab's Groups row holds them. A row opens what it follows, as Instagram's list does
+//  (ticket 05): a person's page, a Place's business page as Search opens it, a team's page; a
+//  Place Search can't open (no logo) doesn't open here either.
 //
 //  The host line: Eventbrite's "Organized by", under where an Event is: the Place or person who
 //  hosts it, "Host · 128 followers", and Follow.
@@ -17,18 +19,40 @@ import SwiftUI
 
 struct FollowingPage: View {
     @Environment(RealLifeActions.self) private var actions
+    @Environment(SearchModel.self) private var places
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rows: [FollowRow]?
     @State private var failed = false
+    @State private var opener = BusinessOpener()
+    @State private var person: FollowRow?
+    @State private var team: Game.Team?
 
     /// Saved's sheet edge to its top bar (`SavedPage`, as `BlockedPage`).
     private static let barTop: CGFloat = 20
 
     var body: some View {
+        ZStack {
+            list
+            BusinessPage()
+        }
+        .environment(opener)
+        // Open over the sheet, a business closes by its own drag, not the sheet's.
+        .interactiveDismissDisabled(opener.isOpen)
+        .navigationDestination(item: $person) { FollowedNeighborPage(row: $0) }
+        .navigationDestination(item: $team) { TeamPage(team: $0) }
+        .onAppear { opener.reduceMotion = reduceMotion }
+        // Search's places, for a Place's page, read here when Search hasn't been opened yet.
+        .task { if !places.placesLoaded { await places.load() } }
+    }
+
+    private var list: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if let rows {
-                    ForEach(rows) { row($0) }
+                    ForEach(rows) { row in
+                        FollowingRow(row: row, item: item(row)) { open(row, item: $0, from: $1) }
+                    }
                 } else if failed {
                     // The Town feed's words for a read that failed.
                     Text("Check your connection and try again.")
@@ -88,8 +112,12 @@ struct FollowingPage: View {
             return Neighbor.samples.filter { $0.relation == .friends }.prefix(2).map {
                 FollowRow(targetType: .profile, targetId: $0.id, name: $0.displayName, kind: nil,
                           picture: $0.avatarUrl, pictureKind: "photo")
-            } + [FollowRow(targetType: .place, targetId: "sample-krewe", name: "Krewe", kind: "cajun_restaurant",
-                           picture: nil, pictureKind: nil)]
+            } + [FollowRow(targetType: .team, targetId: "d2d14f41-35bc-4b0c-bc03-680f28de7674", name: "Cathedral",
+                           kind: "team", picture: "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/cathedral/logo-160e29d911.png",
+                           pictureKind: "logo"),
+                 // Krewe's real place id, so its row opens the page Search reads for it.
+                 FollowRow(targetType: .place, targetId: "02280501-5d7d-4c2b-8a6b-2ec671ce9c7c", name: "Krewe",
+                           kind: "cajun_restaurant", picture: nil, pictureKind: nil)]
         }
     }
 
@@ -112,9 +140,57 @@ struct FollowingPage: View {
         .background(Hue.paper)
     }
 
-    private func row(_ row: FollowRow) -> some View {
+    /// A Place's page as Search has it; nil for anyone else, or a Place Search can't open.
+    private func item(_ row: FollowRow) -> SearchItem? {
+        guard row.targetType == .place else { return nil }
+        return places.items.first { $0.placeID == row.targetId && $0.opens }
+    }
+
+    private func open(_ row: FollowRow, item: SearchItem?, from picture: CGRect) {
+        switch row.targetType {
+        case .profile: person = row
+        case .team: team = Game.Team(followed: row)
+        default:
+            guard let item, let logo = item.logo else { return }
+            // From its round picture: a logo flies out of it; a photo lets the logo fade in, as a
+            // Search photo card does.
+            opener.open(item, from: .init(logo: picture, box: picture, radius: picture.width / 2, shadow: logo.shadow,
+                                          fades: row.pictureKind != "logo"))
+        }
+    }
+}
+
+/// One Following row: its picture and name open what it follows, pressed with the Friends rows'
+/// grey; its Following button sits over the row and keeps its own tap.
+private struct FollowingRow: View {
+    let row: FollowRow
+    let item: SearchItem?
+    let open: (SearchItem?, CGRect) -> Void
+    @State private var picture = FrameBox()
+
+    private var opens: Bool { row.targetType != .place || item != nil }
+
+    var body: some View {
+        if opens {
+            Button { open(item, picture.rect) } label: { content(button: false) }
+                .buttonStyle(RowPressStyle())
+                .overlay(alignment: .trailing) {
+                    followButton.padding(.trailing, FriendsMetric.side)
+                }
+        } else {
+            content(button: true)
+        }
+    }
+
+    private var followButton: some View {
+        FollowButton(target: row.target, name: row.name, size: .row, minWidth: FollowMetric.listWidth)
+    }
+
+    /// `button: false` keeps the button's room, hidden, for the one laid over the row.
+    private func content(button: Bool) -> some View {
         HStack(spacing: FriendsMetric.avatarGap) {
             FollowPicture(row: row, size: FriendsMetric.neighborFace)
+                .trackFrame(picture)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
                 Text(row.name)
                     .font(.sansSemibold(17))
@@ -129,10 +205,48 @@ struct FollowingPage: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            FollowButton(target: row.target, name: row.name, size: .row, minWidth: FollowMetric.listWidth)
+            if button { followButton } else { followButton.hidden() }
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A person's page from their Following row, which knows only who they are: it opens at once on
+/// their photo and name, and its pill waits for `get_neighbor` to say where you stand, so a friend
+/// never flashes Add friend. A failed read shows the pill as the Friends book has it; nobody found
+/// (they blocked you since) shows none.
+private struct FollowedNeighborPage: View {
+    let row: FollowRow
+    @Environment(FriendsBook.self) private var book
+    @State private var read: Neighbor?
+    @State private var settled = false
+
+    var body: some View {
+        NeighborPage(neighbor: read ?? standIn, settled: settled)
+            .task {
+                do {
+                    read = try await Self.read(row.targetId)
+                    settled = read != nil
+                } catch {
+                    settled = true
+                }
+            }
+    }
+
+    private var standIn: Neighbor {
+        Neighbor(userId: row.targetId, displayName: row.name, avatarUrl: row.picture, since: nil,
+                 relation: book.friends.first { $0.id == row.targetId }?.relation ?? .stranger, mutualFriends: 0)
+    }
+
+    /// `get_neighbor`; under DEBUG `-town-samples` the sample by that id.
+    private static func read(_ id: String) async throws -> Neighbor? {
+        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        case .live: return try await CommunityAPI(auth: AuthStore.shared).getNeighbor(id)
+        case .offline: throw URLError(.notConnectedToInternet)
+        case .samples: return Neighbor.samples.first { $0.id == id }
+        }
     }
 }
 
