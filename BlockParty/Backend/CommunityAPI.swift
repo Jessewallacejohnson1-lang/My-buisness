@@ -652,6 +652,13 @@ struct CommunityAPI {
         return try? decode(data)
     }
 
+    /// One activity's coming events, soonest first: its row's arrow (school-activities 02).
+    func activityEvents(_ id: String) async throws -> [TeamProfile.ActivityEvent] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/activity_events", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_activity": id]))
+        return try decode(data)
+    }
+
     /// Finals your followed teams played, read since `since`, newest first: the hello pill's
     /// "Johnnies beat Gustavus 33–23".
     func myTeamFinals(since: Date) async throws -> [TeamFinal] {
