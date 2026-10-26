@@ -89,7 +89,7 @@ nonisolated enum PinDetailCopy {
             .trimmingCharacters(in: .whitespaces), !street.isEmpty {
             return street
         }
-        return "Saint Joseph"
+        return Town.name
     }
 }
 
@@ -625,7 +625,7 @@ struct PinFullDetailsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     VenueInfoView(
-                        query: "\(spot.name) St Joseph MN",
+                        query: "\(spot.name) \(Town.searchSuffix)",
                         palette: .warm,
                         identity: VenueIdentity(name: spot.name, coordinate: spot.coordinate)
                     )

@@ -233,7 +233,7 @@ extension SharePayload {
     static func appInvite() -> SharePayload {
         SharePayload(
             title: "Share Block Party",
-            shareText: "Come see what's happening in St. Joseph. Block Party has today's events, the town calendar, and a live map.",
+            shareText: "Come see what's happening in \(Town.everyday). Block Party has today's events, the town calendar, and a live map.",
             includesImage: true
         ) { AppInviteCard() }
     }

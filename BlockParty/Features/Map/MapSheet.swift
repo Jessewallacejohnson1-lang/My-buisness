@@ -518,7 +518,7 @@ struct MapSheet: View {
             let live = liveEvents
             if live.count == 1 { return live[0].title }   // the happening's own name
             if live.count > 1  { return MapSheetCopy.nowCountSentence(live.count) }
-            if events.isEmpty  { return "Quiet in St. Joe today." }
+            if events.isEmpty  { return "Quiet in \(Town.nickname) today." }
             // The count state IS the sentence — "6 things happening today."
             return MapSheetCopy.todayCountSentence(events.count)
         }
