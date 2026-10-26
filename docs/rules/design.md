@@ -63,8 +63,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
     so white measures 1.26:1 and the dark ramp's `ink` 1.11:1 — only the light ink clears,
     at 15.0:1. Hence **`onBrandDisc`**, pinned to the light ramp. `BrandDiscContrastTests`
     pins all four numbers and pins `onBrandDiscHex` to `ink`'s light column.
-  - Chrome stays predominantly ink-on-paper; photographs, cartography and weather/utility
-    slabs carry their own controlled colour.
+  - Chrome stays predominantly ink-on-paper; photographs and cartography
+    carry their own controlled colour.
 - **`BlockPartyFont`** — **text takes a role, never a raw point size.** `[hook]` `[test]`
   `Font.system(size:)` is FROZEN while `Font.custom(_:size:)` scales unbounded, and mixing
   them broke Dynamic Type across every screen. Both faces now scale against a shared text
@@ -104,8 +104,7 @@ allowlist of the palettes named below). A call split across lines is still caugh
   (`mapFloatShadow`, `mapSheetShadow`).
 
 **Raw colour is centralized by role, not banned outright.** `[prose]` Beyond
-`BlockPartyColor`: `BasemapPalette.swift` (sage parks, blue water), `WeatherBackground.swift`
-and the utility gradient definitions. Logo fallback art and the garbage-truck illustration
+`BlockPartyColor`: `BasemapPalette.swift` (sage parks, blue water). Logo fallback art and the garbage-truck illustration
 are content-specific exceptions. **Do not make the basemap grayscale** — that experiment
 failed because the river and parks disappeared into the land. `SpotCategory.tint`,
 `PlaceFamily.tint` and `EventCategory.tint` all resolve to `Hue.ink`: category is carried by
@@ -129,9 +128,8 @@ and `DECISIONS.md` win wherever they disagree.
   `SkeletonLine` / `SkeletonCircle` plus `.shimmering()` in
   `Features/Components/Skeleton.swift` (one masked light sweep for the whole group, GPU-only,
   phase-driven off the wall clock so every skeleton on screen sweeps in lockstep; Reduce
-  Motion degrades it to a slow opacity breath), and the wrappers `FeedSkeletonSection` /
-  `FeedSkeletonStrip` in `FeedStateViews.swift`. `BriefingSkeletons.swift` is written but not
-  yet mounted — whoever ships the first briefing module mounts it; it is not dead code. **`LoadingGuardTests` enforces this at the
+  Motion degrades it to a slow opacity breath), and the wrapper `FeedSkeletonSection` in
+  `FeedStateViews.swift`. **`LoadingGuardTests` enforces this at the
   source level; if it fails, build a skeleton rather than adding yourself to its allowlist.**
   The rules:
   - Match the real layout closely enough that swap-in doesn't move anything.

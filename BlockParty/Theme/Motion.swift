@@ -44,28 +44,10 @@ enum Motion {
     /// a full-width sheet settling should read as more mass than a small card.
     static let sheet: Animation = .spring(response: 0.42, dampingFraction: 0.86)
 
-    // MARK: Bento family (Calendar Insights boxes + the Today utility tiles)
-
-    /// A bento box expanding/collapsing in place — the Calendar Insights boxes and
-    /// the Utility Row tiles, which must move as one thing because they ARE one
-    /// thing at two sizes (see `Radius.bento`). Slower and calmer than `card`: the
-    /// box GROWS where it stands rather than arriving from somewhere, so it should
-    /// settle rather than pop, and low bounce keeps the neighbouring tiles from
-    /// looking shoved. Replaces the inline literal `UtilityRowView` used to carry.
+    /// Something expanding/collapsing in place (the hello drop). Slower and calmer
+    /// than `card`: it GROWS where it stands rather than arriving from somewhere, so
+    /// it should settle rather than pop.
     static let bentoExpand: Animation = .spring(response: 0.44, dampingFraction: 0.82)
-
-    /// Finger-down / finger-up on a tile or bento (the press scale). The quickest
-    /// token here on purpose — press feedback that trails the finger reads as lag,
-    /// not as motion — and damped just short of critical so the release settles
-    /// without a visible rebound.
-    static let tilePress: Animation = .spring(response: 0.25, dampingFraction: 0.80)
-
-    /// A tile's first appearance: the fade + short rise of the Utility Row's
-    /// once-per-launch cascade (see `UtilityRowEntrance` for the stagger and the
-    /// launch latch). Damped harder (0.90) than anything else here because several
-    /// tiles land within ~0.2s of each other — any overshoot would read as a row
-    /// of independent wobbles instead of one arrival.
-    static let tileEntrance: Animation = .spring(response: 0.40, dampingFraction: 0.90)
 }
 
 // MARK: - Staggered content reveal (sheet cards)

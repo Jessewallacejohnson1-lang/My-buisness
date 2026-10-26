@@ -430,7 +430,7 @@ private struct BusinessPageContent: View {
             }
 
             if let street = item.street {
-                InfoPill(glyph: "mappin", text: street, url: DayScheduleLogic.directionsURL(forPlace: street),
+                InfoPill(glyph: "mappin", text: street, url: Directions.url(forPlace: street),
                          hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
                     .padding(.top, item.hours != nil ? SearchMetric.bizLinkGap : Metric.pillTop)
             }

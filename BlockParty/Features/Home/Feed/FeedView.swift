@@ -1,6 +1,6 @@
 //
 //  FeedView.swift
-//  Block Party — the Today tab body, rendered entirely from FeedRegistry.
+//  Block Party — the Town tab body: the top bar over the Town feed.
 //
 
 import SwiftUI
@@ -33,26 +33,17 @@ final class TodayHeaderProfileModel: ObservableObject {
 }
 
 struct FeedView: View {
-    let auth: AuthStore
     /// The top bar's three controls. The shell owns every presentation; the feed
     /// only forwards the taps.
     var onOpenFriends: () -> Void = {}
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
-    var profileShown = false
     /// The Town feed's events, held by the shell so a tab switch doesn't read them again.
     var townFeed: TownFeed
     /// Your Event of the day, Daily's own (BP app event-card 03): the feed's top.
     var eventOfTheDay: EventOfTheDay
 
-    @StateObject private var controller: FeedController
     @Environment(\.scenePhase) private var scenePhase
-    @State private var name: String?
-    @State private var route: FeedRoute?
-    @State private var revealed = false
-    @State private var revealAnimated = true
-    @State private var contentRevealed = false
-    @State private var refreshReplay = 0
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
@@ -70,51 +61,18 @@ struct FeedView: View {
     }
 
     init(
-        auth: AuthStore,
         onOpenFriends: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
-        profileShown: Bool = false,
         townFeed: TownFeed,
         eventOfTheDay: EventOfTheDay
     ) {
-        self.auth = auth
         self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
-        self.profileShown = profileShown
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
         _entrance = State(initialValue: townFeed.returnY == 0)
-
-        let briefing = BriefingModel()
-        let context = FeedModuleContext(
-            auth: auth,
-            briefing: briefing,
-            displayName: nil,
-            navigate: { _ in }
-        )
-        _controller = StateObject(wrappedValue: FeedController(context: context))
-    }
-
-    private var context: FeedModuleContext {
-        FeedModuleContext(
-            auth: auth,
-            briefing: controller.briefing,
-            displayName: name,
-            navigate: { navigate($0) },
-            revealed: revealed,
-            contentRevealed: contentRevealed,
-            revealAnimated: revealAnimated,
-            refreshReplay: refreshReplay
-        )
-    }
-
-    /// One place a module's route is fulfilled: every route presents its own sheet
-    /// over the feed. Routing here — rather than inside a module — keeps every
-    /// module's one way out (`ctx.navigate`) the same.
-    private func navigate(_ route: FeedRoute) {
-        self.route = route
     }
 
     /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
@@ -184,16 +142,7 @@ struct FeedView: View {
         #endif
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                FeedModuleColumn(
-                    registry: controller.registry,
-                    briefing: controller.briefing,
-                    context: context
-                )
-
-                // The social feed. Below the module column rather than instead
-                // of it: the registry is empty today, but a module that lands
-                // later is town-wide chrome (weather, say) and belongs
-                // above the stream, not buried in it.
+                // The social feed.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
                         // Your Event of the day on top, the one Daily shows first: when it's over
@@ -334,28 +283,11 @@ struct FeedView: View {
         }
         .scrollPosition($feedPosition)
         .refreshable {
-            // Not awaited: the feed must not wait on the briefing's round trip, and
-            // the briefing renders nothing today.
-            Task { if controller.briefing.needsRefresh { await controller.refreshBriefing() } }
             await townFeed.reload()
-
-            revealAnimated = false
-            revealed = false
-            contentRevealed = false
-            await Task.yield()
-            revealAnimated = true
-            revealed = true
-            contentRevealed = true
-            refreshReplay += 1
         }
         .tint(.clear)
         .background(Hue.paper)
-        .sheet(item: $route) { route in
-            if let destination = route.destination { destination }
-        }
-        // Its own task: the briefing below is awaited first and renders nothing today,
-        // so the events must not queue behind it. Coming back to the tab reads again
-        // behind the list already showing.
+        // Coming back to the tab reads again behind the list already showing.
         .task { await townFeed.refresh() }
         // The Event of the day beside it, which reads again only when its picks may have moved.
         .task { await eventOfTheDay.refresh() }
@@ -382,24 +314,6 @@ struct FeedView: View {
         .onChange(of: offline) { _, offline in
             if offline { AccessibilityNotification.Announcement(FeedStateCopy.offline).post() }
         }
-        .task {
-            name = Interests.displayName ?? firstNameFromEmail(auth.email)
-            controller.updateContext(context)
-            await controller.load()
-
-            if let payload = controller.briefing.payload, payload.status == .published {
-                context.analytics.recordOnce(
-                    BriefingEventName.briefingOpen,
-                    key: payload.briefingDate,
-                    payload: [
-                        "featured_count": payload.featured.count,
-                        "has_touch": payload.touch != nil,
-                        "from_cache": !controller.briefing.isRefreshing,
-                    ],
-                    auth: auth
-                )
-            }
-        }
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG
@@ -411,61 +325,8 @@ struct FeedView: View {
                     }
                 }
             }
-            #endif
-            revealed = true
-            if controller.briefing.hasLoaded { contentRevealed = true }
-            #if DEBUG
             if FrameGapLog.enabled { FrameGapLog.shared.start() }
             #endif
-        }
-        // Gated on the briefing having FINISHED, not on it having SUCCEEDED.
-        //
-        // `contentRevealed` used to key off `payload != nil`. But the modules were
-        // `springReveal`'d on it, and springReveal hides with
-        // opacity/scale/offset — all non-layout-affecting. So when the briefing RPC
-        // failed (outage, expired token, or simply `-briefing-preview` without
-        // `-briefing-state`, which makes a live authenticated call), `payload`
-        // stayed nil, the flag never flipped, and Your Day / Town Notes / For You
-        // rendered INVISIBLE WHILE STILL RESERVING THEIR FULL HEIGHT — a column of
-        // blank gaps holding content those modules had successfully fetched on
-        // their own. They own their fetches (`ownsFetch`), so the briefing's fate
-        // was never theirs to share.
-        //
-        // `hasLoaded` is set on both the success and the failure path, so the
-        // self-fetching modules now reveal either way.
-        .onChange(of: controller.briefing.hasLoaded) { _, loaded in
-            if loaded { contentRevealed = true }
-        }
-        .onChange(of: profileShown) { _, shown in
-            guard !shown else { return }
-            name = Interests.displayName ?? firstNameFromEmail(auth.email)
-            controller.updateContext(context)
-        }
-    }
-}
-
-/// Generic observation host. It knows only the registry contract: visible modules
-/// render their erased view. No module ids, branches, spacing, or module constants
-/// belong here.
-private struct FeedModuleColumn: View {
-    @ObservedObject var registry: FeedRegistry
-    @ObservedObject var briefing: BriefingModel
-    let context: FeedModuleContext
-
-    var body: some View {
-        #if DEBUG
-        let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
-        #endif
-        // The registry is EMPTY today, so this column renders nothing and the Town
-        // tab has no wait to stand in for — which is why no skeleton is mounted here.
-        // Whoever ships the first briefing module gates it on `briefing.hasLoaded` and
-        // renders `HappeningSoonSkeleton` / `DailyTouchSkeleton` / `SpotlightSkeleton`
-        // (BriefingSkeletons.swift) underneath. They are written and screenshotted via
-        // `-show-skeletons`; they have simply never had a live caller.
-        return VStack(spacing: 0) {
-            ForEach(registry.visibleModules(in: context), id: \.id) { module in
-                module.makeView(context)
-            }
         }
     }
 }

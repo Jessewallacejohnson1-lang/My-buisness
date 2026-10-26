@@ -96,8 +96,7 @@ extension UIColor {
 /// `ink` on `paper` is 16.3:1 and `inkSecondary` on `surface` 6.0:1.
 ///
 /// `nonisolated` (the module defaults to MainActor): a palette is not main-actor
-/// state, and the pure token tables that build on it — `YourDayRailPalette`,
-/// are themselves `nonisolated`. See the MainActor-default
+/// state, and pure token tables that build on it must be `nonisolated` too. See the MainActor-default
 /// gotcha in CLAUDE.md.
 nonisolated enum Hue {
     // primary text, buttons, FABs, active states, pins

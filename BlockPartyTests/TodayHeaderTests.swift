@@ -11,8 +11,7 @@
 //  history of going wrong elsewhere in this app:
 //
 //  1. The eyebrow is a DATE, so it must read `Town`'s clock (America/Chicago), not
-//     the device's — the same trap `TownTimezoneTests` locks down for the Utility
-//     Row formatters. The old `Masthead.dateLine` used a bare `DateFormatter` with
+//     the device's. The old `Masthead.dateLine` used a bare `DateFormatter` with
 //     no timezone and no locale pin, so it printed the phone's day in the phone's
 //     language. The replacement must not.
 //  2. The chrome fades and the bar collapses off ONE scroll number, and the
@@ -480,9 +479,9 @@ private enum HeaderBitmapError: Error {
 
 // MARK: - The appearance switch behind the bar's ⋮ button
 
-/// System / Light / Dark, the app's one preference. It lives in the town menu, which
-/// is what this bar's trailing ⋮ opens — so its rules are locked down beside the
-/// bar's.
+/// System / Light / Dark, the app's one preference. Its switch lived in the town
+/// menu, deleted on 2026-10-25; a saved choice still applies, so its rules stay
+/// locked down here.
 @MainActor
 final class AppearancePreferenceTests: XCTestCase {
 
@@ -562,7 +561,7 @@ final class AppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(AppearanceStore(defaults: defaults).choice, .system)
     }
 
-    /// A relaunch, simulated the way `UtilityPrefsStore`'s tests do it: a SECOND
+    /// A relaunch, simulated: a SECOND
     /// store built over the same suite, so it reads bytes that were genuinely
     /// written rather than an in-memory value handed between two references.
     func testAChoiceSurvivesARelaunch() throws {

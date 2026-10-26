@@ -77,7 +77,7 @@ nonisolated enum AppearanceChoice: String, CaseIterable, Identifiable {
 /// The one owner of the appearance choice: publishes it for the root to apply and
 /// mirrors it to `UserDefaults` on every change, so it survives a relaunch.
 ///
-/// Modelled on `UtilityPrefsStore`'s local mirror — `@Published` for the live view
+/// A local mirror — `@Published` for the live view
 /// update, an injectable `UserDefaults` so a test can run over a throwaway suite and
 /// build a SECOND store over the same suite to prove a relaunch reads real bytes.
 /// There is no server leg: an appearance is a property of this phone, not of the
@@ -161,9 +161,8 @@ extension AppearanceStore {
     ///
     /// * `-appearance system|light|dark` makes exactly the write a tap makes. A
     ///   FOLLOWING launch without the flag then proves the choice was persisted.
-    /// * `-appearance-demo` walks the three states on a timer (pair with
-    ///   `-open-menu`), so the live repaint — whole app, no relaunch — can be
-    ///   recorded with the control visibly moving its selection.
+    /// * `-appearance-demo` walks the three states on a timer, so the live
+    ///   repaint — whole app, no relaunch — can be recorded.
     ///
     /// Compiles out of Release entirely.
     func applyDebugLaunchArguments() {

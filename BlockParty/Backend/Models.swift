@@ -116,8 +116,8 @@ struct TimelineEvent: Identifiable, Hashable {
     var placeEntryId: String? = nil
 }
 
-/// nonisolated: a plain value carried by `DayItem`, which the pure `nonisolated`
-/// Your Day rules build and compare. Without this its synthesized Hashable is
+/// nonisolated: a plain value the pure `nonisolated` rules build and compare
+/// (`YourDayLogic`, `FeedCardItem`). Without this its synthesized Hashable is
 /// MainActor-isolated and every nonisolated comparison trips the 0-warning bar.
 nonisolated struct UpcomingEvent: Identifiable, Hashable {
     let id: String
@@ -535,14 +535,6 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     var notInterested: Double? = nil
 }
 
-struct AgendaEvent: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let eventDate: String
-    let startTime: String?
-    let location: String?
-}
-
 struct Trail: Identifiable, Hashable {
     let id: String
     let title: String
@@ -688,36 +680,6 @@ struct EventComment: Identifiable {
     let authorAvatar: String?
 }
 
-/// Up to three public identities for an event's going facepile. Counts remain
-/// authoritative on `FeedPosting`; this is only the lightweight display sample.
-struct GoingPreview {
-    let avatars: [URL]
-}
-
-/// One komoot-style feed card's worth of data — a posting (club_events row)
-/// with its poster identity + real social counts + the viewer's own state.
-/// `liked`/`following`/`rsvpd` say what the viewer has done. Only DEBUG previews
-/// build these now (the legacy posting pipeline).
-struct FeedPosting: Identifiable {
-    let id: String
-    let title: String
-    let eventDate: String?
-    let startTime: String?
-    let location: String?
-    let imageUrl: String?
-    let createdAt: Date
-    let posterName: String
-    let posterAvatar: String?
-    let posterTarget: FollowTarget
-    var followerCount: Int
-    var likeCount: Int
-    var commentCount: Int
-    var goingCount: Int
-    var liked: Bool
-    var following: Bool
-    var rsvpd: Bool
-}
-
 // MARK: - Insert inputs
 
 struct NewEventInput {
@@ -737,16 +699,6 @@ struct NewTrailInput {
     var difficulty: String?
     var description: String?
     var imageUrl: String?
-}
-
-struct ClubInput {
-    var name: String
-    var host: String?
-    var schedule: String?
-    var location: String?
-    var vibe: String?
-    var description: String?
-    var expectations: String?
 }
 
 // MARK: - Raw decode shapes (PostgREST responses)
@@ -795,19 +747,6 @@ struct RawEvent: Decodable {
 
 /// club_members row (subset).
 struct MemberRow: Decodable { let clubId: String; let userId: String? }
-
-/// event_rsvps row (subset).
-/// Just an event_date column (month dot queries).
-struct DateRow: Decodable { let eventDate: String }
-
-/// Lightweight agenda row (getEventsForRange select).
-struct AgendaRow: Decodable {
-    let id: String
-    let title: String
-    let eventDate: String
-    let startTime: String?
-    let location: String?
-}
 
 /// The authed user, from GET /auth/v1/user.
 struct CurrentUser: Decodable { let id: String; let email: String? }

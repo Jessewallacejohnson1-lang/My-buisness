@@ -108,9 +108,8 @@ nonisolated enum FeedMotion {
         return 0.78
     }
 
-    /// The same numbers as `Motion.tilePress`, restated here because `Motion` is
-    /// MainActor-isolated and this enum has to stay `nonisolated` so it can be
-    /// asserted in a plain unit test.
+    /// The press spring. Kept on this `nonisolated` enum (not `Motion`, which is
+    /// MainActor-isolated) so it can be asserted in a plain unit test.
     static let pressResponse: Double = 0.25
     static let pressDamping: Double = 0.80
 
