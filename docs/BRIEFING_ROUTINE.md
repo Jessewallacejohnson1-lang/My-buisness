@@ -81,11 +81,20 @@ a snapshot taken once at 6 AM.
 3. **Tomorrow gets drafted**, if it does not exist yet. Never published: that
    preserves the dashboard edit window and lets the day re-compose against a
    fresher calendar on the morning it goes live.
-4. Return a summary including `bank_remaining_in_season`. It lands in
-   `cron.job_run_details`.
+4. Return a summary including `bank_remaining_in_season` and `failures`. It
+   lands in `cron.job_run_details`.
 
 Every step is idempotent, so running it 24 times a day is safe and the 23 runs
 with nothing to do are two index lookups each.
+
+**One failed write does not stop the run.** Each of the three writes (compose
+today, publish today, draft tomorrow) runs in its own block. If one raises, that
+step alone is rolled back, one line goes into `failures` — e.g.
+`drafted_tomorrow 2026-10-27 failed: <error> (<sqlstate>)` — and the run carries
+on to the next step. Next hour retries it. The one exception: if composing today
+fails, publishing today is skipped (there is no row), which is still one line.
+Offline proof: `node supabase/tests/briefing_reconcile.test.mjs` (needs a local
+Postgres; it starts a throwaway one on a unix socket).
 
 ### Watching it
 
@@ -95,6 +104,9 @@ from cron.job_run_details
 where jobid = (select jobid from cron.job where jobname = 'briefing-reconcile')
 order by start_time desc limit 12;
 ```
+
+A run with a failed write still shows `status = 'succeeded'` — read the
+`failures` array in its summary, which is empty on a healthy run.
 
 When `bank_remaining_in_season` drops below 10, more polls need writing. Do NOT
 auto-generate them — the bank is edited copy, and the point of the module is that
