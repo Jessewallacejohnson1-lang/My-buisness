@@ -190,8 +190,7 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   the registry the city's calendar feeds until 2026-09-23. `joetownmn.com` does block and
   stays `search_snippet`. `stjosephchamber.com` permits crawlers but has blocked this
   Mac's IP since 2026-09-23 (next rule), so discovery reads the member list
-  `scripts/harvest_chamber.py` saved through Firecrawl; retrying with a browser user-agent
-  to get past it is forbidden.
+  `scripts/harvest_chamber.py` saved through Firecrawl.
   `mblsportal.sos.mn.gov` (Minnesota Secretary of State filings) has `Disallow: /` for
   every agent (measured 2026-10-04): never fetched; filings count only as search snippets.
 - **A page our fetch can't reach, or that is built by JavaScript, goes through Firecrawl**
@@ -208,7 +207,9 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   has no `Disallow` at all — it asks only for `Crawl-delay: 10`, and every 403 we saw was
   it asking us to slow down while we ignored that. Obey `Crawl-delay`, count reading
   robots.txt as a request, back off and retry on a 403, and only then call a source
-  blocked. Impersonating a browser stays forbidden and is also the approach that fails.
+  blocked. A browser identity is the chamber's way *out*, not in.
+- **When neither our fetch nor Firecrawl can read a page Jesse wants, Apify's proxy may
+  (ADR-023, Jesse 2026-10-25).** Name the site and its cost to Jesse first. Public pages only.
 - **Getting in is not the same as being able to read it.** The chamber page renders its
   member list client-side; the members are on the 22 category pages. Access and
   readability are two problems and both need solving before a source counts.

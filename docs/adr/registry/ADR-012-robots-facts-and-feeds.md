@@ -45,7 +45,7 @@ on a wrong belief is invisible, because nothing fails — it just quietly costs 
 
 **A 403 on `robots.txt` stays `search_snippet`.** Where a server refuses our client
 outright, the answer is still the search index, and the note says *why* — a WAF refusal,
-not a robots rule. Retrying with a browser user-agent to get past it is **forbidden**:
+not a robots rule. (A browser identity: superseded 2026-10-25 by ADR-023.) Retrying with a browser user-agent to get past it was **forbidden**:
 that is evading an access control, which is the same workaround ADR-001 and ADR-009 rule
 out, just at a different layer.
 

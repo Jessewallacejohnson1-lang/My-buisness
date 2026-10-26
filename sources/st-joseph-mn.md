@@ -171,6 +171,12 @@ aka:
 category: school
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/kennedyisd742/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
+    game_levels: ["Middle School"]
   - url: https://kennedy.isd742.org/calendar
     kind: website
     method: fetch
@@ -186,7 +192,7 @@ sources:
 Notes: PK-8, part of St. Cloud Area School District 742, and the only K-12 school in
 town — so this is the whole "School" category for St. Joe. Calendar and news are split
 across two pages and both matter: concerts and conferences land on the calendar, closings
-and announcements on the news page.
+and announcements on the news page. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 **Both were `search_snippet` until 2026-10-14**, after the first dry-run on 2026-09-22 came
 back `robots.txt disallows` for both URLs. Measured again on 2026-10-14 (ADR-012): robots.txt
@@ -465,6 +471,11 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/635/full-schedule
     method: api
     trust: official
@@ -472,7 +483,7 @@ sources:
     league_id: 635
     team: St. Cloud Apollo
 ```
-Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team.
+Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Tech High School
 ```yaml
@@ -484,6 +495,11 @@ place_type: School / college
 added_by: agent:claude
 aka: ["Technical High School", "St. Cloud Tech High School"]
 sources:
+  - url: https://www.gobound.com/mn/schools/stcloudtech/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/537/full-schedule
     method: api
     trust: official
@@ -491,7 +507,7 @@ sources:
     league_id: 537
     team: St. Cloud Tech
 ```
-Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team.
+Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Cathedral High School
 ```yaml
@@ -502,6 +518,11 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/stcloudcathedral/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/535/full-schedule
     method: api
     trust: official
@@ -509,7 +530,7 @@ sources:
     league_id: 535
     team: St. Cloud Cathedral
 ```
-Notes: St. Cloud, 7.5 miles from St. Joseph. "St. Cloud Cathedral" is how the league names the team.
+Notes: St. Cloud, 7.5 miles from St. Joseph. "St. Cloud Cathedral" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Sartell High School
 ```yaml
@@ -520,6 +541,11 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/sartellhs/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/504/full-schedule
     method: api
     trust: official
@@ -527,7 +553,7 @@ sources:
     league_id: 504
     team: Sartell
 ```
-Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the team.
+Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## ROCORI High School
 ```yaml
@@ -538,6 +564,11 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/rocori/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/491/full-schedule
     method: api
     trust: official
@@ -545,7 +576,7 @@ sources:
     league_id: 491
     team: ROCORI
 ```
-Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team.
+Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Sauk Rapids-Rice High School
 ```yaml
@@ -557,6 +588,11 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 sources:
+  - url: https://www.gobound.com/mn/schools/saukrapidsrice/calendar/ical
+    kind: ical
+    method: fetch
+    trust: official
+    reader: gobound
   - url: https://www.mshsl.org/group/506/full-schedule
     method: api
     trust: official
@@ -564,7 +600,7 @@ sources:
     league_id: 506
     team: Sauk Rapids-Rice
 ```
-Notes: Sauk Rapids, 9.8 miles from St. Joseph. "Sauk Rapids-Rice" is how the league names the team.
+Notes: Sauk Rapids, 9.8 miles from St. Joseph. "Sauk Rapids-Rice" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Albany High School
 ```yaml
