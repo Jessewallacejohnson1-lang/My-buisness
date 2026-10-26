@@ -52,6 +52,14 @@ exception. Posts, their photos and their words still wait for the place's yes.
   posts about a private person's health or troubles are dropped (`sources/models/social.md`).
   Still facts in Block Party's words with a link to the post: the post itself waits for the
   place's yes.
+**Amended 2026-10-26 (Jesse):** when a post's caption is short or gives no time, the check
+reads the words on the post's pictures too: Obbink's Oct 29 trivia night was on its picture
+alone, and the caption-only read dropped it as a teaser. The pictures are downloaded from
+Meta's image servers at the addresses Apify already returned (no extra Apify cost), read for
+their facts like the caption, and deleted with the check's scratch folder: never shown,
+uploaded or kept, so "posts, their photos and their words still wait for the place's yes"
+stands. Each check reports what the pictures cost on the Claude plan
+(`sources/models/social.md`).
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
