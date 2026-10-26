@@ -145,7 +145,7 @@ struct MapIntroView: View {
     // MARK: Support line + button
 
     private var supportLine: some View {
-        Text("See cafés, trails, and gatherings across St. Joe. A pulsing pin marks what's happening now.")
+        Text("See cafés, trails, and gatherings across \(Town.nickname). A pulsing pin marks what's happening now.")
             .font(.sansMedium(16))
             .foregroundStyle(.white)
             .multilineTextAlignment(.center)
@@ -211,7 +211,7 @@ struct MapIntroView: View {
             IntroPinModel(name: "Local Blend",   icon: "cup.and.saucer.fill", live: true,  dx: -32, dy: -88, delay: 0.55),
             IntroPinModel(name: "Bad Habit",     icon: "mug.fill",            live: false, dx:  94, dy: -34, delay: 0.68),
             IntroPinModel(name: "Krewe",         icon: "fork.knife",          live: false, dx:  46, dy:  72, delay: 0.81),
-            IntroPinModel(name: "St. Joe Church", icon: "building.columns.fill", live: false, dx: -90, dy: 22, delay: 0.94),
+            IntroPinModel(name: "\(Town.nickname) Church", icon: "building.columns.fill", live: false, dx: -90, dy: 22, delay: 0.94),
         ]
     }
 }

@@ -87,7 +87,7 @@ struct PlaceDetailView: View {
             }
 
             // Hours & contact (Google Places, New) — renders only when data exists
-            VenueInfoView(query: "\(place.name) \(place.where_ ?? "St Joseph MN")",
+            VenueInfoView(query: "\(place.name) \(place.where_ ?? Town.searchSuffix)",
                           header: "Hours & contact", palette: .warm)
 
             // Open in Maps

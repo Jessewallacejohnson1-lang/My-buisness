@@ -27,7 +27,7 @@ struct LoginView: View {
                         Text("Block Party")
                             .font(.display(44))
                             .foregroundStyle(Hue.ink)
-                        Text("See what's happening around St. Joe.")
+                        Text("See what's happening around \(Town.nickname).")
                             .font(.sans(15))
                             .foregroundStyle(Hue.inkSecondary)
                     }
