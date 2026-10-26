@@ -563,24 +563,32 @@ def repeat_of(n, recent):
     The place's own name doesn't count, and two shared words at least: "Flavor of the Week:
     Malt Amore" is not last week's "Flavor of the Week: Pumpkin Pie". A different number or
     initials say it's another one: "I-94 eastbound: Crash" and "MN 23 westbound: Crash", "SJU
-    Athlete of the Week" and "CSB Athlete of the Week"."""
+    Athlete of the Week" and "CSB Athlete of the Week". A date only one title gives doesn't:
+    "Cloudy collection launches Oct 25" is the "Comfort With a Chance of Cloudy collection"
+    launching that Sunday; two different dates ("Closed Oct 24", "Closed Oct 31") do."""
     stop = STOP | {"is", "are", "our", "your", "its", "this", "now"}
-    mine = words(n["title"], stop) - words(n["source_name"])
+    mine = words(DAY.sub(" ", n["title"]), stop) - words(n["source_name"])
     for old in recent:
         if (old.get("place_entry_id") or old["source_name"]) != (n["place_entry_id"] or n["source_name"]):
             continue
-        if marks(old["title"]) != marks(n["title"]):
+        (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"]), marks(n["title"])
+        if theirs_marks != my_marks or (their_days and my_days and their_days != my_days):
             continue
-        theirs = words(old["title"], stop) - words(old["source_name"])
+        theirs = words(DAY.sub(" ", old["title"]), stop) - words(old["source_name"])
         shared = mine & theirs
         if len(shared) >= 2 and len(shared) >= 2 / 3 * min(len(mine), len(theirs)):
             return old
     return None
 
 
+DAY = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?\b", re.I)
+
+
 def marks(title):
-    """A title's numbers and initials ("94", "MN", "SJU"): the words that tell one from another."""
-    return set(re.findall(r"\b(?:\d+|[A-Z]{2,})\b", title or ""))
+    """A title's numbers and initials ("94", "MN", "SJU"), the words that tell one from another,
+    and apart from them the dates it names ("Oct 25")."""
+    days = {d.lower().replace(".", "") for d in DAY.findall(title or "")}
+    return set(re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))), days
 
 
 def group(old=None, facts=None, home="St. Joseph MN"):
@@ -922,10 +930,12 @@ def t_news_repeat_left_out():
               item(title="Flavor of the Week: Malt Amore", **dict(flour, source_name="The Wandering Cow")),
               item(title="No pizza Monday", **flour),
               item(title="Thanksgiving orders open", **dict(flour, source_name="Milk & Honey Ciders")),
-              item(title="CSB Athlete of the Week", **flour), item(title="SJU Athlete of the Week", **flour)],
+              item(title="CSB Athlete of the Week", **flour), item(title="SJU Athlete of the Week", **flour),
+              item(title="Cloudy collection launches Oct 25", **dict(flour, source_name="White Peony Boutique")),
+              item(title="Closed Saturday Oct 24", **flour), item(title="Closed Saturday Oct 31", **flour)],
              [], TODAY, INTERESTS, recent_news=recent)
-    assert [outcome(r, i) for i in range(8)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news"], \
-        r["outcomes"]
+    assert [outcome(r, i) for i in range(11)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news",
+                                                  "repeat", "news", "news"], r["outcomes"]
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
 
 
