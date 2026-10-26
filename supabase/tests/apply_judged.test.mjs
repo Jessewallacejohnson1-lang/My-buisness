@@ -19,7 +19,7 @@ test('the story below loads every migration that makes the writer\'s functions',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
                     '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
                     '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql',
-                    '20261026090100_apply_judged_followers_only.sql']);
+                    '20261026160100_apply_judged_followers_only.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -141,7 +141,7 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   // from before them makes it everyone's.
   await db.exec(`alter table public.club_events add column followers_only boolean not null default false,
     add column activity_team text, add column activity_name text`);
-  await db.exec(migration('20261026090100_apply_judged_followers_only.sql'));
+  await db.exec(migration('20261026160100_apply_judged_followers_only.sql'));
   const marks = async () => (await db.query(
     'select followers_only as f, activity_team as team, activity_name as name from public.club_events')).rows;
   await apply(placed('2026-10-21').map((g) => ({ ...g, followers_only: true, activity_team: 'rocori',
