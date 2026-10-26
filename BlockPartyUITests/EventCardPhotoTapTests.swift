@@ -65,6 +65,17 @@ final class EventCardPhotoTapTests: XCTestCase {
     /// The Event page is up: its own Back button shows. A drag up that scrolls Town's card
     /// under the top bar leaves the card unhittable, which `waitForPush` would read as a push
     /// (GitHub, a6a2298 and b0f753d, 2026-10-20).
+    /// Waits until the element stops moving (two looks 0.4 s apart agree), at most 5 s.
+    private func waitUntilStill(_ element: XCUIElement) {
+        var last = element.frame
+        for _ in 0..<12 {
+            Thread.sleep(forTimeInterval: 0.4)
+            let now = element.frame
+            if now == last { return }
+            last = now
+        }
+    }
+
     private func pageOpened(timeout: TimeInterval) -> Bool {
         app.buttons["Back"].waitForExistence(timeout: timeout)
     }
@@ -119,7 +130,13 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 10), "no title on the first card")
         // On GitHub's iPhone 17 (874 pt tall) the title sits behind the tab bar: bring it up first,
         // as the drag-up check above does, and let the feed settle.
-        photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80))
+        // Held at the end, so the feed moves the 200 pt and stops: a quick drag flung it on until the title
+        // sat under the status bar, where iOS keeps the touch, and the swipe paged nothing (red on
+        // GitHub from ee03ef6, 2026-10-25). Then the frame is read once the feed is still.
+        photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80),
+                                       withVelocity: .slow, thenHoldForDuration: 0.5)
+        waitUntilStill(title)
+        XCTAssertGreaterThan(title.frame.minY, 120, "the title went up under the top bar")
         XCTAssertLessThan(title.frame.maxY, app.frame.maxY - 140, "the title is still behind the tab bar")
 
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
