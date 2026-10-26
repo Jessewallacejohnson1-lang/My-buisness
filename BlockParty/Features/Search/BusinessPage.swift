@@ -257,8 +257,8 @@ private struct BusinessPageBody: View {
             let origin = CGPoint(x: frame.minX - insets.leading, y: frame.minY - insets.top)
 
             ZStack(alignment: .topLeading) {
-                // The backdrop grows out of the card it came from.
-                GrowingBackdrop(colors: logo.backdrop, box: source.box.offsetBy(dx: -origin.x, dy: -origin.y),
+                // The page's paper grows out of the card it came from.
+                GrowingBackdrop(box: source.box.offsetBy(dx: -origin.x, dy: -origin.y),
                                 radius: source.radius, fades: source.fades,
                                 screen: CGRect(origin: .zero, size: full), progress: opener.progress)
 
@@ -573,9 +573,8 @@ private struct HoursPill: View {
     }
 }
 
-/// The backdrop, growing out of the card it came from into the whole screen.
+/// The page's paper, growing out of the card it came from into the whole screen.
 private struct GrowingBackdrop: View {
-    let colors: [Color]
     let box: CGRect
     let radius: CGFloat
     let fades: Bool
@@ -584,7 +583,7 @@ private struct GrowingBackdrop: View {
 
     var body: some View {
         let c = min(max(progress.value, 0), 1)
-        SearchBackdrop(colors: colors)
+        Hue.paper
             .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(radius, 0, c)))
             .opacity(radius > 0 && !fades ? 1 : min(1, c * 4))
     }
@@ -725,16 +724,6 @@ struct SearchBackdrop: View {
             context.fill(Path(all), with: .radialGradient(gradient, center: .zero, startRadius: 0, endRadius: rx))
         }
     }
-
-    /// The logo wall's one studio backdrop.
-    static var studio: SearchBackdrop {
-        let h = Hue.searchStudioHue
-        return SearchBackdrop(colors: [Hue.hsl(h, 9, 94), Hue.hsl(h, 8, 88), Hue.hsl(h, 7, 80)], stops: [0, 0.55, 1],
-                              center: UnitPoint(x: 0.5, y: 0), radii: CGSize(width: 1.4, height: 0.8))
-    }
-
-    /// The studio's top, for the bar over the wall.
-    static var studioTop: Color { Hue.hsl(Hue.searchStudioHue, 9, 94) }
 }
 
 /// The floor under a logo: the backdrop darkens a touch toward the bottom, so the logo
