@@ -230,7 +230,7 @@ struct YouPage: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(days.prefix(7), id: \.self) { weekday in
-                    Text(DailyEvent.townTime("EEE", weekday))
+                    Text(Town.format(weekday, "EEE"))
                         .font(.sansMedium(13))
                         .foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity)
@@ -266,7 +266,7 @@ struct YouPage: View {
     /// "Today, Tuesday, October 13, 2 plans". Working words; Jesse writes the final ones.
     static func spoken(_ date: Date, plans: Int, today: Bool = false) -> String {
         let count = plans == 0 ? "nothing planned" : plans == 1 ? "1 plan" : "\(plans) plans"
-        return (today ? "Today, " : "") + "\(DailyEvent.townTime("EEEEMMMMd", date)), \(count)"
+        return (today ? "Today, " : "") + "\(Town.format(date, "EEEEMMMMd")), \(count)"
     }
 
     private func pick(_ date: Date, from current: Date) {
@@ -330,7 +330,7 @@ private struct YouPlaces: View {
                         }
                     }
                     .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel("\(place), \(event.item.title), \(DailyEvent.townTime("EEEEMMMMd", event.starts))")
+                    .accessibilityLabel("\(place), \(event.item.title), \(Town.format(event.starts, "EEEEMMMMd"))")
                 }
             }
         }
@@ -513,7 +513,7 @@ private struct YouDay: View {
                 if let month {
                     Text(month).font(.sansBold(11))
                 }
-                Text(DailyEvent.townTime("d", date))
+                Text(Town.format(date, "d"))
                     .font(.sansSemibold(month == nil ? 20 : 17))
             }
             .foregroundStyle(numberInk(photo: photo != nil))

@@ -26,8 +26,7 @@ enum DailyWeek {
 
     /// Today and the six days after it, in the Town's time, whatever the phone's time zone.
     nonisolated static func days(from now: Date) -> [DailyWeekDay] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        var calendar = Town.gregorian
         calendar.locale = Locale(identifier: "en_US")
         let today = calendar.startOfDay(for: now)
         return (0..<length).compactMap { offset in

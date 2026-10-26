@@ -50,7 +50,8 @@ await db.exec(`
   grant select, insert on all tables in schema public to anon, authenticated;
 `);
 await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql')]) {
+for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql'),
+                   ...read('_get_neighbor.sql')]) {
   await db.exec(sql);
 }
 
@@ -222,4 +223,40 @@ test('blocking and unblocking can not be used to get round the daily limit', asy
   for (let n = 100; n < 140; n++) assert.equal(await send(ANA, id(n)), 'sent');
   for (let n = 100; n < 110; n++) { await block(ANA, id(n)); await unblock(ANA, id(n)); }
   await assert.rejects(send(ANA, id(140)), /friend_limit/);
+});
+
+// get_neighbor (follows 05): one neighbour by id, as search_neighbors answers them, for a page opened
+// from a list that knows only who they are.
+const neighbor = async (who, other, opts) => (await as(who,
+  'select display_name, relation from public.get_neighbor($1)', [other], opts))
+  .map((r) => `${r.display_name}: ${r.relation}`);
+
+test('get_neighbor answers where you stand with one neighbour', async () => {
+  await reset();
+  assert.deepEqual(await neighbor(ANA, BEN), ['Ben Ortiz: none']);
+  await send(ANA, BEN);
+  assert.deepEqual(await neighbor(ANA, BEN), ['Ben Ortiz: sent']);
+  assert.deepEqual(await neighbor(BEN, ANA), ['Ana Lee: received']);
+  await confirm(BEN, ANA);
+  assert.deepEqual(await neighbor(ANA, BEN), ['Ben Ortiz: friends']);
+});
+
+test('get_neighbor finds nobody blocked either way, nor yourself', async () => {
+  await reset();
+  await block(ANA, BEN);
+  assert.deepEqual(await neighbor(ANA, BEN), []);
+  assert.deepEqual(await neighbor(BEN, ANA), []);
+  assert.deepEqual(await neighbor(CAL, CAL), []);
+  assert.deepEqual(await neighbor(CAL, ANON), []);
+});
+
+test('get_neighbor answers real accounts only', async () => {
+  await reset();
+  await assert.rejects(neighbor(ANON, BEN, { anonymous: true }));
+  await db.exec('set role anon');
+  try {
+    await assert.rejects(db.query('select * from public.get_neighbor($1)', [BEN]));
+  } finally {
+    await db.exec('reset role');
+  }
 });

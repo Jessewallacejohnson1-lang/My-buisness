@@ -29,9 +29,9 @@ final class MapModel: ObservableObject {
     @Published private(set) var placePictures: [String: [PlacePicture]] = [:]
     @Published private(set) var state: LoadState = .loading
     /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
-    /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
+    /// model re-evaluates `TimelineEvent.isOn` off the current time even when no
     /// data changes — a pin/"Now" badge must light at an event's start minute and go
-    /// quiet at start+2h without needing a pan/tap to force a re-render.
+    /// quiet at its end without needing a pan/tap to force a re-render.
     @Published private(set) var clockTick = 0
     /// The town the map is currently panned over — names the top pill. Starts on
     /// St. Joe (the initial camera) and follows the map as it moves.
@@ -50,7 +50,7 @@ final class MapModel: ObservableObject {
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
 
     private var realtime: RealtimeClient?
-    private var currentDate = DateHelpers.localDate()
+    private var currentDate = Town.day(.now)
 
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
@@ -71,7 +71,7 @@ final class MapModel: ObservableObject {
         if self.auth == nil { self.auth = auth }
         guard !started else { return }
         started = true
-        currentDate = DateHelpers.localDate()
+        currentDate = Town.day(.now)
         Task { await load(initial: true) }
         Task { await loadPlaces() }
         subscribe()
@@ -89,7 +89,7 @@ final class MapModel: ObservableObject {
         clockTask?.cancel(); clockTask = nil
     }
 
-    /// Re-render observers once a minute so wall-clock-derived state (isLiveNow)
+    /// Re-render observers once a minute so wall-clock-derived state (isOn)
     /// stays truthful with no data change. Runs only while the map is active.
     private func startClock() {
         guard clockTask == nil else { return }
@@ -286,7 +286,7 @@ final class MapModel: ObservableObject {
     // MARK: Midnight rollover
 
     private func rolloverIfNeeded() {
-        let today = DateHelpers.localDate()
+        let today = Town.day(.now)
         if today != currentDate { currentDate = today }
     }
 
@@ -296,17 +296,15 @@ final class MapModel: ObservableObject {
         midnightTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled, let self, self.started else { return }
-            self.currentDate = DateHelpers.localDate()
+            self.currentDate = Town.day(.now)
             await self.load(initial: false)
             self.scheduleMidnightRollover()          // arm the next day
         }
     }
 
     private static func secondsUntilNextMidnight() -> Double? {
-        var cal = Calendar.current
-        cal.timeZone = .current
-        // 00:00:01 tomorrow — a hair past midnight so localDate() has flipped.
-        guard let next = cal.nextDate(after: Date(),
+        // 00:00:01 tomorrow in the Town — a hair past midnight so Town.day has flipped.
+        guard let next = Town.gregorian.nextDate(after: Date(),
                                       matching: DateComponents(hour: 0, minute: 0, second: 1),
                                       matchingPolicy: .nextTime) else { return nil }
         return max(1, next.timeIntervalSince(Date()))

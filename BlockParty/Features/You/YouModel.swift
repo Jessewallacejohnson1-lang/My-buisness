@@ -130,8 +130,7 @@ enum YouCalendar {
     /// (Jesse picked Sunday, 2026-10-10). Days are stepped, never added as 24 hours, so
     /// the Sunday the clocks go back stays one day.
     static let calendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        var calendar = Town.gregorian
         calendar.firstWeekday = 1
         return calendar
     }()
@@ -166,24 +165,17 @@ enum YouCalendar {
     /// An Event tapped Going on a card, before a read brings it back with its end.
     static func event(from item: FeedCardItem) -> DailyEvent? {
         guard let day = item.eventDate else { return nil }
-        return timed(item, day: day, time: item.startTime, endAt: nil)
+        return timed(item, day: day, time: item.startTime, endAt: item.endAt)
     }
 
-    /// When it starts, from the organizer's free-text time on its Town day; ends at
-    /// `end_at`, else two hours on, as the Town feed has it. A time the one parser
-    /// can't read ("after dark") or an all-day Event runs the whole day, untimed.
+    /// When it starts and ends (`EventWhen`, as the Town card has it). A time it can't
+    /// read ("after dark") or an all-day Event runs the whole day, untimed.
     private static func timed(_ item: FeedCardItem, day: String, time: String?,
                               endAt: Date?) -> DailyEvent? {
-        let parts = day.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3,
-              let midnight = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
-        else { return nil }
-        let minutes = YourDayLogic.minutes(from: time)
-        let starts = minutes.flatMap { calendar.date(bySettingHour: $0 / 60, minute: $0 % 60, second: 0, of: midnight) }
-        let nextMidnight = calendar.date(byAdding: .day, value: 1, to: midnight) ?? midnight
-        var event = DailyEvent(item: item, starts: starts ?? midnight,
-                               ends: endAt ?? starts?.addingTimeInterval(2 * 3600) ?? nextMidnight)
-        event.timed = starts != nil
+        guard let when = EventWhen(date: day, time: time, endAt: endAt, game: item.game != nil) else { return nil }
+        var event = DailyEvent(item: item, starts: when.start, ends: when.end)
+        event.timed = when.timed
+        event.when = when
         return event
     }
 
@@ -265,7 +257,7 @@ enum YouCalendar {
     /// reads as Oct 32 (ticket 10); nil on any other day, and on the first day shown.
     static func month(on date: Date, first: Date?) -> String? {
         guard date != first, calendar.component(.day, from: date) == 1 else { return nil }
-        return DailyEvent.townTime("MMM", date).uppercased()
+        return Town.format(date, "MMM").uppercased()
     }
 
     static func place(of event: DailyEvent) -> String? {

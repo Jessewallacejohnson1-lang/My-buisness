@@ -13,7 +13,7 @@ import XCTest
 final class TownFeedEventsTests: XCTestCase {
 
     /// Noon on 2026-10-07, the Town's time.
-    private let now = YourDayLogic.townDay("2026-10-07")!.addingTimeInterval(12 * 3600)
+    private let now = Town.midnight("2026-10-07")!.addingTimeInterval(12 * 3600)
 
     private struct Offline: Error {}
 

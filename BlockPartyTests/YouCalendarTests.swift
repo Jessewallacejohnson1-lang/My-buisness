@@ -327,7 +327,7 @@ final class YouCalendarTests: XCTestCase {
         let next = YouCalendar.next(plans, day: today, now: now)
         XCTAssertEqual(next?.id, "thu")
         XCTAssertEqual(next?.startsLabel(now: now), "Tomorrow")
-        XCTAssertEqual(FeedWhenLine(eventDate: "2026-10-22", startTime: "8 AM", now: now, calendar: calendar,
+        XCTAssertEqual(FeedWhenLine(eventDate: "2026-10-22", startTime: "8 AM", now: now,
                                     relative: false)?.text, "Thu, Oct 22 · 8 AM")
         XCTAssertEqual(YouCalendar.next(going([row("fri", "2026-10-23", "7:30 PM")]), day: today, now: now)?
             .startsLabel(now: now), "In 2 days")
@@ -535,7 +535,7 @@ final class YouCalendarTests: XCTestCase {
         let now = town("2026-10-14 08:00")
         let timed = YouCalendar.event(from: row("a", "2026-10-31", "9 AM"))!
         // The clock's space is the formatter's narrow one ("9\u{202F}AM").
-        XCTAssertEqual(ProfileFace.goingLine(timed, now: now), "Sat, Oct 31 · \(DailyEvent.clock(timed.starts))")
+        XCTAssertEqual(ProfileFace.goingLine(timed, now: now), "Sat, Oct 31 · \(Town.clock(timed.starts))")
         XCTAssertTrue(ProfileFace.goingLine(timed, now: now).hasPrefix("Sat, Oct 31 · 9"))
         let allDay = YouCalendar.event(from: row("b", "2026-11-01", nil, allDay: true))!
         XCTAssertEqual(ProfileFace.goingLine(allDay, now: now), "Sun, Nov 1 · All day")

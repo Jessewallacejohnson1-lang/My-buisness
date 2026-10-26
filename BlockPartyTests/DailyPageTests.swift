@@ -154,12 +154,13 @@ final class DailyPageTests: XCTestCase {
     #endif
 
     /// One row as `get_event_of_the_day` sends it (the Town feed's row), read by the feed's decoder.
-    private func eventOfTheDayRow(start: String?, allDay: Bool = false, leaves: String) throws -> TownFeedRow {
+    private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
+                                  leaves: String) throws -> TownFeedRow {
         let json: [String: Any] = [
             "id": "11111111-2222-3333-4444-555555555555", "title": "Sartell Boys Soccer vs ROCORI",
             "event_date": "2026-10-20", "start_time": start ?? NSNull(), "location": "Sartell High School",
             "image_url": NSNull(), "category": "watch_sports", "club_name": NSNull(),
-            "source_name": "Sartell High School", "end_at": NSNull(), "all_day": allDay,
+            "source_name": "Sartell High School", "end_at": endAt ?? NSNull(), "all_day": allDay,
             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "rsvpd": true,
             "recurrence": NSNull(), "leaves_at": leaves]
         let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
@@ -186,6 +187,18 @@ final class DailyPageTests: XCTestCase {
         XCTAssertFalse(event.timed)
         XCTAssertEqual(event.starts, Date(timeIntervalSince1970: 1_792_472_400))
         XCTAssertEqual(event.startTime(now: event.starts), "All day")
+    }
+
+    /// A one-day all-day pick is never Now, however long the feed keeps it; a run over days is,
+    /// as on the Town card and the map (codebase-health 10).
+    func testOnlyARunOverDaysIsNowAllDay() throws {
+        let noon = Date(timeIntervalSince1970: 1_792_472_400 + 12 * 3600)
+        let oneDay = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(
+            start: nil, allDay: true, leaves: "2026-10-22T05:00:00+00:00")))
+        XCTAssertEqual(oneDay.startTime(now: noon), "All day")
+        let week = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(
+            start: nil, allDay: true, endAt: "2026-10-26T05:00:00+00:00", leaves: "2026-10-26T05:00:00+00:00")))
+        XCTAssertEqual(week.startTime(now: noon), "Now")
     }
 
     /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since

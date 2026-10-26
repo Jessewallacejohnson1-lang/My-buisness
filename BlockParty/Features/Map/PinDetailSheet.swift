@@ -333,7 +333,7 @@ struct PinDetailSheet: View {
         if let sentence = PinDetailCopy.happeningsSentence(todayCount: happenings.count) {
             rows.append(StatusRow(icon: "calendar", label: "Happenings", sentence: sentence))
         }
-        let liveTitle = happenings.first { DateHelpers.isLiveNow($0.startTime) }?.title
+        let liveTitle = happenings.first { $0.isOn() }?.title
         rows.append(StatusRow(icon: "clock",
                               label: PinDetailCopy.statusRowLabel(isLive: isLive),
                               sentence: PinDetailCopy.statusSentence(isLive: isLive,
@@ -659,7 +659,7 @@ struct PinFullDetailsView: View {
     private var happeningsList: some View {
         VStack(spacing: 13) {
             ForEach(happenings) { happening in
-                let isLive = DateHelpers.isLiveNow(happening.startTime)
+                let isLive = happening.isOn()
                 let time = happening.startTime ?? "all day"
                 HStack(spacing: 8) {
                     Circle()

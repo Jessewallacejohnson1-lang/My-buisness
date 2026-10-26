@@ -114,6 +114,9 @@ struct TimelineEvent: Identifiable, Hashable {
     /// (club_events.place_entry_id), which the map's bubbles read for a picture.
     var imageURL: URL? = nil
     var placeEntryId: String? = nil
+    /// When it starts and ends, read once from its day, time, `end_at` and `all_day`, so the
+    /// map's every-second bubbles compare dates instead of re-reading text.
+    var when: EventWhen? = nil
 }
 
 /// nonisolated: a plain value the pure `nonisolated` rules build and compare
