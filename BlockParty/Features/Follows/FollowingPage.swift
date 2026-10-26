@@ -197,7 +197,9 @@ private struct FollowingRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
-                .accessibilityHidden(opens)
+                // VoiceOver presses the row here; the button behind is for fingers.
+                .accessibilityAddTraits(opens ? .isButton : [])
+                .accessibilityAction { if opens { open(item, picture.rect) } }
             }
             .allowsHitTesting(false)
             FollowButton(target: row.target, name: row.name, size: .row, minWidth: FollowMetric.listWidth)
@@ -208,7 +210,7 @@ private struct FollowingRow: View {
             if opens {
                 Button { open(item, picture.rect) } label: { Color.clear.contentShape(Rectangle()) }
                     .buttonStyle(RowPressStyle())
-                    .accessibilityLabel([row.name, FollowPicture.what(row)].compactMap { $0 }.joined(separator: ", "))
+                    .accessibilityHidden(true)
             }
         }
     }
