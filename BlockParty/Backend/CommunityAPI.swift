@@ -79,8 +79,9 @@ struct CommunityAPI {
     /// even if one lands in the shared DB. The `status=eq.approved` beside this is
     /// what keeps a found event hidden until the admin approves it. Trails
     /// intentionally omit this (curated reference data). The Expo twin (@hygge/core)
-    /// still filters on `submitted_by` alone, so it hides found events.
-    private static let realOnly = "&or=(submitted_by.not.is.null,source_name.not.is.null)"
+    /// still filters on `submitted_by` alone, so it hides found events. A followers-only Event (a JV
+    /// game, a banquet: BP app school-activities 03) reaches its followers through the Town feed alone.
+    private static let realOnly = "&or=(submitted_by.not.is.null,source_name.not.is.null)&followers_only=is.false"
 
     /// A token for a read RLS opens to everyone. Sign-in is switched off, so most
     /// neighbours have no session; they read with the app's public key, as

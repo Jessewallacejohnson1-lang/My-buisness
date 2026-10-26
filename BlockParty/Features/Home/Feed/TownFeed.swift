@@ -618,6 +618,7 @@ final class TownFeed {
     static func card(_ row: TownFeedRow) -> FeedCardItem {
         var card = FeedCardItem(row.event, recurrence: row.recurrence)
         card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
+        card.followed = row.reason == "follow" ? row.reasonName : nil
         card.score = row.score
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
