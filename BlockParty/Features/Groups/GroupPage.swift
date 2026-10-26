@@ -403,28 +403,16 @@ struct GroupPage: View {
     /// "Tue, Oct 20 · 6 PM", with its place when it isn't the group's usual one.
     static func meetingLine(_ meeting: TownGroup.Meeting) -> String {
         var parts: [String] = []
-        if let day = YourDayLogic.townDay(meeting.day) { parts.append(format("EEE, MMM d").string(from: day)) }
-        if let minutes = YourDayLogic.minutes(from: meeting.time) {
-            let hour = (minutes / 60) % 12 == 0 ? 12 : (minutes / 60) % 12, minute = minutes % 60
-            parts.append((minute == 0 ? "\(hour)" : String(format: "%d:%02d", hour, minute)) + (minutes < 720 ? " AM" : " PM"))
-        }
+        if let day = Town.midnight(meeting.day) { parts.append(Town.format(day, "EEEMMMd")) }
+        if let minutes = EventWhen.minutes(meeting.time) { parts.append(Town.clock(minutes: minutes)) }
         if let place = nonempty(meeting.place) { parts.append(place) }
         return parts.joined(separator: " · ")
     }
 
     /// The date tile's words: "OCT" and "20".
     static func tile(_ day: String) -> (month: String, day: String) {
-        guard let date = YourDayLogic.townDay(day) else { return ("", "") }
-        return (format("MMM").string(from: date).uppercased(), format("d").string(from: date))
-    }
-
-    private static func format(_ pattern: String) -> DateFormatter {
-        let f = DateFormatter()
-        f.calendar = Town.calendar
-        f.locale = Locale(identifier: "en_US")
-        f.timeZone = Town.timeZone
-        f.dateFormat = pattern
-        return f
+        guard let date = Town.midnight(day) else { return ("", "") }
+        return (Town.format(date, "MMM").uppercased(), Town.format(date, "d"))
     }
 
     private static func nonempty(_ value: String?) -> String? {

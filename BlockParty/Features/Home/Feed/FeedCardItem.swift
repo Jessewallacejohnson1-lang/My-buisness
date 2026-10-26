@@ -105,21 +105,16 @@ struct FeedCardItem: Identifiable, Hashable {
     /// over days (the Johanna Kiln, Oct 16 to 25). A one-day all-day listing gives no hours, so
     /// it never is. In the town's time, as its end is: a phone set to Pacific still sees a 10 AM
     /// class turn Now at 10 in St. Joseph.
-    func isNow(at now: Date = .now, calendar: Calendar = Town.calendar) -> Bool {
+    func isNow(at now: Date = .now) -> Bool {
         // A game whose final is in is over, whatever its hours say (game-card 02).
-        guard !cancelled, game?.final == nil,
-              let day = FeedWhenLine.day(from: eventDate, calendar: calendar) else { return false }
-        let minutes = startTime.map { DateHelpers.minutesOf($0) }.flatMap { $0 < 24 * 60 ? $0 : nil }
-        guard !allDay, let minutes,
-              let start = calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)
-        else {
-            guard let endAt, let nextDay = calendar.date(byAdding: .day, value: 1, to: day), endAt > nextDay
-            else { return false }
-            return now >= day && now < endAt
-        }
-        // A game runs three hours, as the Town feed keeps it (Jesse at game-card 02's Check-in 2).
-        let lasts = game == nil ? YourDayLogic.assumedEventDuration : 3 * 60 * 60
-        return now >= start && now < (endAt ?? start.addingTimeInterval(lasts))
+        guard !cancelled, game?.final == nil else { return false }
+        return when?.isOn(now) ?? false
+    }
+
+    /// When it starts and ends. A game runs three hours, as the Town feed keeps it (Jesse at
+    /// game-card 02's Check-in 2).
+    var when: EventWhen? {
+        EventWhen(date: eventDate, time: startTime, endAt: endAt, allDay: allDay, game: game != nil)
     }
 
     /// The where line under the when line: just the venue, because the when line
@@ -159,42 +154,32 @@ struct FeedWhenLine: Equatable {
     let spoken: String
 
     /// `eventDate` is `yyyy-MM-dd`. `startTime` is the free-text display time that
-    /// `DateHelpers.minutesOf` reads. A time it can't read is shown as written rather
+    /// `EventWhen` reads. A time it can't read is shown as written rather
     /// than dropped. `fallbackDate` is the old uppercase chip, used only when the item
     /// has no `eventDate` (fixtures). nil when there is neither a date nor a time. `relative`
     /// false always writes the date, never "Today" or "Tomorrow", for a card whose pill already
-    /// says how far off it is (You's next plan, ticket 11).
+    /// says how far off it is (You's next plan, ticket 11). In the Town's time.
     init?(
         eventDate: String?,
         startTime: String?,
         fallbackDate: String = "",
         now: Date = .now,
-        calendar: Calendar = Self.localCalendar,
         relative: Bool = true
     ) {
         let rawTime = startTime?.trimmingCharacters(in: .whitespacesAndNewlines)
         let timeRaw = (rawTime?.isEmpty ?? true) ? nil : rawTime
-        let minutes = timeRaw.map { DateHelpers.minutesOf($0) }
-        let parsedMinutes = minutes.flatMap { $0 < 24 * 60 ? $0 : nil }
-        let timeText = parsedMinutes.map { Self.clock($0) } ?? timeRaw
+        let minutes = EventWhen.minutes(timeRaw)
+        let timeText = minutes.map { Town.clock(minutes: $0) } ?? timeRaw
 
         var dayText: String?
         var daySpoken: String?
-        if let date = Self.day(from: eventDate, calendar: calendar) {
-            let offset = calendar.dateComponents(
-                [.day], from: calendar.startOfDay(for: now), to: date
-            ).day ?? 0
-            switch offset {
-            case 0 where relative && (parsedMinutes ?? 0) >= 17 * 60:
-                dayText = "Tonight"
-            case 0 where relative:
-                dayText = "Today"
-            case 1 where relative:
-                dayText = "Tomorrow"
-            default:
-                let withYear = abs(offset) > 183
-                dayText = Self.format(date, withYear ? "EEE, MMM d, yyyy" : "EEE, MMM d", calendar)
-                daySpoken = Self.format(date, withYear ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d", calendar)
+        if let when = EventWhen(date: eventDate, time: timeRaw, endAt: nil) {
+            if relative, let word = when.dayWord(now) {
+                dayText = word
+            } else {
+                let withYear = abs(Town.days(from: now, to: when.start)) > 183
+                dayText = Town.format(when.start, withYear ? "EEEMMMdyyyy" : "EEEMMMd")
+                daySpoken = Town.format(when.start, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd")
             }
         } else if !fallbackDate.isEmpty {
             dayText = fallbackDate.capitalized
@@ -205,49 +190,12 @@ struct FeedWhenLine: Equatable {
         text = [dayText, timeText].compactMap { $0 }.joined(separator: " · ")
         switch (daySpoken, timeText) {
         case let (day?, time?):
-            spoken = parsedMinutes != nil ? "\(day) at \(time)" : "\(day), \(time)"
+            spoken = minutes != nil ? "\(day) at \(time)" : "\(day), \(time)"
         case let (day?, nil):
             spoken = day
         default:
             spoken = timeText ?? ""
         }
-    }
-
-    static var localCalendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
-        return calendar
-    }
-
-    /// "7 PM", "7:30 PM", "Noon", "Midnight".
-    private static func clock(_ minutes: Int) -> String {
-        switch minutes {
-        case 0: return "Midnight"
-        case 12 * 60: return "Noon"
-        default:
-            let hour = minutes / 60, minute = minutes % 60
-            let hour12 = hour % 12 == 0 ? 12 : hour % 12
-            let meridiem = hour < 12 ? "AM" : "PM"
-            return minute == 0
-                ? "\(hour12) \(meridiem)"
-                : String(format: "%d:%02d %@", hour12, minute, meridiem)
-        }
-    }
-
-    static func day(from value: String?, calendar: Calendar) -> Date? {
-        guard let parts = value?.split(separator: "-"), parts.count == 3,
-              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2])
-        else { return nil }
-        return calendar.date(from: DateComponents(year: year, month: month, day: day))
-    }
-
-    private static func format(_ date: Date, _ pattern: String, _ calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = pattern
-        return formatter.string(from: date)
     }
 }
 

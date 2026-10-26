@@ -173,8 +173,7 @@ nonisolated enum DailySun {
 
     /// The hour in the Town, with minutes as a fraction, wherever the phone is.
     static func hour(at date: Date) -> Double {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        let calendar = Town.gregorian
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return Double(parts.hour ?? 12) + Double(parts.minute ?? 0) / 60
     }
@@ -197,8 +196,7 @@ nonisolated enum DailyClock {
         // evening can be shot at any time of day.
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-daily-hour"), i + 1 < args.count, let hour = Double(args[i + 1]) {
-            var calendar = Calendar(identifier: .gregorian)
-            calendar.timeZone = Town.timeZone
+            let calendar = Town.gregorian
             return calendar.startOfDay(for: date).addingTimeInterval(hour * 3600)
         }
         #endif

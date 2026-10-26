@@ -46,19 +46,10 @@ enum Reminders {
     private static func id(_ eventId: String) -> String { "event-\(eventId)" }
 
     /// "YYYY-MM-DD" + a free-text display time ("5 PM", "noon", "midnight", nil) →
-    /// local Date one hour before start. Shares the app's one time parser
-    /// (DateHelpers.minutesOf) so "midnight"/"noon" agree with the rest of the app;
-    /// an all-day / unparseable time has no meaningful "starts soon" → no reminder.
+    /// one hour before it starts, in the Town's time (`EventWhen`, the app's one time
+    /// rule); an all-day / unparseable time has no meaningful "starts soon" → no reminder.
     private static func fireDate(date ymd: String, startTime: String?) -> Date? {
-        let d = ymd.split(separator: "-").compactMap { Int($0) }
-        guard d.count == 3 else { return nil }
-        let minutes = DateHelpers.minutesOf(startTime)   // 24*60 ⇒ all-day / unparseable
-        guard minutes < 24 * 60 else { return nil }
-        var comps = DateComponents()
-        comps.year = d[0]; comps.month = d[1]; comps.day = d[2]
-        comps.hour = minutes / 60
-        comps.minute = minutes % 60
-        guard let start = Calendar.current.date(from: comps) else { return nil }
-        return start.addingTimeInterval(-60 * 60)
+        guard let when = EventWhen(date: ymd, time: startTime, endAt: nil), when.timed else { return nil }
+        return when.start.addingTimeInterval(-60 * 60)
     }
 }

@@ -517,7 +517,7 @@ struct SJMapView: View {
     var todayBubbles: [TodayBubble] {
         _ = model.clockTick
         guard filter == .all || filter == .events else { return [] }
-        let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now())
+        let now = TodayBubbleClock.now()
         var byPlace: [String: (CLLocationCoordinate2D, Spot?, [TimelineEvent])] = [:]
         var order: [String] = []
         for ev in model.todayEvents {
@@ -538,7 +538,7 @@ struct SJMapView: View {
             bubbles.append(TodayBubble(id: id, coordinate: place.0, spot: place.1, event: lead,
                                        picture: pic?.url, isLogo: pic?.isLogo ?? false))
         }
-        bubbles.sort { DateHelpers.minutesOf($0.event.startTime) < DateHelpers.minutesOf($1.event.startTime) }
+        bubbles.sort { TodayBubbleRules.starts($0.event) < TodayBubbleRules.starts($1.event) }
         for i in bubbles.indices { bubbles[i].order = i }
         return bubbles
     }
@@ -557,7 +557,7 @@ struct SJMapView: View {
         #if DEBUG
         if Self.debugForceLiveIds().contains(spot.id) { return true }
         #endif
-        return events(at: spot).contains { DateHelpers.isLiveNow($0.startTime) }
+        return events(at: spot).contains { $0.isOn() }
     }
 
     /// Whether the viewer has saved this place (device-local; the map's Saved pin).

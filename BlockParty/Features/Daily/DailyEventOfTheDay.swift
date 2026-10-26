@@ -16,6 +16,9 @@ struct DailyEvent: Identifiable {
     /// False when its start couldn't be read ("after dark") or it runs all day: it
     /// starts at midnight then, and its card shows the organizer's own words.
     var timed = true
+    /// When it really runs, from its row. `ends` can be later: Daily's poster keeps it until it
+    /// leaves the Town feed. nil for the invented samples, which run `starts` to `ends`.
+    var when: EventWhen?
 
     var id: String { item.id }
 
@@ -24,40 +27,19 @@ struct DailyEvent: Identifiable {
         return nil
     }
 
-    /// The card's time: "Now" while it's on, else when it starts ("9 AM", "7:30 PM"), in
-    /// the Town's time. An untimed Event shows the organizer's own words, or "All day".
+    /// The card's time: "Now" while it's on (a run over days too, as the Town card), else when
+    /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
+    /// organizer's own words, or "All day".
     /// Working words; Jesse writes the final ones.
     func startTime(now: Date) -> String {
-        guard timed else { return item.startTime ?? "All day" }
-        return isOn(now) ? "Now" : Self.clock(starts)
+        if isOn(now) { return "Now" }
+        return timed ? Town.clock(starts) : item.startTime ?? "All day"
     }
 
-    /// Started and not yet over.
+    /// Started and not yet over (`EventWhen.isOn`, the Town card's rule).
     func isOn(_ now: Date) -> Bool {
-        timed && starts <= now && now < ends
+        (when ?? EventWhen(start: starts, end: ends, timed: timed)).isOn(now)
     }
-
-    /// "9 AM" or "7:30 PM" in the Town's time: minutes only when there are some.
-    static func clock(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
-        return townTime(calendar.component(.minute, from: date) == 0 ? "h" : "hmm", date)
-    }
-
-    /// `date` written from a date template ("EEE", "d", "h"), in English, in the Town's time.
-    static func townTime(_ template: String, _ date: Date) -> String {
-        if let formatter = townFormatters[template] { return formatter.string(from: date) }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = Town.timeZone
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        townFormatters[template] = formatter
-        return formatter.string(from: date)
-    }
-
-    /// One formatter per template, kept: the You tab's Calendar writes 49 dates each time
-    /// it draws, and building a formatter is the slow part.
-    private static var townFormatters: [String: DateFormatter] = [:]
 
     /// What a section shows: the ones on now or still to come, soonest first, leaving out
     /// any a section above it already shows, `limit` at most. When one ends the next
@@ -76,10 +58,7 @@ struct DailyEvent: Identifiable {
         guard starts > now else { return "Now" }
         // Another Town day counts calendar days, as people do ("In 3 days" on a Wednesday for
         // Saturday's), not hours (daily-tab 16).
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
-                                           to: calendar.startOfDay(for: starts)).day ?? 0
+        let days = Town.days(from: now, to: starts)
         if days == 1 { return "Tomorrow" }
         if days > 1 { return "In \(days) days" }
         let formatter = RelativeDateTimeFormatter()
@@ -94,7 +73,7 @@ struct DailyEvent: Identifiable {
     /// daily-tab 18's Check-in 1). nil for today's, which keeps the Town feed's "Today · 4 PM".
     func dayLine(now: Date) -> String? {
         guard Town.day(starts) > Town.day(now) else { return nil }
-        return timed ? "\(Self.townTime("EEE", starts)) · \(Self.clock(starts))" : Self.townTime("EEEE", starts)
+        return timed ? "\(Town.format(starts, "EEE")) · \(Town.clock(starts))" : Town.format(starts, "EEEE")
     }
 
     #if DEBUG
@@ -102,9 +81,7 @@ struct DailyEvent: Identifiable {
     /// places with the bundled town photos. The titles and hosts are the Town feed's
     /// fixtures (`DailyFixtures`); the times are made up.
     static func samples(on date: Date) -> [DailyEvent] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
-        let day = calendar.startOfDay(for: date)
+        let day = Town.gregorian.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         return [
             sample(id: "daily-e1", title: "Farmers Market", host: "Resurrection Lutheran",

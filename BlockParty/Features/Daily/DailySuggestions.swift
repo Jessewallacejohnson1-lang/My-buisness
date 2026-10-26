@@ -38,8 +38,7 @@ extension DailyEvent {
     /// INVENTED: seven events today at real St. Joseph places, with the bundled town
     /// photos. Titles, hosts and times are made up.
     static func suggestionSamples(on date: Date) -> [DailyEvent] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        let calendar = Town.gregorian
         let day = calendar.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         return [
