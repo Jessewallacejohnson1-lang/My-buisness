@@ -50,6 +50,11 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
                "St. Cloud"]}, the host's team first, as neighbours say them (read_events.py, the league's
                games). CSB and SJU Athletics games need none: the writer reads them off the title.
+  followers_only events, optional: true when only people following its activity or school see it (a JV
+               game, an away game, a banquet; read_events.py's Bound reader, BP app school-activities 03)
+  activity_team, activity_name
+               events, optional: the school's team id and its activity as Bound names it ("apollo",
+               "Choir"), so an Event that isn't a game lands on its activity's row
 
 THE SCHEDULE LINE: a reader that has some sources' whole schedules adds one more line, only on a
 morning every one of those sources was read (read_events.py, the league's high school games):
@@ -123,7 +128,8 @@ TRUST = {"official": "official", "secondhand": "squishy", "squishy": "squishy"}
 NEWS_CATEGORIES = {"announcement", "road", "school", "campus", "business"}
 STOP = set("a an and at by for from in of on the to with".split())
 # Words that tell two games at one place apart; both titles must carry the same ones.
-TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens".split())
+# A lower level's title carries it: "· C-squad", "· 9th grade", "· Middle school" (school-activities 03).
+TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens squad grade 9th middle".split())
 # Words that name the town or a kind of spot rather than which place: "Centennial Park
 # shelter" and "Millstream Park shelter" are two places, and so are "St. Cloud Apollo High
 # School" and "St. Cloud Tech High School".
@@ -389,11 +395,12 @@ def skip_reason(it, town):
         if not isinstance(it.get(k), str) or not it[k].strip():
             return f"invalid: no {k}"
     for k in ("kind", "trust", "area", "start", "end", "place", "town", "blurb", "size",
-              "signup_by", "interest", "category"):
+              "signup_by", "interest", "category", "activity_team", "activity_name"):
         if it.get(k) is not None and not isinstance(it[k], str):
             return f"invalid: {k} must be text"
-    if it.get("closed") not in (None, True, False):
-        return "invalid: closed must be true or false"
+    for k in ("closed", "followers_only"):
+        if it.get(k) not in (None, True, False):
+            return f"invalid: {k} must be true or false"
     if it.get("kind") not in ("event", "news"):
         return "invalid: kind must be event or news"
     if it.get("trust") not in TRUST:
@@ -489,7 +496,9 @@ def event_of(it, today, interests, home, notes, titles=None):
            "description": clip(it.get("blurb"), 1000) or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
-           "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "occasion": None}
+           "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "occasion": None,
+           "followers_only": it.get("followers_only") is True, "activity_team": it.get("activity_team"),
+           "activity_name": it.get("activity_name")}
     game = game_of(it, title)
     if game:
         row.update(sport=game["sport"], team_ids=[team_id(t) for t in game["teams"]], team_names=game["teams"],
@@ -621,6 +630,8 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             g["status"] = "pending"  # a misread its source changed gets another look, as in read_events
         if primary:
             row = dict(primary[1]["row"], status="approved" if ok else "pending")
+            # Everyone's when any mention this morning is (a school's own page and Bound's followers-only copy).
+            row["followers_only"] = all(ev["row"]["followers_only"] for _, ev in g["items"])
             if old:
                 row["source_uid"] = old["source_uid"]
                 if old.get("shows_from") and str(old["event_date"])[:10] == row["event_date"]:
@@ -1215,7 +1226,30 @@ def t_game():
     assert "insert into public.teams (id, name, short_name)" in sql, "a new opponent gets its row"
 
 
-TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
+def t_followers_only():
+    """A Bound Event for followers only keeps its mark and activity; one a public page lists too is
+    everyone's; a level in the title keeps a JV game apart from varsity (school-activities 03)."""
+    game = dict(place="Apollo High School", town="St. Cloud", area="game", source_name="Apollo High School",
+                interest="watch_sports", start="2026-10-23T19:00:00-05:00")
+    jv = item(title="Brainerd Volleyball vs Apollo · JV", source_url="https://gobound.com/a11", source_uid="bound:a11",
+              followers_only=True, activity_team="apollo", activity_name="Volleyball, Girls", **game)
+    varsity = item(title="Brainerd Volleyball vs Apollo", source_url="https://www.mshsl.org/x", **game)
+    rows = [g["row"] for g in run([jv, varsity])["events"]]
+    assert [(r["title"], r["followers_only"], r["activity_team"], r["activity_name"]) for r in rows] == [
+        ("Brainerd Volleyball vs Apollo · JV", True, "apollo", "Volleyball, Girls"),
+        ("Brainerd Volleyball vs Apollo", False, None, None)], rows
+    concert = dict(title="Fall Choir Concert", place="Apollo High School", town="St. Cloud", area="announced",
+                   start="2026-10-23T19:00:00-05:00", interest=None)
+    both = run([item(source_name="Apollo High School", source_url="https://gobound.com/c1", source_uid="bound:c1",
+                     followers_only=True, activity_team="apollo", activity_name="Choir", **concert),
+                item(source_name="St. Cloud Area School District", source_url="https://isd742.org/x", **concert)])
+    assert [g["row"]["followers_only"] for g in both["events"]] == [False], both["events"]
+    assert run([item(followers_only="yes")])["outcomes"][0] == ("skipped", "invalid: followers_only must be true or false")
+    sql = WRITES.read_text()
+    assert "followers_only = excluded.followers_only" in sql, "the database keeps it"
+
+
+TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day,
