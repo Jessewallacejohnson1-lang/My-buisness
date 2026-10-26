@@ -33,7 +33,7 @@ final class BrandDiscContrastTests: XCTestCase {
 
     // MARK: Fixtures
 
-    /// A `Color`'s value in one appearance, packed the way `UtilityContrast` wants.
+    /// A `Color`'s value in one appearance, packed as a hex.
     private func hex(_ color: Color, _ style: UIUserInterfaceStyle) -> UInt32 {
         let resolved = UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -43,8 +43,17 @@ final class BrandDiscContrastTests: XCTestCase {
     }
 
     private func ratio(_ a: UInt32, on b: UInt32) -> Double {
-        let la = UtilityContrast.luminance(a), lb = UtilityContrast.luminance(b)
+        let la = luminance(a), lb = luminance(b)
         return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+    }
+
+    /// WCAG relative luminance of an sRGB hex (0…1).
+    private func luminance(_ hex: UInt32) -> Double {
+        func lin(_ shift: UInt32) -> Double {
+            let c = Double((hex >> shift) & 0xFF) / 255
+            return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * lin(16) + 0.7152 * lin(8) + 0.0722 * lin(0)
     }
 
     // MARK: - The restated value cannot drift

@@ -30,7 +30,7 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// A screen the audit opens, and the launch arguments that get there.
     ///
     /// Every entry drives the app through the DEBUG flags it already has for
-    /// headless screenshots (`-open-tab`, `-open-menu`, `-open-profile`,
+    /// headless screenshots (`-open-tab`, `-open-profile`,
     /// `-feed-scrolled`) rather than tapping through the UI, because a tap that
     /// misses is a flaky test and a launch argument is not.
     struct Surface {
@@ -49,7 +49,6 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// AUDIT-SURFACES-BEGIN — parsed by the coverage test. Keep one entry per line.
     static let surfaces: [Surface] = [
         Surface(id: "town", arguments: ["-open-tab", "town", "-town-samples"]),
-        Surface(id: "town-menu", arguments: ["-open-tab", "town", "-town-samples", "-open-menu"]),
         Surface(id: "town-scrolled", arguments: ["-open-tab", "town", "-town-samples", "-feed-scrolled"]),
     ]
     /// AUDIT-SURFACES-END
@@ -96,7 +95,7 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// at the same count slips through. Fingerprints churn on fixture copy, which
     /// would make the gate cry wolf; move to them if this ever masks a real one.
     /// EMPTY, and that is the gate now (2026-09-22). Every developed surface —
-    /// `town`, `town-menu`, `town-scrolled` — reports **zero** layout issues at AX3
+    /// `town`, `town-scrolled` (and `town-menu`, deleted with the menu on 2026-10-25) — reports **zero** layout issues at AX3
     /// and AX5, measured on a clean uncontended run. An entry absent from this map
     /// must report zero, so an empty map is the strictest this test can be: the next
     /// clip on a developed page fails the build outright.

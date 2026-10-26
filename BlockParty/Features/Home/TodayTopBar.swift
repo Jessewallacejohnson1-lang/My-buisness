@@ -25,11 +25,6 @@
 //  The two new marks are BARE INK, not discs. That is what the reference does, and
 //  it is also the only thing the width budget allows — see `controls`.
 //
-//  NOTE: with the avatar gone, nothing in this bar opens `TownMenuView` any more.
-//  The menu plumbing (`onMenu` / `showMenu` / `GlassShowcaseOverlay`) is still wired
-//  through Home and RootView, so re-attaching it is a one-line change wherever its
-//  next entry point lands.
-//
 
 import SwiftUI
 
@@ -139,7 +134,7 @@ nonisolated enum TodayHeader {
     /// Formatted on the TOWN's clock, never the device's: a neighbor travelling east
     /// is still reading Saint Joseph's day, and at 23:30 Central a phone in Berlin has
     /// already rolled over to tomorrow. The `en_US` pin fixes the language and the US
-    /// shape (the same pairing `UtilityFormat` uses); `d` — not `dd` — keeps a
+    /// shape; `d` — not `dd` — keeps a
     /// single-digit day unpadded.
     static func eyebrow(for date: Date) -> String {
         let formatter = DateFormatter()

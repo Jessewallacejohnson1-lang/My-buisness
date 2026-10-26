@@ -3,14 +3,14 @@
 //  Block Party — the Town feed's offline copy.
 //
 //  The last list `get_town_feed` sent, kept on disk so a relaunch shows it at once,
-//  even with no signal (BP app docs/plans/town-feed, ticket 11). Raw bytes, as
-//  `BriefingCache` keeps them, read back through the same decoding as a live read:
+//  even with no signal (BP app docs/plans/town-feed, ticket 11). Raw bytes,
+//  read back through the same decoding as a live read:
 //  a copy from before the function's columns changed just misses, never blocks.
 //
 //  The Event of the day's picks that top the feed are kept beside it, so the poster lands with
 //  the list rather than pushing it down a moment later (BP app event-card 03).
 //
-//  It holds the person's Going, so signing out clears it, as it does the briefing's.
+//  It holds the person's Going, so signing out clears it.
 //  One file rather than one per account: the first read can run before the session
 //  is restored, and would look for the wrong account's file.
 //

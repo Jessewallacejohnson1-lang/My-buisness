@@ -136,11 +136,6 @@ final class GooglePlacesService {
         var photo: ConfidentPhoto? { if case .found(let cp) = self { return cp } else { return nil } }
     }
 
-    /// A fresh autocomplete session token. The caller holds one while the user
-    /// types, passes it to every autocomplete(_:) call and the final
-    /// details(placeId:) call, then discards it — one billed session.
-    func newSessionToken() -> String { UUID().uuidString }
-
     // MARK: Autocomplete
 
     /// Type-ahead suggestions biased to St. Joseph, MN. Returns [] on any failure.

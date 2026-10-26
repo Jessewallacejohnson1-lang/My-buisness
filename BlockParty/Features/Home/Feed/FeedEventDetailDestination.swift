@@ -376,7 +376,7 @@ struct FeedEventDetailDestination: View {
 
             if let place = Self.placeText(item) {
                 // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
-                InfoPill(glyph: "mappin", text: place, url: DayScheduleLogic.directionsURL(forPlace: place),
+                InfoPill(glyph: "mappin", text: place, url: Directions.url(forPlace: place),
                          hint: "Opens in Maps")
                     .padding(.top, Metric.pillTop)
             }

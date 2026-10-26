@@ -1,43 +1,6 @@
 import Foundation
 
-struct FeedCardSection: Identifiable {
-    let kind: FeedSectionKind
-    let items: [FeedCardItem]
-
-    var id: FeedSectionKind { kind }
-}
-
 extension FeedCardItem {
-    init(
-        from posting: FeedPosting,
-        recurrence: String?,
-        goingPreview: GoingPreview? = nil
-    ) {
-        let time = Self.nonempty(posting.startTime)
-        let location = Self.nonempty(posting.location)
-        let metadata = [time, location].compactMap { $0 }.joined(separator: " · ")
-
-        self.init(
-            id: posting.id,
-            title: posting.title,
-            dateChip: Self.dateChip(from: posting.eventDate),
-            metaLine: metadata,
-            image: Self.imageSource(imageUrl: posting.imageUrl, title: posting.title, place: nil),
-            recurrence: recurrence,
-            hostName: posting.posterName,
-            hostAvatar: Self.nonempty(posting.posterAvatar).flatMap(URL.init(string:)),
-            goingCount: posting.goingCount,
-            goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
-            likeCount: posting.likeCount,
-            isLiked: posting.liked,
-            isSaved: false,
-            isJoined: posting.rsvpd,
-            eventDate: posting.eventDate,
-            startTime: time,
-            location: location
-        )
-    }
-
     /// A Your Day event as a card item, so Town and Your Day open the one event
     /// page. Same image cascade as a posting (`imageSource`), so an event without
     /// its own photo still falls back to a venue lookup. Its description is the page's
@@ -134,24 +97,4 @@ extension FeedCardItem {
         return place ?? .fallback
     }
 
-}
-
-extension FeedPostingSection {
-    func mapped(
-        goingPreviews: [String: GoingPreview] = [:],
-        savedIDs: Set<String> = []
-    ) -> FeedCardSection {
-        FeedCardSection(
-            kind: kind,
-            items: postings.map { value in
-                var item = FeedCardItem(
-                    from: value.posting,
-                    recurrence: value.recurrence,
-                    goingPreview: goingPreviews[value.posting.id]
-                )
-                item.isSaved = savedIDs.contains(item.id)
-                return item
-            }
-        )
-    }
 }

@@ -28,48 +28,6 @@ extension View {
     func glassPanel(_ radius: CGFloat = Radius.card) -> some View { modifier(GlassPanel(radius: radius)) }
 }
 
-// MARK: - Avatar
-
-/// The profile avatar: remote photo when set, a calm blank slot otherwise (a
-/// person glyph on paper — no auto-fetched art, no gradient). White + hairline
-/// ring reads as a physical disc on the glass.
-struct ProfileAvatar: View {
-    let url: String?
-    var size: CGFloat = 104
-
-    var body: some View {
-        Group {
-            if let url, let u = URL(string: url) {
-                AsyncImage(url: u) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    // An image well is content: it gets its own shape, not a spinner.
-                    // The parent already clips to a circle, so the block is square.
-                    case .empty: SkeletonBlock(cornerRadius: 0).shimmering()
-                    default: blank
-                    }
-                }
-            } else {
-                blank
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(.white, lineWidth: 3))
-        .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-        .shadow(color: .black.opacity(0.16), radius: 16, y: 7)
-    }
-
-    private var blank: some View {
-        ZStack {
-            Hue.surface
-            Image(systemName: "person.fill")
-                .font(.glyph(size * 0.42))
-                .foregroundStyle(Hue.inkSecondary.opacity(0.5))
-        }
-    }
-}
-
 // MARK: - Interest chips
 
 /// A soft grey interest pill.

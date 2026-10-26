@@ -1,5 +1,7 @@
 # Today Utility Row — build notes & acceptance
 
+> **Deleted 2026-10-25.** The app code for this row is gone (BP app codebase-health 09); `user_utility_prefs` rows stay in the database. How to get it back: `docs/archive/GUTTING-LEDGER.md`. Kept as history.
+
 A registry-driven, fully user-customizable row of glanceable town-info tiles on the
 Today tab (weather · garbage · roads · library), below the masthead and above the
 feed. Tiles are a structural clone of the Calendar bento box (22pt `.continuous`

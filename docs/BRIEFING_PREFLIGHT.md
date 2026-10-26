@@ -1,5 +1,7 @@
 # Today briefing — pre-flight
 
+> **Deleted 2026-10-25.** The app no longer has a briefing client (BP app codebase-health 09). How to get it back: `docs/archive/GUTTING-LEDGER.md`. Kept as history.
+
 Before archiving `feat/today-briefing` to TestFlight.
 
 Everything below the "must check on a real device" line is genuinely unverified.

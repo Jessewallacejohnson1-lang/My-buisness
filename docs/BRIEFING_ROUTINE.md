@@ -1,5 +1,7 @@
 # The 6 AM briefing routine
 
+> **2026-10-25:** the app no longer reads `daily_briefings`; its client was deleted (BP app codebase-health 09). The server job was left as it was. See `docs/archive/GUTTING-LEDGER.md`.
+
 The daily job that composes and publishes `daily_briefings`. Phase 2 of the Today
 tab briefing build. Contract: `docs/superpowers/specs/2026-08-05-today-briefing-contract.md`.
 
