@@ -48,9 +48,13 @@ def digits(phone):
     return d[-10:] if len(d) >= 10 else ""
 
 
+# Google writes "Co Rd 75" where a place's own page says "County Road 75".
+COUNTY = {"co": "county", "cr": "county", "cty": "county"}
+
+
 def street(addr):
     m = re.match(r"\s*(\d+)\s+(?:[NSEW]\.?\s+)?([A-Za-z0-9]+)", addr or "")
-    return (m.group(1), m.group(2).lower()) if m else None
+    return (m.group(1), COUNTY.get(m.group(2).lower(), m.group(2).lower())) if m else None
 
 
 def domain(url):
@@ -227,9 +231,17 @@ def db(method, path, body=None):
 
 
 def new_hours(found, live):
-    """The places whose Google hours differ from the page's (`live`: entry id to `places.hours`)."""
-    return [{**f, "was": live.get(f["entry_id"])} for f in found
-            if f["entry_id"] in live and f["hours"] != live[f["entry_id"]]]
+    """The places whose Google hours differ from the page's (`live`: entry id to `places.hours`).
+    A seasonal place keeps its season: Google has none, and it was read from the place's own site."""
+    out = []
+    for f in found:
+        if f["entry_id"] not in live:
+            continue
+        was = live[f["entry_id"]]
+        season = {"season": was["season"]} if isinstance(was, dict) and "season" in was else {}
+        if {**f["hours"], **season} != was:
+            out.append({**f, "hours": {**f["hours"], **season}, "was": was})
+    return out
 
 
 def write_hours(found):
@@ -313,7 +325,11 @@ def selftest():
     assert hours_of({"openingHours": week[:6]}) is None, "a week missing a day is no week"
     found = [{"entry_id": "a", "name": "A", "hours": {"mon": []}}, {"entry_id": "b", "name": "B", "hours": {"mon": []}}]
     assert [c["entry_id"] for c in new_hours(found, {"a": {"mon": []}, "b": None})] == ["b"], "only changed hours"
-    print("accounts.py selftest: 13 passed, 0 failed")
+    assert street("709 County Road 75 W") == street("709 Co Rd 75") == ("709", "county"), "Co Rd is County Road"
+    market = {"entry_id": "m", "name": "M", "hours": {"fri": [["15:00", "18:00"]]}}
+    assert not new_hours([market], {"m": {"fri": [["15:00", "18:00"]], "season": ["05-08", "10-16"]}}), "a season is not a change"
+    assert new_hours([market], {"m": {"fri": [], "season": ["05-08", "10-16"]}})[0]["hours"]["season"] == ["05-08", "10-16"], "new hours keep the season"
+    print("accounts.py selftest: 16 passed, 0 failed")
 
 
 def main():

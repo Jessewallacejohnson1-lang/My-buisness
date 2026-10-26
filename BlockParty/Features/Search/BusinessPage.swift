@@ -498,8 +498,8 @@ private struct HoursPill: View {
                 }
                 .buttonStyle(FeedCardPressStyle())
                 .accessibilityLabel(PlaceHours.words(status))
-                .accessibilityValue(expanded ? hours.week(from: context.date).map { "\($0.day) \($0.hours)" }
-                    .joined(separator: ", ") : "")
+                .accessibilityValue(expanded ? ([hours.seasonLine].compactMap { $0 }
+                    + hours.week(from: context.date).map { "\($0.day) \($0.hours)" }).joined(separator: ", ") : "")
                 .accessibilityHint(expanded ? "Hides the week's hours" : "Shows the week's hours")
             }
         }
@@ -530,6 +530,11 @@ private struct HoursPill: View {
     /// Tight rows, the hours lined up under the row's words (Jesse: "remove the excess space").
     private func week(_ now: Date) -> some View {
         VStack(alignment: .leading, spacing: Self.weekRowGap) {
+            if let season = hours.seasonLine {
+                Text(season)
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+            }
             ForEach(hours.week(from: now), id: \.day) { day in
                 HStack {
                     Text(day.day)
@@ -553,7 +558,7 @@ private struct HoursPill: View {
         switch status {
         case .open, .always: Hue.open
         case .closesSoon: Hue.closesSoon
-        case .closed: Hue.closed
+        case .closed, .offSeason: Hue.closed
         }
     }
 
@@ -562,7 +567,7 @@ private struct HoursPill: View {
         switch status {
         case .open: "Open"
         case .closesSoon: "Closes soon"
-        case .closed: "Closed"
+        case .closed, .offSeason: "Closed"
         case .always: "Open 24 hours"
         }
     }
