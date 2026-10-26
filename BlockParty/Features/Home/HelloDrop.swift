@@ -17,6 +17,8 @@ enum HelloDrop {
         case town
         /// A town news post, in Instagram or Facebook (hello-drop 03).
         case news(TownNews)
+        /// A contact who just joined: their page (hello-drop 04).
+        case person(Neighbor)
     }
 
     struct Message: Hashable {
@@ -29,6 +31,12 @@ enum HelloDrop {
         var photo = false
         var tint: UInt32? = nil
         var confetti: [UInt32]? = nil
+    }
+
+    /// A contact who joined, as the pill says it: their photo round at the left, when they have one.
+    static func joined(_ person: Neighbor) -> Message {
+        Message(text: "\(person.firstName) joined Block Party", target: .person(person),
+                logo: person.avatarUrl.flatMap(URL.init(string:)), photo: true)
     }
 
     /// Your followed team's final as the pill says it; nil when it can't be worded.
@@ -94,11 +102,11 @@ enum HelloDrop {
     }
 
     /// The first true one, top down: your event today, your group meets today, friends going
-    /// today, your event tomorrow, new since your last open, then today's, the weekend's
-    /// (Thu to Sun) and the week's count. nil when the Town has nothing coming this week.
-    /// `going` is your Going, `town` the Town feed's cards as the screen shows them.
+    /// today, your event tomorrow, a contact who joined, new since your last open, then today's,
+    /// the weekend's (Thu to Sun) and the week's count. nil when the Town has nothing coming this
+    /// week. `going` is your Going, `town` the Town feed's cards as the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
-                        town: [DailyEvent], news: [TownNews] = []) -> Message? {
+                        town: [DailyEvent], news: [TownNews] = [], joined: Neighbor? = nil) -> Message? {
         let calendar = Town.gregorian
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
@@ -129,6 +137,7 @@ enum HelloDrop {
         if let event = mine.filter({ Town.day($0.starts) == tomorrow }).min(by: { $0.starts < $1.starts }) {
             return Message(text: "\(event.item.title) is tomorrow", target: .event(event.item))
         }
+        if let joined { return Self.joined(joined) }
         // The town's top news for you, new since your last open, in the feed's own order.
         if let lastSeen, let post = news.first(where: { ($0.published ?? .distantPast) > lastSeen }) {
             // The picture says who posted it, so the words stand alone beside it (Jesse, 2026-10-23).
@@ -235,13 +244,15 @@ struct HelloDropView: View {
     let prepare: @MainActor () async -> Void
     /// Whether the Going and the Town feed are in.
     let ready: @MainActor () -> Bool
-    let message: @MainActor (_ lastSeen: Date?) -> HelloDrop.Message?
+    let message: @MainActor (_ lastSeen: Date?, _ joined: Neighbor?) -> HelloDrop.Message?
     let open: @MainActor (HelloDrop.Target) -> Void
     /// Events attended (hello-drop 02), read on each open; nil when the read failed.
     let attended: @MainActor () async -> Int?
     /// Your followed teams' finals read since a time (hello-drop 03), newest first.
     /// nil when the read failed.
     let finals: @MainActor (_ since: Date) async -> [TeamFinal]?
+    /// Contacts who joined since a time, newest first (hello-drop 04); nil when it can't check.
+    let joined: @MainActor (_ since: Date) async -> [Neighbor]?
 
     private enum Step { case hidden, hello, message }
 
@@ -261,6 +272,12 @@ struct HelloDropView: View {
     @AppStorage("helloDrop.finalsSince") private var finalsSince: Double = 0
     /// The finals already said, so a final read again later isn't said twice.
     @AppStorage("helloDrop.saidFinals") private var saidFinals = ""
+    /// A contact who joined, not yet said, and whether today's check is back (hello-drop 04).
+    @State private var pendingJoined: Neighbor?
+    @State private var joinedRead = false
+    /// Contacts joining after this are said: the first check's time, so nobody already here is.
+    @AppStorage("helloDrop.joinedSince") private var joinedSince: Double = 0
+    @AppStorage("helloDrop.saidJoined") private var saidJoined = ""
     private let moments = HelloMoments.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
@@ -445,8 +462,10 @@ struct HelloDropView: View {
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key
         hello = greeting.text
+        joinedRead = false
         run = Task {
             Task { await prepare() }
+            Task { await checkJoined() }
             // DEBUG `-hello-drop` waits 8 s, so a recording that starts after launch (eyes.py
             // settles 6 s) sees it drop.
             if HelloDrop.forced { try? await Task.sleep(for: .seconds(8)) }
@@ -460,7 +479,7 @@ struct HelloDropView: View {
             try? await Task.sleep(for: Self.holdHello)
             // The message waits up to 1 s more for its reads, then says what it can.
             var waited = 0
-            while !ready(), waited < 10 {
+            while !(ready() && joinedRead), waited < 10 {
                 try? await Task.sleep(for: .milliseconds(100))
                 waited += 1
             }
@@ -482,7 +501,8 @@ struct HelloDropView: View {
                 await sayFinal(final)
                 return
             }
-            guard let message = message(seen) else { dismiss(); return }
+            guard let message = message(seen, pendingJoined) else { dismiss(); return }
+            if case .person(let person) = message.target { markSaid(person) }
             said = message
             withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
             AccessibilityNotification.Announcement(message.text).post()
@@ -551,6 +571,36 @@ struct HelloDropView: View {
         showFinal()
     }
 
+    /// Today's check of who in your contacts joined; the newest not yet said waits for the pill.
+    /// Back late, after the pill said its line or left, it drops on its own as a final does.
+    private func checkJoined() async {
+        defer { joinedRead = true }
+        guard joinedSince > 0 else { joinedSince = Date().timeIntervalSince1970; return }
+        guard let read = await joined(Date(timeIntervalSince1970: joinedSince)) else { return }
+        let said = Set(saidJoined.split(separator: ",").map(String.init))
+        guard let person = read.first(where: { !said.contains($0.userId) }) else { return }
+        pendingJoined = person
+        if step == .hidden { showJoined() }
+    }
+
+    private func markSaid(_ person: Neighbor) {
+        pendingJoined = nil
+        saidJoined = ([person.userId] + saidJoined.split(separator: ",").map(String.init)).prefix(50).joined(separator: ",")
+    }
+
+    /// A contact who joined, with the day's line already said: the pill drops straight to it.
+    private func showJoined() {
+        guard HelloDrop.allowed, step == .hidden, run == nil, let person = pendingJoined else { return }
+        markSaid(person)
+        let message = HelloDrop.joined(person)
+        said = message
+        run = Task {
+            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
+            AccessibilityNotification.Announcement(message.text).post()
+            await finish(after: Self.stay)
+        }
+    }
+
     /// The tick, its haptics, then confetti for the 10th and 100th.
     private func celebrate(_ moment: HelloMoment) async {
         await HelloTick.play(reduceMotion: reduceMotion, stage: $tick)
@@ -585,6 +635,7 @@ struct HelloDropView: View {
             confettiColors = []
             // One reached while this pill was up comes next.
             if moments.waiting != nil { showMoment() } else if pendingFinal != nil { showFinal() }
+            else if pendingJoined != nil { showJoined() }
         }
     }
 }

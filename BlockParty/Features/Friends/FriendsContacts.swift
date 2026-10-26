@@ -131,17 +131,45 @@ final class ContactsMatch {
         }
     }
 
-    /// Every contact with a name, and its codes.
-    nonisolated private static func read(_ store: CNContactStore) -> [PhoneContact] {
-        let keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
+    /// Contacts on Block Party who joined since a time, newest first, for the hello pill
+    /// (hello-drop 04). Only with Contacts already allowed (it never asks) and a real account; it
+    /// spends one of the day's 5 checks. nil when it can't check.
+    static func joined(since: Date) async -> [Neighbor]? {
+        guard AuthStore.shared.isSignedIn, !AuthStore.shared.isAnonymous else { return nil }
+        switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .notDetermined, .denied, .restricted: return nil
+        default: break
+        }
+        let store = CNContactStore()
+        let contacts = await Task.detached { Self.read(store, photos: false) }.value
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        // ponytail: the server sends at most 200 matches, A to Z, from 2000 codes, so in a very
+        // big book a newcomer late in the alphabet can be missed. Sort by join date server-side if so.
+        let send = ContactCodes.payload(contacts)
+        guard !(send.emails.isEmpty && send.phones.isEmpty),
+              let found = try? await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: send.emails, phones: send.phones)
+        else { return nil }
+        return newcomers(found.map(\.neighbor), since: since)
+    }
+
+    /// Who the pill may name: someone you could still add (not a friend, a request either way, or
+    /// blocked) who joined after `since`, newest first. An unreadable join date is not new.
+    nonisolated static func newcomers(_ people: [Neighbor], since: Date) -> [Neighbor] {
+        let joined = { (n: Neighbor) in DateHelpers.timestamp(n.since) ?? .distantPast }
+        return people.filter { $0.relation == .stranger && joined($0) > since }.sorted { joined($0) > joined($1) }
+    }
+
+    /// Every contact with a name, and its codes; `photos` false skips the thumbnails.
+    nonisolated private static func read(_ store: CNContactStore, photos: Bool = true) -> [PhoneContact] {
+        var keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
                                        CNContactPhoneNumbersKey as CNKeyDescriptor,
-                                       CNContactEmailAddressesKey as CNKeyDescriptor,
-                                       CNContactThumbnailImageDataKey as CNKeyDescriptor]
+                                       CNContactEmailAddressesKey as CNKeyDescriptor]
+        if photos { keys.append(CNContactThumbnailImageDataKey as CNKeyDescriptor) }
         var contacts: [PhoneContact] = []
         try? store.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
             guard let name = CNContactFormatter.string(from: c, style: .fullName), !name.isEmpty else { return }
             contacts.append(PhoneContact(id: c.identifier, name: name, phone: c.phoneNumbers.first?.value.stringValue,
-                                         thumbnail: c.thumbnailImageData,
+                                         thumbnail: photos ? c.thumbnailImageData : nil,
                                          emailCodes: c.emailAddresses.compactMap { ContactCodes.email($0.value as String) },
                                          phoneCodes: c.phoneNumbers.compactMap { ContactCodes.phone($0.value.stringValue) }))
         }
@@ -185,7 +213,7 @@ struct FriendsContactsPage: View {
                 Task { await model.load(again: true) }
             }
         case .limit:
-            ContactsNote(title: nil, line: "You've checked your contacts 5 times today. Try again tomorrow.")
+            ContactsNote(title: nil, line: "You've reached today's limit. Try again tomorrow.")
         case .ready(let onApp, let invite):
             promise
             // Less anyone you just blocked.

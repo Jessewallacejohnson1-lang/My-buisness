@@ -33,9 +33,10 @@ final class HelloDropTests: XCTestCase {
     }
 
     private func message(_ now: String, lastSeen: String? = nil, going: [DailyEvent] = [],
-                         groups: [TownGroup] = [], town towns: [DailyEvent] = [], news: [TownNews] = []) -> String? {
+                         groups: [TownGroup] = [], town towns: [DailyEvent] = [], news: [TownNews] = [],
+                         joined: Neighbor? = nil) -> String? {
         HelloDrop.message(now: town(now), lastSeen: lastSeen.map(town), going: going,
-                          groups: groups, town: towns, news: news)?.text
+                          groups: groups, town: towns, news: news, joined: joined)?.text
     }
 
     // MARK: The hello
@@ -229,6 +230,43 @@ final class HelloDropTests: XCTestCase {
     func testYourEventTomorrow() {
         XCTAssertEqual(message("2026-10-21 09:00", going: [event("Farmers Market", "2026-10-22", "8 AM")]),
                        "Farmers Market is tomorrow")
+    }
+
+    // MARK: A contact who joined (hello-drop 04)
+
+    private func person(_ id: String, _ name: String, since: String?, _ relation: Neighbor.Relation = .stranger,
+                        photo: String? = nil) -> Neighbor {
+        Neighbor(userId: id, displayName: name, avatarUrl: photo, since: since, relation: relation, mutualFriends: 0)
+    }
+
+    /// After your own events and friends going, ahead of the town's news and counts.
+    func testAContactWhoJoinedComesAfterYourOwnDay() {
+        let sam = person("1", "Sam Rivera", since: "2026-10-21T01:00:00Z")
+        let news = [post("new", published: "2026-10-21 07:00")]
+        XCTAssertEqual(message("2026-10-21 09:00", lastSeen: "2026-10-20 20:00", news: news, joined: sam),
+                       "Sam joined Block Party")
+        XCTAssertEqual(message("2026-10-21 09:00", going: [event("Farmers Market", "2026-10-22", "8 AM")], joined: sam),
+                       "Farmers Market is tomorrow")
+        let said = HelloDrop.joined(person("1", "Sam Rivera", since: nil, photo: "https://x/sam.jpg"))
+        XCTAssertEqual(said.target, .person(person("1", "Sam Rivera", since: nil, photo: "https://x/sam.jpg")))
+        XCTAssertEqual(said.logo, URL(string: "https://x/sam.jpg"))
+        XCTAssertTrue(said.photo, "their photo, round")
+        XCTAssertNil(HelloDrop.joined(sam).logo, "no photo: the words alone")
+    }
+
+    /// Only someone you could still add, who joined after the cut-off, newest first.
+    func testOnlyNewcomersYouCouldAddAreNamed() {
+        let since = ISO8601DateFormatter().date(from: "2026-10-20T00:00:00Z")!
+        let people = [
+            person("old", "Old", since: "2026-10-19T12:00:00Z"),
+            person("sam", "Sam", since: "2026-10-20T10:00:00Z"),
+            person("kate", "Kate", since: "2026-10-21T10:00:00.123+00:00"),
+            person("friend", "Fred", since: "2026-10-21T11:00:00Z", .friends),
+            person("blocked", "Bo", since: "2026-10-21T11:00:00Z", .blocked),
+            person("asked", "Al", since: "2026-10-21T11:00:00Z", .sent),
+            person("odd", "Odd", since: "not a date"),
+        ]
+        XCTAssertEqual(ContactsMatch.newcomers(people, since: since).map(\.userId), ["kate", "sam"])
     }
 
     func testNewSinceYourLastOpen() {
