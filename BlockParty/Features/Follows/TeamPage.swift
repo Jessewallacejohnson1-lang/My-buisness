@@ -162,6 +162,9 @@ struct TeamPage: View {
             .padding(.top, 26)
             .padding(.bottom, 6)
             .accessibilityAddTraits(.isHeader)
+            // Each heading moves with its rows, so the two never cross mid-slide.
+            .matchedGeometryEffect(id: words, in: rows)
+            .transition(.opacity)
     }
 
     private func row(_ activity: TeamProfile.Activity) -> some View {
