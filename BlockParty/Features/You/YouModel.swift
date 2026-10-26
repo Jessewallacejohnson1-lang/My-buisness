@@ -182,7 +182,7 @@ enum YouCalendar {
     /// The Going on the Calendar: the read's, and the Events tapped Going this session
     /// that fall in the `days` from `first` (the three weeks; a year for the iPhone
     /// Calendar), each once (the read's details win), only those still Going and not called
-    /// off (Jesse, 2026-10-15: a cancelled one leaves, and `CancelNotice` says so once); by
+    /// off (Jesse, 2026-10-15: a cancelled one leaves, and the bell's `Notices` say so); by
     /// day, a day's timed Events soonest first and then its untimed ones, then by title.
     static func going(read: [DailyEvent], tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool,
                       first: Date, days: Int = length) -> [DailyEvent] {

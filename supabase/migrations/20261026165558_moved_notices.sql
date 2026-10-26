@@ -117,6 +117,7 @@ returns table (
   going boolean,
   cancelled boolean,
   place_picture jsonb,
+  description text,
   game jsonb,
   changed_at timestamptz,
   moved_from jsonb,
@@ -174,7 +175,7 @@ as $$
   select t.id, t.title, t.event_date, t.start_time, t.location, t.image_url, t.category,
          cl.name, t.source_name, t.end_at, t.all_day, t.created_at,
          private.going_count(t.id), t.going, t.cancelled_at is not null,
-         public.place_picture(t.place_entry_id),
+         public.place_picture(t.place_entry_id), t.description,
          case when t.sport is not null then private.event_game(t.sport, t.team_ids, t.occasion) end,
          t.changed_at, case when t.cancelled_at is null then t.moved_from end, t.label, t.logo
   from told t

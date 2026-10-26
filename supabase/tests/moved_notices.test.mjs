@@ -40,7 +40,7 @@ await db.exec(`
     status text not null default 'approved', cancelled_at timestamptz, kind text not null default 'event',
     image_url text, category text, club_id uuid, source_name text, end_at timestamptz,
     all_day boolean not null default false, created_at timestamptz not null default now(),
-    place_entry_id text, occasion text);
+    place_entry_id text, occasion text, description text);
   create table public.event_rsvps (id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null);
   create table public.town_follows (id uuid primary key default gen_random_uuid(), follower_id uuid not null,

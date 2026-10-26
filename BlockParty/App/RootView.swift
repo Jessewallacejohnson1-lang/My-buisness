@@ -476,6 +476,9 @@ struct MainTabsView: View {
                 .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
                 // The bell's page (school-activities 04).
                 .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage() }
+                .navigationDestination(for: NoticeEventRoute.self) { route in
+                    FeedEventDetailDestination(item: route.item).environment(townFeed)
+                }
         }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {

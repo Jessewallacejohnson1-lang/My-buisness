@@ -23,6 +23,11 @@ nonisolated enum NoticeMetric {
 /// The bell's page, as a route on the shell's stack.
 struct NotificationsRoute: Hashable {}
 
+/// An Event opened from the bell's page: its Event page, not counted as a Town feed open.
+struct NoticeEventRoute: Hashable {
+    let item: FeedCardItem
+}
+
 struct NotificationsPage: View {
     @Environment(Notices.self) private var notices
     /// The large title has gone under the bar: the bar shows the small one.
@@ -39,6 +44,8 @@ struct NotificationsPage: View {
                         .frame(height: FriendsMetric.titleLine)
                         .padding(.horizontal, FriendsMetric.side)
                         .accessibilityAddTraits(.isHeader)
+                    // Nothing read yet: the rows' own shape, shimmering.
+                    if notices.list == nil && !notices.failed { LoadingNotices() }
                     let now = Date()
                     ForEach(Notices.sections(notices.list ?? [], now: now), id: \.title) { section in
                         Text(section.title)
@@ -53,6 +60,8 @@ struct NotificationsPage: View {
                 }
                 .padding(.top, SearchMetric.pageBar)
             }
+            // Pull to read again, as Instagram's list does; also the way to retry a failed read.
+            .refreshable { await notices.refresh() }
             .onScrollGeometryChange(for: Bool.self) { geo in
                 geo.contentOffset.y + geo.contentInsets.top > FriendsMetric.titleLine
             } action: { _, under in
@@ -69,7 +78,7 @@ struct NotificationsPage: View {
                     .allowsHitTesting(false)
             } else if notices.failed {
                 // The Town feed's words for a read that failed.
-                ContentUnavailableView("Notifications", systemImage: "bell",
+                ContentUnavailableView("Couldn't load", systemImage: "bell",
                                        description: Text("Check your connection and try again."))
                     .allowsHitTesting(false)
             }
@@ -89,7 +98,7 @@ private struct NoticeRow: View {
     let now: Date
 
     var body: some View {
-        NavigationLink(value: FeedCardItem(notice.event)) {
+        NavigationLink(value: NoticeEventRoute(item: FeedCardItem(notice.event))) {
             HStack(spacing: NoticeMetric.gap) {
                 NoticeFace(url: notice.picture)
                 Text("\(Text(notice.name).font(.sansSemibold(15))) \(notice.words(now: now)) \(Text(PostingCard.relativeLabel(for: notice.changedAt, now: now)).foregroundStyle(Hue.inkSecondary))")
@@ -126,5 +135,24 @@ private struct NoticeFace: View {
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring))
             .accessibilityHidden(true)
+    }
+}
+
+/// Three rows' shape while the first read is out (the Friends page's).
+private struct LoadingNotices: View {
+    var body: some View {
+        ForEach(0..<3, id: \.self) { _ in
+            HStack(spacing: NoticeMetric.gap) {
+                SkeletonBlock(cornerRadius: NoticeMetric.face / 2)
+                    .frame(width: NoticeMetric.face, height: NoticeMetric.face)
+                SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
+                    .frame(width: FriendsMetric.loadingName * 1.6, height: FriendsMetric.loadingLine)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.vertical, NoticeMetric.rowPad)
+            .shimmering()
+            .accessibilityHidden(true)
+        }
     }
 }
