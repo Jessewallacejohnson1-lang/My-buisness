@@ -67,6 +67,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// When it was added (`club_events.created_at`): the hello drop counts what's new since your
     /// last open (BP app hello-drop 01). nil on cards not read from the database.
     var createdAt: Date? = nil
+    /// Read from the town's own pages, not posted by a neighbour: Report offers Wrong info on it
+    /// (town-feed 22).
+    var found = false
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
