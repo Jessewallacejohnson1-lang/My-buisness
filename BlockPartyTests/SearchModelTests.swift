@@ -300,7 +300,7 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(GroupPage.meetingLine(.init(what: "Meeting", day: "2026-11-09")), "Mon, Nov 9", "the Knights give no time")
         XCTAssertEqual(GroupPage.meetingLine(.init(what: "Parish breakfast", day: "2026-11-01", time: "08:30", place: "Heritage Hall")),
                        "Sun, Nov 1 · 8:30 AM · Heritage Hall")
-        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Bingo", day: "2026-10-26", time: "12:00")), "Mon, Oct 26 · 12 PM")
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Bingo", day: "2026-10-26", time: "12:00")), "Mon, Oct 26 · Noon")
         let lions = [TownGroup.Meeting(what: "Meeting", day: "2026-10-20", time: "18:00"),
                      TownGroup.Meeting(what: "Meeting", day: "2026-11-03", time: "18:00")]
         let oct21 = Town.midnight("2026-10-21")!

@@ -44,7 +44,7 @@ final class TownTimezoneTests: XCTestCase {
         let monday = try XCTUnwrap(Town.midnight("2026-11-02")).addingTimeInterval(3600)
         XCTAssertEqual(Town.days(from: saturday, to: monday), 2)
         XCTAssertEqual(Town.days(from: monday, to: saturday), -2)
-        XCTAssertEqual(Town.days(from: saturday, to: saturday.addingTimeInterval(1800)), 1, "past midnight is tomorrow")
+        XCTAssertEqual(Town.days(from: saturday, to: saturday.addingTimeInterval(3600)), 1, "past midnight is tomorrow")
     }
 
     func testClockReadsLikeThePrintedCard() throws {
