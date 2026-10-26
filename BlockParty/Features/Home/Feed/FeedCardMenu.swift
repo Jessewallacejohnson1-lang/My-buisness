@@ -19,6 +19,11 @@
 //  sit in their own group under Edit your interests, Instagram's crossed-out eye beside the
 //  first. Either closes the sheet; the card goes once it has closed (`FeedCardMenuSheet`).
 //
+//  Report (ticket 22, mock https://claude.ai/artifact/JrbAPcf2yQaf8bfH1CKppP) ends that group in
+//  red, as Instagram's does (BP app references/report/). It slides the same sheet to the reasons,
+//  then to a thank-you once the report has gone; one that doesn't go shakes the list and stays.
+//  Where Report shows, Report photo is its Wrong photo reason.
+//
 
 import SwiftUI
 
@@ -30,9 +35,18 @@ struct FeedCardMenu: View {
     var hostName: String? = nil
     /// Not interested (false) or Mute (true); nil, neither row (signed out, or off the Town feed).
     var onHide: ((Bool) -> Void)? = nil
+    /// The reasons Report offers, and where a picked one goes; nil, no Report row.
+    var reasons: [ReportReason] = []
+    var onReport: ((ReportReason) async throws -> Void)? = nil
+
+    private enum Pane { case menu, reasons, thanks }
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
+    @State private var pane = Pane.menu
+    @State private var sending: ReportReason?
+    @State private var failures = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
 
@@ -46,6 +60,32 @@ struct FeedCardMenu: View {
     }
 
     var body: some View {
+        Group {
+            switch pane {
+            case .menu: menu
+            case .reasons: reasonList.transition(slide)
+            case .thanks: thanks.transition(slide)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(height)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Hue.surface)
+        .sheet(isPresented: $editingInterests) { FeedInterestEditorDestination() }
+    }
+
+    private var slide: AnyTransition {
+        reduceMotion ? .opacity : .push(from: .trailing)
+    }
+
+    private func go(_ next: Pane) {
+        withAnimation(.spring(response: 0.42, dampingFraction: 1)) { pane = next }
+    }
+
+    private var menu: some View {
         VStack(spacing: 0) {
             VStack(spacing: 6) {
                 Text("Why you're seeing this")
@@ -93,12 +133,31 @@ struct FeedCardMenu: View {
                             // `menu-mute`
                             hideRow("speaker.slash", "Mute \(hostName)") { onHide(true) }
                         }
+                        if onReport != nil {
+                            // `menu-report`
+                            Button { go(.reasons) } label: {
+                                HStack(spacing: Metric.iconGap) {
+                                    Image(systemName: "exclamationmark.bubble")
+                                        .font(.sans(20))
+                                        .frame(width: Metric.iconWidth)
+                                    Text("Report")
+                                        .font(.sans(17))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .foregroundStyle(Hue.report)
+                                .padding(.leading, Metric.rowLeading)
+                                .padding(.trailing, 16)
+                                .frame(minHeight: Metric.rowHeight)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(RowPressStyle())
+                        }
                     }
                 }
                 .padding(.top, 12)
             }
 
-            if let report {
+            if let report, onReport == nil {
                 group {
                     Button {
                         dismiss()
@@ -128,14 +187,124 @@ struct FeedCardMenu: View {
                     .padding(.top, 12)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(height)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Hue.surface)
-        .sheet(isPresented: $editingInterests) { FeedInterestEditorDestination() }
+    }
+
+    // MARK: Report (ticket 22)
+
+    /// Instagram's report page: its title and a close, the question, one row per reason.
+    private var reasonList: some View {
+        VStack(spacing: 0) {
+            reportBar
+            VStack(spacing: 8) {
+                Text("Why are you reporting this?")
+                    .font(.sansBold(21))
+                    .foregroundStyle(Hue.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Your report is anonymous.")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 18)
+            VStack(spacing: 0) {
+                ForEach(reasons) { reason in
+                    Rectangle().fill(Hue.hairline).frame(height: 1)
+                    Button { send(reason) } label: {
+                        HStack {
+                            Text(reason.label)
+                                .font(.sans(17))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.right")
+                                .font(.sansSemibold(13))
+                                .foregroundStyle(Hue.inkSecondary)
+                        }
+                        .foregroundStyle(Hue.ink)
+                        // While a report is on its way, the other reasons fade back.
+                        .opacity(sending == nil || sending == reason ? 1 : 0.35)
+                        .animation(.easeOut(duration: 0.2), value: sending)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 61)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(RowPressStyle())
+                }
+                Rectangle().fill(Hue.hairline).frame(height: 1)
+            }
+            .padding(.horizontal, -16)
+            .disabled(sending != nil)
+            .turnBackShake(failures: failures, shakes: !reduceMotion)
+        }
+    }
+
+    /// The thanks once the report has gone: a check, one line, Done. It keeps the list's height,
+    /// so the sheet doesn't jump.
+    private var thanks: some View {
+        VStack(spacing: 0) {
+            reportBar
+            VStack(spacing: 20) {
+                Image(systemName: "checkmark")
+                    .font(.sansSemibold(28))
+                    .foregroundStyle(Hue.ink)
+                    .frame(width: 75, height: 75)
+                    .background(Hue.fill, in: Circle())
+                    .accessibilityHidden(true)
+                Text("Thanks for reporting")
+                    .font(.sansBold(21))
+                    .foregroundStyle(Hue.ink)
+            }
+            .padding(.top, 48)
+            Spacer(minLength: 32)
+            Button { dismiss() } label: {
+                Text("Done")
+                    .font(.sansSemibold(17))
+                    .foregroundStyle(Hue.paper)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Hue.ink, in: Capsule())
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .frame(height: max(height - 16, 0), alignment: .top)
+    }
+
+    private var reportBar: some View {
+        ZStack {
+            Text("Report")
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.sansSemibold(17))
+                    .foregroundStyle(Hue.ink)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Close")
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(height: 56)
+        .padding(.top, 8)
+    }
+
+    private func send(_ reason: ReportReason) {
+        guard let onReport, sending == nil else { return }
+        sending = reason
+        Task {
+            do {
+                try await onReport(reason)
+                sending = nil
+                Haptics.success()
+                go(.thanks)
+            } catch {
+                Log.network("FeedCardMenu: report not sent: \(error)")
+                sending = nil
+                failures += 1
+                Haptics.error()
+                AccessibilityNotification.Announcement("Couldn't send. Try again.").post()
+            }
+        }
     }
 
     private func hideRow(_ icon: String, _ title: String, action: @escaping () -> Void) -> some View {
@@ -288,19 +457,37 @@ struct FeedCardMenuSheet: ViewModifier {
     @Environment(TownFeed.self) private var feed: TownFeed?
     @Environment(RealLifeActions.self) private var actions
     @State private var chosen: Bool?
+    /// A report that went and hides the card (ticket 22): the card folds once the sheet has closed.
+    @State private var reported = false
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: $isPresented, onDismiss: hide) {
             if let why = item.why {
+                let acts = feed != nil && actions.canAct
                 FeedCardMenu(why: why, score: item.score, report: report,
                              hostName: item.hostName.isEmpty ? nil : item.hostName,
-                             onHide: feed != nil && actions.canAct ? { (mute: Bool) in chosen = mute } : nil)
+                             onHide: acts ? { (mute: Bool) in chosen = mute } : nil,
+                             reasons: ReportReason.offered(photo: report != nil, found: item.found),
+                             // Once per card: a second report from the same phone would only add to its count.
+                             onReport: acts && feed?.reportedIDs.contains(item.id) == false ? { reason in
+                                 try await feed?.report(item, reason)
+                                 guard reason.hides else { return }
+                                 // The sheet was dragged away while it sent: fold now, not at the next close.
+                                 if isPresented { reported = true } else { feed?.hideReported(item) }
+                             } : nil)
             }
         }
     }
 
     private func hide() {
-        guard let mute = chosen, let feed else { return }
+        guard let feed else { return }
+        if reported {
+            reported = false
+            Haptics.light()
+            feed.hideReported(item)
+            return
+        }
+        guard let mute = chosen else { return }
         chosen = nil
         Haptics.light()
         Task { await feed.hide(item, mute: mute) }

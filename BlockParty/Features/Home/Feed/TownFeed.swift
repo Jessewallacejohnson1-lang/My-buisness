@@ -69,9 +69,40 @@ struct FeedAction: Equatable {
 }
 
 /// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
-/// gets back the host it muted; Unmute names that host.
+/// gets back the host it muted; Unmute names that host. Report (ticket 22) names an Event and a
+/// reason; Undo on its Hidden line is undoNotInterested, which lifts the hide and keeps the report.
 enum FeedChoice: Equatable {
     case notInterested(String), undoNotInterested(String), mute(String), unmute(String)
+    case report(String, ReportReason)
+}
+
+/// Why a neighbour reports an Event, in the sheet's order (words page `report-reasons`, Jesse
+/// 2026-10-12). Wrong photo shows only on a card with a photo Block Party saved, Wrong info only
+/// on a found Event; neither hides the card.
+enum ReportReason: String, CaseIterable, Identifiable {
+    case wrongPhoto = "wrong_photo", wrongInfo = "wrong_info", scam, bullying, violence, nudity,
+         restricted, selfHarm = "self_harm"
+
+    var id: String { rawValue }
+    var hides: Bool { self != .wrongPhoto && self != .wrongInfo }
+
+    var label: String {
+        switch self {
+        case .wrongPhoto: "Wrong photo"
+        case .wrongInfo: "Wrong info"
+        case .scam: "Scam, fraud or spam"
+        case .bullying: "Bullying or unwanted contact"
+        case .violence: "Violence, hate or exploitation"
+        case .nudity: "Nudity or sexual activity"
+        case .restricted: "Selling or promoting restricted items"
+        case .selfHarm: "Suicide, self-injury or eating disorders"
+        }
+    }
+
+    /// The reasons a card offers.
+    static func offered(photo: Bool, found: Bool) -> [ReportReason] {
+        allCases.filter { ($0 != .wrongPhoto || photo) && ($0 != .wrongInfo || found) }
+    }
 }
 
 /// A host you muted, as the Muted list shows it.
@@ -473,6 +504,7 @@ final class TownFeed {
         unsent = []
         viewed = []
         hiddenIDs = []
+        reportedIDs = []
         mutedNames = []
         muteKeys = [:]
         undoTimer?.cancel()
@@ -489,11 +521,24 @@ final class TownFeed {
         return hiddenIDs.contains(card.id) || (!card.hostName.isEmpty && mutedNames.contains(card.hostName))
     }
 
-    /// Not interested (`mute` false) or Mute on a card: out at once, then to the server. One that
-    /// doesn't go through comes back. A newer one ends the last one's Undo.
-    func hide(_ card: FeedCardItem, mute: Bool) async {
-        if mute { mutedNames.insert(card.hostName) } else { hiddenIDs.insert(card.id) }
-        undo = FeedHide(id: card.id, hostName: card.hostName, mute: mute)
+    /// Report a card (ticket 22), from its sheet, which waits for the answer to say thanks or shake.
+    func report(_ card: FeedCardItem, _ reason: ReportReason) async throws {
+        _ = try await choose(.report(card.id, reason))
+        reportedIDs.insert(card.id)
+    }
+
+    /// Cards reported from this phone this session: their sheet has no Report row.
+    private(set) var reportedIDs: Set<String> = []
+
+    /// A reported card, once its sheet has closed: out, with the same Undo line as Not interested.
+    /// The report already went; Undo lifts only the hide.
+    func hideReported(_ card: FeedCardItem) {
+        hiddenIDs.insert(card.id)
+        showUndo(FeedHide(id: card.id, hostName: card.hostName, mute: false))
+    }
+
+    private func showUndo(_ hide: FeedHide) {
+        undo = hide
         undoTimer?.cancel()
         // With VoiceOver on, the line waits for Undo or the next choice: 5 seconds is too short to
         // find it by swiping.
@@ -501,9 +546,16 @@ final class TownFeed {
             undoTimer = Task { [weak self] in
                 try? await Task.sleep(for: Self.undoFor)
                 guard !Task.isCancelled else { return }
-                self?.undoEnded(card.id)
+                self?.undoEnded(hide.id)
             }
         }
+    }
+
+    /// Not interested (`mute` false) or Mute on a card: out at once, then to the server. One that
+    /// doesn't go through comes back. A newer one ends the last one's Undo.
+    func hide(_ card: FeedCardItem, mute: Bool) async {
+        if mute { mutedNames.insert(card.hostName) } else { hiddenIDs.insert(card.id) }
+        showUndo(FeedHide(id: card.id, hostName: card.hostName, mute: mute))
         let choose = self.choose
         let send = Task { try await choose(mute ? .mute(card.id) : .notInterested(card.id)) }
         sending = send
@@ -641,7 +693,7 @@ private final class SampleMutes {
             return name
         case .unmute(let host):
             list.removeAll { $0.host == host }
-        case .notInterested, .undoNotInterested:
+        case .notInterested, .undoNotInterested, .report:
             break
         }
         return nil

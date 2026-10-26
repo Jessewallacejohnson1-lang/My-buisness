@@ -135,8 +135,10 @@ what keeps an entry written in 2026 readable in 2030.
 
 | Value | Meaning |
 | --- | --- |
-| `official` | The place's own channel or a government channel. **One mention is enough to publish.** |
-| `squishy` | Secondhand — a community page, an aggregator, someone else's post. **Needs two or more independent mentions** before it publishes. |
+| `official` | The place's own channel or a government channel. |
+| `squishy` | Secondhand — a community page, an aggregator, someone else's post. |
+
+Either publishes on its first mention (Jesse, 2026-10-26: "only hold back if its the exact same"); the trust is kept on each mention.
 
 ### `kind`
 
