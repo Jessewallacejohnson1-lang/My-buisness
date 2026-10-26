@@ -96,11 +96,15 @@ struct TeamPage: View {
                     .padding(.top, 4)
             }
         }
-        // Light words on the school's colour. The clock stays ink, as everywhere (taste.md, 2026-09-24).
+        // Light words on the school's colour.
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $opened) { ActivityEvents(activity: $0, school: title) }
         .task { await load() }
+        // The clock goes white over the school's colour, as iOS inks it over any dark page (Jesse,
+        // 2026-10-25: this page only). The Town feed's hold on a black clock (`holdsClock`) is let go
+        // here; the feed takes it back when it shows again.
+        .onAppear { AppearanceStore.shared.holdsClock = false }
     }
 
     private var title: String { profile?.name ?? team.name }
@@ -237,11 +241,25 @@ struct TeamPage: View {
     /// The school's first colour bright at the top fading to a deep shade of it, and its second for a
     /// starred star; a school with no colours yet is ink.
     private var schoolColors: (top: Color, deep: Color, star: Color) {
-        let hexes = profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors
-        let first = hexes.first.map { Color(hex: $0) } ?? Hue.poster
+        var hexes = profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors
+        // A light first colour (Cathedral's gold) fades to olive, so its darkest colour leads instead and
+        // the light one fills the star (Jesse, 2026-10-25).
+        if let first = hexes.first, Self.light(first), let darkest = hexes.min(by: { Self.luma($0) < Self.luma($1) }),
+           !Self.light(darkest) {
+            hexes = [darkest, first]
+        }
+        let top = hexes.first.map { Color(hex: $0) } ?? Hue.poster
         let star = hexes.dropFirst().first.map { Color(hex: $0) } ?? Hue.nameOnDark
-        return (first, first.mix(with: Hue.nameShadow, by: 0.45), star)
+        return (top, top.mix(with: Hue.nameShadow, by: 0.45), star)
     }
+
+    /// How light a 0xRRGGBB colour reads, 0 to 1 (Rec. 601 weights).
+    static func luma(_ rgb: UInt32) -> Double {
+        (0.299 * Double(rgb >> 16 & 0xFF) + 0.587 * Double(rgb >> 8 & 0xFF) + 0.114 * Double(rgb & 0xFF)) / 255
+    }
+
+    /// Too light for white words to sit on.
+    static func light(_ rgb: UInt32) -> Bool { luma(rgb) > 0.6 }
 
     /// An SF Symbol for what it is, from its name; a sport with none gets the generic one.
     static func symbol(_ activity: TeamProfile.Activity) -> String {
