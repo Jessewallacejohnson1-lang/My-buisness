@@ -92,13 +92,12 @@ private enum SheetDragOwner { case undecided, scroll, sheet }
 
 struct MapSheet: View {
     // Data (owned by MapModel / SJMapView; the sheet only reads)
-    let events: [TimelineEvent]
+    private var events: [TimelineEvent] { places.events }
     let state: MapModel.LoadState
     let spots: [Spot]                          // already filtered by the map's chip
+    let places: TodayPlaces                    // which pin each of today's events is at
 
     // Callbacks up to SJMapView
-    let happenings: (Spot) -> [TimelineEvent]  // events resolving to a spot
-    let spotFor: (TimelineEvent) -> Spot?      // an event's pin, if any
     let onSelectSpot: (Spot) -> Void           // fly camera + select
     let onRetry: () -> Void
 
@@ -731,7 +730,7 @@ struct MapSheet: View {
             ForEach(events) { ev in
                 TodayEventRow(event: ev, live: ev.isOn())
                     .contentShape(Rectangle())
-                    .onTapGesture { if let s = spotFor(ev) { onSelectSpot(s) } }
+                    .onTapGesture { if let s = places.spot(for: ev) { onSelectSpot(s) } }
                 rowDivider
             }
         case .offline, .error:
@@ -741,7 +740,7 @@ struct MapSheet: View {
 
     private var placeRows: some View {
         ForEach(spots) { spot in
-            PlaceRow(spot: spot, liveCount: happenings(spot).filter { $0.isOn() }.count)
+            PlaceRow(spot: spot, liveCount: places.events(at: spot).filter { $0.isOn() }.count)
                 .contentShape(Rectangle())
                 .onTapGesture { onSelectSpot(spot) }
             rowDivider

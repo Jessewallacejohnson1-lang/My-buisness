@@ -61,7 +61,7 @@ nonisolated enum MapFilter: String, CaseIterable, Hashable {
 
     /// Membership for a `places` POI. Parks and Events never include POIs:
     /// the POI catalog ships only the food/business families, and events
-    /// resolve to curated pins only (SJMapView.spot(for:)).
+    /// resolve to curated pins only (TodayPlaces.spot(for:)).
     func includesPOI(family: PlaceFamily, isSaved: Bool) -> Bool {
         switch self {
         case .all:

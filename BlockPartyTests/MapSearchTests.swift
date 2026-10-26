@@ -40,10 +40,9 @@ final class MapSearchTests: XCTestCase {
     private func results(_ query: String,
                          spots: [Spot] = [],
                          pois: [POI] = [],
-                         events: [TimelineEvent] = [],
-                         spotFor: (TimelineEvent) -> Spot? = { _ in nil }) -> [MapSearchResult] {
+                         events: [TimelineEvent] = []) -> [MapSearchResult] {
         MapSearch.results(query: query, spots: spots, pois: pois,
-                          events: events, spotFor: spotFor)
+                          places: TodayPlaces(events: events))
     }
 
     // MARK: Matcher
@@ -100,11 +99,11 @@ final class MapSearchTests: XCTestCase {
 
     func testEventResolvesToItsSpotPin() {
         // Arrange
-        let millstream = spot("millstream", "Millstream Park")
+        let millstream = MapSpots.all.first { $0.id == "millstream" }!
         let concert = event("Millstream Concert", location: "Millstream Park")
 
         // Act
-        let matches = results("concert", events: [concert], spotFor: { _ in millstream })
+        let matches = results("concert", events: [concert])
 
         // Assert — the row flies to the SPOT's pin and carries it for the commit.
         XCTAssertEqual(matches.count, 1)
@@ -120,7 +119,7 @@ final class MapSearchTests: XCTestCase {
         let potluck = event("Neighborhood Potluck", location: "A backyard")
 
         // Act
-        let matches = results("potluck", events: [potluck], spotFor: { _ in nil })
+        let matches = results("potluck", events: [potluck])
 
         // Assert — no invented coordinate; the commit path flies home instead.
         XCTAssertEqual(matches.count, 1)
