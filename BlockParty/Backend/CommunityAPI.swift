@@ -639,6 +639,35 @@ struct CommunityAPI {
         return try Self.myGoingRows(from: data, saved: true)
     }
 
+    /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,
+    /// what the bell's Notifications page lists (BP app docs/plans/school-activities, ticket 04).
+    func getMyChanges() async throws -> [Notice] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_changes", method: "POST",
+                                                    accessToken: try await token(), body: Data("{}".utf8))
+        return try Self.changeRows(from: data)
+    }
+
+    /// `get_my_changes`' rows: each an Event as `get_my_going` sends one, with what changed.
+    static func changeRows(from data: Data) throws -> [Notice] {
+        struct Row: Decodable {
+            let changedAt: String
+            let movedFrom: Notice.Was?
+            let followed: String?
+            let followedLogo: String?
+            let game: Game.LenientItem<Game>?
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let rows = try decoder.decode([Row].self, from: data)
+        return zip(try myGoingRows(from: data), rows).compactMap { event, row in
+            guard let changedAt = DateHelpers.timestamp(row.changedAt) else { return nil }
+            var event = event
+            event.game = row.game?.value
+            return Notice(event: event, changedAt: changedAt, movedFrom: row.movedFrom, followed: row.followed,
+                          followedLogo: row.followedLogo.flatMap(URL.init(string:)))
+        }
+    }
+
     /// `get_my_going`'s rows as events, each one the neighbour is Going to, and
     /// `get_my_saves`' (`saved`), whose `going` says whether they are.
     static func myGoingRows(from data: Data, saved: Bool = false) throws -> [UpcomingEvent] {
