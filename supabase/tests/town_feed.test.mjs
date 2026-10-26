@@ -1901,3 +1901,82 @@ test('Event of the day is never a followers-only Event, even for its followers',
     `select title from public.get_event_of_the_day(('2026-10-09 12:00'::timestamp at time zone 'America/Chicago'))`);
   assert.deepEqual(rows, []);
 });
+
+// Report (ticket 22). The app calls report_event; the queue calls list_reports and resolve_reports.
+const reportAs = async (who, event, reason) => {
+  await signIn(who);
+  return (await db.query('select public.report_event($1, $2) as recheck', [event, reason])).rows[0].recheck;
+};
+
+test('a reported Event never shows to its reporter, lowers nothing, and others still see it', async () => {
+  await reset();
+  const scam = await add('Free iPhones', '2026-10-09', { start_time: '10 AM', source_name: 'Parks', category: 'arts' });
+  await add('Zoo day', '2026-10-09', { start_time: '11 AM', source_name: 'Parks', category: 'arts' });
+  await reportAs(YOU, scam, 'scam');
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.score.notInterested]), [['Zoo day', 1]]);
+  await signIn(ME);
+  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Free iPhones', 'Zoo day']);
+});
+
+test('a report holds the Event, the reason and the time only, and no neighbour can read it', async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM' });
+  await reportAs(YOU, fair, 'violence');
+  await assert.rejects(db.query('select * from public.reports'), /permission denied/);
+  assert.deepEqual((await db.query('select * from public.list_reports()')).rows, []);
+  await db.exec('reset role');
+  const { rows } = await db.query(`select column_name from information_schema.columns
+                                   where table_name = 'reports' order by ordinal_position`);
+  assert.deepEqual(rows.map((r) => r.column_name), ['id', 'event_id', 'reason', 'at']);
+  await assert.rejects(reportAs(YOU, fair, 'not_a_reason'), /reports_reason_check/);
+});
+
+test('Wrong info and Wrong photo hide nothing and only reach the queue', async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM' });
+  assert.equal(await reportAs(YOU, fair, 'wrong_info'), false);
+  assert.equal(await reportAs(YOU, fair, 'wrong_photo'), false);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Craft fair']);
+  await db.exec(`set test.admin = 'on'`);
+  assert.deepEqual((await db.query('select title, found, reasons, reports from public.list_reports()')).rows,
+    [{ title: 'Craft fair', found: true, reasons: ['wrong_info', 'wrong_photo'], reports: 2 }]);
+});
+
+test("only a neighbour's posting, reported by a signed-in account, goes back to the AI, and once", async () => {
+  await reset();
+  const found = await add('City meeting', '2026-10-09', { start_time: '6 PM' });
+  const posted = await add('Garage sale', '2026-10-09', { start_time: '8 AM', submitted_by: ME, source_name: null });
+  assert.equal(await reportAs(YOU, found, 'scam'), false);
+  const ANON = '00000000-0000-0000-0000-0000000000d1';
+  await db.exec('reset role');
+  await db.query('insert into auth.users (id, is_anonymous) values ($1, true) on conflict do nothing', [ANON]);
+  assert.equal(await reportAs(ANON, posted, 'scam'), false);
+  assert.equal(await reportAs(YOU, posted, 'scam'), true);
+  // The app can't claim the re-check; moderate-post (the service role) claims it once.
+  await assert.rejects(db.query('select public.claim_recheck($1)', [posted]), /permission denied/);
+  await db.exec('reset role; set role service_role');
+  const claim = async (id) => (await db.query('select public.claim_recheck($1) as c', [id])).rows[0].c;
+  assert.deepEqual([await claim(posted), await claim(posted), await claim(found)], [true, false, false]);
+  await db.exec('reset role');
+  assert.equal(await reportAs(ME, posted, 'bullying'), false, 'already re-checked');
+});
+
+test('the admin keeps a reported Event or takes it down for everyone', async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM' });
+  const sale = await add('Garage sale', '2026-10-09', { start_time: '8 AM' });
+  await reportAs(YOU, fair, 'scam');
+  await reportAs(YOU, sale, 'nudity');
+  await signIn(ME);
+  await assert.rejects(db.query('select public.resolve_reports($1, true)', [fair]), /admin only/);
+  await db.exec(`set test.admin = 'on'`);
+  await db.query('select public.resolve_reports($1, false)', [fair]);
+  await db.query('select public.resolve_reports($1, true)', [sale]);
+  assert.deepEqual((await db.query('select * from public.list_reports()')).rows, []);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Craft fair']);
+  await db.exec('reset role');
+  assert.deepEqual((await db.query('select status, review_reason from public.club_events where id = $1', [sale])).rows,
+    [{ status: 'rejected', review_reason: 'reported' }]);
+});
