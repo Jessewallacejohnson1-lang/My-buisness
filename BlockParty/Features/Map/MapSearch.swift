@@ -5,9 +5,8 @@
 //  Pure matching over what the map already holds — the curated spots (MapSpots.all),
 //  the loaded POIs (MapModel.pois) and today's events (MapModel.todayEvents). No
 //  network: the matcher is a case/diacritic-insensitive substring scan, with
-//  name-prefix matches ranked first. Events resolve to their spot's pin through the
-//  same keyword match the Today rows use (SJMapView.spot(for:)), passed in as a
-//  closure so the rule cannot fork.
+//  name-prefix matches ranked first. Events resolve to their spot's pin through
+//  `TodayPlaces`, the answer the Today rows and pins use, so the rule cannot fork.
 //
 //  `MapDistance` is the tab's one distance formatter ("350 ft" / "1.2 mi"),
 //  shared by the search rows and the pin-detail sheet's DISTANCE pill so the
@@ -100,8 +99,7 @@ enum MapSearch {
     static func results(query: String,
                         spots: [Spot],
                         pois: [POI],
-                        events: [TimelineEvent],
-                        spotFor: (TimelineEvent) -> Spot?) -> [MapSearchResult] {
+                        places: TodayPlaces) -> [MapSearchResult] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
 
@@ -124,10 +122,10 @@ enum MapSearch {
                 glyph: poi.glyph, coordinate: poi.coordinate)))
             order += 1
         }
-        for event in events {
+        for event in places.events {
             let secondary = [event.location ?? "", event.category.label]
             guard let r = rank(q, name: event.title, secondary: secondary) else { continue }
-            let pin = spotFor(event)
+            let pin = places.spot(for: event)
             ranked.append((r, order, MapSearchResult(
                 target: .event(event, pin: pin), name: event.title,
                 glyph: event.category.glyph, coordinate: pin?.coordinate)))

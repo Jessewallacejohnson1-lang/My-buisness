@@ -64,6 +64,7 @@ extension SJMapView {
             )
         }
         if zoom < MapModel.pinExpandZoom {
+            let places = todayPlaces
             inputs.append(contentsOf: filteredSpots.compactMap { spot -> ClusterMarkerInput? in
                 let id = ClusterMarkerID.civic(spot.id)
                 guard id != selected else { return nil }
@@ -71,7 +72,7 @@ extension SJMapView {
                     id: id,
                     coordinate: spot.coordinate,
                     family: nil,
-                    isLive: isLive(spot)
+                    isLive: isLive(spot, in: places)
                 )
             })
         }

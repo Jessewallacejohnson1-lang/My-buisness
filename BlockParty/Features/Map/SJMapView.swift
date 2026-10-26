@@ -179,7 +179,6 @@ struct SJMapView: View {
     /// Real happenings for the selected civic spot, matched from this view's
     /// `MapModel` and fed to the detail sheet. Always empty for POIs or no
     /// selection. Local state now — the tab shell no longer renders detail.
-    @State private var mapDetailHappenings: [TimelineEvent] = []
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     /// Container-level Reduce Motion (the self-contained pin animations read their own;
@@ -294,8 +293,7 @@ struct SJMapView: View {
         MapSearch.results(query: trimmedSearchQuery,
                           spots: MapSpots.all,
                           pois: model.pois,
-                          events: model.todayEvents,
-                          spotFor: { spot(for: $0) })
+                          places: todayPlaces)
     }
 
     // MARK: Client-side POI clustering (replaces the retired POILayer)
@@ -469,12 +467,13 @@ struct SJMapView: View {
     }
 
     /// Not `private`: the shared cluster + label pass consumes this exact filtered set.
-    /// Events resolves through the same today/live rule the pins use (`events(at:)`
+    /// Events resolves through the same today/live rule the pins use (`TodayPlaces`
     /// + `isLive`, DEBUG forces included); Saved reads the shared device-local store.
     var filteredSpots: [Spot] {
-        MapSpots.all.filter {
+        let places = todayPlaces
+        return MapSpots.all.filter {
             filter.includesSpot(category: $0.category,
-                                hasEventToday: !events(at: $0).isEmpty || isLive($0),
+                                hasEventToday: !places.events(at: $0).isEmpty || isLive($0, in: places),
                                 isSaved: isSavedSpot($0))
         }
     }
@@ -494,53 +493,16 @@ struct SJMapView: View {
         return nil
     }
 
-    /// Real events at this spot today — searches title AND location so an event
-    /// like "Independence Day Parade" at location "Downtown" still matches.
-    private func events(at spot: Spot) -> [TimelineEvent] {
-        model.todayEvents.filter { ev in
-            let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
-            return spot.keywords.contains { haystack.contains($0) }
-        }
-    }
+    /// Which place each of today's events is at (TodayPlaces.swift). Cheap: a few dozen
+    /// events against a handful of spots; callers that ask often take it once.
+    var todayPlaces: TodayPlaces { TodayPlaces(events: model.todayEvents) }
 
-    /// The pin an event resolves to (first curated spot whose keyword it matches),
-    /// so a Today row can fly you there. nil for an unlisted venue.
-    private func spot(for ev: TimelineEvent) -> Spot? {
-        let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
-        return MapSpots.all.first { $0.keywords.contains { haystack.contains($0) } }
-    }
-
-    /// Today's events as bubbles, one per place (TodayBubbles.swift): the place's lead
-    /// event (on now, else next to start), at its curated spot, else at its known venue.
-    /// Events with no known place, and ended ones, stay off the map. Only under All and
+    /// Today's events as bubbles, one per place (TodayBubbles.swift). Only under All and
     /// Events. Re-read each minute (`clockTick`) so an ended event drops off.
     var todayBubbles: [TodayBubble] {
         _ = model.clockTick
         guard filter == .all || filter == .events else { return [] }
-        let now = TodayBubbleClock.now()
-        var byPlace: [String: (CLLocationCoordinate2D, Spot?, [TimelineEvent])] = [:]
-        var order: [String] = []
-        for ev in model.todayEvents {
-            let place: (String, CLLocationCoordinate2D, Spot?)
-            if let s = spot(for: ev) {
-                place = (s.id, s.coordinate, s)
-            } else if let c = KnownVenues.coordinate(for: [ev.location, ev.title].compactMap { $0 }.joined(separator: " ")) {
-                place = (String(format: "%.4f,%.4f", c.latitude, c.longitude), c, nil)
-            } else { continue }
-            if byPlace[place.0] == nil { order.append(place.0); byPlace[place.0] = (place.1, place.2, []) }
-            byPlace[place.0]?.2.append(ev)
-        }
-        var bubbles: [TodayBubble] = []
-        for id in order {
-            guard let place = byPlace[id],
-                  let lead = TodayBubbleRules.lead(place.2, now: now) else { continue }
-            let pic = model.bubblePicture(for: lead)
-            bubbles.append(TodayBubble(id: id, coordinate: place.0, spot: place.1, event: lead,
-                                       picture: pic?.url, isLogo: pic?.isLogo ?? false))
-        }
-        bubbles.sort { TodayBubbleRules.starts($0.event) < TodayBubbleRules.starts($1.event) }
-        for i in bubbles.indices { bubbles[i].order = i }
-        return bubbles
+        return todayPlaces.bubbles(now: TodayBubbleClock.now(), picture: model.bubblePicture(for:))
     }
 
     /// A bubble tap opens its place's card, as a pin tap does; a bubble at a venue with
@@ -553,11 +515,11 @@ struct SJMapView: View {
     }
 
     /// A spot glows only while one of its events is actually happening.
-    func isLive(_ spot: Spot) -> Bool {
+    func isLive(_ spot: Spot, in places: TodayPlaces? = nil) -> Bool {
         #if DEBUG
         if Self.debugForceLiveIds().contains(spot.id) { return true }
         #endif
-        return events(at: spot).contains { $0.isOn() }
+        return (places ?? todayPlaces).isLive(spot)
     }
 
     /// Whether the viewer has saved this place (device-local; the map's Saved pin).
@@ -614,8 +576,7 @@ struct SJMapView: View {
                     events: model.todayEvents,
                     state: model.state,
                     spots: filteredSpots,
-                    happenings: { events(at: $0) },
-                    spotFor: { spot(for: $0) },
+                    places: todayPlaces,
                     onSelectSpot: { focus($0) },
                     onRetry: { model.retry() },
                     bottomBarInset: bottomBarInset,
@@ -634,8 +595,8 @@ struct SJMapView: View {
             if let detail = mapDetail {
                 PinDetailSheet(
                     detail: detail,
-                    happenings: mapDetailHappenings,
-                    isLive: detail.spot.map(isLive) ?? false,
+                    happenings: selectedSpot.map(todayPlaces.events(at:)) ?? [],
+                    isLive: detail.spot.map { isLive($0) } ?? false,
                     distanceLabel: detailDistanceLabel(detail),
                     height: detailSheetHeight,
                     onClose: { closeCard() }
@@ -704,7 +665,6 @@ struct SJMapView: View {
                 }
             }
             #endif
-            syncMapDetailHappenings()
             if mapDetail != nil { fetchLocationIfAuthorized() }
             // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
             // above the detail sheet, exactly as a direct pin tap would. Deferred one
@@ -728,12 +688,10 @@ struct SJMapView: View {
         .onChange(of: selectedSpot?.id) { _, id in if id == nil { releaseCameraLift() } }
         .onChange(of: selectedPOI?.id) { _, id in if id == nil { releaseCameraLift() } }
         .onChange(of: mapDetail?.id) { _, id in
-            syncMapDetailHappenings()
             // The sheet's DISTANCE pill: read an existing fix or take one
             // silently. Never prompts (see fetchLocationIfAuthorized).
             if id != nil { fetchLocationIfAuthorized() }
         }
-        .onChange(of: model.todayEvents) { _, _ in syncMapDetailHappenings() }
         // A tapped POI or civic pin opens the PinDetailSheet card mounted above —
         // the one detail presentation shared by both catalogs (Phase 3).
         // The "?" chrome button reopens the map intro any time — full-bleed, so it
@@ -748,6 +706,7 @@ struct SJMapView: View {
 
     private var mapLayer: some View {
         // Worked out once per redraw, not once per pin.
+        let places = todayPlaces
         let bubbles = todayBubbles
         let bubbledSpots = Set(bubbles.compactMap { $0.spot?.id })
         return MapReader { proxy in
@@ -806,9 +765,8 @@ struct SJMapView: View {
                 // pinExpandZoom the shared leaf moves it into its assigned cluster; above
                 // that threshold its solo assignment glides it back to this anchor.
                 ForEvery(filteredSpots) { spot in
-                    // Computed once and reused below — isLive(spot) scans today's events,
-                    // no need to repeat that scan for the badge tint and the a11y label.
-                    let spotIsLive = isLive(spot)
+                    // Computed once and reused below for the badge tint and the a11y label.
+                    let spotIsLive = isLive(spot, in: places)
                     // A place with a today bubble lets the bubble carry "on now"; its pin
                     // underneath stays calm (no plum pulse) — Jesse at Check-in 1, 2026-10-22.
                     let bubbled = bubbledSpots.contains(spot.id)
@@ -835,7 +793,8 @@ struct SJMapView: View {
                                 expanded: isSelected || model.pinsExpanded,
                                 showsLabel: model.pinsExpanded && !calmed && !bubbled
                                     && labelledMarkers.contains(markerID),
-                                a11yLabel: accessibilityLabel(for: spot, live: spotIsLive)
+                                a11yLabel: accessibilityLabel(for: spot, count: places.events(at: spot).count,
+                                                              live: spotIsLive)
                             )
                             .onTapGesture { selectSpot(spot) }
                             // The bubble on top speaks for this place.
@@ -1305,14 +1264,6 @@ struct SJMapView: View {
 
     // MARK: Actions
 
-    private func syncMapDetailHappenings() {
-        guard let spot = selectedSpot else {
-            mapDetailHappenings = []
-            return
-        }
-        mapDetailHappenings = events(at: spot)
-    }
-
     /// A camera viewport centered on `coord` with the detail sheet's zone reserved
     /// as bottom padding, so the selected pin lands centered in the visible strip
     /// of map ABOVE the card rather than hiding behind it. The reserve tracks the
@@ -1585,8 +1536,7 @@ struct SJMapView: View {
 
     /// Spoken pin summary — the same complete sentences the sheet uses
     /// (MapSheetCopy), so eyes and ears hear one voice.
-    private func accessibilityLabel(for spot: Spot, live: Bool) -> String {
-        let n = events(at: spot).count
+    private func accessibilityLabel(for spot: Spot, count n: Int, live: Bool) -> String {
         var parts = ["\(spot.name)."]
         parts.append(n == 0 ? "Nothing happening yet today."
                             : MapSheetCopy.todayCountSentence(n))
