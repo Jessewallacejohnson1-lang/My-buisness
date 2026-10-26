@@ -18,7 +18,8 @@ test('the story below loads every migration that makes the writer\'s functions',
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
                     '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
-                    '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql']);
+                    '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql',
+                    '20261026090100_apply_judged_followers_only.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -135,6 +136,19 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal(await where(), 'ROCORI High School, Cold Spring', 'a blank place keeps it too');
   await apply(placed('2026-10-21').map((g) => ({ ...g, location: 'Sartell High School' })), [], [], []);
   assert.equal(await where(), 'Sartell High School', 'a new place moves it');
+
+  // A Bound Event for followers only, with its school and activity (school-activities 03); a writer
+  // from before them makes it everyone's.
+  await db.exec(`alter table public.club_events add column followers_only boolean not null default false,
+    add column activity_team text, add column activity_name text`);
+  await db.exec(migration('20261026090100_apply_judged_followers_only.sql'));
+  const marks = async () => (await db.query(
+    'select followers_only as f, activity_team as team, activity_name as name from public.club_events')).rows;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, followers_only: true, activity_team: 'rocori',
+                                                activity_name: 'Volleyball, Girls' })), [], [], []);
+  assert.deepEqual(await marks(), [{ f: true, team: 'rocori', name: 'Volleyball, Girls' }]);
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.deepEqual(await marks(), [{ f: false, team: null, name: null }]);
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');

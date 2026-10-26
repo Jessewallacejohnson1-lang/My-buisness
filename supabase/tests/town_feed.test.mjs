@@ -18,7 +18,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
-  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring']);
+  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -59,7 +59,16 @@ await db.exec(`
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
-    local boolean not null default false, nickname text);
+    local boolean not null default false, nickname text, school_name text);
+  -- The schools whose activities can be followed (school-activities 01 and 02), for the activities'
+  -- migration to name; the stories add the teams they need, as reset() empties the table.
+  insert into public.teams (id, name, short_name, local) values
+    ('apollo', 'Apollo', 'Apollo', true), ('tech', 'Tech', 'Tech', true), ('cathedral', 'Cathedral', 'Cathedral', true),
+    ('apollo-cathedral', 'Apollo-Cathedral', 'Apollo-Cathedral', true), ('rocori', 'ROCORI', 'ROCORI', true),
+    ('sartell', 'Sartell', 'Sartell', true), ('sauk-rapids-rice', 'Sauk Rapids-Rice', 'Sauk Rapids-Rice', true),
+    ('saint-benedict', 'Saint Benedict', 'Saint Benedict', true), ('saint-johns', 'Saint John''s', 'Saint John''s', true);
+  create table public.town_follows (id uuid primary key default gen_random_uuid(), follower_id uuid not null,
+    target_type text not null, target_id uuid not null, unique (follower_id, target_type, target_id));
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -126,6 +135,9 @@ await db.exec(findable);
 for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
   await db.exec(readFileSync(join(migrations, f), 'utf8'));
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
+// The stories empty teams between them; the activities stay, matched by their ids.
+await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
+                 drop constraint team_activities_fielded_by_fkey`);
 
 const CITY = 'City of St. Joseph';
 const ME = '00000000-0000-0000-0000-00000000000a';
@@ -138,7 +150,7 @@ async function reset() {
                  delete from public.town_profiles; delete from private.friendships;
                  delete from private.blocks; delete from public.club_members;
                  delete from public.clubs; delete from public.sources; delete from public.teams;
-                 delete from public.board_items; delete from public.feed_mutes;
+                 delete from public.board_items; delete from public.feed_mutes; delete from public.town_follows;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -1728,4 +1740,112 @@ test('a birthday is read by its own account only', async () => {
   assert.deepEqual((await db.query('select birthday from public.town_profiles where user_id = $1', [ME])).rows, []);
   await db.exec('reset role');
   await assert.rejects(db.query(`update public.town_profiles set birthday = '1899-12-31' where user_id = $1`, [ME]));
+});
+
+// Followed activities (school-activities 03): an activity starred on a school's page, or the whole
+// school, lifts its Events and says so; a followers-only Event reaches only them.
+async function follow(who, type, team, activity) {
+  await db.exec('reset role');
+  const id = activity
+    ? (await db.query(`select id from public.team_activities where team_id = $1 and name = $2`, [team, activity])).rows[0].id
+    : (await db.query(`select uuid from public.teams where id = $1`, [team])).rows[0].uuid;
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, $2, $3)`, [who, type, id]);
+}
+async function schools() {
+  await db.exec(`reset role; insert into public.teams (id, name, short_name, local) values
+    ('cathedral', 'Cathedral', 'Cathedral', true), ('sartell', 'Sartell', 'Sartell', true),
+    ('apollo', 'Apollo', 'Apollo', true) on conflict do nothing`);
+}
+async function game(title, date, sport, teams, more = {}) {
+  const id = await add(title, date, { start_time: '7 PM', ...more });
+  await db.query(`update public.club_events set sport = $2, team_ids = $3, followers_only = $4 where id = $1`,
+                 [id, sport, teams, more.followersOnly ?? false]);
+  return id;
+}
+const why = async (at) => Object.fromEntries((await feed(at)).map((r) => [r.title, [r.reason, r.reason_name]]));
+
+test('an activity you follow lifts its games and says so; following the whole school covers every activity', async () => {
+  await reset();
+  await schools();
+  await game('Cathedral Volleyball vs Sartell', '2026-10-09', 'Volleyball', ['cathedral', 'sartell']);
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.follow]), [
+    ['Cathedral Volleyball vs Sartell', 'follow', 'Cathedral Volleyball (girls)', 3],
+    ['Fall fair', 'tomorrow', null, 0]]);
+  await db.exec('reset test.admin');
+  await db.exec(`reset role; delete from public.town_follows`);
+  await follow(ME, 'team', 'cathedral');
+  await signIn(ME);
+  assert.deepEqual((await why('2026-10-08 12:00'))['Cathedral Volleyball vs Sartell'], ['follow', 'Cathedral']);
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual((await why('2026-10-08 12:00'))['Cathedral Volleyball vs Sartell'], ['tomorrow', null]);
+});
+
+test('a followers-only Event reaches only those following its activity or its school', async () => {
+  await reset();
+  await schools();
+  await game('Cathedral Volleyball vs Sartell · JV', '2026-10-09', 'Volleyball', ['cathedral', 'sartell'],
+             { followersOnly: true });
+  await add('Fall fair', '2026-10-09');
+  const OTHER = '00000000-0000-0000-0000-00000000000b';
+  const SCHOOL = '00000000-0000-0000-0000-00000000000c';
+  await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
+  await follow(OTHER, 'activity', 'cathedral', 'Football');
+  await follow(SCHOOL, 'team', 'sartell');
+  await db.exec('set role anon');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'signed out never sees it');
+  await signIn(OTHER);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "another activity's follower doesn't");
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Cathedral Volleyball vs Sartell · JV', 'Fall fair']);
+  await signIn(SCHOOL);
+  assert.deepEqual((await why('2026-10-08 12:00'))['Cathedral Volleyball vs Sartell · JV'], ['follow', 'Sartell'],
+                   'the other school, followed whole');
+});
+
+test("a concert lands on its activity by Bound's name: Choir is never Chamber Choir, Drama is Theatre/Drama", async () => {
+  await reset();
+  await schools();
+  for (const [title, name] of [['Fall Choir Concert', 'Choir'], ['The SpongeBob Musical', 'Drama']]) {
+    const id = await add(title, '2026-10-09', { start_time: '7 PM', source_name: 'Apollo High School' });
+    await db.query(`update public.club_events set followers_only = true, activity_team = 'apollo', activity_name = $2
+                    where id = $1`, [id, name]);
+  }
+  const CHAMBER = '00000000-0000-0000-0000-00000000000b';
+  await follow(ME, 'activity', 'apollo', 'Choir');
+  await follow(ME, 'activity', 'apollo', 'Theatre/Drama');
+  await follow(CHAMBER, 'activity', 'apollo', 'Chamber Choir');
+  await signIn(ME);
+  assert.deepEqual(await why('2026-10-08 12:00'), {
+    'Fall Choir Concert': ['follow', 'Apollo Choir'], 'The SpongeBob Musical': ['follow', 'Apollo Theatre/Drama'] });
+  await signIn(CHAMBER);
+  assert.deepEqual(await titles('2026-10-08 12:00'), []);
+});
+
+test('what you follow says so before an interest it matches', async () => {
+  await reset();
+  await schools();
+  await game('Cathedral Volleyball vs Sartell', '2026-10-09', 'Volleyball', ['cathedral', 'sartell'],
+             { category: 'watch_sports' });
+  await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
+  await signIn(ME, ['watch_sports']);
+  assert.deepEqual((await why('2026-10-08 12:00'))['Cathedral Volleyball vs Sartell'],
+                   ['follow', 'Cathedral Volleyball (girls)']);
+});
+
+test('Event of the day is never a followers-only Event, even for its followers', async () => {
+  await reset();
+  await schools();
+  await game('Cathedral Volleyball vs Sartell · JV', '2026-10-09', 'Volleyball', ['cathedral', 'sartell'],
+             { followersOnly: true });
+  await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-09 12:00'), ['Cathedral Volleyball vs Sartell · JV']);
+  const { rows } = await db.query(
+    `select title from public.get_event_of_the_day(('2026-10-09 12:00'::timestamp at time zone 'America/Chicago'))`);
+  assert.deepEqual(rows, []);
 });

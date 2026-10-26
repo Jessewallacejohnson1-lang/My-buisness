@@ -44,6 +44,11 @@ await db.exec(`
 await db.exec(one('_team_activities.sql'));
 await db.exec(one('_activity_follows.sql'));
 await db.exec(one('_school_names.sql'));
+// Followed activities (ticket 03) remake team_page and activity_events; the Town feed it also remakes
+// isn't read here, so its tables needn't exist.
+await db.exec(`set check_function_bodies = off`);
+await db.exec(one('_activity_follow_lift.sql'));
+await db.exec(`reset check_function_bodies`);
 
 const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
 const apollo = (await db.query(`select uuid from public.teams where id = 'apollo'`)).rows[0].uuid;
@@ -99,4 +104,20 @@ test("an activity's coming events, soonest first, never a cancelled one", async 
 test('Kennedy has its logo and colours, navy first', async () => {
   const { rows } = await db.query(`select colors, logo_url like '%kennedy-community-school/logo-%' logo from public.teams where id = 'kennedy'`);
   assert.deepEqual(rows[0], { colors: ['#1B2859', '#1C532F', '#CDCECF'], logo: true });
+});
+
+test("the school's games stay what everyone sees; an activity's own list has every level, its concerts too", async () => {
+  await db.exec('delete from public.club_events');
+  await db.query(`insert into public.club_events (title, sport, team_ids, event_date, start_time, followers_only) values
+    ('Apollo Girls Soccer vs Tech', 'Girls Soccer', array['apollo', 'tech'], $1, '7 PM', false),
+    ('Apollo Girls Soccer vs Tech · JV', 'Girls Soccer', array['apollo', 'tech'], $1, '5 PM', true)`, [soon(2)]);
+  await db.query(`insert into public.club_events (title, event_date, start_time, followers_only, activity_team, activity_name)
+    values ('Fall Choir Concert', $1, '7 PM', true, 'apollo', 'Choir')`, [soon(3)]);
+  const [page] = await as(ME, `select public.team_page($1) p`, [apollo]);
+  assert.deepEqual(page.p.games.map((g) => g.time), ['7 PM'], 'the JV game stays off the games list');
+  assert.equal(page.p.activities.find((a) => a.name === 'Girls Soccer').next.title, 'Apollo Girls Soccer vs Tech · JV');
+  assert.equal(page.p.activities.find((a) => a.name === 'Choir').next.title, 'Fall Choir Concert');
+  assert.equal(page.p.activities.find((a) => a.name === 'Chamber Choir').next, null);
+  const [soccer] = await as(ME, `select public.activity_events($1) e`, [await id('apollo', 'Girls Soccer')]);
+  assert.deepEqual(soccer.e.map((e) => e.title), ['Apollo Girls Soccer vs Tech · JV', 'Apollo Girls Soccer vs Tech']);
 });
