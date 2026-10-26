@@ -53,10 +53,10 @@ struct ReportedEvent: Identifiable, Equatable, Decodable {
     let reports: Int
     var id: String { eventId }
 
-    /// "Scam, fraud or spam · 2 reports".
+    /// "3 reports · Scam, fraud or spam": the count first, as the line can be cut short.
     var subtitle: String {
         let words = reasons.map { ReportReason(rawValue: $0)?.label ?? $0 }.joined(separator: ", ")
-        return reports > 1 ? "\(words) · \(reports) reports" : words
+        return reports > 1 ? "\(reports) reports · \(words)" : words
     }
 }
 
