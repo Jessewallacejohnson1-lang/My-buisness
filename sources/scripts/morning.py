@@ -6,7 +6,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   prepare   fetch every watched page the polite way (run.fetch_watched; yesterday's
             fingerprints are in the database), read the feeds and data sources (read_events.py),
             and lay out only the changed pages in batches of 12 for the cheap model (batch.py), with
-            the events already listed for the judge
+            the events already listed for the judge; a changed page of a seasonal place (its
+            `places.hours` has a season) goes to seasons.txt with its lines that name a month,
+            for the routine to flag new season dates (BP app business-hours, Jesse 2026-10-26)
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
@@ -46,7 +48,7 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py --selftest
 """
 
-import argparse, contextlib, json, shutil, subprocess, sys
+import argparse, contextlib, json, re, shutil, subprocess, sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -90,6 +92,24 @@ def pages_to_read(changed, entries):
                         "entry_id": e["id"], "name": e["_name"], "category": e.get("category"),
                         "trust": s.get("trust") or "official"})
     return out
+
+
+MONTH = re.compile(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}/\d{1,2}\b", re.I)
+
+
+def season_pages(pages, seasons):
+    """Each changed page of a seasonal place: the season the app shows, then the page's lines that
+    name a date, for the routine to compare. Empty when none changed."""
+    out = []
+    for p in pages:
+        place = seasons.get(p["entry_id"])
+        if not place:
+            continue
+        start, end = place["hours"]["season"]
+        lines = [ln.strip() for ln in p["text"].splitlines() if MONTH.search(ln)][:40]
+        out.append(f"## {place['name']}\nThe app's season: {start} to {end} (month-day)\nPage: {p['url']}\n"
+                   + "\n".join(lines) + "\n")
+    return "\n".join(out)
 
 
 def snapshot_text(path):
@@ -154,6 +174,9 @@ def prepare(today, out):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in pages], indent=1))
     (out / "existing.json").write_text(json.dumps(write_judged.listed_in_db(), indent=1, default=str))
+    seasons = {r["entry_id"]: r for r in Supabase().call(
+        "GET", "places?select=name,entry_id,hours&entry_id=not.is.null&hours->season=not.is.null")}
+    (out / "seasons.txt").write_text(season_pages(pages, seasons))
 
     summary = {"today": str(today), "fetched": report["fetched"], "changed": len(report["changed"]),
                "first_seen": sum(1 for c in report["changed"] if c.get("first_seen")),
@@ -480,6 +503,13 @@ def selftest():
          "only watched pages no reader or calendar feed covers, never one seen for the first time"),
         (pages[0]["file"] == "milk--abc123" and pages[0]["name"] == "Milk & Honey Ciders", "named by its snapshot"),
     ]
+    market = [{"entry_id": "fm", "url": "https://fm/", "text": "Fresh food\nOur 2027 season begins Friday, May 7.\nFridays 3 to 6 pm through 10/15\n"},
+              {"entry_id": "other", "url": "https://o/", "text": "Open May 1"}]
+    seasons = season_pages(market, {"fm": {"name": "Farmers' Market", "hours": {"season": ["05-08", "10-16"]}}})
+    checks.append(("05-08 to 10-16" in seasons and "May 7" in seasons and "10/15" in seasons
+                   and "Fresh food" not in seasons and "https://o/" not in seasons,
+                   "a seasonal place's changed page lists its dated lines beside the app's season"))
+    checks.append((season_pages(market, {}) == "", "no seasonal place changed, nothing to compare"))
     tmp = Path(__file__).resolve().parents[2] / ".runs" / "morning-selftest.md"
     tmp.parent.mkdir(exist_ok=True)
     tmp.write_text("---\nentry_id: milk\nurl: https://m\n---\n\nPlant Bingo Oct 24\n")

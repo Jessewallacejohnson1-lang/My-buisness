@@ -105,6 +105,7 @@ what keeps an entry written in 2026 readable in 2030.
 | `venues` | no | Buildings, rooms and fields inside this place that events name as their place ("Sexton Arena" at Saint John's). An event held at one shows this place's picture. Not other names for the place itself: those are `aka`. |
 | `place_type` | no | `Business`, `Community group`, `Church`, `School / college`, `Government` or `Park / historic`. Set by verification so "businesses only" is a filter, not a second list. |
 | `address`, `phone` | no | Where the place is and how to reach it, from a non-Google source only (ADR-016). Verification's drafts fill them in. |
+| `hours_from` | no | `website` when the place's own site has newer hours than Google: the monthly accounts run then leaves its `places.hours` alone (Jesse, 2026-10-26). |
 | `entity` | no (defaults to `place`) | What kind of thing this is. The registry lists **places**; events live in their own table and are what a place's sources produce (ADR-013). |
 | `sources` | yes | List of places to look. At least one. |
 

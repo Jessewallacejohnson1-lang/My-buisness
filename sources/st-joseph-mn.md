@@ -2317,6 +2317,7 @@ id: cow-wandering
 status: active
 address: "14 College Ave N Ste b"
 phone: "3209802695"
+hours_from: website
 tier: watched
 category: amenity=ice_cream
 added_by: agent:discover
@@ -2326,7 +2327,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Hours come from its own site, wanderingcowmn.com/contact: Google kept its summer hours into fall (Jesse, 2026-10-26).
 
 ## Thomsen’s Garden Center
 ```yaml
@@ -2334,16 +2335,16 @@ id: center-garden-thomsens
 status: active
 address: "29754 156th Ave"
 phone: "3203637375"
-tier: listed
+tier: watched
 category: agriculture-farming
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.thomsensgardencenter.com/
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Watched since 2026-10-26 for its season and workshops: Jesse's yes to flagging seasonal places' new dates (BP app business-hours).
 
 ## Tiremaxx/Mid-State Wholesale Tire
 ```yaml
@@ -8235,7 +8236,7 @@ tier: listed
 category: "farm"
 place_type: "Business"
 address: "29709 Kipper Rd"
-phone: "+13203637784"
+phone: "3202487784"
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8243,7 +8244,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted. Phone 320-248-7784 from KNSI (2026-03-19, Shelly Carlson); Minnesota Grown lists 320-363-7784. Open only for its late-March sugar-shack tours (knsiradio.com/?p=818065).
 
 ## Winston's Doggy Motel
 ```yaml

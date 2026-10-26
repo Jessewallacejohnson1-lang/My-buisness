@@ -14,7 +14,8 @@ The same results carry each place's Google hours, and those go live on their own
 2026-10-25: hours are a fact; BP app business-hours): `report` writes every place whose hours
 changed or that has hours for the first time to `places.hours`, the business page's open-till
 row, and lists them. It needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; without them it only
-lists. A place Google gives no hours keeps the ones it has.
+lists. A place Google gives no hours keeps the ones it has, and so does one whose registry entry says
+`hours_from: website` (its own site is newer than Google's: Jesse, 2026-10-26).
 
 A Google result is the place only when its phone, its street (house number and first street
 word) or its website's domain matches the registry's (the 2026-10-22 pass's rule). A link
@@ -199,7 +200,8 @@ def match(entries, results, pages):
         if it.get("permanentlyClosed"):
             closed.append({"entry_id": e["id"], "name": e["_name"]})
         matched.append((e, links_of(it)))
-        if hours_of(it):
+        # `hours_from: website`: the place's own site is newer than Google (Jesse, 2026-10-26).
+        if hours_of(it) and e.get("hours_from") != "website":
             hours.append({"entry_id": e["id"], "name": e["_name"], "hours": hours_of(it)})
     freq = Counter(u.lower() for _, found in matched for urls in found.values() for u in urls)
     new, changed = [], []
@@ -329,7 +331,9 @@ def selftest():
     market = {"entry_id": "m", "name": "M", "hours": {"fri": [["15:00", "18:00"]]}}
     assert not new_hours([market], {"m": {"fri": [["15:00", "18:00"]], "season": ["05-08", "10-16"]}}), "a season is not a change"
     assert new_hours([market], {"m": {"fri": [], "season": ["05-08", "10-16"]}})[0]["hours"]["season"] == ["05-08", "10-16"], "new hours keep the season"
-    print("accounts.py selftest: 16 passed, 0 failed")
+    own = match([{**e, "hours_from": "website"}], [{**hit, "openingHours": week}], [])
+    assert not own["hours"] and match([e], [{**hit, "openingHours": week}], [])["hours"], "a place's own site beats Google when marked"
+    print("accounts.py selftest: 17 passed, 0 failed")
 
 
 def main():
