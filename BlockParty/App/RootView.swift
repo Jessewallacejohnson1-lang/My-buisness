@@ -317,6 +317,12 @@ struct MainTabsView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.
+    private func recordOpen() {
+        guard auth.isSignedIn else { return }
+        Task { try? await CommunityAPI(auth: AuthStore.shared).recordOpen() }
+    }
+
     init(startTab: Tab? = nil) {
         self.startTab = startTab
         let resolved = startTab ?? MainTabsView.initialTab()
@@ -563,6 +569,7 @@ struct MainTabsView: View {
                 cancelNotice.away()
             }
             if phase == .active {
+                recordOpen()
                 Task { await friendsBook.refreshDot() }
                 Task { await cancelNotice.check() }
                 // Back the next morning on Daily: today's picks, not yesterday's.
@@ -570,6 +577,7 @@ struct MainTabsView: View {
             }
         }
         .onAppear {
+            recordOpen()
             // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
             // sample inbox's newest chat, the one way left into the sample chats.
             if Self.debugOpen("-open-friends") { openFriends() }
