@@ -366,7 +366,7 @@ final class SearchModel {
 
     /// The name on a card: the mockup drops what only repeats the kind of place.
     static func shown(_ name: String) -> String {
-        [" | Italian", " - St. Joseph", " Company", " Restaurant"]
+        [" | Italian", " - \(Town.everyday)", " Company", " Restaurant"]
             .reduce(name) { $0.replacingOccurrences(of: $1, with: "") }
     }
 
@@ -391,8 +391,7 @@ final class SearchModel {
             return SearchItem(id: "k:\(park.id)", kind: .park, name: park.title, sub: "Park", photo: photo,
                               group: "Parks", keywords: ["park"] + park.features)
         }
-        let trails = [("Lake Wobegon Trail", "wobegon-trail"), ("Saint John's Abbey Arboretum", "sju-arboretum-trail"),
-                      ("Stella Maris Chapel Trail", "chapel-trail-stella-maris"), ("Boardwalk Loop Trail", "boardwalk-loop-trail")]
+        let trails = Town.trails
             .map { name, photo in
                 SearchItem(id: "k:\(name)", kind: .park, name: name, sub: "Trail", photo: .bundled(photo),
                            group: "Trails", keywords: ["trail", "walk", "hike"])

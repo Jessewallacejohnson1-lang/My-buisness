@@ -1109,7 +1109,7 @@ struct SJMapView: View {
         .buttonStyle(.plain)
         .animation(Motion.smooth, value: model.townLabel)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.townLabel). Tap to return to Saint Joseph.")
+        .accessibilityLabel("\(model.townLabel). Tap to return to \(Town.name).")
         .accessibilityAddTraits(.isButton)
     }
 

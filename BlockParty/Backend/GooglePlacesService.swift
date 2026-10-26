@@ -416,7 +416,7 @@ final class GooglePlacesService {
             //
             // `nil` from searchResults means the SEARCH itself failed (network / 429),
             // not "nothing matched" — surface that as `.unavailable` so it is not cached.
-            guard let candidates = await self.searchResults("\(name) St Joseph MN") else { return .unavailable }
+            guard let candidates = await self.searchResults("\(name) \(Town.searchSuffix)") else { return .unavailable }
             for candidate in candidates.prefix(5) {
                 guard RuleA.clears(resolvedName: candidate.name,
                                    resolvedCoordinate: candidate.coordinate,
@@ -456,7 +456,7 @@ final class GooglePlacesService {
     /// by query, detailsCache by place_id), so a repeat open of the same pin —
     /// and the VenueInfoView that follows it into full details — re-bills nothing.
     func confidentDetails(name: String, coordinate: CLLocationCoordinate2D) async -> PlaceDetails? {
-        guard let candidates = await searchResults("\(name) St Joseph MN") else { return nil }
+        guard let candidates = await searchResults("\(name) \(Town.searchSuffix)") else { return nil }
         for candidate in candidates.prefix(5) {
             guard RuleA.clears(resolvedName: candidate.name,
                                resolvedCoordinate: candidate.coordinate,

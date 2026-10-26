@@ -375,8 +375,7 @@ struct GroupPage: View {
 
     /// "Book club · St. Joseph": the town alone when the group doesn't say what kind it is.
     static func kindLine(_ group: TownGroup) -> String {
-        let town = Town.display.components(separatedBy: ",").first ?? Town.display
-        return [nonempty(group.kind), town].compactMap { $0 }.joined(separator: " · ")
+        return [nonempty(group.kind), Town.everyday].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// "1st Tuesdays at 9:30 AM · Fireside Room, Resurrection Lutheran"; nil with neither.

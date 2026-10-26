@@ -360,6 +360,7 @@ struct CommunityAPI {
     /// The Town feed's views and opens (ticket 20), in one insert. Who and when are set by
     /// the database; nobody reads them back. Ids that aren't Events (samples) are skipped.
     func recordFeedActions(_ batch: [FeedAction]) async throws {
+        guard !Self.isSimulator else { return }
         let rows = batch.filter { UUID(uuidString: $0.itemID) != nil }
             .map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
         guard !rows.isEmpty else { return }
@@ -369,9 +370,20 @@ struct CommunityAPI {
                                         prefer: "return=minimal")
     }
 
+    /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet
+    /// test account, and on 2026-10-26 they were 17 of the day's 18 opens in Jesse's weekly numbers.
+    private static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }
+
     /// Today's first open of the app, for the weekly numbers' reach (town-feed 26). The database
     /// keeps one row per person per Town day, so calling it on every return is harmless.
     func recordOpen() async throws {
+        guard !Self.isSimulator else { return }
         _ = try await SupabaseHTTP.rest("rpc/record_open", method: "POST", accessToken: try await token(),
                                         body: Data("{}".utf8))
     }
@@ -392,6 +404,17 @@ struct CommunityAPI {
             let (data, _) = try await SupabaseHTTP.rest("rpc/mute_host", method: "POST", accessToken: t,
                                                         body: try body(["p_item": id]))
             return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+        case .report(let id, let reason):
+            guard UUID(uuidString: id) != nil else { return nil }
+            let (data, _) = try await SupabaseHTTP.rest("rpc/report_event", method: "POST", accessToken: t,
+                                                        body: try body(["p_event": id, "p_reason": reason.rawValue]))
+            // A neighbour's posting goes back through the AI check (town-feed 22). The function claims
+            // it once and lets go if the model doesn't answer, so a lost call is retried by the next
+            // report; the reporter never waits.
+            if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
+                Task.detached { try? await Self.recheck(id, token: t) }
+            }
+            return nil
         case .unmute(let host):
             var allowed = CharacterSet.urlQueryAllowed
             allowed.remove(charactersIn: "&=+,()")
@@ -399,6 +422,17 @@ struct CommunityAPI {
             _ = try await SupabaseHTTP.rest("feed_mutes", method: "DELETE", query: "host=eq.\(value)", accessToken: t)
             return nil
         }
+    }
+
+    /// moderate-post, asked to read a reported posting again.
+    private static func recheck(_ id: String, token: String) async throws {
+        var req = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/moderate-post"))
+        req.httpMethod = "POST"
+        req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["recheck": id])
+        _ = try await URLSession.shared.data(for: req)
     }
 
     /// The hosts you muted, newest first: Profile's Muted list (town-feed 21).
@@ -755,6 +789,19 @@ struct CommunityAPI {
         let (data, _) = try await SupabaseHTTP.rest("clubs",
             query: "select=*&status=eq.pending&order=created_at.desc", accessToken: t)
         return try decode(data)
+    }
+
+    /// Reported Events still up, newest report first (town-feed 22). Admin only; anyone else gets none.
+    func reportedEvents() async throws -> [ReportedEvent] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/list_reports", method: "POST", accessToken: try await token(),
+                                                    body: Data("{}".utf8))
+        return try decode(data)
+    }
+
+    /// Keep a reported Event (its reports go) or take it down for everyone.
+    func resolveReports(_ id: String, takeDown: Bool) async throws {
+        _ = try await SupabaseHTTP.rest("rpc/resolve_reports", method: "POST", accessToken: try await token(),
+                                        body: try body(["p_event": id, "p_take_down": takeDown]))
     }
 
     func approvePost(_ id: String) async throws { try await patchStatus("club_events", id: id, status: .approved) }

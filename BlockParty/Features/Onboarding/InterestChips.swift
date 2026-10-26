@@ -78,7 +78,7 @@ struct InterestChips: View {
         if q.isEmpty {
             if !picked.isEmpty { group("Added", picked) }
             let popular = open(shownPopular ?? [])
-            if !popular.isEmpty { group("Popular in St. Joseph", popular) }
+            if !popular.isEmpty { group("Popular in \(Town.everyday)", popular) }
             ForEach(Interests.sections, id: \.title) { section in
                 let left = open(section.items.map(\.id)).filter { !(shownPopular ?? []).contains($0) }
                 if !left.isEmpty { group(section.title, left) }

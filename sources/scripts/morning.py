@@ -174,7 +174,7 @@ def prepare(today, out):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in pages], indent=1))
     (out / "existing.json").write_text(json.dumps(write_judged.listed_in_db(), indent=1, default=str))
-    seasons = {r["entry_id"]: r for r in Supabase().call(
+    seasons = {r["entry_id"]: r for r in Supabase().rest(
         "GET", "places?select=name,entry_id,hours&entry_id=not.is.null&hours->season=not.is.null")}
     (out / "seasons.txt").write_text(season_pages(pages, seasons))
 
@@ -205,19 +205,16 @@ def read_items(path):
     return items
 
 
-def summary_lines(prep, items, result, written):
+def summary_lines(prep, result, written):
     count = {}
     for what, _ in result["outcomes"]:
         count[what] = count.get(what, 0) + 1
-    held = [it["title"] for it, (what, _) in zip(items, result["outcomes"]) if what in ("held", "news held")]
     lines = [f"Social watch ({prep['run']}), {prep['today']}" if prep.get("run") else f"Morning watch, {prep['today']}",
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
-             f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed, "
-             f"{count.get('held', 0)} held for Jesse",
-             f"- News: {count.get('news', 0)} kept, {count.get('news held', 0)} held for Jesse",
+             f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed",
+             f"- News: {count.get('news', 0)} new, {count.get('repeat', 0)} repeats left out",
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
-    lines += [f"- Held: {t}" for t in held]
     lines += [f"- Source failed: {f}" for f in prep["failed"]]
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines.append(f"- Written: {json.dumps(written)}" if written is not None else "- Dry run: nothing written")
@@ -249,10 +246,10 @@ def write(out, dry_run, today):
     items = feeds + judged
     existing = write_judged.listed_in_db()
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
-                               teams=write_judged.known_teams())
+                               teams=write_judged.known_teams(), recent_news=write_judged.news_in_db(today))
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
-    print("\n".join(summary_lines(prep, items, result, written)))
+    print("\n".join(summary_lines(prep, result, written)))
     if not dry_run:
         save_fingerprints(out)
 
@@ -271,7 +268,7 @@ def to_tag(today):
     """Approved Events no tagger has read or rated, or with no words saying what they are, still to
     come or still running, as the tagger reads them. `tagged`: read and rated before, so only its
     words are written."""
-    rows = Supabase().call("GET", "club_events?select=id,title,location,description,category,source_name,"
+    rows = Supabase().rest("GET", "club_events?select=id,title,location,description,category,source_name,"
                                   "interests_tagged_at,draw,clubs(name)"
                            "&status=eq.approved&kind=eq.event"
                            f"&and={quote(f'(or(interests_tagged_at.is.null,draw.is.null,what.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
@@ -350,7 +347,7 @@ def tag(out, dry_run):
         db, now = Supabase(), datetime.now(LOCAL).isoformat()
         for event_id, write in writes.items():
             stamp = {} if set(write) == {"what"} else {"interests_tagged_at": now}
-            db.call("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
+            db.rest("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
     empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
     words = sum(1 for w in writes.values() if "what" in w)
     draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
@@ -364,7 +361,7 @@ def to_describe(today):
     sentence, soonest first. Older ones were researched already (the 2026-10-24 backfill, or an
     earlier morning), so a thin one stays thin rather than being searched again every day."""
     since = (today - timedelta(days=2)).isoformat()
-    rows = Supabase().call("GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,"
+    rows = Supabase().rest("GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,"
                                   "source_url,clubs(name)&status=eq.approved&kind=eq.event"
                            f"&event_date=gte.{today}&created_at=gte.{since}&order=event_date&limit=1000")
     thin = [r for r in rows if len((r.get("description") or "").strip()) < THIN]
@@ -410,7 +407,7 @@ def describe(out, dry_run):
     if not dry_run:
         db = Supabase()
         for event_id, about in writes.items():
-            db.call("PATCH", f"club_events?id=eq.{event_id}", {"description": about}, prefer="return=minimal")
+            db.rest("PATCH", f"club_events?id=eq.{event_id}", {"description": about}, prefer="return=minimal")
     print(f"[morning] described {len(writes)} of {len(events)} thin events" + (" (dry run: nothing written)" if dry_run else ""))
     for c in checks:
         print(f"[check] {c}")
@@ -421,14 +418,14 @@ def todays_events(today):
     source, not called off), with what the model weighs: interests, draw, Going and hearts. The
     feed's function itself reads private helpers the service key can't reach."""
     db = Supabase()
-    rows = db.call("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
+    rows = db.rest("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
                           "interests,interests_tagged_at,category,draw,clubs(name)"
                           f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null"
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
     if not rows:
         return []
     ids = ",".join(r["id"] for r in rows)
-    count = lambda table: [x["event_id"] for x in db.call("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
+    count = lambda table: [x["event_id"] for x in db.rest("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
     going, hearts = count("event_rsvps"), count("event_likes")
     return [event_line(r, going.count(r["id"]), hearts.count(r["id"])) for r in rows]
 
@@ -472,8 +469,8 @@ def standouts(out, dry_run, today):
     # No usable line keeps whatever today has: with no rows Daily shows the Town feed's top pick.
     if rows and not dry_run:
         db = Supabase()
-        db.call("DELETE", f"daily_standouts?town=eq.{TOWN}&day=eq.{today}", prefer="return=minimal")
-        db.call("POST", "daily_standouts", rows, prefer="return=minimal")
+        db.rest("DELETE", f"daily_standouts?town=eq.{TOWN}&day=eq.{today}", prefer="return=minimal")
+        db.rest("POST", "daily_standouts", rows, prefer="return=minimal")
     print(f"[morning] standouts: {len(rows)} of {len(events)} events today"
           + (" (dry run: nothing written)" if dry_run else "")
           + ("" if rows or not events else "; none written, so Daily shows the Town feed's top pick"))
@@ -525,12 +522,11 @@ def selftest():
     tmp.with_name("titles.json").unlink()
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
-    result = {"outcomes": [("published", ""), ("held", "unsure"), ("news", ""), ("merged", "into x")]}
-    items = [{"title": "Plant Bingo"}, {"title": "Maybe a sale"}, {"title": "Closed Monday"}, {"title": "Fare for All"}]
-    lines = summary_lines(prep, items, result, {"events": 2})
-    checks.append((summary_lines({**prep, "first_seen": 2}, items, result, None)[1].endswith(", 2 new kept as a starting copy"),
+    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x")]}
+    lines = summary_lines(prep, result, {"events": 2})
+    checks.append((summary_lines({**prep, "first_seen": 2}, result, None)[1].endswith(", 2 new kept as a starting copy"),
                    "the summary counts new pages kept as a starting copy"))
-    checks.append((lines[2] == "- Events: 1 new, 1 already listed, 1 held for Jesse" and "- Held: Maybe a sale" in lines
+    checks.append((lines[2] == "- Events: 1 new, 1 already listed" and lines[3] == "- News: 1 new, 1 repeats left out"
                    and "- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
     import gzip, run as runner
@@ -630,13 +626,14 @@ def fingerprints_wait_for_write():
 
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
                 "sources": [{"url": u, "method": "fetch"}]} for i, u in [("milk", "https://m/events"), ("new", "https://n/")]]
-    names = ("apply", "listed_in_db", "interest_ids", "known_teams")
+    names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
     saved = (runner.read_page, runner.validate, runner.find_root, Supabase, *(getattr(write_judged, n) for n in names))
     try:
         with tempfile.TemporaryDirectory() as tmp:
             runner.read_page = lambda url, kind: (200, f"Plant Bingo Oct 24 at {url}", "fetch")
             runner.validate, runner.find_root, Supabase = (lambda e: []), (lambda *a: Path(tmp)), FakeDb
             write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams = (lambda: []), (lambda: []), dict
+            write_judged.news_in_db = lambda today=None: []
             out = Path(tmp) / "morning"
             out.mkdir()
             (out / "prepare.json").write_text(json.dumps({"today": "2026-10-25", "fetched": 2, "changed": 1,
@@ -667,7 +664,8 @@ def fingerprints_wait_for_write():
             return first == again == ["milk"] and unmoved and starting_copy and prepare_fetch() == []
     finally:
         (runner.read_page, runner.validate, runner.find_root, Supabase,
-         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams) = saved
+         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,
+         write_judged.news_in_db) = saved
 
 
 def main():

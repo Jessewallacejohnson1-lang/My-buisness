@@ -40,7 +40,7 @@ final class MapModel: ObservableObject {
     @Published private(set) var clockTick = 0
     /// The town the map is currently panned over — names the top pill. Starts on
     /// St. Joe (the initial camera) and follows the map as it moves.
-    @Published private(set) var townLabel = "Saint Joseph"
+    @Published private(set) var townLabel = Town.name
     /// Whether pins should show their icon+label (true) or shrink to a small dot
     /// (false) — driven by zoom, so labels only take up map space once there's
     /// room for them. Starts `false` to match SJMapView's default camera zoom

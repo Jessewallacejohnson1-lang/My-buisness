@@ -519,7 +519,7 @@ struct NeighborPage: View {
 
     /// A friend's shared plans come from your own three weeks of Going, so the rows are yours.
     private func face(now: Date) -> ProfileFace {
-        let town = Town.display.components(separatedBy: ",").first ?? Town.display
+        let town = Town.everyday
         // In the Calendar's order, with this session's Going and leaving laid over the read, as You's.
         let shared = extras.map { extras in
             YouCalendar.going(read: you.going ?? [], tapped: Array(actions.goingTapped.values),

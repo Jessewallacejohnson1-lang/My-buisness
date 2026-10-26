@@ -129,7 +129,7 @@ struct ProfileView: View {
     }
 
     private var subLine: String {
-        var parts = [Town.display.components(separatedBy: ",").first ?? Town.display]
+        var parts = [Town.everyday]
         if let s = model.sinceLabel { parts.append("Neighbor since \(s)") }
         return parts.joined(separator: " · ")
     }
@@ -403,7 +403,7 @@ struct AboutBlockPartySheet: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close About Block Party")
             }
-            Text("Block Party puts today's events, the town calendar, and a live map of St. Joseph in one place. Neighbors can share events, groups, and trails.")
+            Text("Block Party puts today's events, the town calendar, and a live map of \(Town.everyday) in one place. Neighbors can share events, groups, and trails.")
                 .font(.sans(16)).foregroundStyle(Hue.inkSecondary).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
             Text(versionLine).font(.monoMedium(13)).monospacedDigit().foregroundStyle(Hue.inkSecondary)

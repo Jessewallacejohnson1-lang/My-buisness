@@ -46,6 +46,26 @@ Deno.serve(async (req) => {
   let body: any
   try { body = await req.json() } catch { return json({ ok: false, reason: 'Bad request.' }, 400) }
 
+  // A reported neighbour posting, read again (BP app town-feed 22). The posting is read here, never
+  // taken from the caller; claim_recheck lets each one through once, so a second report or a retry
+  // never pays again. A "breaks the rules" answer declines it as reported: it leaves every feed.
+  let admin: any = null
+  // A re-check the model never answered goes back unclaimed, so the next report tries again.
+  const unclaim = async () => {
+    if (admin) await admin.from('club_events').update({ rechecked_at: null }).eq('id', body.recheck)
+  }
+  if (body.recheck) {
+    admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const { data: claimed, error } = await admin.rpc('claim_recheck', { p_event: body.recheck })
+    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!claimed) return json({ ok: true, reason: '' })
+    const { data: e } = await admin.from('club_events')
+      .select('id, kind, title, location, description, image_url').eq('id', body.recheck).single()
+    if (!e) return json({ ok: true, reason: '' })
+    body = { recheck: e.id, kind: e.kind, title: e.title, location: e.location, description: e.description,
+             image_url: e.image_url }
+  }
+
   const facts = [
     `Kind: ${body.kind}`,
     `Title: ${body.title}`,
@@ -68,14 +88,18 @@ Deno.serve(async (req) => {
         messages: [{ role: 'user', content }],
       }),
     })
-    if (!res.ok) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!res.ok) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
     const data = await res.json()
     const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
     const match = text.match(/\{[\s\S]*\}/)
-    if (!match) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!match) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
     const parsed = JSON.parse(match[0])
+    if (admin && !parsed.ok) {
+      await admin.from('club_events').update({ status: 'rejected', review_reason: 'reported' }).eq('id', body.recheck)
+    }
     return json({ ok: !!parsed.ok, reason: parsed.reason ?? '' })
   } catch {
+    await unclaim()
     return json({ ok: false, reason: 'Could not auto-check.' }, 502)
   }
 })

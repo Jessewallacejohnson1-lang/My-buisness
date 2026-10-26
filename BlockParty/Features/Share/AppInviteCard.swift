@@ -9,7 +9,7 @@ import SwiftUI
 struct AppInviteCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("St. Joseph, MN")
+            Text("\(Town.everyday), \(Town.state)")
                 .font(.mono(12)).tracking(2).foregroundStyle(Hue.inkSecondary)
             Text("Come see what's happening in town")
                 .font(.display(28)).foregroundStyle(Hue.ink)

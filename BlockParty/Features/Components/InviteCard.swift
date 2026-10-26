@@ -25,7 +25,7 @@ struct InviteCard: View {
                 if let location, !location.isEmpty { row("mappin.and.ellipse", location, mono: false) }
             }
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
-            Text("Come with me. Shared from Block Party in St. Joseph, MN.")
+            Text("Come with me. Shared from Block Party in \(Town.everyday), \(Town.state).")
                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(24)
@@ -63,7 +63,7 @@ struct PlaceShareCard: View {
                 if let detail, !detail.isEmpty { row("text.alignleft", detail) }
             }
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
-            Text("Find it on the Block Party map of St. Joseph, MN.")
+            Text("Find it on the Block Party map of \(Town.everyday), \(Town.state).")
                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(24)

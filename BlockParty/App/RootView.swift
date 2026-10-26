@@ -272,13 +272,13 @@ struct MainTabsView: View {
     @State private var helloLink: SafariLink?
 
     @MainActor
-    private func helloMessage(_ lastSeen: Date?) -> HelloDrop.Message? {
+    private func helloMessage(_ lastSeen: Date?, _ joined: Neighbor?) -> HelloDrop.Message? {
         let news = townFeed.shown.compactMap { entry -> TownNews? in
             if case .news(let post) = entry.item { post } else { nil }
         }
         return HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
                                  groups: you.groups ?? [],
-                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news)
+                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, joined: joined)
     }
 
     /// Where a tap on the hello pill goes.
@@ -287,6 +287,7 @@ struct MainTabsView: View {
         switch target {
         case .event(let card): path.append(card)
         case .group(let group): path.append(group)
+        case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }
         // As the news card: the post's own app when it's on the phone, else the in-app browser.
         case .news(let post):
@@ -497,7 +498,8 @@ struct MainTabsView: View {
                 message: helloMessage,
                 open: openHello,
                 attended: Self.attendedCount,
-                finals: Self.teamFinals
+                finals: Self.teamFinals,
+                joined: { await ContactsMatch.joined(since: $0) }
             )
             .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }

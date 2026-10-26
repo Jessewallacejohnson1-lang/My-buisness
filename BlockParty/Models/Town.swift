@@ -30,6 +30,18 @@ nonisolated enum Town {
     /// What neighbours call it: Daily's first topic is "Best of St. Joe".
     static let nickname = "St. Joe"
 
+    /// The state, as an address writes it: "St. Joseph, MN" on the invite cards.
+    static let state = "MN"
+
+    /// What a place search adds to a name so Google looks here ("Krewe St Joseph MN").
+    static let searchSuffix = "St Joseph MN"
+
+    /// The trails Search lists, with the bundled photo of each.
+    static let trails = [("Lake Wobegon Trail", "wobegon-trail"),
+                         ("Saint John's Abbey Arboretum", "sju-arboretum-trail"),
+                         ("Stella Maris Chapel Trail", "chapel-trail-stella-maris"),
+                         ("Boardwalk Loop Trail", "boardwalk-loop-trail")]
+
     /// The Town's own round logo, top right on Daily: Joetown's for St. Joseph (Jesse's file).
     static let logo = "TownLogo"
 
