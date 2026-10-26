@@ -18,7 +18,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
-  'private.sidearm_live', 'public.record_live_score']);
+  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1061,11 +1061,11 @@ test('a game carries its sport, special night and both teams, the host first; an
   assert.deepEqual(games, [
     ['Albany Volleyball vs Foley', { sport: 'Volleyball', occasion: null, teams: [
       { name: 'albany', short: 'albany', logo: null, color: null, local: false, colors: null, nickname: null },
-      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null }],
+      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null, plays: null }],
     ['Fall fair', null],
     ['SJU Football vs Concordia: Homecoming', { sport: 'Football', occasion: 'Homecoming', teams: [
       { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430', local: false, colors: null, nickname: null },
-      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null }]]);
+      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null, nickname: null }], final: null, live: null, plays: null }]]);
 });
 
 test("a game's final rides its game, host first, and keeps its card a day past the game", async () => {
@@ -1142,8 +1142,15 @@ test("a college final is read from SIDEARM's file: complete, that day, the host 
 const sjuLive = JSON.parse(readFileSync(join(here, 'sidearm-live-sju-msoc.json'), 'utf8'));
 const sjuFinal = JSON.parse(readFileSync(join(here, 'sidearm-final-sju-msoc.json'), 'utf8'));
 const csbOld = JSON.parse(readFileSync(join(here, 'sidearm-old-csb-wvball.json'), 'utf8'));
-const sidearmLive = async (game, day, host, file) => (await db.query(
+const sidearmLiveAll = async (game, day, host, file) => (await db.query(
   'select private.sidearm_live($1::jsonb, $2::date, $3, $4) as l', [JSON.stringify(game), day, host, file])).rows[0].l;
+// The score, period and clock; the period scores and the host's side have their own checks (game-card 05).
+const sidearmLive = async (...args) => {
+  const l = await sidearmLiveAll(...args);
+  if (!l) return l;
+  const { periods, host_home, ...rest } = l;
+  return rest;
+};
 
 test("a live score is read from SIDEARM's Game: host first, the sport's period and clock, another day's game none", async () => {
   // SJU 0-0 Carleton, 94 s into the first half: soccer's clock counts up, so its minute.
@@ -1166,6 +1173,10 @@ test("a live score is read from SIDEARM's Game: host first, the sport's period a
                "women's quarters");
   assert.equal(await sidearmLive({ ...sjuLive, HasStarted: false }, '2026-10-24', 'john', 'csbsju/msoc'), null, 'not started');
   assert.equal(await sidearmLive(sjuLive, '2026-10-24', 'benedict', 'csbsju/msoc'), null, 'the host on neither side');
+  const sets = await sidearmLiveAll(csbOld, '2026-10-17', 'benedict', 'csb/wvball');
+  assert.deepEqual([sets.periods[0], sets.periods[1].length, sets.host_home], [[25, 25, 25], 3, true],
+                   "volleyball's sets, the host's first");
+  assert.equal((await sidearmLiveAll(away, '2026-10-24', 'john', 'csbsju/football')).host_home, false, 'the host away');
 });
 
 test('a pushed score lands on its game; two complete reads in a row make the final, and a final clears it', async () => {
@@ -1199,7 +1210,8 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   assert.equal(await record(sjuFinal), 'live', 'complete once is not yet final: the 2026-10-24 volleyball flickered');
   assert.equal((await row()).live_score.complete, true);
   assert.equal(await record(sjuFinal), 'final');
-  assert.deepEqual(await row(), { live_score: null, final_score: [2, 1] });
+  assert.deepEqual((await row()).final_score, [2, 1]);
+  assert.equal((await row()).live_score.complete, true, 'the last live score stays beside the final, for its period scores');
   assert.equal(await record(sjuLive), 'ignored', 'nothing moves a final');
   assert.deepEqual(await on('2026-10-24 13:30'), [], 'a final game is no longer listened to');
   // A doubleheader can't be told apart on one channel: neither is listened to.
@@ -1208,6 +1220,38 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   await db.query(`update public.club_events set sport = 'Soccer', team_ids = array['saint-johns', 'augsburg']
     where title = 'SJU Soccer vs Augsburg'`);
   assert.deepEqual(await on('2026-10-24 13:30'), []);
+});
+
+test('scoring plays are kept as SIDEARM lists them: each play that changed the score, once, host first', async () => {
+  await reset();
+  const game = await add('SJU Football vs Gustavus Adolphus', '2026-10-24', { start_time: '1 PM', source_name: 'SJU Athletics' });
+  await db.query(`update public.club_events set sport = 'Football', team_ids = array['saint-johns', 'gustavus-adolphus']
+    where id = $1`, [game]);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const plays = async () => (await db.query('select scoring_plays from public.club_events where id = $1', [game])).rows[0].scoring_plays;
+  const play = (id, text, team, period, cs, home, away) => ({ Id: id, Narrative: text, Team: team, Type: 'TD', Period: period,
+    ClockSeconds: cs, Score: home == null ? null : { HomeTeam: home, VisitingTeam: away } });
+  // SJU at home, a touchdown in the first quarter; a kickoff that changed nothing stays out.
+  const first = { ...sjuLive, Type: 'FootballGame', HomeTeam: { ...sjuLive.HomeTeam, Score: 7 }, VisitingTeam: { ...sjuLive.VisitingTeam, Name: 'Gustavus', Score: 0 },
+                  Period: 1, ClockSeconds: 558,
+                  LastPlays: [play('9', 'C. Kern 1 yd TD run (M. Olson kick)', 'HomeTeam', 1, 558, 7, 0),
+                              play('8', 'Kickoff by Gustavus', 'VisitingTeam', 1, 900, null, null)] };
+  assert.equal(await record(first), 'live');
+  assert.deepEqual(await plays(), [{ id: '9', text: 'C. Kern 1 yd TD run (M. Olson kick)', period: 'Q1', clock: '9:18', side: 0, score: [7, 0] }]);
+  // The same play pushed again, then a plays push (no team names): Gustavus scores, read with the host still home.
+  await record(first);
+  assert.equal(await record([play('12', 'A. Moen 7 yd TD run (T. Lund kick)', 'VisitingTeam', 1, 175, 7, 7)]), 'live');
+  assert.deepEqual((await plays()).map((p) => [p.id, p.side, p.score]), [['9', 0, [7, 0]], ['12', 1, [7, 7]]], 'once each, oldest first');
+  // The feed sends them inside the game.
+  await db.exec('set role anon');
+  const [row] = (await db.query(`select game from public.get_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
+    where game is not null`)).rows;
+  await db.exec('reset role');
+  assert.equal(row.game.plays.length, 2);
+  // Volleyball keeps none: every point carries a score; its sets show instead.
+  assert.deepEqual((await db.query(`select private.sidearm_scoring($1::jsonb, true, 'csb/wvball') as s`,
+                                   [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
 });
 
 test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {

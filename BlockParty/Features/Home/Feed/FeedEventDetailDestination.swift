@@ -28,6 +28,8 @@ struct FeedEventDetailDestination: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
+    /// The Town feed, for a game's score as it comes in (game-card 05); nil off the feed.
+    @Environment(TownFeed.self) private var feed: TownFeed?
     /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var saveTappedAt = 0
@@ -104,6 +106,14 @@ struct FeedEventDetailDestination: View {
         static let aboutTop: CGFloat = 33
         static let clockGap: CGFloat = 4.5
         static let pinGap: CGFloat = 8
+        /// A game's band (game-card 05, the approved mock): the chip 8.5 pt under the round buttons
+        /// and 16 pt in, the logos 10 pt under the chip, the band ending 26 pt under the names. Its
+        /// colors run this far further up, under the status bar and a pull.
+        static let bandInset: CGFloat = 16
+        static let bandChipGap: CGFloat = 8.5
+        static let bandRowGap: CGFloat = 10
+        static let bandMatchup: CGFloat = 144
+        static let bandOverscroll: CGFloat = 400
         /// Paper under the last row, above the RSVP bar (guessed): with the bar's 57 + 1 pt
         /// inset, the last line rests just above the fade.
         static let contentBottom: CGFloat = 24
@@ -112,13 +122,13 @@ struct FeedEventDetailDestination: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                hero
+                if let game { band(game) } else { hero }
                 sheet
             }
         }
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
-        .ignoresSafeArea(edges: hasHero ? .top : [])
+        .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
         .background(Hue.paper.ignoresSafeArea())
         // Outside the scroll, so the buttons stay put while the page moves under them.
         // The sort priority asks VoiceOver to read them first, as they sit, not after the
@@ -135,7 +145,7 @@ struct FeedEventDetailDestination: View {
         // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
         // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let words = actions.rsvp(item, bar: true) {
+            if let words = actions.rsvp(current, bar: true) {
                 rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -148,8 +158,14 @@ struct FeedEventDetailDestination: View {
         .signInSheet(isPresented: $signInShown)
         // A failed Join or Save shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
-        .onAppear { actions.pageOpened(item.id) }
-        .onDisappear { actions.pageClosed(item.id) }
+        .onAppear {
+            actions.pageOpened(item.id)
+            if game != nil { feed?.holdScores(true) }
+        }
+        .onDisappear {
+            actions.pageClosed(item.id)
+            if game != nil { feed?.holdScores(false) }
+        }
         .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
     }
 
@@ -158,6 +174,49 @@ struct FeedEventDetailDestination: View {
         guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
               UUID(uuidString: eventID) != nil else { return nil }
         return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
+    }
+
+    // MARK: A game (game-card 05)
+
+    /// The game as the feed has it now, its score and plays coming in; else as the page was opened.
+    private var game: Game? {
+        feed?.entries?.first(where: { $0.id == item.id })?.card?.game ?? item.game
+    }
+
+    /// The opened Event with that game, so a final reaching the open page turns its bar to "went"
+    /// and its day line to the day, as the card does.
+    private var current: FeedCardItem {
+        var card = item
+        card.game = game
+        return card
+    }
+
+    /// A game opens on its schools' colors, edge to edge from the top of the screen, with the card's
+    /// chip, logos and score, ending just under the names: no photo, no blank space (Jesse, 2026-10-25:
+    /// "make the whole top of the screen that like color, not just a cutout"). In the safe area: the
+    /// colors run on up under the status bar and any pull.
+    private func band(_ game: Game) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TimelineView(.everyMinute) { context in
+                if game.live?.isLive(at: context.date) == true {
+                    PhotoChip(text: "Live", spoken: "Live", dot: Hue.live)
+                } else if let when = current.whenLine {
+                    PhotoChip(text: when.text, spoken: when.spoken)
+                }
+            }
+            .frame(minHeight: PhotoChip.height)
+            .padding(.leading, Metric.bandInset)
+            GameMatchup(game: game, rowTop: Metric.bandRowGap, swipes: false)
+                .frame(height: Metric.bandMatchup)
+                // The matchup hides itself (the card's title says it); here it says the score.
+                .accessibilityElement()
+                .accessibilityLabel(game.spoken + (game.live?.clock.map { ", \($0)" } ?? ""))
+        }
+        .padding(.top, Metric.buttonTop + Metric.tapBox + Metric.bandChipGap)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .bottom) {
+            GameMatchup.backdrop(game).padding(.top, -Metric.bandOverscroll)
+        }
     }
 
     // MARK: Photos
@@ -360,7 +419,7 @@ struct FeedEventDetailDestination: View {
                     .padding(.top, Metric.categoryTop)
             }
 
-            if let when = item.whenLine {
+            if let when = current.whenLine {
                 HStack(spacing: Metric.clockGap) {
                     Image(systemName: "clock")
                         .font(.sans(13))
@@ -384,6 +443,11 @@ struct FeedEventDetailDestination: View {
             // Who hosts it, with Follow (follows 02): Eventbrite's "Organized by".
             EventHostRow(item: item, top: Metric.pillTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
 
+            if let game {
+                GameScoring(game: game)
+                    .padding(.top, Metric.aboutTop)
+            }
+
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
                     .padding(.top, Metric.aboutTop)
@@ -400,7 +464,7 @@ struct FeedEventDetailDestination: View {
                 style: .continuous
             )
         )
-        .padding(.top, hasHero ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
+        .padding(.top, hasHero || game != nil ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
     }
 
     // MARK: The bar
@@ -409,7 +473,7 @@ struct FeedEventDetailDestination: View {
     /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
     /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
-        RSVPArea(item: item, words: words, size: .page) { ShareCenter.shared.present(.event(item)) }
+        RSVPArea(item: current, words: words, size: .page) { ShareCenter.shared.present(.event(item)) }
             .padding(.leading, Metric.barWordsInset)
             .padding(.trailing, Metric.barPillInset)
             // 57 pt at the default text size; larger text grows it rather than spilling out.
