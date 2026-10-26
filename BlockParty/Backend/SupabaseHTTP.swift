@@ -82,8 +82,9 @@ enum SupabaseHTTP {
     // MARK: - What an error means
 
     /// True when the server never really answered, so the caller keeps what it has and tries
-    /// again: the phone is offline or timed out, the token had expired (a 401 refreshes it, see
-    /// `onUnauthorized`), or the server is busy (408, 429) or down (5xx). Anything else is the
+    /// again: the phone is offline or timed out, the token had expired (the server's 401
+    /// refreshes it, see `onUnauthorized`; the app's own no-session 401 is let go when the
+    /// account changes), or the server is busy (408, 429) or down (5xx). Anything else is the
     /// server's no.
     nonisolated static func noAnswer(_ error: Error) -> Bool {
         if error is URLError { return true }
