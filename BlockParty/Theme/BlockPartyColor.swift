@@ -266,7 +266,7 @@ nonisolated enum Hue {
     /// fade into the ground instead of a lighter band; the dark page in dark mode.
     /// Its light value must stay `mapLand`'s.
     static let mapEdge       = Color(light: 0xECECF4, dark: 0x141412)
-    /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
+    /// The hue the logo wall's cast shadows take, and a grey logo's on a Town card.
     nonisolated static let searchStudioHue: Double = 34
 
     /// A colour from hue (degrees), saturation and lightness (0–100), as CSS writes it.

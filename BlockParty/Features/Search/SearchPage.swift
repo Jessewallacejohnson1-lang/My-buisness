@@ -351,11 +351,7 @@ struct SearchPage: View {
 
     private var content: some View {
         ZStack {
-            if mode == .wall {
-                SearchBackdrop.studio.ignoresSafeArea()
-            } else {
-                Hue.paper.ignoresSafeArea()
-            }
+            Hue.paper.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     modeBody
@@ -650,7 +646,7 @@ private struct RowLogo: View {
     }
 }
 
-/// Every business logo, cut out over one studio backdrop.
+/// Every business logo, cut out and bare on the page.
 private struct LogoWall: View {
     let items: [SearchItem]
 
@@ -855,15 +851,10 @@ struct ItemRow: View {
         if item.kind == .person {
             SearchPhoto(item: item).clipShape(Circle())
         } else if let logo = item.logo {
-            ZStack {
-                SearchBackdrop(colors: logo.backdrop)
-                SearchFloor()
-                CastLogo(logo: logo, side: SearchMetric.avatarLogo)
-                    .opacity(opener.isAway(item) ? 0 : 1)
-                    .animation(nil, value: opener.isAway(item))
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
-            .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.searchField))
+            CastLogo(logo: logo, side: SearchMetric.avatar)
+                .opacity(opener.isAway(item) ? 0 : 1)
+                .animation(nil, value: opener.isAway(item))
+                .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.searchField))
         } else if item.photo?.credited ?? true {
             // No logo, and a saved photo carries its credit, with no room for one at this
             // size: what kind of place it is instead.
@@ -883,7 +874,7 @@ struct ItemRow: View {
     private func tap() {
         model.remember(item.id)
         guard item.opens, let logo = item.logo else { return }
-        let box = avatarFrame.rect, size = SearchMetric.avatarLogo
+        let box = avatarFrame.rect, size = SearchMetric.avatar
         let rect = CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size)
         opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow))
     }
@@ -957,13 +948,13 @@ struct NothingFound: View {
 }
 
 /// A place, event or group's picture: bundled, or one Block Party saved of it, with its credit.
-/// One with none shows its logo on its backdrop, else what kind of thing it is.
+/// One with none shows its logo bare on the page, else what kind of thing it is.
 struct SearchPhoto: View {
     let item: SearchItem
 
     var body: some View {
         Rectangle()
-            .fill(Hue.fill)
+            .fill(item.photo == nil && item.logo != nil ? Color.clear : Hue.fill)
             .overlay {
                 switch item.photo {
                 case .bundled(let name):
@@ -1006,14 +997,13 @@ private struct SavedPhoto: View {
     }
 }
 
-/// No photo: the logo on its backdrop, else what kind of place it is.
+/// No photo: the logo bare, else what kind of place it is.
 private struct NoPhoto: View {
     let item: SearchItem
 
     var body: some View {
         ZStack {
             if let logo = item.logo {
-                SearchBackdrop(colors: logo.backdrop)
                 CastLogo(logo: logo, side: SearchMetric.logoOnTile)
             } else {
                 Image(systemName: item.glyph)
@@ -1033,15 +1023,9 @@ struct SearchShelfPage: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var studio: Bool { shelf.kind == .business }
-
     var body: some View {
         ZStack(alignment: .top) {
-            if studio {
-                SearchBackdrop.studio.ignoresSafeArea()
-            } else {
-                Hue.paper.ignoresSafeArea()
-            }
+            Hue.paper.ignoresSafeArea()
             ScrollView {
                 list
                     .padding(.top, SearchMetric.pageBar)
@@ -1096,7 +1080,7 @@ struct SearchShelfPage: View {
         }
         .frame(height: SearchMetric.pageBar)
         .frame(maxWidth: .infinity)
-        .background((studio ? SearchBackdrop.studioTop : Hue.paper).ignoresSafeArea(edges: .top))
+        .background(Hue.paper.ignoresSafeArea(edges: .top))
     }
 }
 
