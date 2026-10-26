@@ -165,7 +165,7 @@ enum YouCalendar {
     /// An Event tapped Going on a card, before a read brings it back with its end.
     static func event(from item: FeedCardItem) -> DailyEvent? {
         guard let day = item.eventDate else { return nil }
-        return timed(item, day: day, time: item.startTime, endAt: nil)
+        return timed(item, day: day, time: item.startTime, endAt: item.endAt)
     }
 
     /// When it starts and ends (`EventWhen`, as the Town card has it). A time it can't
@@ -175,6 +175,7 @@ enum YouCalendar {
         guard let when = EventWhen(date: day, time: time, endAt: endAt, game: item.game != nil) else { return nil }
         var event = DailyEvent(item: item, starts: when.start, ends: when.end)
         event.timed = when.timed
+        event.when = when
         return event
     }
 

@@ -16,6 +16,9 @@ struct DailyEvent: Identifiable {
     /// False when its start couldn't be read ("after dark") or it runs all day: it
     /// starts at midnight then, and its card shows the organizer's own words.
     var timed = true
+    /// When it really runs, from its row. `ends` can be later: Daily's poster keeps it until it
+    /// leaves the Town feed. nil for the invented samples, which run `starts` to `ends`.
+    var when: EventWhen?
 
     var id: String { item.id }
 
@@ -24,17 +27,18 @@ struct DailyEvent: Identifiable {
         return nil
     }
 
-    /// The card's time: "Now" while it's on, else when it starts ("9 AM", "7:30 PM"), in
-    /// the Town's time. An untimed Event shows the organizer's own words, or "All day".
+    /// The card's time: "Now" while it's on (a run over days too, as the Town card), else when
+    /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
+    /// organizer's own words, or "All day".
     /// Working words; Jesse writes the final ones.
     func startTime(now: Date) -> String {
-        guard timed else { return item.startTime ?? "All day" }
-        return isOn(now) ? "Now" : Town.clock(starts)
+        if isOn(now) { return "Now" }
+        return timed ? Town.clock(starts) : item.startTime ?? "All day"
     }
 
     /// Started and not yet over (`EventWhen.isOn`, the Town card's rule).
     func isOn(_ now: Date) -> Bool {
-        EventWhen(start: starts, end: ends, timed: timed).isOn(now)
+        (when ?? EventWhen(start: starts, end: ends, timed: timed)).isOn(now)
     }
 
     /// What a section shows: the ones on now or still to come, soonest first, leaving out
