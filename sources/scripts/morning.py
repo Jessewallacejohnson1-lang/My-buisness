@@ -205,19 +205,16 @@ def read_items(path):
     return items
 
 
-def summary_lines(prep, items, result, written):
+def summary_lines(prep, result, written):
     count = {}
     for what, _ in result["outcomes"]:
         count[what] = count.get(what, 0) + 1
-    held = [it["title"] for it, (what, _) in zip(items, result["outcomes"]) if what in ("held", "news held")]
     lines = [f"Social watch ({prep['run']}), {prep['today']}" if prep.get("run") else f"Morning watch, {prep['today']}",
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
-             f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed, "
-             f"{count.get('held', 0)} held for Jesse",
-             f"- News: {count.get('news', 0)} kept, {count.get('news held', 0)} held for Jesse",
+             f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed",
+             f"- News: {count.get('news', 0)} new, {count.get('repeat', 0)} repeats left out",
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
-    lines += [f"- Held: {t}" for t in held]
     lines += [f"- Source failed: {f}" for f in prep["failed"]]
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines.append(f"- Written: {json.dumps(written)}" if written is not None else "- Dry run: nothing written")
@@ -249,10 +246,10 @@ def write(out, dry_run, today):
     items = feeds + judged
     existing = write_judged.listed_in_db()
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
-                               teams=write_judged.known_teams())
+                               teams=write_judged.known_teams(), recent_news=write_judged.news_in_db(today))
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
-    print("\n".join(summary_lines(prep, items, result, written)))
+    print("\n".join(summary_lines(prep, result, written)))
     if not dry_run:
         save_fingerprints(out)
 
@@ -525,12 +522,11 @@ def selftest():
     tmp.with_name("titles.json").unlink()
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
-    result = {"outcomes": [("published", ""), ("held", "unsure"), ("news", ""), ("merged", "into x")]}
-    items = [{"title": "Plant Bingo"}, {"title": "Maybe a sale"}, {"title": "Closed Monday"}, {"title": "Fare for All"}]
-    lines = summary_lines(prep, items, result, {"events": 2})
-    checks.append((summary_lines({**prep, "first_seen": 2}, items, result, None)[1].endswith(", 2 new kept as a starting copy"),
+    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x")]}
+    lines = summary_lines(prep, result, {"events": 2})
+    checks.append((summary_lines({**prep, "first_seen": 2}, result, None)[1].endswith(", 2 new kept as a starting copy"),
                    "the summary counts new pages kept as a starting copy"))
-    checks.append((lines[2] == "- Events: 1 new, 1 already listed, 1 held for Jesse" and "- Held: Maybe a sale" in lines
+    checks.append((lines[2] == "- Events: 1 new, 1 already listed" and lines[3] == "- News: 1 new, 1 repeats left out"
                    and "- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
     import gzip, run as runner
@@ -630,13 +626,14 @@ def fingerprints_wait_for_write():
 
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
                 "sources": [{"url": u, "method": "fetch"}]} for i, u in [("milk", "https://m/events"), ("new", "https://n/")]]
-    names = ("apply", "listed_in_db", "interest_ids", "known_teams")
+    names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
     saved = (runner.read_page, runner.validate, runner.find_root, Supabase, *(getattr(write_judged, n) for n in names))
     try:
         with tempfile.TemporaryDirectory() as tmp:
             runner.read_page = lambda url, kind: (200, f"Plant Bingo Oct 24 at {url}", "fetch")
             runner.validate, runner.find_root, Supabase = (lambda e: []), (lambda *a: Path(tmp)), FakeDb
             write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams = (lambda: []), (lambda: []), dict
+            write_judged.news_in_db = lambda today=None: []
             out = Path(tmp) / "morning"
             out.mkdir()
             (out / "prepare.json").write_text(json.dumps({"today": "2026-10-25", "fetched": 2, "changed": 1,
@@ -667,7 +664,8 @@ def fingerprints_wait_for_write():
             return first == again == ["milk"] and unmoved and starting_copy and prepare_fetch() == []
     finally:
         (runner.read_page, runner.validate, runner.find_root, Supabase,
-         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams) = saved
+         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,
+         write_judged.news_in_db) = saved
 
 
 def main():

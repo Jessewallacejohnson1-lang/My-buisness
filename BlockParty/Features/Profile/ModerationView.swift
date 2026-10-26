@@ -38,10 +38,27 @@ enum ReviewRow {
     }
 }
 
+/// An Event neighbours reported (town-feed 22): its reasons and how many reports, never who sent them.
+struct ReportedEvent: Identifiable, Equatable, Decodable {
+    let eventId: String
+    let title: String
+    let eventDate: String?
+    let reasons: [String]
+    let reports: Int
+    var id: String { eventId }
+
+    /// "3 reports · Scam, fraud or spam": the count first, as the line can be cut short.
+    var subtitle: String {
+        let words = reasons.map { ReportReason(rawValue: $0)?.label ?? $0 }.joined(separator: ", ")
+        return reports > 1 ? "\(reports) reports · \(words)" : words
+    }
+}
+
 @MainActor
 final class ModerationModel: ObservableObject {
     @Published var posts: [PendingPost] = []
     @Published var clubs: [ClubRow] = []
+    @Published var reports: [ReportedEvent] = []
     @Published var loading = true
     @Published var failed = false
     /// Bumped when a decision fails and its row comes back, so that row shakes.
@@ -53,18 +70,21 @@ final class ModerationModel: ObservableObject {
 
     func load(_ api: CommunityAPI) async {
         #if DEBUG
-        if preview { posts = Self.fixtures; loading = false; return }
+        if preview { posts = Self.fixtures; reports = Self.reportFixtures; loading = false; return }
         #endif
-        if posts.isEmpty && clubs.isEmpty { loading = true }
+        if posts.isEmpty && clubs.isEmpty && reports.isEmpty { loading = true }
         do {
             async let p = api.getPendingPosts()
             async let c = api.getPendingClubs()
+            async let r = api.reportedEvents()
             // A row mid-decision stays gone even if this fetch raced its write.
             posts = try await p.filter { !acting.contains($0.id) }
             clubs = try await c.filter { !acting.contains($0.id) }
+            // Reports never blank the rest of the queue.
+            reports = ((try? await r) ?? []).filter { !acting.contains($0.id) }
             failed = false
         } catch {
-            if posts.isEmpty && clubs.isEmpty { failed = true }
+            if posts.isEmpty && clubs.isEmpty && reports.isEmpty { failed = true }
             Log.network("Moderation.load: \(error)")
         }
         loading = false
@@ -100,6 +120,20 @@ final class ModerationModel: ObservableObject {
         }
     }
 
+    /// Keep (the reports go) or take down. The row leaves at once; a failed write brings it back.
+    func decideReport(_ api: CommunityAPI, _ report: ReportedEvent, takeDown: Bool) async {
+        guard !acting.contains(report.id), let i = reports.firstIndex(of: report) else { return }
+        acting.insert(report.id); defer { acting.remove(report.id) }
+        withAnimation(Self.leave) { _ = reports.remove(at: i) }
+        do {
+            try await write { try await api.resolveReports(report.id, takeDown: takeDown) }
+        } catch {
+            withAnimation(Self.leave) { reports.insert(report, at: min(i, reports.count)) }
+                completion: { self.rollback(report.id) }
+            Log.network("Moderation.decideReport: \(error)")
+        }
+    }
+
     /// Flip back first, then shake (taste.md): runs once the row has landed.
     private func rollback(_ id: String) {
         Haptics.error()
@@ -123,6 +157,14 @@ final class ModerationModel: ObservableObject {
     static let leave = Animation.spring(response: 0.35, dampingFraction: 0.86)
 
     #if DEBUG
+    /// Two reported Events (`-review-queue-preview`): made up, as nobody has reported one yet.
+    static let reportFixtures = [
+        ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-10-28",
+                      reasons: ["scam"], reports: 3),
+        ReportedEvent(eventId: "report-1", title: "Park Board Meeting", eventDate: "2026-10-26",
+                      reasons: ["wrong_info"], reports: 1),
+    ]
+
     /// The City's real found events from 2026-10-06 (`-review-queue-preview`).
     static let fixtures: [PendingPost] = [
         ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training", 2449),
@@ -155,7 +197,7 @@ struct ModerationView: View {
     }
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
-    private var pendingCount: Int { model.posts.count + model.clubs.count }
+    private var pendingCount: Int { model.posts.count + model.clubs.count + model.reports.count }
 
     var body: some View {
         NavigationStack {
@@ -170,6 +212,24 @@ struct ModerationView: View {
                         emptyState(icon: "checkmark.circle", title: "All caught up",
                                    detail: "Nothing is waiting for review.")
                     } else {
+                        if !model.reports.isEmpty {
+                            ModerationSectionLabel(text: "Reported")
+                            ForEach(model.reports) { report in
+                                ReviewQueueRow(
+                                    tile: ReviewRow.tile(report.eventDate).map { .date($0.month, $0.day) }
+                                        ?? .symbol("calendar"),
+                                    title: report.title,
+                                    subtitle: report.subtitle,
+                                    shakes: model.rollbacks[report.id, default: 0],
+                                    onOpen: nil,
+                                    approveLabel: "Keep",
+                                    onApprove: { Task { await model.decideReport(api, report, takeDown: false) } },
+                                    asksWhy: false,
+                                    declineLabel: "Take down",
+                                    onDecline: { _ in Task { await model.decideReport(api, report, takeDown: true) } })
+                                .transition(Self.rowTransition)
+                            }
+                        }
                         if !model.posts.isEmpty {
                             ModerationSectionLabel(text: "Events & trails")
                             ForEach(model.posts) { post in
@@ -255,9 +315,13 @@ struct ReviewQueueRow: View {
     let subtitle: String
     let shakes: Int
     let onOpen: (() -> Void)?
+    /// "Keep" on a reported Event (town-feed 22).
+    var approveLabel = "Approve"
     let onApprove: () -> Void
     /// Events ask what was wrong (the reason is the measurement); clubs just go.
     let asksWhy: Bool
+    /// "Take down" on a reported Event.
+    var declineLabel = "Decline"
     let onDecline: (DeclineReason?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var asking = false
@@ -274,7 +338,7 @@ struct ReviewQueueRow: View {
             }
 
             Button { Haptics.light(); onApprove() } label: {
-                Text("Approve").font(.sansSemibold(15)).foregroundStyle(.white)
+                Text(approveLabel).font(.sansSemibold(15)).foregroundStyle(.white)
                     .padding(.horizontal, 16).frame(height: 36)
                     .background(Hue.ink, in: Capsule())
                     .frame(height: 44).contentShape(Rectangle())
@@ -286,7 +350,7 @@ struct ReviewQueueRow: View {
                     .frame(width: 44, height: 44).contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel("Decline")
+            .accessibilityLabel(declineLabel)
             // On the × itself, so iOS 26 points the dialog at the row it is about.
             .confirmationDialog("What was wrong?", isPresented: $asking, titleVisibility: .visible) {
                 ForEach(DeclineReason.allCases) { reason in

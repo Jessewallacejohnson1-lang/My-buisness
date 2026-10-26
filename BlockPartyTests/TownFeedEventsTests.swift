@@ -936,6 +936,42 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(ids(town), ["a", "b", "c"])
     }
 
+    // MARK: Report (ticket 22)
+
+    func testReportSendsTheReasonThenTheCardFoldsAndUndoLiftsOnlyTheHide() async throws {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        try await town.report(town.cards[0], .scam)
+        XCTAssertEqual(chooser.told, [.report("a", .scam)])
+        XCTAssertEqual(ids(town), ["a", "b", "c"], "nothing moves while the sheet is open")
+        town.hideReported(town.cards[0])
+        XCTAssertEqual(town.undo, FeedHide(id: "a", hostName: "Parks", mute: false))
+        await town.undoHide()
+        XCTAssertEqual(chooser.told, [.report("a", .scam), .undoNotInterested("a")], "the report stays sent")
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAReportThatFailsThrowsAndHidesNothing() async {
+        let chooser = Chooser()
+        chooser.error = URLError(.notConnectedToInternet)
+        let town = await choosingFeed(chooser)
+        do {
+            try await town.report(town.cards[0], .nudity)
+            XCTFail("the sheet must hear it failed")
+        } catch {}
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+        XCTAssertNil(town.undo)
+    }
+
+    func testWrongPhotoOnlyWithASavedPhotoWrongInfoOnlyOnAFoundEventAndNeitherHides() {
+        XCTAssertEqual(ReportReason.offered(photo: false, found: false).map(\.label),
+                       ["Scam, fraud or spam", "Bullying or unwanted contact", "Violence, hate or exploitation",
+                        "Nudity or sexual activity", "Selling or promoting restricted items",
+                        "Suicide, self-injury or eating disorders"])
+        XCTAssertEqual(ReportReason.offered(photo: true, found: true).prefix(2), [.wrongPhoto, .wrongInfo])
+        XCTAssertEqual(ReportReason.allCases.filter { !$0.hides }, [.wrongPhoto, .wrongInfo])
+    }
+
     /// A slow network: Undo tapped while the Mute is still on its way waits for it, so the server
     /// gets the Mute first and Undo knows which host to unmute.
     func testUndoWaitsForTheChoiceStillOnItsWay() async {

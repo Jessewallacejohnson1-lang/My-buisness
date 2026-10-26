@@ -39,7 +39,8 @@ extension FeedCardItem {
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
             game: event.game,
             what: Self.nonempty(event.what),
-            createdAt: DateHelpers.timestamp(event.createdAt)
+            createdAt: DateHelpers.timestamp(event.createdAt),
+            found: Self.nonempty(event.sourceName) != nil
         )
     }
 

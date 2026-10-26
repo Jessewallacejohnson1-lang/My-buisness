@@ -103,6 +103,10 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-26 — Every Event and News item the morning and social watches keep goes live on its first
+  mention, official or secondhand, sure or not (Jesse: "only hold back if its the exact same").
+  The only thing kept out is a repeat (`write_judged.repeat_of`, `same_event`). **Supersedes** the
+  two-tier trust line below: held items sat unreviewed for six weeks.
 - 2026-10-26 — From Google, keep only hours and whether a place is still open (Jesse: "lets do
   ur rec"). Addresses, phones and names come from other sources (ADR-016): Google's terms allow
   storing only the place id, and the key the app uses is the risk. A place's own site beats Google
@@ -143,7 +147,7 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
   control. Only `place_id`s are persisted. `authorAttributions` must be displayed wherever
   a Places photo appears.
 - Weather comes from Open-Meteo at St. Joe coordinates.
-- Content trust is two-tier: official sources auto-publish on a single mention, squishier
+- **Superseded 2026-10-26** (top of this section). Content trust is two-tier: official sources auto-publish on a single mention, squishier
   sources need 2+ corroborating mentions, with a seeded evergreen pool as the backstop.
 
 ## Android port
