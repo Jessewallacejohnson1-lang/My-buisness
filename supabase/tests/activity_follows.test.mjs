@@ -43,6 +43,7 @@ await db.exec(`
 `);
 await db.exec(one('_team_activities.sql'));
 await db.exec(one('_activity_follows.sql'));
+await db.exec(one('_school_names.sql'));
 
 const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
 const apollo = (await db.query(`select uuid from public.teams where id = 'apollo'`)).rows[0].uuid;
@@ -72,6 +73,7 @@ test("the school's page lists its activities in order, each with its next game a
     ('Apollo Girls Soccer vs Foley', 'Girls Soccer', array['apollo', 'albany'], $3, '6 PM')`,
     [soon(9), soon(2), soon(-3)]);
   const [page] = await as(ME, `select public.team_page($1) p`, [apollo]);
+  assert.equal(page.p.name, 'Apollo High School', "the school's own name; game cards keep Apollo");
   const acts = page.p.activities;
   assert.equal(acts.length, 67);
   assert.deepEqual(acts.slice(0, 2).map((a) => a.name), ['Adapted Soccer', 'Girls Soccer']);

@@ -49,7 +49,7 @@ struct TeamPage: View {
                 }
             }
             .padding(.horizontal, Self.side)
-            .padding(.top, 58)
+            .padding(.top, 70)
             .padding(.bottom, 40)
             .background(alignment: .top) {
                 LinearGradient(colors: [colors.top, colors.deep], startPoint: .top, endPoint: .bottom)
@@ -79,6 +79,7 @@ struct TeamPage: View {
                     .padding(.top, 4)
             }
         }
+        // Light words on the school's colour. The clock stays ink, as everywhere (taste.md, 2026-09-24).
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $opened) { ActivityEvents(activity: $0, school: title) }
@@ -104,7 +105,6 @@ struct TeamPage: View {
                 }
             }
         }
-        .padding(.top, 58)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -211,7 +211,7 @@ struct TeamPage: View {
         let hexes = profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors
         let first = hexes.first.map { Color(hex: $0) } ?? Hue.poster
         let star = hexes.dropFirst().first.map { Color(hex: $0) } ?? Hue.nameOnDark
-        return (first, first.mix(with: Hue.nameShadow, by: 0.6), star)
+        return (first, first.mix(with: Hue.nameShadow, by: 0.45), star)
     }
 
     /// An SF Symbol for what it is, from its name; a sport with none gets the generic one.
