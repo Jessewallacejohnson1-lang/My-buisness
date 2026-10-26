@@ -292,7 +292,7 @@ def team_key(name):
 def known_teams():
     """Every name a team goes by -> its id (public.teams: id, name, short name, aliases). Only a
     name here gets a game card: no reader makes a team (Jesse, 2026-10-26)."""
-    rows = Supabase().call("GET", "teams?select=id,name,short_name,aliases") or []
+    rows = Supabase().rest("GET", "teams?select=id,name,short_name,aliases") or []
     return {team_key(n): r["id"] for r in rows
             for n in (r["id"], r["name"], r.get("short_name"), *(r.get("aliases") or [])) if n}
 
@@ -762,17 +762,17 @@ def apply(result):
     """The live write, over the service role key: one call, all or nothing."""
     if not result.get("teams_checked"):
         sys.exit("[judged] refused: the plan didn't look its games' teams up (plan(..., teams=known_teams()))")
-    return Supabase().call("POST", "rpc/apply_judged", payloads(result))
+    return Supabase().rest("POST", "rpc/apply_judged", payloads(result))
 
 
 def listed_in_db():
-    return Supabase().call("POST", "rpc/listed_for_writer", {})
+    return Supabase().rest("POST", "rpc/listed_for_writer", {})
 
 
 def news_in_db(today=None):
     """This week's News already in the app, for repeat_of."""
     since = (today or datetime.now(LOCAL).date()) - timedelta(6)
-    return Supabase().call("GET", "board_items?select=title,source_name,place_entry_id"
+    return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id"
                                   f"&status=eq.published&created_at=gte.{since}") or []
 
 

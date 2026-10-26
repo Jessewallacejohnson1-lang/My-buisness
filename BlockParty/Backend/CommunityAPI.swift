@@ -360,6 +360,7 @@ struct CommunityAPI {
     /// The Town feed's views and opens (ticket 20), in one insert. Who and when are set by
     /// the database; nobody reads them back. Ids that aren't Events (samples) are skipped.
     func recordFeedActions(_ batch: [FeedAction]) async throws {
+        guard !Self.isSimulator else { return }
         let rows = batch.filter { UUID(uuidString: $0.itemID) != nil }
             .map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
         guard !rows.isEmpty else { return }
@@ -369,9 +370,20 @@ struct CommunityAPI {
                                         prefer: "return=minimal")
     }
 
+    /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet
+    /// test account, and on 2026-10-26 they were 17 of the day's 18 opens in Jesse's weekly numbers.
+    private static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }
+
     /// Today's first open of the app, for the weekly numbers' reach (town-feed 26). The database
     /// keeps one row per person per Town day, so calling it on every return is harmless.
     func recordOpen() async throws {
+        guard !Self.isSimulator else { return }
         _ = try await SupabaseHTTP.rest("rpc/record_open", method: "POST", accessToken: try await token(),
                                         body: Data("{}".utf8))
     }
