@@ -215,15 +215,14 @@ struct FeedCardMenu: View {
                             Text(reason.label)
                                 .font(.sans(17))
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            if sending == reason {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .font(.sansSemibold(13))
-                                    .foregroundStyle(Hue.inkSecondary)
-                            }
+                            Image(systemName: "chevron.right")
+                                .font(.sansSemibold(13))
+                                .foregroundStyle(Hue.inkSecondary)
                         }
                         .foregroundStyle(Hue.ink)
+                        // While a report is on its way, the other reasons fade back.
+                        .opacity(sending == nil || sending == reason ? 1 : 0.35)
+                        .animation(.easeOut(duration: 0.2), value: sending)
                         .padding(.horizontal, 20)
                         .frame(minHeight: 61)
                         .contentShape(Rectangle())
