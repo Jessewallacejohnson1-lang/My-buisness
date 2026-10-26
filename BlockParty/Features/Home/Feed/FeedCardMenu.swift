@@ -461,22 +461,40 @@ struct FeedCardMenuSheet: ViewModifier {
     @State private var reported = false
 
     func body(content: Content) -> some View {
-        content.sheet(isPresented: $isPresented, onDismiss: hide) {
-            if let why = item.why {
-                let acts = feed != nil && actions.canAct
-                FeedCardMenu(why: why, score: item.score, report: report,
-                             hostName: item.hostName.isEmpty ? nil : item.hostName,
-                             onHide: acts ? { (mute: Bool) in chosen = mute } : nil,
-                             reasons: ReportReason.offered(photo: report != nil, found: item.found),
-                             // Once per card: a second report from the same phone would only add to its count.
-                             onReport: acts && feed?.reportedIDs.contains(item.id) == false ? { reason in
-                                 try await feed?.report(item, reason)
-                                 guard reason.hides else { return }
-                                 // The sheet was dragged away while it sent: fold now, not at the next close.
-                                 if isPresented { reported = true } else { feed?.hideReported(item) }
-                             } : nil)
-            }
+        content.sheet(isPresented: $isPresented, onDismiss: hide) { menu }
+    }
+
+    // Its own property and methods: GitHub's older Swift couldn't type-check the menu with its
+    // closures written inline in the sheet.
+    @ViewBuilder private var menu: some View {
+        if let why = item.why {
+            FeedCardMenu(why: why, score: item.score, report: report,
+                         hostName: item.hostName.isEmpty ? nil : item.hostName,
+                         onHide: onHide,
+                         reasons: ReportReason.offered(photo: report != nil, found: item.found),
+                         onReport: onReport)
         }
+    }
+
+    private var canAct: Bool { feed != nil && actions.canAct }
+    /// Once per card: a second report from the same phone would only add to its count.
+    private var canReport: Bool { canAct && feed?.reportedIDs.contains(item.id) == false }
+
+    private var onHide: ((Bool) -> Void)? {
+        guard canAct else { return nil }
+        return { mute in chosen = mute }
+    }
+
+    private var onReport: ((ReportReason) async throws -> Void)? {
+        guard canReport else { return nil }
+        return { reason in try await send(reason) }
+    }
+
+    private func send(_ reason: ReportReason) async throws {
+        try await feed?.report(item, reason)
+        guard reason.hides else { return }
+        // The sheet was dragged away while it sent: fold now, not at the next close.
+        if isPresented { reported = true } else { feed?.hideReported(item) }
     }
 
     private func hide() {
