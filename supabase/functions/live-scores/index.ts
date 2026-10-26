@@ -7,7 +7,8 @@
 // writing each pushed Game through public.record_live_score. public.start_live_scores hands out the games at
 // most once in 50 seconds, so a second call, from anyone, listens to nothing: verify_jwt is off.
 //
-// Deploy: supabase functions deploy live-scores --no-verify-jwt
+// Deploy: supabase functions deploy live-scores --no-verify-jwt. Any deploy (CLI or Composio's
+// SUPABASE_DEPLOY_FUNCTION) turns verify_jwt back on, and pg_cron's call then gets 401: set it off again after.
 
 const HUB = "https://v2-realtime.sidearmsports.com/signalr"
 const HUB_DATA = encodeURIComponent(JSON.stringify([{ name: "sidearm" }]))
@@ -47,7 +48,9 @@ async function listen(games: Game[], rpc: (name: string, body: unknown) => Promi
   const query = `transport=webSockets&clientProtocol=1.3&connectionToken=${encodeURIComponent(neg.ConnectionToken)}` +
     `&connectionData=${HUB_DATA}`
   const ws = new WebSocket(`${HUB.replace("https", "wss")}/connect?${query}`)
-  const writes: Promise<unknown>[] = []
+  // Pushes are written one at a time, in the order they came: a score and its play arrive together, and
+  // writes racing each other could land an older score last.
+  let writes: Promise<unknown> = Promise.resolve()
 
   ws.onmessage = (event) => {
     const frame = JSON.parse(String(event.data))
@@ -63,16 +66,18 @@ async function listen(games: Game[], rpc: (name: string, body: unknown) => Promi
       if (!id) continue
       // Every push, raw, until the first live games show what SIDEARM sends.
       console.log(`[live-scores] ${message.group}: ${JSON.stringify(message.data).slice(0, 2000)}`)
-      writes.push(gameOf(message.data)
+      const read = gameOf(message.data)
+      writes = writes
+        .then(() => read)
         .then((game) => game && rpc("record_live_score", { p_event: id, p_game: game }))
-        .catch((e) => console.error("[live-scores] push", e)))
+        .catch((e) => console.error("[live-scores] push", e))
     }
   }
   ws.onerror = (e) => console.error("[live-scores] socket", (e as ErrorEvent).message)
 
   await new Promise((done) => setTimeout(done, LISTEN_MS))
   ws.close()
-  await Promise.all(writes)
+  await writes
 }
 
 // A push is the new value itself, or "GET:<url>" asking the page to fetch it as JSONP (sidearm.realtime.all.js).
