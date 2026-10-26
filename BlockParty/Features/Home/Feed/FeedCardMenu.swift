@@ -197,6 +197,15 @@ struct FeedCardMenu: View {
 private struct ScoreBox: View {
     let score: FeedScore
 
+    /// Which half of the feed it fills (town-feed 31).
+    private var poolWords: String {
+        switch score.pool {
+        case "yours": ", from your people"
+        case "discovery": ", to discover"
+        default: ""
+        }
+    }
+
     var body: some View {
         VStack(spacing: 14) {
             HStack {
@@ -224,7 +233,7 @@ private struct ScoreBox: View {
             row("Same interest again", "×" + Self.number(score.topicSpacing ?? 1), idle: (score.topicSpacing ?? 1) == 1)
 
             Rectangle().fill(Hue.hairline).frame(height: 1)
-            Text("Place \(score.spot) of \(score.of) in your feed" + (score.newSpot ? ", moved up as new" : ""))
+            Text("Place \(score.spot) of \(score.of) in your feed" + (score.newSpot ? ", moved up as new" : "") + poolWords)
                 .font(.sans(13))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)

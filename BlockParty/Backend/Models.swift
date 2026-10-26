@@ -536,6 +536,9 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     var topicSpacing: Double? = nil
     /// Like something you said Not interested to: × 0.3 fading to × 1 over 90 days (ticket 21).
     var notInterested: Double? = nil
+    /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
+    /// nil for your own plans, which are in neither (town-feed 31).
+    var pool: String? = nil
 }
 
 struct Trail: Identifiable, Hashable {

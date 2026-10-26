@@ -189,7 +189,7 @@ enum DailyFixtures {
                 score: FeedScore(interest: 3, friend: 0, follow: 0, popular: 0, size: 1.5,
                                  sizeStep: 2, daysAway: 0.25, soon: 0.98, acted: 1, spacing: 1,
                                  newSpot: false, total: 6.17, spot: 1, of: 6,
-                                 tapped: 2, draw: 1.5, topicSpacing: 0.7),
+                                 tapped: 2, draw: 1.5, topicSpacing: 0.7, pool: "yours"),
                 now: now
             ),
             event(

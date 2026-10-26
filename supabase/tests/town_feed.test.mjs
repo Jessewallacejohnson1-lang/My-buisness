@@ -583,6 +583,58 @@ test('two tapped Events give 3, one Event tapped three ways counts once, 90 days
   assert.equal(await tapped(), 3, 'two other Events of its host');
 });
 
+// Half from your people, half discovery (ticket 31). Eight hosts you've been into (a Heart on one
+// of their past Events) against eight you haven't whose Events match your interest; one interest
+// spaced out, so on points alone your people would take 8 of the top 10.
+async function halfAndHalf() {
+  await reset();
+  for (let n = 1; n <= 8; n++) {
+    const past = await add(`Old ${n}`, '2026-09-20', { start_time: '10 AM', source_name: `Yours ${n}` });
+    await tap('event_likes', past, YOU, '2026-09-20 12:00');
+    await add(`Mine ${n}`, '2026-10-09', { start_time: `${n} PM`, source_name: `Yours ${n}` });
+    await add(`Found ${n}`, '2026-10-09', { start_time: `${n} PM`, source_name: `Other ${n}`, category: 'live_music' });
+  }
+}
+
+test('half yours, half discovery: spots 1-10 hold 5 +- 1 of each, and a strong discovery item still leads', async () => {
+  await halfAndHalf();
+  await signIn(YOU, ['live_music']);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  const byPoints = rows.toSorted((a, b) => b.score.total - a.score.total).slice(0, 10);
+  assert.equal(byPoints.filter((r) => r.score.pool === 'yours').length, 8, 'on points alone');
+  const top = rows.slice(0, 10).map((r) => r.score.pool);
+  const yours = top.filter((p) => p === 'yours').length;
+  assert.ok(yours >= 4 && yours <= 6, `${yours} of 10 from your people: ${top}`);
+  assert.equal(rows[0].score.pool, 'discovery', 'the best item leads, whichever pool');
+  assert.ok(rows.every((r) => r.title.startsWith('Mine') === (r.score.pool === 'yours')));
+});
+
+test('with no friends, follows or taps every item is discovery and the order is the points order', async () => {
+  await halfAndHalf();
+  await db.exec(`reset role; delete from public.event_likes`);
+  await signIn(YOU, ['live_music']);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.ok(rows.every((r) => r.score.pool === 'discovery'));
+  for (let n = 1; n < rows.length; n++)
+    assert.ok(rows[n - 1].score.total >= rows[n].score.total, `${rows[n - 1].title} before ${rows[n].title}`);
+  assert.equal(rows[0].title, 'Found 1');
+});
+
+test("when one pool runs out the other fills, and your own Going is in neither pool and isn't lifted", async () => {
+  await halfAndHalf();
+  const going = await add('Mine 9', '2026-10-09', { start_time: '11 PM', source_name: 'Yours 1' });
+  await goes(going, YOU, '2026-10-01 10:00-05');
+  await db.exec(`reset role; delete from public.club_events where title like 'Found%' and title <> 'Found 1'`);
+  await signIn(YOU, ['live_music']);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title).slice(0, 2), ['Found 1', 'Mine 1']);
+  assert.equal(rows.at(-1).title, 'Mine 9', 'Going sits lowest, as ever');
+  assert.equal(rows.at(-1).score.pool, null);
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -695,7 +747,7 @@ test('never more than 3 of one kind in a row while another kind is left', async 
   const ids = [1, 2, 3, 4, 5].map((n) => `00000000-0000-0000-0000-00000000010${n}`);
   const { rows } = await db.query(
     `select id, spot from private.town_feed_place($1::uuid[], $2::text[], $3::text[], $4::text[], $5::float8[],
-       $6::boolean[], 3, 0.5, 1, 4) order by spot`,
+       $6::boolean[], $6::boolean[], 3, 0.5, 1, 4) order by spot`,
     [ids, ['event', 'event', 'event', 'event', 'post'], ['a', 'b', 'c', 'd', 'e'], [null, null, null, null, null],
      [5, 4, 3, 2, 1], [false, false, false, false, false]]);
   assert.deepEqual(rows.map((r) => r.id), [ids[0], ids[1], ids[2], ids[4], ids[3]]);
@@ -727,7 +779,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, tapped: 0, daysAway: 1,
-    soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
+    soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, topicSpacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
   });
 });
 
