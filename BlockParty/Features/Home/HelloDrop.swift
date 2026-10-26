@@ -503,6 +503,7 @@ struct HelloDropView: View {
             }
             guard let message = message(seen, pendingJoined) else { dismiss(); return }
             if case .person(let person) = message.target { markSaid(person) }
+            pendingJoined = nil
             said = message
             withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
             AccessibilityNotification.Announcement(message.text).post()
@@ -571,34 +572,28 @@ struct HelloDropView: View {
         showFinal()
     }
 
-    /// Today's check of who in your contacts joined; the newest not yet said waits for the pill.
-    /// Back late, after the pill said its line or left, it drops on its own as a final does.
+    /// Today's check of who in your contacts joined; the newest not yet said goes to the pill's
+    /// line. Back too late for it, or beaten by a higher line, they wait for another day's check.
     private func checkJoined() async {
         defer { joinedRead = true }
-        guard joinedSince > 0 else { joinedSince = Date().timeIntervalSince1970; return }
-        guard let read = await joined(Date(timeIntervalSince1970: joinedSince)) else { return }
+        #if DEBUG
+        // Each check spends one of the Contacts page's 5 a day; a forced pill checks only when asked.
+        if HelloDrop.forced, !ProcessInfo.processInfo.arguments.contains("-hello-joined") { return }
+        #endif
+        // ponytail: the cut-off and the said list are the phone's, not the account's, as the
+        // moments are; key them by account if two people share a phone.
+        let started = Date()
+        let since = joinedSince > 0 ? Date(timeIntervalSince1970: joinedSince) : started
+        guard let read = await joined(since) else { return }
+        // Set on the first check that worked, so allowing Contacts later doesn't make old news new.
+        if joinedSince == 0 { joinedSince = started.timeIntervalSince1970 }
         let said = Set(saidJoined.split(separator: ",").map(String.init))
-        guard let person = read.first(where: { !said.contains($0.userId) }) else { return }
-        pendingJoined = person
-        if step == .hidden { showJoined() }
+        pendingJoined = read.first { !said.contains($0.userId) }
     }
 
     private func markSaid(_ person: Neighbor) {
-        pendingJoined = nil
+        // ponytail: the newest 50; past 50 joiners an old one could be named again.
         saidJoined = ([person.userId] + saidJoined.split(separator: ",").map(String.init)).prefix(50).joined(separator: ",")
-    }
-
-    /// A contact who joined, with the day's line already said: the pill drops straight to it.
-    private func showJoined() {
-        guard HelloDrop.allowed, step == .hidden, run == nil, let person = pendingJoined else { return }
-        markSaid(person)
-        let message = HelloDrop.joined(person)
-        said = message
-        run = Task {
-            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
-            AccessibilityNotification.Announcement(message.text).post()
-            await finish(after: Self.stay)
-        }
     }
 
     /// The tick, its haptics, then confetti for the 10th and 100th.
@@ -635,7 +630,6 @@ struct HelloDropView: View {
             confettiColors = []
             // One reached while this pill was up comes next.
             if moments.waiting != nil { showMoment() } else if pendingFinal != nil { showFinal() }
-            else if pendingJoined != nil { showJoined() }
         }
     }
 }

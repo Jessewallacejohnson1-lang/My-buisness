@@ -153,10 +153,12 @@ final class ContactsMatch {
     }
 
     /// Who the pill may name: someone you could still add (not a friend, a request either way, or
-    /// blocked) who joined after `since`, newest first. An unreadable join date is not new.
+    /// blocked) with a name, who joined after `since`, newest first. An unreadable join date is not new.
     nonisolated static func newcomers(_ people: [Neighbor], since: Date) -> [Neighbor] {
         let joined = { (n: Neighbor) in DateHelpers.timestamp(n.since) ?? .distantPast }
-        return people.filter { $0.relation == .stranger && joined($0) > since }.sorted { joined($0) > joined($1) }
+        return people.filter {
+            $0.relation == .stranger && !$0.displayName.trimmingCharacters(in: .whitespaces).isEmpty && joined($0) > since
+        }.sorted { joined($0) > joined($1) }
     }
 
     /// Every contact with a name, and its codes; `photos` false skips the thumbnails.

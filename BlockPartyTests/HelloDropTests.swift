@@ -265,6 +265,7 @@ final class HelloDropTests: XCTestCase {
             person("blocked", "Bo", since: "2026-10-21T11:00:00Z", .blocked),
             person("asked", "Al", since: "2026-10-21T11:00:00Z", .sent),
             person("odd", "Odd", since: "not a date"),
+            person("blank", " ", since: "2026-10-21T11:00:00Z"),
         ]
         XCTAssertEqual(ContactsMatch.newcomers(people, since: since).map(\.userId), ["kate", "sam"])
     }
