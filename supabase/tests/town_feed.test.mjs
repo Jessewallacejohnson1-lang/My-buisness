@@ -1918,6 +1918,12 @@ test('a reported Event never shows to its reporter, lowers nothing, and others s
   assert.deepEqual(rows.map((r) => [r.title, r.score.notInterested]), [['Zoo day', 1]]);
   await signIn(ME);
   assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Free iPhones', 'Zoo day']);
+  // Undo brings it back to its reporter; the report stays.
+  await signIn(YOU);
+  await db.query('select public.set_not_interested($1, false)', [scam]);
+  assert.equal((await titles('2026-10-08 12:00')).length, 2);
+  await db.exec('reset role');
+  assert.equal((await db.query('select count(*)::int as n from public.reports')).rows[0].n, 1);
 });
 
 test('a report holds the Event, the reason and the time only, and no neighbour can read it', async () => {

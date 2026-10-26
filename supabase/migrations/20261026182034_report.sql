@@ -50,6 +50,26 @@ $$;
 revoke execute on function private.my_not_interested() from public;
 grant execute on function private.my_not_interested() to anon, authenticated;
 
+-- Undo on the Hidden line takes back a report's hide as well as a Not interested (the report stays).
+create or replace function public.set_not_interested(p_item uuid, p_on boolean default true)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then raise exception 'sign in first'; end if;
+  if p_on then
+    insert into public.feed_actions (user_id, item_id, action) values (auth.uid(), p_item, 'not_interested');
+  else
+    delete from public.feed_actions
+    where user_id = auth.uid() and item_id = p_item and action in ('not_interested', 'reported');
+  end if;
+end
+$$;
+revoke execute on function public.set_not_interested(uuid, boolean) from public, anon;
+grant execute on function public.set_not_interested(uuid, boolean) to authenticated;
+
 -- Report an Event. Answers whether the app should ask moderate-post to read it again: a neighbour's
 -- posting, reported for breaking the rules by a signed-in account, not yet re-checked.
 create or replace function public.report_event(p_event uuid, p_reason text)
