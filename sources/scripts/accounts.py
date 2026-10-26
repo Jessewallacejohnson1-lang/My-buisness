@@ -14,7 +14,8 @@ The same results carry each place's Google hours, and those go live on their own
 2026-10-25: hours are a fact; BP app business-hours): `report` writes every place whose hours
 changed or that has hours for the first time to `places.hours`, the business page's open-till
 row, and lists them. It needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; without them it only
-lists. A place Google gives no hours keeps the ones it has.
+lists. A place Google gives no hours keeps the ones it has, and so does one whose registry entry says
+`hours_from: website` (its own site is newer than Google's: Jesse, 2026-10-26).
 
 A Google result is the place only when its phone, its street (house number and first street
 word) or its website's domain matches the registry's (the 2026-10-22 pass's rule). A link
@@ -96,9 +97,22 @@ def search_of(entry):
     return f"{entry['_name']}, {entry['address']}, St. Joseph, MN"
 
 
-def places(root):
-    """The places worth a search: open ones with an address, so a result can be checked."""
-    return [e for e in load(root)[0] if e["status"] in ("active", "proposed") and e.get("address")]
+def places(root, app=None):
+    """The places worth a search: open ones with an address, so a result can be checked. The
+    registry's address comes first (non-Google sources only, ADR-016); else the app's page for the
+    place (`app`: entry id to `places.address`), so every place in the app is checked."""
+    out = []
+    for e in load(root)[0]:
+        address = e.get("address") or re.sub(r",\s*(St\.?|Saint) Joseph\b.*$", "", (app or {}).get(e["id"], ""))
+        if e["status"] in ("active", "proposed") and address:
+            out.append({**e, "address": address})
+    return out
+
+
+def app_addresses():
+    """The app's place pages' addresses by entry id; {} without the keys."""
+    rows = db("GET", "/rest/v1/places?select=entry_id,address&entry_id=not.is.null&address=not.is.null")
+    return {r["entry_id"]: r["address"] for r in rows or []}
 
 
 def same_place(entry, item):
@@ -199,7 +213,8 @@ def match(entries, results, pages):
         if it.get("permanentlyClosed"):
             closed.append({"entry_id": e["id"], "name": e["_name"]})
         matched.append((e, links_of(it)))
-        if hours_of(it):
+        # `hours_from: website`: the place's own site is newer than Google (Jesse, 2026-10-26).
+        if hours_of(it) and e.get("hours_from") != "website":
             hours.append({"entry_id": e["id"], "name": e["_name"], "hours": hours_of(it)})
     freq = Counter(u.lower() for _, found in matched for urls in found.values() for u in urls)
     new, changed = [], []
@@ -257,7 +272,7 @@ def write_hours(found):
 
 def setup():
     root = find_root()
-    body = {"input": {"searchStringsArray": [search_of(e) for e in places(root)], "maxCrawledPlacesPerSearch": 1,
+    body = {"input": {"searchStringsArray": [search_of(e) for e in places(root, app_addresses())], "maxCrawledPlacesPerSearch": 1,
                       "language": "en", "scrapeContacts": True, "maxImages": 0, "maxReviews": 0},
             "options": {"timeoutSecs": 3600, "maxTotalChargeUsd": CAP}}
     tasks = by_name("/actor-tasks")
@@ -278,7 +293,7 @@ def report():
     if not run:
         return print("[accounts] no finished monthly run yet")
     pages = json.loads((root / "sources" / "social" / f"{TOWN}.json").read_text())
-    out = match(places(root), items(run["defaultDatasetId"]), pages)
+    out = match(places(root, app_addresses()), items(run["defaultDatasetId"]), pages)
     out["run"] = {k: run.get(k) for k in ("id", "status", "finishedAt", "usageTotalUsd")}
     dest = root / ".runs" / "accounts"
     dest.mkdir(parents=True, exist_ok=True)
@@ -329,7 +344,9 @@ def selftest():
     market = {"entry_id": "m", "name": "M", "hours": {"fri": [["15:00", "18:00"]]}}
     assert not new_hours([market], {"m": {"fri": [["15:00", "18:00"]], "season": ["05-08", "10-16"]}}), "a season is not a change"
     assert new_hours([market], {"m": {"fri": [], "season": ["05-08", "10-16"]}})[0]["hours"]["season"] == ["05-08", "10-16"], "new hours keep the season"
-    print("accounts.py selftest: 16 passed, 0 failed")
+    own = match([{**e, "hours_from": "website"}], [{**hit, "openingHours": week}], [])
+    assert not own["hours"] and match([e], [{**hit, "openingHours": week}], [])["hours"], "a place's own site beats Google when marked"
+    print("accounts.py selftest: 17 passed, 0 failed")
 
 
 def main():

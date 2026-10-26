@@ -40,8 +40,6 @@ next entry's name.
 id: krewe
 aka: ["Krewe Restaurant"]
 status: active
-address: "24 College Ave N Ste 104"
-phone: "3205570083"
 tier: watched
 category: restaurant
 added_by: agent:claude
@@ -72,8 +70,6 @@ Events and specials pages added 2026-10-16: the page picker found them, Jesse sa
 ```yaml
 id: local-blend
 status: active
-address: "19 W Minnesota St"
-phone: "3203631011"
 tier: watched
 category: coffee
 added_by: agent:claude
@@ -96,8 +92,6 @@ the user-agent, not an outage.
 ```yaml
 id: bad-habit-brewing
 status: active
-address: "25 College Ave N"
-phone: "3202713108"
 tier: watched
 category: brewery
 added_by: agent:claude
@@ -116,7 +110,6 @@ without re-testing, and re-check occasionally in case they add a certificate.
 ```yaml
 id: milk-and-honey-ciders
 status: active
-address: "11738 County Road 51"
 tier: watched
 category: cidery
 added_by: agent:claude
@@ -133,8 +126,6 @@ event series, so the events page is the right source rather than the homepage.
 ```yaml
 id: jupiter-moon
 status: active
-address: "15 E Minnesota St Ste 108"
-phone: "3205570141"
 tier: watched
 category: dessert
 added_by: agent:claude
@@ -153,7 +144,6 @@ found; the site is flavors and hours, so this is a low-frequency source.
 id: flour-and-flower
 aka: ["Flour & Flower"]
 status: active
-address: "24 College Ave N Ste 104"
 tier: submitted
 category: bakery
 partner: true
@@ -710,7 +700,6 @@ Notes: Eden Valley, 19.8 miles from St. Joseph. "Eden Valley-Watkins" is how the
 ```yaml
 id: st-joseph-farmers-market
 status: active
-address: "610 County Road 2"
 tier: watched
 category: market
 added_by: agent:claude
@@ -793,8 +782,6 @@ that is the town, not a gap in the harvest (ADR-010).
 id: accounting-ams-solutions-tax
 aka: ["AMS Tax & Accounting Solutions, PA"]
 status: active
-address: "303 Cedar St E"
-phone: "3205570047"
 tier: listed
 category: banking-finance
 added_by: agent:discover
@@ -826,8 +813,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56394, -94.289
 id: 328-american-legion-post
 aka: ["St. Joseph American Legion", "John Kuebelbeck American Legion Post 328"]
 status: active
-address: "101 W Minnesota St"
-phone: "3203638631"
 tier: listed
 added_by: agent:discover
 sources:
@@ -842,8 +827,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ```yaml
 id: amy-farm-hedtke-state
 status: active
-address: "414 8th Ave NE"
-phone: "3204334011"
 tier: listed
 category: insurance
 added_by: agent:discover
@@ -874,8 +857,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: bello-cucina
 status: active
-address: "15 E Minnesota St"
-phone: "3203634534"
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -892,8 +873,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56496, -94.317
 id: arts-benedicta-center
 venues: ["Colman Theater", "Escher Auditorium", "Gorecki Gallery", "Benedict and Dorothy Gorecki Gallery"]
 status: active
-address: "37 College Ave S"
-phone: "3203635777"
 tier: listed
 category: amenity=arts_centre
 added_by: agent:discover
@@ -909,8 +888,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55921, -94.321
 ```yaml
 id: bo-diddleys
 status: active
-address: "19 College Ave N"
-phone: "3203637200"
 tier: watched
 category: amenity=fast_food
 added_by: agent:discover
@@ -926,8 +903,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56522, -94.318
 ```yaml
 id: brenny-transportation
 status: active
-address: "8505 Ridgewood Road"
-phone: "3203636999"
 tier: watched
 category: transportation-logistics
 added_by: agent:discover
@@ -943,7 +918,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ```yaml
 id: bruno-press
 status: active
-address: "154 5th Ave SE"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1021,8 +995,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56699, -94.323
 ```yaml
 id: central-mn-realty
 status: active
-address: "111 College Ave N"
-phone: "3209805920"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1037,8 +1009,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: china-one
 status: active
-address: "710 Co Rd 75 #108"
-phone: "3205570388"
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -1101,8 +1071,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.320
 id: coborns
 aka: ["Coborn's Grocery Store", "Coborn's Pharmacy"]
 status: active
-address: "1500 Elm St E"
-phone: "3202711135"
 tier: listed
 category: shop=supermarket
 added_by: agent:discover
@@ -1147,8 +1115,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: daisy-day
 status: active
-address: "307 College Ave N"
-phone: "3203630306"
 tier: listed
 category: shop=florist
 added_by: agent:discover
@@ -1209,8 +1175,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: ceiling-floor-to
 status: active
-address: "942 21st Ave NE"
-phone: "3202711632"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1225,8 +1189,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: arts-floral
 status: active
-address: "307 1st Ave NE"
-phone: "3203637705"
 tier: listed
 category: arts-entertainment
 added_by: agent:discover
@@ -1242,8 +1204,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ```yaml
 id: garys-pizza
 status: active
-address: "17 College Ave N"
-phone: "3203637261"
 tier: listed
 category: amenity=fast_food
 added_by: agent:discover
@@ -1259,8 +1219,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56507, -94.318
 ```yaml
 id: golden-hour-tanning
 status: active
-address: "109 W Ash St, Suite B"
-phone: "7632919719"
 tier: watched
 category: hospitality-tourism
 added_by: agent:discover
@@ -1276,8 +1234,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ```yaml
 id: groundsman
 status: active
-address: "731 19th Ave NE"
-phone: "3202457485"
 tier: listed
 category: construction-contractors
 added_by: agent:discover
@@ -1293,8 +1249,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: hansen-woodworks
 status: active
-address: "2040 Jasmine Ct"
-phone: "3203630051"
 tier: listed
 added_by: agent:discover
 sources:
@@ -1338,7 +1292,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56807, -94.318
 ```yaml
 id: hometown-title
 status: active
-address: "710 County Road 75 E, Ste. 101"
 tier: listed
 category: home-services
 added_by: agent:discover
@@ -1354,8 +1307,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: hudson
 status: active
-address: "11 College Ave N"
-phone: "3205570025"
 tier: listed
 category: shop=gift
 added_by: agent:discover
@@ -1401,8 +1352,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56454, -94.319
 ```yaml
 id: kpower-yoga
 status: active
-address: "109 W Ash St"
-phone: "3207741828"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1421,8 +1370,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: kays-kitchen
 status: active
-address: "303 College Ave N"
-phone: "3205570030"
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -1438,8 +1385,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56795, -94.319
 ```yaml
 id: bank-kensington
 status: active
-address: "103 1st Ave NW"
-phone: "3204335817"
 tier: listed
 category: banking-finance
 added_by: agent:discover
@@ -1499,8 +1444,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ```yaml
 id: ace-hardware-lees
 status: active
-address: "213 Cedar St E #785"
-phone: "3203634281"
 tier: listed
 category: shop=hardware
 added_by: agent:discover
@@ -1531,8 +1474,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56497, -94.317
 ```yaml
 id: academy-little-saints
 status: active
-address: "124 1st Ave SE"
-phone: "3205570123"
 tier: listed
 category: education-training
 added_by: agent:discover
@@ -1548,8 +1489,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: financial-magnifi
 status: active
-address: "1300 Elm St E"
-phone: "8883308482"
 tier: listed
 category: amenity=bank
 added_by: agent:discover
@@ -1639,8 +1578,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ```yaml
 id: market-minnesota-street
 status: active
-address: "27 W Minnesota St"
-phone: "3203637733"
 tier: watched
 category: shop=greengrocer
 added_by: agent:discover
@@ -1657,7 +1594,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 
 id: joseph-newsleaders-of-sartell-st-st-step
 aka: ["The Newsleaders"]
 status: active
-address: "32 First Ave. NW"
 tier: watched
 category: newspaper
 added_by: agent:discover
@@ -1724,8 +1660,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56874, -94.301
 id: distillery-obbink
 aka: ["Obbink Distilling"]
 status: active
-address: "11 Date St E"
-phone: "3202716484"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1755,8 +1689,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56799, -94.313
 ```yaml
 id: agency-insurance-omann
 status: active
-address: "305 E Cedar St"
-phone: "3203637233"
 tier: listed
 category: business-services
 added_by: agent:discover
@@ -1802,7 +1734,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: insurance-pierce
 status: active
-address: "26 2nd Ave NW"
 tier: watched
 added_by: agent:discover
 sources:
@@ -1936,8 +1867,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56621, -94.310
 ```yaml
 id: joseph-market-meat-st
 status: active
-address: "26 1st Ave NW"
-phone: "3203634913"
 tier: watched
 category: shop=butcher
 added_by: agent:discover
@@ -1983,8 +1912,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56173, -94.316
 ```yaml
 id: joseph-office-post-st
 status: active
-address: "117 W Ash St"
-phone: "8002758777"
 tier: watched
 category: amenity=post_office
 added_by: agent:discover
@@ -2002,8 +1929,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56564, -94.321
 id: bar-grill-sals
 aka: ["Sal's Bar & Grill"]
 status: active
-address: "109 W Minnesota St"
-phone: "3203638273"
 tier: watched
 category: amenity=bar
 added_by: agent:discover
@@ -2059,8 +1984,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56730, -94.320
 ```yaml
 id: joseph-liquor-off-sale-st
 status: active
-address: "225 E Cedar St"
-phone: "3203638636"
 tier: listed
 category: shop=alcohol
 added_by: agent:discover
@@ -2106,8 +2029,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: health-joseph-st-wellness
 status: active
-address: "32 1st Ave NW"
-phone: "3208287788"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2137,8 +2058,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 id: clinic-joseph-st-vet
 aka: ["St. Joseph Veterinary Clinic"]
 status: active
-address: "1722 E Minnesota St"
-phone: "3203637756"
 tier: listed
 category: amenity=veterinary
 added_by: agent:discover
@@ -2199,7 +2118,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.320
 ```yaml
 id: mary-meadow-sunny
 status: active
-address: "8664 360th Street"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2229,8 +2147,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.320
 ```yaml
 id: bed-breakfast-estates
 status: active
-address: "29 E Minnesota St"
-phone: "3205570300"
 tier: watched
 category: tourism=guest_house
 added_by: agent:discover
@@ -2262,8 +2178,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56414, -94.321
 id: food-house-tap
 aka: ["The House Food and Tap"]
 status: active
-address: "13 2nd Ave NW"
-phone: "3202713133"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2278,8 +2192,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: la-playette
 status: active
-address: "16 College Ave N"
-phone: "3203637747"
 tier: listed
 added_by: agent:discover
 sources:
@@ -2294,8 +2206,6 @@ Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a
 ```yaml
 id: middy
 status: active
-address: "21 W Minnesota St"
-phone: "3203634505"
 tier: watched
 category: amenity=pub
 added_by: agent:discover
@@ -2315,8 +2225,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 
 ```yaml
 id: cow-wandering
 status: active
-address: "14 College Ave N Ste b"
-phone: "3209802695"
+hours_from: website
 tier: watched
 category: amenity=ice_cream
 added_by: agent:discover
@@ -2326,31 +2235,28 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Hours come from its own site, wanderingcowmn.com/contact: Google kept its summer hours into fall (Jesse, 2026-10-26).
 
 ## Thomsen’s Garden Center
 ```yaml
 id: center-garden-thomsens
 status: active
-address: "29754 156th Ave"
-phone: "3203637375"
-tier: listed
+tier: watched
 category: agriculture-farming
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.thomsensgardencenter.com/
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Watched since 2026-10-26 for its season and workshops: Jesse's yes to flagging seasonal places' new dates (BP app business-hours).
 
 ## Tiremaxx/Mid-State Wholesale Tire
 ```yaml
 id: mid-state-tire-tiremaxx-wholesale
 aka: ["TireMaxx Service Centers"]
 status: active
-address: "11415 County Rd 75"
 tier: listed
 category: automotive
 added_by: agent:discover
@@ -2366,8 +2272,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: bus-service-trobecs
 status: active
-address: "618 21st Ave NE"
-phone: "3202511202"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2383,8 +2287,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 id: hair-salon-styles-uptown
 aka: ["Uptown Styles"]
 status: active
-address: "33 W Minnesota St, Ste 101"
-phone: "3203634535"
 tier: listed
 category: shop=hairdresser
 added_by: agent:discover
@@ -2429,8 +2331,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: well
 status: active
-address: "106 2nd Ave NW, Suite 2"
-phone: "3202881403"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2445,8 +2345,6 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: boutique-peony-white
 status: active
-address: "25 1st Ave NW, Suite #200"
-phone: "3202045823"
 tier: watched
 added_by: agent:discover
 sources:
@@ -2476,8 +2374,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: country-manor-of-woodcrest
 status: active
-address: "1200 Lanigan Way SW"
-phone: "3202711200"
 tier: watched
 category: healthcare-medical
 added_by: agent:discover
@@ -2494,8 +2390,6 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 id: home-r-w
 aka: ["W|R Home Co."]
 status: active
-address: "25 1st Ave NW, Ste 100"
-phone: "3205570200"
 tier: watched
 added_by: agent:discover
 sources:
@@ -8235,7 +8129,7 @@ tier: listed
 category: "farm"
 place_type: "Business"
 address: "29709 Kipper Rd"
-phone: "+13203637784"
+phone: "3202487784"
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8243,7 +8137,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted. Phone 320-248-7784 from KNSI (2026-03-19, Shelly Carlson); Minnesota Grown lists 320-363-7784. Open only for its late-March sugar-shack tours (knsiradio.com/?p=818065).
 
 ## Winston's Doggy Motel
 ```yaml
