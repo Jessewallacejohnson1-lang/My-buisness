@@ -19,8 +19,17 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
   prepare weekly  the weekly runs that finished since the last weekly check
   done            after `morning.py write`: marks those runs read, so the next check starts after
                   them. A check that stopped early never marks, and the next reads its runs too.
+                  It repeats the pictures line, so the answer carries what pictures cost.
   spend           one line for the morning report, "Apify: $X of $19 this month", with a
                   heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say)
+
+A post whose caption is short or gives no time of day also gets its pictures read (Jesse,
+2026-10-26): Obbink's trivia night on Oct 29 was on its picture alone, under a one-line caption
+("come out to the cocktail lounge…"), and the judge dropped it as a teaser. prepare downloads
+up to PICTURES of the post's pictures from the address Apify saved, shrunk, into
+.runs/morning/pictures/, and the post's page names them for the cheap model to open. Apify
+already returns the addresses, so this costs nothing on Apify; it costs the Claude plan the
+tokens of looking at them, which prepare prints as one `[social] pictures` line.
 
 The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
 `read-busy` and `read-weekly`), so it survives each routine's throwaway copy.
@@ -38,9 +47,12 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, json, os, shutil, sys, time, urllib.error, urllib.request
+import argparse, io, json, math, os, re, shutil, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from PIL import Image, ImageOps
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
@@ -68,6 +80,19 @@ HEADS_UP = 15.0
 STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
 DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
+
+# Pictures (Jesse, 2026-10-26: the words on a post's picture, when its caption doesn't say enough)
+PICTURES = 3        # most read per post: a carousel's flyer is often its second or third slide
+SHORT_WORDS = 30    # a caption under this many words has its pictures read, a time of day or not
+CLOCK = re.compile(r"\b\d{1,2}(:\d{2})?\s*(a\.?m\b|p\.?m\b)|\b\d{1,2}:\d{2}\b|\bnoon\b|\bmidnight\b", re.I)
+LONG_SIDE = 1568    # px; a flyer's small print stays readable (Instagram posts are 1080 wide anyway)
+UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
+# What looking at a picture costs, in list-price dollars per million picture tokens (the routines
+# run on Jesse's Claude plan, so it is plan usage, not a bill). A picture costs about one token per
+# 750 pixels. The cheap model (Haiku 5.5, $0.10 in) writes it to its cache at twice that, then
+# carries it through the batch's ~40 later turns at a tenth: about $0.60. The judge (Sonnet 5.5,
+# $2 in) opens only pictures an item rests on: $4 to cache, ~20 later turns at $0.20, about $8.
+CHEAP_PER_M, JUDGE_PER_M = 0.60, 8.0
 
 
 def task_name(run, kind):
@@ -252,9 +277,93 @@ def when_text(stamp):
     return f"{t:%A, %B} {t.day} at {t:%-I:%M %p}"
 
 
+def needs_pictures(text):
+    """A caption too short to say much, or with no time of day in it: its pictures get read."""
+    text = text or ""
+    return len(text.split()) < SHORT_WORDS or not CLOCK.search(text)
+
+
+def picture_urls(kind, row):
+    """A post's pictures, at most PICTURES, as Apify saved them: Facebook's `media` (a video's
+    is its still), Instagram's `displayUrl` then a carousel's `images` and `childPosts`. With
+    Meta's own description of each where it has one ("May be an image of text that says …")."""
+    if kind == "facebook":
+        got = [((m.get("photo_image") or {}).get("uri") or m.get("thumbnail"), m.get("ocrText"))
+               for m in row.get("media") or [] if isinstance(m, dict)]
+    else:
+        got = ([(row.get("displayUrl"), row.get("alt"))] + [(u, None) for u in row.get("images") or []]
+               + [(c.get("displayUrl"), c.get("alt")) for c in row.get("childPosts") or [] if isinstance(c, dict)])
+    out, seen = [], set()
+    for url, about in got:
+        key = urlsplit(url).path if isinstance(url, str) else None
+        if key and url.startswith("http") and key not in seen:  # one picture under two signed addresses
+            seen.add(key)
+            out.append({"url": url, "about": (about or "").strip()})
+    return out[:PICTURES]
+
+
+def picture_tokens(w, h):
+    return math.ceil(w * h / 750)
+
+
+def fetch_picture(url, dest):
+    """One picture to dest as a JPEG, its long side at most LONG_SIDE; its (w, h)."""
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = r.read(15_000_000)
+    im = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
+    im.thumbnail((LONG_SIDE, LONG_SIDE))
+    im.save(dest, "JPEG", quality=88)
+    return im.size
+
+
+def add_pictures(pages, folder, fetch=fetch_picture):
+    """Every page with pictures gets them downloaded and named at its end, for the cheap model
+    to open. A picture that won't download is a line in the summary, and its page keeps Meta's
+    description. Returns the counts for the cost line."""
+    folder.mkdir(parents=True, exist_ok=True)
+    read, posts, tokens, failed = 0, 0, 0, []
+    for p in pages:
+        pics = p.pop("pictures", [])
+        if not pics:
+            continue
+        lines = []
+        for i, pic in enumerate(pics, 1):
+            dest = folder / f"{p['file']}-{i}.jpg"
+            try:
+                w, h = fetch(pic["url"], dest)
+                read, tokens = read + 1, tokens + picture_tokens(w, h)
+                lines.append(f"Picture {i}: {dest}")
+            except Exception as e:
+                failed.append(f"{p['name']} {p['file']} picture {i}: {e}")
+            if pic["about"]:
+                lines.append(f"Meta's own description of picture {i}: {pic['about']}")
+        if any(ln.startswith("Picture ") for ln in lines):
+            posts += 1
+            lines.insert(0, "The post's caption doesn't say much, so its pictures come with it. Open each "
+                            "picture below with the Read tool and read every word on it: those words are "
+                            "part of this post.")
+        if lines:
+            p["text"] += "\n\n" + "\n".join(lines)
+    return {"read": read, "posts": posts, "tokens": tokens, "failed": failed}
+
+
+def pictures_line(pics):
+    """One line for the answer: what reading pictures added to this check's cost."""
+    if not pics or not pics.get("read"):
+        return "[social] pictures: none read" + (f" ({len(pics['failed'])} would not download)" if pics and pics.get("failed") else "")
+    m = pics["tokens"] / 1e6
+    return (f"[social] pictures: {pics['read']} read on {pics['posts']} posts with a short caption or no time "
+            f"({pics['tokens']:,} picture tokens): about ${m * CHEAP_PER_M:.3f} for the cheap model, and up to "
+            f"${m * JUDGE_PER_M:.3f} more if the judge opens every one, on the Claude plan; nothing on Apify"
+            + (f"; {len(pics['failed'])} would not download" if pics["failed"] else ""))
+
+
 def post_pages(kind, rows, by_url):
     """Apify's rows as pages: one post each, with who posted it, where and when. An empty row
-    (a page with nothing new, hidden, gone) is no page; a hidden one is reported."""
+    (a page with nothing new, hidden, gone) is no page; a hidden one is reported. A post whose
+    caption needs its pictures carries their addresses under `pictures`, for add_pictures; one
+    with no caption but a picture is a page too, since its words may all be on the picture."""
     pages, hidden = [], []
     for r in rows:
         src = (r.get("inputUrl") or r.get("facebookUrl") or "").rstrip("/").lower()
@@ -271,19 +380,21 @@ def post_pages(kind, rows, by_url):
             body = (f"{page['name'] if page else 'A St. Joseph place'} lists this event on its Facebook page.\n"
                     f"Event: {r.get('name') or r.get('title') or ''}\nWhen: {r.get('dateTimeSentence') or r.get('utcStartDate') or r.get('startDate') or ''}\n"
                     f"Where: {where or ''}\n\n{text}")
-            pid, url = r.get("id") or r.get("eventId") or r.get("url"), r.get("url")
+            pid, url, pics = r.get("id") or r.get("eventId") or r.get("url"), r.get("url"), []
         else:
-            text = r.get("text") if kind == "facebook" else r.get("caption")
-            if not (text or "").strip():
+            text = (r.get("text") if kind == "facebook" else r.get("caption")) or ""
+            pics = picture_urls(kind, r) if needs_pictures(text) else []
+            if not text.strip() and not pics:
                 continue
             stamp = r.get("time") or r.get("timestamp")
             body = (f"{page['name'] if page else 'A St. Joseph place'} posted this on {kind.title()} "
-                    f"on {when_text(stamp)}:\n\n{text}")
+                    f"on {when_text(stamp)}:\n\n{text.strip() or '(no caption)'}")
             pid, url = r.get("postId") or r.get("id") or r.get("shortCode"), r.get("url")
         if not page or not pid:
             continue
         pages.append({"file": f"{kind}-{pid}", "url": url or page["url"], "entry_id": page["entry_id"],
-                      "name": page["name"], "category": page.get("category"), "trust": "official", "text": body})
+                      "name": page["name"], "category": page.get("category"), "trust": "official", "text": body,
+                      **({"pictures": pics} if pics else {})})
     return pages, hidden
 
 
@@ -325,6 +436,8 @@ def prepare(run, today, out, now):
         if p["file"] not in seen:
             seen.add(p["file"]), unique.append(p)
     posts = unique
+    pics = add_pictures(posts, out / "pictures")
+    failed += [f"picture not downloaded: {f}" for f in pics["failed"]]
     for i, text in enumerate(layout(posts, today), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
@@ -340,11 +453,12 @@ def prepare(run, today, out, now):
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
-               "read_until": until.isoformat() if until and runs else None}
+               "read_until": until.isoformat() if until and runs else None, "pictures": pics}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
     since = f"since {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "of the last days"
     print(f"[social] {run}: {runs} Apify runs {since}, {checked} pages, {len(posts)} new posts in "
           f"{summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
+    print(pictures_line(pics))
     for f in failed:
         print(f"[social] FAILED {f}")
 
@@ -352,6 +466,7 @@ def prepare(run, today, out, now):
 def finish(out):
     """After the write: mark this check's runs read, so the next check starts after them."""
     prep = json.loads((out / "prepare.json").read_text())
+    print(pictures_line(prep.get("pictures")))
     if not prep.get("read_until"):
         return print(f"[social] {prep['run']}: no Apify runs to mark")
     try:
@@ -405,6 +520,45 @@ def selftest():
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
+    teaser = "Come out to the cocktail lounge tonight for plump, juicing brains 🧠"  # Obbink, 2026-10-25
+    check(needs_pictures(teaser) and needs_pictures(""), "a short caption or none reads its pictures")
+    check(needs_pictures("Our fall menu is here " * 8) and not needs_pictures("Trivia night is back " * 8 + "at 7 pm"),
+          "a long caption reads its pictures only when it gives no time of day")
+    check(all(not needs_pictures("Doors open early " * 10 + t) for t in ("7:30", "7pm", "7 p.m.", "noon")), "the times it knows")
+    ob = {"name": "Obbink Distillery", "entry_id": "distillery-obbink", "url": "https://www.instagram.com/obbinkdistilling"}
+    rows = [{"inputUrl": ob["url"], "id": "5", "caption": teaser, "timestamp": "2026-10-25T21:00:00Z", "type": "Sidecar",
+             "displayUrl": "https://cdn/a.jpg?sig=1", "alt": "May be an image of text that says 'TRIVIA'",
+             "images": ["https://cdn/a.jpg?sig=2", "https://cdn/b.jpg", "https://cdn/c.jpg", "https://cdn/d.jpg"]},
+            {"inputUrl": ob["url"], "id": "6", "caption": "", "displayUrl": "https://cdn/e.jpg"},
+            {"inputUrl": ob["url"], "id": "7", "caption": ""}]
+    got, _ = post_pages("instagram", rows, {ob["url"]: ob})
+    check([p["file"] for p in got] == ["instagram-5", "instagram-6"], "a captionless post with a picture is a page; one without is not")
+    check([x["url"] for x in got[0]["pictures"]] == ["https://cdn/a.jpg?sig=1", "https://cdn/b.jpg", "https://cdn/c.jpg"]
+          and got[0]["pictures"][0]["about"].startswith("May be"), "a carousel's first three pictures, each once, with Meta's words")
+    fb = [{"inputUrl": "https://www.facebook.com/krewe", "postId": "8", "text": "Fun night!",
+           "media": [{"thumbnail": "https://fb/t.jpg", "photo_image": {"uri": "https://fb/full.jpg"}, "ocrText": "May be an image of text"}]}]
+    check(post_pages("facebook", fb, by_url)[0][0]["pictures"] == [{"url": "https://fb/full.jpg", "about": "May be an image of text"}],
+          "a Facebook post's full-size picture")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        Image.new("RGB", (2400, 3000), "white").save(tmp / "flyer.png")
+        w, h = fetch_picture((tmp / "flyer.png").as_uri(), tmp / "out.jpg")
+        check((w, h) == (1254, 1568) and Image.open(tmp / "out.jpg").format == "JPEG", "a picture is shrunk to a 1568 px JPEG")
+        def fake(url, dest):
+            if "c.jpg" in url:
+                raise OSError("HTTP Error 403")
+            dest.write_bytes(b"x")
+            return 1080, 1350
+        pics = add_pictures(got, tmp / "pictures", fake)
+        check(f"Picture 1: {tmp / 'pictures' / 'instagram-5-1.jpg'}" in got[0]["text"] and "read every word" in got[0]["text"]
+              and "Meta's own description of picture 1: May be" in got[0]["text"] and "Picture 3:" not in got[0]["text"]
+              and "pictures" not in got[0], "the page names each picture for the cheap model, Meta's words beside it")
+        check(pics["read"] == 3 and pics["posts"] == 2 and pics["tokens"] == 3 * 1944 and len(pics["failed"]) == 1,
+              "three read on two posts, one that would not download reported")
+    line = pictures_line(pics)
+    check("3 read on 2 posts" in line and "5,832 picture tokens" in line and "$0.003 for the cheap model" in line
+          and "$0.047 more if the judge" in line and "1 would not download" in line, f"the cost line: {line}")
+    check(pictures_line({"read": 0, "failed": []}) == "[social] pictures: none read", "a check with no pictures says so")
     check(spend_line(8.4, 19) == "Apify: $8.40 of $19 this month", "the plain spend line")
     check("Heads-up" in spend_line(15.2, 19) and "cap is reached" in spend_line(19, 19), "the heads-up and the cap")
     print(f"social.py selftest: {ok} passed, 0 failed")

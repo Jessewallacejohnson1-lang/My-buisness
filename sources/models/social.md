@@ -12,7 +12,7 @@ carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 -c "import yaml" || python3 -m pip install --quiet pyyaml`.
+1. **Ready the tools.** Run `python3 -c "import yaml, PIL" || python3 -m pip install --quiet pyyaml pillow`.
    Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
    `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their
    values stay out of every command's output and your answer. Without them, stop and say so.
@@ -22,7 +22,10 @@ carry on with the rest.
 2. **Prepare.** Start `(python3 sources/scripts/social.py prepare <busy|weekly>; echo "prepare exit $?") >
    /tmp/prepare.log 2>&1` with `run_in_background: true`. It reads every Apify run of this list
    that finished since the last check, waits for one still going, and lays out each new post as
-   a page in `.runs/morning/batches/`. Wait for it in the
+   a page in `.runs/morning/batches/`. A post whose caption is under 30 words or gives no time of
+   day also gets up to 3 of its pictures downloaded into `.runs/morning/pictures/`, named at the end
+   of its page (Jesse, 2026-10-26: Obbink's Oct 29 trivia night was on its picture alone). Its
+   `[social] pictures` line says what that added to the cost. Wait for it in the
    foreground 9 minutes at a time (timeout 600000 ms):
    `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
    Repeat until `prepare exit` shows, without ending your turn in between. It starts nothing paid, but run it
@@ -40,7 +43,13 @@ carry on with the rest.
    will want it. Add this to each cheap-model helper's prompt: "These pages are a place's
    social posts. Flag every post with anything to know or do, including specials, deals, sales,
    new products, menu and seasonal items, pre-orders, contests and hours; only a post with
-   nothing to know or do is none." In judging:
+   nothing to know or do is none. Some pages name pictures at their end: open each with the Read
+   tool and read every word on it as part of the post, and write what a flag takes from a picture
+   in its note, starting 'From the picture:'." In judging:
+   - A post's pictures are part of it: a flag from a picture is judged like one from the caption,
+     and a caption that only teases ("come out to the cocktail lounge…") is not a teaser when its
+     picture says what. Before keeping an item whose day, time or place comes only from a
+     picture, open that picture yourself and check it.
    - An event stays an event. A sale with its own dates is an event.
    - Everything else is News: `category` `business` for a place's own offers (a special, a
      deal, a new product or menu item, a pre-order, a contest, a weekly night), `announcement`
@@ -57,13 +66,16 @@ carry on with the rest.
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
    one starts after them; runs a check stopped before this line on (a usage limit, a failure)
    are read by the next. Run it once, at the end, and never before the write.
-5. **Answer** with the summary as `write` printed it, `done`'s line, every `[social] FAILED` line
+5. **Answer** with the summary as `write` printed it, `done`'s lines (the pictures line is what
+   reading pictures added to the cost), every `[social] FAILED` line
    from step 2 (a page Facebook now hides belongs on the hidden list in
    `sources/social/st-joseph-mn.json`), then one line per flag you dropped that a neighbour might
    have wanted, and why.
 
 ## Rules
 
+- Pictures are read for their facts only: never shown, uploaded or kept past this check
+  (ADR-020). `.runs/` goes with the copy.
 - Apify's own schedules start every paid run, each task with its own spending cap; the routine
   starts none. A run that failed or is still going is a line in the answer.
 - The database is written only by `morning.py write`. SQL by hand stays unused.
