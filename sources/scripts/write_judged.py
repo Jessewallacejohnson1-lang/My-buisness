@@ -237,6 +237,9 @@ def tidy_title(title, host="", event=True):
     t = BOTH.sub("CSB SJU", t)
     if "CSB" in host and "SJU" in host:
         t = re.sub(r"^CSB SJU\s+", "", t)  # the host line already names both colleges
+    # The colleges' own meet: the Athletics calendar writes the hosts as the opponent, "College of
+    # Saint Benedict Track and Field vs CSB/SJU" (2026-10-25), which read "CSB Track and Field vs CSB SJU".
+    t = re.sub(r"^(CSB|SJU) (.+?) vs\.? CSB SJU$", r"\1 \2 Meet", t)
     t = re.sub(r"\bbenefiting\b", "for", t, flags=re.I)
     t = re.sub(r"\s*\((?:\$|as needed\b|virtual\b|online\b)[^)]*\)", "", t, flags=re.I)  # price, a note
     t = re.sub(r"\s*\([A-Z]{2,6}\)", "", t)                                       # "(FOC)"
@@ -1109,6 +1112,8 @@ def t_interest_list_is_the_apps():
 WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on the card
     ("College of Saint Benedict Soccer vs Hamline - Senior Night", "CSB Athletics", "St. Joseph, Minn., CSB Stadium",
      "CSB Soccer vs Hamline: Senior Night", "CSB Stadium"),
+    ("College of Saint Benedict Track and Field vs CSB/SJU", "CSB Athletics", "Collegeville, Minn., The Donald McNeely Spectrum",
+     "CSB Track and Field Meet", "The Donald McNeely Spectrum, Collegeville"),
     ("Saint John's University Football vs Concordia (Homecoming)", "SJU Athletics", "Collegeville, Minn., Clemens Stadium",
      "SJU Football vs Concordia: Homecoming", "Clemens Stadium, Collegeville"),
     ("Saint John's University Rugby vs North Dakota State - SJU Red", "SJU Athletics", "Collegeville, Minn. / Radio Towers",
