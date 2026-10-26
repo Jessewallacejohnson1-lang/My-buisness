@@ -120,7 +120,7 @@ struct TimelineEvent: Identifiable, Hashable {
 }
 
 /// nonisolated: a plain value the pure `nonisolated` rules build and compare
-/// (`YourDayLogic`, `FeedCardItem`). Without this its synthesized Hashable is
+/// (`EventWhen`, `FeedCardItem`). Without this its synthesized Hashable is
 /// MainActor-isolated and every nonisolated comparison trips the 0-warning bar.
 nonisolated struct UpcomingEvent: Identifiable, Hashable {
     let id: String
