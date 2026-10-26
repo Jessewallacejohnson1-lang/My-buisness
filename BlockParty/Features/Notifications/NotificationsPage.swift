@@ -67,6 +67,11 @@ struct NotificationsPage: View {
                 ContentUnavailableView("No notifications yet", systemImage: "bell",
                                        description: Text("When something you follow or are going to changes, you'll see it here."))
                     .allowsHitTesting(false)
+            } else if notices.failed {
+                // The Town feed's words for a read that failed.
+                ContentUnavailableView("Notifications", systemImage: "bell",
+                                       description: Text("Check your connection and try again."))
+                    .allowsHitTesting(false)
             }
         }
         .toolbar(.hidden, for: .navigationBar)

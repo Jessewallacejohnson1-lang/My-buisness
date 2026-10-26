@@ -108,6 +108,8 @@ nonisolated struct Notice: Identifiable, Hashable {
 final class Notices {
     /// What the page lists, newest change first; nil until the first read answers.
     private(set) var list: [Notice]?
+    /// The last read failed with nothing read before it: the page says so.
+    private(set) var failed = false
     /// Seen on this phone, by `Notice.id`.
     private var seen: Set<String>
 
@@ -138,7 +140,11 @@ final class Notices {
 
     /// Reads again. A failed read keeps what it had and waits for the next.
     func refresh(now: Date = Date()) async {
-        guard let fresh = try? await read() else { return }
+        guard let fresh = try? await read() else {
+            failed = list == nil
+            return
+        }
+        failed = false
         // Animated, so the bell's dot grows in rather than pops (the friends mark's).
         withAnimation(.snappy) { list = Self.showing(fresh, now: now) }
     }
@@ -153,6 +159,7 @@ final class Notices {
     /// Signed out or another account: nothing until its own read.
     func reset() {
         list = nil
+        failed = false
     }
 
     /// The ones not over by `now`, in the read's order.
@@ -181,7 +188,7 @@ final class Notices {
     static func samples(now: Date) -> [Notice] {
         let day = Town.gregorian.startOfDay(for: now)
         func date(_ days: Int) -> String {
-            Town.format(Town.gregorian.date(byAdding: .day, value: days, to: day) ?? day, "yyyy-MM-dd")
+            Town.day(Town.gregorian.date(byAdding: .day, value: days, to: day) ?? day)
         }
         let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
         let kennedy = URL(string: logos + "kennedy-community-school/logo-14e0e9e7e8.webp")

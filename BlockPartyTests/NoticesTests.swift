@@ -181,11 +181,17 @@ final class NoticesTests: XCTestCase {
             if fail { throw URLError(.notConnectedToInternet) }
             return [over, notice("game")]
         }, keep: keep)
+        fail = true
         await notices.refresh(now: now)
+        XCTAssertTrue(notices.failed, "nothing read: the page says so")
+        fail = false
+        await notices.refresh(now: now)
+        XCTAssertFalse(notices.failed)
         XCTAssertEqual(notices.list?.map(\.event.id), ["game"], "one already over isn't news")
         fail = true
         await notices.refresh(now: now)
         XCTAssertEqual(notices.list?.map(\.event.id), ["game"])
+        XCTAssertFalse(notices.failed, "what it had still shows")
     }
 
     func testInstagramsSections() {

@@ -173,8 +173,8 @@ private nonisolated enum TodayBarMetric {
     /// The bell, at its measured reference size (20.69pt tall — see
     /// `refs/chrome/REFERENCE-SPEC.md`).
     static let bellGlyphSize: CGFloat = 21
-    /// How far the bell's 21pt frame runs past its ink on the right and top, for its dot. (picked:
-    /// measured on BP Build at the first build, see the dot's commit)
+    /// How far the bell's 21pt frame runs past its ink on the right and top, for its dot (ink 373 to
+    /// 391 by 86.7 to 107.3pt on BP Build; the dot's centre landed at 388.9, 88.6, measured 2026-10-26).
     static let bellInkRight: CGFloat = 1.5
     static let bellInkTop: CGFloat = 0
     /// The row's padding: Instagram's circles sit 16pt in from the screen's edges,
