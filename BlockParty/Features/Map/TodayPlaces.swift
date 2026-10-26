@@ -16,12 +16,12 @@ struct TodayPlaces {
     let events: [TimelineEvent]
     private let spotByEvent: [String: Spot]
 
-    init(events: [TimelineEvent], spots: [Spot] = MapSpots.all) {
+    init(events: [TimelineEvent]) {
         self.events = events
         var spotByEvent: [String: Spot] = [:]
         for event in events {
             let haystack = [event.title, event.location].compactMap { $0 }.joined(separator: " ").lowercased()
-            spotByEvent[event.id] = spots.first { $0.keywords.contains { haystack.contains($0) } }
+            spotByEvent[event.id] = MapSpots.all.first { $0.keywords.contains { haystack.contains($0) } }
         }
         self.spotByEvent = spotByEvent
     }

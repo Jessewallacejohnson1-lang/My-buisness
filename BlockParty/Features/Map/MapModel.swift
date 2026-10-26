@@ -20,7 +20,12 @@ final class MapModel: ObservableObject {
     /// render; this is only about *today's happenings* data.
     enum LoadState: Equatable { case loading, loaded, empty, error, offline }
 
-    @Published private(set) var todayEvents: [TimelineEvent] = []
+    @Published private(set) var todayEvents: [TimelineEvent] = [] {
+        didSet { todayPlaces = TodayPlaces(events: todayEvents) }
+    }
+    /// Which pin each of today's events is at: worked out once per load, read by every pin,
+    /// bubble, list and search.
+    private(set) var todayPlaces = TodayPlaces(events: [])
     /// The town's permanent food/business venues (Supabase `places`). Loaded once —
     /// they don't change with today's events or the Realtime pipeline.
     @Published private(set) var pois: [POI] = []

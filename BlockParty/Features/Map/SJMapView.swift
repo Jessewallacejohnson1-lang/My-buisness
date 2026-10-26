@@ -470,10 +470,9 @@ struct SJMapView: View {
     /// Events resolves through the same today/live rule the pins use (`TodayPlaces`
     /// + `isLive`, DEBUG forces included); Saved reads the shared device-local store.
     var filteredSpots: [Spot] {
-        let places = todayPlaces
-        return MapSpots.all.filter {
+        MapSpots.all.filter {
             filter.includesSpot(category: $0.category,
-                                hasEventToday: !places.events(at: $0).isEmpty || isLive($0, in: places),
+                                hasEventToday: !todayPlaces.events(at: $0).isEmpty || isLive($0),
                                 isSaved: isSavedSpot($0))
         }
     }
@@ -493,9 +492,8 @@ struct SJMapView: View {
         return nil
     }
 
-    /// Which place each of today's events is at (TodayPlaces.swift). Cheap: a few dozen
-    /// events against a handful of spots; callers that ask often take it once.
-    var todayPlaces: TodayPlaces { TodayPlaces(events: model.todayEvents) }
+    /// Which place each of today's events is at (TodayPlaces.swift), worked out once per load.
+    var todayPlaces: TodayPlaces { model.todayPlaces }
 
     /// Today's events as bubbles, one per place (TodayBubbles.swift). Only under All and
     /// Events. Re-read each minute (`clockTick`) so an ended event drops off.
@@ -515,11 +513,11 @@ struct SJMapView: View {
     }
 
     /// A spot glows only while one of its events is actually happening.
-    func isLive(_ spot: Spot, in places: TodayPlaces? = nil) -> Bool {
+    func isLive(_ spot: Spot) -> Bool {
         #if DEBUG
         if Self.debugForceLiveIds().contains(spot.id) { return true }
         #endif
-        return (places ?? todayPlaces).isLive(spot)
+        return todayPlaces.isLive(spot)
     }
 
     /// Whether the viewer has saved this place (device-local; the map's Saved pin).
@@ -573,7 +571,6 @@ struct SJMapView: View {
                           restingFloorInset: bottomBarInset + MapSheet.peekHeight)
             if mapDetail == nil {
                 MapSheet(
-                    events: model.todayEvents,
                     state: model.state,
                     spots: filteredSpots,
                     places: todayPlaces,
@@ -595,8 +592,8 @@ struct SJMapView: View {
             if let detail = mapDetail {
                 PinDetailSheet(
                     detail: detail,
-                    happenings: selectedSpot.map(todayPlaces.events(at:)) ?? [],
-                    isLive: detail.spot.map { isLive($0) } ?? false,
+                    happenings: detail.spot.map(todayPlaces.events(at:)) ?? [],
+                    isLive: detail.spot.map(isLive) ?? false,
                     distanceLabel: detailDistanceLabel(detail),
                     height: detailSheetHeight,
                     onClose: { closeCard() }
@@ -706,7 +703,6 @@ struct SJMapView: View {
 
     private var mapLayer: some View {
         // Worked out once per redraw, not once per pin.
-        let places = todayPlaces
         let bubbles = todayBubbles
         let bubbledSpots = Set(bubbles.compactMap { $0.spot?.id })
         return MapReader { proxy in
@@ -766,7 +762,7 @@ struct SJMapView: View {
                 // that threshold its solo assignment glides it back to this anchor.
                 ForEvery(filteredSpots) { spot in
                     // Computed once and reused below for the badge tint and the a11y label.
-                    let spotIsLive = isLive(spot, in: places)
+                    let spotIsLive = isLive(spot)
                     // A place with a today bubble lets the bubble carry "on now"; its pin
                     // underneath stays calm (no plum pulse) — Jesse at Check-in 1, 2026-10-22.
                     let bubbled = bubbledSpots.contains(spot.id)
@@ -793,7 +789,7 @@ struct SJMapView: View {
                                 expanded: isSelected || model.pinsExpanded,
                                 showsLabel: model.pinsExpanded && !calmed && !bubbled
                                     && labelledMarkers.contains(markerID),
-                                a11yLabel: accessibilityLabel(for: spot, count: places.events(at: spot).count,
+                                a11yLabel: accessibilityLabel(for: spot, count: todayPlaces.events(at: spot).count,
                                                               live: spotIsLive)
                             )
                             .onTapGesture { selectSpot(spot) }

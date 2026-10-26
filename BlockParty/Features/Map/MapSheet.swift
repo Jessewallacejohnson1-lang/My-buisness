@@ -92,12 +92,12 @@ private enum SheetDragOwner { case undecided, scroll, sheet }
 
 struct MapSheet: View {
     // Data (owned by MapModel / SJMapView; the sheet only reads)
-    let events: [TimelineEvent]
+    private var events: [TimelineEvent] { places.events }
     let state: MapModel.LoadState
     let spots: [Spot]                          // already filtered by the map's chip
+    let places: TodayPlaces                    // which pin each of today's events is at
 
     // Callbacks up to SJMapView
-    let places: TodayPlaces                    // which pin each of today's events is at
     let onSelectSpot: (Spot) -> Void           // fly camera + select
     let onRetry: () -> Void
 
