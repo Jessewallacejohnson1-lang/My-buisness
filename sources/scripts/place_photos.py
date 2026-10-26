@@ -42,6 +42,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run  # noqa: E402  (the polite fetch)
+from db import Db, DbError  # noqa: E402
 
 TOWN = 'st-joseph'
 OUT = Path(__file__).resolve().parents[2] / '.runs' / 'photos'
@@ -281,17 +282,15 @@ def label(d, xy, text, f, width, fill=(30, 30, 30)):
 
 # --- The database ------------------------------------------------------------------------------------
 
-def api(method, path, body=None, headers=None):
-    """One call to the project's REST or Storage API with the service key from the environment."""
-    url, key = os.environ.get('SUPABASE_URL', '').rstrip('/'), os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
-    if not url or not key:
-        sys.exit('needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (never in the repo)')
-    data = body if isinstance(body, bytes) or body is None else json.dumps(body).encode()
-    h = {'apikey': key, 'Authorization': f'Bearer {key}', **({} if isinstance(body, bytes) else {'Content-Type': 'application/json'}),
-         **(headers or {})}
-    with urllib.request.urlopen(urllib.request.Request(url + path, data, h, method=method), timeout=60) as r:
-        text = r.read()
-    return json.loads(text) if text.strip() else None
+_db = None
+
+
+def db():
+    """The shared client (db.py), made on first use so a run that never writes needs no key."""
+    global _db
+    if _db is None:
+        _db = Db('needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (never in the repo)', timeout=60)
+    return _db
 
 
 def public_url(path):
@@ -317,7 +316,7 @@ def check(logos=False, rows=None, minutes=None):
     kind_ = 'logo' if logos else 'photo'
     stop = deadline(minutes)
     if rows is None:
-        rows = api('GET', f'/rest/v1/place_photos?select=id,entry_id,position,url,source_url,credit,added_at'
+        rows = db().rest('GET', f'place_photos?select=id,entry_id,position,url,source_url,credit,added_at'
                           f'&status=eq.live&kind=eq.{kind_}&order=entry_id,position')
     skipped = [r for r in rows if r['credit'] == WALK_CREDIT or SOCIAL.search(urllib.parse.urlparse(r['source_url']).netloc)]
     rows = [r for r in rows if r not in skipped]
@@ -413,10 +412,10 @@ def without_photo(entries):
     """Every place people see that still has no real photo (Jesse, 2026-10-18: re-read every month, the
     first pass missed some): app places and the places upcoming found events happen at, each with
     its pages (the app's website and the registry's)."""
-    places = api('GET', '/rest/v1/places?select=entry_id,links&entry_id=not.is.null')
-    events = api('GET', f'/rest/v1/club_events?select=place_entry_id&source_uid=not.is.null'
+    places = db().rest('GET', 'places?select=entry_id,links&entry_id=not.is.null')
+    events = db().rest('GET', f'club_events?select=place_entry_id&source_uid=not.is.null'
                         f'&event_date=gte.{date.today()}&place_entry_id=not.is.null')
-    have = {r['entry_id'] for r in api('GET', '/rest/v1/place_photos?select=entry_id&kind=eq.photo'
+    have = {r['entry_id'] for r in db().rest('GET', 'place_photos?select=entry_id&kind=eq.photo'
                                               '&status=in.(live,proposed)')}
     sites = {}
     for p in places:
@@ -447,7 +446,7 @@ def candidates(minutes=None):
              'hash': r['hash'], 'pages': [r['source_url']]} for r in stale]
     jobs += [{'key': w['entry_id'], 'entry_id': w['entry_id'], 'position': None, 'verdict': 'no photo yet',
               'hash': None, 'pages': w['pages']} for w in without_photo(entries)]
-    live = api('GET', '/rest/v1/place_photos?select=entry_id,url&status=in.(live,proposed)')
+    live = db().rest('GET', 'place_photos?select=entry_id,url&status=in.(live,proposed)')
     done_f = OUT / 'candidates.json'
     result = json.loads(done_f.read_text()) if done_f.exists() else {}
     if result.get('_day') != str(date.today()):
@@ -530,7 +529,7 @@ def live_hashes(live):
 def live_sheets(per=24, cols=6):
     """Every live photo, numbered by its row id and place, on .runs/photos/live-<n>.png: the monthly
     look for photos that slipped through (a video still, an ad, another company's watermark)."""
-    rows = api('GET', '/rest/v1/place_photos?select=id,entry_id,url&status=eq.live&kind=eq.photo&order=entry_id,position')
+    rows = db().rest('GET', 'place_photos?select=id,entry_id,url&status=eq.live&kind=eq.photo&order=entry_id,position')
     tw, th = 240, 180
     files = []
     for s in range(0, len(rows), per):
@@ -591,23 +590,22 @@ def propose(key, n):
     v = json.loads((OUT / 'candidates.json').read_text())[str(key)]  # KeyError: not a key on the sheets
     c = next(x for x in v['cands'] if x['n'] == n)
     if v['position'] is None:  # a first photo: the next free slot (a live logo keeps its own)
-        taken = [r['position'] for r in api('GET', f"/rest/v1/place_photos?select=position&entry_id=eq.{v['entry_id']}"
+        taken = [r['position'] for r in db().rest('GET', f"place_photos?select=position&entry_id=eq.{v['entry_id']}"
                                                    '&status=in.(live,proposed)')]
         v['position'] = max(taken) + 1 if taken else 0
     data = webp(Image.open(OUT / str(key) / f'c{n}.png'))
     width, height = Image.open(io.BytesIO(data)).size  # the Town card takes the photo's shape before it loads
     path =f"{TOWN}/{v['entry_id']}/photo-{hashlib.sha1(data).hexdigest()[:10]}.webp"
     try:
-        api('POST', f'/storage/v1/object/places/{urllib.parse.quote(path)}', data,
-            {'Content-Type': 'image/webp', 'x-upsert': 'false', 'cache-control': 'max-age=31536000'})
-    except urllib.error.HTTPError as x:
-        if x.code not in (400, 409):  # the same file from an earlier, interrupted run
+        db().storage_put(f'places/{path}', data, 'image/webp')
+    except DbError as x:
+        if x.status not in (400, 409):  # the same file from an earlier, interrupted run
             raise
-    api('POST', '/rest/v1/place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
+    db().rest('POST', 'place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
                                            'source_url': c['page'], 'position': v['position'], 'status': 'proposed',
                                            'kind': 'photo', 'credit': credit(c), 'proposed_by': 'the monthly refresh',
                                            'width': width, 'height': height}],
-        {'Prefer': 'return=minimal'})
+              'return=minimal')
     print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if str(key).isdigit() else ' as its first photo')
           + f" (position {v['position']})")
 
