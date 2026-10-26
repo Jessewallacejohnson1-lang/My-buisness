@@ -173,6 +173,10 @@ private nonisolated enum TodayBarMetric {
     /// The bell, at its measured reference size (20.69pt tall — see
     /// `refs/chrome/REFERENCE-SPEC.md`).
     static let bellGlyphSize: CGFloat = 21
+    /// How far the bell's 21pt frame runs past its ink on the right and top, for its dot (ink 373 to
+    /// 391 by 86.7 to 107.3pt on BP Build; the dot's centre landed at 388.9, 88.6, measured 2026-10-26).
+    static let bellInkRight: CGFloat = 1.5
+    static let bellInkTop: CGFloat = 0
     /// The row's padding: Instagram's circles sit 16pt in from the screen's edges,
     /// and its marks stay put inside them whether or not the circle shows (MEASURED,
     /// as above). Was 4 until 2026-09-27, which put the bare ink itself on 16pt.
@@ -247,6 +251,8 @@ struct TodayTopBar: View {
     var onOpenFriends: () -> Void = {}
     /// The friend requests' dot; absent in previews and demo screens.
     @Environment(FriendsBook.self) private var friendsBook: FriendsBook?
+    /// The bell's dot; absent in previews and demo screens.
+    @Environment(Notices.self) private var notices: Notices?
     /// The map button → the town map. No longer the trailing control: it slid left
     /// to make room for the bell, and now sits between the mark and the bar's edge.
     var onOpenMap: () -> Void = {}
@@ -437,26 +443,36 @@ struct TodayTopBar: View {
             Image(systemName: "person.2.fill")
                 .font(.glyph(TodayBarMetric.friendsGlyphSize))
                 .overlay(alignment: .topTrailing) {
-                    if dot {
-                        let reach = TodayBarMetric.friendsDot / 2 + TodayBarMetric.friendsDotRing
-                        Circle()
-                            .fill(Hue.brandDisc)
-                            .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
-                            .padding(TodayBarMetric.friendsDotRing)
-                            .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
-                            .offset(x: reach - TodayBarMetric.friendsDotInset - TodayBarMetric.friendsInkRight,
-                                    y: TodayBarMetric.friendsDotInset - reach + TodayBarMetric.friendsInkTop)
-                            .transition(.scale.combined(with: .opacity))
-                    }
+                    if dot { unreadDot(inkRight: TodayBarMetric.friendsInkRight, inkTop: TodayBarMetric.friendsInkTop) }
                 }
                 .accessibilityHidden(true)
         }
     }
 
+    /// A canceled or moved Event you follow or are Going to puts the friends mark's dot on the
+    /// bell (BP app docs/plans/school-activities, ticket 04): no number, gone once its page opens.
     private var bellButton: some View {
-        glyphButton(label: "Notifications", hint: "What you have missed", action: onOpenNotifications) {
+        let dot = notices?.dot == true
+        return glyphButton(label: dot ? "Notifications, new" : "Notifications", hint: "What you have missed",
+                           action: onOpenNotifications) {
             BellGlyph(size: TodayBarMetric.bellGlyphSize)
+                .overlay(alignment: .topTrailing) {
+                    if dot { unreadDot(inkRight: TodayBarMetric.bellInkRight, inkTop: TodayBarMetric.bellInkTop) }
+                }
         }
+    }
+
+    /// The quiet dot on a mark, centred `friendsDotInset` inside its ink's top right corner.
+    private func unreadDot(inkRight: CGFloat, inkTop: CGFloat) -> some View {
+        let reach = TodayBarMetric.friendsDot / 2 + TodayBarMetric.friendsDotRing
+        return Circle()
+            .fill(Hue.brandDisc)
+            .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
+            .padding(TodayBarMetric.friendsDotRing)
+            .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
+            .offset(x: reach - TodayBarMetric.friendsDotInset - inkRight,
+                    y: TodayBarMetric.friendsDotInset - reach + inkTop)
+            .transition(.scale.combined(with: .opacity))
     }
 
     /// The logo's letterforms on the page, in ink, with no tile behind them.

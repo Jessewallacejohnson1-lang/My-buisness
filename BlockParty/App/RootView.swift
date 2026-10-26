@@ -317,6 +317,12 @@ struct MainTabsView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.
+    private func recordOpen() {
+        guard auth.isSignedIn else { return }
+        Task { try? await CommunityAPI(auth: AuthStore.shared).recordOpen() }
+    }
+
     init(startTab: Tab? = nil) {
         self.startTab = startTab
         let resolved = startTab ?? MainTabsView.initialTab()
@@ -411,9 +417,9 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The alert when an Event you're Going to is called off, once, on opening the app
-    /// (BP app docs/plans/watch-every-place, ticket 12).
-    @State private var cancelNotice = CancelNotice()
+    /// What the bell holds: Events you follow or are Going to that were canceled or moved (BP app
+    /// docs/plans/school-activities, ticket 04). Nothing pops up; the bell gets a dot.
+    @State private var notices = Notices()
     /// The sample friends inbox and its chats, unreached until messaging (BP app
     /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -423,10 +429,6 @@ struct MainTabsView: View {
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
-    /// The Today bar's bell opens a reserved screen: the mark shipped ahead of what sits
-    /// behind it, and a named empty room is the same call `BlankTab` makes for the
-    /// unbuilt tabs. The friends mark beside it pushes the Friends page (`openFriends`).
-    @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     /// Profile, in Apple's standard sheet, from the photo at the top left of You.
     @State private var showProfileSheet = false
     /// Direction of the last tab change — whether the incoming screen slides in
@@ -478,6 +480,11 @@ struct MainTabsView: View {
                 .navigationDestination(for: Game.Team.self) { TeamPage(team: $0) }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
                 .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
+                // The bell's page (school-activities 04).
+                .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage() }
+                .navigationDestination(for: NoticeEventRoute.self) { route in
+                    FeedEventDetailDestination(item: route.item).environment(townFeed)
+                }
         }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
@@ -498,21 +505,14 @@ struct MainTabsView: View {
         .background { CalendarFollower(sync: calendarSync) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
+        // The bell's dot and its page.
+        .environment(notices)
         .environment(friendsBook)
         // A neighbour's page lays their groups and your shared plans over the You tab's reads.
         .environment(you)
         // The friend sheet and its refusals; the Profile sheet shows its own while it is up, since
         // one sheet can't open over another from here (follows 05).
         .friendSurfaces(friendsBook, actions: actions, active: !showProfileSheet)
-        // An Event you're Going to was called off, in Apple's alert with OK alone (Jesse,
-        // 2026-10-15). Told only on OK; leaving the app untold asks again on the next open,
-        // so one that couldn't show (behind a sheet or the map) comes back.
-        .alert(CancelNotice.title(cancelNotice.said),
-               isPresented: Binding(get: { !cancelNotice.showing.isEmpty }, set: { _ in })) {
-            Button("OK", role: .cancel) { cancelNotice.ok() }
-        } message: {
-            Text(CancelNotice.message(cancelNotice.said))
-        }
         // The dot: read at launch and on coming back to the app (and on each visit to Town),
         // and again for another account, or the same one logged in for real.
         .task { await friendsBook.refreshDot() }
@@ -541,13 +541,14 @@ struct MainTabsView: View {
             Task { if let groups = await you.refreshGroups() { actions.read(groups) } }
             Task { await eventOfTheDay.refresh() }
             Task { await actions.moveUp(.shared) }
-            Task { await cancelNotice.check() }
+            notices.reset()
+            Task { await notices.refresh() }
         }
         // Event saves this phone kept before they moved to the server go up once, at
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }
-        // Called off since you last looked: at launch, on coming back, and for a new account.
-        .task { await cancelNotice.check() }
+        // Canceled or moved since you last looked: at launch, on coming back, and for a new account.
+        .task { await notices.refresh() }
         // The Town feed's views and opens go up every 30 seconds, from the shell so it
         // runs on any tab and under a pushed page (ticket 20); the DEBUG demo screens
         // outside the shell never send.
@@ -557,22 +558,28 @@ struct MainTabsView: View {
                 await townFeed.send()
             }
         }
+        // A first launch makes its account after this screen appears.
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn { recordOpen() }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 Task { await townFeed.send(always: true) }
-                cancelNotice.away()
             }
             if phase == .active {
+                recordOpen()
                 Task { await friendsBook.refreshDot() }
-                Task { await cancelNotice.check() }
+                Task { await notices.refresh() }
                 // Back the next morning on Daily: today's picks, not yesterday's.
                 if tab == .daily { Task { await eventOfTheDay.refresh() } }
             }
         }
         .onAppear {
+            recordOpen()
             // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
             // sample inbox's newest chat, the one way left into the sample chats.
             if Self.debugOpen("-open-friends") { openFriends() }
+            if Self.debugOpen("-open-notifications") { path.append(NotificationsRoute()) }
             if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first {
                 path.append(FriendsRoute.inbox)
                 path.append(FriendsRoute.chat(newest.id))
@@ -636,7 +643,7 @@ struct MainTabsView: View {
                             HomeView(
                                 onOpenMap: { showMap = true },
                                 onOpenFriends: openFriends,
-                                onOpenNotifications: { showNotifications = true },
+                                onOpenNotifications: { path.append(NotificationsRoute()) },
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay
                             )
@@ -729,8 +736,6 @@ struct MainTabsView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
-        // The Today bar's bell: a reserved screen until the real one lands; see `ReservedScreen`.
-        .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
         // The map is a destination now, not a tab. Full-screen cover rather than a
         // sheet: the map owns its own bottom sheet, and two stacked drag surfaces
         // fight each other for the same gesture.

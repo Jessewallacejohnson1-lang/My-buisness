@@ -60,9 +60,10 @@ extension TownFeedEntry {
     }
 }
 
-/// What the feed showed (a view) or what was opened, for `feed_actions` (ticket 20).
+/// What the feed showed (a view), what was opened, or an Event shared from the app (ticket 26),
+/// for `feed_actions` (ticket 20).
 struct FeedAction: Equatable {
-    enum Kind: String { case view, open }
+    enum Kind: String { case view, open, share }
     let itemID: String
     let kind: Kind
 }
