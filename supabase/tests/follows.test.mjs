@@ -56,11 +56,13 @@ await db.exec(`
     $$ select jsonb_build_object('url', 'https://pic/' || p_entry_id, 'kind', 'logo') $$;
   create function public.get_feed_postings(limit_n integer default 30) returns int
     language sql as $$ select 0 $$;
+  create table public.teams (uuid uuid primary key, short_name text, logo_url text);
   grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 `);
 await db.exec(realAccount);
 for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
-                   ...read('_unfriend_and_block.sql'), ...read('_follow_places_and_people.sql')]) {
+                   ...read('_unfriend_and_block.sql'), ...read('_follow_places_and_people.sql'),
+                   ...read('_my_follows_own_photos.sql')]) {
   await db.exec(sql);
 }
 
@@ -255,4 +257,18 @@ test("an Event's host: who posted it if they may be found, else its Place, never
   await db.exec('set role anon');
   assert.deepEqual((await db.query('select name from public.event_host($1)', [AT_KREWE])).rows, [{ name: 'Krewe' }]);
   await db.exec('reset role');
+});
+
+test("the Following list draws a person's photo only from their own folder of our avatars bucket", async () => {
+  await reset();
+  const own = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${BEN}/face.jpg`;
+  const theirs = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${CAL}/face.jpg`;
+  await db.query('update public.town_profiles set avatar_url = $2 where user_id = $1', [BEN, own]);
+  await db.query('update public.town_profiles set avatar_url = $2 where user_id = $1', [DEE, theirs]);
+  await follow(ANA, 'profile', BEN);
+  await follow(ANA, 'profile', DEE);
+  await follow(ANA, 'profile', EVE);
+  const rows = await as(ANA, 'select name, picture from public.my_follows()');
+  assert.deepEqual(rows.map((r) => [r.name, r.picture]),
+                   [['Ben Ortiz', own], ['Dee Moss', null], ['Eve Park', null]]);
 });
