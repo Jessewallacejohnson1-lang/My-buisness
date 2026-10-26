@@ -38,17 +38,11 @@ enum ReviewRow {
     }
 }
 
-@MainActor
 /// An Event neighbours reported (town-feed 22): its reasons and how many reports, never who sent them.
 struct ReportedEvent: Identifiable, Equatable, Decodable {
     let eventId: String
     let title: String
     let eventDate: String?
-    let startTime: String?
-    let allDay: Bool
-    let sourceName: String?
-    let location: String?
-    let found: Bool
     let reasons: [String]
     let reports: Int
     var id: String { eventId }
@@ -60,6 +54,7 @@ struct ReportedEvent: Identifiable, Equatable, Decodable {
     }
 }
 
+@MainActor
 final class ModerationModel: ObservableObject {
     @Published var posts: [PendingPost] = []
     @Published var clubs: [ClubRow] = []
@@ -85,7 +80,8 @@ final class ModerationModel: ObservableObject {
             // A row mid-decision stays gone even if this fetch raced its write.
             posts = try await p.filter { !acting.contains($0.id) }
             clubs = try await c.filter { !acting.contains($0.id) }
-            reports = try await r.filter { !acting.contains($0.id) }
+            // Reports never blank the rest of the queue.
+            reports = ((try? await r) ?? []).filter { !acting.contains($0.id) }
             failed = false
         } catch {
             if posts.isEmpty && clubs.isEmpty && reports.isEmpty { failed = true }
@@ -163,11 +159,9 @@ final class ModerationModel: ObservableObject {
     #if DEBUG
     /// Two reported Events (`-review-queue-preview`): made up, as nobody has reported one yet.
     static let reportFixtures = [
-        ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-10-28", startTime: "4 PM",
-                      allDay: false, sourceName: nil, location: "Millstream Park", found: false,
+        ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-10-28",
                       reasons: ["scam"], reports: 3),
-        ReportedEvent(eventId: "report-1", title: "Park Board Meeting", eventDate: "2026-10-26", startTime: "6:30 PM",
-                      allDay: false, sourceName: "City of St. Joseph", location: nil, found: true,
+        ReportedEvent(eventId: "report-1", title: "Park Board Meeting", eventDate: "2026-10-26",
                       reasons: ["wrong_info"], reports: 1),
     ]
 

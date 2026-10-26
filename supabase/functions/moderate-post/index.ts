@@ -50,6 +50,10 @@ Deno.serve(async (req) => {
   // taken from the caller; claim_recheck lets each one through once, so a second report or a retry
   // never pays again. A "breaks the rules" answer declines it as reported: it leaves every feed.
   let admin: any = null
+  // A re-check the model never answered goes back unclaimed, so the next report tries again.
+  const unclaim = async () => {
+    if (admin) await admin.from('club_events').update({ rechecked_at: null }).eq('id', body.recheck)
+  }
   if (body.recheck) {
     admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const { data: claimed, error } = await admin.rpc('claim_recheck', { p_event: body.recheck })
@@ -84,17 +88,18 @@ Deno.serve(async (req) => {
         messages: [{ role: 'user', content }],
       }),
     })
-    if (!res.ok) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!res.ok) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
     const data = await res.json()
     const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
     const match = text.match(/\{[\s\S]*\}/)
-    if (!match) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!match) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
     const parsed = JSON.parse(match[0])
     if (admin && !parsed.ok) {
       await admin.from('club_events').update({ status: 'rejected', review_reason: 'reported' }).eq('id', body.recheck)
     }
     return json({ ok: !!parsed.ok, reason: parsed.reason ?? '' })
   } catch {
+    await unclaim()
     return json({ ok: false, reason: 'Could not auto-check.' }, 502)
   }
 })

@@ -1946,8 +1946,8 @@ test('Wrong info and Wrong photo hide nothing and only reach the queue', async (
   assert.equal(await reportAs(YOU, fair, 'wrong_photo'), false);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Craft fair']);
   await db.exec(`set test.admin = 'on'`);
-  assert.deepEqual((await db.query('select title, found, reasons, reports from public.list_reports()')).rows,
-    [{ title: 'Craft fair', found: true, reasons: ['wrong_info', 'wrong_photo'], reports: 2 }]);
+  assert.deepEqual((await db.query('select title, reasons, reports from public.list_reports()')).rows,
+    [{ title: 'Craft fair', reasons: ['wrong_info', 'wrong_photo'], reports: 2 }]);
 });
 
 test("only a neighbour's posting, reported by a signed-in account, goes back to the AI, and once", async () => {

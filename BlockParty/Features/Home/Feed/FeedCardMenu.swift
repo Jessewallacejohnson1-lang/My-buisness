@@ -302,6 +302,7 @@ struct FeedCardMenu: View {
                 sending = nil
                 failures += 1
                 Haptics.error()
+                AccessibilityNotification.Announcement("Couldn't send. Try again.").post()
             }
         }
     }
@@ -467,9 +468,12 @@ struct FeedCardMenuSheet: ViewModifier {
                              hostName: item.hostName.isEmpty ? nil : item.hostName,
                              onHide: acts ? { (mute: Bool) in chosen = mute } : nil,
                              reasons: ReportReason.offered(photo: report != nil, found: item.found),
-                             onReport: acts ? { reason in
+                             // Once per card: a second report from the same phone would only add to its count.
+                             onReport: acts && feed?.reportedIDs.contains(item.id) == false ? { reason in
                                  try await feed?.report(item, reason)
-                                 if reason.hides { reported = true }
+                                 guard reason.hides else { return }
+                                 // The sheet was dragged away while it sent: fold now, not at the next close.
+                                 if isPresented { reported = true } else { feed?.hideReported(item) }
                              } : nil)
             }
         }

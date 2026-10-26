@@ -120,15 +120,13 @@ grant execute on function public.claim_recheck(uuid) to service_role;
 
 -- The review queue's reports: one row per reported Event still up, newest report first.
 create or replace function public.list_reports()
-returns table (event_id uuid, title text, event_date date, start_time text, all_day boolean,
-               source_name text, location text, found boolean, reasons text[], reports int, last_at timestamptz)
+returns table (event_id uuid, title text, event_date date, reasons text[], reports int)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select e.id, e.title, e.event_date, e.start_time, e.all_day, e.source_name, e.location,
-         e.submitted_by is null, array_agg(distinct r.reason order by r.reason), count(*)::int, max(r.at)
+  select e.id, e.title, e.event_date, array_agg(distinct r.reason order by r.reason), count(*)::int
   from public.reports r
   join public.club_events e on e.id = r.event_id
   where public.is_admin() and e.status = 'approved'

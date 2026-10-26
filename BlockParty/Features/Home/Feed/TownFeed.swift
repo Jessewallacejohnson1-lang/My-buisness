@@ -504,6 +504,7 @@ final class TownFeed {
         unsent = []
         viewed = []
         hiddenIDs = []
+        reportedIDs = []
         mutedNames = []
         muteKeys = [:]
         undoTimer?.cancel()
@@ -523,7 +524,11 @@ final class TownFeed {
     /// Report a card (ticket 22), from its sheet, which waits for the answer to say thanks or shake.
     func report(_ card: FeedCardItem, _ reason: ReportReason) async throws {
         _ = try await choose(.report(card.id, reason))
+        reportedIDs.insert(card.id)
     }
+
+    /// Cards reported from this phone this session: their sheet has no Report row.
+    private(set) var reportedIDs: Set<String> = []
 
     /// A reported card, once its sheet has closed: out, with the same Undo line as Not interested.
     /// The report already went; Undo lifts only the hide.

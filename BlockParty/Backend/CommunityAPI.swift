@@ -397,7 +397,8 @@ struct CommunityAPI {
             let (data, _) = try await SupabaseHTTP.rest("rpc/report_event", method: "POST", accessToken: t,
                                                         body: try body(["p_event": id, "p_reason": reason.rawValue]))
             // A neighbour's posting goes back through the AI check (town-feed 22). The function claims
-            // it once, so a lost call here is retried by the next report; the reporter never waits.
+            // it once and lets go if the model doesn't answer, so a lost call is retried by the next
+            // report; the reporter never waits.
             if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
                 Task.detached { try? await Self.recheck(id, token: t) }
             }
