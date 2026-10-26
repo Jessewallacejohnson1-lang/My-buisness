@@ -1250,7 +1250,7 @@ def t_followers_only():
         "everyone's, and still the choir's whichever page's row it is"
     assert run([item(followers_only="yes")])["outcomes"][0] == ("skipped", "invalid: followers_only must be true or false")
     sql = WRITES.read_text()
-    assert "followers_only = excluded.followers_only" in sql, "the database keeps it"
+    assert "followers_only = club_events.followers_only and excluded.followers_only" in sql, "once public, stays public"
 
 
 TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
