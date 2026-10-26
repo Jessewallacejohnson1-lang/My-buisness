@@ -4,8 +4,9 @@ The cheap model read this morning's changed pages and flagged generously
 (`.runs/morning/flags.jsonl`, one JSON line per flag, in `flag.md`'s shape). You decide what
 each flag really is and write the judged items `write_judged.py` takes, one JSON object per
 line, into `.runs/morning/judged.jsonl`. The writer does the rest: trust, merging with what is
-already listed, show-from days, wording. A flag you drop is gone for today; a flag you keep
-unsure waits for Jesse. Keep what a neighbour would want to hear about.
+already listed, repeats, show-from days, wording. A flag you drop is gone for today; every
+flag you keep goes live, so nothing waits for Jesse (Jesse, 2026-10-26). Keep what a
+neighbour would want to hear about.
 
 Read these first:
 - `.runs/morning/pages.json`: each page's id (a flag's `page`), registry name, URL, category
@@ -41,8 +42,6 @@ Read these first:
    - `source_name` (the page's registry name), `source_url` (the flag's link, else the page's
      URL), `source_uid` empty.
    - `trust`: the page's trust (`squishy` means `secondhand`).
-   - `sure`: false when the page leaves the date, time or place in doubt, contradicts itself,
-     or may be about another town (a chain's promotion, a business with two locations).
    - Events: `size`, `signup_by` when sign-ups or tickets close, `closed: true` when nobody
      can still go (sign-ups or tickets closed, sold out, registration full, members or
      invitation only). News: `category` (`announcement`, `road`, `school`,
