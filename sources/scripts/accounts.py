@@ -48,9 +48,13 @@ def digits(phone):
     return d[-10:] if len(d) >= 10 else ""
 
 
+# Google writes "Co Rd 75" where a place's own page says "County Road 75".
+COUNTY = {"co": "county", "cr": "county", "cty": "county"}
+
+
 def street(addr):
     m = re.match(r"\s*(\d+)\s+(?:[NSEW]\.?\s+)?([A-Za-z0-9]+)", addr or "")
-    return (m.group(1), m.group(2).lower()) if m else None
+    return (m.group(1), COUNTY.get(m.group(2).lower(), m.group(2).lower())) if m else None
 
 
 def domain(url):
@@ -313,7 +317,8 @@ def selftest():
     assert hours_of({"openingHours": week[:6]}) is None, "a week missing a day is no week"
     found = [{"entry_id": "a", "name": "A", "hours": {"mon": []}}, {"entry_id": "b", "name": "B", "hours": {"mon": []}}]
     assert [c["entry_id"] for c in new_hours(found, {"a": {"mon": []}, "b": None})] == ["b"], "only changed hours"
-    print("accounts.py selftest: 13 passed, 0 failed")
+    assert street("709 County Road 75 W") == street("709 Co Rd 75") == ("709", "county"), "Co Rd is County Road"
+    print("accounts.py selftest: 14 passed, 0 failed")
 
 
 def main():
