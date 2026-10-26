@@ -284,7 +284,7 @@ private struct AgendaCard: View {
                 title
                 if open {
                     VStack(alignment: .leading, spacing: 0) {
-                        if event.timed { Text("Until \(DailyEvent.clock(event.ends))") }
+                        if event.timed { Text("Until \(Town.clock(event.ends))") }
                         if let place = event.item.location { Text(place) }
                     }
                     .font(.sans(13))
@@ -364,7 +364,7 @@ private struct AgendaCard: View {
     private var when: (text: String, spoken: String) {
         if withDay, !event.isOn(now),
            let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
-                                   now: now, calendar: YouCalendar.calendar, relative: pill == nil) {
+                                   now: now, relative: pill == nil) {
             return (line.text, line.spoken)
         }
         let time = event.startTime(now: now)
@@ -375,7 +375,7 @@ private struct AgendaCard: View {
     /// Trailhead". "Until" is a working word, from the mockup Jesse picked; he writes
     /// the final ones.
     private var more: String {
-        [event.timed ? "Until \(DailyEvent.clock(event.ends))" : nil, event.item.location]
+        [event.timed ? "Until \(Town.clock(event.ends))" : nil, event.item.location]
             .compactMap { $0 }.joined(separator: ", ")
     }
 

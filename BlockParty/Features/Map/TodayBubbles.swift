@@ -7,7 +7,7 @@
 //  the event's photo, else the place's photo, else its logo, under Apple's Liquid
 //  Glass, the middle bent toward you like a dome and the photo fading into the clear
 //  glass at the rim. Every bubble counts down to its start all day; in the last hour
-//  a black ring empties around it. While an event is on (DateHelpers.isLiveNow), the
+//  a black ring empties around it. While an event is on (EventWhen.isOn), the
 //  bubble breathes 4% every 2.4 s with a dark shadow bleeding out, and its tag says
 //  "Now" behind Apple's green dot (taste/town.md, 2026-10-20). The shadow bleed
 //  replaces the plum live pulse for places that have a bubble (Jesse at Check-in 1).
@@ -21,7 +21,7 @@ import CoreLocation
 // MARK: - Rules (pure, tested in TodayBubblesTests)
 
 enum TodayBubbleRules {
-    /// Where an event stands at `now` (seconds from midnight).
+    /// Where an event stands at `now`.
     enum Phase: Equatable {
         case upcoming(secondsLeft: Int)
         case live
@@ -29,14 +29,16 @@ enum TodayBubbleRules {
         case untimed
     }
 
-    /// Same window as `DateHelpers.isLiveNow`: on from its start to two hours after.
-    static func phase(startTime: String?, now: Int) -> Phase {
-        let start = DateHelpers.minutesOf(startTime)
-        guard startTime != nil, start < 24 * 60 else { return .untimed }
-        let s = start * 60
-        if now < s { return .upcoming(secondsLeft: s - now) }
-        if now <= s + 120 * 60 + 59 { return .live }
-        return .ended
+    /// From its start to its end (`EventWhen`: `end_at`, else two hours), as the Town card.
+    static func phase(_ event: TimelineEvent, now: Date) -> Phase {
+        guard let when = event.when, when.timed else { return .untimed }
+        if now < when.start { return .upcoming(secondsLeft: Int(when.start.timeIntervalSince(now).rounded(.up))) }
+        return when.isOn(now) ? .live : .ended
+    }
+
+    /// Its start, for ordering; untimed ones last.
+    static func starts(_ event: TimelineEvent) -> Date {
+        event.when.flatMap { $0.timed ? $0.start : nil } ?? .distantFuture
     }
 
     /// "1h 23m" an hour or more out, "8:05" inside the last hour.
@@ -64,10 +66,9 @@ enum TodayBubbleRules {
 
     /// The event a place's bubble shows: one that's on (earliest start), else the next to
     /// start, else an untimed one. Ended events drop off the map.
-    static func lead(_ events: [TimelineEvent], now: Int) -> TimelineEvent? {
-        let phased = events.map { ($0, phase(startTime: $0.startTime, now: now)) }
-        if let on = phased.filter({ $0.1 == .live })
-            .min(by: { DateHelpers.minutesOf($0.0.startTime) < DateHelpers.minutesOf($1.0.startTime) }) {
+    static func lead(_ events: [TimelineEvent], now: Date) -> TimelineEvent? {
+        let phased = events.map { ($0, phase($0, now: now)) }
+        if let on = phased.filter({ $0.1 == .live }).min(by: { starts($0.0) < starts($1.0) }) {
             return on.0
         }
         let next = phased.compactMap { e, p -> (TimelineEvent, Int)? in
@@ -88,16 +89,19 @@ enum TodayBubbleRules {
         min(0.13, distance / 110 + speed / 5200)
     }
 
-    /// Seconds from midnight, local time.
+    /// Seconds from midnight, in the Town's time.
     static func seconds(of date: Date) -> Int {
-        var cal = Calendar.current
-        cal.timeZone = TimeZone.current
-        let c = cal.dateComponents([.hour, .minute, .second], from: date)
+        let c = Town.gregorian.dateComponents([.hour, .minute, .second], from: date)
         return (c.hour ?? 0) * 3600 + (c.minute ?? 0) * 60 + (c.second ?? 0)
     }
 }
 
 // MARK: - Clock
+
+extension TimelineEvent {
+    /// On right now, on the map's clock (`-map-now` moves it in DEBUG).
+    func isOn(_ now: Date = TodayBubbleClock.now()) -> Bool { when?.isOn(now) ?? false }
+}
 
 enum TodayBubbleClock {
     /// Now. In DEBUG, `-map-now HH:MM` pins the map's clock there at launch and lets it
@@ -153,8 +157,7 @@ struct TodayEventBubble: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
-            let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now(tick.date))
-            let phase = TodayBubbleRules.phase(startTime: bubble.event.startTime, now: now)
+            let phase = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(tick.date))
             ZStack {
                 if phase == .live { LiveBleed(bead: Self.bead, period: Self.breath, still: reduceMotion) }
                 breathing(phase == .live, gel(phase))
@@ -179,8 +182,7 @@ struct TodayEventBubble: View {
     /// The countdown only shows seconds in the last hour (and the ring only moves then),
     /// so before that the bubble redraws once a minute, not every second.
     private var tickSeconds: TimeInterval {
-        let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now())
-        if case .upcoming(let left) = TodayBubbleRules.phase(startTime: bubble.event.startTime, now: now),
+        if case .upcoming(let left) = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now()),
            left > 3600 + 60 { return 60 }
         return 1
     }

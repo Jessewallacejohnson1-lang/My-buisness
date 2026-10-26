@@ -499,7 +499,7 @@ struct MapSheet: View {
 
     /// Today's events that are happening right now.
     private var liveEvents: [TimelineEvent] {
-        events.filter { DateHelpers.isLiveNow($0.startTime) }
+        events.filter { $0.isOn() }
     }
 
     private var peekIsRetry: Bool {
@@ -729,7 +729,7 @@ struct MapSheet: View {
             // Empty is handled by the centered path (isCenteredEmptyState); here we only
             // reach the populated list.
             ForEach(events) { ev in
-                TodayEventRow(event: ev, live: DateHelpers.isLiveNow(ev.startTime))
+                TodayEventRow(event: ev, live: ev.isOn())
                     .contentShape(Rectangle())
                     .onTapGesture { if let s = spotFor(ev) { onSelectSpot(s) } }
                 rowDivider
@@ -741,7 +741,7 @@ struct MapSheet: View {
 
     private var placeRows: some View {
         ForEach(spots) { spot in
-            PlaceRow(spot: spot, liveCount: happenings(spot).filter { DateHelpers.isLiveNow($0.startTime) }.count)
+            PlaceRow(spot: spot, liveCount: happenings(spot).filter { $0.isOn() }.count)
                 .contentShape(Rectangle())
                 .onTapGesture { onSelectSpot(spot) }
             rowDivider

@@ -70,8 +70,7 @@ struct DailyFollowing: Identifiable {
     /// updates so far, newest first; `limit` rows at most.
     static func showing(_ items: [DailyFollowing], now: Date, without shown: [DailyEvent] = [],
                         limit: Int) -> [DailyFollowing] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        let calendar = Town.gregorian
         let shownIDs = Set(shown.map(\.id))
         let events = items.filter {
             guard let event = $0.event else { return false }
@@ -88,8 +87,7 @@ struct DailyFollowing: Identifiable {
     /// town photos, the round photo never the same as the small one, as in Instagram's
     /// rows. Every name but the real places', every time and every word is made up.
     static func samples(on date: Date) -> [DailyFollowing] {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Town.timeZone
+        let calendar = Town.gregorian
         let day = calendar.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         func photo(_ name: String) -> URL? { Bundle.main.url(forResource: name, withExtension: "jpg") }

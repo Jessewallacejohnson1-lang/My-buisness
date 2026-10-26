@@ -6,18 +6,22 @@ import XCTest
 /// a place's bubble shows; and how far the squishy drag can pull.
 @MainActor
 final class TodayBubblesTests: XCTestCase {
-    private func ev(_ id: String, _ start: String?) -> TimelineEvent {
-        TimelineEvent(id: id, title: id, startTime: start, location: nil, clubName: nil, fromJoinedClub: false)
+    private func ev(_ id: String, _ start: String?, endAt: Date? = nil) -> TimelineEvent {
+        TimelineEvent(id: id, title: id, startTime: start, location: nil, clubName: nil, fromJoinedClub: false,
+                      when: EventWhen(date: "2026-10-25", time: start, endAt: endAt))
     }
-    private let sevenPM = 19 * 3600
+    private let sevenPM = Town.midnight("2026-10-25")!.addingTimeInterval(19 * 3600)
 
-    func testPhaseCountsDownThenIsOnForTwoHoursThenEnds() {
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: "7 PM", now: sevenPM - 600), .upcoming(secondsLeft: 600))
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: "7 PM", now: sevenPM), .live)
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: "7 PM", now: sevenPM + 2 * 3600), .live)
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: "7 PM", now: sevenPM + 2 * 3600 + 60), .ended)
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: nil, now: sevenPM), .untimed)
-        XCTAssertEqual(TodayBubbleRules.phase(startTime: "All day", now: sevenPM), .untimed)
+    func testPhaseCountsDownThenIsOnUntilItsEndThenEnds() {
+        let seven = ev("7", "7 PM")
+        XCTAssertEqual(TodayBubbleRules.phase(seven, now: sevenPM - 600), .upcoming(secondsLeft: 600))
+        XCTAssertEqual(TodayBubbleRules.phase(seven, now: sevenPM), .live)
+        XCTAssertEqual(TodayBubbleRules.phase(seven, now: sevenPM + 2 * 3600 - 1), .live, "two hours with no end")
+        XCTAssertEqual(TodayBubbleRules.phase(seven, now: sevenPM + 2 * 3600), .ended)
+        let short = ev("short", "7 PM", endAt: sevenPM + 3600)
+        XCTAssertEqual(TodayBubbleRules.phase(short, now: sevenPM + 3600), .ended, "its own end_at wins")
+        XCTAssertEqual(TodayBubbleRules.phase(ev("none", nil), now: sevenPM), .untimed)
+        XCTAssertEqual(TodayBubbleRules.phase(ev("all", "All day"), now: sevenPM), .untimed)
     }
 
     func testCountdownReadsHoursThenMinutesAndSeconds() {

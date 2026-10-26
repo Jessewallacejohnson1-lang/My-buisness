@@ -67,7 +67,7 @@ enum HelloDrop {
         if let holiday = holiday(now, calendar: calendar) { return said(holiday) }
         let weekday = calendar.component(.weekday, from: now)
         if weekday == 6 || weekday == 7 || weekday == 1 {
-            return said("Happy \(DailyEvent.townTime("EEEE", now))")
+            return said("Happy \(Town.format(now, "EEEE"))")
         }
         let hour = calendar.component(.hour, from: now)
         let timeOfDay = hour >= 22 || hour < 4 ? "Night owl"
@@ -99,11 +99,11 @@ enum HelloDrop {
     /// `going` is your Going, `town` the Town feed's cards as the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
                         town: [DailyEvent], news: [TownNews] = []) -> Message? {
-        let calendar = Town.calendar
+        let calendar = Town.gregorian
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
         let mine = going.filter { !$0.item.cancelled && $0.ends > now }
-        func when(_ starts: Date) -> String { Town.calendar.component(.hour, from: starts) >= 17 ? "tonight" : "today" }
+        func when(_ starts: Date) -> String { calendar.component(.hour, from: starts) >= 17 ? "tonight" : "today" }
 
         if let event = mine.filter({ Town.day($0.starts) == today }).min(by: { $0.starts < $1.starts }) {
             let at = event.timed && !event.isOn(now) ? " at \(clock(event.starts))" : ""
@@ -113,7 +113,7 @@ enum HelloDrop {
             group.meetings.first { $0.day == today }.map { (group, $0) }
         }
         if let (group, meeting) = meetings.first {
-            let minutes = YourDayLogic.minutes(from: meeting.time)
+            let minutes = EventWhen.minutes(meeting.time)
             let starts = minutes.flatMap { calendar.date(bySettingHour: $0 / 60, minute: $0 % 60, second: 0, of: now) }
             let text = starts.map { "\(group.name) meets \(when($0)) at \(clock($0))" } ?? "\(group.name) meets today"
             return Message(text: text, target: .group(group))
@@ -169,7 +169,7 @@ enum HelloDrop {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = Town.timeZone
-        formatter.dateFormat = Town.calendar.component(.minute, from: date) == 0 ? "h" : "h:mm"
+        formatter.dateFormat = Town.gregorian.component(.minute, from: date) == 0 ? "h" : "h:mm"
         return formatter.string(from: date)
     }
 

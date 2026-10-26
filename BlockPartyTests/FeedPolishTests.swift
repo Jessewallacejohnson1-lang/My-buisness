@@ -193,7 +193,7 @@ final class FeedWhenLineTests: XCTestCase {
     }
 
     private func line(_ date: String?, _ time: String?, fallback: String = "") -> FeedWhenLine? {
-        FeedWhenLine(eventDate: date, startTime: time, fallbackDate: fallback, now: now, calendar: calendar)
+        FeedWhenLine(eventDate: date, startTime: time, fallbackDate: fallback, now: now)
     }
 
     func testCloseDatesReadAsWords() {
@@ -239,11 +239,11 @@ final class FeedWhenLineTests: XCTestCase {
 
     func testNowRunsFromTheStartToTheEnd() {
         let prints = card("2026-09-24", "8 AM", endAt: at(24, 16, 30))
-        XCTAssertFalse(prints.isNow(at: at(24, 7, 59), calendar: calendar))
-        XCTAssertTrue(prints.isNow(at: at(24, 8), calendar: calendar))
-        XCTAssertTrue(prints.isNow(at: at(24, 16, 29), calendar: calendar))
-        XCTAssertFalse(prints.isNow(at: at(24, 16, 30), calendar: calendar), "over at its end")
-        XCTAssertFalse(card("2026-09-24", "8 AM", endAt: at(24, 16, 30), cancelled: true).isNow(at: at(24, 9), calendar: calendar))
+        XCTAssertFalse(prints.isNow(at: at(24, 7, 59)))
+        XCTAssertTrue(prints.isNow(at: at(24, 8)))
+        XCTAssertTrue(prints.isNow(at: at(24, 16, 29)))
+        XCTAssertFalse(prints.isNow(at: at(24, 16, 30)), "over at its end")
+        XCTAssertFalse(card("2026-09-24", "8 AM", endAt: at(24, 16, 30), cancelled: true).isNow(at: at(24, 9)))
     }
 
     /// A game is Now for three hours (game-card 02); once its final is in it is over: never Now, and its
@@ -252,43 +252,40 @@ final class FeedWhenLineTests: XCTestCase {
         var game = card("2026-09-24", "7 PM")
         game.game = try JSONDecoder().decode(Game.self, from: Data(
             #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Concordia"}]}"#.utf8))
-        XCTAssertTrue(game.isNow(at: at(24, 21, 30), calendar: calendar), "a game runs three hours, not two")
-        XCTAssertFalse(game.isNow(at: at(24, 22), calendar: calendar))
+        XCTAssertTrue(game.isNow(at: at(24, 21, 30)), "a game runs three hours, not two")
+        XCTAssertFalse(game.isNow(at: at(24, 22)))
         game.game = try JSONDecoder().decode(Game.self, from: Data(
             #"{"sport":"Football","final":[33,23],"teams":[{"name":"Saint John's"},{"name":"Concordia"}]}"#.utf8))
-        XCTAssertFalse(game.isNow(at: at(24, 19, 30), calendar: calendar))
+        XCTAssertFalse(game.isNow(at: at(24, 19, 30)))
         XCTAssertEqual(game.whenLine, FeedWhenLine(eventDate: "2026-09-24", startTime: nil), "the day, no time")
     }
 
     func testNowLastsTwoHoursWithNoEnd() {
         let concert = card("2026-09-24", "7:30 PM")
-        XCTAssertTrue(concert.isNow(at: at(24, 21, 29), calendar: calendar))
-        XCTAssertFalse(concert.isNow(at: at(24, 21, 30), calendar: calendar))
+        XCTAssertTrue(concert.isNow(at: at(24, 21, 29)))
+        XCTAssertFalse(concert.isNow(at: at(24, 21, 30)))
     }
 
     func testARunOverDaysIsNowTheWholeTime() {
         let kiln = card("2026-09-16", "4 PM", endAt: at(26, 0))
-        XCTAssertFalse(kiln.isNow(at: at(16, 15, 59), calendar: calendar))
-        XCTAssertTrue(kiln.isNow(at: at(20, 3), calendar: calendar), "the kiln burns through the night")
-        XCTAssertFalse(kiln.isNow(at: at(26, 0), calendar: calendar))
+        XCTAssertFalse(kiln.isNow(at: at(16, 15, 59)))
+        XCTAssertTrue(kiln.isNow(at: at(20, 3)), "the kiln burns through the night")
+        XCTAssertFalse(kiln.isNow(at: at(26, 0)))
         let festival = card("2026-09-21", nil, endAt: at(27, 0), allDay: true)
-        XCTAssertTrue(festival.isNow(at: at(24, 10), calendar: calendar), "an all-day run over days")
-        XCTAssertFalse(festival.isNow(at: at(27, 0), calendar: calendar))
+        XCTAssertTrue(festival.isNow(at: at(24, 10)), "an all-day run over days")
+        XCTAssertFalse(festival.isNow(at: at(27, 0)))
     }
 
     func testNowIsInTheTownsTimeWhateverThePhoneIsSetTo() {
-        var pacific = calendar
-        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         let workshop = card("2026-09-24", "10 AM", endAt: at(24, 16))
         XCTAssertTrue(workshop.isNow(at: at(24, 10)), "10 AM in St. Joseph, wherever the phone thinks it is")
         XCTAssertFalse(workshop.isNow(at: at(24, 9, 59)))
-        XCTAssertFalse(workshop.isNow(at: at(24, 10), calendar: pacific), "a Pacific calendar puts its start two hours later")
     }
 
     func testAOneDayAllDayListingIsNeverNow() {
-        XCTAssertFalse(card("2026-09-24", nil, allDay: true).isNow(at: at(24, 12), calendar: calendar))
-        XCTAssertFalse(card("2026-09-24", nil, endAt: at(25, 0), allDay: true).isNow(at: at(24, 12), calendar: calendar))
-        XCTAssertFalse(card("2026-09-24", "TBA").isNow(at: at(24, 12), calendar: calendar), "no time it can read")
+        XCTAssertFalse(card("2026-09-24", nil, allDay: true).isNow(at: at(24, 12)))
+        XCTAssertFalse(card("2026-09-24", nil, endAt: at(25, 0), allDay: true).isNow(at: at(24, 12)))
+        XCTAssertFalse(card("2026-09-24", "TBA").isNow(at: at(24, 12)), "no time it can read")
     }
 
     func testTheWhereLineNeverRepeatsTheTime() {

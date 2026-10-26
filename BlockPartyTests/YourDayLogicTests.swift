@@ -11,24 +11,6 @@ import XCTest
 
 final class YourDayLogicTests: XCTestCase {
 
-    // MARK: - Parsing
-
-    func testStartTimesParseTheWaysOrganizersWriteThem() {
-        XCTAssertEqual(YourDayLogic.minutes(from: "11 AM"), 11 * 60)
-        XCTAssertEqual(YourDayLogic.minutes(from: "7:00 PM"), 19 * 60)
-        XCTAssertEqual(YourDayLogic.minutes(from: "noon"), 12 * 60)
-        XCTAssertEqual(YourDayLogic.minutes(from: "18:30"), 18 * 60 + 30)
-        XCTAssertNil(YourDayLogic.minutes(from: "after dark"), "prose falls back to the organizer's words")
-        XCTAssertNil(YourDayLogic.minutes(from: "  "))
-    }
-
-    func testTownDayIsTownMidnight() throws {
-        let day = try XCTUnwrap(YourDayLogic.townDay("2026-10-25"))
-        XCTAssertEqual(Town.day(day), "2026-10-25")
-        XCTAssertEqual(Town.calendar.component(.hour, from: day), 0)
-        XCTAssertNil(YourDayLogic.townDay("Oct 25"))
-    }
-
     // MARK: - Realtime relevance
 
     /// A fixed May instant, safely away from any DST boundary, so ±day math

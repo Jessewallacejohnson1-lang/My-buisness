@@ -191,7 +191,7 @@ struct CommunityAPI {
     // MARK: - Events (timeline)
 
     func getTodayEvents() async throws -> [TimelineEvent] {
-        try await timelineEvents(forDate: DateHelpers.localDate())
+        try await timelineEvents(forDate: Town.day(.now))
     }
 
     private func timelineEvents(forDate date: String) async throws -> [TimelineEvent] {
@@ -215,7 +215,9 @@ struct CommunityAPI {
                           details: e.description,
                           category: EventCategory.from(e.category),
                           imageURL: e.imageUrl.flatMap(URL.init(string:)),
-                          placeEntryId: e.placeEntryId)
+                          placeEntryId: e.placeEntryId,
+                          when: EventWhen(date: date, time: e.startTime,
+                                          endAt: DateHelpers.timestamp(e.endAt), allDay: e.allDay ?? false))
         }
     }
 
