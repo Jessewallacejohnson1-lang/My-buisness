@@ -187,9 +187,9 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 - **`RealtimeClient`** (`@MainActor`) — a hand-written Phoenix-channel client over
   `URLSessionWebSocketTask`. Joins `postgres_changes` on `club_events` with the user's JWT
   (RLS still filters what arrives), heartbeats, and reconnects with capped exponential
-  backoff. **One production subscriber** since the strip-down: `MapModel`. `YourDayLogic.
-  changeIsRelevant` and its tests survive the module that used to be the second — copy that
-  shape if a subscriber comes back.
+  backoff. **One production subscriber** since the strip-down: `MapModel`, which asks
+  `ClubEventRelevance.matters` whether a change is worth a re-read; a subscriber that comes
+  back passes its own days to the same rule.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Storage`, `Reminders`, `Interests`, `TrailServices`,

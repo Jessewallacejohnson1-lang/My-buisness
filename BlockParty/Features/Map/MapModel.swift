@@ -92,6 +92,7 @@ final class MapModel: ObservableObject {
         midnightTask?.cancel(); midnightTask = nil
         townTask?.cancel(); townTask = nil
         clockTask?.cancel(); clockTask = nil
+        zoomTask?.cancel(); zoomTask = nil
     }
 
     /// Re-render observers once a minute so wall-clock-derived state (isOn)
@@ -251,30 +252,13 @@ final class MapModel: ObservableObject {
     }
 
     private func handle(_ change: RealtimeClient.Change) {
-        // A new/updated row's full record tells us if it lands on today's map.
-        func touchesToday(_ row: RealtimeClient.Change.Row?) -> Bool {
-            guard let row else { return false }
-            if let k = row.kind, k != "event" { return false }   // trails never map
-            return row.eventDate == currentDate
-        }
-        // Is this row id currently on the map? Used for DELETE (whose old_record
-        // carries only the primary key — Realtime never sends the full old row on
-        // delete) and for an UPDATE that moves an event off today.
-        func currentlyShown(_ id: String?) -> Bool {
-            guard let id else { return false }
-            return todayEvents.contains { $0.id == id }
-        }
         // A game's score coming in (game-card 03) moves nothing on the map: no refetch for it.
         if change.kind == .update, let new = change.new, let old = change.old,
            new.withoutScores == old.withoutScores,
            new.finalScore != old.finalScore || new.liveScore != old.liveScore || new.scoringPlays != old.scoringPlays { return }
-        let relevant: Bool
-        switch change.kind {
-        case .insert: relevant = touchesToday(change.new)
-        case .update: relevant = touchesToday(change.new) || currentlyShown(change.new?.id ?? change.old?.id)
-        case .delete: relevant = currentlyShown(change.old?.id)
-        }
-        guard relevant else { return }
+        // Today's map: a row dated today, or one it shows (an edit that moves it off today, a delete).
+        guard ClubEventRelevance.matters(change, shownIDs: Set(todayEvents.map(\.id)),
+                                         days: currentDate...currentDate) else { return }
         scheduleResync()
     }
 

@@ -26,7 +26,7 @@ final class RealtimeClient {
         /// carry a full `record`; a DELETE's `old_record` carries only the
         /// primary key (id) — Supabase Realtime sends just the replica-identity
         /// key on delete (verified empirically, even with REPLICA IDENTITY FULL)
-        /// — so delete relevance is matched by id (see MapModel.currentlyShown).
+        /// — so delete relevance is matched by id (see ClubEventRelevance.matters).
         struct Row: Sendable, Equatable {
             let id: String?
             let eventDate: String?

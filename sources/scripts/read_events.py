@@ -520,6 +520,8 @@ LOWER = re.compile(r"\b(jv|junior varsity|c-?squad|b-?squad|9th|freshman|practic
 VARSITY = re.compile(r"\b(v|varsity)\b", re.I)
 # A playoff row before its teams are known.
 PLACEHOLDERS = {"", "vs", "tbd", "tba"}
+# An opponent not decided yet: "St. Cloud Apollo OR Little Falls" (a playoff bracket).
+UNDECIDED = re.compile(r"\bor\b", re.I)
 
 
 def league_sports(page, today):
@@ -597,7 +599,7 @@ def games(listings, today):
             left["outside"] += 1
             if l["venue"].lower() not in PLACEHOLDERS:
                 left["unplaced"].add(l["venue"])
-        elif not l["named"] and l["n"] is None:
+        elif not l["named"] and (l["n"] is None or UNDECIDED.search(l["opponent"])):
             left["waiting"] += 1  # a playoff game with no opponent yet waits until it has one
         else:
             kept.append(l)
@@ -762,7 +764,7 @@ def bound_items(text, entry, src, today):
             if level == "Varsity" and not far:
                 continue  # the league's
             teams = [BOUND_TEAMS.get(t.strip(), short_team(t)) for t in name.split(" vs ", 1)]
-            if {t.lower() for t in teams} & PLACEHOLDERS:
+            if {t.lower() for t in teams} & PLACEHOLDERS or UNDECIDED.search(name):
                 continue  # an opponent not named yet
             sport = bound_sport(get("X-BND-ACTIVITYNAME"))
             words = "" if level == "Varsity" else f" · {BOUND_LEVEL_WORDS.get(level, level)}" if level else ""
@@ -1228,6 +1230,16 @@ def t_league_dance_show():
     got = games(show, LEAGUE_DAY)[0]
     assert [(i["title"], i["source_name"]) for i in got] == [("Crush Dance Show", "Apollo High School")], got
 
+def t_league_undecided_opponent():
+    """"St. Cloud Apollo OR Little Falls" is a bracket not played out yet: the game waits, and makes
+    no team (Jesse, 2026-10-26)."""
+    row = {"lister": "Sartell High School", "page": f"{LEAGUE}/group/504/full-schedule", "activity": 142,
+           "family": "Soccer", "sport": "Girls Soccer", "day": LEAGUE_DAY, "time": "7:00 PM", "team": "Sartell",
+           "opponent": "St. Cloud Apollo OR Little Falls", "named": False, "venue": "Sartell High School", "n": 1}
+    got, left = games([row], LEAGUE_DAY)
+    assert got == [] and left["waiting"] == 1, (got, left)
+
+
 def t_league_schedule_line():
     def school(s, e, t):
         return [{"listing": l} for l in league_sample() if l["lister"] == e["_name"]]
@@ -1375,7 +1387,7 @@ def t_gobound():
 
 
 TESTS = [t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
-         t_league_tournament_and_moves, t_league_dance_show, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
+         t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer]
 
 

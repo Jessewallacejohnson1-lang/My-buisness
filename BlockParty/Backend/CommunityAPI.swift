@@ -453,9 +453,8 @@ struct CommunityAPI {
     /// casts a slightly wide net by date and the overlap rule does the real
     /// filtering client-side. Two weeks is nothing for a town whose entire
     /// calendar is ~9 rows.
-    /// Internal (not private) and nonisolated: `YourDayLogic.changeIsRelevant`
-    /// filters realtime changes against this window, and two copies of this
-    /// number would drift.
+    /// Internal (not private) and nonisolated: a realtime subscriber that shows this window
+    /// passes it to `ClubEventRelevance.matters`, and two copies of this number would drift.
     nonisolated static let dayLookbackDays = 14
 
     /// Which of these ids are Events, for moving the phone's old saves up to the server

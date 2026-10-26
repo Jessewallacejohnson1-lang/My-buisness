@@ -248,7 +248,8 @@ def write(out, dry_run, today):
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
     items = feeds + judged
     existing = write_judged.listed_in_db()
-    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out))
+    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
+                               teams=write_judged.known_teams())
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
     print("\n".join(summary_lines(prep, items, result, written)))
@@ -629,13 +630,13 @@ def fingerprints_wait_for_write():
 
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
                 "sources": [{"url": u, "method": "fetch"}]} for i, u in [("milk", "https://m/events"), ("new", "https://n/")]]
-    names = ("apply", "listed_in_db", "interest_ids")
+    names = ("apply", "listed_in_db", "interest_ids", "known_teams")
     saved = (runner.read_page, runner.validate, runner.find_root, Supabase, *(getattr(write_judged, n) for n in names))
     try:
         with tempfile.TemporaryDirectory() as tmp:
             runner.read_page = lambda url, kind: (200, f"Plant Bingo Oct 24 at {url}", "fetch")
             runner.validate, runner.find_root, Supabase = (lambda e: []), (lambda *a: Path(tmp)), FakeDb
-            write_judged.listed_in_db, write_judged.interest_ids = (lambda: []), (lambda: [])
+            write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams = (lambda: []), (lambda: []), dict
             out = Path(tmp) / "morning"
             out.mkdir()
             (out / "prepare.json").write_text(json.dumps({"today": "2026-10-25", "fetched": 2, "changed": 1,
@@ -666,7 +667,7 @@ def fingerprints_wait_for_write():
             return first == again == ["milk"] and unmoved and starting_copy and prepare_fetch() == []
     finally:
         (runner.read_page, runner.validate, runner.find_root, Supabase,
-         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids) = saved
+         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams) = saved
 
 
 def main():
