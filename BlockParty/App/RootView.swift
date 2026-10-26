@@ -452,6 +452,8 @@ struct MainTabsView: View {
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
+                        // A game's score and plays as they come in (game-card 05).
+                        .environment(townFeed)
                         // An open, for popularity (ticket 20): only from the Town feed,
                         // not Daily, which pushes the same page.
                         .onAppear { if tab == .town { townFeed.opened(item.id) } }
@@ -579,6 +581,12 @@ struct MainTabsView: View {
             // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
+            // `-open-team <uuid>` pushes that local school's page (school-activities 02).
+            if let i = args.firstIndex(of: "-open-team"), i + 1 < args.count,
+               let team = try? JSONDecoder().decode(Game.Team.self, from: Data(
+                   #"{"name":"","id":"\#(args[i + 1])","local":true}"#.utf8)) {
+                path.append(team)
+            }
             if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
                 let id = args[i + 1]
                 Task {

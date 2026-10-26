@@ -2,7 +2,7 @@
 //
 // SIDEARM's live stats page gets each change pushed over SignalR 2.0 (BP app
 // references/game-card/live-channel.md): hub `sidearm` at v2-realtime.sidearmsports.com, a channel per
-// school and sport (`livestats/csbsju/football/game`). pg_cron's private.wake_live_scores calls this every
+// school, sport and topic (`livestats/csbsju/football/game`, `.../plays` for the scoring plays, ticket 05). pg_cron's private.wake_live_scores calls this every
 // minute while an SJU or CSB game is on; it answers at once and listens about a minute in the background,
 // writing each pushed Game through public.record_live_score. public.start_live_scores hands out the games at
 // most once in 50 seconds, so a second call, from anyone, listens to nothing: verify_jwt is off.
@@ -40,7 +40,9 @@ Deno.serve(async () => {
 })
 
 async function listen(games: Game[], rpc: (name: string, body: unknown) => Promise<unknown>) {
-  const byGroup = new Map(games.map((g) => [g.grp.toLowerCase(), g.id]))
+  // Each game's score channel and its plays channel, both written through record_live_score.
+  const groups = games.flatMap((g) => [g.grp, g.grp.replace(/\/game$/, "/plays")].map((grp) => ({ id: g.id, grp })))
+  const byGroup = new Map(groups.map((g) => [g.grp.toLowerCase(), g.id]))
   const neg = await (await fetch(`${HUB}/negotiate?clientProtocol=1.3&connectionData=${HUB_DATA}`, { headers: UA })).json()
   const query = `transport=webSockets&clientProtocol=1.3&connectionToken=${encodeURIComponent(neg.ConnectionToken)}` +
     `&connectionData=${HUB_DATA}`
@@ -51,7 +53,7 @@ async function listen(games: Game[], rpc: (name: string, body: unknown) => Promi
     const frame = JSON.parse(String(event.data))
     // SignalR 2.0 has no /start: the socket's init frame is the cue to join.
     if (frame.S === 1) {
-      games.forEach((g, i) => ws.send(JSON.stringify({ H: "sidearm", M: "join", A: [g.grp], I: i })))
+      groups.forEach((g, i) => ws.send(JSON.stringify({ H: "sidearm", M: "join", A: [g.grp], I: i })))
       return
     }
     for (const call of frame.M ?? []) {

@@ -3158,12 +3158,13 @@ phone: "+13202916307"
 aka: [" Bloom Styling & Events"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.bloomstyledevents.com/photobooth
+  - url: https://www.bloomstyledevents.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Bloom Styling & Events website (copyright 2026) says it is based in St. Joseph and offers The Bloom Booth DSLR photo booth; nominated best new business 2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Bloom Styling & Events website (copyright 2026) says it is based in St. Joseph and offers The Bloom Booth DSLR photo booth; nominated best new business 2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Its `/photobooth` page went 404 by
+2026-10-25 (the site was rebuilt); the homepage stands in, the only page the picker found.
 
 ## Blush Salon
 ```yaml

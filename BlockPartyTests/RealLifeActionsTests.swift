@@ -1025,6 +1025,32 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.follows, ["profile \(Self.sam.id) true"])
     }
 
+    /// A school's page says which activities you follow; a star follows one at once, written as an
+    /// activity, and one more tap undoes it (school-activities 02).
+    func testAnActivityStarReadsFromThePageAndIsWrittenAsAnActivity() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let soccer = FollowTarget(type: .activity, id: "5b1c0d2e-3f40-4a51-8b62-7c83d94ea5f6")
+        let band = FollowTarget(type: .activity, id: "6c2d1e3f-4051-4b62-9c73-8d94ea5fb607")
+        let page = try JSONDecoder().decode(TeamProfile.self, from: Data("""
+            {"id": "t", "name": "Apollo High School", "short": "Apollo", "games": [], "activities": [
+              {"id": "\(soccer.id)", "name": "Girls Soccer", "note": "St. Cloud Crush co-op", "kind": "sport",
+               "following": false, "next": {"title": "Apollo Girls Soccer vs Tech", "date": "2026-10-27", "time": "5 PM"}},
+              {"id": "\(band.id)", "name": "Band", "note": null, "kind": "arts", "following": true, "next": null}]}
+            """.utf8))
+        actions.read(activities: page.activities)
+        XCTAssertFalse(actions.follow(soccer).isFollowing)
+        XCTAssertTrue(actions.follow(band).isFollowing, "the page's own word, before any tap")
+
+        actions.toggleFollow(soccer)
+        XCTAssertTrue(actions.follow(soccer).isFollowing, "starred at once")
+        try await Task.sleep(for: Self.hold * 3)
+        actions.toggleFollow(soccer)
+        XCTAssertFalse(actions.follow(soccer).isFollowing, "one more tap undoes it")
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, ["activity \(soccer.id) true", "activity \(soccer.id) false"])
+    }
+
     /// Following needs a signed-up account: the quiet Anonymous one, or none, opens sign-up.
     func testOnlyASignedUpAccountFollowsOrJoins() {
         XCTAssertTrue(actions(Server(), anonymous: true).needsSignUp, "Anonymous: sign up first")

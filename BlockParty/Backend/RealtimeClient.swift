@@ -38,6 +38,8 @@ final class RealtimeClient {
             /// A game's scores (BP app game-card 03): `final_score`, and `live_score` as its JSON.
             var finalScore: [Int]? = nil
             var liveScore: Data? = nil
+            /// Its scoring plays as JSON (game-card 05).
+            var scoringPlays: Data? = nil
 
             /// Everything but the scores: an update that moved only a score changes nothing the map shows.
             var withoutScores: Row {
@@ -236,11 +238,12 @@ final class RealtimeClient {
     private func row(from dict: [String: Any]?) -> Change.Row? {
         guard let d = dict, !d.isEmpty else { return nil }
         func str(_ k: String) -> String? { d[k] as? String }
-        let live = d["live_score"].flatMap { $0 is NSNull ? nil : try? JSONSerialization.data(withJSONObject: $0) }
+        func json(_ k: String) -> Data? { d[k].flatMap { $0 is NSNull ? nil : try? JSONSerialization.data(withJSONObject: $0) } }
+        let live = json("live_score")
         return Change.Row(id: str("id"), eventDate: str("event_date"),
                           startTime: str("start_time"), status: str("status"),
                           kind: str("kind"), title: str("title"), location: str("location"),
-                          finalScore: d["final_score"] as? [Int], liveScore: live)
+                          finalScore: d["final_score"] as? [Int], liveScore: live, scoringPlays: json("scoring_plays"))
     }
 
     // MARK: Reconnect (capped exponential backoff)

@@ -405,6 +405,13 @@ final class TownFeedEventsTests: XCTestCase {
             XCTAssertNil(try game(bad).live, bad)
         }
 
+        // Scoring plays and set scores (game-card 05): a play that doesn't read is left out, not the list.
+        let plays = try game(#","live":{"score":[7,3],"period":"Q2","complete":false,"periods":[[7,0],[0,3]]},"plays":[{"id":"1","text":"C. Kern 1 yd TD run","period":"Q1","clock":"9:18","side":0,"score":[7,0]},{"id":"2","text":"bad"},{"id":"3","text":"T. Lund 34 yd field goal","period":"Q2","clock":null,"side":1,"score":[7,3]}]"#)
+        XCTAssertEqual(plays.plays.map(\.id), ["1", "3"])
+        XCTAssertEqual(plays.plays.map(\.when), ["Q1 · 9:18", "Q2"])
+        XCTAssertEqual(plays.periods, [[7, 0], [0, 3]])
+        XCTAssertEqual(plays.with(final: [7, 3], live: nil).plays.count, 2, "the plays stay past the final")
+
         // The map refetches for a change it shows, never for a score alone (game-card 03).
         let row = RealtimeClient.Change.Row(id: "g1", eventDate: "2026-10-31", startTime: "1 PM", status: "approved",
                                             kind: "event", title: "SJU Football vs Gustavus", location: "Clemens Stadium")
