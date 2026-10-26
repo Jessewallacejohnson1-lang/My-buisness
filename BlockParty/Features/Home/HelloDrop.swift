@@ -392,9 +392,9 @@ struct HelloDropView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
+                // Hugs its picture and words, as a pill with the tick does (Jesse, 2026-10-26).
                 .padding(.leading, 12)
                 .padding(.trailing, 22)
-                .frame(maxWidth: .infinity)
                 .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
                                         removal: .opacity))
             } else if step == .message, let said {
