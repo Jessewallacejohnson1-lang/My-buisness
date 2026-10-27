@@ -355,6 +355,17 @@ struct TownEventRow: View {
     let event: TownPageInfo.Event
 
     var body: some View {
+        // Opens its Event page, as a Town card does.
+        NavigationLink(value: item) { row }
+            .buttonStyle(PressableStyle(scale: 0.98))
+    }
+
+    private var item: FeedCardItem {
+        FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date, startTime: event.time,
+                                   location: event.location, goingCount: 0, createdAt: ""))
+    }
+
+    @ViewBuilder private var row: some View {
         let tile = GroupPage.tile(event.date)
         HStack(spacing: TownPageMetric.tileGap) {
             VStack(spacing: 0) {
