@@ -503,7 +503,12 @@ struct MainTabsView: View {
                 open: openHello,
                 attended: Self.attendedCount,
                 finals: Self.teamFinals,
-                joined: { await ContactsMatch.joined(since: $0) }
+                joined: { await ContactsMatch.joined(since: $0) },
+                // The Friends page's own read, so someone you blocked is never said (hello-drop 06).
+                accepted: {
+                    await friendsBook.refresh()
+                    return friendsBook.loaded && !friendsBook.failed ? friendsBook.accepted : nil
+                }
             )
             .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }

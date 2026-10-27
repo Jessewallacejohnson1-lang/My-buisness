@@ -223,6 +223,52 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(inbox.items.map(\.id), ["joined:sam"])
     }
 
+    // MARK: A friend request accepted (hello-drop 06)
+
+    private let kate = Neighbor(userId: "kate", displayName: "Kate Moore", avatarUrl: "https://x/kate.jpg", since: nil,
+                                relation: .friends, mutualFriends: 0)
+
+    func testAnAcceptedRequestAsThePillAndTheBellSayIt() {
+        let item = HelloItem(what: .accepted(kate), at: Date())
+        XCTAssertEqual(item.message?.text, "Kate accepted your friend request")
+        XCTAssertEqual(item.message?.target, .person(kate))
+        XCTAssertEqual(item.message?.logo, URL(string: "https://x/kate.jpg"))
+        XCTAssertEqual(item.message?.photo, true)
+        XCTAssertEqual(item.row.name, "Kate Moore")
+        XCTAssertEqual(item.row.words, "accepted your friend request.")
+        XCTAssertEqual(item.row.picture, .photo("https://x/kate.jpg"))
+    }
+
+    /// After a final, ahead of who joined.
+    func testAnAcceptanceComesAfterAFinalAheadOfAContact() {
+        let (inbox, _) = inbox()
+        inbox.add(.joined(sam), at: town("2026-10-21 07:00"))
+        inbox.add(.accepted(kate), at: town("2026-10-21 08:00"))
+        let johnnies = HelloItem.Final(final([33, 23], mine: 0))!
+        inbox.add(.final(johnnies), at: town("2026-10-21 09:00"))
+        XCTAssertEqual(take(inbox), .final(johnnies))
+        XCTAssertEqual(take(inbox), .accepted(kate))
+        XCTAssertEqual(take(inbox), .joined(sam))
+        XCTAssertNil(inbox.next)
+    }
+
+    /// Seen on the Friends page: never said. Blocked: gone. Another account: its acceptances go.
+    func testTheFriendsPageABlockAndAnotherAccount() {
+        let (inbox, _) = inbox()
+        let now = town("2026-10-21 09:00")
+        inbox.add(.accepted(kate), at: now)
+        inbox.add(.joined(sam), at: now)
+        inbox.tellAccepted(["kate"])
+        XCTAssertEqual(inbox.next?.id, "joined:sam")
+        inbox.forget("sam")
+        XCTAssertEqual(inbox.items.map(\.id), ["accepted:kate"])
+        inbox.forgetAccepted()
+        XCTAssertTrue(inbox.items.isEmpty)
+        // One accepted 9 days ago isn't new.
+        inbox.add(.accepted(kate), at: town("2026-10-12 09:00"), now: now)
+        XCTAssertTrue(inbox.items.isEmpty)
+    }
+
     /// Each kind as the pill and the bell say it.
     func testThePillAndTheBellSayEachKind() {
         let joined = HelloItem(what: .joined(sam), at: Date())
