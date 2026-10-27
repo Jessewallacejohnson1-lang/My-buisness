@@ -435,8 +435,10 @@ struct FeedEventDetailDestination: View {
 
             if let place = Self.placeText(item) {
                 // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
+                // With a link row under About, the Business page's wider box, so both rows' words line up.
                 InfoPill(glyph: "mappin", text: place, url: Directions.url(forPlace: place),
-                         hint: "Opens in Maps")
+                         hint: "Opens in Maps",
+                         glyphBox: Self.sourceLink(item.sourceURL) != nil ? SearchMetric.bizGlyphBox : Metric.pinBox)
                     .padding(.top, Metric.pillTop)
             }
 
