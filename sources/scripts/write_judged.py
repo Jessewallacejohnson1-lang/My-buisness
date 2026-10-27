@@ -77,7 +77,8 @@ THE RULES
   News repeats: News from the same place in the last 6 days with much the same title (two
     shared words at least, two thirds of the shorter title's, the place's own name not
     counted) is a repeat and is not added (repeat_of).
-  Merging: same place, start within an hour (all-day ones: a day apart), shared title words = one
+  Merging: same place, start within an hour (all-day ones: a day apart; one with no time: the
+    same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
     one title's words all sit inside the other's, with the same team words (JV, varsity,
     girls...); a source's own two ids are always two events. With no place on either, the
@@ -87,6 +88,9 @@ THE RULES
     counts toward the two-mention rule. A pair short of that stays two events, and one on the
     same day at the same place or under the same title is named for Jesse to settle: a
     duplicate stays visible, a wrong merge hides a real event (ADR-021).
+  Filled in (Jesse, 2026-10-27): a listed event with no time takes the time another source gives
+    it later, keeping its own source, uid and title; a mention with no time joins a shown, timed
+    listing before a hidden copy.
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
     the source has none) updates its event instead of adding it twice. Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
@@ -174,10 +178,15 @@ def same_place(a, b):
 
 
 def within_hour(a, b):
-    if a["at"] is None or b["at"] is None:
+    if a["at"] is None and b["at"] is None:
         # Two all-day listings a day apart are one: White Peony's site started Bootique Week on
         # Sunday, its Instagram on Monday (2026-10-26).
-        return a["at"] is None and b["at"] is None and abs(a["day"] - b["day"]) <= timedelta(1)
+        return abs(a["day"] - b["day"]) <= timedelta(1)
+    if a["at"] is None or b["at"] is None:
+        # A post that gives no time is the same day's timed listing of it: Milk & Honey's
+        # "Yoga, Sauna & Cider" and its site's 6:30 PM "Sauna, Yoga, Ice Bath, Cider"
+        # (Jesse, 2026-10-27: "merge events that have minimal info on specific time").
+        return a["day"] == b["day"]
     return abs(a["at"] - b["at"]) <= timedelta(hours=1)
 
 
@@ -186,8 +195,9 @@ def same_event(a, b):
         return a["at"] == b["at"] and same_title(a["title"], b["title"])
     if not (a["place"] and b["place"]):
         # One gives no place: the same registry place (where()) and the very same start, or the
-        # same day with both all day.
-        return bool(a["entry"]) and a["entry"] == b["entry"] and (a["day"], a["at"]) == (b["day"], b["at"]) \
+        # same day with one or both giving no time.
+        same_start = a["at"] == b["at"] or a["at"] is None or b["at"] is None
+        return bool(a["entry"]) and a["entry"] == b["entry"] and a["day"] == b["day"] and same_start \
             and same_title(a["title"], b["title"])
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
@@ -633,8 +643,11 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             out["outcomes"][i] = ("news", "")
         else:
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
-            g = by_uid.get(key) or next((g for g in groups if same_event(g["facts"], ev["facts"])
-                                         and not own_ids_differ(g, *key)), None)
+            # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
+            g = by_uid.get(key) or min((g for g in groups if same_event(g["facts"], ev["facts"])
+                                        and not own_ids_differ(g, *key)),
+                                       key=lambda g: ((g["old"] or {}).get("status") == "rejected",
+                                                      g["facts"]["at"] is None), default=None)
             if g is None:
                 # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
@@ -664,6 +677,12 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == old.get("source_uid")),
                            next(((i, ev) for i, ev in mine if not real_uid(ev["row"]["source_uid"])
                                  and not real_uid(old.get("source_uid")) and old.get("source_uid")), None))
+            filled = False
+            if primary is None and g["facts"]["at"] is None:
+                # Another source gives the time this one left out: the listed event takes it, under
+                # its own source and title (Jesse, 2026-10-27: "always be looking for updates").
+                primary = next(((i, ev) for i, ev in g["items"] if ev["facts"]["at"]), None)
+                filled = primary is not None
             g["status"] = old["status"]
             # Every kept item goes live; only a repeat stays out (Jesse, 2026-10-26).
             if old["status"] == "pending" and old.get("review_reason") is None and old.get("found", True):
@@ -690,6 +709,8 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             row["activity_team"], row["activity_name"] = named["activity_team"], named["activity_name"]
             if old:
                 row["source_uid"] = old["source_uid"]
+                if filled:
+                    row["source_name"], row["title"] = old["source_name"], old["title"]
                 if old.get("shows_from") and str(old["event_date"])[:10] == row["event_date"]:
                     row["shows_from"] = str(old["shows_from"])[:10]
                 row["category"] = old.get("category") or row["category"]
@@ -950,6 +971,37 @@ def t_all_day_a_day_apart_is_one():
     apart = run([item(title="Garage sale", **dict(peony, start="2026-10-26", end=None)),
                  item(title="Garage sale", **dict(peony, start="2026-10-28", end=None, source_name="City"))])
     assert len(apart["events"]) == 2, "two days apart stay two"
+
+
+def t_no_time_joins_the_timed_one():
+    """Milk & Honey's Instagram gave no time; its site said 6:30 PM (2026-10-27)."""
+    site = listed(title="Sauna, Yoga, Ice Bath, Cider", event_date="2026-11-12", start_time="6:30 PM",
+                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="page:a")
+    post = dict(start="2026-11-12", end=None, all_day=True, source_name="Milk & Honey Ciders", interest=None)
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **post)], [site])
+    assert r["events"][0]["id"] == site["id"] and outcome(r, 0) == "merged", r["outcomes"]
+    r = run([item(title="Yoga, Sauna & Cider", place="", **post)], [site])
+    assert r["events"][0]["id"] == site["id"], "with no place either, it is still the poster's own"
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **dict(post, start="2026-11-13"))], [site])
+    assert r["events"][0]["id"] is None, "the next day stays apart"
+
+
+def t_later_read_fills_the_time():
+    """The Instagram post came first with no time; the site's 6:30 PM listing came a day later."""
+    post = listed(title="Yoga, Sauna & Cider", event_date="2026-11-12", start_time=None, all_day=True,
+                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders Instagram", source_uid="page:p")
+    site = item(title="Sauna, Yoga, Ice Bath, Cider", start="2026-11-12T18:30:00-06:00", end=None,
+                place="Milk & Honey Ciders", source_name="Milk & Honey Ciders", interest=None)
+    g = run([site], [post])["events"][0]
+    assert g["id"] == post["id"] and g["row"]["start_time"] == "6:30 PM" and not g["row"]["all_day"], g["row"]
+    assert (g["row"]["source_name"], g["row"]["source_uid"], g["row"]["title"]) == \
+        (post["source_name"], "page:p", "Yoga, Sauna & Cider"), "it updates the listed row, not a new one"
+    hidden = dict(post, id="22222222-2222-2222-2222-222222222222", status="rejected", title="Yoga Sauna")
+    shown = listed(title="Sauna, Yoga, Ice Bath, Cider", event_date="2026-11-12", start_time="6:30 PM",
+                   location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="page:s")
+    again = item(title="Yoga, Sauna & Cider", start="2026-11-12", end=None, all_day=True,
+                 place="Milk & Honey Ciders", source_name="Somebody", interest=None)
+    assert run([again], [hidden, shown])["events"][0]["id"] == shown["id"], "a shown, timed listing first"
 
 
 def t_merge_true_pair():
@@ -1363,7 +1415,7 @@ def t_teams_only_from_their_names():
 
 
 TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_all_day_a_day_apart_is_one, t_merge_true_pair,
+         t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
