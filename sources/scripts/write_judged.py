@@ -77,7 +77,8 @@ THE RULES
   News repeats: News from the same place in the last 6 days with much the same title (two
     shared words at least, two thirds of the shorter title's, the place's own name not
     counted) is a repeat and is not added (repeat_of).
-  Merging: same place, start within an hour (all-day ones: a day apart), shared title words = one
+  Merging: same place, start within an hour (all-day ones: a day apart; one with no time: the
+    same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
     one title's words all sit inside the other's, with the same team words (JV, varsity,
     girls...); a source's own two ids are always two events. With no place on either, the
@@ -174,10 +175,15 @@ def same_place(a, b):
 
 
 def within_hour(a, b):
-    if a["at"] is None or b["at"] is None:
+    if a["at"] is None and b["at"] is None:
         # Two all-day listings a day apart are one: White Peony's site started Bootique Week on
         # Sunday, its Instagram on Monday (2026-10-26).
-        return a["at"] is None and b["at"] is None and abs(a["day"] - b["day"]) <= timedelta(1)
+        return abs(a["day"] - b["day"]) <= timedelta(1)
+    if a["at"] is None or b["at"] is None:
+        # A post that gives no time is the same day's timed listing of it: Milk & Honey's
+        # "Yoga, Sauna & Cider" and its site's 6:30 PM "Sauna, Yoga, Ice Bath, Cider"
+        # (Jesse, 2026-10-27: "merge events that have minimal info on specific time").
+        return a["day"] == b["day"]
     return abs(a["at"] - b["at"]) <= timedelta(hours=1)
 
 
@@ -186,8 +192,9 @@ def same_event(a, b):
         return a["at"] == b["at"] and same_title(a["title"], b["title"])
     if not (a["place"] and b["place"]):
         # One gives no place: the same registry place (where()) and the very same start, or the
-        # same day with both all day.
-        return bool(a["entry"]) and a["entry"] == b["entry"] and (a["day"], a["at"]) == (b["day"], b["at"]) \
+        # same day with one or both giving no time.
+        same_start = a["at"] == b["at"] or a["at"] is None or b["at"] is None
+        return bool(a["entry"]) and a["entry"] == b["entry"] and a["day"] == b["day"] and same_start \
             and same_title(a["title"], b["title"])
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
@@ -952,6 +959,19 @@ def t_all_day_a_day_apart_is_one():
     assert len(apart["events"]) == 2, "two days apart stay two"
 
 
+def t_no_time_joins_the_timed_one():
+    """Milk & Honey's Instagram gave no time; its site said 6:30 PM (2026-10-27)."""
+    site = listed(title="Sauna, Yoga, Ice Bath, Cider", event_date="2026-11-12", start_time="6:30 PM",
+                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="page:a")
+    post = dict(start="2026-11-12", end=None, all_day=True, source_name="Milk & Honey Ciders", interest=None)
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **post)], [site])
+    assert r["events"][0]["id"] == site["id"] and outcome(r, 0) == "merged", r["outcomes"]
+    r = run([item(title="Yoga, Sauna & Cider", place="", **post)], [site])
+    assert r["events"][0]["id"] == site["id"], "with no place either, it is still the poster's own"
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **dict(post, start="2026-11-13"))], [site])
+    assert r["events"][0]["id"] is None, "the next day stays apart"
+
+
 def t_merge_true_pair():
     a = item(source_name="City of St. Joseph", title="Print Making Workshop (native plants)",
              start="2026-11-20T10:00:00-06:00", end=None, place="Saint John's University, 2850 Abbey Plaza, Collegeville",
@@ -1363,7 +1383,7 @@ def t_teams_only_from_their_names():
 
 
 TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_all_day_a_day_apart_is_one, t_merge_true_pair,
+         t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
