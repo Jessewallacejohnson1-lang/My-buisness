@@ -9,8 +9,7 @@
 //
 //  Sizes off the approved Figma frames (`references/follows/figma/build.js`, `civicPage`): 20 pt
 //  sides, 13 pt kind line, 17 pt section titles, 44 pt tiles and pictures in rows 64 pt apart, the
-//  row's 32 pt Follow pill. The Figma page's photo waits for a real one of each: the page opens on
-//  its round picture instead.
+//  row's 32 pt Follow pill. The photo up top, its sheet and its round Back are the Group page's.
 //
 
 import SwiftUI
@@ -20,6 +19,8 @@ enum TownPageKind: String, CaseIterable, Hashable, Codable {
     case town, city
 
     var name: String { self == .town ? Town.townPage : Town.cityPage }
+
+    var photo: (name: String, credit: String) { self == .town ? Town.townPagePhoto : Town.cityPagePhoto }
 }
 
 /// One page as `town_page` reads it.
@@ -174,10 +175,11 @@ final class TownPageModel {
 
 nonisolated enum TownPageMetric {
     static let side: CGFloat = 20
-    static let picture: CGFloat = 72
     static let pictureGap: CGFloat = 14
-    static let switchTop: CGFloat = 4
-    static let headerTop: CGFloat = 20
+    /// The switch on the photo: Figma's 280 pt, clear of Back on a narrower phone.
+    static let switchWidth: CGFloat = 280
+    static let switchClear: CGFloat = 64
+    static let headerTop: CGFloat = 26
     static let followTop: CGFloat = 16
     static let sectionTop: CGFloat = 28
     static let rowsTop: CGFloat = 12
@@ -194,6 +196,7 @@ struct TownPageView: View {
     @State private var model: TownPageModel
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(shown: TownPageKind) {
         _model = State(initialValue: TownPageModel(shown: shown))
@@ -201,22 +204,46 @@ struct TownPageView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                picker
-                    .padding(.top, TownPageMetric.switchTop)
-                TownPageHeader(model: model)
-                    .padding(.top, TownPageMetric.headerTop)
-                TownPageLists(model: model)
+            VStack(spacing: 0) {
+                TownPagePhoto(kind: model.shown)
+                VStack(alignment: .leading, spacing: 0) {
+                    TownPageHeader(model: model)
+                        .padding(.top, TownPageMetric.headerTop)
+                    TownPageLists(model: model)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TownPageMetric.side)
+                .padding(.bottom, 40)
+                .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
+                                                                 topTrailingRadius: Event.sheetCorner, style: .continuous))
             }
-            .padding(.horizontal, TownPageMetric.side)
-            .padding(.bottom, 40)
         }
         .refreshable { await model.load(actions) }
-        .safeAreaInset(edge: .top, spacing: 0) { TownPageBar { dismiss() } }
+        // The photo runs up under the status bar, as the Group page's.
+        .ignoresSafeArea(edges: .top)
         .background(Hue.paper.ignoresSafeArea())
+        .overlay(alignment: .top) { top }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: model.shown) { await model.load(actions) }
         .sensoryFeedback(.selection, trigger: model.shown)
+    }
+
+    private typealias Event = FeedEventDetailDestination.Metric
+
+    /// Back, and the switch centred on the photo; outside the scroll, so they stay put.
+    private var top: some View {
+        HStack(spacing: 0) {
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
+                                                    reduceMotion: reduceMotion) { dismiss() }
+            Spacer(minLength: 0)
+        }
+        .overlay {
+            picker
+                .frame(maxWidth: TownPageMetric.switchWidth)
+                .padding(.horizontal, TownPageMetric.switchClear)
+        }
+        .padding(.horizontal, Event.inset - (Event.tapBox - Event.button) / 2)
+        .padding(.top, Event.buttonTop - (Event.tapBox - Event.button) / 2)
     }
 
     private var picker: some View {
@@ -224,6 +251,45 @@ struct TownPageView: View {
             ForEach(TownPageKind.allCases, id: \.self) { Text($0.name).tag($0) }
         }
         .pickerStyle(.segmented)
+        .background(Hue.paper.opacity(0.94), in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+    }
+}
+
+/// The page's photo, the Group page's size: it stretches when the page is pulled down, and its
+/// credit sits bottom left. Switching pages fades one into the other.
+private struct TownPagePhoto: View {
+    let kind: TownPageKind
+
+    private typealias Event = FeedEventDetailDestination.Metric
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(GroupPage.Metric.heroAspect, contentMode: .fit)
+            .overlay(alignment: .top) {
+                GeometryReader { proxy in
+                    if let url = Bundle.main.url(forResource: kind.photo.name, withExtension: "jpg") {
+                        FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                            .frame(width: proxy.size.width, height: proxy.size.height + Event.heroUnderlap)
+                            .clipped()
+                            .id(kind)
+                            .transition(.opacity)
+                    }
+                }
+            }
+            .visualEffect { content, proxy in
+                let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+                return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+            }
+            .overlay(alignment: .bottomLeading) {
+                PhotoCredit(names: [kind.photo.credit])
+                    .padding(.leading, Event.inset - PhotoCredit.edgeInset)
+                    .padding(.bottom, Event.counterBottom - PhotoCredit.edgeInset)
+                    .id(kind)
+                    .transition(.opacity)
+            }
+            .animation(Motion.smooth, value: kind)
+            .accessibilityHidden(true)
     }
 }
 
@@ -242,8 +308,8 @@ private struct TownPageBar: View {
     }
 }
 
-/// The page's picture, name, kind line with its count, and its follow line. The name and picture are
-/// known before the read; the rest waits for it.
+/// The page's name, kind line with its count, and its follow line. The name is known before the
+/// read; the rest waits for it.
 private struct TownPageHeader: View {
     let model: TownPageModel
     @Environment(RealLifeActions.self) private var actions
@@ -251,16 +317,13 @@ private struct TownPageHeader: View {
     var body: some View {
         let page = model.page
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: TownPageMetric.pictureGap) {
-                FollowPicture(row: row(page), size: TownPageMetric.picture)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(page?.name ?? model.shown.name)
-                        .font(.eventDisplay(28))
-                        .foregroundStyle(Hue.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                    kindLine(page)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(page?.name ?? model.shown.name)
+                    .font(.eventDisplay(28))
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                kindLine(page)
             }
             if let page {
                 FollowLine(target: page.target, name: page.name)
@@ -295,13 +358,6 @@ private struct TownPageHeader: View {
                 .shimmering()
                 .accessibilityHidden(true)
         }
-    }
-
-    /// Before the read, the Town's own logo or the City's initial, as the menu draws them.
-    private func row(_ page: TownPageInfo?) -> FollowRow {
-        FollowRow(targetType: .page, targetId: page?.id ?? model.shown.rawValue, name: page?.name ?? model.shown.name,
-                  kind: page?.kind, picture: page?.picture,
-                  pictureKind: page?.pictureKind ?? (model.shown == .town ? FollowPicture.townKind : nil))
     }
 }
 

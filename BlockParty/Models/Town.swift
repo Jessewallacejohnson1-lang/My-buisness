@@ -52,6 +52,11 @@ nonisolated enum Town {
     static let townPage = "Joetown"
     static let cityPage = "City of St. Joseph"
 
+    /// Each page's photo up top (`Resources/Images`) and its credit: Joetown's from its own site, the
+    /// City's a free one on Wikimedia Commons (Jesse, 2026-10-27: "just take photos from web").
+    static let townPagePhoto = (name: "joetown-page", credit: "joetown")
+    static let cityPagePhoto = (name: "city-page", credit: "Skvader · CC BY-SA 4.0")
+
     static let latitude = 45.565
     static let longitude = -94.3186
 
