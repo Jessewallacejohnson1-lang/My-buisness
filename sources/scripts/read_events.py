@@ -46,7 +46,8 @@ are kept wherever they happen (the spec's Area rule, amending ADR-021's in-town-
 High school games (Jesse, 2026-10-14): played within 20 miles, whichever schools play; the same
 game from both teams is one Event, a tournament day one Event; playoff games are notable; a
 playoff game with no opponent yet waits. On a morning every school was read, a game gone from
-the schedules is marked cancelled by the writer (Jesse, 2026-10-15).
+the schedules is marked cancelled by the writer (Jesse, 2026-10-15); a school whose schedule came
+back with nothing on it is left out of that, so its games stay as they are (Jesse, 2026-10-27).
 
 Dry-run by default (ADR-009): prints what each reader found. `--items FILE` writes the
 judged items, one per line, for the writer, which merges them with what is already listed
@@ -778,7 +779,10 @@ def bound_items(text, entry, src, today):
             # with no activity ("No School", "Mass", "Conferences") stay out.
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
                               followers_only=True, same=(start_at, key or name, level, place[:25]), **mark))
-    # The whole schedule was read: an event of this school's gone from it was called off.
+    # The whole schedule was read: an event of this school's gone from it was called off. A schedule
+    # with nothing on it is a feed that came back empty, not a school that called off everything.
+    if not out:
+        return out
     return out + [{"kind": "schedule", "uid_prefix": "bound:", "from": today.isoformat(),
                    "through": (today + timedelta(DAYS_AHEAD)).isoformat(), "sources": [entry["_name"]]}]
 
@@ -927,7 +931,8 @@ def read_all(entries, today, readers=READERS):
     """Every reader source of these entries. One that fails is named in the summary and
     never stops the others. The schools' listings become games once every school is read,
     since both teams list the same game; on a morning every school was read, a schedule
-    line tells the writer the list is whole, so a game missing from it was called off."""
+    line tells the writer the list is whole, so a game missing from it was called off. A school
+    whose schedule showed 0 games is left off the line: its games stay as they are."""
     items, summary, listings = [], [], []
     for e in entries:
         for s in e.get("sources") or []:
@@ -940,6 +945,8 @@ def read_all(entries, today, readers=READERS):
                 listings += [g["listing"] for g in got if "listing" in g]
                 items += [g for g in got if "listing" not in g]
                 row["items"] = len(got)
+                if not got and name in ("mshsl", "gobound"):
+                    row["note"] = "0 games on its schedule: its games are left as they are"
             except Exception as ex:  # a site down or changed is a line in the summary
                 row["error"] = f"{type(ex).__name__}: {ex}"[:300]
             summary.append(row)
@@ -948,10 +955,10 @@ def read_all(entries, today, readers=READERS):
     if schools:
         found, left = games(listings, today)
         items += found
-        if not any(r["error"] for r in schools):
+        read = sorted(r["source"] for r in schools if r["items"])
+        if read and not any(r["error"] for r in schools):
             items.append({"kind": "schedule", "uid_prefix": "mshsl:", "from": today.isoformat(),
-                          "through": (today + timedelta(GAME_DAYS)).isoformat(),
-                          "sources": sorted(r["source"] for r in schools)})
+                          "through": (today + timedelta(GAME_DAYS)).isoformat(), "sources": read})
         summary.append({"source": "High school games", "reader": "games", "url": LEAGUE, "items": len(found),
                         "error": None, "note": f"{left['outside']} listings outside 20 miles, {left['waiting']} "
                         f"waiting for an opponent, {left['lower']} lower levels; venues outside or not yet measured: "
@@ -1254,6 +1261,12 @@ def t_league_schedule_line():
     items, _ = read_all(entries, LEAGUE_DAY, {"mshsl": lambda s, e, t: down() if e["_name"] == "Tech High School" else school(s, e, t)})
     assert not [i for i in items if i["kind"] == "schedule"], "a school not read: no game is called off this morning"
     assert any(i["title"] == "Sartell Girls Soccer vs St. Cloud" for i in items), "the other school's games still come"
+    # A school whose schedule shows 0 games is left off the line, so its games stay; the others' still go.
+    items, summary = read_all(entries, LEAGUE_DAY, {"mshsl": lambda s, e, t: [] if e["_name"] == "Tech High School" else school(s, e, t)})
+    assert items[-1]["kind"] == "schedule" and items[-1]["sources"] == ["Sartell High School"], items[-1]
+    assert "0 games" in summary[0]["note"], summary[0]
+    items, _ = read_all(entries, LEAGUE_DAY, {"mshsl": lambda *_: []})
+    assert not [i for i in items if i["kind"] == "schedule"], "no school showed a game: nothing is called off"
 
 
 def t_nearby_hosts_are_registry_schools():
@@ -1367,6 +1380,9 @@ def t_gobound():
     assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
     assert got[-1] == {"kind": "schedule", "uid_prefix": "bound:", "from": "2026-10-25", "through": "2027-01-23",
                        "sources": ["Apollo High School"]}, "the schedule line: a dropped event was called off"
+    for empty in ("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", ev("p1", "Apollo Boys Soccer Season Pass", "soccer")):
+        assert bound_items(empty, {"_name": "Apollo High School"}, src, date(2026, 10, 25)) == [], \
+            "a schedule with nothing on it calls nothing off"
     kennedy = bound_items(ics, {"_name": "Kennedy Community School"}, {**src, "game_levels": ["Middle School"]},
                           date(2026, 10, 25))
     game = [i for i in kennedy if "game" in i]
