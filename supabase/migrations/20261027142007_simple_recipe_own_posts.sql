@@ -1,5 +1,6 @@
 -- Your own posting is never New to you (town-feed 36, from its review): right after posting, it ranked
--- +2 under New until a view of it was recorded. Also drops the Not interested fields nothing reads since
+-- +2 under New until a view of it was recorded. An Event is New from its show-from day too, the day it
+-- first reaches the feed (Jesse, 2026-10-27). Also drops the Not interested fields nothing reads since
 -- the fade went. get_town_feed is 20261027141014_simple_recipe.sql's but for those lines.
 
 create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
@@ -214,8 +215,9 @@ as $$
     -- Going counted once (every account's, from the private helper), and the caller's friends Going.
     select s.*,
            private.going_count(s.id) as going_n,
-           -- New (town-feed 36): posted since the caller's last visit and not yet seen by them.
-           coalesce(s.created_at > lv.at and s.cancelled_at is null and not s.going and not s.saved
+           -- New (town-feed 36): in the feed since the caller's last visit, posted or its show-from day
+           -- come, and not yet seen by them.
+           coalesce(greatest(s.created_at, coalesce(s.shows_from, s.event_date - 14)::timestamp at time zone town.zone) > lv.at and s.cancelled_at is null and not s.going and not s.saved
                     and s.submitted_by is distinct from auth.uid()
                     and not exists (select 1 from my_views v where v.item_id = s.id), false) as is_new,
            coalesce(fg.friends, 0) as friends_n,
@@ -225,6 +227,7 @@ as $$
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
     cross join last_visit lv
+    cross join town
     -- Friends Going (ticket 28): asked once for every shown Event.
     left join private.friends_going(array(select x.id from shown x)) fg on fg.event_id = s.id
   ),

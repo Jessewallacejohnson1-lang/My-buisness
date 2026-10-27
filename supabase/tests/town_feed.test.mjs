@@ -716,6 +716,19 @@ test('your own posting is never New to you, only to everyone else', async () => 
   assert.equal((await feed('2026-10-08 12:00'))[0].reason, 'new', 'a neighbour');
 });
 
+test('an Event is New from its show-from day, posted weeks before', async () => {
+  await reset();
+  const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
+  await add('Fall festival', '2026-10-20', { start_time: '10 AM', source_name: 'B', shows_from: '2026-10-07' });
+  await viewed(old, YOU, '2026-10-06 09:00');
+  await signIn(YOU);
+  assert.equal((await feed('2026-10-08 12:00')).find((r) => r.title === 'Fall festival').reason, 'new');
+  await db.exec(`reset role; update public.club_events set shows_from = '2026-10-05' where title = 'Fall festival'`);
+  await signIn(YOU);
+  assert.notEqual((await feed('2026-10-08 12:00')).find((r) => r.title === 'Fall festival').reason, 'new',
+                  'in the feed before your last visit');
+});
+
 test("someone else's views make nothing New for you, and nobody reads anyone's views", async () => {
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
