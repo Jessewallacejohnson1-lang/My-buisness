@@ -228,7 +228,7 @@ final class TownFeedEventsTests: XCTestCase {
           "reason":"interest","reason_name":"live_music",
           "score":{"interest":3,"friend":0,"follow":0,"popular":0,"size":1.5,"sizeStep":2,
                    "daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,"newSpot":false,
-                   "total":1.8236,"spot":2,"of":5,"tapped":2,"draw":1.5,"topicSpacing":0.7},
+                   "total":1.8236,"spot":2,"of":5,"tapped":2,"draw":1.5,"topicSpacing":0.7,"new":2},
           "heart_count":4,"hearted":true},
          {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
           "location":null,"image_url":null,"category":null,"club_name":null,
@@ -250,11 +250,13 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards[0].score?.sizeStep, 2)
         // The newer terms (town-feed 30, 34, 32), and none from a breakdown read before them.
         XCTAssertEqual([cards[0].score?.tapped, cards[0].score?.draw, cards[0].score?.topicSpacing], [2, 1.5, 0.7])
+        XCTAssertEqual(cards[0].score?.new, 2, "New (town-feed 36)")
         let older = try JSONDecoder().decode(FeedScore.self, from: Data("""
             {"interest":0,"friend":0,"follow":0,"popular":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,
              "acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}
             """.utf8))
         XCTAssertNil(older.tapped)
+        XCTAssertNil(older.new)
         XCTAssertNil(cards[1].score)
         // Everyone's hearts, and whether you hearted it (ticket 03).
         XCTAssertEqual(cards[0].likeCount, 4)
@@ -432,7 +434,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
-        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New in town")
+        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New since your last visit")
         XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")

@@ -77,7 +77,8 @@ THE RULES
   News repeats: News from the same place in the last 6 days with much the same title (two
     shared words at least, two thirds of the shorter title's, the place's own name not
     counted) is a repeat and is not added (repeat_of).
-  Merging: same place, start within an hour (all-day ones: a day apart), shared title words = one
+  Merging: same place, start within an hour (all-day ones: a day apart; one with no time: the
+    same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
     one title's words all sit inside the other's, with the same team words (JV, varsity,
     girls...); a source's own two ids are always two events. With no place on either, the
@@ -87,6 +88,9 @@ THE RULES
     counts toward the two-mention rule. A pair short of that stays two events, and one on the
     same day at the same place or under the same title is named for Jesse to settle: a
     duplicate stays visible, a wrong merge hides a real event (ADR-021).
+  Filled in (Jesse, 2026-10-27): a listed event with no time takes the time another source gives
+    it later, keeping its own source, uid and title; a mention with no time joins a shown, timed
+    listing before a hidden copy.
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
     the source has none) updates its event instead of adding it twice. Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
@@ -143,15 +147,27 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
 # (read 2026-10-20). The Park Board moves between City Hall and the parks, so it stays blank.
 MEETS_AT = [("City of St. Joseph", re.compile(r"\b(City Council|Economic Development Authority)\b"), "City Hall")]
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
-# The newest migration that makes public.apply_judged: the self-tests read the SQL the database
-# runs today, whatever the file is called.
-WRITES = max(p for p in (Path(__file__).resolve().parents[2] / "supabase" / "migrations").glob("*.sql")
-             if re.search(r"create\s+(or\s+replace\s+)?function\s+public\.apply_judged\s*\(", p.read_text(), re.I))
+MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
+
+
+def whole_repo(path):
+    """A file outside sources/: a copy of sources/ alone (git archive ... sources) doesn't have it,
+    and the morning's scripts loaded but couldn't run (2026-10-26). Say so instead of crashing."""
+    if not path.exists():
+        raise FileNotFoundError(f"{path} is missing: run from a whole checkout, not a copy of sources/ alone")
+    return path
+
+
+def writes():
+    """The newest migration that makes public.apply_judged: the self-tests read the SQL the database
+    runs today, whatever the file is called."""
+    return max(p for p in whole_repo(MIGRATIONS).glob("*.sql")
+               if re.search(r"create\s+(or\s+replace\s+)?function\s+public\.apply_judged\s*\(", p.read_text(), re.I))
 
 
 def interest_ids(swift=INTERESTS_SWIFT):
     """The shared interest list lives in the app (Interests.all); read it, never copy it."""
-    return re.findall(r'Interest\(id: "([a-z_]+)"', swift.read_text())
+    return re.findall(r'Interest\(id: "([a-z_]+)"', whole_repo(swift).read_text())
 
 
 def words(text, stop=STOP):
@@ -174,10 +190,15 @@ def same_place(a, b):
 
 
 def within_hour(a, b):
-    if a["at"] is None or b["at"] is None:
+    if a["at"] is None and b["at"] is None:
         # Two all-day listings a day apart are one: White Peony's site started Bootique Week on
         # Sunday, its Instagram on Monday (2026-10-26).
-        return a["at"] is None and b["at"] is None and abs(a["day"] - b["day"]) <= timedelta(1)
+        return abs(a["day"] - b["day"]) <= timedelta(1)
+    if a["at"] is None or b["at"] is None:
+        # A post that gives no time is the same day's timed listing of it: Milk & Honey's
+        # "Yoga, Sauna & Cider" and its site's 6:30 PM "Sauna, Yoga, Ice Bath, Cider"
+        # (Jesse, 2026-10-27: "merge events that have minimal info on specific time").
+        return a["day"] == b["day"]
     return abs(a["at"] - b["at"]) <= timedelta(hours=1)
 
 
@@ -186,8 +207,9 @@ def same_event(a, b):
         return a["at"] == b["at"] and same_title(a["title"], b["title"])
     if not (a["place"] and b["place"]):
         # One gives no place: the same registry place (where()) and the very same start, or the
-        # same day with both all day.
-        return bool(a["entry"]) and a["entry"] == b["entry"] and (a["day"], a["at"]) == (b["day"], b["at"]) \
+        # same day with one or both giving no time.
+        same_start = a["at"] == b["at"] or a["at"] is None or b["at"] is None
+        return bool(a["entry"]) and a["entry"] == b["entry"] and a["day"] == b["day"] and same_start \
             and same_title(a["title"], b["title"])
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
@@ -633,8 +655,11 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             out["outcomes"][i] = ("news", "")
         else:
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
-            g = by_uid.get(key) or next((g for g in groups if same_event(g["facts"], ev["facts"])
-                                         and not own_ids_differ(g, *key)), None)
+            # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
+            g = by_uid.get(key) or min((g for g in groups if same_event(g["facts"], ev["facts"])
+                                        and not own_ids_differ(g, *key)),
+                                       key=lambda g: ((g["old"] or {}).get("status") == "rejected",
+                                                      g["facts"]["at"] is None), default=None)
             if g is None:
                 # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
@@ -664,6 +689,12 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == old.get("source_uid")),
                            next(((i, ev) for i, ev in mine if not real_uid(ev["row"]["source_uid"])
                                  and not real_uid(old.get("source_uid")) and old.get("source_uid")), None))
+            filled = False
+            if primary is None and g["facts"]["at"] is None:
+                # Another source gives the time this one left out: the listed event takes it, under
+                # its own source and title (Jesse, 2026-10-27: "always be looking for updates").
+                primary = next(((i, ev) for i, ev in g["items"] if ev["facts"]["at"]), None)
+                filled = primary is not None
             g["status"] = old["status"]
             # Every kept item goes live; only a repeat stays out (Jesse, 2026-10-26).
             if old["status"] == "pending" and old.get("review_reason") is None and old.get("found", True):
@@ -690,6 +721,8 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             row["activity_team"], row["activity_name"] = named["activity_team"], named["activity_name"]
             if old:
                 row["source_uid"] = old["source_uid"]
+                if filled:
+                    row["source_name"], row["title"] = old["source_name"], old["title"]
                 if old.get("shows_from") and str(old["event_date"])[:10] == row["event_date"]:
                     row["shows_from"] = str(old["shows_from"])[:10]
                 row["category"] = old.get("category") or row["category"]
@@ -952,6 +985,37 @@ def t_all_day_a_day_apart_is_one():
     assert len(apart["events"]) == 2, "two days apart stay two"
 
 
+def t_no_time_joins_the_timed_one():
+    """Milk & Honey's Instagram gave no time; its site said 6:30 PM (2026-10-27)."""
+    site = listed(title="Sauna, Yoga, Ice Bath, Cider", event_date="2026-11-12", start_time="6:30 PM",
+                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="page:a")
+    post = dict(start="2026-11-12", end=None, all_day=True, source_name="Milk & Honey Ciders", interest=None)
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **post)], [site])
+    assert r["events"][0]["id"] == site["id"] and outcome(r, 0) == "merged", r["outcomes"]
+    r = run([item(title="Yoga, Sauna & Cider", place="", **post)], [site])
+    assert r["events"][0]["id"] == site["id"], "with no place either, it is still the poster's own"
+    r = run([item(title="Yoga, Sauna & Cider", place="Milk & Honey Ciders", **dict(post, start="2026-11-13"))], [site])
+    assert r["events"][0]["id"] is None, "the next day stays apart"
+
+
+def t_later_read_fills_the_time():
+    """The Instagram post came first with no time; the site's 6:30 PM listing came a day later."""
+    post = listed(title="Yoga, Sauna & Cider", event_date="2026-11-12", start_time=None, all_day=True,
+                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders Instagram", source_uid="page:p")
+    site = item(title="Sauna, Yoga, Ice Bath, Cider", start="2026-11-12T18:30:00-06:00", end=None,
+                place="Milk & Honey Ciders", source_name="Milk & Honey Ciders", interest=None)
+    g = run([site], [post])["events"][0]
+    assert g["id"] == post["id"] and g["row"]["start_time"] == "6:30 PM" and not g["row"]["all_day"], g["row"]
+    assert (g["row"]["source_name"], g["row"]["source_uid"], g["row"]["title"]) == \
+        (post["source_name"], "page:p", "Yoga, Sauna & Cider"), "it updates the listed row, not a new one"
+    hidden = dict(post, id="22222222-2222-2222-2222-222222222222", status="rejected", title="Yoga Sauna")
+    shown = listed(title="Sauna, Yoga, Ice Bath, Cider", event_date="2026-11-12", start_time="6:30 PM",
+                   location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="page:s")
+    again = item(title="Yoga, Sauna & Cider", start="2026-11-12", end=None, all_day=True,
+                 place="Milk & Honey Ciders", source_name="Somebody", interest=None)
+    assert run([again], [hidden, shown])["events"][0]["id"] == shown["id"], "a shown, timed listing first"
+
+
 def t_merge_true_pair():
     a = item(source_name="City of St. Joseph", title="Print Making Workshop (native plants)",
              start="2026-11-20T10:00:00-06:00", end=None, place="Saint John's University, 2850 Abbey Plaza, Collegeville",
@@ -1048,7 +1112,7 @@ def t_reread_updates():
     assert g["row"]["start_time"] == "4:30 PM" and "same source" in r2["outcomes"][0][1], (g["row"], r2["outcomes"])
     # The same page read twice the same morning, no uid: one event.
     assert len(run([item(), item()])["events"]) == 1
-    assert "on conflict on constraint club_events_source_uid_key do update" in WRITES.read_text()
+    assert "on conflict on constraint club_events_source_uid_key do update" in writes().read_text()
 
 
 def t_misread_comes_back():
@@ -1059,7 +1123,7 @@ def t_misread_comes_back():
     assert moved["events"][0]["status"] == "pending", moved["events"][0]["status"]
     not_event = run([item()], [listed(status="rejected", review_reason="not_event", **base)])
     assert not_event["events"][0]["status"] == "rejected", "not an event stays declined"
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the database does the same"
 
 
@@ -1091,7 +1155,7 @@ def t_cancelled():
     merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
     r = run([seen, line], [merged])
     assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "a cancelled one still merges"
-    db = WRITES.read_text()
+    db = writes().read_text()
     assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
     assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"
     assert "'Cancelled: ' ||" not in db, "the title stays as written: the app shows the tag (ticket 12)"
@@ -1105,7 +1169,7 @@ def t_admin_status_kept():
             "title", "event_date", "start_time", "all_day", "location", "source_name", "source_uid")})
         r = run([item()], [old])
         assert r["events"][0]["status"] == st, (st, r["events"][0]["status"])
-    sql = WRITES.read_text().split("-- 1. New found events")[1]
+    sql = writes().read_text().split("-- 1. New found events")[1]
     assert "when club_events.status = 'pending' and club_events.review_reason is null" in sql
     assert "status = 'approved'" not in sql.split("on conflict")[0], "insert never forces approved over a row"
 
@@ -1158,7 +1222,7 @@ def t_place_entry():
                    "Band in the Park": "city-of-st-joseph"}, ids
     assert [n for n in r["notes"] if "not in the registry" in n] == [
         "place not in the registry: 'Lakeside Bandshell' (City of St. Joseph's picture stands in)"], r["notes"]
-    assert "place_entry_id = coalesce(excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
+    assert "place_entry_id = coalesce(excluded.place_entry_id" in writes().read_text(), "the database keeps it"
 
 
 def t_area():
@@ -1199,7 +1263,7 @@ def t_writes_are_one_safe_call():
     assert p["p_events"][0]["description"] == "$$ drop table x; $$", "the payload carries text as data"
     sql = to_sql(r, TODAY)
     assert sql.lstrip().startswith("--") and "select public.apply_judged(" in sql and sql.count("::jsonb") == 6, sql[:200]
-    db = WRITES.read_text()
+    db = writes().read_text()
     assert "insert into public.event_mentions" in db and "insert into public.board_items" in db
     assert "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz))" in db
     assert "from public, anon, authenticated" in db and "to service_role" in db, "only the service role may write"
@@ -1311,7 +1375,7 @@ def t_game():
                  "Bad game line", "Pumpkin Carving"):
         assert game(meet) == (None, None, None, None), meet
     assert team_id("UW-River Falls") == "uw-river-falls" and team_id("St. Cloud State") == "st-cloud-state"
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "sport = excluded.sport, team_ids = excluded.team_ids" in sql, "a game read wrong once clears"
     assert "insert into public.teams (id, name, short_name)" in sql, "a new opponent gets its row"
 
@@ -1336,7 +1400,7 @@ def t_followers_only():
     assert [(g["row"]["followers_only"], g["row"]["activity_name"]) for g in both["events"]] == [(False, "Choir")], \
         "everyone's, and still the choir's whichever page's row it is"
     assert run([item(followers_only="yes")])["outcomes"][0] == ("skipped", "invalid: followers_only must be true or false")
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "followers_only = club_events.followers_only and excluded.followers_only" in sql, "once public, stays public"
 
 
@@ -1363,7 +1427,7 @@ def t_teams_only_from_their_names():
 
 
 TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_all_day_a_day_apart_is_one, t_merge_true_pair,
+         t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,

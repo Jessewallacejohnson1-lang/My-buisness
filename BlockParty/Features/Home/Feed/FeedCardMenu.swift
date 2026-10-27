@@ -341,7 +341,7 @@ struct FeedCardMenu: View {
     /// nil for a code this app has no words for, which leaves the card without its •••.
     static func line(reason: String, name: String?) -> String? {
         switch reason {
-        case "new": return "New in town"
+        case "new": return "New since your last visit"
         case "friend": return name.map { "\($0) is going" }
         case "follow": return name.map { "You follow \($0)" }
         // Instagram's "Your algorithm" says "Lately you've been into ..." (town-feed 30).
@@ -366,15 +366,6 @@ struct FeedCardMenu: View {
 private struct ScoreBox: View {
     let score: FeedScore
 
-    /// Which half of the feed it fills (town-feed 31).
-    private var poolWords: String {
-        switch score.pool {
-        case "yours": ", from your people"
-        case "discovery": ", to discover"
-        default: ""
-        }
-    }
-
     var body: some View {
         VStack(spacing: 14) {
             HStack {
@@ -391,18 +382,15 @@ private struct ScoreBox: View {
             row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
             row("You follow it", "+" + Self.number(score.follow), idle: score.follow == 0)
             row("Host you've been into", "+" + Self.number(score.tapped ?? 0), idle: (score.tapped ?? 0) == 0)
-            row("Popular in town", "+" + Self.number(score.popular), idle: score.popular == 0)
-            row((score.sizeStep == 3 ? "Big" : score.sizeStep == 2 ? "Medium" : "Small") + " event",
-                "+" + Self.number(score.size), idle: score.size == 0)
+            row("New since your last visit", "+" + Self.number(score.new ?? 0), idle: (score.new ?? 0) == 0)
             row("Draws the town out", "+" + Self.number(score.draw ?? 0), idle: (score.draw ?? 0) == 0)
             row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
             row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
             row("Like one you hid", "×" + Self.number(score.notInterested ?? 1), idle: (score.notInterested ?? 1) == 1)
             row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
-            row("Same interest again", "×" + Self.number(score.topicSpacing ?? 1), idle: (score.topicSpacing ?? 1) == 1)
 
             Rectangle().fill(Hue.hairline).frame(height: 1)
-            Text("Place \(score.spot) of \(score.of) in your feed" + (score.newSpot ? ", moved up as new" : "") + poolWords)
+            Text("Place \(score.spot) of \(score.of) in your feed")
                 .font(.sans(13))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)

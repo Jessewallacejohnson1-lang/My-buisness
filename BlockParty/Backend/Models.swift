@@ -539,6 +539,8 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
     /// nil for your own plans, which are in neither (town-feed 31).
     var pool: String? = nil
+    /// Points for being new since your last visit (town-feed 36).
+    var new: Double? = nil
 }
 
 struct Trail: Identifiable, Hashable {
