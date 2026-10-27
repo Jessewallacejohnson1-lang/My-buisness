@@ -703,6 +703,19 @@ test('New ends once you have seen it, and a view in the last 30 minutes is not a
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Old', 'Posted since']);
 });
 
+test('your own posting is never New to you, only to everyone else', async () => {
+  await reset();
+  const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
+  await add('My yard sale', '2026-10-09', { start_time: '6 PM', source_name: null, submitted_by: YOU,
+                                           created_at: '2026-10-07 12:00-05' });
+  await viewed(old, YOU, '2026-10-06 09:00');
+  await viewed(old, ME, '2026-10-06 09:00');
+  await signIn(YOU);
+  assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'), 'yours');
+  await signIn(ME);
+  assert.equal((await feed('2026-10-08 12:00'))[0].reason, 'new', 'a neighbour');
+});
+
 test("someone else's views make nothing New for you, and nobody reads anyone's views", async () => {
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
