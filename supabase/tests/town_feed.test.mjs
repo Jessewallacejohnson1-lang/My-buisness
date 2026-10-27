@@ -867,6 +867,26 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     insert into public.feed_actions (user_id, item_id, action, at)
     select '00000000-0000-0000-0001-000000000042', e.id, 'view', timestamptz '2026-10-08 12:00-05' - g * interval '2 days'
     from public.club_events e, generate_series(1, 30) g;
+    -- And follows (town-feed 37): 20 people who each posted an Event, 5 Places with 8 Events each, and
+    -- 3 Groups with about 10 Events each.
+    insert into public.town_follows (follower_id, target_type, target_id)
+    select '00000000-0000-0000-0001-000000000042', 'profile', user_id from public.town_profiles
+    where user_id <> '00000000-0000-0000-0001-000000000042' order by user_id limit 20;
+    update public.club_events e set submitted_by = f.target_id, source_name = null
+    from (select target_id, row_number() over (order by target_id) n from public.town_follows
+          where target_type = 'profile') f
+    where e.title = 'Event ' || (f.n * 9);
+    insert into public.places (name, entry_id) select 'Place ' || g, 'speed-place-' || g from generate_series(1, 5) g;
+    insert into public.town_follows (follower_id, target_type, target_id)
+    select '00000000-0000-0000-0001-000000000042', 'place', id from public.places where entry_id like 'speed-place-%';
+    update public.club_events set place_entry_id = 'speed-place-' || (split_part(title, ' ', 2)::int / 5 % 5 + 1)
+    where split_part(title, ' ', 2)::int % 5 = 0;
+    insert into public.clubs (name) select 'Group ' || g from generate_series(1, 3) g;
+    insert into public.club_members (club_id, user_id)
+    select id, '00000000-0000-0000-0001-000000000042' from public.clubs where name like 'Group %';
+    update public.club_events e set club_id = c.id
+    from (select id, row_number() over (order by id) n from public.clubs where name like 'Group %') c
+    where split_part(e.title, ' ', 2)::int % 7 = 0 and split_part(e.title, ' ', 2)::int / 7 % 3 + 1 = c.n;
     analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
@@ -884,6 +904,9 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   const busy = loadavg()[0] > 8;
   const budget = process.env.CI || busy ? 250 : 100;
   assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
+  const reasons = (await feed('2026-10-08 12:00')).filter((r) => r.reason === 'follow').length;
+  assert.ok(reasons > 20, `${reasons} Events lifted by a follow`);
+  await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
 });
 
 test("each event carries its place's picture: a photo before a logo, else the place's Search logo", async () => {
@@ -1864,7 +1887,7 @@ async function atPlace(title, date, more = {}) {
 }
 async function lifted(at) {
   const { rows } = await db.query(
-    `select title, reason, reason_name, score
+    `select title, reason, reason_name, score, friends_going
      from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
@@ -1985,5 +2008,43 @@ test("an activity you follow names the game before the Place it's at; a Place ne
   assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name]), [
     ['Cathedral Volleyball vs Sartell', 'Cathedral Volleyball (girls)'],
     ['Cathedral Volleyball vs Sartell · JV', 'Cathedral Volleyball (girls)']]);
+  await noPlaces();
+});
+
+test("your own posting is never lifted by what it's at, and a Group's Event never names who posted it", async () => {
+  await reset();
+  await db.exec('reset role');
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Book Club') returning id`);
+  const SAM = '00000000-0000-0000-0000-0000000000e3';
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [SAM]);
+  await db.query(`insert into public.town_profiles (user_id, display_name) values ($1, 'Sam Lee')`, [SAM]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, SAM]);
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ME]);
+  const mine = await add('My book swap', '2026-10-12', { start_time: '7 PM', source_name: null, submitted_by: ME });
+  const sams = await add("Sam's book swap", '2026-10-13', { start_time: '7 PM', source_name: null, submitted_by: SAM });
+  await db.query('update public.club_events set club_id = $1 where id = any($2)', [club, [mine, sams]]);
+  await signIn(ME);
+  assert.deepEqual(Object.fromEntries((await lifted('2026-10-08 12:00')).map((r) => [r.title, [r.reason, r.reason_name]])), {
+    'My book swap': ['soon', null], "Sam's book swap": ['follow', 'Book Club'] });
+  await db.exec('reset role');
+  await db.query('delete from auth.users where id = $1', [SAM]);
+});
+
+test('the Score line gives the follow lift to what the card names, a friend Going or not', async () => {
+  await reset();
+  // Friends Going counts only Events not over by the real clock, so this one is days from now.
+  const show = await atPlace('Trunk show', day(3));
+  await followPlace(ME);
+  const FRIEND = '00000000-0000-0000-0000-0000000000e4';
+  await neighbour(FRIEND, 'Kate Moss');
+  await befriend(ME, FRIEND);
+  await goes(show, FRIEND);
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const [row] = await lifted(`${day(0)} 12:00`);
+  assert.deepEqual([row.reason, row.score.follow, row.score.friend, row.score.yours, row.friends_going.length],
+                   ['follow', 3, 0, 3, 1]);
+  await db.exec('reset test.admin; reset role');
+  await db.query('delete from auth.users where id = $1', [FRIEND]);
   await noPlaces();
 });

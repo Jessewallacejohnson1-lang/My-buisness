@@ -233,7 +233,11 @@ as $$
            greatest(0, extract(epoch from coalesce(e.starts_at, e.event_date::timestamp at time zone town.zone) - p_now) / 86400)
              as days_away,
            tg.tags,
-           (select array_agg(x order by x) from unnest(tg.tags) x where x = any(me.interests)) as matched
+           (select array_agg(x order by x) from unnest(tg.tags) x where x = any(me.interests)) as matched,
+           -- The group that posted it, else, for a found Event, the group it was found for: worked out
+           -- once here (`shown` is read twice, so kept) for the Group lift and the card's Join.
+           coalesce(e.club_id, case when e.submitted_by is null and e.source_name is not null
+                                    then private.event_group(e.source_name, e.place_entry_id, e.title) end) as group_id
     from next_up e, town, me,
          -- Every interest the tagger gave the Event (ticket 33); one it hasn't reached yet has
          -- its writer's one.
@@ -262,23 +266,21 @@ as $$
            coalesce(tp.n - case when s.id = any(tp.ids) then 1 else 0 end, 0) as tapped_n,
            -- What the caller follows that this Event is of, by name: an activity or school first, then
            -- the neighbour who posted it, the Place it's at, a Group they're in (town-feed 37).
-           coalesce(s.school_followed, fw.name) as followed,
-           gr.id as group_id
+           coalesce(s.school_followed, fw.name) as followed
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
-    -- The group that posted it, else, for a found Event, the group it was found for: read once here
-    -- for the Group lift and the card's Join.
-    cross join lateral (select coalesce(s.club_id, case when s.submitted_by is null and s.source_name is not null
-                                                        then private.event_group(s.source_name, s.place_entry_id, s.title) end) as id) gr
     left join lateral (
       select x.name from (
-        select p.name, 1 as ord from my_people p where p.id = s.submitted_by
+        -- Only a neighbour's own posting names them: a Group's Event never says who posted it.
+        select p.name, 1 as ord from my_people p where p.id = s.submitted_by and s.club_id is null
         union all
         select pl.name, 2 from my_places pl where pl.entry_id = s.place_entry_id
         union all
-        select g.name, 3 from my_groups g where g.id = gr.id
+        select g.name, 3 from my_groups g where g.id = s.group_id
       ) x
-      order by x.ord limit 1) fw on s.school_followed is null
+      order by x.ord, x.name limit 1) fw
+      -- Never your own posting, as New never is.
+      on s.school_followed is null and s.submitted_by is distinct from auth.uid()
     cross join last_visit lv
     cross join town
     -- Friends Going (ticket 28): asked once for every shown Event.
@@ -401,8 +403,9 @@ as $$
          -- The Score line (ticket 18): the keys the shipped app reads stay, the dropped parts at 0.
          case when public.is_admin() then jsonb_build_object(
            'interest', e.interest_pts, 'yours', e.yours_pts, 'new', e.new_pts,
-           'friend', case when e.friends_n > 0 then e.yours_pts else 0 end,
-           'follow', case when e.friends_n = 0 and e.followed is not null then e.yours_pts else 0 end,
+           -- Yours goes to the reason the card names: what you follow, then a friend Going.
+           'friend', case when e.followed is null and e.friends_n > 0 then e.yours_pts else 0 end,
+           'follow', case when e.followed is not null then e.yours_pts else 0 end,
            'tapped', case when e.friends_n = 0 and e.followed is null then e.yours_pts else 0 end,
            'popular', 0, 'size', 0, 'sizeStep', 1, 'draw', e.draw_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
