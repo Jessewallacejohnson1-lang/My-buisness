@@ -617,9 +617,10 @@ struct HelloDropView: View {
     /// most every 30 s: the read is the whole Friends page.
     private func checkAccepted() async {
         guard HelloDrop.allowed, Date().timeIntervalSince(acceptedAt) > 30 else { return }
-        acceptedAt = Date()
+        // Stamped only once a read came back, so one before the saved login is in tries again.
         guard let read = await accepted() else { return }
         let now = Date()
+        acceptedAt = now
         for person in read {
             inbox.add(.accepted(person), at: DateHelpers.timestamp(person.friendsSince) ?? now, now: now)
         }

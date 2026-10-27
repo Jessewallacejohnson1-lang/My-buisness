@@ -323,7 +323,6 @@ final class FriendsBook {
         blockedFailed = false
         suggestionsRead = []
         hidden = []
-        HelloInbox.shared.forgetAccepted()
     }
 
     func screenOpened() { open += 1 }
