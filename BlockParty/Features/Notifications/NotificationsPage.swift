@@ -1,9 +1,11 @@
 //
 //  NotificationsPage.swift
 //  Block Party — what the Town bar's bell pushes (BP app docs/plans/school-activities, ticket 04):
-//  the Events you follow or are Going to that were canceled or moved (`Notices`), in Instagram's
-//  list: Today, Yesterday, Last 7 days, a round picture, the name in bold, the change and how long
-//  ago. A row opens its Event. Under the Friends page's own large title and bar.
+//  the Events you follow or are Going to that were canceled or moved (`Notices`), and everything
+//  the hello pill said this past week (`HelloInbox`, hello-drop 05), in Instagram's list: Today,
+//  Yesterday, Last 7 days, a round picture, the name in bold, what happened and how long ago. A
+//  change opens its Event, a contact who joined their page. Under the Friends page's own large
+//  title and bar.
 //
 //  Reference: Instagram's Notifications (BP app references/moved-alert/mobbin/ig-4.jpg, 375pt at
 //  1:1): 44pt pictures, 12pt gap, 16pt bold sections. Mock Jesse said yes to on 2026-10-26:
@@ -14,6 +16,8 @@ import SwiftUI
 
 nonisolated enum NoticeMetric {
     static let face: CGFloat = 44
+    /// A team's logo inside its 44 pt white disc, as the mock's 5 pt inset (hello-drop 05).
+    static let logo: CGFloat = 34
     static let gap: CGFloat = 12
     static let rowPad: CGFloat = 8
     static let sectionTop: CGFloat = 18
@@ -30,6 +34,7 @@ struct NoticeEventRoute: Hashable {
 
 struct NotificationsPage: View {
     @Environment(Notices.self) private var notices
+    private let inbox = HelloInbox.shared
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
 
@@ -44,10 +49,11 @@ struct NotificationsPage: View {
                         .frame(height: FriendsMetric.titleLine)
                         .padding(.horizontal, FriendsMetric.side)
                         .accessibilityAddTraits(.isHeader)
-                    // Nothing read yet: the rows' own shape, shimmering.
-                    if notices.list == nil && !notices.failed { LoadingNotices() }
                     let now = Date()
-                    ForEach(Notices.sections(notices.list ?? [], now: now), id: \.title) { section in
+                    let items = inbox.recent(now: now)
+                    // Nothing read yet and nothing kept on the phone: the rows' own shape, shimmering.
+                    if notices.list == nil && !notices.failed && items.isEmpty { LoadingNotices() }
+                    ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items), now: now), id: \.title) { section in
                         Text(section.title)
                             .font(.sansBold(16))
                             .foregroundStyle(Hue.ink)
@@ -55,7 +61,12 @@ struct NotificationsPage: View {
                             .padding(.top, NoticeMetric.sectionTop)
                             .padding(.bottom, NoticeMetric.sectionBottom)
                             .accessibilityAddTraits(.isHeader)
-                        ForEach(section.notices) { NoticeRow(notice: $0, now: now) }
+                        ForEach(section.rows) { row in
+                            switch row {
+                            case .change(let notice): NoticeRow(notice: notice, now: now)
+                            case .item(let item): HelloItemRow(item: item, now: now)
+                            }
+                        }
                     }
                 }
                 .padding(.top, SearchMetric.pageBar)
@@ -70,11 +81,14 @@ struct NotificationsPage: View {
             // Drawn last so it sits over the rows, read first so Back comes first.
             FriendsTitleBar(title: "Notifications", titleUnder: titleUnder).accessibilitySortPriority(1)
         }
-        // Nothing yet: Apple's empty page, in the middle of the screen, once the read has answered.
+        // Nothing yet: Apple's empty page, in the middle of the screen, once the read has answered;
+        // never over what the phone kept.
         .overlay {
-            if notices.list?.isEmpty == true {
+            if !inbox.recent(now: Date()).isEmpty {
+                // The rows say it.
+            } else if notices.list?.isEmpty == true {
                 ContentUnavailableView("No notifications yet", systemImage: "bell",
-                                       description: Text("When something you follow or are going to changes, you'll see it here."))
+                                       description: Text("When friends join, your teams play or your plans change, you'll see it here."))
                     .allowsHitTesting(false)
             } else if notices.failed {
                 // The Town feed's words for a read that failed.
@@ -84,11 +98,15 @@ struct NotificationsPage: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        // Read on every visit; once drawn, the bell's dot goes.
+        // Read on every visit; once drawn, the bell's dot goes. What the phone kept is drawn at
+        // once, so the pill never says it after this, even offline.
         .task {
+            inbox.toldAll()
             await notices.refresh()
             notices.opened()
         }
+        // One found while the page was up was shown on it too.
+        .onDisappear { inbox.toldAll() }
     }
 }
 
@@ -112,6 +130,83 @@ private struct NoticeRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(RowPressStyle())
+    }
+}
+
+/// "**Sam Rivera** joined Block Party. 2h" with Add friend beside it, as Instagram's Follow back;
+/// "**Johnnies** beat Gusties 33–23. 5h"; "**You** attended your first event! 1d" by the green
+/// tick (hello-drop 05). A contact who joined opens their page, a final its team's page; a first
+/// opens nothing. Pressed, a row darkens as a change's does.
+private struct HelloItemRow: View {
+    let item: HelloItem
+    let now: Date
+
+    var body: some View {
+        let row = item.row
+        let words = HStack(spacing: NoticeMetric.gap) {
+            HelloItemFace(picture: row.picture, name: row.name)
+            Text("\(Text(row.name).font(.sansSemibold(15))) \(row.words) \(Text(PostingCard.relativeLabel(for: item.at, now: now)).foregroundStyle(Hue.inkSecondary))")
+                .font(.sans(15))
+                .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        switch item.what {
+        case .joined(let person):
+            HStack(spacing: 0) {
+                NavigationLink(value: person) {
+                    words
+                        .padding(.leading, FriendsMetric.side)
+                        .padding(.trailing, NoticeMetric.gap)
+                        .padding(.vertical, NoticeMetric.rowPad)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(RowPressStyle())
+                // The Contacts page's button, at its own width beside the words.
+                RelationButtons(person: person) {}
+                    .fixedSize()
+                    .padding(.trailing, FriendsMetric.side)
+            }
+        case .final(let final):
+            if let team = final.teamPage {
+                NavigationLink(value: team) { padded(words).contentShape(Rectangle()) }
+                    .buttonStyle(RowPressStyle())
+            } else {
+                padded(words).accessibilityElement(children: .combine)
+            }
+        case .moment:
+            padded(words).accessibilityElement(children: .combine)
+        }
+    }
+
+    private func padded(_ words: some View) -> some View {
+        words
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.vertical, NoticeMetric.rowPad)
+    }
+}
+
+/// A person's photo (the blank face without one), a team's logo on white, or the green tick.
+private struct HelloItemFace: View {
+    let picture: HelloItem.Picture
+    let name: String
+
+    var body: some View {
+        switch picture {
+        case .photo(let url):
+            NeighborFace(url: url, size: NoticeMetric.face)
+        case .logo(let logo):
+            LogoDisc(logo: logo, initial: String(name.prefix(1)), logoSide: NoticeMetric.logo,
+                     letter: .sansSemibold(17))
+                .frame(width: NoticeMetric.face, height: NoticeMetric.face)
+                .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring))
+                .accessibilityHidden(true)
+        case .tick:
+            // The pill's own tick, finished, at the row's 44 pt.
+            HelloTick(stage: 3)
+                .scaleEffect(NoticeMetric.face / HelloTick.size)
+                .frame(width: NoticeMetric.face, height: NoticeMetric.face)
+        }
     }
 }
 

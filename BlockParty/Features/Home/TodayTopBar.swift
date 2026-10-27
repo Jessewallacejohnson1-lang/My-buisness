@@ -469,9 +469,10 @@ struct TodayTopBar: View {
     }
 
     /// A canceled or moved Event you follow or are Going to puts the friends mark's dot on the
-    /// bell (BP app docs/plans/school-activities, ticket 04): no number, gone once its page opens.
+    /// bell (BP app docs/plans/school-activities, ticket 04), and so does something new the hello
+    /// pill hasn't said yet (hello-drop 05): no number, gone once its page opens.
     private var bellButton: some View {
-        let dot = notices?.dot == true
+        let dot = notices?.dot == true || HelloInbox.shared.next != nil
         return glyphButton(label: dot ? "Notifications, new" : "Notifications", hint: "What you have missed",
                            action: onOpenNotifications) {
             BellGlyph(size: TodayBarMetric.bellGlyphSize)

@@ -103,6 +103,12 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-27 — The hello pill is the notification, and the bell keeps it (BP app hello-drop 05). News the
+  pill says is a `HelloItem` kind in `HelloInbox.swift`, kept on the phone: each kind says how the pill shows
+  it (`message`) and how the bell's row shows it (`row`), both exhaustive switches, so a new kind can't ship
+  without its bell row. Said once, at most 3 pills a day an hour apart (`HelloInbox.mayDrop`), kept 7 days.
+  The day's lines (`HelloDrop.message`: your event today, the counts, town news) are never items and never
+  reach the bell.
 - 2026-10-26 — Every Event and News item the morning and social watches keep goes live on its first
   mention, official or secondhand, sure or not (Jesse: "only hold back if its the exact same").
   The only thing kept out is a repeat (`write_judged.repeat_of`, `same_event`). **Supersedes** the

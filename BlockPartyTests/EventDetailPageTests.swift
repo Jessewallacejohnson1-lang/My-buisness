@@ -177,6 +177,21 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(page.counterText(page: 1, count: 3), "2/3")
     }
 
+    /// A found event links its page under About as the Business page links: Facebook and Instagram
+    /// by name, a site by its own, and no row for a neighbour's event (Jesse, 2026-10-27).
+    func testFoundPageLinkRow() {
+        let page = FeedEventDetailDestination.self
+        let row = { (s: String) in page.sourceLink(URL(string: s)) }
+
+        XCTAssertEqual(row("https://www.milkandhoneyciders.com/events")?.text, "milkandhoneyciders.com")
+        XCTAssertEqual(row("https://www.milkandhoneyciders.com/events")?.url.absoluteString,
+                       "https://www.milkandhoneyciders.com/events", "opens the page it was found on")
+        XCTAssertEqual(row("https://www.facebook.com/Wanderingcowicecream/posts/1")?.text, "Facebook")
+        XCTAssertEqual(row("https://www.instagram.com/p/De-oNqKjGq5/")?.glyph, "camera")
+        XCTAssertNil(page.sourceLink(nil))
+        XCTAssertNil(row("mailto:a@b.c"))
+    }
+
     func testEmptyFieldsHideTheirRows() {
         let page = FeedEventDetailDestination.self
 

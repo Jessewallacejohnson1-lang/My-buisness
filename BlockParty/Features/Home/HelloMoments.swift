@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 /// A first or a milestone. Each is said once ever, in one short line with the tick.
-enum HelloMoment: String, CaseIterable {
+enum HelloMoment: String, CaseIterable, Codable {
     case firstEvent, tenthEvent, hundredthEvent
     case firstFriend, firstShare
     case firstPlace, firstPerson, firstGroup, firstTeam
@@ -31,6 +31,15 @@ enum HelloMoment: String, CaseIterable {
     /// Confetti only for the 10th and 100th (Jesse, 2026-10-23); firsts get the tick alone.
     var confetti: Bool { self == .tenthEvent || self == .hundredthEvent }
 
+    /// A first you make with a tap: the pill says it at once, as the tap's answer, outside the
+    /// 3 a day (hello-drop 05). An attended milestone waits its turn like any news.
+    var yours: Bool {
+        switch self {
+        case .firstEvent, .tenthEvent, .hundredthEvent: false
+        case .firstFriend, .firstShare, .firstPlace, .firstPerson, .firstGroup, .firstTeam: true
+        }
+    }
+
     /// The attended milestone a count has reached, highest first.
     static func attended(_ count: Int) -> [HelloMoment] {
         let steps: [(Int, HelloMoment)] = [(100, .hundredthEvent), (10, .tenthEvent), (1, .firstEvent)]
@@ -43,19 +52,21 @@ enum HelloMoment: String, CaseIterable {
     }
 }
 
-/// The moments waiting for the pill. Any screen calls `reach`; the pill takes one when it can.
-@MainActor @Observable
+/// Which firsts and milestones have been reached. Any screen calls `reach`; the pill's memory
+/// (`HelloInbox`) keeps each until the pill can say it.
+@MainActor
 final class HelloMoments {
-    static let shared = HelloMoments()
+    static let shared = HelloMoments(inbox: .shared)
 
-    /// In the order reached; the pill shows the first and the rest after it.
-    private(set) var queue: [HelloMoment] = []
-    var waiting: HelloMoment? { queue.first }
     // ponytail: once ever per phone (UserDefaults); per account if two people share a phone.
     // ponytail: "first friend" fires when you confirm a request, not when yours is accepted.
     private let said: UserDefaults
+    private let inbox: HelloInbox
 
-    init(said: UserDefaults = .standard) { self.said = said }
+    init(said: UserDefaults = .standard, inbox: HelloInbox) {
+        self.said = said
+        self.inbox = inbox
+    }
 
     private func key(_ moment: HelloMoment) -> String { "helloDrop.said.\(moment.rawValue)" }
 
@@ -65,7 +76,7 @@ final class HelloMoments {
     func reach(_ moment: HelloMoment) {
         guard !hasSaid(moment) else { return }
         said.set(true, forKey: key(moment))
-        queue.append(moment)
+        inbox.add(.moment(moment))
     }
 
     /// The attended count, after the events it counts are over. Only the highest milestone
@@ -75,15 +86,6 @@ final class HelloMoments {
         guard let top = reached.first else { return }
         for moment in reached.dropFirst() { said.set(true, forKey: key(moment)) }
         reach(top)
-    }
-
-    #if DEBUG
-    /// `-hello-moment`: shows one whether or not it was said.
-    func show(_ moment: HelloMoment) { queue.append(moment) }
-    #endif
-
-    func take() -> HelloMoment? {
-        queue.isEmpty ? nil : queue.removeFirst()
     }
 }
 

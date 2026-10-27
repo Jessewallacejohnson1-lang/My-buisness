@@ -70,6 +70,8 @@ struct FeedCardItem: Identifiable, Hashable {
     /// Read from the town's own pages, not posted by a neighbour: Report offers Wrong info on it
     /// (town-feed 22).
     var found = false
+    /// The page it was found on, opened from the link under the Event page's About.
+    var sourceURL: URL? = nil
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
