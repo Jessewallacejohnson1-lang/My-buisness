@@ -7,11 +7,12 @@
 
 import SwiftUI
 
-/// A neighbour as search and their page show them: never Anonymous, always named.
-struct Neighbor: Identifiable, Hashable, Decodable {
+/// A neighbour as search and their page show them: never Anonymous, always named. Encodable so
+/// the hello pill's memory keeps one (hello-drop 05).
+struct Neighbor: Identifiable, Hashable, Codable {
     /// Where the two of you stand, as the server last said (ticket 03). `blocked` is only ever
     /// yours on them (ticket 04): theirs on you reads as nobody at all.
-    enum Relation: String, Decodable, Hashable {
+    enum Relation: String, Codable, Hashable {
         case stranger = "none", sent, received, friends, blocked
     }
 

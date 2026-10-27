@@ -63,6 +63,12 @@ final class TownFeedEventsTests: XCTestCase {
         guard case .event(let fish) = lines[0], case .news(let flight) = lines[1], case .news(let happy) = lines[2]
         else { return XCTFail("\(lines)") }
         XCTAssertEqual(fish.event.title, "Fish fry")
+        XCTAssertNil(fish.event.sourceURL)
+        let found = try CommunityAPI.townFeedRows(from: Data(json.replacingOccurrences(
+            of: #""kind":"event","source_url":null"#,
+            with: #""kind":"event","source_url":"https://www.milkandhoneyciders.com/events""#).utf8))
+        XCTAssertEqual(TownFeed.card(found[0]).sourceURL?.absoluteString,
+                       "https://www.milkandhoneyciders.com/events", "the Event page's link rides the card")
         XCTAssertEqual(flight.place, "The Wandering Cow")
         XCTAssertEqual(flight.words, "Four scoops for $5 at Wandering Cow on Fridays.")
         XCTAssertEqual(flight.post.absoluteString, "https://www.instagram.com/p/Deki5CwgiQG/")

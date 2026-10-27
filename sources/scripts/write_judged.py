@@ -147,15 +147,27 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
 # (read 2026-10-20). The Park Board moves between City Hall and the parks, so it stays blank.
 MEETS_AT = [("City of St. Joseph", re.compile(r"\b(City Council|Economic Development Authority)\b"), "City Hall")]
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
-# The newest migration that makes public.apply_judged: the self-tests read the SQL the database
-# runs today, whatever the file is called.
-WRITES = max(p for p in (Path(__file__).resolve().parents[2] / "supabase" / "migrations").glob("*.sql")
-             if re.search(r"create\s+(or\s+replace\s+)?function\s+public\.apply_judged\s*\(", p.read_text(), re.I))
+MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
+
+
+def whole_repo(path):
+    """A file outside sources/: a copy of sources/ alone (git archive ... sources) doesn't have it,
+    and the morning's scripts loaded but couldn't run (2026-10-26). Say so instead of crashing."""
+    if not path.exists():
+        raise FileNotFoundError(f"{path} is missing: run from a whole checkout, not a copy of sources/ alone")
+    return path
+
+
+def writes():
+    """The newest migration that makes public.apply_judged: the self-tests read the SQL the database
+    runs today, whatever the file is called."""
+    return max(p for p in whole_repo(MIGRATIONS).glob("*.sql")
+               if re.search(r"create\s+(or\s+replace\s+)?function\s+public\.apply_judged\s*\(", p.read_text(), re.I))
 
 
 def interest_ids(swift=INTERESTS_SWIFT):
     """The shared interest list lives in the app (Interests.all); read it, never copy it."""
-    return re.findall(r'Interest\(id: "([a-z_]+)"', swift.read_text())
+    return re.findall(r'Interest\(id: "([a-z_]+)"', whole_repo(swift).read_text())
 
 
 def words(text, stop=STOP):
@@ -1100,7 +1112,7 @@ def t_reread_updates():
     assert g["row"]["start_time"] == "4:30 PM" and "same source" in r2["outcomes"][0][1], (g["row"], r2["outcomes"])
     # The same page read twice the same morning, no uid: one event.
     assert len(run([item(), item()])["events"]) == 1
-    assert "on conflict on constraint club_events_source_uid_key do update" in WRITES.read_text()
+    assert "on conflict on constraint club_events_source_uid_key do update" in writes().read_text()
 
 
 def t_misread_comes_back():
@@ -1111,7 +1123,7 @@ def t_misread_comes_back():
     assert moved["events"][0]["status"] == "pending", moved["events"][0]["status"]
     not_event = run([item()], [listed(status="rejected", review_reason="not_event", **base)])
     assert not_event["events"][0]["status"] == "rejected", "not an event stays declined"
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the database does the same"
 
 
@@ -1143,7 +1155,7 @@ def t_cancelled():
     merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
     r = run([seen, line], [merged])
     assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "a cancelled one still merges"
-    db = WRITES.read_text()
+    db = writes().read_text()
     assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
     assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"
     assert "'Cancelled: ' ||" not in db, "the title stays as written: the app shows the tag (ticket 12)"
@@ -1157,7 +1169,7 @@ def t_admin_status_kept():
             "title", "event_date", "start_time", "all_day", "location", "source_name", "source_uid")})
         r = run([item()], [old])
         assert r["events"][0]["status"] == st, (st, r["events"][0]["status"])
-    sql = WRITES.read_text().split("-- 1. New found events")[1]
+    sql = writes().read_text().split("-- 1. New found events")[1]
     assert "when club_events.status = 'pending' and club_events.review_reason is null" in sql
     assert "status = 'approved'" not in sql.split("on conflict")[0], "insert never forces approved over a row"
 
@@ -1210,7 +1222,7 @@ def t_place_entry():
                    "Band in the Park": "city-of-st-joseph"}, ids
     assert [n for n in r["notes"] if "not in the registry" in n] == [
         "place not in the registry: 'Lakeside Bandshell' (City of St. Joseph's picture stands in)"], r["notes"]
-    assert "place_entry_id = coalesce(excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
+    assert "place_entry_id = coalesce(excluded.place_entry_id" in writes().read_text(), "the database keeps it"
 
 
 def t_area():
@@ -1251,7 +1263,7 @@ def t_writes_are_one_safe_call():
     assert p["p_events"][0]["description"] == "$$ drop table x; $$", "the payload carries text as data"
     sql = to_sql(r, TODAY)
     assert sql.lstrip().startswith("--") and "select public.apply_judged(" in sql and sql.count("::jsonb") == 6, sql[:200]
-    db = WRITES.read_text()
+    db = writes().read_text()
     assert "insert into public.event_mentions" in db and "insert into public.board_items" in db
     assert "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz))" in db
     assert "from public, anon, authenticated" in db and "to service_role" in db, "only the service role may write"
@@ -1363,7 +1375,7 @@ def t_game():
                  "Bad game line", "Pumpkin Carving"):
         assert game(meet) == (None, None, None, None), meet
     assert team_id("UW-River Falls") == "uw-river-falls" and team_id("St. Cloud State") == "st-cloud-state"
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "sport = excluded.sport, team_ids = excluded.team_ids" in sql, "a game read wrong once clears"
     assert "insert into public.teams (id, name, short_name)" in sql, "a new opponent gets its row"
 
@@ -1388,7 +1400,7 @@ def t_followers_only():
     assert [(g["row"]["followers_only"], g["row"]["activity_name"]) for g in both["events"]] == [(False, "Choir")], \
         "everyone's, and still the choir's whichever page's row it is"
     assert run([item(followers_only="yes")])["outcomes"][0] == ("skipped", "invalid: followers_only must be true or false")
-    sql = WRITES.read_text()
+    sql = writes().read_text()
     assert "followers_only = club_events.followers_only and excluded.followers_only" in sql, "once public, stays public"
 
 

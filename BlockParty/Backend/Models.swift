@@ -173,6 +173,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// What it is in one to three words, the morning tagger's ("Lecture"; BP app event-card 05).
     /// nil until it's tagged, and on rows read before the feed sent it.
     var what: String? = nil
+    /// The page it was found on (`club_events.source_url`, ADR-021), the Event page's link under
+    /// About. Only the Town feed's read sends it; nil elsewhere and for a neighbour's own event.
+    var sourceURL: URL? = nil
     /// Up to three of the caller's friends Going, newest Going first: only the You tab's read
     /// sends them (`get_my_going`, BP app docs/plans/you-tab, ticket 07). The Town feed's ride
     /// `TownFeedRow`.
@@ -660,7 +663,8 @@ extension TeamFinal {
         {"event_id": "debug", "mine": 0, "game": {"sport": "Football", "occasion": null, "final": \(score),
           "teams": [{"name": "Saint John's", "short": "Saint John's",
                      "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
-                     "color": "#\(red)", "local": true, "colors": ["#\(red)", "#\(blue)"], "nickname": "Johnnies"},
+                     "color": "#\(red)", "local": true, "id": "65ff8993-eb57-4c99-bdf9-94e8523ce960", "colors": ["#\(red)", "#\(blue)"],
+                     "nickname": "Johnnies"},
                     {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null, "nickname": "Gusties"}]}}
         """
         let decoder = JSONDecoder()

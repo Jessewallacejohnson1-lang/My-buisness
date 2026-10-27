@@ -54,7 +54,7 @@ await db.exec(`
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
     source_name text, shows_from date, place_entry_id text, description text,
-    sport text, team_ids text[], occasion text);
+    sport text, team_ids text[], occasion text, source_url text);
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
@@ -935,6 +935,19 @@ test('each event carries its own description, for the Event page\'s About', asyn
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.description]),
                    [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
+});
+
+test('each found event carries the page it was found on, for the Event page\'s link (2026-10-27)', async () => {
+  await reset();
+  const found = await add('Stitch and Sip', '2026-10-09');
+  await add('Council meeting', '2026-10-09');
+  await db.query(`update public.club_events set source_url = 'https://www.milkandhoneyciders.com/events' where id = $1`, [found]);
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, kind, source_url
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.kind, r.source_url]),
+                   [['Council meeting', 'event', null], ['Stitch and Sip', 'event', 'https://www.milkandhoneyciders.com/events']]);
 });
 
 test('each event says what it is in a few words, and the Event of the day says it too (event-card 05)', async () => {

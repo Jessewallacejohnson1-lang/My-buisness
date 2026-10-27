@@ -104,6 +104,31 @@ nonisolated struct Notice: Identifiable, Hashable {
     }
 }
 
+/// One row on the bell's page: an Event that changed, or something the hello pill said (hello-drop 05).
+enum BellRow: Identifiable {
+    case change(Notice)
+    case item(HelloItem)
+
+    var id: String {
+        switch self {
+        case .change(let notice): "change:\(notice.id)"
+        case .item(let item): item.id
+        }
+    }
+
+    var at: Date {
+        switch self {
+        case .change(let notice): notice.changedAt
+        case .item(let item): item.at
+        }
+    }
+
+    /// Both, newest first.
+    static func merged(_ changes: [Notice], _ items: [HelloItem]) -> [BellRow] {
+        (changes.map(BellRow.change) + items.map(BellRow.item)).sorted { $0.at > $1.at }
+    }
+}
+
 @Observable
 final class Notices {
     /// What the page lists, newest change first; nil until the first read answers.
@@ -168,11 +193,11 @@ final class Notices {
     }
 
     /// Instagram's sections: Today, Yesterday, Last 7 days, then Earlier (an Event you're Going
-    /// to, canceled weeks ago), by when it changed.
-    static func sections(_ notices: [Notice], now: Date) -> [(title: String, notices: [Notice])] {
+    /// to, canceled weeks ago), by when it changed or was found.
+    static func sections(_ rows: [BellRow], now: Date) -> [(title: String, rows: [BellRow])] {
         let titles = ["Today", "Yesterday", "Last 7 days", "Earlier"]
-        let grouped = Dictionary(grouping: notices) { notice -> Int in
-            switch Town.days(from: notice.changedAt, to: now) {
+        let grouped = Dictionary(grouping: rows) { row -> Int in
+            switch Town.days(from: row.at, to: now) {
             case ...0: 0
             case 1: 1
             case 2..<7: 2

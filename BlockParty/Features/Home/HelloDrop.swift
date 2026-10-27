@@ -187,7 +187,7 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
-        forced || debugMoment != nil || debugFinal != nil
+        forced || later || debugMoment != nil || debugFinal != nil
             || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
         #else
         return true
@@ -198,6 +198,17 @@ enum HelloDrop {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("-hello-drop") || arguments.contains("-hello-welcome")
+        #else
+        return false
+        #endif
+    }
+
+    /// DEBUG `-hello-later`: a later open, the day's hello already said. 8 s after launch a
+    /// sample final and a sample contact who joined are found at once: the final drops, and the
+    /// contact waits behind the bell for the hour between pills (hello-drop 05).
+    static var later: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-hello-later")
         #else
         return false
         #endif
@@ -238,7 +249,8 @@ enum HelloDrop {
 
 /// The pill itself, over the whole shell. It drops on the day's first open, holds the hello
 /// 1.2 s, stretches to the message, stays 4 s and goes back up. A swipe up sends it away
-/// early and a tap opens what the message names.
+/// early and a tap opens what the message names. A later open drops it straight to something
+/// new from its memory (`HelloInbox`): at most 3 pills a day, an hour apart (hello-drop 05).
 struct HelloDropView: View {
     /// Reads anything the message needs that isn't in yet.
     let prepare: @MainActor () async -> Void
@@ -266,19 +278,17 @@ struct HelloDropView: View {
     @State private var tick = 0
     @State private var confetti = 0
     @State private var attendedAt = Date.distantPast
-    /// A followed team's final not yet said, and the confetti's colours for it (empty: BP's).
-    @State private var pendingFinal: TeamFinal?
+    /// A final's confetti colours (empty: BP's).
     @State private var confettiColors: [UInt32] = []
     @AppStorage("helloDrop.finalsSince") private var finalsSince: Double = 0
-    /// The finals already said, so a final read again later isn't said twice.
-    @AppStorage("helloDrop.saidFinals") private var saidFinals = ""
-    /// A contact who joined, not yet said, and whether today's check is back (hello-drop 04).
-    @State private var pendingJoined: Neighbor?
-    @State private var joinedRead = false
+    /// The day's first open's reads are back: attended, finals and contacts.
+    @State private var readsIn = false
     /// Contacts joining after this are said: the first check's time, so nobody already here is.
     @AppStorage("helloDrop.joinedSince") private var joinedSince: Double = 0
-    @AppStorage("helloDrop.saidJoined") private var saidJoined = ""
+    /// The item on the pill now, told once it's up.
+    @State private var saying: String?
     private let moments = HelloMoments.shared
+    private let inbox = HelloInbox.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
     /// When the app last left the screen; 0 before the very first open.
@@ -321,30 +331,41 @@ struct HelloDropView: View {
             #if DEBUG
             if let won = HelloDrop.debugFinal {
                 try? await Task.sleep(for: .seconds(8))
-                pendingFinal = TeamFinal.sample(won: won)
-                showFinal()
+                if let final = HelloItem.Final(TeamFinal.sample(won: won)) {
+                    run = Task { await say(HelloItem(what: .final(final), at: Date()), fromHello: false) }
+                }
                 return
             }
             if let shown = HelloDrop.debugMoment {
                 try? await Task.sleep(for: .seconds(8))
-                moments.show(shown)
+                run = Task { await say(HelloItem(what: .moment(shown), at: Date()), fromHello: false) }
+                return
+            }
+            if HelloDrop.later {
+                shownDay = Town.day(Date())
+                try? await Task.sleep(for: .seconds(8))
+                for item in HelloInbox.samples(now: Date()) where item.rank > 0 { inbox.add(item.what) }
                 return
             }
             #endif
-            start()
-            await checkAttended()
-            await checkFinals()
+            if !start() { await later() }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil {
-                start()
-                Task { await checkAttended(); await checkFinals() }
+            if phase == .active, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !start() {
+                Task { await later() }
             }
-            if phase == .background { lastSeen = Date().timeIntervalSince1970 }
+            if phase == .background {
+                lastSeen = Date().timeIntervalSince1970
+                // Gone before it could be read: still new, for the bell's dot and the next pill.
+                if let saying {
+                    inbox.tell(saying, false)
+                    dismiss()
+                }
+            }
         }
-        // A first reached while the app is open (a friend, a follow, a share) drops at once.
-        .onChange(of: moments.waiting) { _, waiting in
-            if waiting != nil { showMoment() }
+        // Something found while the app is open drops when it may: a first you made at once.
+        .onChange(of: inbox.next?.id) { _, next in
+            if next != nil { dropNext() }
         }
     }
 
@@ -443,12 +464,17 @@ struct HelloDropView: View {
         .accessibilityAddTraits(step == .message && moment == nil ? .isButton : [])
     }
 
-    /// The day's first open shows it once; a second open that day shows nothing.
-    private func start() {
-        let today = Town.day(Date())
-        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, step == .hidden, run == nil,
-              HelloDrop.forced || shownDay != today else { return }
+    /// The day's first open says the hello once, as the day's first pill; false when this open
+    /// isn't it (a later open, or the last pill under an hour ago).
+    @discardableResult
+    private func start() -> Bool {
+        let now = Date()
+        let today = Town.day(now)
+        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !HelloDrop.later,
+              step == .hidden, run == nil,
+              HelloDrop.forced || (shownDay != today && inbox.mayDrop(now: now)) else { return false }
         shownDay = today
+        if !HelloDrop.forced { inbox.dropped(now: now) }
         var seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
         #if DEBUG
         // `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
@@ -462,10 +488,17 @@ struct HelloDropView: View {
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key
         hello = greeting.text
-        joinedRead = false
+        readsIn = false
         run = Task {
             Task { await prepare() }
-            Task { await checkJoined() }
+            // All three at once, so a final or a first found this morning makes this pill.
+            Task {
+                async let attended: Void = checkAttended()
+                async let finals: Void = checkFinals()
+                async let joined: Void = checkJoined()
+                _ = await (attended, finals, joined)
+                readsIn = true
+            }
             // DEBUG `-hello-drop` waits 8 s, so a recording that starts after launch (eyes.py
             // settles 6 s) sees it drop.
             if HelloDrop.forced { try? await Task.sleep(for: .seconds(8)) }
@@ -479,121 +512,115 @@ struct HelloDropView: View {
             try? await Task.sleep(for: Self.holdHello)
             // The message waits up to 1 s more for its reads, then says what it can.
             var waited = 0
-            while !(ready() && joinedRead), waited < 10 {
+            while !(ready() && readsIn), waited < 10 {
                 try? await Task.sleep(for: .milliseconds(100))
                 waited += 1
             }
             guard !Task.isCancelled else { return }
-            // A first or milestone waiting takes the message's place.
-            if let next = moments.take() {
-                moment = next
-                tick = 0
-                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
-                AccessibilityNotification.Announcement(next.text).post()
-                try? await Task.sleep(for: .seconds(0.3))
-                await celebrate(next)
-                await finish(after: Self.stay)
-                return
+            // A first, a milestone or a final waiting takes the day's line (hello-drop 02, 03); a
+            // contact who joined comes after your own day (`HelloDrop.message`).
+            let waiting = inbox.next
+            var joined: Neighbor?
+            if let waiting {
+                if case .joined(let person) = waiting.what {
+                    joined = person
+                } else {
+                    await say(waiting, fromHello: true)
+                    return
+                }
             }
-            // Then a followed team's final, ahead of the day's line (hello-drop 03).
-            if let final = takeFinal() {
-                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
-                await sayFinal(final)
-                return
+            guard let message = message(seen, joined) else { dismiss(); return }
+            if case .person = message.target, let waiting {
+                saying = waiting.id
+                inbox.tell(waiting.id)
             }
-            guard let message = message(seen, pendingJoined) else { dismiss(); return }
-            if case .person(let person) = message.target { markSaid(person) }
-            pendingJoined = nil
             said = message
             withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
             AccessibilityNotification.Announcement(message.text).post()
             await finish(after: Self.stay)
         }
+        return true
     }
 
-    /// A first or milestone with the hello already said today: the pill drops straight to it.
-    private func showMoment() {
-        guard HelloDrop.allowed, step == .hidden, run == nil, let next = moments.take() else { return }
-        moment = next
-        tick = 0
-        run = Task {
-            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
+    /// A later open: something new waiting drops, then the reads look for more.
+    private func later() async {
+        dropNext()
+        await checkAttended()
+        await checkFinals()
+    }
+
+    /// Something waiting, on a later open, once it's found, or once a pill goes back up: the pill
+    /// drops straight to it while today's 3 aren't used and the last was an hour ago. A first you
+    /// made with a tap doesn't wait.
+    private func dropNext() {
+        let now = Date()
+        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
+              scenePhase != .background, step == .hidden, run == nil, let item = inbox.next else { return }
+        let yours = if case .moment(let moment) = item.what { moment.yours } else { false }
+        guard yours || inbox.mayDrop(now: now) else { return }
+        if !yours { inbox.dropped(now: now) }
+        run = Task { await say(item, fromHello: false) }
+    }
+
+    /// One item on the pill, from the hello or straight down: a first or milestone with its
+    /// tick, else its line, a win with its team's confetti. Told as it comes up.
+    private func say(_ item: HelloItem, fromHello: Bool) async {
+        saying = item.id
+        inbox.tell(item.id)
+        let comeIn = reduceMotion ? Motion.smooth : fromHello ? Motion.bentoExpand : Motion.sheet
+        if case .moment(let next) = item.what {
+            moment = next
+            tick = 0
+            withAnimation(comeIn) { step = .message }
             AccessibilityNotification.Announcement(next.text).post()
-            try? await Task.sleep(for: .seconds(0.38))
+            try? await Task.sleep(for: .seconds(fromHello ? 0.3 : 0.38))
             await celebrate(next)
-            await finish(after: Self.stay)
-        }
-    }
-
-    /// A followed team's final with the hello already said today: the pill drops straight to it.
-    private func showFinal() {
-        guard HelloDrop.allowed, step == .hidden, run == nil, pendingFinal != nil else { return }
-        run = Task {
-            guard let final = takeFinal() else { run = nil; return }
-            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
-            await sayFinal(final)
-        }
-    }
-
-    /// The pill's words and colour for a final; a win's confetti in the team's colours.
-    private func sayFinal(_ final: HelloDrop.Message) async {
-        AccessibilityNotification.Announcement(final.text).post()
-        if let colors = final.confetti {
-            try? await Task.sleep(for: .seconds(0.3))
-            confettiColors = colors
-            if !reduceMotion { confetti += 1 }
-            Haptics.success()
+        } else if let message = item.message {
+            said = message
+            withAnimation(comeIn) { step = .message }
+            AccessibilityNotification.Announcement(message.text).post()
+            if let colors = message.confetti {
+                try? await Task.sleep(for: .seconds(0.3))
+                confettiColors = colors
+                if !reduceMotion { confetti += 1 }
+                Haptics.success()
+            }
         }
         await finish(after: Self.stay)
     }
 
-    /// The final waiting, as the pill shows it, marked said.
-    private func takeFinal() -> HelloDrop.Message? {
-        guard let final = pendingFinal else { return nil }
-        pendingFinal = nil
-        saidFinals = ([final.eventId] + saidFinals.split(separator: ",").map(String.init)).prefix(50).joined(separator: ",")
-        guard let message = HelloDrop.final(final) else { return nil }
-        said = message
-        return message
-    }
-
-    /// New finals since the last read; the newest not yet said waits for the pill.
+    /// New finals since the last read, into the pill's memory, newest first.
     private func checkFinals() async {
         guard HelloDrop.allowed else { return }
         // An hour back from the last read: the finals job stamps a final when its run starts and
-        // saves it minutes later, so a read in between would step past it. The said ids stop repeats.
+        // saves it minutes later, so a read in between would step past it. The memory stops repeats.
         let since = finalsSince > 0 ? Date(timeIntervalSince1970: finalsSince - 3600) : Date().addingTimeInterval(-36 * 3600)
         let started = Date()
         guard let read = await finals(since) else { return }
         finalsSince = started.timeIntervalSince1970
-        let said = Set(saidFinals.split(separator: ",").map(String.init))
-        guard let final = read.first(where: { !said.contains($0.eventId) && $0.text != nil }) else { return }
-        pendingFinal = final
-        showFinal()
+        for final in read { if let said = HelloItem.Final(final) { inbox.add(.final(said)) } }
     }
 
-    /// Today's check of who in your contacts joined; the newest not yet said goes to the pill's
-    /// line. Back too late for it, or beaten by a higher line, they wait for another day's check.
+    /// Today's check of who in your contacts joined this past week, into the pill's memory, newest
+    /// first: once a day, since each check spends one of the Contacts page's 5.
     private func checkJoined() async {
-        defer { joinedRead = true }
         #if DEBUG
         // Each check spends one of the Contacts page's 5 a day; a forced pill checks only when asked.
         if HelloDrop.forced, !ProcessInfo.processInfo.arguments.contains("-hello-joined") { return }
         #endif
-        // ponytail: the cut-off and the said list are the phone's, not the account's, as the
+        // ponytail: the cut-off and the memory are the phone's, not the account's, as the
         // moments are; key them by account if two people share a phone.
         let started = Date()
-        let since = joinedSince > 0 ? Date(timeIntervalSince1970: joinedSince) : started
+        // A week back at most, as long as the memory keeps one, so nobody it let go is new again.
+        let since = max(joinedSince > 0 ? Date(timeIntervalSince1970: joinedSince) : started,
+                        started.addingTimeInterval(-Double(HelloInbox.days) * 86_400))
         guard let read = await joined(since) else { return }
         // Set on the first check that worked, so allowing Contacts later doesn't make old news new.
         if joinedSince == 0 { joinedSince = started.timeIntervalSince1970 }
-        let said = Set(saidJoined.split(separator: ",").map(String.init))
-        pendingJoined = read.first { !said.contains($0.userId) }
-    }
-
-    private func markSaid(_ person: Neighbor) {
-        // ponytail: the newest 50; past 50 joiners an old one could be named again.
-        saidJoined = ([person.userId] + saidJoined.split(separator: ",").map(String.init)).prefix(50).joined(separator: ",")
+        inbox.keepJoined(Set(read.map(\.userId)))
+        for person in read {
+            inbox.add(.joined(person), at: DateHelpers.timestamp(person.since) ?? started, now: started)
+        }
     }
 
     /// The tick, its haptics, then confetti for the 10th and 100th.
@@ -627,9 +654,10 @@ struct HelloDropView: View {
             moment = nil
             tick = 0
             run = nil
+            saying = nil
             confettiColors = []
-            // One reached while this pill was up comes next.
-            if moments.waiting != nil { showMoment() } else if pendingFinal != nil { showFinal() }
+            // One found while this pill was up comes next, when it may.
+            dropNext()
         }
     }
 }
