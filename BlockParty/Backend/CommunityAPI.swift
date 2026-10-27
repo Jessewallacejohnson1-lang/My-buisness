@@ -633,6 +633,21 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// The Town's own page or its City's (follows 04): who it is, its coming Events and, for the City,
+    /// its boards. nil when the Town has no such page.
+    func townPage(_ kind: TownPageKind) async throws -> TownPageInfo? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/town_page", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_town": Town.slug, "p_slug": kind.rawValue]))
+        return try? decode(data)
+    }
+
+    /// One board's coming meetings, soonest first: its row on the City's page.
+    func boardMeetings(_ id: String) async throws -> [TownPageInfo.Event] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/board_meetings", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_board": id]))
+        return try decode(data)
+    }
+
     /// Finals your followed teams played, read since `since`, newest first: the hello pill's
     /// "Johnnies beat Gustavus 33–23".
     func myTeamFinals(since: Date) async throws -> [TeamFinal] {

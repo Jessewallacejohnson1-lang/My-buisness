@@ -254,14 +254,25 @@ private struct FollowedNeighborPage: View {
 }
 
 /// A Place's or person's round picture: a person's photo (their initial without one), a Place's
-/// photo, or its logo inset on white, as the mock draws a Place with no photo.
+/// photo, or its logo inset on white, as the mock draws a Place with no photo. The Town's own page
+/// draws the app's Town logo (follows 04).
 struct FollowPicture: View {
     let row: FollowRow
     let size: CGFloat
 
+    /// `picture_kind` for the Town's own logo, bundled in the app (`Town.logo`).
+    static let townKind = "town"
+
     var body: some View {
         let url = row.picture.flatMap(URL.init)
-        if row.pictureKind == "logo", let url {
+        if row.pictureKind == Self.townKind {
+            Image(Town.logo)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else if row.pictureKind == "logo", let url {
             Circle()
                 .fill(Hue.surface)
                 .overlay { FeedCardURLPhoto(url: url, loadingFill: Hue.surface).padding(size * 0.16) }
@@ -280,6 +291,8 @@ struct FollowPicture: View {
         switch row.targetType {
         case .profile: "Neighbor"
         case .team: "Team"
+        // "City government"; a board, its City's name.
+        case .page, .board: row.kind
         default: row.kind.flatMap(SearchModel.label)
         }
     }
@@ -315,8 +328,9 @@ struct EventHostRow: View {
                                 .foregroundStyle(Hue.ink)
                                 .lineLimit(1)
                         }
-                        // `host-line`: "Host · 128 followers"; a person shows no count.
-                        Text(["Host", FollowWords.count(actions.follow(host.target).count)]
+                        // `host-line`: "Host · 128 followers"; a person shows no count. A City
+                        // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
+                        Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
                             .compactMap { $0 }.joined(separator: " · "))
                             .font(.sans(13))
                             .foregroundStyle(Hue.inkSecondary)
@@ -338,6 +352,11 @@ struct EventHostRow: View {
             host = found
             await actions.refreshFollow(found.target)
         }
+    }
+
+    /// "Host", or a page's or board's own kind: "City government", "City of St. Joseph".
+    static func hostWord(_ host: FollowRow) -> String {
+        [.page, .board].contains(host.targetType) ? host.kind ?? "Host" : "Host"
     }
 
     /// `event_host`; under DEBUG `-town-samples` its Place, by the card's own words.

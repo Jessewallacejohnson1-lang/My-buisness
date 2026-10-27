@@ -45,6 +45,13 @@ nonisolated enum Town {
     /// The Town's own round logo, top right on Daily: Joetown's for St. Joseph (Jesse's file).
     static let logo = "TownLogo"
 
+    /// The source registry's name for the Town (`sources/<town>.md`, `town_pages.town`).
+    static let slug = "st-joseph-mn"
+
+    /// The Town's two public pages, as each calls itself (follows 04): its own, and its City's.
+    static let townPage = "Joetown"
+    static let cityPage = "City of St. Joseph"
+
     static let latitude = 45.565
     static let longitude = -94.3186
 

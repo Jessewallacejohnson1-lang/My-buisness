@@ -202,6 +202,21 @@ private nonisolated enum TodayBarMetric {
     /// over three passes on 2026-09-19, Jesse each time. It still clears the map
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
+    /// The wordmark's chevron, Instagram's logo menu (follows 04, `references/city-pages/mock.html`):
+    /// 6pt after the period, 11pt wide. The lockup, wordmark and chevron, is centred as one.
+    static let chevronGap: CGFloat = 6
+    static let chevronSize: CGFloat = 11
+    /// The lockup's width: `BlockPartyWordmark.aspect` 4.8657 × 31, the gap and the chevron.
+    static let lockupWidth: CGFloat = 150.8 + chevronGap + chevronSize
+
+    /// Full size where the centred lockup clears the map disc; smaller on a narrower phone. The
+    /// trailing side takes `rowInset + glyphTap + controlGap + mapSide` = 108pt.
+    static func lockupScale(barWidth: CGFloat) -> CGFloat {
+        let trailing = rowInset + glyphTap + controlGap + mapSide
+        return max(0.5, min(1, (barWidth / 2 - trailing) / (lockupWidth / 2)))
+    }
+    /// The menu's pictures: the Town logo and the City's initial, 30pt as Apple's menu draws an icon.
+    static let menuIcon: CGFloat = 30
     /// Instagram's top edge, MEASURED (2026-09-29, `references/soft-top-edge/SPEC.md`,
     /// from `instagram-top.mov`): the feed under it is blurred and mixed toward the
     /// page, both thinning in a straight line from the top of the screen to nothing
@@ -258,6 +273,8 @@ struct TodayTopBar: View {
     var onOpenMap: () -> Void = {}
     /// The trailing bell → notifications.
     var onOpenNotifications: () -> Void = {}
+    /// The wordmark's menu → the Town's own page or its City's (follows 04).
+    var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// True once a downward scroll has sent the chrome off the top of the screen;
     /// false the moment the feed is scrolled back up. `FeedView` owns the state,
     /// `TodayHeader.chromeHidden` owns the rule.
@@ -386,11 +403,13 @@ struct TodayTopBar: View {
         }
         .padding(.horizontal, TodayBarMetric.rowInset)
         .overlay {
-            brandMark
-                .accessibilityAddTraits(.isHeader)
-                // Decorative-adjacent: it names the app, it does not act, so it must
-                // not sit in the tap path of the controls beside it.
-                .allowsHitTesting(false)
+            // Only the lockup takes a touch; the controls either side keep theirs. On a phone too
+            // narrow for it beside the map disc (under 384pt) it shrinks to fit rather than overlap.
+            GeometryReader { proxy in
+                pagesMenu
+                    .scaleEffect(TodayBarMetric.lockupScale(barWidth: proxy.size.width))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         // Chrome that has left the screen must stop TAKING TAPS. The first version
         // of the fade did not, and an invisible map disc swallowed touches at the
@@ -473,6 +492,54 @@ struct TodayTopBar: View {
             .offset(x: reach - TodayBarMetric.friendsDotInset - inkRight,
                     y: TodayBarMetric.friendsDotInset - reach + inkTop)
             .transition(.scale.combined(with: .opacity))
+    }
+
+    /// The wordmark with a chevron after it opens Apple's menu of the Town's two pages, as
+    /// Instagram's logo opens its feeds (Jesse, 2026-10-26).
+    private var pagesMenu: some View {
+        Menu {
+            Button { onOpenPage(.town) } label: {
+                Label { Text(TownPageKind.town.name) } icon: { TodayTopBar.townIcon }
+            }
+            Button { onOpenPage(.city) } label: {
+                Label { Text(TownPageKind.city.name) } icon: { TodayTopBar.cityIcon }
+            }
+        } label: {
+            HStack(spacing: TodayBarMetric.chevronGap) {
+                brandMark
+                Image(systemName: "chevron.down")
+                    .font(.glyph(TodayBarMetric.chevronSize, weight: .bold))
+                    .foregroundStyle(Hue.ink)
+            }
+            .frame(height: TodayHeader.contentHeight)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(PressableStyle(scale: 0.96))
+        .accessibilityLabel("Block Party")
+        .accessibilityHint("Opens \(TownPageKind.town.name) or \(TownPageKind.city.name)")
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// The menu's pictures, drawn once: Apple's menu takes an image, not a view.
+    @MainActor private static let townIcon = menuIcon {
+        Image(Town.logo).resizable().interpolation(.high).scaledToFit()
+    }
+
+    @MainActor private static let cityIcon = menuIcon {
+        Text(String(TownPageKind.city.name.prefix(1)))
+            .font(.sansSemibold(15))
+            .foregroundStyle(Hue.ink.onLightCanvas)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Circle().fill(Hue.fill.onLightCanvas))
+    }
+
+    @MainActor private static func menuIcon<Content: View>(@ViewBuilder _ content: () -> Content) -> Image {
+        let side = TodayBarMetric.menuIcon
+        let renderer = ImageRenderer(content: content().frame(width: side, height: side).clipShape(Circle()))
+        renderer.scale = 3
+        guard let image = renderer.uiImage else { return Image(systemName: "circle") }
+        return Image(uiImage: image.withRenderingMode(.alwaysOriginal))
     }
 
     /// The logo's letterforms on the page, in ink, with no tile behind them.

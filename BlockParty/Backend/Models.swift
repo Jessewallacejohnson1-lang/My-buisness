@@ -559,8 +559,9 @@ struct Trail: Identifiable, Hashable {
 
 /// What a follow points at: a club, a community member's town_profile, or a Place
 /// (`public.places`, BP app docs/plans/follows ticket 02), a local team, or one of its activities
-/// (`team_activities`, BP app school-activities 02).
-enum FollowTargetType: String, Codable { case club, profile, place, team, activity }
+/// (`team_activities`, BP app school-activities 02), or the City's or the Town's own page and one of
+/// the City's boards (`town_pages`, `city_boards`, follows 04).
+enum FollowTargetType: String, Codable { case club, profile, place, team, activity, page, board }
 
 struct FollowTarget: Hashable, Codable {
     let type: FollowTargetType

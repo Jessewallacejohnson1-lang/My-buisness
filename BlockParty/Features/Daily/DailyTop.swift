@@ -77,20 +77,23 @@ enum DailyTopic {
     }
 }
 
-/// The wordmark and the Town's logo on one line. The logo is art for now: the Joetown page it
-/// will open is Follows ticket 04 (Jesse, daily-tab 19).
+/// The wordmark and the Town's logo on one line. The logo opens the Town's own page (Jesse,
+/// 2026-10-26; follows 04).
 struct DailyMasthead: View {
     var body: some View {
         HStack(alignment: .center) {
             BlockPartyWordmark(height: DailyTopMetric.wordmark)
                 .foregroundStyle(Hue.ink)
             Spacer(minLength: 0)
-            Image(Town.logo)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: DailyTopMetric.logo, height: DailyTopMetric.logo)
-                .accessibilityLabel("\(Town.name) logo")
+            NavigationLink(value: TownPageKind.town) {
+                Image(Town.logo)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: DailyTopMetric.logo, height: DailyTopMetric.logo)
+            }
+            .buttonStyle(PressableStyle(scale: 0.92))
+            .accessibilityLabel(TownPageKind.town.name)
         }
         .padding(.horizontal, DailyTopMetric.side)
     }

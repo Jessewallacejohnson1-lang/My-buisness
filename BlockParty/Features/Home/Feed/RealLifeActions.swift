@@ -66,7 +66,13 @@ final class RealLifeActions {
 
     /// What a neighbour does with an Event, with a group (`member`), or with a Place or person
     /// (`followPlace`, `followPerson`). Each keeps its own state, writes and shakes.
-    private enum Kind: Codable { case going, heart, save, member, followPlace, followPerson, followTeam, followActivity }
+    private enum Kind: Codable {
+        case going, heart, save, member, followPlace, followPerson, followTeam, followActivity, followPage, followBoard
+    }
+
+    /// Every kind of follow.
+    private static let followKinds: Set<Kind> = [.followPlace, .followPerson, .followTeam, .followActivity,
+                                                 .followPage, .followBoard]
 
     /// What a Town feed read says.
     private static let eventKinds: Set<Kind> = [.going, .heart, .save]
@@ -286,7 +292,7 @@ final class RealLifeActions {
     /// `-town-samples`: Krewe's numbers off the Check-in 1 mock (128 followers, Sam and two more
     /// friends), and a person's, with no count.
     private static func sampleFollowCard(_ target: FollowTarget) -> FollowCard {
-        guard target.type == .place else {
+        guard [.place, .page, .board].contains(target.type) else {
             // Friends follow each other.
             let friend = Neighbor.samples.contains { $0.id == target.id && $0.relation == .friends }
             return FollowCard(following: friend, followers: nil, friends: [], friendsCount: 0)
@@ -416,13 +422,14 @@ final class RealLifeActions {
         let wasFollowing = follow(target, unread: unread).isFollowing
         toggle(Self.key(target), from: wasFollowing)
         guard !wasFollowing, canAct else { return }
-        let first: HelloMoment = switch target.type {
+        let first: HelloMoment? = switch target.type {
         case .place: .firstPlace
         case .profile: .firstPerson
         case .team, .activity: .firstTeam
         case .club: .firstGroup
+        case .page, .board: nil
         }
-        HelloMoments.shared.reach(first)
+        if let first { HelloMoments.shared.reach(first) }
     }
 
     /// The photo's double tap: hearts, never un-hearts (taste.md, 2026-09-27). One
@@ -479,7 +486,16 @@ final class RealLifeActions {
             let key = Self.key(target)
             base[key] = Tally(on: true, count: base[key]?.count ?? 0)
         }
-        settle([.followPlace, .followPerson, .followTeam, .followActivity])
+        settle(Self.followKinds)
+    }
+
+    /// A page's read (`town_page`): which of its boards you follow, settled the same way.
+    func read(boards: [TownPageInfo.Board]) {
+        for board in boards {
+            let key = Self.key(FollowTarget(type: .board, id: board.id))
+            base[key] = Tally(on: board.following, count: base[key]?.count ?? 0)
+        }
+        settle([.followBoard])
     }
 
     /// A school's page read (`team_page`): which of its activities you follow, settled the same way.
@@ -590,6 +606,8 @@ final class RealLifeActions {
         case .profile: Key(kind: .followPerson, id: target.id)
         case .team: Key(kind: .followTeam, id: target.id)
         case .activity: Key(kind: .followActivity, id: target.id)
+        case .page: Key(kind: .followPage, id: target.id)
+        case .board: Key(kind: .followBoard, id: target.id)
         case .club: Key(kind: .member, id: target.id)
         }
     }
@@ -611,7 +629,8 @@ final class RealLifeActions {
         case .going: Tally(on: item.isJoined, count: item.goingCount)
         case .heart: Tally(on: item.isLiked, count: item.likeCount)
         case .save: Tally(on: item.isSaved, count: 0)
-        case .member, .followPlace, .followPerson, .followTeam, .followActivity: Tally(on: false, count: 0)
+        case .member, .followPlace, .followPerson, .followTeam, .followActivity, .followPage, .followBoard:
+            Tally(on: false, count: 0)
         }
     }
 
@@ -721,6 +740,8 @@ final class RealLifeActions {
                 case .followPerson: try await setFollow(FollowTarget(type: .profile, id: key.id), choice)
                 case .followTeam: try await setFollow(FollowTarget(type: .team, id: key.id), choice)
                 case .followActivity: try await setFollow(FollowTarget(type: .activity, id: key.id), choice)
+                case .followPage: try await setFollow(FollowTarget(type: .page, id: key.id), choice)
+                case .followBoard: try await setFollow(FollowTarget(type: .board, id: key.id), choice)
                 }
                 written = choice
                 retries = 0
@@ -771,7 +792,8 @@ final class RealLifeActions {
             case .going, .member: wasOn ? "Couldn't leave" : "Couldn't join"
             case .heart: wasOn ? "Couldn't unlike" : "Couldn't like"
             case .save: wasOn ? "Couldn't unsave" : "Couldn't save"
-            case .followPlace, .followPerson, .followTeam, .followActivity: wasOn ? "Couldn't unfollow" : "Couldn't follow"
+            case .followPlace, .followPerson, .followTeam, .followActivity, .followPage, .followBoard:
+                wasOn ? "Couldn't unfollow" : "Couldn't follow"
             }
             AccessibilityNotification.Announcement(words).post()
         }
