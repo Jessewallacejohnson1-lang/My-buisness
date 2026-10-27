@@ -18,21 +18,24 @@ Resolves, per park:
   • google   — the live confident-match scenic pick (what users actually see)
   • none     — no photo; the card shows the coral fallback
 No Google photo bytes are persisted here beyond this local review folder.
+The town (parks file, search suffix, search centre) comes from towns/<BP_TOWN>.json.
 """
 import json, urllib.request, math, re, struct, pathlib, sys
+from town import load_town
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 IMAGES = REPO / "BlockParty/Resources/Images"
 OUT = REPO / "build/park-photo-review"
 OUT.mkdir(parents=True, exist_ok=True)
+TOWN = load_town()
 
 def read(p): return (REPO / p).read_text()
 
 KEY = re.search(r'AIza[A-Za-z0-9_-]+', read("BlockParty/Config/GooglePlacesConfig.swift")).group(0)
 GBASE = "https://places.googleapis.com/v1"
 
-# Parse CityParks.swift -> [(title, lat, lon)]
-cp = read("BlockParty/Backend/CityParks.swift")
+# Parse the town's parks file (CityParks.swift for St. Joseph) -> [(title, lat, lon)]
+cp = read(TOWN["parks_file"])
 parks = []
 for m in re.finditer(r'title:\s*"([^"]+)".*?lat:\s*([\d.\-]+),\s*lon:\s*([\d.\-]+)', cp, re.S):
     parks.append((m.group(1), float(m.group(2)), float(m.group(3))))
@@ -54,7 +57,8 @@ def names_align(a, b):
 
 def gsearch(q):
     body = json.dumps({"textQuery": q, "regionCode": "us",
-        "locationBias": {"circle": {"center": {"latitude": 45.5648, "longitude": -94.3183}, "radius": 15000}}}).encode()
+        "locationBias": {"circle": {"center": {"latitude": TOWN["center"]["lat"], "longitude": TOWN["center"]["lon"]},
+                                    "radius": TOWN["search_radius_m"]}}}).encode()
     req = urllib.request.Request(GBASE + "/places:searchText", data=body, method="POST")
     req.add_header("Content-Type", "application/json"); req.add_header("X-Goog-Api-Key", KEY)
     req.add_header("X-Goog-FieldMask", "places.id,places.displayName,places.location")
@@ -78,7 +82,7 @@ def scenic(photos):  # mirror of GooglePlacesService.bestScenicPhoto
     return (best[1] if best else photos[0]) if photos else None
 
 def resolve_google(title, lat, lon):
-    for c in gsearch(f"{title} St Joseph MN")[:5]:
+    for c in gsearch(f"{title} {TOWN['search_suffix']}")[:5]:
         loc = c.get("location", {})
         nm = c.get("displayName", {}).get("text", "")
         if dist((lat, lon), (loc.get("latitude"), loc.get("longitude"))) <= 75 and names_align(nm, title):

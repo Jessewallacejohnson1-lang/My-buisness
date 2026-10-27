@@ -3,7 +3,7 @@
 fetch_place_logos.py — find + normalize brand logos for map POIs.
 
 For each row in Supabase `places`, resolve the business's website (Google Places
-details for real ChIJ* ids, text search for synthetic stjoe-* ids), then walk
+details for real ChIJ* ids, text search for the town's synthetic ids), then walk
 a candidate ladder on the site itself:
 
     apple-touch-icon → square-ish og:image → largest <link rel=icon> → /favicon.ico
@@ -24,6 +24,7 @@ Usage:
 
 Keys are parsed from the gitignored Swift config files (same trick as
 review_park_photos.py) — nothing secret lands in this script or the manifest.
+The town (synthetic id prefix, search suffix) comes from towns/<BP_TOWN>.json.
 """
 
 from __future__ import annotations
@@ -40,6 +41,8 @@ from pathlib import Path
 
 from PIL import Image, ImageChops
 
+from town import load_town
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "build" / "place-logos"
 APPROVED = OUT / "approved"
@@ -51,6 +54,7 @@ OUTPUT_PX = 256
 MARGIN_FRAC = 0.12
 UA = "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 (KHTML, like Gecko) Safari/605.1.15"
 TIMEOUT = 20
+TOWN = load_town()
 
 
 def parse_swift_constant(path: Path, pattern: str) -> str:
@@ -111,13 +115,13 @@ def resolve_website(place: dict) -> str | None:
                 headers={**headers, "X-Goog-FieldMask": "websiteUri,displayName"},
             )
             return data.get("websiteUri")
-        if not pid.startswith("stjoe-"):
+        if not pid.startswith(TOWN["place_id_prefix"]):
             return None
         # Synthetic id → text search by name, scoped to town.
         data = http_json(
             "https://places.googleapis.com/v1/places:searchText",
             headers={**headers, "X-Goog-FieldMask": "places.websiteUri,places.displayName"},
-            body={"textQuery": f"{place['name']} St. Joseph MN", "pageSize": 1},
+            body={"textQuery": f"{place['name']} {TOWN['search_suffix']}", "pageSize": 1},
         )
         places = data.get("places") or []
         return places[0].get("websiteUri") if places else None

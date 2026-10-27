@@ -14,7 +14,7 @@
 //  bouncing across the town map reads as an ad, not as the town. So are locally-owned
 //  but back-office businesses (freight, title, printing) with no storefront the public
 //  would recognise. The exclusion list, with a reason for every entry, lives in
-//  scripts/rank_rain_roster.py — that is the file to edit, not this one.
+//  the town file, towns/st-joseph.json (`rain_excluded`) — edit that, not this.
 //
 //  ORDERED BY PROVENANCE: `places` carries no popularity signal — no rating, no visit
 //  count — so "best known" cannot be derived at runtime without inventing a metric,

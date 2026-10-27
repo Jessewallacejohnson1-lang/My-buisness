@@ -1,0 +1,102 @@
+{
+  "slug": "st-joseph",
+  "short_name": "St. Joseph",
+  "search_suffix": "St. Joseph MN",
+  "center": {
+    "lat": 45.565,
+    "lon": -94.3186
+  },
+  "search_radius_m": 15000,
+  "place_id_prefix": "stjoe-",
+  "parks_file": "BlockParty/Backend/CityParks.swift",
+  "rain_excluded": {
+    "chains_and_institutions": [
+      {
+        "name": "Coborn's Grocery Store",
+        "reason": "regional grocery chain (MN/ND/SD)"
+      },
+      {
+        "name": "Coborn's Pharmacy",
+        "reason": "regional grocery chain (MN/ND/SD)"
+      },
+      {
+        "name": "Amy Hedtke - State Farm",
+        "reason": "national insurance franchise"
+      },
+      {
+        "name": "Floor to Ceiling",
+        "reason": "national franchise / buying group"
+      },
+      {
+        "name": "Lee's Ace Hardware",
+        "reason": "Ace Hardware national brand"
+      },
+      {
+        "name": "Bo Diddley's Deli",
+        "reason": "Minnesota chain"
+      },
+      {
+        "name": "Magnifi Financial",
+        "reason": "regional credit union, many branches"
+      },
+      {
+        "name": "Kensington Bank",
+        "reason": "regional bank, many branches"
+      },
+      {
+        "name": "Sentry Bank",
+        "reason": "regional bank, many branches"
+      },
+      {
+        "name": "TireMaxx Service Centers",
+        "reason": "multi-location service chain"
+      },
+      {
+        "name": "CentraCare - St. Joseph Clinic",
+        "reason": "regional health system"
+      },
+      {
+        "name": "Woodcrest of Country Manor",
+        "reason": "regional senior-care operator"
+      },
+      {
+        "name": "United States Postal Service",
+        "reason": "federal agency, not a local business"
+      },
+      {
+        "name": "CSB Benedicta Arts Center Galleries (Gorecki Gallery)",
+        "reason": "college facility, not a business"
+      }
+    ],
+    "back_office": [
+      {
+        "name": "Brenny Transportation, Inc.",
+        "reason": "B2B freight"
+      },
+      {
+        "name": "AMS Tax & Accounting Solutions, PA",
+        "reason": "professional services, by appointment"
+      },
+      {
+        "name": "Home Town Title",
+        "reason": "title and closing services"
+      },
+      {
+        "name": "Bruno Press",
+        "reason": "commercial printing"
+      },
+      {
+        "name": "Hansen & Company Woodworks",
+        "reason": "custom fabrication, not a storefront"
+      },
+      {
+        "name": "Groundsman LLC",
+        "reason": "landscaping contractor"
+      },
+      {
+        "name": "The Perfect Fit, LLC",
+        "reason": "unidentifiable to the public from the name or mark"
+      }
+    ]
+  }
+}
