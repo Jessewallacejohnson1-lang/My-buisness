@@ -2,7 +2,7 @@
 -- follow posted, an Event at a Place you follow, and an Event of a Group you're in get the Yours lift
 -- (+3, once, as a friend Going does) and say "follow" with that name; an activity or school you follow
 -- (school-activities 03) still names it first. Unfollow stays on the profile or page (Jesse,
--- 2026-10-27), so the rows are unchanged. get_town_feed is 20261027142007_simple_recipe_own_posts.sql's
+-- 2026-10-27), so the rows are unchanged. get_town_feed is 20261027161419_town_feed_event_links.sql's
 -- but for those lines, and the Group an Event belongs to is worked out once for the lift and Join.
 
 -- The people the caller follows, by name: only those who may still be found (a real, named account,
@@ -431,7 +431,8 @@ as $$
                                                                                    'plays', e.scoring_plays),
          -- What it is, in one to three words (event-card 05).
          e.what,
-         'event'::text, null::text,
+         -- The page it was found on, the Event page's link under About (Jesse, 2026-10-27).
+         'event'::text, e.source_url,
          -- Who puts it on, as a picture beside its name: the registry place that posted it (found
          -- Events) or the group's own place, its logo first (Jesse, 2026-10-23).
          private.host_picture(e.source_name, c.own_entry_id),
