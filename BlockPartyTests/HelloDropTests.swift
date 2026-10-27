@@ -181,13 +181,11 @@ final class HelloDropTests: XCTestCase {
         inbox.add(.moment(.firstPlace), at: town("2026-10-21 09:30"))
         inbox.add(.joined(sam), at: town("2026-10-21 10:00"))
         XCTAssertEqual(inbox.items.count, 4)
-        XCTAssertTrue(inbox.untold)
         XCTAssertEqual(take(inbox), .moment(.firstEvent))
         XCTAssertEqual(take(inbox), .moment(.firstPlace))
         XCTAssertEqual(take(inbox), .final(johnnies))
         XCTAssertEqual(take(inbox), .joined(sam))
-        XCTAssertNil(inbox.next)
-        XCTAssertFalse(inbox.untold, "nothing new: no dot")
+        XCTAssertNil(inbox.next, "nothing new: no dot")
         // Said already: found again, it stays said.
         inbox.add(.joined(sam), at: town("2026-10-22 07:00"))
         XCTAssertNil(inbox.next)
@@ -207,6 +205,22 @@ final class HelloDropTests: XCTestCase {
         // Gone before it could be read: new again.
         kept.tell("joined:sam", false)
         XCTAssertEqual(kept.next?.id, "joined:sam")
+        // Friends since, or blocked: today's check no longer has them, so they go.
+        kept.keepJoined([])
+        XCTAssertTrue(kept.items.isEmpty)
+    }
+
+    /// A contact is kept at when they joined, so the bell says how long ago; one who joined a
+    /// week ago or more isn't new.
+    func testAContactIsKeptAtTheirJoin() {
+        let (inbox, _) = inbox()
+        let now = town("2026-10-21 09:00")
+        inbox.add(.joined(sam), at: town("2026-10-19 09:00"), now: now)
+        XCTAssertEqual(inbox.recent(now: now).first?.at, town("2026-10-19 09:00"))
+        let kate = Neighbor(userId: "kate", displayName: "Kate", avatarUrl: nil, since: nil, relation: .stranger,
+                            mutualFriends: 0)
+        inbox.add(.joined(kate), at: town("2026-10-13 09:00"), now: now)
+        XCTAssertEqual(inbox.items.map(\.id), ["joined:sam"])
     }
 
     /// Each kind as the pill and the bell say it.
@@ -221,6 +235,9 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(score.message?.tint, 0xBC0E33)
         XCTAssertEqual(score.row.name, "Johnnies")
         XCTAssertEqual(score.row.words, "beat Gusties 33–23.")
+        XCTAssertEqual(HelloItem.Final(final([33, 23], mine: 0))?.teamPage?.id, "4f0b2c1e-0000-4000-8000-000000000001",
+                       "a final opens its team's page")
+        XCTAssertNil(HelloItem.Final(final([23, 33], mine: 1))?.teamPage, "a team from away has none")
         let first = HelloItem(what: .moment(.firstEvent), at: Date())
         XCTAssertNil(first.message, "drawn with its tick")
         XCTAssertEqual(first.row.name, "You")

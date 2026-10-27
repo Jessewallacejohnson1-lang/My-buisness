@@ -194,10 +194,10 @@ final class Notices {
 
     /// Instagram's sections: Today, Yesterday, Last 7 days, then Earlier (an Event you're Going
     /// to, canceled weeks ago), by when it changed or was found.
-    static func sections<Row>(_ rows: [Row], now: Date, at: (Row) -> Date) -> [(title: String, rows: [Row])] {
+    static func sections(_ rows: [BellRow], now: Date) -> [(title: String, rows: [BellRow])] {
         let titles = ["Today", "Yesterday", "Last 7 days", "Earlier"]
         let grouped = Dictionary(grouping: rows) { row -> Int in
-            switch Town.days(from: at(row), to: now) {
+            switch Town.days(from: row.at, to: now) {
             case ...0: 0
             case 1: 1
             case 2..<7: 2

@@ -34,6 +34,13 @@ struct HelloItem: Codable, Hashable, Identifiable {
         let logo: URL?
         let tint: UInt32?
         let confetti: [UInt32]?
+        /// The team's own name and id, for its page; nil for a team with none (hello-drop 03).
+        let page: Page?
+
+        struct Page: Codable, Hashable {
+            let id: String
+            let name: String
+        }
 
         /// nil when it can't be worded.
         init?(_ final: TeamFinal) {
@@ -44,6 +51,13 @@ struct HelloItem: Codable, Hashable, Identifiable {
             logo = said.logo
             tint = said.tint
             confetti = said.confetti
+            page = team.hasPage ? team.id.map { Page(id: $0, name: team.name) } : nil
+        }
+
+        /// Its page, as Following opens it: the page reads the rest.
+        var teamPage: Game.Team? {
+            page.map { Game.Team(followed: FollowRow(targetType: .team, targetId: $0.id, name: $0.name, kind: nil,
+                                                     picture: logo?.absoluteString, pictureKind: nil)) }
         }
     }
 
@@ -55,7 +69,9 @@ struct HelloItem: Codable, Hashable, Identifiable {
     }
 
     let what: What
-    /// When the phone found it.
+    /// When it happened, as near as the phone knows: a contact's join, else when it was found.
+    // ponytail: a final is stamped when found, so after days away it reads "now"; keep the
+    // game's time on the read if that matters.
     let at: Date
     /// The pill said it, or the bell's page showed it: the pill never says it again.
     var told = false
@@ -146,21 +162,28 @@ final class HelloInbox {
         pills = (keep.array(forKey: Self.pillsKey) as? [Double] ?? []).map(Date.init(timeIntervalSince1970:))
     }
 
-    /// Something found. One already here, said or not, stays as it was; any past 7 days go.
-    func add(_ what: HelloItem.What, at now: Date = Date()) {
-        let item = HelloItem(what: what, at: now)
+    /// Something found, `at` when it happened. One already here, said or not, stays as it was;
+    /// any past 7 days go.
+    func add(_ what: HelloItem.What, at: Date = Date(), now: Date? = nil) {
+        let now = now ?? at
+        let item = HelloItem(what: what, at: at)
         items.removeAll { Town.days(from: $0.at, to: now) >= Self.days }
-        if !items.contains(where: { $0.id == item.id }) { items.append(item) }
+        if !items.contains(where: { $0.id == item.id }), Town.days(from: at, to: now) < Self.days { items.append(item) }
         save()
+    }
+
+    /// Today's contacts check: anyone kept who isn't in it any more is a friend now, asked, or
+    /// blocked, so neither the pill nor the bell names them as new (taste/town.md, 2026-10-26).
+    func keepJoined(_ still: Set<String>) {
+        let before = items.count
+        items.removeAll { if case .joined(let person) = $0.what { !still.contains(person.userId) } else { false } }
+        if items.count != before { save() }
     }
 
     /// The one the pill says next: the highest kind, the oldest of it first.
     var next: HelloItem? {
         items.filter { !$0.told }.min { $0.rank < $1.rank }
     }
-
-    /// The bell's dot: something found that neither the pill nor the page has shown.
-    var untold: Bool { items.contains { !$0.told } }
 
     /// The bell's rows, newest first.
     func recent(now: Date) -> [HelloItem] {
@@ -176,7 +199,7 @@ final class HelloInbox {
 
     /// The bell's page showed them all: the pill says none of them now.
     func toldAll() {
-        guard untold else { return }
+        guard next != nil else { return }
         for index in items.indices { items[index].told = true }
         save()
     }

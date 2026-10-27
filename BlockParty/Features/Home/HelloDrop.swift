@@ -617,7 +617,10 @@ struct HelloDropView: View {
         guard let read = await joined(since) else { return }
         // Set on the first check that worked, so allowing Contacts later doesn't make old news new.
         if joinedSince == 0 { joinedSince = started.timeIntervalSince1970 }
-        for person in read { inbox.add(.joined(person)) }
+        inbox.keepJoined(Set(read.map(\.userId)))
+        for person in read {
+            inbox.add(.joined(person), at: DateHelpers.timestamp(person.since) ?? started, now: started)
+        }
     }
 
     /// The tick, its haptics, then confetti for the 10th and 100th.

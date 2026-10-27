@@ -53,8 +53,7 @@ struct NotificationsPage: View {
                     let items = inbox.recent(now: now)
                     // Nothing read yet and nothing kept on the phone: the rows' own shape, shimmering.
                     if notices.list == nil && !notices.failed && items.isEmpty { LoadingNotices() }
-                    ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items), now: now, at: \.at),
-                            id: \.title) { section in
+                    ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items), now: now), id: \.title) { section in
                         Text(section.title)
                             .font(.sansBold(16))
                             .foregroundStyle(Hue.ink)
@@ -106,6 +105,8 @@ struct NotificationsPage: View {
             await notices.refresh()
             notices.opened()
         }
+        // One found while the page was up was shown on it too.
+        .onDisappear { inbox.toldAll() }
     }
 }
 
@@ -134,8 +135,8 @@ private struct NoticeRow: View {
 
 /// "**Sam Rivera** joined Block Party. 2h" with Add friend beside it, as Instagram's Follow back;
 /// "**Johnnies** beat Gusties 33–23. 5h"; "**You** attended your first event! 1d" by the green
-/// tick (hello-drop 05). A contact who joined opens their page; a final or a first opens nothing,
-/// since the pill's own tap on a final only goes back to Town, which is under this page.
+/// tick (hello-drop 05). A contact who joined opens their page, a final its team's page; a first
+/// opens nothing. Pressed, a row darkens as a change's does.
 private struct HelloItemRow: View {
     let item: HelloItem
     let now: Date
@@ -152,20 +153,36 @@ private struct HelloItemRow: View {
         }
         switch item.what {
         case .joined(let person):
-            HStack(spacing: NoticeMetric.gap) {
-                NavigationLink(value: person) { words.contentShape(Rectangle()) }
-                    .buttonStyle(DimStyle())
+            HStack(spacing: 0) {
+                NavigationLink(value: person) {
+                    words
+                        .padding(.leading, FriendsMetric.side)
+                        .padding(.trailing, NoticeMetric.gap)
+                        .padding(.vertical, NoticeMetric.rowPad)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(RowPressStyle())
                 // The Contacts page's button, at its own width beside the words.
-                RelationButtons(person: person) {}.fixedSize()
+                RelationButtons(person: person) {}
+                    .fixedSize()
+                    .padding(.trailing, FriendsMetric.side)
             }
+        case .final(let final):
+            if let team = final.teamPage {
+                NavigationLink(value: team) { padded(words).contentShape(Rectangle()) }
+                    .buttonStyle(RowPressStyle())
+            } else {
+                padded(words).accessibilityElement(children: .combine)
+            }
+        case .moment:
+            padded(words).accessibilityElement(children: .combine)
+        }
+    }
+
+    private func padded(_ words: some View) -> some View {
+        words
             .padding(.horizontal, FriendsMetric.side)
             .padding(.vertical, NoticeMetric.rowPad)
-        case .final, .moment:
-            words
-                .padding(.horizontal, FriendsMetric.side)
-                .padding(.vertical, NoticeMetric.rowPad)
-                .accessibilityElement(children: .combine)
-        }
     }
 }
 

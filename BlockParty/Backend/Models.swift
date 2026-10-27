@@ -658,7 +658,8 @@ extension TeamFinal {
         {"event_id": "debug", "mine": 0, "game": {"sport": "Football", "occasion": null, "final": \(score),
           "teams": [{"name": "Saint John's", "short": "Saint John's",
                      "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
-                     "color": "#\(red)", "local": true, "colors": ["#\(red)", "#\(blue)"], "nickname": "Johnnies"},
+                     "color": "#\(red)", "local": true, "id": "65ff8993-eb57-4c99-bdf9-94e8523ce960", "colors": ["#\(red)", "#\(blue)"],
+                     "nickname": "Johnnies"},
                     {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null, "nickname": "Gusties"}]}}
         """
         let decoder = JSONDecoder()
