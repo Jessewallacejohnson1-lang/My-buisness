@@ -2098,6 +2098,19 @@ test("a City meeting reaches only those who follow the City or its board, and si
     ['City Council Meeting', 'follow', CITY]]);
 });
 
+test('a City meeting you are Going to or saved stays in your feed, lower, followed or not', async () => {
+  await reset();
+  const council = await meeting('City Council Meeting', '2026-10-09');
+  const parks = await meeting('Park Board', '2026-10-10');
+  await goes(council, ME);
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [parks, ME]);
+  await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'City Council Meeting', 'Park Board']);
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "someone else's Going brings it to nobody else");
+});
+
 test("a City meeting that matches no board reaches only the City's followers", async () => {
   await reset();
   await meeting('Special Meeting', '2026-10-09');

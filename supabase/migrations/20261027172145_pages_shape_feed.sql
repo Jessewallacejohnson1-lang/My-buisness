@@ -201,10 +201,13 @@ as $$
       -- Followers only (a JV game, an away game, a banquet): only for those following its activity
       -- or its school (Jesse, 2026-10-25).
       and (not e.followers_only or fl.followed is not null)
-      -- A City meeting reaches only those who follow that City or the meeting's board (town-feed 05, 27).
+      -- A City meeting reaches only those who follow that City or the meeting's board (town-feed 05, 27),
+      -- or are Going to it or saved it, which always stay (ticket 05).
       and (not mt.is_meeting
            or exists (select 1 from my_pages p where p.source = lower(e.source_name))
-           or exists (select 1 from my_boards b where b.id = mt.board))
+           or exists (select 1 from my_boards b where b.id = mt.board)
+           or exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid())
+           or exists (select 1 from public.event_saves s where s.event_id = e.id and s.user_id = auth.uid()))
   ),
   timed as (
     select r.*,
