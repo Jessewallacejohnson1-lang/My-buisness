@@ -43,8 +43,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// Why the Town feed shows this card, in words (`FeedCardMenu.line`). nil leaves the
     /// card without its ••• menu: only the Town feed's own cards have a reason.
     var why: String? = nil
-    /// The activity or school you follow that it's of ("Cathedral Volleyball (girls)"), from the Town
-    /// feed's follow reason (BP app school-activities 03): what Daily's Following reads. nil otherwise.
+    /// What you follow that it's of ("Cathedral Volleyball (girls)", "White Peony Boutique"), from the
+    /// Town feed's follow reason (BP app school-activities 03, town-feed 37): what Daily's Following
+    /// reads. nil otherwise.
     var followed: String? = nil
     /// The points behind the card's place; the database sends them to the admin only.
     var score: FeedScore? = nil

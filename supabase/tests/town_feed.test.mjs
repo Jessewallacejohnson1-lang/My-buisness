@@ -867,6 +867,26 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     insert into public.feed_actions (user_id, item_id, action, at)
     select '00000000-0000-0000-0001-000000000042', e.id, 'view', timestamptz '2026-10-08 12:00-05' - g * interval '2 days'
     from public.club_events e, generate_series(1, 30) g;
+    -- And follows (town-feed 37): 20 people who each posted an Event, 5 Places with 8 Events each, and
+    -- 3 Groups with about 10 Events each.
+    insert into public.town_follows (follower_id, target_type, target_id)
+    select '00000000-0000-0000-0001-000000000042', 'profile', user_id from public.town_profiles
+    where user_id <> '00000000-0000-0000-0001-000000000042' order by user_id limit 20;
+    update public.club_events e set submitted_by = f.target_id, source_name = null
+    from (select target_id, row_number() over (order by target_id) n from public.town_follows
+          where target_type = 'profile') f
+    where e.title = 'Event ' || (f.n * 9);
+    insert into public.places (name, entry_id) select 'Place ' || g, 'speed-place-' || g from generate_series(1, 5) g;
+    insert into public.town_follows (follower_id, target_type, target_id)
+    select '00000000-0000-0000-0001-000000000042', 'place', id from public.places where entry_id like 'speed-place-%';
+    update public.club_events set place_entry_id = 'speed-place-' || (split_part(title, ' ', 2)::int / 5 % 5 + 1)
+    where split_part(title, ' ', 2)::int % 5 = 0;
+    insert into public.clubs (name) select 'Group ' || g from generate_series(1, 3) g;
+    insert into public.club_members (club_id, user_id)
+    select id, '00000000-0000-0000-0001-000000000042' from public.clubs where name like 'Group %';
+    update public.club_events e set club_id = c.id
+    from (select id, row_number() over (order by id) n from public.clubs where name like 'Group %') c
+    where split_part(e.title, ' ', 2)::int % 7 = 0 and split_part(e.title, ' ', 2)::int / 7 % 3 + 1 = c.n;
     analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
@@ -884,6 +904,9 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   const busy = loadavg()[0] > 8;
   const budget = process.env.CI || busy ? 250 : 100;
   assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
+  const reasons = (await feed('2026-10-08 12:00')).filter((r) => r.reason === 'follow').length;
+  assert.ok(reasons > 20, `${reasons} Events lifted by a follow`);
+  await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
 });
 
 test("each event carries its place's picture: a photo before a logo, else the place's Search logo", async () => {
@@ -1846,4 +1869,182 @@ test('the admin keeps a reported Event or takes it down for everyone', async () 
   await db.exec('reset role');
   assert.deepEqual((await db.query('select status, review_reason from public.club_events where id = $1', [sale])).rows,
     [{ status: 'rejected', review_reason: 'reported' }]);
+});
+
+// Places, people and Groups you follow (town-feed 37): each lifts its Events once and says so by name.
+// Unfollow stays on the profile or page (Jesse, 2026-10-27).
+const PEONY = 'White Peony Boutique';
+async function followPlace(who, name = PEONY, entry = 'white-peony') {
+  await db.exec('reset role');
+  const { rows: [{ id }] } = await db.query(
+    `insert into public.places (name, entry_id) values ($1, $2) returning id`, [name, entry]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [who, id]);
+}
+async function atPlace(title, date, more = {}) {
+  const id = await add(title, date, { start_time: '7 PM', source_name: PEONY, ...more });
+  await db.query(`update public.club_events set place_entry_id = 'white-peony' where id = $1`, [id]);
+  return id;
+}
+async function lifted(at) {
+  const { rows } = await db.query(
+    `select title, reason, reason_name, score, friends_going
+     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
+  return rows;
+}
+const noPlaces = () => db.exec('reset role; delete from public.places; delete from public.sources;');
+
+test('a Place you follow lifts its Events and says so', async () => {
+  await reset();
+  await atPlace('Fall open house', '2026-10-12');
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Fall open house'], 'not followed: soonest first');
+  await followPlace(ME);
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const [top, next] = await lifted('2026-10-08 12:00');
+  assert.deepEqual([top.title, top.reason, top.reason_name, top.score.follow, top.score.pool],
+                   ['Fall open house', 'follow', PEONY, 3, 'yours']);
+  assert.deepEqual([next.title, next.reason, next.score.follow], ['Fall fair', 'tomorrow', 0]);
+  await db.exec('reset test.admin');
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason]),
+                   [['Fall fair', 'tomorrow'], ['Fall open house', 'soon']], 'signed out follows nothing');
+  await noPlaces();
+});
+
+test('a followed Place is still spaced out, and a host you have been into lifts it no more', async () => {
+  await reset();
+  const old = await atPlace('Summer sale', '2026-09-20');
+  for (const d of ['2026-10-09', '2026-10-10', '2026-10-11']) await atPlace(`Open house ${d.slice(-2)}`, d);
+  await followPlace(ME);
+  await db.query(`insert into public.event_likes (event_id, user_id, created_at) values ($1, $2, '2026-09-19')`, [old, ME]);
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await lifted('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.score.yours, r.score.spacing]), [
+    ['Open house 09', 3, 1], ['Open house 10', 3, 0.5], ['Open house 11', 3, 0.25]]);
+  await db.exec('reset test.admin');
+  await noPlaces();
+});
+
+test('a person you follow lifts what they posted; one who can no longer be found lifts nothing', async () => {
+  await reset();
+  const SAM = '00000000-0000-0000-0000-0000000000e1';
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [SAM]);
+  await db.query(`insert into public.town_profiles (user_id, display_name) values ($1, 'Sam Lee')`, [SAM]);
+  await add('Porch concert', '2026-10-12', { start_time: '7 PM', source_name: null, submitted_by: SAM });
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, SAM]);
+  await signIn(ME);
+  const [top] = await lifted('2026-10-08 12:00');
+  assert.deepEqual([top.title, top.reason, top.reason_name], ['Porch concert', 'follow', 'Sam Lee']);
+  await db.exec('reset role');
+  await db.query(`update auth.users set banned_until = now() + interval '1 day' where id = $1`, [SAM]);
+  await signIn(ME);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason]),
+                   [['Fall fair', 'tomorrow'], ['Porch concert', 'soon']]);
+  await db.exec('reset role');
+  await db.query('delete from auth.users where id = $1', [SAM]);
+});
+
+test("a Group you're in lifts its Events and those found for it", async () => {
+  await reset();
+  await db.exec('reset role');
+  const { rows: [{ id: club }] } = await db.query(
+    `insert into public.clubs (name, own_entry_id) values ('Book Club', 'book-club') returning id`);
+  await db.query(`insert into public.sources (entry_id, url, name) values ('book-club', 'https://books', 'Book Club site')`);
+  const POSTER = '00000000-0000-0000-0000-0000000000e2';
+  const own = await add('Book swap', '2026-10-12', { start_time: '7 PM', source_name: null, submitted_by: POSTER });
+  await db.query('update public.club_events set club_id = $1 where id = $2', [club, own]);
+  await add('Author talk', '2026-10-13', { start_time: '7 PM', source_name: 'Book Club site' });
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await signIn(ME);
+  assert.equal((await titles('2026-10-08 12:00'))[0], 'Fall fair', 'not in the Group: soonest first');
+  await db.exec('reset role');
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ME]);
+  await signIn(ME);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.reason_name]), [
+    ['Book swap', 'follow', 'Book Club'], ['Author talk', 'follow', 'Book Club'], ['Fall fair', 'tomorrow', null]]);
+  const { rows } = await db.query(`select title, club_name, in_club
+     from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
+  assert.deepEqual(rows.filter((r) => r.club_name).map((r) => [r.title, r.club_name, r.in_club]),
+                   [['Book swap', 'Book Club', true], ['Author talk', 'Book Club', true]], "the card's Join reads the same Group");
+  await noPlaces();
+});
+
+test('a muted Place you follow stays out; Not interested still lowers its other Events', async () => {
+  await reset();
+  const first = await atPlace('Open house', '2026-10-09');
+  await atPlace('Trunk show', '2026-10-12');
+  await add('Fall fair', '2026-10-12', { start_time: '6 PM' });
+  await followPlace(ME);
+  await notInterested(first, ME, '2026-10-08 09:00');
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const by = Object.fromEntries((await lifted('2026-10-08 12:00')).map((r) => [r.title, [r.score.yours, r.score.notInterested]]));
+  assert.deepEqual(by, { 'Trunk show': [3, 0.3], 'Fall fair': [0, 1] });
+  await db.exec('reset test.admin');
+  await db.query(`select public.mute_host($1)`, [first]);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair']);
+  await noPlaces();
+});
+
+test("an activity you follow names the game before the Place it's at; a Place never opens a followers-only Event", async () => {
+  await reset();
+  await schools();
+  const home = await game('Cathedral Volleyball vs Sartell', '2026-10-09', 'Volleyball', ['cathedral', 'sartell'],
+                          { source_name: PEONY });
+  await db.query(`update public.club_events set place_entry_id = 'white-peony' where id = $1`, [home]);
+  const jv = await game('Cathedral Volleyball vs Sartell · JV', '2026-10-09', 'Volleyball', ['cathedral', 'sartell'],
+                        { source_name: PEONY, followersOnly: true });
+  await db.query(`update public.club_events set place_entry_id = 'white-peony' where id = $1`, [jv]);
+  await followPlace(ME);
+  await signIn(ME);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name]),
+                   [['Cathedral Volleyball vs Sartell', PEONY]]);
+  await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
+  await signIn(ME);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name]), [
+    ['Cathedral Volleyball vs Sartell', 'Cathedral Volleyball (girls)'],
+    ['Cathedral Volleyball vs Sartell · JV', 'Cathedral Volleyball (girls)']]);
+  await noPlaces();
+});
+
+test("your own posting is never lifted by what it's at, and a Group's Event never names who posted it", async () => {
+  await reset();
+  await db.exec('reset role');
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Book Club') returning id`);
+  const SAM = '00000000-0000-0000-0000-0000000000e3';
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [SAM]);
+  await db.query(`insert into public.town_profiles (user_id, display_name) values ($1, 'Sam Lee')`, [SAM]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, SAM]);
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ME]);
+  const mine = await add('My book swap', '2026-10-12', { start_time: '7 PM', source_name: null, submitted_by: ME });
+  const sams = await add("Sam's book swap", '2026-10-13', { start_time: '7 PM', source_name: null, submitted_by: SAM });
+  await db.query('update public.club_events set club_id = $1 where id = any($2)', [club, [mine, sams]]);
+  await signIn(ME);
+  assert.deepEqual(Object.fromEntries((await lifted('2026-10-08 12:00')).map((r) => [r.title, [r.reason, r.reason_name]])), {
+    'My book swap': ['soon', null], "Sam's book swap": ['follow', 'Book Club'] });
+  await db.exec('reset role');
+  await db.query('delete from auth.users where id = $1', [SAM]);
+});
+
+test('the Score line gives the follow lift to what the card names, a friend Going or not', async () => {
+  await reset();
+  // Friends Going counts only Events not over by the real clock, so this one is days from now.
+  const show = await atPlace('Trunk show', day(3));
+  await followPlace(ME);
+  const FRIEND = '00000000-0000-0000-0000-0000000000e4';
+  await neighbour(FRIEND, 'Kate Moss');
+  await befriend(ME, FRIEND);
+  await goes(show, FRIEND);
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const [row] = await lifted(`${day(0)} 12:00`);
+  assert.deepEqual([row.reason, row.score.follow, row.score.friend, row.score.yours, row.friends_going.length],
+                   ['follow', 3, 0, 3, 1]);
+  await db.exec('reset test.admin; reset role');
+  await db.query('delete from auth.users where id = $1', [FRIEND]);
+  await noPlaces();
 });
