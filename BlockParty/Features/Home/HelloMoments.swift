@@ -56,14 +56,14 @@ enum HelloMoment: String, CaseIterable, Codable {
 /// (`HelloInbox`) keeps each until the pill can say it.
 @MainActor
 final class HelloMoments {
-    static let shared = HelloMoments()
+    static let shared = HelloMoments(inbox: .shared)
 
     // ponytail: once ever per phone (UserDefaults); per account if two people share a phone.
     // ponytail: "first friend" fires when you confirm a request, not when yours is accepted.
     private let said: UserDefaults
     private let inbox: HelloInbox
 
-    init(said: UserDefaults = .standard, inbox: HelloInbox = .shared) {
+    init(said: UserDefaults = .standard, inbox: HelloInbox) {
         self.said = said
         self.inbox = inbox
     }

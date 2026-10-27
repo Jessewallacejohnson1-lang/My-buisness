@@ -198,7 +198,7 @@ final class HelloDropTests: XCTestCase {
         let (inbox, keep) = inbox()
         inbox.add(.moment(.firstEvent), at: town("2026-10-14 09:00"))
         inbox.add(.joined(sam), at: town("2026-10-20 09:00"))
-        let kept = HelloInbox(keep: keep)
+        let kept = HelloInbox(keep: keep, now: town("2026-10-21 09:00"))
         XCTAssertEqual(kept.recent(now: town("2026-10-21 09:00")).map(\.id), ["joined:sam"], "a week old has gone")
         XCTAssertEqual(kept.next?.id, "joined:sam")
         kept.toldAll()

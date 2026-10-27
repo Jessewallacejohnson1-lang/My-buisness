@@ -137,9 +137,12 @@ final class HelloInbox {
     static let itemsKey = "helloDrop.inbox"
     static let pillsKey = "helloDrop.pills"
 
-    init(keep: UserDefaults = .standard) {
+    /// Read back from the phone, less any past 7 days.
+    // ponytail: pruned at launch and on each find; an app left open a week keeps an old one till then.
+    init(keep: UserDefaults = .standard, now: Date = Date()) {
         self.keep = keep
-        items = keep.data(forKey: Self.itemsKey).flatMap { try? JSONDecoder().decode([HelloItem].self, from: $0) } ?? []
+        items = (keep.data(forKey: Self.itemsKey).flatMap { try? JSONDecoder().decode([HelloItem].self, from: $0) } ?? [])
+            .filter { Town.days(from: $0.at, to: now) < Self.days }
         pills = (keep.array(forKey: Self.pillsKey) as? [Double] ?? []).map(Date.init(timeIntervalSince1970:))
     }
 
