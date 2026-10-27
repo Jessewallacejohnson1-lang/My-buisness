@@ -73,9 +73,11 @@ struct FeedEventCard: View {
     @State private var menuPresented = false
     @State private var likeBurst = FeedLikeBurst()
     @State private var autoplayStep = 0
-    /// The link's press, so the whole card squishes. Set on touch-down by
+    /// The link's press, so the photo sinks in. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
+    /// The photo's size, so the heart on its corner sinks in with it.
+    @State private var photoSize: CGSize = .zero
     /// `actions.heartFailureCount` at the last tap on the photo's heart: a tap mid-shake stills it.
     @State private var heartTappedAt = 0
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
@@ -118,7 +120,13 @@ struct FeedEventCard: View {
                     hostRow
                         .padding(.horizontal, DailyFeedMetric.contentInset)
 
+                    // Only the photo sinks in on a press; the host row and the line under it
+                    // stay still (Jesse, 2026-10-27).
                     imageSection
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
+                        .scaleEffect(pressScale)
+                        .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
+                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
                         .padding(.top, showsHostRow ? 10 : 0)
                 }
                 .contentShape(Rectangle())
@@ -128,8 +136,8 @@ struct FeedEventCard: View {
             // Which photo is up, read with the card: the pager and its dots stay out of VoiceOver.
             .accessibilityValue(swipes ? "Photo \(pageShown + 1) of \(cardPhotos.count)" : "")
             // The press comes from the touch itself, not the link: the photo's double
-            // tap holds the link's own press until it fails, so the card squishes the
-            // moment a finger lands, photo included.
+            // tap holds the link's own press until it fails, so the photo sinks the
+            // moment a finger lands.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
             // A local team's picture opens its page, Follow there (hello-drop 03); the rest of the
             // card still opens the event.
@@ -149,9 +157,13 @@ struct FeedEventCard: View {
             // The heart on the photo's bottom right, over the link as its own button (event-card 06).
             .overlay(alignment: .bottomTrailing) {
                 if actions.canAct {
+                    // Rides the photo's corner in as it sinks.
                     photoHeart
                         .padding(.trailing, DailyFeedMetric.contentInset + Self.photoHeartInset)
                         .padding(.bottom, Self.photoHeartInset)
+                        .offset(x: -photoSize.width * (1 - pressScale) / 2,
+                                y: -photoSize.height * (1 - pressScale) / 2)
+                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
 
@@ -183,11 +195,6 @@ struct FeedEventCard: View {
         .overlay(alignment: .topTrailing) { menuButton }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        // The whole card answers the link's press, action row included, so no gap
-        // opens between the squished part and the row under it.
-        .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced))
-        .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
-        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
         .signInSheet(isPresented: $signingIn)
         .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                     report: currentPhoto.report(place: item.whereLine)))
@@ -568,6 +575,10 @@ struct FeedEventCard: View {
     static let photoHeartSide: CGFloat = 38
     static let photoHeartInset: CGFloat = 12
     static let photoHeartGlyph: CGFloat = 20
+
+    private var pressScale: CGFloat {
+        FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
+    }
 
     private var photoHeart: some View {
         let hearted = actions.heart(item).isHearted
