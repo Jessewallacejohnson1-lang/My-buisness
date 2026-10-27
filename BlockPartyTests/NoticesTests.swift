@@ -197,8 +197,16 @@ final class NoticesTests: XCTestCase {
     func testInstagramsSections() {
         let list = [notice("a", hoursAgo: 1), notice("b", hoursAgo: 20), notice("c", hoursAgo: 72),
                     notice("d", hoursAgo: 24 * 20)]
-        let sections = Notices.sections(list, now: now)
+        let sections = Notices.sections(list, now: now, at: \.changedAt)
         XCTAssertEqual(sections.map(\.title), ["Today", "Yesterday", "Last 7 days", "Earlier"])
-        XCTAssertEqual(sections.map { $0.notices.map(\.event.id) }, [["a"], ["b"], ["c"], ["d"]])
+        XCTAssertEqual(sections.map { $0.rows.map(\.event.id) }, [["a"], ["b"], ["c"], ["d"]])
+    }
+
+    /// What the hello pill said sits among the changes, newest first (hello-drop 05).
+    func testThePillsItemsShareTheSections() {
+        let joined = HelloItem(what: .moment(.firstEvent), at: now - 3 * 3600)
+        let rows = BellRow.merged([notice("a", hoursAgo: 1), notice("b", hoursAgo: 20)], [joined])
+        XCTAssertEqual(rows.map(\.id), ["change:a", "moment:firstEvent", "change:b"])
+        XCTAssertEqual(Notices.sections(rows, now: now, at: \.at).map(\.title), ["Today", "Yesterday"])
     }
 }

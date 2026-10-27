@@ -96,40 +96,137 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(HelloMoment.attendedCount([over, later, off], now: now), 1)
     }
 
+    /// A fresh memory, its own store each test.
+    private func inbox(_ name: String = #function) -> (HelloInbox, UserDefaults) {
+        let keep = UserDefaults(suiteName: "HelloInboxTests.\(name)")!
+        keep.removePersistentDomain(forName: "HelloInboxTests.\(name)")
+        return (HelloInbox(keep: keep), keep)
+    }
+
+    private func moments(_ name: String = #function) -> (HelloMoments, HelloInbox) {
+        let (inbox, keep) = inbox(name)
+        return (HelloMoments(said: keep, inbox: inbox), inbox)
+    }
+
+    /// The pill says the next one, then it's told.
+    private func take(_ inbox: HelloInbox) -> HelloItem.What? {
+        guard let next = inbox.next else { return nil }
+        inbox.tell(next.id)
+        return next.what
+    }
+
     func testEachMomentIsSaidOnceEver() {
-        let defaults = UserDefaults(suiteName: "HelloMomentsTests")!
-        defaults.removePersistentDomain(forName: "HelloMomentsTests")
-        let moments = HelloMoments(said: defaults)
+        let (moments, inbox) = moments()
         moments.reach(.firstFriend)
-        XCTAssertEqual(moments.take(), .firstFriend)
+        XCTAssertEqual(take(inbox), .moment(.firstFriend))
         moments.reach(.firstFriend)
-        XCTAssertNil(moments.take())
+        XCTAssertNil(take(inbox))
     }
 
     /// Two reached together both show, in order.
     func testTwoMomentsAtOnceBothShow() {
-        let defaults = UserDefaults(suiteName: "HelloMomentsTests3")!
-        defaults.removePersistentDomain(forName: "HelloMomentsTests3")
-        let moments = HelloMoments(said: defaults)
+        let (moments, inbox) = moments()
         moments.attended(1)
         moments.reach(.firstPlace)
-        XCTAssertEqual(moments.take(), .firstEvent)
-        XCTAssertEqual(moments.take(), .firstPlace)
-        XCTAssertNil(moments.take())
+        XCTAssertEqual(take(inbox), .moment(.firstEvent))
+        XCTAssertEqual(take(inbox), .moment(.firstPlace))
+        XCTAssertNil(take(inbox))
     }
 
     /// A neighbour already past 10 hears "10th", never "first", and never both.
     func testOnlyTheHighestAttendedMilestoneShows() {
-        let defaults = UserDefaults(suiteName: "HelloMomentsTests2")!
-        defaults.removePersistentDomain(forName: "HelloMomentsTests2")
-        let moments = HelloMoments(said: defaults)
+        let (moments, inbox) = moments()
         moments.attended(12)
-        XCTAssertEqual(moments.take(), .tenthEvent)
+        XCTAssertEqual(take(inbox), .moment(.tenthEvent))
         moments.attended(13)
-        XCTAssertNil(moments.take())
+        XCTAssertNil(take(inbox))
         XCTAssertTrue(moments.hasSaid(.firstEvent))
         moments.attended(100)
-        XCTAssertEqual(moments.take(), .hundredthEvent)
+        XCTAssertEqual(take(inbox), .moment(.hundredthEvent))
+    }
+
+    /// Only the firsts you make with a tap skip the wait; attended milestones are news.
+    func testOnlyYourOwnFirstsSkipTheWait() {
+        XCTAssertEqual(HelloMoment.allCases.filter { !$0.yours }, [.firstEvent, .tenthEvent, .hundredthEvent])
+    }
+
+    // MARK: The pill's memory (hello-drop 05)
+
+    private let sam = Neighbor(userId: "sam", displayName: "Sam Rivera", avatarUrl: "https://x/sam.jpg", since: nil,
+                               relation: .stranger, mutualFriends: 0)
+
+    /// At most 3 a day, an hour apart, and the hour holds over midnight.
+    func testThreePillsADayAnHourApart() {
+        let (inbox, keep) = inbox()
+        XCTAssertTrue(inbox.mayDrop(now: town("2026-10-21 08:00")))
+        inbox.dropped(now: town("2026-10-21 08:00"))
+        XCTAssertFalse(inbox.mayDrop(now: town("2026-10-21 08:59")))
+        XCTAssertTrue(inbox.mayDrop(now: town("2026-10-21 09:00")))
+        inbox.dropped(now: town("2026-10-21 12:30"))
+        inbox.dropped(now: town("2026-10-21 14:15"))
+        XCTAssertFalse(inbox.mayDrop(now: town("2026-10-21 19:00")), "3 today")
+        XCTAssertFalse(HelloInbox(keep: keep).mayDrop(now: town("2026-10-21 23:00")), "kept on the phone")
+        inbox.dropped(now: town("2026-10-22 23:50"))
+        XCTAssertFalse(inbox.mayDrop(now: town("2026-10-23 00:05")), "a new day, but 15 minutes on")
+        XCTAssertTrue(inbox.mayDrop(now: town("2026-10-23 00:50")))
+    }
+
+    /// Firsts, then finals, then who joined; oldest first within each; one found twice is one.
+    func testTheHigherOneFirstAndEachOnce() {
+        let (inbox, _) = inbox()
+        let johnnies = HelloItem.Final(final([33, 23], mine: 0))!
+        inbox.add(.joined(sam), at: town("2026-10-21 07:00"))
+        inbox.add(.final(johnnies), at: town("2026-10-21 08:00"))
+        inbox.add(.moment(.firstEvent), at: town("2026-10-21 09:00"))
+        inbox.add(.moment(.firstPlace), at: town("2026-10-21 09:30"))
+        inbox.add(.joined(sam), at: town("2026-10-21 10:00"))
+        XCTAssertEqual(inbox.items.count, 4)
+        XCTAssertTrue(inbox.untold)
+        XCTAssertEqual(take(inbox), .moment(.firstEvent))
+        XCTAssertEqual(take(inbox), .moment(.firstPlace))
+        XCTAssertEqual(take(inbox), .final(johnnies))
+        XCTAssertEqual(take(inbox), .joined(sam))
+        XCTAssertNil(inbox.next)
+        XCTAssertFalse(inbox.untold, "nothing new: no dot")
+        // Said already: found again, it stays said.
+        inbox.add(.joined(sam), at: town("2026-10-22 07:00"))
+        XCTAssertNil(inbox.next)
+    }
+
+    /// Kept on the phone 7 days, newest first; the bell's page tells them all.
+    func testTheBellKeepsAWeek() {
+        let (inbox, keep) = inbox()
+        inbox.add(.moment(.firstEvent), at: town("2026-10-14 09:00"))
+        inbox.add(.joined(sam), at: town("2026-10-20 09:00"))
+        let kept = HelloInbox(keep: keep)
+        XCTAssertEqual(kept.recent(now: town("2026-10-21 09:00")).map(\.id), ["joined:sam"], "a week old has gone")
+        XCTAssertEqual(kept.next?.id, "joined:sam")
+        kept.toldAll()
+        XCTAssertNil(kept.next, "seen on the bell: the pill never says it")
+        XCTAssertNil(HelloInbox(keep: keep).next)
+        // Gone before it could be read: new again.
+        kept.tell("joined:sam", false)
+        XCTAssertEqual(kept.next?.id, "joined:sam")
+    }
+
+    /// Each kind as the pill and the bell say it.
+    func testThePillAndTheBellSayEachKind() {
+        let joined = HelloItem(what: .joined(sam), at: Date())
+        XCTAssertEqual(joined.message?.text, "Sam joined Block Party")
+        XCTAssertEqual(joined.row.name, "Sam Rivera")
+        XCTAssertEqual(joined.row.words, "joined Block Party.")
+        XCTAssertEqual(joined.row.picture, .photo("https://x/sam.jpg"))
+        let score = HelloItem(what: .final(HelloItem.Final(TeamFinal.sample(won: true))!), at: Date())
+        XCTAssertEqual(score.message?.text, "Johnnies beat Gusties 33–23")
+        XCTAssertEqual(score.message?.tint, 0xBC0E33)
+        XCTAssertEqual(score.row.name, "Johnnies")
+        XCTAssertEqual(score.row.words, "beat Gusties 33–23.")
+        let first = HelloItem(what: .moment(.firstEvent), at: Date())
+        XCTAssertNil(first.message, "drawn with its tick")
+        XCTAssertEqual(first.row.name, "You")
+        XCTAssertEqual(first.row.words, "attended your first event!")
+        XCTAssertEqual(first.row.picture, .tick)
+        XCTAssertNil(HelloItem.Final(final([1, 0], mine: 5)), "a final with no side of yours isn't kept")
     }
 
     // MARK: A followed team's final (hello-drop 03)
