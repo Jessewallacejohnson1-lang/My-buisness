@@ -435,8 +435,10 @@ struct FeedEventDetailDestination: View {
 
             if let place = Self.placeText(item) {
                 // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
+                // With a link row under About, the Business page's wider box, so both rows' words line up.
                 InfoPill(glyph: "mappin", text: place, url: Directions.url(forPlace: place),
-                         hint: "Opens in Maps")
+                         hint: "Opens in Maps",
+                         glyphBox: Self.sourceLink(item.sourceURL) != nil ? SearchMetric.bizGlyphBox : Metric.pinBox)
                     .padding(.top, Metric.pillTop)
             }
 
@@ -451,6 +453,13 @@ struct FeedEventDetailDestination: View {
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
                     .padding(.top, Metric.aboutTop)
+            }
+
+            // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
+            if let link = Self.sourceLink(item.sourceURL) {
+                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
+                         glyphBox: SearchMetric.bizGlyphBox, leaves: true)
+                    .padding(.top, Self.aboutText(item.description) != nil ? SearchMetric.bizLinksTop : Metric.pillTop)
             }
         }
         .padding(.horizontal, Metric.inset)
@@ -533,6 +542,13 @@ struct FeedEventDetailDestination: View {
 
     static func aboutText(_ description: String?) -> String? {
         nonempty(description)
+    }
+
+    /// The found page as the Business page draws a link: "Facebook", "Instagram", else the site's name.
+    static func sourceLink(_ url: URL?) -> BusinessPage.LinkRow? {
+        guard let url, let host = url.host()?.lowercased() else { return nil }
+        let kind = host.hasSuffix("facebook.com") ? "facebook" : host.hasSuffix("instagram.com") ? "instagram" : "website"
+        return BusinessPage.rows([PlaceLink(kind: kind, url: url.absoluteString)]).first
     }
 
     /// `.other` is the fallback for a missing category, not a category.

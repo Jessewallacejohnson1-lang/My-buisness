@@ -173,6 +173,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// What it is in one to three words, the morning tagger's ("Lecture"; BP app event-card 05).
     /// nil until it's tagged, and on rows read before the feed sent it.
     var what: String? = nil
+    /// The page it was found on (`club_events.source_url`, ADR-021), the Event page's link under
+    /// About. Only the Town feed's read sends it; nil elsewhere and for a neighbour's own event.
+    var sourceURL: URL? = nil
     /// Up to three of the caller's friends Going, newest Going first: only the You tab's read
     /// sends them (`get_my_going`, BP app docs/plans/you-tab, ticket 07). The Town feed's ride
     /// `TownFeedRow`.
@@ -539,6 +542,8 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
     /// nil for your own plans, which are in neither (town-feed 31).
     var pool: String? = nil
+    /// Points for being new since your last visit (town-feed 36).
+    var new: Double? = nil
 }
 
 struct Trail: Identifiable, Hashable {
