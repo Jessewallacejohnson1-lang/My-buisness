@@ -40,7 +40,8 @@ extension FeedCardItem {
             game: event.game,
             what: Self.nonempty(event.what),
             createdAt: DateHelpers.timestamp(event.createdAt),
-            found: Self.nonempty(event.sourceName) != nil
+            found: Self.nonempty(event.sourceName) != nil,
+            sourceURL: event.sourceURL
         )
     }
 

@@ -336,7 +336,7 @@ struct CommunityAPI {
                                       placePicture: row.placePicture?.value,
                                       hostPicture: row.hostPicture?.value,
                                       description: row.description, game: row.game?.value,
-                                      what: row.what)
+                                      what: row.what, sourceURL: row.sourceUrl.flatMap(URL.init(string:)))
             return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                       reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
