@@ -61,6 +61,16 @@ struct TownPageInfo: Decodable, Hashable {
     }
 }
 
+/// Coming up with nothing in it.
+private struct TownNothingYet: View {
+    var body: some View {
+        Text("Nothing coming up")
+            .font(.sans(15))
+            .foregroundStyle(Hue.inkSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// A board's own page, pushed from its row.
 struct TownBoardRoute: Hashable {
     let board: TownPageInfo.Board
@@ -301,8 +311,10 @@ private struct TownPageLists: View {
 
     var body: some View {
         if let page = model.page {
-            if !page.events.isEmpty {
-                TownPageSection(title: "Coming up")
+            TownPageSection(title: "Coming up")
+            if page.events.isEmpty {
+                TownNothingYet()
+            } else {
                 ForEach(page.events) { TownEventRow(event: $0) }
             }
             if !page.boards.isEmpty {
@@ -353,16 +365,22 @@ private struct TownRowsLoading: View {
 /// A date tile ("NOV" over "29"), then what it is and when: "Sat, Nov 29 · 10 AM".
 struct TownEventRow: View {
     let event: TownPageInfo.Event
+    @Environment(TownFeed.self) private var feed: TownFeed?
 
     var body: some View {
-        // Opens its Event page, as a Town card does.
-        NavigationLink(value: item) { row }
+        // Opens its Event page, as a Town card does; the route Notifications uses, so an open from
+        // here doesn't count toward the Town feed's popularity.
+        NavigationLink(value: NoticeEventRoute(item: item)) { row }
             .buttonStyle(PressableStyle(scale: 0.98))
     }
 
+    /// The Town feed's own card when it has this Event (its photo, Going and the rest); else the
+    /// row's few facts.
     private var item: FeedCardItem {
-        FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date, startTime: event.time,
-                                   location: event.location, goingCount: 0, createdAt: ""))
+        feed?.cards.first { $0.id == event.id }
+            ?? FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date,
+                                          startTime: event.time, location: event.location, goingCount: 0,
+                                          createdAt: ""))
     }
 
     @ViewBuilder private var row: some View {
@@ -497,8 +515,10 @@ struct TownBoardPage: View {
     @ViewBuilder
     private var list: some View {
         if let meetings {
-            if !meetings.isEmpty {
-                TownPageSection(title: "Coming up")
+            TownPageSection(title: "Coming up")
+            if meetings.isEmpty {
+                TownNothingYet()
+            } else {
                 ForEach(meetings) { TownEventRow(event: $0) }
             }
         } else if failed {

@@ -167,9 +167,10 @@ begin
 end;
 $$;
 
--- 20261022170000_follow_places_and_people.sql's event_host, with a page's Events first: a City
--- meeting's board ("Planning Commission", its kind the City's name), else the page that wrote it
--- (the City, Joetown). Then the neighbour who posted it, then its Place, as before.
+-- 20261022170000_follow_places_and_people.sql's event_host, with the City's Events first: a City
+-- meeting's board ("Planning Commission", its kind the City's name), else the City. Then the
+-- neighbour who posted it, then its Place, as before; Joetown names its own Events only when they
+-- have neither.
 create or replace function public.event_host(p_event uuid)
 returns table (target_type text, target_id uuid, name text, kind text, picture text, picture_kind text,
                friend boolean)
@@ -187,7 +188,8 @@ as $$
     from public.city_boards b
     where b.id = public.meeting_board(e)
     union all
-    select 'page'::text, pg.id, pg.name, pg.kind, pg.picture, pg.picture_kind, 1
+    -- The City's own meetings name the City; a Joetown Event still names its Place first.
+    select 'page'::text, pg.id, pg.name, pg.kind, pg.picture, pg.picture_kind, case pg.slug when 'city' then 1 else 4 end
     from public.town_pages pg
     where lower(pg.source_name) = lower(e.source_name)
     union all
