@@ -15,6 +15,8 @@ struct HomeView: View {
     /// The bar's other two controls, added 2026-09-20 alongside the map.
     var onOpenFriends: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
+    /// The wordmark's menu: the Town's own page or its City's (follows 04).
+    var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// The shell's Town feed, kept across tab switches.
     var townFeed: TownFeed
     /// The shell's Event of the day, Daily's, on top of the feed (BP app event-card 03).
@@ -25,6 +27,7 @@ struct HomeView: View {
             onOpenFriends: onOpenFriends,
             onOpenMap: onOpenMap,
             onOpenNotifications: onOpenNotifications,
+            onOpenPage: onOpenPage,
             townFeed: townFeed,
             eventOfTheDay: eventOfTheDay
         )

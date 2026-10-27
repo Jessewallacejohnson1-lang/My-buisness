@@ -481,6 +481,10 @@ struct MainTabsView: View {
                 .navigationDestination(for: Game.Team.self) { TeamPage(team: $0) }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
                 .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
+                // The Town's own page or its City's, from the Town bar's wordmark menu or Daily's
+                // Town logo, and a board's, from its row (follows 04).
+                .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0) }
+                .navigationDestination(for: TownBoardRoute.self) { TownBoardPage(route: $0) }
                 // The bell's page (school-activities 04).
                 .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage() }
                 .navigationDestination(for: NoticeEventRoute.self) { route in
@@ -596,6 +600,10 @@ struct MainTabsView: View {
                    #"{"name":"","id":"\#(args[i + 1])","local":true}"#.utf8)) {
                 path.append(team)
             }
+            // `-open-page town|city` pushes that Town page (follows 04).
+            if let i = args.firstIndex(of: "-open-page"), i + 1 < args.count, let kind = TownPageKind(rawValue: args[i + 1]) {
+                path.append(kind)
+            }
             if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
                 let id = args[i + 1]
                 Task {
@@ -646,6 +654,7 @@ struct MainTabsView: View {
                                 onOpenMap: { showMap = true },
                                 onOpenFriends: openFriends,
                                 onOpenNotifications: { path.append(NotificationsRoute()) },
+                                onOpenPage: { path.append($0) },
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay
                             )

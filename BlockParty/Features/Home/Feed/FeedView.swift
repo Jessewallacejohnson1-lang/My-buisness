@@ -38,6 +38,8 @@ struct FeedView: View {
     var onOpenFriends: () -> Void = {}
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
+    /// The wordmark's menu: the Town's own page or its City's (follows 04).
+    var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// The Town feed's events, held by the shell so a tab switch doesn't read them again.
     var townFeed: TownFeed
     /// Your Event of the day, Daily's own (BP app event-card 03): the feed's top.
@@ -64,12 +66,14 @@ struct FeedView: View {
         onOpenFriends: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
+        onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
         eventOfTheDay: EventOfTheDay
     ) {
         self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
+        self.onOpenPage = onOpenPage
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
         _entrance = State(initialValue: townFeed.returnY == 0)
@@ -245,6 +249,7 @@ struct FeedView: View {
             TodayTopBar(onOpenFriends: onOpenFriends,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
+                        onOpenPage: onOpenPage,
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
                         chromeFloating: chromeFloating,
                         travel: barTravel,
