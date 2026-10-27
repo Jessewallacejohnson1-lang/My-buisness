@@ -1835,15 +1835,14 @@ test('the admin keeps a reported Event or takes it down for everyone', async () 
     [{ status: 'rejected', review_reason: 'reported' }]);
 });
 
-// Places, people and Groups you follow (town-feed 37): each lifts its Events once, says so by name, and
-// tells the app what Unfollow undoes; a Group never offers Unfollow.
+// Places, people and Groups you follow (town-feed 37): each lifts its Events once and says so by name.
+// Unfollow stays on the profile or page (Jesse, 2026-10-27).
 const PEONY = 'White Peony Boutique';
 async function followPlace(who, name = PEONY, entry = 'white-peony') {
   await db.exec('reset role');
   const { rows: [{ id }] } = await db.query(
     `insert into public.places (name, entry_id) values ($1, $2) returning id`, [name, entry]);
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [who, id]);
-  return id;
 }
 async function atPlace(title, date, more = {}) {
   const id = await add(title, date, { start_time: '7 PM', source_name: PEONY, ...more });
@@ -1852,29 +1851,29 @@ async function atPlace(title, date, more = {}) {
 }
 async function lifted(at) {
   const { rows } = await db.query(
-    `select title, reason, reason_name, followed, score
+    `select title, reason, reason_name, score
      from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
 const noPlaces = () => db.exec('reset role; delete from public.places; delete from public.sources;');
 
-test('a Place you follow lifts its Events, says so, and says what Unfollow undoes', async () => {
+test('a Place you follow lifts its Events and says so', async () => {
   await reset();
   await atPlace('Fall open house', '2026-10-12');
   await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
   await signIn(ME);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Fall open house'], 'not followed: soonest first');
-  const place = await followPlace(ME);
+  await followPlace(ME);
   await signIn(ME);
   await db.exec(`set test.admin = 'on'`);
   const [top, next] = await lifted('2026-10-08 12:00');
-  assert.deepEqual([top.title, top.reason, top.reason_name, top.followed, top.score.follow, top.score.pool],
-                   ['Fall open house', 'follow', PEONY, { type: 'place', id: place }, 3, 'yours']);
-  assert.deepEqual([next.title, next.followed], ['Fall fair', null]);
+  assert.deepEqual([top.title, top.reason, top.reason_name, top.score.follow, top.score.pool],
+                   ['Fall open house', 'follow', PEONY, 3, 'yours']);
+  assert.deepEqual([next.title, next.reason, next.score.follow], ['Fall fair', 'tomorrow', 0]);
   await db.exec('reset test.admin');
   await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
-  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.followed]),
-                   [['Fall fair', 'tomorrow', null], ['Fall open house', 'soon', null]], 'signed out follows nothing');
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason]),
+                   [['Fall fair', 'tomorrow'], ['Fall open house', 'soon']], 'signed out follows nothing');
   await noPlaces();
 });
 
@@ -1903,8 +1902,7 @@ test('a person you follow lifts what they posted; one who can no longer be found
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, SAM]);
   await signIn(ME);
   const [top] = await lifted('2026-10-08 12:00');
-  assert.deepEqual([top.title, top.reason, top.reason_name, top.followed],
-                   ['Porch concert', 'follow', 'Sam Lee', { type: 'profile', id: SAM }]);
+  assert.deepEqual([top.title, top.reason, top.reason_name], ['Porch concert', 'follow', 'Sam Lee']);
   await db.exec('reset role');
   await db.query(`update auth.users set banned_until = now() + interval '1 day' where id = $1`, [SAM]);
   await signIn(ME);
@@ -1914,7 +1912,7 @@ test('a person you follow lifts what they posted; one who can no longer be found
   await db.query('delete from auth.users where id = $1', [SAM]);
 });
 
-test("a Group you're in lifts its Events and those found for it, and never offers Unfollow", async () => {
+test("a Group you're in lifts its Events and those found for it", async () => {
   await reset();
   await db.exec('reset role');
   const { rows: [{ id: club }] } = await db.query(
@@ -1930,9 +1928,12 @@ test("a Group you're in lifts its Events and those found for it, and never offer
   await db.exec('reset role');
   await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ME]);
   await signIn(ME);
-  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.reason_name, r.followed]), [
-    ['Book swap', 'follow', 'Book Club', null], ['Author talk', 'follow', 'Book Club', null],
-    ['Fall fair', 'tomorrow', null, null]]);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.reason_name]), [
+    ['Book swap', 'follow', 'Book Club'], ['Author talk', 'follow', 'Book Club'], ['Fall fair', 'tomorrow', null]]);
+  const { rows } = await db.query(`select title, club_name, in_club
+     from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
+  assert.deepEqual(rows.filter((r) => r.club_name).map((r) => [r.title, r.club_name, r.in_club]),
+                   [['Book swap', 'Book Club', true], ['Author talk', 'Book Club', true]], "the card's Join reads the same Group");
   await noPlaces();
 });
 
@@ -1964,15 +1965,12 @@ test("an activity you follow names the game before the Place it's at; a Place ne
   await db.query(`update public.club_events set place_entry_id = 'white-peony' where id = $1`, [jv]);
   await followPlace(ME);
   await signIn(ME);
-  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name, r.followed.type]),
-                   [['Cathedral Volleyball vs Sartell', PEONY, 'place']]);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name]),
+                   [['Cathedral Volleyball vs Sartell', PEONY]]);
   await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
   await signIn(ME);
-  const rows = await lifted('2026-10-08 12:00');
-  assert.deepEqual(rows.map((r) => [r.title, r.reason_name, r.followed.type]), [
-    ['Cathedral Volleyball vs Sartell', 'Cathedral Volleyball (girls)', 'activity'],
-    ['Cathedral Volleyball vs Sartell · JV', 'Cathedral Volleyball (girls)', 'activity']]);
-  const activity = (await db.query(`select id from public.team_activities where team_id = 'cathedral' and name = 'Volleyball (girls)'`)).rows[0].id;
-  assert.equal(rows[0].followed.id, activity);
+  assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason_name]), [
+    ['Cathedral Volleyball vs Sartell', 'Cathedral Volleyball (girls)'],
+    ['Cathedral Volleyball vs Sartell · JV', 'Cathedral Volleyball (girls)']]);
   await noPlaces();
 });

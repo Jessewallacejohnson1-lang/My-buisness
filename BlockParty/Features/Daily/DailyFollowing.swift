@@ -55,8 +55,8 @@ struct DailyFollowing: Identifiable {
     }
 
     /// `day`'s from what you follow: the Town feed's cards it lifts for a follow, an activity or a
-    /// whole school so far (BP app school-activities 03; people, places and groups come with
-    /// town-feed 27). None hides the section; DEBUG `-daily-samples` gets the samples.
+    /// whole school (BP app school-activities 03), a person, a Place or a Group you're in (town-feed
+    /// 37). None hides the section; DEBUG `-daily-samples` gets the samples.
     static func today(from cards: [FeedCardItem], day: String, now: Date) -> [DailyFollowing] {
         #if DEBUG
         if DailySamples.on { return samples(on: now) }

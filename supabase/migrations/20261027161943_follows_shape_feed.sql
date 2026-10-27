@@ -1,9 +1,9 @@
 -- What you follow shapes your Town feed (BP app docs/plans/town-feed, ticket 37). An Event a person you
 -- follow posted, an Event at a Place you follow, and an Event of a Group you're in get the Yours lift
--- (+3, once, as a friend Going does) and say "follow" with that name, after an activity or school you
--- follow (school-activities 03), which still wins the name. Every row also says what Unfollow in its
--- ••• menu would undo, `followed` = {type, id}, so the column list changes and the function is dropped
--- and made again. get_town_feed is 20261027142007_simple_recipe_own_posts.sql's but for those lines.
+-- (+3, once, as a friend Going does) and say "follow" with that name; an activity or school you follow
+-- (school-activities 03) still names it first. Unfollow stays on the profile or page (Jesse,
+-- 2026-10-27), so the rows are unchanged. get_town_feed is 20261027142007_simple_recipe_own_posts.sql's
+-- but for those lines, and the Group an Event belongs to is worked out once for the lift and Join.
 
 -- The people the caller follows, by name: only those who may still be found (a real, named account,
 -- not blocked either way). Profiles read only their own row, so the feed asks this as the definer.
@@ -22,9 +22,7 @@ $$;
 revoke execute on function private.my_followed_people() from public;
 grant execute on function private.my_followed_people() to anon, authenticated;
 
-drop function if exists public.get_town_feed(timestamptz, boolean);
-
-create function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
+create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
 returns table (
   id uuid,
   title text,
@@ -58,8 +56,7 @@ returns table (
   what text,
   kind text,
   source_url text,
-  host_picture jsonb,
-  followed jsonb
+  host_picture jsonb
 )
 language sql
 stable
@@ -124,31 +121,31 @@ as $$
   -- "Cathedral Volleyball (girls)", then every activity of a whole school followed, named by the school.
   -- Read once here, so an Event is matched against a short list.
   my_activities as (
-    select a, t.short_name || ' ' || a.name as label, 1 as ord, 'activity'::text as kind, a.id as target
+    select a, t.short_name || ' ' || a.name as label, 1 as ord
     from public.town_follows f
     join public.team_activities a on a.id = f.target_id
     join public.teams t on t.id = a.team_id
     where f.follower_id = auth.uid() and f.target_type = 'activity'
     union all
-    select a, t.short_name, 2, 'team', t.uuid
+    select a, t.short_name, 2
     from public.town_follows f
     join public.teams t on t.uuid = f.target_id
     join public.team_activities a on a.team_id = t.id
     where f.follower_id = auth.uid() and f.target_type = 'team'
   ),
   my_schools as (
-    select t.id, t.short_name as label, t.uuid as target
+    select t.id, t.short_name as label
     from public.town_follows f
     join public.teams t on t.uuid = f.target_id
     where f.follower_id = auth.uid() and f.target_type = 'team'
   ),
-  -- The rest of what the caller follows (town-feed 37): people (names through the private helper,
-  -- since profiles read only their own row), Places, and the Groups they're in, which count as follows.
+  -- The rest of what the caller follows (town-feed 37): people (named through the private helper, as
+  -- profiles read only their own row), Places, and the Groups they're in, which count as follows.
   my_people as (
     select p.id, p.name from private.my_followed_people() p
   ),
   my_places as (
-    select pl.id, pl.name, pl.entry_id
+    select pl.name, pl.entry_id
     from public.town_follows f
     join public.places pl on pl.id = f.target_id
     where f.follower_id = auth.uid() and f.target_type = 'place'
@@ -174,19 +171,13 @@ as $$
              when m24 is not null and m24[1]::int < 24 and m24[2]::int < 60
                then m24[1]::int * 60 + m24[2]::int
            end as start_minutes,
-           fl.followed as school_followed, fl.kind as school_kind, fl.target as school_target
+           fl.followed as school_followed
     from public.club_events e
-    -- The activity or school you follow that this Event is of: its name, and what to unfollow; null
-    -- when none. Only an Event naming a school can be one's: the rest skip the activity match.
-    left join lateral (
-      select x.label as followed, x.kind, x.target
-      from ((select m.label, m.kind, m.target, m.ord from my_activities m
-             where (e.team_ids is not null or e.activity_team is not null) and public.activity_has_event(m.a, e)
-             order by m.ord limit 1)
-            union all
-            (select s.label, 'team', s.target, 3 from my_schools s
-             where s.id = any(e.team_ids) or s.id = e.activity_team limit 1)) x
-      order by x.ord limit 1) fl on true
+    -- The activity or school you follow that this Event is of, by name; null when none.
+    -- Only an Event naming a school can be one's: the rest skip the activity match.
+    cross join lateral (select case when e.team_ids is not null or e.activity_team is not null then coalesce(
+      (select m.label from my_activities m where public.activity_has_event(m.a, e) order by m.ord limit 1),
+      (select s.label from my_schools s where s.id = any(e.team_ids) or s.id = e.activity_team limit 1)) end as followed) fl
     cross join lateral (select
       regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,
       regexp_match(btrim(e.start_time), '^(\d{1,2}):(\d{2})(?::\d{2})?$') as m24) t
@@ -269,10 +260,9 @@ as $$
            coalesce(fg.people, '[]'::jsonb) as friends_people,
            -- How many of the host's other Events the caller tapped (ticket 30).
            coalesce(tp.n - case when s.id = any(tp.ids) then 1 else 0 end, 0) as tapped_n,
-           -- What the caller follows that this Event is of, by name, and what Unfollow would undo.
-           coalesce(s.school_followed, fw.label) as followed,
-           coalesce(s.school_kind, fw.kind) as followed_type,
-           coalesce(s.school_target, fw.target) as followed_id,
+           -- What the caller follows that this Event is of, by name: an activity or school first, then
+           -- the neighbour who posted it, the Place it's at, a Group they're in (town-feed 37).
+           coalesce(s.school_followed, fw.name) as followed,
            gr.id as group_id
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
@@ -280,16 +270,13 @@ as $$
     -- for the Group lift and the card's Join.
     cross join lateral (select coalesce(s.club_id, case when s.submitted_by is null and s.source_name is not null
                                                         then private.event_group(s.source_name, s.place_entry_id, s.title) end) as id) gr
-    -- No school or activity of yours (town-feed 37): the neighbour who posted it, then the Place it's
-    -- at, then a Group you're in that puts it on (the Group the card's Join reads).
     left join lateral (
-      select x.label, x.kind, x.target from (
-        select p.name as label, 'profile'::text as kind, p.id as target, 1 as ord
-        from my_people p where p.id = s.submitted_by
+      select x.name from (
+        select p.name, 1 as ord from my_people p where p.id = s.submitted_by
         union all
-        select pl.name, 'place', pl.id, 2 from my_places pl where pl.entry_id = s.place_entry_id
+        select pl.name, 2 from my_places pl where pl.entry_id = s.place_entry_id
         union all
-        select g.name, 'club', g.id, 3 from my_groups g where g.id = gr.id
+        select g.name, 3 from my_groups g where g.id = gr.id
       ) x
       order by x.ord limit 1) fw on s.school_followed is null
     cross join last_visit lv
@@ -393,7 +380,7 @@ as $$
     select s.id, s.spacing, row_number() over (order by s.part, s.base * s.spacing desc, s.sort_at, s.title, s.id)::int as spot
     from spaced s
   ),
-  feed_rows (id, title, event_date, start_time, location, image_url, category, club_name, source_name, end_at, all_day, created_at, going_count, rsvpd, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, cancelled, friends_going, place_picture, description, club_id, in_club, game, what, kind, source_url, host_picture, followed, spot) as (
+  feed_rows (id, title, event_date, start_time, location, image_url, category, club_name, source_name, end_at, all_day, created_at, going_count, rsvpd, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, cancelled, friends_going, place_picture, description, club_id, in_club, game, what, kind, source_url, host_picture, spot) as (
   select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
          c.name, e.source_name, e.end_at, e.all_day, e.created_at,
          e.going_n,
@@ -448,10 +435,6 @@ as $$
          -- Who puts it on, as a picture beside its name: the registry place that posted it (found
          -- Events) or the group's own place, its logo first (Jesse, 2026-10-23).
          private.host_picture(e.source_name, c.own_entry_id),
-         -- What Unfollow in the card's ••• menu undoes (town-feed 37): {type, id}, or null.
-         -- Never a Group: leaving one is on its page.
-         case when e.followed_id is not null and e.followed_type <> 'club'
-              then jsonb_build_object('type', e.followed_type, 'id', e.followed_id) end,
          p.spot
   from totals e
   join spots p on p.id = e.id
@@ -469,15 +452,14 @@ as $$
          -- photo (place_picture).
          private.entry_picture(n.place_entry_id),
          n.blurb, null::uuid, false, null::jsonb, null::text,
-         'news'::text, n.source_url, null::jsonb, null::jsonb, s.spot
+         'news'::text, n.source_url, null::jsonb, s.spot
   from news_scored n
   join spots s on s.id = n.id
   )
   select r.id, r.title, r.event_date, r.start_time, r.location, r.image_url, r.category, r.club_name,
          r.source_name, r.end_at, r.all_day, r.created_at, r.going_count, r.rsvpd, r.recurrence, r.leaves_at,
          r.reason, r.reason_name, r.score, r.heart_count, r.hearted, r.saved, r.cancelled, r.friends_going,
-         r.place_picture, r.description, r.club_id, r.in_club, r.game, r.what, r.kind, r.source_url, r.host_picture,
-         r.followed
+         r.place_picture, r.description, r.club_id, r.in_club, r.game, r.what, r.kind, r.source_url, r.host_picture
   from feed_rows r
   order by r.spot;
 $$;
