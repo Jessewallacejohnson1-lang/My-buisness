@@ -8,7 +8,8 @@
 //  row stays, as Follow, until you leave, so a slip is one tap to undo (Jesse's pick at Check-in
 //  1). Pushed from the Profile sheet's Following row, under Blocked's top. Groups aren't listed:
 //  the You tab's Groups row holds them. A row opens what it follows, as Instagram's list does
-//  (ticket 05): a person's page, a Place's business page as Search opens it, a team's page; a
+//  (ticket 05): a person's page, a Place's business page as Search opens it, a team's page, the
+//  City's or Joetown's page, a board's meetings (follows 04); a
 //  Place Search can't open (no logo) doesn't open here either.
 //
 //  The host line: Eventbrite's "Organized by", under where an Event is: the Place or person who
@@ -27,6 +28,8 @@ struct FollowingPage: View {
     @State private var opener = BusinessOpener()
     @State private var person: FollowRow?
     @State private var team: Game.Team?
+    @State private var page: TownPageKind?
+    @State private var board: TownBoardRoute?
 
     /// Saved's sheet edge to its top bar (`SavedPage`, as `BlockedPage`).
     private static let barTop: CGFloat = 20
@@ -41,6 +44,8 @@ struct FollowingPage: View {
         .interactiveDismissDisabled(opener.isOpen)
         .navigationDestination(item: $person) { FollowedNeighborPage(row: $0) }
         .navigationDestination(item: $team) { TeamPage(team: $0) }
+        .navigationDestination(item: $page) { TownPageView(shown: $0) }
+        .navigationDestination(item: $board) { TownBoardPage(route: $0) }
         .onAppear { opener.reduceMotion = reduceMotion }
         // Search's places, for a Place's page, read here when Search hasn't been opened yet.
         .task { if !places.placesLoaded { await places.load() } }
@@ -117,7 +122,11 @@ struct FollowingPage: View {
                            pictureKind: "logo"),
                  // Krewe's real place id, so its row opens the page Search reads for it.
                  FollowRow(targetType: .place, targetId: "02280501-5d7d-4c2b-8a6b-2ec671ce9c7c", name: "Krewe",
-                           kind: "cajun_restaurant", picture: nil, pictureKind: nil)]
+                           kind: "cajun_restaurant", picture: nil, pictureKind: nil),
+                 FollowRow(targetType: .page, targetId: "sample-city", name: Town.cityPage, kind: "City government",
+                           picture: nil, pictureKind: nil),
+                 FollowRow(targetType: .board, targetId: "sample-board-1", name: "City Council", kind: nil,
+                           picture: nil, pictureKind: nil)]
         }
     }
 
@@ -150,6 +159,10 @@ struct FollowingPage: View {
         switch row.targetType {
         case .profile: person = row
         case .team: team = Game.Team(followed: row)
+        case .page: page = row.name == Town.cityPage ? .city : .town
+        case .board:
+            board = TownBoardRoute(board: .init(id: row.targetId, name: row.name, following: true, next: nil),
+                                   city: Town.cityPage)
         default:
             guard let item, let logo = item.logo else { return }
             // From its round picture: a logo flies out of it; a photo lets the logo fade in, as a
@@ -169,10 +182,11 @@ private struct FollowingRow: View {
     let open: (SearchItem?, CGRect) -> Void
     @State private var picture = FrameBox()
 
-    /// A person, a team, or a Place Search can open. Anything else (an activity) has no page here.
+    /// A person, a team, the Town's pages and boards, or a Place Search can open. Anything else (an
+    /// activity) has no page here.
     private var opens: Bool {
         switch row.targetType {
-        case .profile, .team: true
+        case .profile, .team, .page, .board: true
         case .place: item != nil
         default: false
         }

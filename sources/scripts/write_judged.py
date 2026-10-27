@@ -77,7 +77,7 @@ THE RULES
   News repeats: News from the same place in the last 6 days with much the same title (two
     shared words at least, two thirds of the shorter title's, the place's own name not
     counted) is a repeat and is not added (repeat_of).
-  Merging: same place, start within an hour (all-day ones: a day apart; one with no time: the
+  Merging: same place (or two names for one registry place), start within an hour (all-day ones: a day apart; one with no time: the
     same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
     one title's words all sit inside the other's, with the same team words (JV, varsity,
@@ -211,7 +211,10 @@ def same_event(a, b):
         same_start = a["at"] == b["at"] or a["at"] is None or b["at"] is None
         return bool(a["entry"]) and a["entry"] == b["entry"] and a["day"] == b["day"] and same_start \
             and same_title(a["title"], b["title"])
-    return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
+    # One registry place under two names ("City Hall", "75 Callaway St E") is one place (2026-10-27:
+    # the City's Planning Commission was listed twice).
+    return within_hour(a, b) and (same_place(a["place"], b["place"]) or bool(a["entry"]) and a["entry"] == b["entry"]) \
+        and same_title(a["title"], b["title"])
 
 
 def real_uid(uid):
@@ -1426,7 +1429,15 @@ def t_teams_only_from_their_names():
     assert team_key("#21 Saint John's") == "saint-johns" and team_key("Kennedy Community MS (Mid") == "kennedy-community-ms"
 
 
-TESTS = [t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
+def t_one_place_two_names():
+    old = listed_facts({"event_date": "2026-11-09", "start_time": "6 PM", "location": "75 Callaway St E",
+                        "source_name": "City of St. Joseph", "title": "Planning Commission"})
+    new = listed_facts({"event_date": "2026-11-09", "start_time": "6 PM", "location": "City Hall",
+                        "source_name": "City of St. Joseph", "title": "Planning Commission"})
+    assert old["entry"] and same_event(old, new), (old, new)
+
+
+TESTS = [t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
