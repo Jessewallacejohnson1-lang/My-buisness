@@ -197,6 +197,8 @@ struct TownPageView: View {
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Scrolled up past the photo: the top turns paper, so the words never run under the clock.
+    @State private var pastPhoto = false
 
     init(shown: TownPageKind) {
         _model = State(initialValue: TownPageModel(shown: shown))
@@ -219,6 +221,11 @@ struct TownPageView: View {
             }
         }
         .refreshable { await model.load(actions) }
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            geo.contentOffset.y + geo.contentInsets.top > geo.containerSize.width / GroupPage.Metric.heroAspect - 80
+        } action: { _, past in
+            pastPhoto = past
+        }
         // The photo runs up under the status bar, as the Group page's.
         .ignoresSafeArea(edges: .top)
         .background(Hue.paper.ignoresSafeArea())
@@ -244,6 +251,9 @@ struct TownPageView: View {
         }
         .padding(.horizontal, Event.inset - (Event.tapBox - Event.button) / 2)
         .padding(.top, Event.buttonTop - (Event.tapBox - Event.button) / 2)
+        .padding(.bottom, 4)
+        .background { Hue.paper.ignoresSafeArea(edges: .top).opacity(pastPhoto ? 1 : 0) }
+        .animation(Motion.smooth, value: pastPhoto)
     }
 
     private var picker: some View {
