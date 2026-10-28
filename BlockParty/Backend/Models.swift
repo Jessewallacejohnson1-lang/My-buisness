@@ -176,9 +176,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The page it was found on (`club_events.source_url`, ADR-021), the Event page's link under
     /// About. Only the Town feed's read sends it; nil elsewhere and for a neighbour's own event.
     var sourceURL: URL? = nil
-    /// Up to three of the caller's friends Going, newest Going first: only the You tab's read
-    /// sends them (`get_my_going`, BP app docs/plans/you-tab, ticket 07). The Town feed's ride
-    /// `TownFeedRow`.
+    /// Up to three of the caller's friends Going, newest Going first: You's, Saved's and the bell's
+    /// reads send them (`get_my_going`, `get_my_saves`, `get_my_changes`; BP app you-tab 07 and
+    /// friends-on-event-page). The Town feed's ride `TownFeedRow`.
     var friendsGoing: [FeedFriend] = []
 }
 

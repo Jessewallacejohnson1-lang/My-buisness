@@ -347,6 +347,28 @@ test('a friend who leaves drops off on the next read', async () => {
   assert.deepEqual((await friendsOn(day))[0].friends_going, []);
 });
 
+test('your saves carry friends Going too, never a stranger or a friend hiding plans (friends-on-event-page)', async () => {
+  await reset();
+  const day = soon();
+  const quiz = await add('Quiz night', day);
+  const fair = await add('Craft fair', day);
+  const HIDING = '00000000-0000-0000-0000-0000000000c2';
+  await db.query('insert into auth.users (id) values ($1), ($2), ($3)', [FRIEND, HIDING, NEIGHBOUR]);
+  await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url, plans_to_friends)
+                  values ($1, 'Anna Lee', $2, true), ($3, 'Hal Moe', null, false), ($4, 'Ned Nu', null, true)`,
+                 [FRIEND, FRIEND_PHOTO, HIDING, NEIGHBOUR]);
+  await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1), ($1, $3, $1)',
+                 [ME, FRIEND, HIDING]);
+  await save(ME, quiz);
+  await save(ME, fair);
+  for (const who of [FRIEND, HIDING, NEIGHBOUR]) await going(who, quiz);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const { rows } = await db.query(`select title, friends_going from public.get_my_saves($1::date)`, [day]);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.friends_going]),
+                   [['Craft fair', []], ['Quiz night', [{ name: 'Anna', photo: FRIEND_PHOTO }]]]);
+});
+
 test('your Going and your saves carry each event\'s description', async () => {
   await reset();
   const id = await add('Trivia', '2026-10-09');
