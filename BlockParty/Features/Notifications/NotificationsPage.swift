@@ -135,8 +135,8 @@ private struct NoticeRow: View {
 
 /// "**Sam Rivera** joined Block Party. 2h" with Add friend beside it, as Instagram's Follow back;
 /// "**Johnnies** beat Gusties 33–23. 5h"; "**You** attended your first event! 1d" by the green
-/// tick (hello-drop 05). A contact who joined opens their page, a final its team's page; a first
-/// opens nothing. Pressed, a row darkens as a change's does.
+/// tick (hello-drop 05); "**Kate Moore** accepted your friend request. 3d" (06). A person opens their
+/// page, a final its team's page; a first opens nothing. Pressed, a row darkens as a change's does.
 private struct HelloItemRow: View {
     let item: HelloItem
     let now: Date
@@ -167,6 +167,9 @@ private struct HelloItemRow: View {
                     .fixedSize()
                     .padding(.trailing, FriendsMetric.side)
             }
+        case .accepted(let person):
+            NavigationLink(value: person) { padded(words).contentShape(Rectangle()) }
+                .buttonStyle(RowPressStyle())
         case .final(let final):
             if let team = final.teamPage {
                 NavigationLink(value: team) { padded(words).contentShape(Rectangle()) }

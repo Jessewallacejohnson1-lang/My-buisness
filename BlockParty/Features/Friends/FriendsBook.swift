@@ -299,6 +299,8 @@ final class FriendsBook {
     func seen() async {
         guard loaded, !failed, !isAnonymous() else { return }
         dot = false
+        // Shown here, so the hello pill never says them after (hello-drop 06).
+        HelloInbox.shared.tellAccepted(Set(page.accepted.map(\.id)))
         try? await markSeen()
     }
 
@@ -345,6 +347,8 @@ final class FriendsBook {
                 let answer = try await write(action, person.id)
                 writing.remove(person.id)
                 if answer == .friends { HelloMoments.shared.reach(.firstFriend) }
+                // Blocked: off the hello pill and the bell at once, as off every list (hello-drop 06).
+                if answer == .blocked { HelloInbox.shared.forget(person.id) }
                 withAnimation(.easeInOut(duration: RealLifeActions.flip)) { chosen[person.id] = answer }
             } catch {
                 await turnBack(person, to: before, after: action, error: error)
