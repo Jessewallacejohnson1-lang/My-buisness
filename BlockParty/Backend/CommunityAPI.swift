@@ -761,7 +761,7 @@ struct CommunityAPI {
             let cancelled: Bool?
             let placePicture: PlacePicture.Lenient?
             let description: String?
-            /// `get_my_going`'s only (you-tab 07); `get_my_saves` sends none.
+            /// Optional: a read before you-tab 07 (Going) or friends-on-event-page (saves, changes) sent none.
             let friendsGoing: [FriendRow]?
         }
         let decoder = JSONDecoder()

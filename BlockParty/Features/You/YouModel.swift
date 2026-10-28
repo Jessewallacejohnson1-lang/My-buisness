@@ -157,8 +157,6 @@ enum YouCalendar {
         var item = FeedCardItem(row)
         // An all-day Event shows no start time (schema.sql, `all_day`).
         if row.isAllDay { item.startTime = nil }
-        // Friends Going ride the card as the Town feed's do (ticket 07).
-        item.friendsGoing = row.friendsGoing
         return timed(item, day: row.eventDate, time: item.startTime, endAt: row.endAt)
     }
 

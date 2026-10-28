@@ -23,6 +23,7 @@ extension FeedCardItem {
             hostPicture: event.hostPicture,
             goingCount: event.goingCount,
             goingAvatars: [],
+            friendsGoing: event.friendsGoing,
             likeCount: 0,
             isLiked: false,
             isSaved: event.saved,
