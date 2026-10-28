@@ -120,6 +120,42 @@ final class TownPageModelTests: XCTestCase {
         XCTAssertEqual(Set(server.follows), ["page city-1 true", "board b1 true", "board b2 false"])
     }
 
+    /// A campus calendar's page (follows 08) opens by its id from its host or Following row and reads
+    /// like any other; the Town's own two still open by name, behind their switch.
+    func testAHostRowOpensItsPage() async {
+        let row = { (name: String) in
+            FollowRow(targetType: .page, targetId: "id-\(name)", name: name, kind: nil, picture: nil, pictureKind: nil)
+        }
+        XCTAssertEqual(TownPageKind.of(row(Town.cityPage)), .city)
+        XCTAssertEqual(TownPageKind.of(row(Town.townPage)), .town)
+        let libraries = TownPageKind.of(row("CSB SJU Libraries"))
+        XCTAssertEqual(libraries, .page(id: "id-CSB SJU Libraries", name: "CSB SJU Libraries"))
+        XCTAssertEqual(libraries.name, "CSB SJU Libraries", "its name before the read")
+        XCTAssertNil(libraries.photo, "its photo comes with its read")
+        XCTAssertFalse(TownPageKind.switchable.contains(libraries), "no switch on it")
+        XCTAssertEqual(TownPageKind(slug: "city"), .city)
+        XCTAssertNil(TownPageKind(slug: "csbsju-libraries"))
+
+        let server = Server()
+        server.pages[libraries] = TownPageModel.sample(libraries)
+        let model = TownPageModel(shown: libraries, read: server.read)
+        await model.load(actions(server))
+        XCTAssertEqual(model.page?.pictureCredit, "csbsju.edu")
+        XCTAssertEqual(server.reads, [libraries])
+    }
+
+    /// `town_page`'s row as PostgREST sends it, its photo's credit included; a read from before the
+    /// credit still decodes.
+    func testAPageReadsItsPhotosCredit() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let json = #"{"id":"p1","name":"CSB SJU Libraries","kind":"College","picture":"https://x/p.webp","#
+            + #""picture_kind":"photo","picture_credit":"csbsju.edu","events":[],"boards":[]}"#
+        XCTAssertEqual(try decoder.decode(TownPageInfo.self, from: Data(json.utf8)).pictureCredit, "csbsju.edu")
+        let before = json.replacingOccurrences(of: #""picture_credit":"csbsju.edu","#, with: "")
+        XCTAssertNil(try decoder.decode(TownPageInfo.self, from: Data(before.utf8)).pictureCredit)
+    }
+
     func testBoardInitials() {
         XCTAssertEqual(TownPageModel.initials("City Council"), "CC")
         XCTAssertEqual(TownPageModel.initials("Economic Development Authority"), "EDA")

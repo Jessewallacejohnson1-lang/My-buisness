@@ -5,7 +5,9 @@
 //  Instagram's layout, Apple News's type (Jesse, 2026-09-19). The host — the
 //  business, parish or neighbour putting the event on — sits in a row ABOVE the
 //  photograph, the way a poster's name does on Instagram; the headline is set OVER
-//  the photograph, ranged left off its bottom-left corner.
+//  the photograph, ranged left off its bottom-left corner. The host's picture and name
+//  open its own page, as an Instagram name opens its profile (follows 08); one with no
+//  page of its own opens the Event's.
 //
 //  The card has no container of its own: no fill, no border, no shadow. The only
 //  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
@@ -90,6 +92,11 @@ struct FeedEventCard: View {
     @State private var groupPillWidth: CGFloat = 0
     /// Join with no signed-up account opens sign-up (follows 02).
     @State private var signingIn = false
+    /// Where the host's picture is, for a Place's page to fly out of, and a tap already reading who
+    /// the host is (follows 08).
+    @State private var hostFrame = FrameBox()
+    @State private var openingHost = false
+    @Environment(\.hostOpener) private var hostOpener
 
     init(
         item: FeedCardItem,
@@ -112,14 +119,15 @@ struct FeedEventCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Host and photo are one link to the event's page. The RSVP area and the
-            // action row stay outside it, so their own buttons keep their own taps and
-            // pressing them never squishes the card.
+            // The host opens its own page (follows 08), so it sits outside the photo's link.
+            hostRow
+                .padding(.horizontal, DailyFeedMetric.contentInset)
+
+            // The photo is the link to the event's page. The RSVP area and the action row
+            // stay outside it, so their own buttons keep their own taps and pressing them
+            // never squishes the card.
             NavigationLink(value: item) {
                 VStack(alignment: .leading, spacing: 0) {
-                    hostRow
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
-
                     // Only the photo sinks in on a press; the host row and the line under it
                     // stay still (Jesse, 2026-10-27).
                     imageSection
@@ -139,21 +147,6 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the photo sinks the
             // moment a finger lands.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
-            // A local team's picture opens its page, Follow there (hello-drop 03); the rest of the
-            // card still opens the event.
-            .overlay(alignment: .topLeading) {
-                if !item.hostName.isEmpty, item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
-                    NavigationLink(value: team) {
-                        GameHostMark(team: team, side: Self.hostAvatarSide)
-                            .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .padding(.leading, DailyFeedMetric.contentInset - (SearchMetric.tapMin - Self.hostAvatarSide) / 2)
-                    .offset(y: -(SearchMetric.tapMin - Self.hostAvatarSide) / 2)
-                    .accessibilityLabel("\(team.short), team page")
-                }
-            }
             // The heart on the photo's bottom right, over the link as its own button (event-card 06).
             .overlay(alignment: .bottomTrailing) {
                 if actions.canAct {
@@ -224,20 +217,58 @@ struct FeedEventCard: View {
     @ViewBuilder
     private var hostRow: some View {
         if !item.hostName.isEmpty {
-            HStack(spacing: 10) {
-                hostAvatar
-
-                Text(item.hostName)
-                    .font(.sansSemibold(14))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-
-                Spacer(minLength: 8)
+            HStack(spacing: 0) {
+                if hostOpener != nil {
+                    Button(action: openHost) { hostLabel }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityHint("Opens its page")
+                } else {
+                    hostLabel
+                }
+                Spacer(minLength: 18)
             }
             .padding(.trailing, hostRowRoom)
-            .accessibilityElement(children: .combine)
         } else if item.why != nil {
             Color.clear.frame(height: Self.hostAvatarSide)
+        }
+    }
+
+    /// The host's picture and name, its touch area grown to 44 pt without moving the row.
+    private var hostLabel: some View {
+        HStack(spacing: 10) {
+            hostAvatar
+                .trackFrame(hostFrame)
+
+            Text(item.hostName)
+                .font(.sansSemibold(14))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+        }
+        .contentShape(Rectangle().inset(by: -(SearchMetric.tapMin - Self.hostAvatarSide) / 2))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The host's own page (follows 08): a game's school, the card's Group, else whatever
+    /// `event_host` names; one with no page of its own opens the Event's, as the row did before.
+    private func openHost() {
+        guard let opener = hostOpener, !openingHost else { return }
+        if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
+            opener.pushTeam(team)
+            return
+        }
+        if let id = item.groupID {
+            if let group = opener.group(id) { opener.pushGroup(group) } else { opener.pushEvent(item) }
+            return
+        }
+        openingHost = true
+        let picture = hostFrame.rect
+        Task {
+            defer { openingHost = false }
+            if let host = try? await EventHostRow.read(item), opener.opens(host) {
+                opener.open(host, picture)
+            } else {
+                opener.pushEvent(item)
+            }
         }
     }
 

@@ -13,7 +13,9 @@
 //  Place Search can't open (no logo) doesn't open here either.
 //
 //  The host line: Eventbrite's "Organized by", under where an Event is: the Place or person who
-//  hosts it, "Host · 128 followers", and Follow.
+//  hosts it, "Host · 128 followers", and Follow. Its picture and name open the host's own page, as an
+//  Instagram name opens its profile (follows 08): a person's, a page's, a board's meetings, a team's,
+//  or a Place's business page flying out of its picture (`HostOpener`, the shell's).
 //
 
 import SwiftUI
@@ -159,7 +161,7 @@ struct FollowingPage: View {
         switch row.targetType {
         case .profile: person = row
         case .team: team = Game.Team(followed: row)
-        case .page: page = row.name == Town.cityPage ? .city : .town
+        case .page: page = TownPageKind.of(row)
         case .board:
             board = TownBoardRoute(board: .init(id: row.targetId, name: row.name, following: true, next: nil),
                                    city: Town.cityPage)
@@ -230,11 +232,11 @@ private struct FollowingRow: View {
     }
 }
 
-/// A person's page from their Following row, which knows only who they are: it opens at once on
-/// their photo and name, and its pill waits for `get_neighbor` to say where you stand, so a friend
-/// never flashes Add friend. A failed read shows the pill as the Friends book has it; nobody found
-/// (they blocked you since) shows none.
-private struct FollowedNeighborPage: View {
+/// A person's page from their Following row or a host row, which know only who they are: it opens at
+/// once on their photo and name, and its pill waits for `get_neighbor` to say where you stand, so a
+/// friend never flashes Add friend. A failed read shows the pill as the Friends book has it; nobody
+/// found (they blocked you since) shows none.
+struct FollowedNeighborPage: View {
     let row: FollowRow
     @Environment(FriendsBook.self) private var book
     @State private var read: Neighbor?
@@ -312,8 +314,35 @@ struct FollowPicture: View {
     }
 }
 
+/// A person's page pushed from a host row (follows 08).
+struct FollowedPersonRoute: Hashable {
+    let row: FollowRow
+}
+
+/// What a host row opens (follows 08), set by the shell's stack: nil anywhere it can't push, where a
+/// host opens nothing of its own.
+@MainActor
+struct HostOpener {
+    /// Whether `open` takes this host anywhere: a Place only when Search can open it.
+    let opens: (FollowRow) -> Bool
+    /// Pushes its page, or flies a Place's business page out of `picture` (its frame on screen).
+    let open: (_ host: FollowRow, _ picture: CGRect) -> Void
+    /// A Group from Search's read, by id, and pushing it.
+    let group: (String) -> TownGroup?
+    let pushGroup: (TownGroup) -> Void
+    /// A local school's page, from a game card's host (hello-drop 03).
+    let pushTeam: (Game.Team) -> Void
+    /// The Event's own page: where a card's host goes when it has no page of its own.
+    let pushEvent: (FeedCardItem) -> Void
+}
+
+extension EnvironmentValues {
+    @Entry var hostOpener: HostOpener? = nil
+}
+
 /// An Event page's host line, under where it is. Reads who hosts it when the page opens; draws
-/// nothing until then, or for an Event with no host to follow.
+/// nothing until then, or for an Event with no host to follow. Its picture and name open the host's
+/// page, pressed with a list row's grey; Follow keeps its own tap.
 struct EventHostRow: View {
     let item: FeedCardItem
     /// Paper above it once it shows; none while it doesn't.
@@ -321,7 +350,9 @@ struct EventHostRow: View {
     /// The place's name is on the photo above: a Place hosting doesn't say it again here.
     var placeNamed = false
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.hostOpener) private var opener
     @State private var host: FollowRow?
+    @State private var picture = FrameBox()
 
     static let picture: CGFloat = 44
     static let smallPicture: CGFloat = 32
@@ -332,28 +363,43 @@ struct EventHostRow: View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 0)
             if let host {
+                let opens = opener?.opens(host) == true
                 HStack(spacing: Self.gap) {
-                    // Smaller under a named photo: the name has already been said (Jesse's pick).
-                    FollowPicture(row: host, size: placeNamed && host.targetType == .place ? Self.smallPicture : Self.picture)
-                    VStack(alignment: .leading, spacing: 2) {
-                        if !(placeNamed && host.targetType == .place) {
-                            Text(host.name)
-                                .font(.sansSemibold(15))
-                                .foregroundStyle(Hue.ink)
-                                .lineLimit(1)
+                    Group {
+                        // Smaller under a named photo: the name has already been said (Jesse's pick).
+                        FollowPicture(row: host, size: placeNamed && host.targetType == .place ? Self.smallPicture : Self.picture)
+                            .trackFrame(picture)
+                        VStack(alignment: .leading, spacing: 2) {
+                            if !(placeNamed && host.targetType == .place) {
+                                Text(host.name)
+                                    .font(.sansSemibold(15))
+                                    .foregroundStyle(Hue.ink)
+                                    .lineLimit(1)
+                            }
+                            // `host-line`: "Host · 128 followers"; a person shows no count. A City
+                            // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
+                            Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
+                                .compactMap { $0 }.joined(separator: " · "))
+                                .font(.sans(13))
+                                .foregroundStyle(Hue.inkSecondary)
+                                .contentTransition(.numericText())
                         }
-                        // `host-line`: "Host · 128 followers"; a person shows no count. A City
-                        // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
-                        Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
-                            .compactMap { $0 }.joined(separator: " · "))
-                            .font(.sans(13))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .contentTransition(.numericText())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityElement(children: .combine)
+                        // VoiceOver presses the row here; the button behind is for fingers.
+                        .accessibilityAddTraits(opens ? .isButton : [])
+                        .accessibilityAction { if opens { opener?.open(host, picture.rect) } }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
+                    .allowsHitTesting(false)
                     // A friend you follow reads Following; one you unfollowed can follow again here.
                     FollowButton(target: host.target, name: host.name, size: .row)
+                }
+                .background {
+                    if opens {
+                        Button { opener?.open(host, picture.rect) } label: { Color.clear.contentShape(Rectangle()) }
+                            .buttonStyle(RowPressStyle())
+                            .accessibilityHidden(true)
+                    }
                 }
                 .animation(Motion.smooth, value: actions.follow(host.target).count)
                 .padding(.top, top)
@@ -374,7 +420,7 @@ struct EventHostRow: View {
     }
 
     /// `event_host`; under DEBUG `-town-samples` its Place, by the card's own words.
-    private static func read(_ item: FeedCardItem) async throws -> FollowRow? {
+    static func read(_ item: FeedCardItem) async throws -> FollowRow? {
         switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).eventHost(item.id)
         case .offline: throw URLError(.notConnectedToInternet)
