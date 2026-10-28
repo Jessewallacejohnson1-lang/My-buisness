@@ -95,7 +95,8 @@ struct FeedEventCard: View {
     /// Where the host's picture is, for a Place's page to fly out of, and a tap already reading who
     /// the host is (follows 08).
     @State private var hostFrame = FrameBox()
-    @State private var openingHost = false
+    @State private var hostTapped = Date.distantPast
+    @State private var hostRead: Task<Void, Never>?
     @Environment(\.hostOpener) private var hostOpener
 
     init(
@@ -201,7 +202,10 @@ struct FeedEventCard: View {
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id, group: item.groupID) }
-        .onDisappear { actions.cardClosed(item.id, group: item.groupID) }
+        .onDisappear {
+            actions.cardClosed(item.id, group: item.groupID)
+            hostRead?.cancel()
+        }
         .task { await runDebugAutoplay() }
         .task { await openMenuForDebug() }
     }
@@ -221,7 +225,6 @@ struct FeedEventCard: View {
                 if hostOpener != nil {
                     Button(action: openHost) { hostLabel }
                         .buttonStyle(PressableStyle())
-                        .accessibilityHint("Opens its page")
                 } else {
                     hostLabel
                 }
@@ -250,24 +253,34 @@ struct FeedEventCard: View {
 
     /// The host's own page (follows 08): a game's school, the card's Group, else whatever
     /// `event_host` names; one with no page of its own opens the Event's, as the row did before.
+    /// Asking who the host is waits a second at most, then opens the Event; a card scrolled away
+    /// meanwhile opens nothing.
     private func openHost() {
-        guard let opener = hostOpener, !openingHost else { return }
+        guard let opener = hostOpener, Date().timeIntervalSince(hostTapped) > HostOpener.again else { return }
+        hostTapped = Date()
         if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
-            opener.pushTeam(team)
+            opener.push(team)
             return
         }
         if let id = item.groupID {
-            if let group = opener.group(id) { opener.pushGroup(group) } else { opener.pushEvent(item) }
+            if let group = opener.group(id) { opener.push(group) } else { opener.push(item) }
             return
         }
-        openingHost = true
         let picture = hostFrame.rect
-        Task {
-            defer { openingHost = false }
-            if let host = try? await EventHostRow.read(item), opener.opens(host) {
+        hostRead?.cancel()
+        hostRead = Task {
+            let reading = Task { try? await EventHostRow.read(item) }
+            let timeout = Task {
+                try? await Task.sleep(for: HostOpener.readWait)
+                reading.cancel()
+            }
+            let host = await reading.value
+            timeout.cancel()
+            guard !Task.isCancelled else { return }
+            if let host, opener.opens(host) {
                 opener.open(host, picture)
             } else {
-                opener.pushEvent(item)
+                opener.push(item)
             }
         }
     }

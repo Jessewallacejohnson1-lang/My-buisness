@@ -327,13 +327,18 @@ struct HostOpener {
     let opens: (FollowRow) -> Bool
     /// Pushes its page, or flies a Place's business page out of `picture` (its frame on screen).
     let open: (_ host: FollowRow, _ picture: CGRect) -> Void
-    /// A Group from Search's read, by id, and pushing it.
+    /// A Group from Search's read, by id.
     let group: (String) -> TownGroup?
-    let pushGroup: (TownGroup) -> Void
-    /// A local school's page, from a game card's host (hello-drop 03).
-    let pushTeam: (Game.Team) -> Void
-    /// The Event's own page: where a card's host goes when it has no page of its own.
-    let pushEvent: (FeedCardItem) -> Void
+    /// Pushes onto the shell's stack: a Group, a game's school, or the Event's own page, where a
+    /// card's host goes when it has no page of its own.
+    let push: (any Hashable) -> Void
+}
+
+extension HostOpener {
+    /// A second tap inside this many seconds is the same tap.
+    static let again: TimeInterval = 0.6
+    /// How long a card waits to hear who its host is before opening the Event instead.
+    static let readWait: Duration = .seconds(1)
 }
 
 extension EnvironmentValues {
@@ -353,6 +358,8 @@ struct EventHostRow: View {
     @Environment(\.hostOpener) private var opener
     @State private var host: FollowRow?
     @State private var picture = FrameBox()
+    /// The last open, so a quick second tap doesn't push the page twice.
+    @State private var openedAt = Date.distantPast
 
     static let picture: CGFloat = 44
     static let smallPicture: CGFloat = 32
@@ -388,7 +395,7 @@ struct EventHostRow: View {
                         .accessibilityElement(children: .combine)
                         // VoiceOver presses the row here; the button behind is for fingers.
                         .accessibilityAddTraits(opens ? .isButton : [])
-                        .accessibilityAction { if opens { opener?.open(host, picture.rect) } }
+                        .accessibilityAction { if opens { open(host) } }
                     }
                     .allowsHitTesting(false)
                     // A friend you follow reads Following; one you unfollowed can follow again here.
@@ -396,7 +403,7 @@ struct EventHostRow: View {
                 }
                 .background {
                     if opens {
-                        Button { opener?.open(host, picture.rect) } label: { Color.clear.contentShape(Rectangle()) }
+                        Button { open(host) } label: { Color.clear.contentShape(Rectangle()) }
                             .buttonStyle(RowPressStyle())
                             .accessibilityHidden(true)
                     }
@@ -412,6 +419,12 @@ struct EventHostRow: View {
             host = found
             await actions.refreshFollow(found.target)
         }
+    }
+
+    private func open(_ host: FollowRow) {
+        guard Date().timeIntervalSince(openedAt) > HostOpener.again else { return }
+        openedAt = Date()
+        opener?.open(host, picture.rect)
     }
 
     /// "Host", or a page's or board's own kind: "City government", "City of St. Joseph".

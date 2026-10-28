@@ -429,6 +429,8 @@ struct MainTabsView: View {
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
     /// over its tab.
     @State private var placeOpener = BusinessOpener()
+    /// Made once, so the cards it reaches don't redraw each time the shell does.
+    @State private var hostOpener: HostOpener?
     /// The map, presented full-screen from the map disc in the Town tab's Today bar
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
@@ -449,7 +451,7 @@ struct MainTabsView: View {
     /// What a host row opens (follows 08): a person's page, a team's, a page, a board's meetings, or
     /// a Place's business page flying out of its picture, as Search opens it; a Place Search can't
     /// open (no logo) opens nothing.
-    private var hostOpener: HostOpener {
+    private func makeHostOpener() -> HostOpener {
         HostOpener(
             opens: { row in
                 switch row.targetType {
@@ -475,9 +477,7 @@ struct MainTabsView: View {
                 }
             },
             group: { id in searchModel.groups.lazy.compactMap(\.townGroup).first { $0.id == id } },
-            pushGroup: { path.append($0) },
-            pushTeam: { path.append($0) },
-            pushEvent: { path.append($0) })
+            push: { path.append($0) })
     }
 
     /// A Place's page as Search has it; nil for one Search can't open.
@@ -538,7 +538,10 @@ struct MainTabsView: View {
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
         .overlay { BusinessPage().environment(placeOpener) }
-        .onAppear { placeOpener.reduceMotion = reduceMotion }
+        .onAppear {
+            placeOpener.reduceMotion = reduceMotion
+            if hostOpener == nil { hostOpener = makeHostOpener() }
+        }
         // Search's places, so a Place host opens its page from the first tap.
         .task { if !searchModel.placesLoaded { await searchModel.load() } }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
@@ -791,6 +794,8 @@ struct MainTabsView: View {
             // swipe back alive without it.
             NavigationStack {
                 ProfileView(saves: saves)
+                    // Its pages push in its own stack, which can't take a host's page.
+                    .environment(\.hostOpener, nil)
                     .toolbar(.hidden, for: .navigationBar)
                     .background { SwipeBack().frame(width: 0, height: 0) }
             }
@@ -810,6 +815,7 @@ struct MainTabsView: View {
         // fight each other for the same gesture.
         .fullScreenCover(isPresented: $showMap) {
             SJMapView(onClose: { showMap = false })
+                .environment(\.hostOpener, nil)
                 .environment(actions)
                 .environment(friendsBook)
         }
