@@ -20,8 +20,10 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
   done            after `morning.py write`: marks those runs read, so the next check starts after
                   them. A check that stopped early never marks, and the next reads its runs too.
                   It repeats the pictures line, so the answer carries what pictures cost.
-  spend           one line for the morning report, "Apify: $X of $19 this month", with a
-                  heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say)
+  spend           one line for the morning report, "Apify: $X of $25 this month", with a
+                  heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say).
+                  The cap is whatever Apify reports: $25 since Jesse raised it from $19 on
+                  2026-10-28.
 
 A post whose caption is short or gives no time of day also gets its pictures read (Jesse,
 2026-10-26): Obbink's trivia night on Oct 29 was on its picture alone, under a one-line caption
@@ -47,12 +49,10 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, io, json, math, os, re, shutil, sys, tempfile, time, urllib.error, urllib.request
+import argparse, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
-
-from PIL import Image, ImageOps
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
@@ -308,6 +308,7 @@ def picture_tokens(w, h):
 
 def fetch_picture(url, dest):
     """One picture to dest as a JPEG, its long side at most LONG_SIDE; its (w, h)."""
+    from PIL import Image, ImageOps  # here alone, so spend, done and setup run without Pillow
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read(15_000_000)
@@ -540,6 +541,7 @@ def selftest():
     check(post_pages("facebook", fb, by_url)[0][0]["pictures"] == [{"url": "https://fb/full.jpg", "about": "May be an image of text"}],
           "a Facebook post's full-size picture")
     with tempfile.TemporaryDirectory() as tmp:
+        from PIL import Image
         tmp = Path(tmp)
         Image.new("RGB", (2400, 3000), "white").save(tmp / "flyer.png")
         w, h = fetch_picture((tmp / "flyer.png").as_uri(), tmp / "out.jpg")
@@ -561,6 +563,10 @@ def selftest():
     check(pictures_line({"read": 0, "failed": []}) == "[social] pictures: none read", "a check with no pictures says so")
     check(spend_line(8.4, 19) == "Apify: $8.40 of $19 this month", "the plain spend line")
     check("Heads-up" in spend_line(15.2, 19) and "cap is reached" in spend_line(19, 19), "the heads-up and the cap")
+    blocked = ("import sys; sys.modules['PIL'] = None; import social; social.limits = lambda: "
+               "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; social.spend()")
+    r = subprocess.run([sys.executable, "-c", blocked], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
+    check(r.stdout == "Apify: $8.40 of $25 this month\n", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
     print(f"social.py selftest: {ok} passed, 0 failed")
 
 
