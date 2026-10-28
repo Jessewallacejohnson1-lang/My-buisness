@@ -193,8 +193,8 @@ extension HelloItem.Added {
             let hosted = newest.hostPicture.map { ($0.url, $0.kind == .photo) }
             let own = url(newest.image)
             let place = url(newest.place)
-            let picture = hosted ?? place.map { ($0, newest.place.map(isPhoto) ?? true) }
-                ?? own.map { ($0, true) }
+            let placeIsPhoto = if case .placeLogo = newest.place { false } else { true }
+            let picture = hosted ?? place.map { ($0, placeIsPhoto) } ?? own.map { ($0, true) }
             return HelloItem.Added(name: name, day: Town.day(now), eventId: newest.id, title: newest.title,
                                    eventDate: newest.eventDate, startTime: newest.startTime, count: group.count,
                                    picture: picture?.0, pictureIsPhoto: picture?.1 ?? true, photo: own)
@@ -207,10 +207,6 @@ extension HelloItem.Added {
         case .placeLogo(let picture): picture.url
         case .fallback, nil: nil
         }
-    }
-
-    private static func isPhoto(_ image: FeedCardImageSource) -> Bool {
-        if case .placeLogo = image { false } else { true }
     }
 }
 
