@@ -61,7 +61,7 @@ await db.exec(`
 await db.exec(realAccount);
 for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
                    ...read('_unfriend_and_block.sql'), ...read('_follow_places_and_people.sql'),
-                   ...read('_city_boards.sql'), ...read('_city_pages.sql')]) {
+                   ...read('_city_boards.sql'), ...read('_city_pages.sql'), ...read('_campus_pages.sql')]) {
   await db.exec(sql);
 }
 
@@ -105,7 +105,7 @@ const event = (title, source, days, o = {}) => db.query(
 
 test('the page loads with every function that makes what it reads', () => {
   const made = creating(migrations, ['public.town_page', 'public.board_meetings']);
-  assert.ok(made.at(-1).endsWith('_city_pages.sql'), 'the newest file making them is the one tested');
+  assert.ok(made.at(-1).endsWith('_campus_pages.sql'), 'the newest file making them is the one tested');
 });
 
 test('the City, Joetown and a board each round-trip as a follow, twice each way', async () => {
@@ -209,4 +209,20 @@ test('the Following list names pages and boards, and a meeting names its board, 
                                           kind: 'City of St. Joseph' });
   assert.deepEqual(await host(appeal), { target_type: 'page', target_id: CITY, name: 'City of St. Joseph',
                                          kind: 'City government' });
+});
+
+test("a campus calendar is a page: a follow round-trips, it lists its own Events, and its Event names it", async () => {
+  await reset();
+  const LIBRARIES = await page('csbsju-libraries');
+  assert.equal(await follow(ANA, 'page', LIBRARIES), true);
+  assert.equal((await card(BEN, 'page', LIBRARIES)).followers, 1);
+  const clinic = await event('Fix-It Clinic', 'CSB SJU Libraries', 2, { draw: 2, time: '3 PM' });
+  await event('Women in Politics', 'CSB SJU Campus Events', 2, { draw: 2 });
+  const read = (await as(CAL, `select public.town_page('st-joseph-mn', 'csbsju-libraries') as p`))[0].p;
+  assert.deepEqual([read.name, read.kind, read.picture_kind, read.picture_credit, read.events.map((e) => e.title), read.boards],
+                   ['CSB SJU Libraries', 'College', 'photo', 'csbsju.edu', ['Fix-It Clinic'], []]);
+  assert.deepEqual((await as(CAL, 'select public.town_page_by_id($1) as p', [LIBRARIES]))[0].p, read, 'by its id, the same');
+  assert.deepEqual(await as(CAL, 'select target_type, target_id, name from public.event_host($1)', [clinic]),
+                   [{ target_type: 'page', target_id: LIBRARIES, name: 'CSB SJU Libraries' }]);
+  assert.equal((await db.query(`select count(*)::int n from public.town_pages where kind = 'College'`)).rows[0].n, 5);
 });

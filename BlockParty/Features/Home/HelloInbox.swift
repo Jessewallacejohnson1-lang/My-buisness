@@ -1,9 +1,8 @@
 //
 //  HelloInbox.swift
 //  Block Party — the hello pill's memory (BP app docs/plans/hello-drop, ticket 05): each new
-//  thing it has to say (a contact who joined, a friend request accepted, a followed team's final,
-//  a first or a milestone),
-//  kept on the phone so the pill says it once, on an open, at most 3 pills a day and an hour
+//  thing it has to say (a contact who joined, a friend request accepted, an Event from something
+//  you follow, a followed team's final, a first or a milestone), kept on the phone so the pill says it once, on an open, at most 3 pills a day and an hour
 //  apart, and the bell's page lists it for 7 days. The day's lines (your event today, the counts,
 //  town news) are never items: the pill works them out each morning and the bell never shows them.
 //
@@ -25,6 +24,26 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case final(Final)
         /// A first or a milestone (hello-drop 02).
         case moment(HelloMoment)
+        /// New Events from something you follow, one item a day for each (hello-drop 07).
+        case added(Added)
+    }
+
+    /// "Clemens Library added an event": the newest of the day's, and how many.
+    struct Added: Codable, Hashable {
+        /// What you follow it's of, as the Town feed names it: in bold on the bell.
+        let name: String
+        /// The Town day it reached you, for its id: one item a day for each name.
+        let day: String
+        let eventId: String
+        let title: String
+        let eventDate: String?
+        let startTime: String?
+        var count: Int
+        /// The host's picture, else its place's, else the Event's, and whether it's a photo.
+        let picture: URL?
+        let pictureIsPhoto: Bool
+        /// The Event's own picture, the bell row's thumbnail.
+        let photo: URL?
     }
 
     /// A final as the pill says it.
@@ -64,10 +83,12 @@ struct HelloItem: Codable, Hashable, Identifiable {
         }
     }
 
-    /// The bell's round picture: their photo, the team's logo on white, or the green tick.
+    /// The bell's round picture: their photo, the team's logo on white, a place's photo, or the
+    /// green tick.
     enum Picture: Hashable {
         case photo(String?)
         case logo(URL?)
+        case place(URL?)
         case tick
     }
 
@@ -85,17 +106,28 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case .accepted(let person): "accepted:\(person.userId)"
         case .final(let final): "final:\(final.eventId)"
         case .moment(let moment): "moment:\(moment.rawValue)"
+        case .added(let added): "added:\(added.name):\(added.day)"
         }
     }
 
     /// Which the pill says first when two wait: firsts and milestones, finals, a request accepted,
-    /// then who joined. All but who joined take the morning's line from your own day (`start`).
+    /// who joined, then what you follow added.
     var rank: Int {
         switch what {
         case .moment: 0
         case .final: 1
         case .accepted: 2
         case .joined: 3
+        case .added: 4
+        }
+    }
+
+    /// On the morning open, it comes after your own day (your event today, your group, friends
+    /// going, tomorrow) rather than taking its line (`HelloDrop.message`).
+    var waitsForYourDay: Bool {
+        switch what {
+        case .joined, .added: true
+        case .moment, .final, .accepted: false
         }
     }
 
@@ -103,7 +135,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
     var person: Neighbor? {
         switch what {
         case .joined(let person), .accepted(let person): person
-        case .final, .moment: nil
+        case .final, .moment, .added: nil
         }
     }
 
@@ -116,11 +148,14 @@ struct HelloItem: Codable, Hashable, Identifiable {
             HelloDrop.Message(text: final.text, target: .town, logo: final.logo, tint: final.tint,
                               confetti: final.confetti)
         case .moment: nil
+        case .added(let added):
+            HelloDrop.Message(text: "\(added.name) added \(added.count == 1 ? "an event" : "\(added.count) events")",
+                              target: .eventID(added.eventId), logo: added.picture, photo: added.pictureIsPhoto)
         }
     }
 
     /// The bell's row: who in bold, what happened, and the picture beside them.
-    var row: (name: String, words: String, picture: Picture) {
+    func row(now: Date = Date()) -> (name: String, words: String, picture: Picture) {
         switch what {
         case .joined(let person):
             (person.displayName, "joined Block Party.", .photo(person.avatarUrl))
@@ -131,6 +166,52 @@ struct HelloItem: Codable, Hashable, Identifiable {
                           : final.text) + ".", .logo(final.logo))
         case .moment(let moment):
             ("You", moment.text.prefix(1).lowercased() + moment.text.dropFirst(), .tick)
+        case .added(let added):
+            (added.name, added.count == 1
+                ? "added an event: \(added.title)" + (added.when(now: now).map { ", \($0)" } ?? "") + "."
+                : "added \(added.count) events.",
+             added.pictureIsPhoto ? .place(added.picture) : .logo(added.picture))
+        }
+    }
+}
+
+extension HelloItem.Added {
+    /// The bell's short when (Jesse, 2026-10-28: "i want shorter"): "Tonight 7 PM", "Tomorrow 6 PM",
+    /// "Fri 6 PM" within the week, else the date alone, "Nov 20".
+    func when(now: Date) -> String? {
+        guard let when = EventWhen(date: eventDate, time: startTime, endAt: nil) else { return nil }
+        let days = Town.days(from: now, to: when.start)
+        guard days < 7 else { return Town.format(when.start, "MMMd") }
+        let day = when.dayWord(now) ?? Town.format(when.start, "EEE")
+        return EventWhen.minutes(startTime).map { "\(day) \(Town.clock(minutes: $0))" } ?? day
+    }
+
+    /// New cards on the Town feed: each of something you follow, grouped by what it's of, the
+    /// newest found first within.
+    static func found(_ cards: [FeedCardItem], now: Date) -> [HelloItem.Added] {
+        let fresh = cards.filter { !$0.cancelled && $0.followed != nil }
+        let byName = Dictionary(grouping: fresh) { $0.followed ?? "" }
+        return byName.keys.sorted().compactMap { name in
+            let group = (byName[name] ?? []).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            guard let newest = group.first else { return nil }
+            let hosted = newest.hostPicture.map { ($0.url, $0.kind == .photo) }
+            let own = url(newest.image)
+            let place = url(newest.place)
+            let placeIsPhoto = if case .placeLogo = newest.place { false } else { true }
+            let picture = hosted ?? place.map { ($0, placeIsPhoto) } ?? own.map { ($0, true) }
+            return HelloItem.Added(name: name, day: Town.day(now), eventId: newest.id, title: newest.title,
+                                   eventDate: newest.eventDate, startTime: newest.startTime, count: group.count,
+                                   picture: picture?.0, pictureIsPhoto: picture?.1 ?? true,
+                                   // Not the same picture on both sides of the bell's row.
+                                   photo: own == picture?.0 ? nil : own)
+        }
+    }
+
+    private static func url(_ image: FeedCardImageSource?) -> URL? {
+        switch image {
+        case .eventPhoto(let url), .placePhoto(let url, _, _): url
+        case .placeLogo(let picture): picture.url
+        case .fallback, nil: nil
         }
     }
 }
@@ -169,6 +250,8 @@ final class HelloInbox {
     private let keep: UserDefaults
     static let itemsKey = "helloDrop.inbox"
     static let pillsKey = "helloDrop.pills"
+    /// The Town feed's cards at the last look (hello-drop 07).
+    static let seenKey = "helloDrop.feedSeen"
 
     /// Read back from the phone, less any past 7 days.
     // ponytail: pruned at launch and on each find; an app left open a week keeps an old one till then.
@@ -226,12 +309,48 @@ final class HelloInbox {
         if changed { save() }
     }
 
-    /// Another account: the last one's acceptances go.
+    /// Another account: the last one's acceptances and followed Events go, and the feed is looked
+    /// at afresh.
     // ponytail: contacts who joined and finals stay the phone's, as the moments do.
-    func forgetAccepted() {
-        let before = items.count
-        items.removeAll { if case .accepted = $0.what { true } else { false } }
-        if items.count != before { save() }
+    func forgetAccount() {
+        items.removeAll {
+            switch $0.what {
+            case .accepted, .added: true
+            case .joined, .final, .moment: false
+            }
+        }
+        keep.removeObject(forKey: Self.seenKey)
+        save()
+    }
+
+    /// The Town feed's cards, as they land: a card of something you follow that wasn't on the feed
+    /// at the last look is new (hello-drop 07), however long ago it was found, so an Event posted a
+    /// month out is said the day it reaches the feed. The first look only notes the feed, so nothing
+    /// already there is said; DEBUG `-hello-seen-days N` takes the cards found in the last N days
+    /// as not yet seen.
+    func look(at cards: [FeedCardItem], now: Date = Date()) {
+        guard !cards.isEmpty else { return }
+        let stored = keep.stringArray(forKey: Self.seenKey)
+        var seen = Set(stored ?? [])
+        let debugSince = HelloDrop.debugSeen(now: now)
+        if let debugSince { seen.subtract(cards.filter { ($0.createdAt ?? .distantPast) > debugSince }.map(\.id)) }
+        // Only what's on the feed now, so the list stays the feed's size.
+        keep.set(cards.map(\.id), forKey: Self.seenKey)
+        guard stored != nil || debugSince != nil else { return }
+        for added in HelloItem.Added.found(cards.filter { !seen.contains($0.id) }, now: now) {
+            let id = HelloItem(what: .added(added), at: now).id
+            if let index = items.firstIndex(where: { $0.id == id }) {
+                // More the same day, not yet said: one item, the newest and the count added up.
+                // ponytail: once said, the rest of that day's are left for the feed to show.
+                guard !items[index].told, case .added(let earlier) = items[index].what else { continue }
+                var both = added
+                both.count += earlier.count
+                items[index] = HelloItem(what: .added(both), at: now)
+                save()
+            } else {
+                add(.added(added), at: now)
+            }
+        }
     }
 
     /// The pill said it; `false` when the app went away before it could be read.
@@ -278,6 +397,12 @@ final class HelloInbox {
         let kate = Neighbor(userId: "sample-kate", displayName: "Kate Moore", avatarUrl: nil, since: nil,
                             relation: .friends, mutualFriends: 0)
         items.insert(HelloItem(what: .accepted(kate), at: now - 3 * 86_400, told: true), at: 0)
+        let photo = Bundle.main.url(forResource: "bad-habit-brewing", withExtension: "jpg")
+        let friday = Town.day(Town.gregorian.date(byAdding: .day, value: 2, to: now) ?? now)
+        let pint = HelloItem.Added(name: "Bad Habit Brewing", day: Town.day(now), eventId: "sample-pint",
+                                   title: "Pint Night", eventDate: friday, startTime: "6 PM", count: 1,
+                                   picture: photo, pictureIsPhoto: true, photo: photo)
+        items.insert(HelloItem(what: .added(pint), at: now - 4 * 86_400, told: true), at: 0)
         return items
     }
     #endif

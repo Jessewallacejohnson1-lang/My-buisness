@@ -9,10 +9,10 @@ that fails is a line in the answer, and you carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 -c "import yaml, PIL" || python3 -m pip install --quiet pyyaml pillow`.
-   Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
-   `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their values
-   stay out of every command's output and your answer. Without them, stop and say so.
+1. **Ready the tools.** Run `python3 sources/scripts/ready.py photos`, and install nothing
+   any other way. It installs the libraries the scripts need and checks the keys by name; their
+   values stay out of every command's output and your answer. When its line says `not ready`,
+   stop and say so.
 2. **Check.** Run `python3 sources/scripts/place_photos.py check` in the foreground with a 600000 ms
    timeout, never in the background: ending your turn ends the run. It reads about 140 pages
    politely, about 6 minutes at a time, saving what it read; while it prints `… run check again`,

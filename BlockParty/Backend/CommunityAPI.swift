@@ -643,11 +643,18 @@ struct CommunityAPI {
         return try decode(data)
     }
 
-    /// The Town's own page or its City's (follows 04): who it is, its coming Events and, for the City,
-    /// its boards. nil when the Town has no such page.
+    /// The Town's own page or its City's (follows 04), or another by its id (a campus calendar's,
+    /// follows 08): who it is, its coming Events and, for the City, its boards. nil when there is no
+    /// such page.
     func townPage(_ kind: TownPageKind) async throws -> TownPageInfo? {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/town_page", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_town": Town.slug, "p_slug": kind.rawValue]))
+        let (data, _) = switch kind {
+        case .town, .city:
+            try await SupabaseHTTP.rest("rpc/town_page", method: "POST", accessToken: await readToken(),
+                                        body: try body(["p_town": Town.slug, "p_slug": kind == .town ? "town" : "city"]))
+        case .page(let id, _):
+            try await SupabaseHTTP.rest("rpc/town_page_by_id", method: "POST", accessToken: await readToken(),
+                                        body: try body(["p_id": id]))
+        }
         return try? decode(data)
     }
 

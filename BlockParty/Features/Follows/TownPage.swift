@@ -2,7 +2,9 @@
 //  TownPage.swift
 //  Block Party — the Town's two public pages, its own (Joetown) and its City's (BP app
 //  docs/plans/follows, ticket 04). Pushed from the Town bar's wordmark menu and Daily's Town logo.
-//  Apple's segmented switch at the top picks the other page without going back. Each page: its
+//  Apple's segmented switch at the top picks the other page without going back. Any other page (a
+//  campus calendar's, follows 08) opens from its host alone, with no switch, on the photo its read
+//  brings. Each page: its
 //  picture and name, "City government · 312 followers", the friends who follow it and Follow, then
 //  what's coming up. The City's then lists its boards, each with its next meeting and its own
 //  Follow; a row pushes that board's meetings.
@@ -14,13 +16,50 @@
 
 import SwiftUI
 
-/// Which of the Town's pages: its own, or its City's. The raw value is `town_pages.slug`.
-enum TownPageKind: String, CaseIterable, Hashable, Codable {
+/// Which page: the Town's own or its City's (`town_pages.slug`), or any other by its id, a campus
+/// calendar's (follows 08).
+enum TownPageKind: Hashable, Codable {
     case town, city
+    /// Another page, and its name until its read says it.
+    case page(id: String, name: String)
 
-    var name: String { self == .town ? Town.townPage : Town.cityPage }
+    /// The two the switch picks between.
+    static let switchable: [TownPageKind] = [.town, .city]
 
-    var photo: (name: String, credit: String) { self == .town ? Town.townPagePhoto : Town.cityPagePhoto }
+    /// "town" or "city"; nil for any other slug.
+    init?(slug: String) {
+        switch slug {
+        case "town": self = .town
+        case "city": self = .city
+        default: return nil
+        }
+    }
+
+    /// The page a host or Following row names: the Town's two by their names, any other by its id.
+    static func of(_ row: FollowRow) -> TownPageKind {
+        switch row.name {
+        case Town.townPage: .town
+        case Town.cityPage: .city
+        default: .page(id: row.targetId, name: row.name)
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .town: Town.townPage
+        case .city: Town.cityPage
+        case .page(_, let name): name
+        }
+    }
+
+    /// The Town's two pages' photos, in the app; another page's comes with its read.
+    var photo: (name: String, credit: String)? {
+        switch self {
+        case .town: Town.townPagePhoto
+        case .city: Town.cityPagePhoto
+        case .page: nil
+        }
+    }
 }
 
 /// One page as `town_page` reads it.
@@ -31,6 +70,9 @@ struct TownPageInfo: Decodable, Hashable {
     let kind: String
     let picture: String?
     let pictureKind: String?
+    /// Whose photo it is, for one from the web: "csbsju.edu" (follows 08). Optional, so a read from
+    /// before it still decodes.
+    var pictureCredit: String? = nil
     let events: [Event]
     /// A City's boards, A to Z; none for the Town's own page.
     let boards: [Board]
@@ -153,13 +195,19 @@ final class TownPageModel {
     static func sample(_ kind: TownPageKind) -> TownPageInfo {
         let day = { (ahead: Int) in Town.day(Date().addingTimeInterval(Double(ahead) * 86_400)) }
         let event = { (n: Int, title: String, ahead: Int, time: String) in
-            TownPageInfo.Event(id: "sample-\(kind.rawValue)-\(n)", title: title, date: day(ahead), time: time, location: nil)
+            TownPageInfo.Event(id: "sample-\(kind.name)-\(n)", title: title, date: day(ahead), time: time, location: nil)
         }
         let board = { (n: Int, name: String, ahead: Int?) in
             TownPageInfo.Board(id: "sample-board-\(n)", name: name, following: false,
                                next: ahead.map { .init(date: day($0), time: "18:00") })
         }
         switch kind {
+        case .page(let id, let name):
+            return TownPageInfo(id: id, name: name, kind: "College",
+                                picture: "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/csbsju-events/photo-774a7306de.webp",
+                                pictureKind: "photo", pictureCredit: "csbsju.edu",
+                                events: [event(1, "Fix-It Clinic", 1, "15:00"), event(2, "Bones & Brushes", 3, "17:00")],
+                                boards: [])
         case .town:
             return TownPageInfo(id: "sample-town", name: kind.name, kind: "Town events", picture: nil, pictureKind: "town",
                                 events: [event(1, "Shop Small Crawl", 3, "10:00"), event(2, "Winterwalk", 8, "17:00")],
@@ -207,7 +255,7 @@ struct TownPageView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                TownPagePhoto(kind: model.shown)
+                TownPagePhoto(kind: model.shown, page: model.page)
                 VStack(alignment: .leading, spacing: 0) {
                     TownPageHeader(model: model)
                         .padding(.top, TownPageMetric.headerTop)
@@ -245,9 +293,12 @@ struct TownPageView: View {
             Spacer(minLength: 0)
         }
         .overlay {
-            picker
-                .frame(maxWidth: TownPageMetric.switchWidth)
-                .padding(.horizontal, TownPageMetric.switchClear)
+            // The switch, between the Town's own two only.
+            if TownPageKind.switchable.contains(model.shown) {
+                picker
+                    .frame(maxWidth: TownPageMetric.switchWidth)
+                    .padding(.horizontal, TownPageMetric.switchClear)
+            }
         }
         .padding(.horizontal, Event.inset - (Event.tapBox - Event.button) / 2)
         .padding(.top, Event.buttonTop - (Event.tapBox - Event.button) / 2)
@@ -258,7 +309,7 @@ struct TownPageView: View {
 
     private var picker: some View {
         Picker("Page", selection: $model.shown) {
-            ForEach(TownPageKind.allCases, id: \.self) { Text($0.name).tag($0) }
+            ForEach(TownPageKind.switchable, id: \.self) { Text($0.name).tag($0) }
         }
         .pickerStyle(.segmented)
         .background(Hue.paper.opacity(0.94), in: Capsule())
@@ -267,9 +318,18 @@ struct TownPageView: View {
 }
 
 /// The page's photo, the Group page's size: it stretches when the page is pulled down, and its
-/// credit sits bottom left. Switching pages fades one into the other.
+/// credit sits bottom left. Switching pages fades one into the other. The Town's two are in the app;
+/// another page's is its read's.
 private struct TownPagePhoto: View {
     let kind: TownPageKind
+    let page: TownPageInfo?
+
+    private var url: URL? {
+        if let name = kind.photo?.name { return Bundle.main.url(forResource: name, withExtension: "jpg") }
+        return page?.picture.flatMap(URL.init(string:))
+    }
+
+    private var credit: String? { kind.photo?.credit ?? page?.pictureCredit }
 
     private typealias Event = FeedEventDetailDestination.Metric
 
@@ -278,7 +338,7 @@ private struct TownPagePhoto: View {
             .aspectRatio(GroupPage.Metric.heroAspect, contentMode: .fit)
             .overlay(alignment: .top) {
                 GeometryReader { proxy in
-                    if let url = Bundle.main.url(forResource: kind.photo.name, withExtension: "jpg") {
+                    if let url {
                         FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
                             .frame(width: proxy.size.width, height: proxy.size.height + Event.heroUnderlap)
                             .clipped()
@@ -292,7 +352,7 @@ private struct TownPagePhoto: View {
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
             }
             .overlay(alignment: .bottomLeading) {
-                PhotoCredit(names: [kind.photo.credit])
+                PhotoCredit(names: credit.map { [$0] } ?? [])
                     .padding(.leading, Event.inset - PhotoCredit.edgeInset)
                     .padding(.bottom, Event.counterBottom - PhotoCredit.edgeInset)
                     .id(kind)

@@ -125,7 +125,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
 from run import Supabase
-from discover import TOWNS
+from towns import TOWNS
 import registry
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}

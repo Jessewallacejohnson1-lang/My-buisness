@@ -36,7 +36,7 @@ final class HelloDropTests: XCTestCase {
                          groups: [TownGroup] = [], town towns: [DailyEvent] = [], news: [TownNews] = [],
                          joined: Neighbor? = nil) -> String? {
         HelloDrop.message(now: town(now), lastSeen: lastSeen.map(town), going: going,
-                          groups: groups, town: towns, news: news, joined: joined)?.text
+                          groups: groups, town: towns, news: news, waiting: joined.map(HelloDrop.joined))?.text
     }
 
     // MARK: The hello
@@ -234,9 +234,9 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(item.message?.target, .person(kate))
         XCTAssertEqual(item.message?.logo, URL(string: "https://x/kate.jpg"))
         XCTAssertEqual(item.message?.photo, true)
-        XCTAssertEqual(item.row.name, "Kate Moore")
-        XCTAssertEqual(item.row.words, "accepted your friend request.")
-        XCTAssertEqual(item.row.picture, .photo("https://x/kate.jpg"))
+        XCTAssertEqual(item.row().name, "Kate Moore")
+        XCTAssertEqual(item.row().words, "accepted your friend request.")
+        XCTAssertEqual(item.row().picture, .photo("https://x/kate.jpg"))
     }
 
     /// After a final, ahead of who joined.
@@ -262,33 +262,118 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(inbox.next?.id, "joined:sam")
         inbox.forget("sam")
         XCTAssertEqual(inbox.items.map(\.id), ["accepted:kate"])
-        inbox.forgetAccepted()
+        inbox.forgetAccount()
         XCTAssertTrue(inbox.items.isEmpty)
         // One accepted 9 days ago isn't new.
         inbox.add(.accepted(kate), at: town("2026-10-12 09:00"), now: now)
         XCTAssertTrue(inbox.items.isEmpty)
     }
 
+    // MARK: What you follow added (hello-drop 07)
+
+    private func card(_ id: String, followed: String?, found: String, day: String = "2026-10-23",
+                      cancelled: Bool = false) -> FeedCardItem {
+        var card = FeedCardItem(UpcomingEvent(id: id, title: "Board Game Night", eventDate: day, startTime: "6 PM",
+                                              location: nil, goingCount: 0, createdAt: ""))
+        card.followed = followed
+        card.createdAt = town(found)
+        card.cancelled = cancelled
+        return card
+    }
+
+    /// Only what you follow, not called off: one item a name, the newest found first.
+    func testNewEventsOfWhatYouFollowAreOneItemEach() {
+        let now = town("2026-10-21 09:00")
+        let cards = [card("a", followed: "Clemens Library", found: "2026-10-21 06:00"),
+                     card("b", followed: "Clemens Library", found: "2026-10-21 07:00"),
+                     card("c", followed: nil, found: "2026-10-21 07:00"),
+                     card("e", followed: "Bad Habit Brewing", found: "2026-10-21 08:00", cancelled: true)]
+        let found = HelloItem.Added.found(cards, now: now)
+        XCTAssertEqual(found.map(\.name), ["Clemens Library"])
+        XCTAssertEqual(found.first?.count, 2)
+        XCTAssertEqual(found.first?.eventId, "b", "the newest")
+        let item = HelloItem(what: .added(found[0]), at: now)
+        XCTAssertEqual(item.message?.text, "Clemens Library added 2 events")
+        XCTAssertEqual(item.message?.target, .eventID("b"))
+        XCTAssertEqual(item.row(now: now).words, "added 2 events.")
+        XCTAssertEqual(item.id, "added:Clemens Library:2026-10-21", "one item a day for each")
+        let one = HelloItem(what: .added(HelloItem.Added.found(Array(cards.prefix(1)), now: now)[0]), at: now)
+        XCTAssertEqual(one.message?.text, "Clemens Library added an event")
+        XCTAssertEqual(one.row(now: now).words, "added an event: Board Game Night, Fri 6 PM.")
+    }
+
+    /// The bell's when stays short: the day word, the weekday within the week, else the date.
+    func testTheAddedRowsWhenIsShort() {
+        let now = town("2026-10-21 09:00")
+        func when(_ day: String, _ time: String?) -> String? {
+            HelloItem.Added(name: "x", day: "", eventId: "", title: "", eventDate: day, startTime: time, count: 1,
+                            picture: nil, pictureIsPhoto: false, photo: nil).when(now: now)
+        }
+        XCTAssertEqual(when("2026-10-21", "7 PM"), "Tonight 7 PM")
+        XCTAssertEqual(when("2026-10-22", "6 PM"), "Tomorrow 6 PM")
+        XCTAssertEqual(when("2026-10-23", "6 PM"), "Fri 6 PM")
+        XCTAssertEqual(when("2026-10-24", nil), "Sat")
+        XCTAssertEqual(when("2026-11-20", "6 PM"), "Nov 20")
+    }
+
+    /// The first look only notes the feed. After it, a card that wasn't there is new, however long
+    /// ago it was found (one posted a month out reaches the feed two weeks before); more the same
+    /// day, not yet said, add up.
+    func testANewCardOnTheFeedIsNew() {
+        let (inbox, _) = inbox()
+        let old = card("a", followed: "Clemens Library", found: "2026-10-01 06:00")
+        inbox.look(at: [old], now: town("2026-10-21 09:00"))
+        XCTAssertNil(inbox.next)
+        inbox.look(at: [old, card("b", followed: "Clemens Library", found: "2026-10-02 06:00")], now: town("2026-10-21 10:00"))
+        XCTAssertEqual(inbox.next?.id, "added:Clemens Library:2026-10-21")
+        XCTAssertEqual(inbox.next?.at, town("2026-10-21 10:00"), "when it reached you")
+        inbox.look(at: [old, card("b", followed: "Clemens Library", found: "2026-10-02 06:00"),
+                        card("c", followed: "Clemens Library", found: "2026-10-21 11:00")], now: town("2026-10-21 11:30"))
+        XCTAssertEqual(inbox.items.count, 1)
+        guard case .added(let both) = inbox.next?.what else { return XCTFail("one item") }
+        XCTAssertEqual(both.count, 2)
+        XCTAssertEqual(both.eventId, "c")
+        inbox.forgetAccount()
+        XCTAssertNil(inbox.next)
+        inbox.look(at: [card("d", followed: "Clemens Library", found: "2026-10-21 12:00")], now: town("2026-10-21 12:30"))
+        XCTAssertNil(inbox.next, "another account looks afresh")
+    }
+
+    /// On the morning open it comes after your own day, as a contact who joined does.
+    func testWhatYouFollowAddedWaitsForYourDay() {
+        let added = HelloItem(what: .added(HelloItem.Added.found([card("a", followed: "Clemens Library",
+                                                                       found: "2026-10-21 06:00")],
+                                                                 now: town("2026-10-21 09:00"))[0]),
+                              at: town("2026-10-21 06:00"))
+        XCTAssertTrue(added.waitsForYourDay)
+        XCTAssertFalse(HelloItem(what: .accepted(kate), at: Date()).waitsForYourDay)
+        let rock = event("Rocktoberfest", "2026-10-21", "4 PM")
+        XCTAssertEqual(HelloDrop.message(now: town("2026-10-21 09:00"), lastSeen: nil, going: [rock], groups: [],
+                                         town: [], waiting: added.message)?.text, "Rocktoberfest is today at 4")
+        XCTAssertEqual(HelloDrop.message(now: town("2026-10-21 09:00"), lastSeen: nil, going: [], groups: [],
+                                         town: [], waiting: added.message)?.text, "Clemens Library added an event")
+    }
+
     /// Each kind as the pill and the bell say it.
     func testThePillAndTheBellSayEachKind() {
         let joined = HelloItem(what: .joined(sam), at: Date())
         XCTAssertEqual(joined.message?.text, "Sam joined Block Party")
-        XCTAssertEqual(joined.row.name, "Sam Rivera")
-        XCTAssertEqual(joined.row.words, "joined Block Party.")
-        XCTAssertEqual(joined.row.picture, .photo("https://x/sam.jpg"))
+        XCTAssertEqual(joined.row().name, "Sam Rivera")
+        XCTAssertEqual(joined.row().words, "joined Block Party.")
+        XCTAssertEqual(joined.row().picture, .photo("https://x/sam.jpg"))
         let score = HelloItem(what: .final(HelloItem.Final(TeamFinal.sample(won: true))!), at: Date())
         XCTAssertEqual(score.message?.text, "Johnnies beat Gusties 33–23")
         XCTAssertEqual(score.message?.tint, 0xBC0E33)
-        XCTAssertEqual(score.row.name, "Johnnies")
-        XCTAssertEqual(score.row.words, "beat Gusties 33–23.")
+        XCTAssertEqual(score.row().name, "Johnnies")
+        XCTAssertEqual(score.row().words, "beat Gusties 33–23.")
         XCTAssertEqual(HelloItem.Final(final([33, 23], mine: 0))?.teamPage?.id, "4f0b2c1e-0000-4000-8000-000000000001",
                        "a final opens its team's page")
         XCTAssertNil(HelloItem.Final(final([23, 33], mine: 1))?.teamPage, "a team from away has none")
         let first = HelloItem(what: .moment(.firstEvent), at: Date())
         XCTAssertNil(first.message, "drawn with its tick")
-        XCTAssertEqual(first.row.name, "You")
-        XCTAssertEqual(first.row.words, "attended your first event!")
-        XCTAssertEqual(first.row.picture, .tick)
+        XCTAssertEqual(first.row().name, "You")
+        XCTAssertEqual(first.row().words, "attended your first event!")
+        XCTAssertEqual(first.row().picture, .tick)
         XCTAssertNil(HelloItem.Final(final([1, 0], mine: 5)), "a final with no side of yours isn't kept")
     }
 

@@ -19,6 +19,8 @@ enum HelloDrop {
         case news(TownNews)
         /// A contact who just joined, or a friend who accepted: their page (hello-drop 04, 06).
         case person(Neighbor)
+        /// An Event by its id, from the Town feed's cards; Town when it has gone (hello-drop 07).
+        case eventID(String)
     }
 
     struct Message: Hashable {
@@ -108,11 +110,13 @@ enum HelloDrop {
     }
 
     /// The first true one, top down: your event today, your group meets today, friends going
-    /// today, your event tomorrow, a contact who joined, new since your last open, then today's,
-    /// the weekend's (Thu to Sun) and the week's count. nil when the Town has nothing coming this
-    /// week. `going` is your Going, `town` the Town feed's cards as the screen shows them.
+    /// today, your event tomorrow, the news waiting in the pill's memory that comes after your own
+    /// day (a contact who joined, what you follow added: `HelloItem.waitsForYourDay`), new since
+    /// your last open, then today's, the weekend's (Thu to Sun) and the week's count. nil when the
+    /// Town has nothing coming this week. `going` is your Going, `town` the Town feed's cards as
+    /// the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
-                        town: [DailyEvent], news: [TownNews] = [], joined: Neighbor? = nil) -> Message? {
+                        town: [DailyEvent], news: [TownNews] = [], waiting: Message? = nil) -> Message? {
         let calendar = Town.gregorian
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
@@ -143,7 +147,7 @@ enum HelloDrop {
         if let event = mine.filter({ Town.day($0.starts) == tomorrow }).min(by: { $0.starts < $1.starts }) {
             return Message(text: "\(event.item.title) is tomorrow", target: .event(event.item))
         }
-        if let joined { return Self.joined(joined) }
+        if let waiting { return waiting }
         // The town's top news for you, new since your last open, in the feed's own order.
         if let lastSeen, let post = news.first(where: { ($0.published ?? .distantPast) > lastSeen }) {
             // The picture says who posted it, so the words stand alone beside it (Jesse, 2026-10-23).
@@ -198,6 +202,18 @@ enum HelloDrop {
         #else
         return true
         #endif
+    }
+
+    /// DEBUG `-hello-seen-days N`: N days before `now`, as if the last open was then; nil without it.
+    static func debugSeen(now: Date) -> Date? {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let flag = arguments.firstIndex(of: "-hello-seen-days"), flag + 1 < arguments.count,
+           let days = Double(arguments[flag + 1]) {
+            return now.addingTimeInterval(-days * 86_400)
+        }
+        #endif
+        return nil
     }
 
     static var forced: Bool {
@@ -262,7 +278,7 @@ struct HelloDropView: View {
     let prepare: @MainActor () async -> Void
     /// Whether the Going and the Town feed are in.
     let ready: @MainActor () -> Bool
-    let message: @MainActor (_ lastSeen: Date?, _ joined: Neighbor?) -> HelloDrop.Message?
+    let message: @MainActor (_ lastSeen: Date?, _ waiting: HelloDrop.Message?) -> HelloDrop.Message?
     let open: @MainActor (HelloDrop.Target) -> Void
     /// Events attended (hello-drop 02), read on each open; nil when the read failed.
     let attended: @MainActor () async -> Int?
@@ -485,15 +501,9 @@ struct HelloDropView: View {
               HelloDrop.forced || (shownDay != today && inbox.mayDrop(now: now)) else { return false }
         shownDay = today
         if !HelloDrop.forced { inbox.dropped(now: now) }
-        var seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
-        #if DEBUG
-        // `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
-        let arguments = ProcessInfo.processInfo.arguments
-        if let flag = arguments.firstIndex(of: "-hello-seen-days"), flag + 1 < arguments.count,
-           let days = Double(arguments[flag + 1]) {
-            seen = Date().addingTimeInterval(-days * 86_400)
-        }
-        #endif
+        // DEBUG `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
+        let seen = HelloDrop.debugSeen(now: now)
+            ?? (lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil)
         let greeting = HelloDrop.hello(name: YouPage.firstName(Interests.displayName), now: Date(),
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key
@@ -528,20 +538,20 @@ struct HelloDropView: View {
                 waited += 1
             }
             guard !Task.isCancelled else { return }
-            // A first, a milestone or a final waiting takes the day's line (hello-drop 02, 03); a
-            // contact who joined comes after your own day (`HelloDrop.message`).
+            // A first, a milestone, a final or an acceptance waiting takes the day's line (hello-drop
+            // 02, 03, 06); a contact who joined or what you follow added comes after your own day.
             let waiting = inbox.next
-            var joined: Neighbor?
+            var after: HelloDrop.Message?
             if let waiting {
-                if case .joined(let person) = waiting.what {
-                    joined = person
+                if waiting.waitsForYourDay {
+                    after = waiting.message
                 } else {
                     await say(waiting, fromHello: true)
                     return
                 }
             }
-            guard let message = message(seen, joined) else { dismiss(); return }
-            if case .person = message.target, let waiting {
+            guard let message = message(seen, after) else { dismiss(); return }
+            if let waiting, message == after {
                 saying = waiting.id
                 inbox.tell(waiting.id)
             }

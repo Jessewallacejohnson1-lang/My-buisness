@@ -12,10 +12,10 @@ carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 -c "import yaml, PIL" || python3 -m pip install --quiet pyyaml pillow`.
-   Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
-   `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their
-   values stay out of every command's output and your answer. Without them, stop and say so.
+1. **Ready the tools.** Run `python3 sources/scripts/ready.py social`, and install nothing
+   any other way. It installs the libraries the scripts need and checks the keys by name; their
+   values stay out of every command's output and your answer. When its line says `not ready`,
+   stop and say so.
    Apify's key is the environment's network secret for `api.apify.com`, which the session never
    sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused
    the request means the secret is missing or wrong: stop and say so.

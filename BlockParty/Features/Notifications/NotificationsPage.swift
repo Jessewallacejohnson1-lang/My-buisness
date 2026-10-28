@@ -18,6 +18,8 @@ nonisolated enum NoticeMetric {
     static let face: CGFloat = 44
     /// A team's logo inside its 44 pt white disc, as the mock's 5 pt inset (hello-drop 05).
     static let logo: CGFloat = 34
+    /// An added Event's thumbnail corners, as Instagram's post thumbnail (hello-drop 07).
+    static let thumbRadius: CGFloat = 6
     static let gap: CGFloat = 12
     static let rowPad: CGFloat = 8
     static let sectionTop: CGFloat = 18
@@ -34,6 +36,8 @@ struct NoticeEventRoute: Hashable {
 
 struct NotificationsPage: View {
     @Environment(Notices.self) private var notices
+    /// For an Event from something you follow: its card, while the feed has it (hello-drop 07).
+    @Environment(TownFeed.self) private var townFeed
     private let inbox = HelloInbox.shared
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
@@ -64,7 +68,11 @@ struct NotificationsPage: View {
                         ForEach(section.rows) { row in
                             switch row {
                             case .change(let notice): NoticeRow(notice: notice, now: now)
-                            case .item(let item): HelloItemRow(item: item, now: now)
+                            case .item(let item):
+                                HelloItemRow(item: item, now: now, card: {
+                                    guard case .added(let added) = item.what else { return nil }
+                                    return townFeed.cards.first { $0.id == added.eventId }
+                                }())
                             }
                         }
                     }
@@ -140,9 +148,11 @@ private struct NoticeRow: View {
 private struct HelloItemRow: View {
     let item: HelloItem
     let now: Date
+    /// The Event an added row opens, while the Town feed has it.
+    var card: FeedCardItem?
 
     var body: some View {
-        let row = item.row
+        let row = item.row(now: now)
         let words = HStack(spacing: NoticeMetric.gap) {
             HelloItemFace(picture: row.picture, name: row.name)
             Text("\(Text(row.name).font(.sansSemibold(15))) \(row.words) \(Text(PostingCard.relativeLabel(for: item.at, now: now)).foregroundStyle(Hue.inkSecondary))")
@@ -150,6 +160,14 @@ private struct HelloItemRow: View {
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            // Instagram's post thumbnail at the right: the Event's own picture.
+            // Shown only while it opens its Event, so the thumbnail never sits on a dead row.
+            if case .added(let added) = item.what, let photo = added.photo, card != nil {
+                FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                    .frame(width: NoticeMetric.face, height: NoticeMetric.face)
+                    .clipShape(RoundedRectangle(cornerRadius: NoticeMetric.thumbRadius, style: .continuous))
+                    .accessibilityHidden(true)
+            }
         }
         switch item.what {
         case .joined(let person):
@@ -179,6 +197,13 @@ private struct HelloItemRow: View {
             }
         case .moment:
             padded(words).accessibilityElement(children: .combine)
+        case .added:
+            if let card {
+                NavigationLink(value: NoticeEventRoute(item: card)) { padded(words).contentShape(Rectangle()) }
+                    .buttonStyle(RowPressStyle())
+            } else {
+                padded(words).accessibilityElement(children: .combine)
+            }
         }
     }
 
@@ -204,6 +229,8 @@ private struct HelloItemFace: View {
                 .frame(width: NoticeMetric.face, height: NoticeMetric.face)
                 .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring))
                 .accessibilityHidden(true)
+        case .place(let url):
+            NoticeFace(url: url)
         case .tick:
             // The pill's own tick, finished, at the row's 44 pt.
             HelloTick(stage: 3)

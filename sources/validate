@@ -1,6 +1,10 @@
 #!/bin/sh
-# Validate every sources/*.md: yaml parses, ids unique, required keys, enums valid.
+# Validate every sources/*.md: yaml parses, ids unique, required keys, enums valid, and every
+# town in the registry has its settings file, sources/towns/<town>.yaml.
 # Exit non-zero on any error. Run after every registry edit (ADR-007).
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec python3 "$here/scripts/validate.py" "$(dirname -- "$here")"
+status=0
+python3 "$here/scripts/validate.py" "$(dirname -- "$here")" || status=1
+python3 "$here/scripts/towns.py" --check "$(dirname -- "$here")" || status=1
+exit $status
