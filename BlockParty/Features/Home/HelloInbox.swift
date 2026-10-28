@@ -1,7 +1,8 @@
 //
 //  HelloInbox.swift
 //  Block Party — the hello pill's memory (BP app docs/plans/hello-drop, ticket 05): each new
-//  thing it has to say (a contact who joined, a followed team's final, a first or a milestone),
+//  thing it has to say (a contact who joined, a friend request accepted, a followed team's final,
+//  a first or a milestone),
 //  kept on the phone so the pill says it once, on an open, at most 3 pills a day and an hour
 //  apart, and the bell's page lists it for 7 days. The day's lines (your event today, the counts,
 //  town news) are never items: the pill works them out each morning and the bell never shows them.
@@ -18,6 +19,8 @@ struct HelloItem: Codable, Hashable, Identifiable {
         // ponytail: their relation is the one read then; a friend made since shows Add friend
         // on the row until their page is opened.
         case joined(Neighbor)
+        /// A friend request you sent, accepted (hello-drop 06).
+        case accepted(Neighbor)
         /// A followed team's final (hello-drop 03).
         case final(Final)
         /// A first or a milestone (hello-drop 02).
@@ -79,17 +82,28 @@ struct HelloItem: Codable, Hashable, Identifiable {
     var id: String {
         switch what {
         case .joined(let person): "joined:\(person.userId)"
+        case .accepted(let person): "accepted:\(person.userId)"
         case .final(let final): "final:\(final.eventId)"
         case .moment(let moment): "moment:\(moment.rawValue)"
         }
     }
 
-    /// Which the pill says first when two wait: firsts and milestones, finals, then who joined.
+    /// Which the pill says first when two wait: firsts and milestones, finals, a request accepted,
+    /// then who joined. All but who joined take the morning's line from your own day (`start`).
     var rank: Int {
         switch what {
         case .moment: 0
         case .final: 1
-        case .joined: 2
+        case .accepted: 2
+        case .joined: 3
+        }
+    }
+
+    /// The neighbour it's about, for a block or an account change.
+    var person: Neighbor? {
+        switch what {
+        case .joined(let person), .accepted(let person): person
+        case .final, .moment: nil
         }
     }
 
@@ -97,6 +111,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
     var message: HelloDrop.Message? {
         switch what {
         case .joined(let person): HelloDrop.joined(person)
+        case .accepted(let person): HelloDrop.accepted(person)
         case .final(let final):
             HelloDrop.Message(text: final.text, target: .town, logo: final.logo, tint: final.tint,
                               confetti: final.confetti)
@@ -109,6 +124,8 @@ struct HelloItem: Codable, Hashable, Identifiable {
         switch what {
         case .joined(let person):
             (person.displayName, "joined Block Party.", .photo(person.avatarUrl))
+        case .accepted(let person):
+            (person.displayName, "accepted your friend request.", .photo(person.avatarUrl))
         case .final(let final):
             (final.team, (final.text.hasPrefix(final.team + " ") ? String(final.text.dropFirst(final.team.count + 1))
                           : final.text) + ".", .logo(final.logo))
@@ -190,6 +207,33 @@ final class HelloInbox {
         items.filter { Town.days(from: $0.at, to: now) < Self.days }.reversed()
     }
 
+    /// Someone blocked: nothing about them stays (FriendsBook: a block leaves every list at once).
+    func forget(_ userId: String) {
+        let before = items.count
+        items.removeAll { $0.person?.userId == userId }
+        if items.count != before { save() }
+    }
+
+    /// The Friends page showed these acceptances: the pill never says them after.
+    func tellAccepted(_ userIds: Set<String>) {
+        var changed = false
+        for index in items.indices where !items[index].told {
+            if case .accepted(let person) = items[index].what, userIds.contains(person.userId) {
+                items[index].told = true
+                changed = true
+            }
+        }
+        if changed { save() }
+    }
+
+    /// Another account: the last one's acceptances go.
+    // ponytail: contacts who joined and finals stay the phone's, as the moments do.
+    func forgetAccepted() {
+        let before = items.count
+        items.removeAll { if case .accepted = $0.what { true } else { false } }
+        if items.count != before { save() }
+    }
+
     /// The pill said it; `false` when the app went away before it could be read.
     func tell(_ id: String, _ told: Bool = true) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
@@ -231,6 +275,9 @@ final class HelloInbox {
             items.append(HelloItem(what: .final(final), at: now - 5 * 3600, told: true))
         }
         items.append(HelloItem(what: .joined(sam), at: now - 2 * 3600))
+        let kate = Neighbor(userId: "sample-kate", displayName: "Kate Moore", avatarUrl: nil, since: nil,
+                            relation: .friends, mutualFriends: 0)
+        items.insert(HelloItem(what: .accepted(kate), at: now - 3 * 86_400, told: true), at: 0)
         return items
     }
     #endif

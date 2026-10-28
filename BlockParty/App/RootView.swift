@@ -553,7 +553,12 @@ struct MainTabsView: View {
                 open: openHello,
                 attended: Self.attendedCount,
                 finals: Self.teamFinals,
-                joined: { await ContactsMatch.joined(since: $0) }
+                joined: { await ContactsMatch.joined(since: $0) },
+                // The Friends page's own read, so someone you blocked is never said (hello-drop 06).
+                accepted: {
+                    await friendsBook.refresh()
+                    return friendsBook.loaded && !friendsBook.failed ? friendsBook.accepted : nil
+                }
             )
             .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
@@ -579,7 +584,10 @@ struct MainTabsView: View {
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
-        .onChange(of: auth.userId) { old, _ in
+        .onChange(of: auth.userId) { old, new in
+            // Another account, not the launch's saved one coming in: the last one's acceptances
+            // leave the hello pill and the bell (hello-drop 06).
+            if let old, old != new { HelloInbox.shared.forgetAccepted() }
             // Animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
             // Views made before the first quiet account go up under it; another

@@ -17,7 +17,7 @@ enum HelloDrop {
         case town
         /// A town news post, in Instagram or Facebook (hello-drop 03).
         case news(TownNews)
-        /// A contact who just joined: their page (hello-drop 04).
+        /// A contact who just joined, or a friend who accepted: their page (hello-drop 04, 06).
         case person(Neighbor)
     }
 
@@ -36,6 +36,12 @@ enum HelloDrop {
     /// A contact who joined, as the pill says it: their photo round at the left, when they have one.
     static func joined(_ person: Neighbor) -> Message {
         Message(text: "\(person.firstName) joined Block Party", target: .person(person),
+                logo: person.avatarUrl.flatMap(URL.init(string:)), photo: true)
+    }
+
+    /// A friend request you sent, accepted, as the pill says it: their photo round at the left.
+    static func accepted(_ person: Neighbor) -> Message {
+        Message(text: "\(person.firstName) accepted your friend request", target: .person(person),
                 logo: person.avatarUrl.flatMap(URL.init(string:)), photo: true)
     }
 
@@ -265,6 +271,9 @@ struct HelloDropView: View {
     let finals: @MainActor (_ since: Date) async -> [TeamFinal]?
     /// Contacts who joined since a time, newest first (hello-drop 04); nil when it can't check.
     let joined: @MainActor (_ since: Date) async -> [Neighbor]?
+    /// Friend requests you sent that were accepted since your last Friends page visit
+    /// (hello-drop 06); nil when it can't read.
+    let accepted: @MainActor () async -> [Neighbor]?
 
     private enum Step { case hidden, hello, message }
 
@@ -278,10 +287,11 @@ struct HelloDropView: View {
     @State private var tick = 0
     @State private var confetti = 0
     @State private var attendedAt = Date.distantPast
+    @State private var acceptedAt = Date.distantPast
     /// A final's confetti colours (empty: BP's).
     @State private var confettiColors: [UInt32] = []
     @AppStorage("helloDrop.finalsSince") private var finalsSince: Double = 0
-    /// The day's first open's reads are back: attended, finals and contacts.
+    /// The day's first open's reads are back: attended, finals, acceptances and contacts.
     @State private var readsIn = false
     /// Contacts joining after this are said: the first check's time, so nobody already here is.
     @AppStorage("helloDrop.joinedSince") private var joinedSince: Double = 0
@@ -491,12 +501,13 @@ struct HelloDropView: View {
         readsIn = false
         run = Task {
             Task { await prepare() }
-            // All three at once, so a final or a first found this morning makes this pill.
+            // All at once, so a final, a first or an acceptance found this morning makes this pill.
             Task {
                 async let attended: Void = checkAttended()
                 async let finals: Void = checkFinals()
+                async let accepted: Void = checkAccepted()
                 async let joined: Void = checkJoined()
-                _ = await (attended, finals, joined)
+                _ = await (attended, finals, accepted, joined)
                 readsIn = true
             }
             // DEBUG `-hello-drop` waits 8 s, so a recording that starts after launch (eyes.py
@@ -547,6 +558,7 @@ struct HelloDropView: View {
         dropNext()
         await checkAttended()
         await checkFinals()
+        await checkAccepted()
     }
 
     /// Something waiting, on a later open, once it's found, or once a pill goes back up: the pill
@@ -599,6 +611,19 @@ struct HelloDropView: View {
         guard let read = await finals(since) else { return }
         finalsSince = started.timeIntervalSince1970
         for final in read { if let said = HelloItem.Final(final) { inbox.add(.final(said)) } }
+    }
+
+    /// Friend requests you sent that were accepted, into the pill's memory at when they were, at
+    /// most every 30 s: the read is the whole Friends page.
+    private func checkAccepted() async {
+        guard HelloDrop.allowed, Date().timeIntervalSince(acceptedAt) > 30 else { return }
+        // Stamped only once a read came back, so one before the saved login is in tries again.
+        guard let read = await accepted() else { return }
+        let now = Date()
+        acceptedAt = now
+        for person in read {
+            inbox.add(.accepted(person), at: DateHelpers.timestamp(person.friendsSince) ?? now, now: now)
+        }
     }
 
     /// Today's check of who in your contacts joined this past week, into the pill's memory, newest
