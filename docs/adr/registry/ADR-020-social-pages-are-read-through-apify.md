@@ -8,10 +8,12 @@ downloaded from Facebook's image server right after the Apify read, under this s
 exception. Posts, their photos and their words still wait for the place's yes.
 **Amended 2026-10-22 (Jesse, in a grilling session on how often to read social pages):**
 - **Budget.** Jesse is on Apify's $19-a-month plan, so "free monthly credit only, never
-  upgraded" below no longer holds: the budget is that plan's $19 cap. Scheduled checks run
-  on their own within it. One-off jobs (a Google Maps pass, logo fetches) still show their
-  price first. Each morning report carries one line ("Apify: $X of $19"), with a heads-up at
-  $15 and at $19. There is no automatic slowdown; Jesse decides what to change.
+  upgraded" below no longer holds: the budget is the monthly cap set in Apify, whatever
+  `social.py spend` reports. It was the plan's $19; Jesse raised it to $25 on 2026-10-28 (the
+  plan's $19 of credit stays, so up to $6 is overage). Scheduled checks run on their own within
+  it. One-off jobs (a Google Maps pass, logo fetches) still show their price first. Each morning
+  report carries one line ("Apify: $X of $25"), with a heads-up at $15 and at the cap. There is
+  no automatic slowdown; Jesse decides what to change.
 - **What a check costs, measured 2026-10-22.** The posts scrapers bill every page they
   check, new posts or not: a page with nothing new still writes a `no_items` or
   `not_available` row, billed as a post. That is about 0.5¢ per Facebook page and 0.23¢ per

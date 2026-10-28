@@ -68,7 +68,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from run import fetch, read_page, to_text
-from discover import TOWNS
+from towns import TOWNS
 
 DAYS_AHEAD = 90
 LOCAL = ZoneInfo("America/Chicago")

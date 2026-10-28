@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
 const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
-  'private.going_count', 'private.heart_count']);
+  'private.going_count', 'private.heart_count', 'public.event_picture', 'private.event_subject', 'private.season_of']);
 // Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
 // shown, as they are now: each function alone, its newest definition in any migration.
 const cut = (fn) => readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()
@@ -50,7 +50,7 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz, place_entry_id text, description text);
+    cancelled_at timestamptz, place_entry_id text, description text, sport text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -345,6 +345,28 @@ test('a friend who leaves drops off on the next read', async () => {
   assert.equal((await friendsOn(day))[0].friends_going.length, 1);
   await db.query('delete from public.event_rsvps where user_id = $1', [FRIEND]);
   assert.deepEqual((await friendsOn(day))[0].friends_going, []);
+});
+
+test('your saves carry friends Going too, never a stranger or a friend hiding plans (friends-on-event-page)', async () => {
+  await reset();
+  const day = soon();
+  const quiz = await add('Quiz night', day);
+  const fair = await add('Craft fair', day);
+  const HIDING = '00000000-0000-0000-0000-0000000000c2';
+  await db.query('insert into auth.users (id) values ($1), ($2), ($3)', [FRIEND, HIDING, NEIGHBOUR]);
+  await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url, plans_to_friends)
+                  values ($1, 'Anna Lee', $2, true), ($3, 'Hal Moe', null, false), ($4, 'Ned Nu', null, true)`,
+                 [FRIEND, FRIEND_PHOTO, HIDING, NEIGHBOUR]);
+  await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1), ($1, $3, $1)',
+                 [ME, FRIEND, HIDING]);
+  await save(ME, quiz);
+  await save(ME, fair);
+  for (const who of [FRIEND, HIDING, NEIGHBOUR]) await going(who, quiz);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const { rows } = await db.query(`select title, friends_going from public.get_my_saves($1::date)`, [day]);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.friends_going]),
+                   [['Craft fair', []], ['Quiz night', [{ name: 'Anna', photo: FRIEND_PHOTO }]]]);
 });
 
 test('your Going and your saves carry each event\'s description', async () => {

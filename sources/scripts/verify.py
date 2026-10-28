@@ -46,9 +46,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from discover import (RUNS, TOWNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
+from discover import (RUNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
                       match_key, norm, phone_key, street_key, _names_overlap)
 from registry import find_root, load
+from towns import TOWNS
 
 TYPES = ["Business", "Community group", "Church", "School / college", "Government",
          "Park / historic"]
@@ -261,7 +262,7 @@ def main():
         selftest()
 
     if args.town not in TOWNS:
-        sys.exit(f"no discovery config for town {args.town!r}: add its block to TOWNS in discover.py")
+        sys.exit(f"no discovery config for town {args.town!r}: add sources/towns/{args.town}.yaml")
     town = dict(TOWNS[args.town], id=args.town)
     root = find_root(args.root)
     work = RUNS / "verify" / args.town

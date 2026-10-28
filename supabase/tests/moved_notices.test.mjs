@@ -62,6 +62,11 @@ await db.exec(`set check_function_bodies = off`);
 await db.exec(one('_activity_follow_lift.sql'));
 await db.exec(`reset check_function_bodies`);
 await db.exec(one('_moved_notices.sql'));
+// Friends Going on each changed Event (friends-on-event-page), from the Town feed's helper as a
+// stand-in naming one friend on every Event it's asked about: who may be named is my_going's stories.
+await db.exec(`create function private.friends_going(p uuid[]) returns table (event_id uuid, friends int, people jsonb)
+  language sql stable as $$ select x, 1, '[{"name": "Anna", "photo": null}]'::jsonb from unnest(p) x $$`);
+await db.exec(one('_my_changes_friends.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
 const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
@@ -170,4 +175,16 @@ test('a whole school followed covers its activities, named with the sport', asyn
   const [row] = await mine(OTHER);
   assert.equal(row.id, id);
   assert.match(row.followed, /^Apollo .*Football/);
+});
+
+test('a changed Event carries the friends Going, for its Event page (friends-on-event-page)', async () => {
+  await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps`);
+  const id = await game();
+  await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [id, ME]);
+  await edit(id, `start_time = '9 PM'`);
+  const [row] = await mine();
+  assert.equal(row.id, id);
+  assert.deepEqual(row.friends_going, [{ name: 'Anna', photo: null }]);
+  assert.equal((await db.query(`select has_function_privilege('anon', 'public.get_my_changes(timestamptz)', 'execute') as can`)).rows[0].can,
+    false, 'still signed in only');
 });

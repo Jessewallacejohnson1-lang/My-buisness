@@ -50,12 +50,12 @@ for p in sorted(here.glob("*.py")):
             continue
         missing += [f"{p}:{node.lineno} imports {n}" for n in names if n.split(".")[0] not in known]
 if missing:
-    sys.exit("Add each to sources/scripts/ci-packages.txt with its Ubuntu package (GitHub's runner "
-             "lacks it):\n  " + "\n  ".join(missing))
+    sys.exit("Add each to sources/scripts/ci-packages.txt with its Ubuntu package and pip name "
+             "(GitHub's runner lacks it):\n  " + "\n  ".join(missing))
 EOF
             sh sources/validate
             python3 sources/scripts/test_census.py
-            for s in accounts batch check_flags composio find_calendars morning place_photos read_events run social verify write_judged; do
+            for s in accounts batch check_flags composio find_calendars morning place_photos read_events ready run social verify write_judged; do
                 python3 "sources/scripts/$s.py" --selftest
             done
             ;;

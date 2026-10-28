@@ -433,6 +433,11 @@ struct MainTabsView: View {
     @State private var friendsModel = FriendsModel()
     /// The shell stack's path, so the Town bar's friends mark can push the Friends page.
     @State private var path = NavigationPath()
+    /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
+    /// over its tab.
+    @State private var placeOpener = BusinessOpener()
+    /// Made once, so the cards it reaches don't redraw each time the shell does.
+    @State private var hostOpener: HostOpener?
     /// The map, presented full-screen from the map disc in the Town tab's Today bar
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
@@ -449,6 +454,43 @@ struct MainTabsView: View {
     /// profile read, and a failed refresh keeps the last good photo.
     @StateObject private var avatar = TodayHeaderProfileModel(auth: .shared)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// What a host row opens (follows 08): a person's page, a team's, a page, a board's meetings, or
+    /// a Place's business page flying out of its picture, as Search opens it; a Place Search can't
+    /// open (no logo) opens nothing.
+    private func makeHostOpener() -> HostOpener {
+        HostOpener(
+            opens: { row in
+                switch row.targetType {
+                case .profile, .team, .page, .board: true
+                case .place: placeItem(row) != nil
+                default: false
+                }
+            },
+            open: { row, picture in
+                switch row.targetType {
+                case .profile: path.append(FollowedPersonRoute(row: row))
+                case .team: path.append(Game.Team(followed: row))
+                case .page: path.append(TownPageKind.of(row))
+                case .board:
+                    path.append(TownBoardRoute(board: .init(id: row.targetId, name: row.name,
+                                                            following: actions.follow(row.target).isFollowing, next: nil),
+                                               city: row.kind ?? Town.cityPage))
+                case .place:
+                    guard let item = placeItem(row), let logo = item.logo else { return }
+                    placeOpener.open(item, from: .init(logo: picture, box: picture, radius: picture.width / 2,
+                                                       shadow: logo.shadow, fades: row.pictureKind != "logo"))
+                default: break
+                }
+            },
+            group: { id in searchModel.groups.lazy.compactMap(\.townGroup).first { $0.id == id } },
+            push: { path.append($0) })
+    }
+
+    /// A Place's page as Search has it; nil for one Search can't open.
+    private func placeItem(_ row: FollowRow) -> SearchItem? {
+        searchModel.items.first { $0.placeID == row.targetId && $0.opens }
+    }
 
     /// One stack over the whole shell, so a pushed event page covers the tab bar
     /// and the edge swipe brings the town back under the finger. The shell draws
@@ -492,12 +534,23 @@ struct MainTabsView: View {
                 // Town logo, and a board's, from its row (follows 04).
                 .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0) }
                 .navigationDestination(for: TownBoardRoute.self) { TownBoardPage(route: $0) }
+                // A person's page from a host row (follows 08).
+                .navigationDestination(for: FollowedPersonRoute.self) { FollowedNeighborPage(row: $0.row) }
                 // The bell's page (school-activities 04).
                 .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage().environment(townFeed) }
                 .navigationDestination(for: NoticeEventRoute.self) { route in
                     FeedEventDetailDestination(item: route.item).environment(townFeed)
                 }
         }
+        // A host's name on a card or an Event page opens its own page (follows 08).
+        .environment(\.hostOpener, hostOpener)
+        .overlay { BusinessPage().environment(placeOpener) }
+        .onAppear {
+            placeOpener.reduceMotion = reduceMotion
+            if hostOpener == nil { hostOpener = makeHostOpener() }
+        }
+        // Search's places, so a Place host opens its page from the first tap.
+        .task { if !searchModel.placesLoaded { await searchModel.load() } }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
             HelloDropView(
@@ -621,7 +674,7 @@ struct MainTabsView: View {
                 path.append(team)
             }
             // `-open-page town|city` pushes that Town page (follows 04).
-            if let i = args.firstIndex(of: "-open-page"), i + 1 < args.count, let kind = TownPageKind(rawValue: args[i + 1]) {
+            if let i = args.firstIndex(of: "-open-page"), i + 1 < args.count, let kind = TownPageKind(slug: args[i + 1]) {
                 path.append(kind)
             }
             if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
@@ -753,6 +806,8 @@ struct MainTabsView: View {
             // swipe back alive without it.
             NavigationStack {
                 ProfileView(saves: saves)
+                    // Its pages push in its own stack, which can't take a host's page.
+                    .environment(\.hostOpener, nil)
                     .toolbar(.hidden, for: .navigationBar)
                     .background { SwipeBack().frame(width: 0, height: 0) }
             }
@@ -772,6 +827,7 @@ struct MainTabsView: View {
         // fight each other for the same gesture.
         .fullScreenCover(isPresented: $showMap) {
             SJMapView(onClose: { showMap = false })
+                .environment(\.hostOpener, nil)
                 .environment(actions)
                 .environment(friendsBook)
         }
