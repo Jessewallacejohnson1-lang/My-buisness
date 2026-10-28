@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
 const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
-  'private.going_count', 'private.heart_count']);
+  'private.going_count', 'private.heart_count', 'public.event_picture', 'private.event_subject', 'private.season_of']);
 // Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
 // shown, as they are now: each function alone, its newest definition in any migration.
 const cut = (fn) => readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()
@@ -50,7 +50,7 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz, place_entry_id text, description text);
+    cancelled_at timestamptz, place_entry_id text, description text, sport text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,

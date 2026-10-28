@@ -1,0 +1,53 @@
+-- public.get_my_going, as 20261021210000_my_going_friends.sql made it, with its card picture from event_picture
+-- (event-photos 07: a photo of what the event is, from its place's scenes, else place_picture).
+create or replace function public.get_my_going(p_from date, p_to date)
+returns table (
+  id uuid,
+  title text,
+  event_date date,
+  start_time text,
+  location text,
+  image_url text,
+  category text,
+  club_name text,
+  source_name text,
+  end_at timestamptz,
+  all_day boolean,
+  created_at timestamptz,
+  going_count int,
+  cancelled boolean,
+  place_picture jsonb,
+  description text,
+  friends_going jsonb
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with mine as (
+    select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
+           c.name as club_name, e.source_name, e.end_at, e.all_day, e.created_at,
+           e.cancelled_at, e.place_entry_id, e.description
+    from public.event_rsvps r
+    join public.club_events e on e.id = r.event_id
+    left join public.clubs c on c.id = e.club_id
+    where r.user_id = auth.uid()
+      and e.status = 'approved'
+      and e.kind = 'event'
+      and e.event_date between p_from and p_to
+      and (e.submitted_by is not null or e.source_name is not null)
+  )
+  select m.id, m.title, m.event_date, m.start_time, m.location, m.image_url, m.category,
+         m.club_name, m.source_name, m.end_at, m.all_day, m.created_at,
+         private.going_count(m.id) as going_count,
+         m.cancelled_at is not null as cancelled,
+         public.event_picture(m.id) as place_picture,
+         m.description,
+         -- Up to three friends Going, newest Going first (the Town card's, town-feed 28), asked
+         -- once for all of the rows.
+         coalesce(fg.people, '[]'::jsonb) as friends_going
+  from mine m
+  left join private.friends_going(array(select x.id from mine x)) fg on fg.event_id = m.id
+  order by m.event_date, m.title, m.id
+$$;
