@@ -59,6 +59,7 @@ from read_events import LOCAL
 from batch import layout
 import write_judged
 from run import Supabase, fetch_watched
+from db import DbError
 
 SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
@@ -248,10 +249,13 @@ def write(out, dry_run, today):
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
                                teams=write_judged.known_teams(), recent_news=write_judged.news_in_db(today))
     write_judged.report(items, result)
-    written = None if dry_run else write_judged.apply(result)
-    print("\n".join(summary_lines(prep, result, written)))
-    if not dry_run:
-        save_fingerprints(out)
+    try:
+        written = None if dry_run else write_judged.apply(result)
+        print("\n".join(summary_lines(prep, result, written)))
+        if not dry_run:
+            save_fingerprints(out)
+    except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
+        sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
 
 
 def save_fingerprints(out):
@@ -595,7 +599,8 @@ def selftest():
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
     checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
-                   "written: a write that fails leaves it, so prepare finds the same pages again"))
+                   "written: a write that fails stops with one line naming what refused it and leaves it, so "
+                   "prepare finds the same pages again"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -651,17 +656,21 @@ def fingerprints_wait_for_write():
                     write(out, False, date(2026, 10, 25))
 
             def boom(result):
-                raise RuntimeError("apply_judged failed")
+                raise DbError("POST", "rpc/apply_judged", 403,
+                              '{"code":"42501",\n"message":"permission denied for schema private"}')
             first = prepare_fetch()
             try:
                 write_with(boom)
-            except RuntimeError:
-                pass
+                refused = None
+            except SystemExit as e:
+                refused = e.code
             unmoved = FakeDb.rows["milk|https://m/events"]["last_hash"] == "old"
             starting_copy = FakeDb.rows["new|https://n/"].get("last_hash") is not None
             again = prepare_fetch()
             write_with(lambda result: {"events": 0})
-            return first == again == ["milk"] and unmoved and starting_copy and prepare_fetch() == []
+            one_line = refused == ('[morning] save refused: Supabase POST rpc/apply_judged failed 403: '
+                                   '{"code":"42501", "message":"permission denied for schema private"}')
+            return first == again == ["milk"] and unmoved and starting_copy and one_line and prepare_fetch() == []
     finally:
         (runner.read_page, runner.validate, runner.find_root, Supabase,
          write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,
