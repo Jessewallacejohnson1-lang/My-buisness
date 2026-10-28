@@ -19,7 +19,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time']);
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1024,6 +1024,22 @@ test('a Christmas photo shows only from November 1 to January 6 (event-photos 07
   assert.equal(await pic('Black Friday', '2026-11-27'), 'https://x/sweaters.webp', 'in its window it goes first');
   assert.equal(await pic('Pink Friday', '2027-01-06'), 'https://x/sweaters.webp');
   assert.equal(await pic('Black Friday', '2027-01-07'), 'https://x/racks.webp', 'gone after Epiphany');
+  await db.exec('delete from public.place_photos;');
+});
+
+test("a girls' game never shows a boys' photo, nor the other way (event-photos 07, round 2)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, subjects, seasons) values
+      ('gym', 'https://x/cover.webp', 'https://gym.org/', 0, 'photo', 'live', '{}', '{}'),
+      ('gym', 'https://x/boys.webp', 'https://gym.org/', 1, 'scene', 'live', '{basketball,boys}', '{}');`);
+  const pic = async (title, sport) => (await db.query('select public.event_picture($1) as p', [(await db.query(
+    `insert into public.club_events (title, event_date, sport, source_name, place_entry_id) values ($1, '2026-12-10', $2, 'Gym', 'gym')
+     returning id`, [title, sport])).rows[0].id])).rows[0].p.url;
+  assert.equal(await pic('Sartell vs Forestview · 7th Grade', 'Girls Basketball'), 'https://x/cover.webp', "a girls' game: the place's picture");
+  assert.equal(await pic("Women's Basketball vs Bethel", null), 'https://x/cover.webp', 'women is girls, though it holds "men"');
+  assert.equal(await pic('Sartell vs Foley', 'Boys Basketball'), 'https://x/boys.webp');
+  assert.equal(await pic('Basketball Tournament', null), 'https://x/boys.webp', 'a game naming neither takes either');
   await db.exec('delete from public.place_photos;');
 });
 

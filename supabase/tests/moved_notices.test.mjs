@@ -74,6 +74,7 @@ await db.exec('alter table public.place_photos add column width int, add column 
 await db.exec('grant select on public.place_photos to anon, authenticated');
 await db.exec(one('_event_photos.sql'));
 await db.exec(one('_event_photos_christmas.sql'));
+await db.exec(one('_event_photos_gender.sql'));
 await db.exec(one('_event_photos_my_changes.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
