@@ -19,18 +19,16 @@ carry on with the rest.
    Apify's key is the environment's network secret for `api.apify.com`, which the session never
    sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused
    the request means the secret is missing or wrong: stop and say so.
-2. **Prepare.** Start `(python3 sources/scripts/social.py prepare <busy|weekly>; echo "prepare exit $?") >
-   /tmp/prepare.log 2>&1` with `run_in_background: true`. It reads every Apify run of this list
-   that finished since the last check, waits for one still going, and lays out each new post as
-   a page in `.runs/morning/batches/`. A post whose caption is under 30 words or gives no time of
-   day also gets up to 3 of its pictures downloaded into `.runs/morning/pictures/`, named at the end
-   of its page (Jesse, 2026-10-26: Obbink's Oct 29 trivia night was on its picture alone). Its
-   `[social] pictures` line says what that added to the cost. Wait for it in the
-   foreground 9 minutes at a time (timeout 600000 ms):
-   `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
-   Repeat until `prepare exit` shows, without ending your turn in between. It starts nothing paid, but run it
-   once. Done when `prepare exit 0` shows under its `[social]` line. No batches
-   means nothing new was posted: run step 4's `done`, answer with the `[social]` lines and stop.
+2. **Prepare.** Run `python3 sources/scripts/social.py prepare <busy|weekly>` with a 600000 ms
+   timeout. It reads every Apify run of this list that finished since the last check, waits for
+   one still going, and lays out each new post as a page in `.runs/morning/batches/`. A post whose
+   caption is under 30 words or gives no time of day also gets up to 3 of its pictures downloaded
+   into `.runs/morning/pictures/`, named at the end of its page (Jesse, 2026-10-26: Obbink's Oct 29
+   trivia night was on its picture alone). Its `[social] pictures` line says what that added to
+   the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, run it
+   again, and it carries on where it stopped. It starts nothing paid. Done when it prints its
+   `[social] busy: …` or `[social] weekly: …` line. No batches means nothing new was posted: run
+   step 4's `done`, answer with the `[social]` lines and stop.
 3. **Read, judge, title, write.** Follow steps 3 to 6 of `sources/models/morning.md`: the
    cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`), shorten long
    titles, and `morning.py write` writes them. Each page is one post, and its first line says

@@ -8,7 +8,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             and lay out only the changed pages in batches of 12 for the cheap model (batch.py), with
             the events already listed for the judge; a changed page of a seasonal place (its
             `places.hours` has a season) goes to seasons.txt with its lines that name a month,
-            for the routine to flag new season dates (BP app business-hours, Jesse 2026-10-26)
+            for the routine to flag new season dates (BP app business-hours, Jesse 2026-10-26).
+            It works in parts of about 6 minutes, since the cloud stops a command at 10 (BP app
+            smooth-mornings 03): run it again while it prints "run again"
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
@@ -22,7 +24,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   tag       write the cheap model's tags (.runs/morning/tags.jsonl) onto those Events: only
             ids from the shared interest list, a draw of 1, 2 or 3, an Event's first interest
             becomes its category when it has none, and what it is in one to three words; an
-            Event tagged before only gets its words, so nobody's feed reshuffles
+            Event tagged before only gets its words, so nobody's feed reshuffles. One write per
+            Event (901 on 2026-10-27), so it works in parts like prepare
   thin      lay out the upcoming Events found in the last two days whose About is empty or under a
             sentence (feed, game and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
             routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24)
@@ -48,7 +51,7 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py --selftest
 """
 
-import argparse, contextlib, json, re, shutil, subprocess, sys
+import argparse, contextlib, json, re, shutil, subprocess, sys, time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -58,7 +61,7 @@ from registry import find_root, load
 from read_events import LOCAL
 from batch import layout
 import write_judged
-from run import Supabase, fetch_watched
+from run import Supabase, fetch_watched, deadline, late, part_state, resume_part
 from db import DbError
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -69,6 +72,7 @@ THIN = 120        # characters: an About under this says less than a sentence
 DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
 DESCRIBE_BATCH = 10
 ABOUT_MAX = 1000   # as write_judged.clip
+PART_MINUTES = 6  # a part starts nothing new after this, so it ends within 9: the cloud stops a command at 10
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
 
@@ -119,16 +123,41 @@ def snapshot_text(path):
     return text.split("\n---\n", 1)[1].lstrip() if text.startswith("---\n") else text
 
 
-def run(cmd, out_dir, name):
-    r = subprocess.run([sys.executable, *cmd], capture_output=True, text=True, cwd=find_root())
-    (out_dir / f"{name}.log").write_text(r.stdout + r.stderr)
-    return r
+def start_reader(out, today, name, which, stop):
+    """read_events.py for one group of readers, as a part of `prepare` that starts no source after
+    `stop`: its output in <name>.log, its items in <name>-items.jsonl once every source is read."""
+    with open(out / f"{name}.log", "w") as log:
+        return subprocess.Popen([sys.executable, str(SCRIPTS / "read_events.py"), *which,
+                                 "--items", str(out / f"{name}-items.jsonl"), "--today", str(today),
+                                 "--part", str(out / f"{name}-part.json"),
+                                 *(["--minutes", f"{(stop - time.monotonic()) / 60:.3f}"] if stop else [])],
+                                stdout=log, stderr=subprocess.STDOUT, text=True, cwd=find_root())
 
 
-def prepare(today, out):
-    if out.exists():
-        shutil.rmtree(out)
-    (out / "batches").mkdir(parents=True)
+def reader_lines(proc, out, name):
+    """A group of readers' [read] lines once it is through (its items written, or it failed), else None."""
+    code, log = proc.wait(), (out / f"{name}.log").read_text()
+    if code:
+        (out / f"{name}-items.jsonl").write_text("")
+        return [f"[read] FAILED read_events.py itself: {log.strip()[-300:]}"]
+    if (out / f"{name}-items.jsonl").exists():
+        return [ln for ln in log.splitlines() if ln.startswith("[read] ok") or ln.startswith("[read] FAILED")]
+    return None
+
+
+def prepare(today, out, minutes=PART_MINUTES):
+    """In timed parts: each starts no new page or reader after `minutes`, saves what it read in
+    prepare-part.json and says "run again" with what is left; the next part carries on, each page
+    fetched once a morning. The part that finishes lays out the batches and prints the summary."""
+    stop = deadline(minutes)
+    part_f = out / "prepare-part.json"
+    part = json.loads(part_f.read_text()) if part_f.exists() else {}
+    if part.get("today") != str(today) or (out / "prepare.json").exists():  # a new morning
+        if out.exists():
+            shutil.rmtree(out)
+        (out / "batches").mkdir(parents=True)
+        part = {"today": str(today), "pages": [], "readers": {}, "state": {}}
+    resume_part(part["state"])
     root = find_root()
     every, errors = load(root)
     if errors:
@@ -137,36 +166,36 @@ def prepare(today, out):
 
     # The league's site is slow and no other source's server (twelve minutes for the schools
     # on 2026-10-25, with its retries), so the schools are read while the pages are fetched.
-    games_log = open(out / "games.log", "w")
-    games = subprocess.Popen([sys.executable, str(SCRIPTS / "read_events.py"), "--reader", "mshsl", "--items",
-                              str(out / "games.jsonl"), "--today", str(today)],
-                             stdout=games_log, stderr=subprocess.STDOUT, text=True, cwd=find_root())
+    done = part["readers"]
+    games = None if "games" in done else start_reader(out, today, "games", ["--reader", "mshsl"], stop)
     db = Supabase()
     try:
-        with open(out / "fetch.log", "w") as log, contextlib.redirect_stdout(log):
-            report = fetch_watched(every, db)
+        with open(out / "fetch.log", "a") as log, contextlib.redirect_stdout(log):
+            report = fetch_watched(every, db, done=part["pages"], stop=stop, run_dir=out / "fetch")
     except BaseException:
-        games.kill()
+        if games:
+            games.kill()
         raise
+    # The feeds share servers with the pages, so they are read after them.
+    feeds = None
+    if not report["left"] and "feeds" not in done and not late(stop):
+        feeds = reader_lines(start_reader(out, today, "feeds", ["--skip-reader", "mshsl"], stop), out, "feeds")
+    for name, lines in (("feeds", feeds), ("games", games and reader_lines(games, out, "games"))):
+        if lines is not None:
+            done[name] = lines
+    part.update(pages=report["results"], state=part_state())
+    part_f.write_text(json.dumps(part))
+    left = [what for name, what in (("games", "the school schedules"), ("feeds", "the feeds")) if name not in done]
+    if report["left"] or left:
+        print(f"[morning] run again: {report['fetched']} of {report['fetched'] + report['left']} pages fetched"
+              + (f"; still to read: {' and '.join(left)}" if left else ""))
+        return
     run_dir = Path(report["run_dir"])
     # Saved by `write` once the events are in (db.commit_fingerprints), never here.
     (out / "fingerprints.json").write_text(json.dumps(
         [{k: c[k] for k in ("entry_id", "url", "hash", "first_seen")} for c in report["changed"]], indent=1))
-
-    feeds = run([str(SCRIPTS / "read_events.py"), "--skip-reader", "mshsl", "--items", str(out / "feeds.jsonl"),
-                 "--today", str(today)], out, "feeds")
-    games.wait()
-    games_log.close()
-    games_out = (out / "games.log").read_text()
-    readers = []
-    for code, stdout, stderr, items in ((feeds.returncode, feeds.stdout, feeds.stderr, out / "feeds.jsonl"),
-                                        (games.returncode, games_out, games_out, out / "games.jsonl")):
-        readers += [ln for ln in stdout.splitlines() if ln.startswith("[read] ok") or ln.startswith("[read] FAILED")]
-        if code:
-            readers.append(f"[read] FAILED read_events.py itself: {stderr.strip()[-300:]}")
-            items.write_text("")
-    with open(out / "feeds.jsonl", "a") as f:
-        f.write((out / "games.jsonl").read_text())
+    readers = done["feeds"] + done["games"]
+    (out / "feeds.jsonl").write_text((out / "feeds-items.jsonl").read_text() + (out / "games-items.jsonl").read_text())
 
     pages = pages_to_read(report["changed"], entries)
     for p in pages:
@@ -344,14 +373,22 @@ def plan_tags(lines, events, known):
     return writes
 
 
-def tag(out, dry_run):
+def tag(out, dry_run, minutes=PART_MINUTES):
     events = json.loads((out / "tag" / "events.json").read_text())
     writes = plan_tags(read_items(out / "tags.jsonl"), events, write_judged.interest_ids())
     if not dry_run:
+        stop, done_f = deadline(minutes), out / "tag" / "written.json"  # `untagged` clears it
+        written = set(json.loads(done_f.read_text())) if done_f.exists() else set()
         db, now = Supabase(), datetime.now(LOCAL).isoformat()
         for event_id, write in writes.items():
+            if event_id in written:
+                continue
+            if late(stop):
+                done_f.write_text(json.dumps(sorted(written)))
+                return print(f"[morning] run again: {len(written)} of {len(writes)} events tagged")
             stamp = {} if set(write) == {"what"} else {"interests_tagged_at": now}
             db.rest("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
+            written.add(event_id)
     empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
     words = sum(1 for w in writes.values() if "what" in w)
     draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
@@ -601,6 +638,7 @@ def selftest():
     checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again"))
+    checks += in_parts()
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -675,6 +713,109 @@ def fingerprints_wait_for_write():
         (runner.read_page, runner.validate, runner.find_root, Supabase,
          write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,
          write_judged.news_in_db) = saved
+
+
+def in_parts():
+    """prepare and tag in timed parts against fake slow sites (50 seconds a page) and a fake database,
+    offline on a fake clock: one long morning, then the same morning in 2-minute parts."""
+    import functools, io, tempfile, run as runner
+    global Supabase, load, start_reader, fetch_watched
+    clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
+    entries = [{"id": f"p{i}", "_name": f"Place {i}", "_town": "st-joseph-mn", "_extra": {}, "status": "active",
+                "tier": "watched", "sources": [{"url": f"https://site{i}.example/events", "method": "fetch"}]} for i in range(7)]
+    asked, starts = [], []
+
+    class FakeDb(runner.Supabase):
+        def __init__(self):
+            pass
+
+        def upsert_registry(self, rows):
+            pass
+
+        def state(self):
+            return ({k: r.get("last_hash") for k, r in self.rows.items()},
+                    {k for k, r in self.rows.items() if r.get("last_checked_at")})
+
+        def record(self, entry_id, url, fields):
+            self.rows.setdefault(f"{entry_id}|{url}", {}).update(fields)
+
+        def rest(self, method, path, body=None, prefer=None):
+            if method == "PATCH":
+                asked.append(path)
+                clock.t += 50
+            return []
+
+    def slow_site(url, kind):
+        asked.append(url)
+        clock.t += 50
+        if "site3" in url:
+            raise RuntimeError("HTTP Error 500: Internal Server Error")
+        return 200, f"Harvest supper Oct 30 at {url}", "fetch"
+
+    def reader(out, today, name, which, stop):  # the schools take two parts in the parted morning
+        starts.append(name)
+        (out / f"{name}.log").write_text(f"[read] ok     {name} (fake): 1 items\n")
+        if name == "feeds" or starts.count(name) == (1 if stop is None else 2):
+            (out / f"{name}-items.jsonl").write_text(json.dumps({"kind": "news", "title": name}) + "\n")
+        return type("Done", (), {"wait": lambda self: 0, "kill": lambda self: None})()
+
+    def morning(minutes):
+        """One morning's prepare, in parts: what each part fetched and printed, the batches, the database."""
+        FakeDb.rows = {f"p{i}|https://site{i}.example/events": {"last_hash": "old", "last_checked_at": "2026-10-27"}
+                       for i in range(6)}
+        starts.clear()
+        parts = []
+        while len(parts) < 5 and (not parts or "run again" in parts[-1][1]):
+            n, said = len(asked), io.StringIO()
+            with contextlib.redirect_stdout(said):
+                prepare(date(2026, 10, 28), out, minutes)
+            parts.append((asked[n:], said.getvalue()))
+        return parts, {f.name: f.read_text() for f in (out / "batches").iterdir()}, dict(FakeDb.rows)
+    names = ("listed_in_db", "interest_ids")
+    saved = (runner.read_page, runner.validate, runner.find_root, runner.time, Supabase, load, start_reader,
+             fetch_watched, *(getattr(write_judged, n) for n in names))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "morning"
+            runner.read_page, runner.validate, runner.find_root, runner.time = slow_site, (lambda e: []), (lambda *a: Path(tmp)), clock
+            Supabase, load, start_reader = FakeDb, (lambda root: (entries, [])), reader
+            fetch_watched = functools.partial(runner.fetch_watched, workers=1)  # one page at a time, as the clock counts
+            write_judged.listed_in_db, write_judged.interest_ids = (lambda: []), (lambda: ["dining"])
+            (one,), one_batches, _ = morning(None)
+            parts, batches, rows = morning(2)
+            fetched = [u for got, _ in parts for u in got]
+            (out / "tag").mkdir()
+            (out / "tag" / "events.json").write_text(json.dumps([{"id": f"e{i}", "category": None} for i in range(5)]))
+            (out / "tags.jsonl").write_text("".join(json.dumps({"id": f"e{i}", "interests": ["dining"], "draw": 2}) + "\n"
+                                                    for i in range(5)))
+            tagged, n = [], len(asked)
+            while len(tagged) < 3 and "[morning] tagged" not in "".join(tagged):
+                said = io.StringIO()
+                with contextlib.redirect_stdout(said):
+                    tag(out, False, 2)
+                tagged.append(said.getvalue())
+            patched = asked[n:]
+    finally:
+        (runner.read_page, runner.validate, runner.find_root, runner.time, Supabase, load, start_reader,
+         fetch_watched, write_judged.listed_in_db, write_judged.interest_ids) = saved
+    three, parts = len(parts) == 3, parts + [([], "")] * 3  # so a failing check reads as one
+    left = [got for got, _ in parts]
+    return [
+        (three and sorted(fetched) == sorted(e["sources"][0]["url"] for e in entries)
+         and len(fetched) == len(set(fetched)), "prepare in three parts fetches every page exactly once"),
+        (batches == one_batches and len(batches) == 1 and one[1].split("\n")[0] == parts[2][1].split("\n")[0]
+         == "[morning] fetched 7 watched pages, 6 changed, 5 for the cheap model in 1 batches "
+            f"({out / 'batches'})", "the batches and the summary match one long run"),
+        (all(r["last_hash"] == "old" for k, r in rows.items() if not k.startswith("p6|"))
+         and rows.get("p6|https://site6.example/events", {}).get("last_hash") is not None,
+         "no part moves a fingerprint; only a new page keeps its starting copy"),
+        (parts[0][1] == "[morning] run again: 3 of 7 pages fetched; still to read: the school schedules and the feeds\n"
+         and parts[1][1] == "[morning] run again: 6 of 7 pages fetched; still to read: the feeds\n"
+         and [u[8:13] for u in left[1]] == ["site3", "site4", "site5"] and [u[8:13] for u in left[2]] == ["site6"],
+         "a part whose time is spent says run again with what is left, and the next part reads just that"),
+        (tagged[0] == "[morning] run again: 3 of 5 events tagged\n" and tagged[1].startswith("[morning] tagged 5 events")
+         and sorted(patched) == [f"club_events?id=eq.e{i}" for i in range(5)], "tag in parts writes each Event once"),
+    ]
 
 
 def main():

@@ -227,6 +227,38 @@ def server_of(host):
     return _server[host]
 
 
+def deadline(minutes):
+    """When a timed part stops starting new work (None: never); a part's work then has 3 minutes to end."""
+    return time.monotonic() + minutes * 60 if minutes else None
+
+
+def late(stop, grace=0):
+    return stop is not None and time.monotonic() > stop + grace
+
+
+def part_state():
+    """What this run knows that the next part of a timed run (a new process) must too: each site's
+    robots rules and Crawl-delay, each host's server, when each host and server was last asked (on
+    the wall clock, since each process has its own monotonic one) and the Firecrawl pages spent."""
+    gap = time.time() - time.monotonic()
+    return {"robots": _robots, "crawl_delay": _crawl_delay, "unreadable": _unreadable, "server": _server,
+            "last_hit": {h: t + gap for h, t in _last_hit.items()},
+            "server_hit": {s: t + gap for s, t in _server_hit.items()}, "firecrawl_used": _firecrawl_used}
+
+
+def resume_part(state):
+    """The previous part's part_state, so robots.txt isn't read again and Crawl-delay and the gap
+    between two requests to one server hold across parts, as they do within one."""
+    global _firecrawl_used
+    gap = time.time() - time.monotonic()
+    for name, known in (("robots", _robots), ("crawl_delay", _crawl_delay), ("unreadable", _unreadable),
+                        ("server", _server)):
+        known.update(state.get(name) or {})
+    _last_hit.update({h: t - gap for h, t in (state.get("last_hit") or {}).items()})
+    _server_hit.update({s: t - gap for s, t in (state.get("server_hit") or {}).items()})
+    _firecrawl_used = state.get("firecrawl_used", _firecrawl_used)
+
+
 def decoded(body, encoding):
     """Some servers send gzip although nobody asked (fabral.com, fivestarlogistics.com), which
     read as binary noise and changed fingerprint on every run. A cut-off body still decodes."""
@@ -371,6 +403,7 @@ def selftest():
          "a refused feed is read raw"),
         (case("", "ical")[2] == "fetch" and not calls, "a short feed is not taken for a JavaScript page"),
         (one_bad_row_is_one_line(), "a row the database refuses is one report line; the rest are recorded"),
+        (polite_across_parts(), "a timed run's next part reads no robots.txt again and waits out its Crawl-delay"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -416,6 +449,58 @@ def one_bad_row_is_one_line():
             and len(recorded) == 2 and [u["entry_id"] for u in report["unrecorded"]] == ["b"])
 
 
+def polite_across_parts():
+    """Two parts of a timed run against a fake site asking a 10-second Crawl-delay, offline on fake
+    clocks: the second part is a new process with its own monotonic clock, 3 seconds later."""
+    import http.client, io
+    g, asked = globals(), []
+
+    class Clock:
+        def __init__(self, mono, wall):
+            self.mono, self.wall = mono, wall
+
+        def monotonic(self):
+            return self.mono
+
+        def time(self):
+            return self.wall
+
+        def sleep(self, s):
+            self.mono, self.wall = self.mono + s, self.wall + s
+
+    class Answer(io.BytesIO):
+        status, headers = 200, http.client.HTTPMessage()
+
+        def geturl(self):
+            return asked[-1][1]
+
+    def urlopen(req, timeout=None):
+        asked.append((g["time"].wall, req.full_url))
+        return Answer(b"User-agent: *\nCrawl-delay: 10\n" if req.full_url.endswith("/robots.txt") else b"<p>Trivia</p>")
+    known = (_robots, _crawl_delay, _unreadable, _server, _last_hit, _server_hit)
+    saved = g["time"], urllib.request.urlopen, [dict(d) for d in known]
+    try:
+        urllib.request.urlopen = urlopen
+        for d in known:
+            d.clear()
+        _server["slow.invalid"] = "10.0.0.9"
+        g["time"] = Clock(100.0, 5000.0)
+        fetch("https://slow.invalid/a")
+        state = json.loads(json.dumps(part_state()))
+        for d in known:
+            d.clear()
+        g["time"] = Clock(7.0, g["time"].wall + 3)
+        resume_part(state)
+        fetch("https://slow.invalid/b")
+    finally:
+        g["time"], urllib.request.urlopen = saved[:2]
+        for d, was in zip(known, saved[2]):
+            d.clear()
+            d.update(was)
+    return ([u for _, u in asked] == ["https://slow.invalid/robots.txt", "https://slow.invalid/a", "https://slow.invalid/b"]
+            and asked[2][0] - asked[1][0] >= 10)
+
+
 class Supabase(Db):
     """The `sources` table's runtime state, over the shared client (db.py)."""
 
@@ -447,14 +532,19 @@ class Supabase(Db):
                 self.record(r["entry_id"], r["url"], {"last_hash": r["hash"], "last_changed_at": now})
 
 
-def fetch_watched(entries, db, picked=None, workers=6):
+def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_dir=None):
     """Validate the registry, sync it (with `db`), fetch `picked` (default: every active watched
     entry), save the changed pages' snapshots and return the report (also in report.json).
 
     A page's check time and error are recorded now, but a changed page's new fingerprint waits
     for db.commit_fingerprints, which the caller runs once the page's events are written: a
     morning that dies after fetching then reads the same pages again tomorrow. A page seen for
-    the first time saves its starting copy now; nothing is read from it (ADR-022)."""
+    the first time saves its starting copy now; nothing is read from it (ADR-022).
+
+    A timed part (morning.py prepare) passes the earlier parts' results as `done`, which are not
+    fetched again, one `run_dir` for every part, and `stop` (deadline): no page starts after it.
+    The report covers every part so far; `left` counts the pages still to fetch, and the returned
+    `results` (not in report.json) carry every page's result to the next part."""
     errors = validate(entries)
     if errors:
         print("\n".join("ERROR " + e for e in errors))
@@ -462,11 +552,12 @@ def fetch_watched(entries, db, picked=None, workers=6):
     if picked is None:
         picked = [e for e in entries if e["status"] == "active" and e.get("tier", "listed") == "watched"]
     root = find_root()
-    run_dir = root / ".runs" / NOW.strftime("%Y%m%d-%H%M%S")
-    n = 1
-    while run_dir.exists():
-        n += 1
-        run_dir = root / ".runs" / f"{NOW.strftime('%Y%m%d-%H%M%S')}-{n}"
+    if run_dir is None:
+        run_dir = root / ".runs" / NOW.strftime("%Y%m%d-%H%M%S")
+        n = 1
+        while run_dir.exists():
+            n += 1
+            run_dir = root / ".runs" / f"{NOW.strftime('%Y%m%d-%H%M%S')}-{n}"
     snap_dir = run_dir / "snapshots"
     snap_dir.mkdir(parents=True, exist_ok=True)
     local_state_path = root / ".runs" / "state.json"
@@ -505,6 +596,8 @@ def fetch_watched(entries, db, picked=None, workers=6):
                 skipped.append({**ref, "why": f"method {s['method']} not run by this script"})
 
     def work(ref):
+        if late(stop):
+            return None  # left for the next part
         key = f"{ref['entry_id']}|{ref['url']}"
         t0 = time.time()
         try:
@@ -522,11 +615,14 @@ def fetch_watched(entries, db, picked=None, workers=6):
         except Exception as ex:
             return {**ref, "ok": False, "error": str(ex)[:300], "secs": round(time.time() - t0, 1)}
 
+    page = lambda r: f"{r['entry_id']}|{r['url']}"
+    order, had = {page(j): i for i, j in enumerate(jobs)}, {page(r) for r in done}
+    todo = [j for j in jobs if page(j) not in had]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(work, jobs))
+        new = [r for r in pool.map(work, todo) if r]
 
     new_state, unrecorded = dict(prev), []
-    for r in results:
+    for r in new:
         key = f"{r['entry_id']}|{r['url']}"
         if r["ok"]:
             new_state[key] = r["hash"]
@@ -542,18 +638,22 @@ def fetch_watched(entries, db, picked=None, workers=6):
     if not db:
         local_state_path.write_text(json.dumps(new_state, indent=1))
 
+    # In the registry's order, so pages read over several parts lie as one run's would.
+    results = sorted([*done, *new], key=lambda r: order.get(page(r), len(order)))
     changed = [r for r in results if r["ok"] and r["changed"]]
     failed = [r for r in results if not r["ok"]]
     report = {"mode": "write" if db else "dry-run", "at": NOW.isoformat(), "run_dir": str(run_dir),
               "fetched": len(results), "changed": changed, "failed": failed,
               "unchanged": [r["entry_id"] for r in results if r["ok"] and not r["changed"]],
-              "agent_tasks": agent_tasks, "skipped": skipped, "unrecorded": unrecorded}
+              "agent_tasks": agent_tasks, "skipped": skipped, "unrecorded": unrecorded,
+              "left": len(todo) - len(new)}
     (run_dir / "report.json").write_text(json.dumps(report, indent=1))
 
     print(f"[{report['mode']}] fetched {len(results)} | changed {len(changed)} | "
           f"failed {len(failed)} | agent tasks {len(agent_tasks)} | skipped {len(skipped)} | "
           f"through Firecrawl {sum(r.get('via') == 'firecrawl' for r in results)}"
-          + (f" | not recorded {len(unrecorded)}" if unrecorded else ""))
+          + (f" | not recorded {len(unrecorded)}" if unrecorded else "")
+          + (f" | left for the next part {report['left']}" if report["left"] else ""))
     for r in changed:
         print(f"  CHANGED {r['entry_id']} {'(first seen) ' if r['first_seen'] else ''}-> snapshots/{r['snapshot']}")
     for r in failed:
@@ -563,7 +663,7 @@ def fetch_watched(entries, db, picked=None, workers=6):
     for t in agent_tasks:
         print(f"  SEARCH  {t['entry_id']}: \"{t['query']}\" site:{t['site']}")
     print(f"report: {run_dir / 'report.json'}")
-    return report
+    return {**report, "results": results}
 
 
 def main():
