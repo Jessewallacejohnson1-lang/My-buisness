@@ -272,13 +272,13 @@ struct MainTabsView: View {
     @State private var helloLink: SafariLink?
 
     @MainActor
-    private func helloMessage(_ lastSeen: Date?, _ joined: Neighbor?) -> HelloDrop.Message? {
+    private func helloMessage(_ lastSeen: Date?, _ waiting: HelloDrop.Message?) -> HelloDrop.Message? {
         let news = townFeed.shown.compactMap { entry -> TownNews? in
             if case .news(let post) = entry.item { post } else { nil }
         }
         return HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
                                  groups: you.groups ?? [],
-                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, joined: joined)
+                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, waiting: waiting)
     }
 
     /// Where a tap on the hello pill goes.
@@ -289,6 +289,13 @@ struct MainTabsView: View {
         case .group(let group): path.append(group)
         case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }
+        // An Event from something you follow (hello-drop 07): its page while the feed has it, else Town.
+        case .eventID(let id):
+            if let card = townFeed.cards.first(where: { $0.id == id }) {
+                path.append(card)
+            } else if tab != .town {
+                select(.town)
+            }
         // As the news card: the post's own app when it's on the phone, else the in-app browser.
         case .news(let post):
             Task {
@@ -486,7 +493,7 @@ struct MainTabsView: View {
                 .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0) }
                 .navigationDestination(for: TownBoardRoute.self) { TownBoardPage(route: $0) }
                 // The bell's page (school-activities 04).
-                .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage() }
+                .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage().environment(townFeed) }
                 .navigationDestination(for: NoticeEventRoute.self) { route in
                     FeedEventDetailDestination(item: route.item).environment(townFeed)
                 }
@@ -527,6 +534,11 @@ struct MainTabsView: View {
         // The dot: read at launch and on coming back to the app (and on each visit to Town),
         // and again for another account, or the same one logged in for real.
         .task { await friendsBook.refreshDot() }
+        // Each list the Town feed lands, kept or read: Events of what you follow found since the
+        // last look go to the hello pill and the bell (hello-drop 07).
+        .onChange(of: townFeed.entries?.map(\.id)) {
+            HelloInbox.shared.look(at: townFeed.entries?.compactMap(\.card) ?? [])
+        }
         .onChange(of: auth.accountKey) {
             friendsBook.reset()
             Task { await friendsBook.refreshDot() }
@@ -537,7 +549,7 @@ struct MainTabsView: View {
         .onChange(of: auth.userId) { old, new in
             // Another account, not the launch's saved one coming in: the last one's acceptances
             // leave the hello pill and the bell (hello-drop 06).
-            if let old, old != new { HelloInbox.shared.forgetAccepted() }
+            if let old, old != new { HelloInbox.shared.forgetAccount() }
             // Animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
             // Views made before the first quiet account go up under it; another
