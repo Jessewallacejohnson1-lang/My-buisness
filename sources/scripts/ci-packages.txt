@@ -1,7 +1,8 @@
 # Every library outside Python's own that a script in this folder imports: its import name, the
-# Ubuntu package GitHub installs it from (.github/workflows/ci.yml), and the pip name every
-# routine's first step installs it by (ready.py). This Mac has more libraries than GitHub's runner,
-# so `scripts/ci_checks.sh registry` refuses an import missing here before it can turn main red
-# (2026-10-19: place_photos.py's Pillow).
+# Ubuntu package GitHub installs it from (.github/workflows/ci.yml), the pip name every routine's
+# first step installs it by (ready.py), and, when importing the name alone proves too little, the
+# module ready.py imports to judge it (the cloud's Debian Pillow imports as PIL, not as PIL.Image).
+# This Mac has more libraries than GitHub's runner, so `scripts/ci_checks.sh registry` refuses an
+# import missing here before it can turn main red (2026-10-19: place_photos.py's Pillow).
 yaml python3-yaml pyyaml
-PIL python3-pil pillow
+PIL python3-pil pillow PIL.Image
