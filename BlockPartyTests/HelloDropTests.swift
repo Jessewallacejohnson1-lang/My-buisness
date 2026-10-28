@@ -281,15 +281,14 @@ final class HelloDropTests: XCTestCase {
         return card
     }
 
-    /// Only what you follow, found after the last look, not called off: one item a name, newest first.
+    /// Only what you follow, not called off: one item a name, the newest found first.
     func testNewEventsOfWhatYouFollowAreOneItemEach() {
         let now = town("2026-10-21 09:00")
         let cards = [card("a", followed: "Clemens Library", found: "2026-10-21 06:00"),
                      card("b", followed: "Clemens Library", found: "2026-10-21 07:00"),
                      card("c", followed: nil, found: "2026-10-21 07:00"),
-                     card("d", followed: "Clemens Library", found: "2026-10-19 07:00"),
                      card("e", followed: "Bad Habit Brewing", found: "2026-10-21 08:00", cancelled: true)]
-        let found = HelloItem.Added.found(cards, since: town("2026-10-20 09:00"), now: now)
+        let found = HelloItem.Added.found(cards, now: now)
         XCTAssertEqual(found.map(\.name), ["Clemens Library"])
         XCTAssertEqual(found.first?.count, 2)
         XCTAssertEqual(found.first?.eventId, "b", "the newest")
@@ -298,24 +297,31 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(item.message?.target, .eventID("b"))
         XCTAssertEqual(item.row(now: now).words, "added 2 events.")
         XCTAssertEqual(item.id, "added:Clemens Library:2026-10-21", "one item a day for each")
-        let one = HelloItem(what: .added(HelloItem.Added.found(Array(cards.prefix(1)), since: town("2026-10-20 09:00"),
-                                                              now: now)[0]), at: now)
+        let one = HelloItem(what: .added(HelloItem.Added.found(Array(cards.prefix(1)), now: now)[0]), at: now)
         XCTAssertEqual(one.message?.text, "Clemens Library added an event")
         XCTAssertTrue(one.row(now: now).words.hasPrefix("added an event: Board Game Night, "), one.row(now: now).words)
     }
 
-    /// The first look only notes where the feed is; the next says what came after it.
-    func testTheFirstLookSaysNothing() {
+    /// The first look only notes the feed. After it, a card that wasn't there is new, however long
+    /// ago it was found (one posted a month out reaches the feed two weeks before); more the same
+    /// day, not yet said, add up.
+    func testANewCardOnTheFeedIsNew() {
         let (inbox, _) = inbox()
-        inbox.look(at: [card("a", followed: "Clemens Library", found: "2026-10-21 06:00")], now: town("2026-10-21 09:00"))
+        let old = card("a", followed: "Clemens Library", found: "2026-10-01 06:00")
+        inbox.look(at: [old], now: town("2026-10-21 09:00"))
         XCTAssertNil(inbox.next)
-        inbox.look(at: [card("a", followed: "Clemens Library", found: "2026-10-21 06:00"),
-                        card("b", followed: "Clemens Library", found: "2026-10-21 10:00")], now: town("2026-10-21 11:00"))
+        inbox.look(at: [old, card("b", followed: "Clemens Library", found: "2026-10-02 06:00")], now: town("2026-10-21 10:00"))
         XCTAssertEqual(inbox.next?.id, "added:Clemens Library:2026-10-21")
-        XCTAssertEqual(inbox.next?.at, town("2026-10-21 10:00"))
+        XCTAssertEqual(inbox.next?.at, town("2026-10-21 10:00"), "when it reached you")
+        inbox.look(at: [old, card("b", followed: "Clemens Library", found: "2026-10-02 06:00"),
+                        card("c", followed: "Clemens Library", found: "2026-10-21 11:00")], now: town("2026-10-21 11:30"))
+        XCTAssertEqual(inbox.items.count, 1)
+        guard case .added(let both) = inbox.next?.what else { return XCTFail("one item") }
+        XCTAssertEqual(both.count, 2)
+        XCTAssertEqual(both.eventId, "c")
         inbox.forgetAccount()
         XCTAssertNil(inbox.next)
-        inbox.look(at: [card("c", followed: "Clemens Library", found: "2026-10-21 12:00")], now: town("2026-10-21 12:30"))
+        inbox.look(at: [card("d", followed: "Clemens Library", found: "2026-10-21 12:00")], now: town("2026-10-21 12:30"))
         XCTAssertNil(inbox.next, "another account looks afresh")
     }
 
@@ -323,7 +329,7 @@ final class HelloDropTests: XCTestCase {
     func testWhatYouFollowAddedWaitsForYourDay() {
         let added = HelloItem(what: .added(HelloItem.Added.found([card("a", followed: "Clemens Library",
                                                                        found: "2026-10-21 06:00")],
-                                                                 since: .distantPast, now: town("2026-10-21 09:00"))[0]),
+                                                                 now: town("2026-10-21 09:00"))[0]),
                               at: town("2026-10-21 06:00"))
         XCTAssertTrue(added.waitsForYourDay)
         XCTAssertFalse(HelloItem(what: .accepted(kate), at: Date()).waitsForYourDay)

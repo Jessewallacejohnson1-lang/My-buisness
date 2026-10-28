@@ -32,13 +32,13 @@ struct HelloItem: Codable, Hashable, Identifiable {
     struct Added: Codable, Hashable {
         /// What you follow it's of, as the Town feed names it: in bold on the bell.
         let name: String
-        /// The Town day it was found, for its id: one item a day for each name.
+        /// The Town day it reached you, for its id: one item a day for each name.
         let day: String
         let eventId: String
         let title: String
         let eventDate: String?
         let startTime: String?
-        let count: Int
+        var count: Int
         /// The host's picture, else its place's, else the Event's, and whether it's a photo.
         let picture: URL?
         let pictureIsPhoto: Bool
@@ -131,11 +131,6 @@ struct HelloItem: Codable, Hashable, Identifiable {
         }
     }
 
-    /// The Event it opens, for an added one.
-    var eventID: String? {
-        if case .added(let added) = what { added.eventId } else { nil }
-    }
-
     /// The neighbour it's about, for a block or an account change.
     var person: Neighbor? {
         switch what {
@@ -182,10 +177,10 @@ struct HelloItem: Codable, Hashable, Identifiable {
 }
 
 extension HelloItem.Added {
-    /// New Events on the Town feed's cards: each of something you follow, found after `since`,
-    /// grouped by what it's of, newest first within.
-    static func found(_ cards: [FeedCardItem], since: Date, now: Date) -> [HelloItem.Added] {
-        let fresh = cards.filter { !$0.cancelled && $0.followed != nil && ($0.createdAt ?? .distantPast) > since }
+    /// New cards on the Town feed: each of something you follow, grouped by what it's of, the
+    /// newest found first within.
+    static func found(_ cards: [FeedCardItem], now: Date) -> [HelloItem.Added] {
+        let fresh = cards.filter { !$0.cancelled && $0.followed != nil }
         let byName = Dictionary(grouping: fresh) { $0.followed ?? "" }
         return byName.keys.sorted().compactMap { name in
             let group = (byName[name] ?? []).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
@@ -197,7 +192,9 @@ extension HelloItem.Added {
             let picture = hosted ?? place.map { ($0, placeIsPhoto) } ?? own.map { ($0, true) }
             return HelloItem.Added(name: name, day: Town.day(now), eventId: newest.id, title: newest.title,
                                    eventDate: newest.eventDate, startTime: newest.startTime, count: group.count,
-                                   picture: picture?.0, pictureIsPhoto: picture?.1 ?? true, photo: own)
+                                   picture: picture?.0, pictureIsPhoto: picture?.1 ?? true,
+                                   // Not the same picture on both sides of the bell's row.
+                                   photo: own == picture?.0 ? nil : own)
         }
     }
 
@@ -244,8 +241,8 @@ final class HelloInbox {
     private let keep: UserDefaults
     static let itemsKey = "helloDrop.inbox"
     static let pillsKey = "helloDrop.pills"
-    /// The newest found time the Town feed showed at the last look (hello-drop 07).
-    static let addedKey = "helloDrop.addedSince"
+    /// The Town feed's cards at the last look (hello-drop 07).
+    static let seenKey = "helloDrop.feedSeen"
 
     /// Read back from the phone, less any past 7 days.
     // ponytail: pruned at launch and on each find; an app left open a week keeps an old one till then.
@@ -313,22 +310,37 @@ final class HelloInbox {
             case .joined, .final, .moment: false
             }
         }
-        keep.removeObject(forKey: Self.addedKey)
+        keep.removeObject(forKey: Self.seenKey)
         save()
     }
 
-    /// The Town feed's cards, as they land: Events of what you follow found since the last look
-    /// are new (hello-drop 07). The first look only notes where the feed is, so nothing already
-    /// there is said; DEBUG `-hello-seen-days N` looks from N days back.
-    // ponytail: an Event held for review keeps when it was first found, so once approved it sits
-    // behind the cursor and is never said; stamp approval on the row if that matters.
+    /// The Town feed's cards, as they land: a card of something you follow that wasn't on the feed
+    /// at the last look is new (hello-drop 07), however long ago it was found, so an Event posted a
+    /// month out is said the day it reaches the feed. The first look only notes the feed, so nothing
+    /// already there is said; DEBUG `-hello-seen-days N` takes the cards found in the last N days
+    /// as not yet seen.
     func look(at cards: [FeedCardItem], now: Date = Date()) {
-        guard let newest = cards.compactMap(\.createdAt).max() else { return }
-        let last = keep.object(forKey: Self.addedKey) as? Double
-        keep.set(max(newest.timeIntervalSince1970, last ?? 0), forKey: Self.addedKey)
-        guard let since = HelloDrop.debugSeen(now: now) ?? last.map(Date.init(timeIntervalSince1970:)) else { return }
-        for added in HelloItem.Added.found(cards, since: since, now: now) {
-            add(.added(added), at: cards.first { $0.id == added.eventId }?.createdAt ?? now, now: now)
+        guard !cards.isEmpty else { return }
+        let stored = keep.stringArray(forKey: Self.seenKey)
+        var seen = Set(stored ?? [])
+        let debugSince = HelloDrop.debugSeen(now: now)
+        if let debugSince { seen.subtract(cards.filter { ($0.createdAt ?? .distantPast) > debugSince }.map(\.id)) }
+        // Only what's on the feed now, so the list stays the feed's size.
+        keep.set(cards.map(\.id), forKey: Self.seenKey)
+        guard stored != nil || debugSince != nil else { return }
+        for added in HelloItem.Added.found(cards.filter { !seen.contains($0.id) }, now: now) {
+            let id = HelloItem(what: .added(added), at: now).id
+            if let index = items.firstIndex(where: { $0.id == id }) {
+                // More the same day, not yet said: one item, the newest and the count added up.
+                // ponytail: once said, the rest of that day's are left for the feed to show.
+                guard !items[index].told, case .added(let earlier) = items[index].what else { continue }
+                var both = added
+                both.count += earlier.count
+                items[index] = HelloItem(what: .added(both), at: now)
+                save()
+            } else {
+                add(.added(added), at: now)
+            }
         }
     }
 
