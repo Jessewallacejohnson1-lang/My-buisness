@@ -141,6 +141,16 @@ struct CommunityAPI {
         return PlaceName(url: url, emblem: row.kind == "emblem")
     }
 
+    /// The page a found Event was read from (`club_events.source_url`, ADR-021), for an Event page
+    /// opened from a read that doesn't send it. Signed out, it reads with the public key.
+    func eventSourceURL(_ eventID: String) async throws -> URL? {
+        struct Row: Decodable { let sourceUrl: String? }
+        let (data, _) = try await SupabaseHTTP.rest("club_events", query: "select=source_url&id=eq.\(eventID)",
+                                                    accessToken: await readToken())
+        let rows: [Row] = try decode(data)
+        return rows.first?.sourceUrl.flatMap(URL.init(string:))
+    }
+
     /// A row that doesn't decode is that one photo gone, never the rest.
     nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
         struct Row: Decodable {

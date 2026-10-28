@@ -44,6 +44,9 @@ struct FeedEventDetailDestination: View {
     @State private var failedPhotos: Set<URL> = []
     /// The Event's place's name in its own lettering, once read (follows 02).
     @State private var placeName: PlaceName?
+    /// A found Event's page, read here when the screen that opened it didn't send it: only the
+    /// Town feed does (You, Saved, Daily's Event of the day and Notifications don't).
+    @State private var foundURL: URL?
 
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
@@ -167,6 +170,10 @@ struct FeedEventDetailDestination: View {
             if game != nil { feed?.holdScores(false) }
         }
         .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
+        .task(id: item.id) {
+            if item.found, item.sourceURL == nil { foundURL = await Self.readSourceURL(item.id) }
+        }
+        .animation(Motion.smooth, value: foundURL)
     }
 
     /// `event_place_name`; nothing under DEBUG samples or offline.
@@ -175,6 +182,16 @@ struct FeedEventDetailDestination: View {
               UUID(uuidString: eventID) != nil else { return nil }
         return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
     }
+
+    /// `club_events.source_url`, as `readPlaceName` reads.
+    private static func readSourceURL(_ eventID: String) async -> URL? {
+        guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
+              UUID(uuidString: eventID) != nil else { return nil }
+        return try? await CommunityAPI(auth: AuthStore.shared).eventSourceURL(eventID)
+    }
+
+    /// Where it was found, sent with the item or read on opening.
+    private var link: BusinessPage.LinkRow? { Self.sourceLink(item.sourceURL ?? foundURL) }
 
     // MARK: A game (game-card 05)
 
@@ -436,9 +453,11 @@ struct FeedEventDetailDestination: View {
             if let place = Self.placeText(item) {
                 // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
                 // With a link row under About, the Business page's wider box, so both rows' words line up.
+                // Every found Event the morning run writes has one: picked from that, not the link, the
+                // words never move when a link read on opening lands.
                 InfoPill(glyph: "mappin", text: place, url: Directions.url(forPlace: place),
                          hint: "Opens in Maps",
-                         glyphBox: Self.sourceLink(item.sourceURL) != nil ? SearchMetric.bizGlyphBox : Metric.pinBox)
+                         glyphBox: item.found ? SearchMetric.bizGlyphBox : Metric.pinBox)
                     .padding(.top, Metric.pillTop)
             }
 
@@ -456,7 +475,7 @@ struct FeedEventDetailDestination: View {
             }
 
             // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
-            if let link = Self.sourceLink(item.sourceURL) {
+            if let link {
                 InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
                          glyphBox: SearchMetric.bizGlyphBox, leaves: true)
                     .padding(.top, Self.aboutText(item.description) != nil ? SearchMetric.bizLinksTop : Metric.pillTop)

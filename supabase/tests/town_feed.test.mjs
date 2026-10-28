@@ -18,7 +18,8 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
-  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event']);
+  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
+  'public.meeting_board']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -68,6 +69,13 @@ await db.exec(`
     ('saint-benedict', 'Saint Benedict', 'Saint Benedict', true), ('saint-johns', 'Saint John''s', 'Saint John''s', true);
   create table public.town_follows (id uuid primary key default gen_random_uuid(), follower_id uuid not null,
     target_type text not null, target_id uuid not null, unique (follower_id, target_type, target_id));
+  -- The Town's pages (follows 04, 20261027143913_city_pages.sql), as live: Joetown and the City.
+  create table public.town_pages (id uuid primary key default gen_random_uuid(), town text not null,
+    slug text not null, name text not null, kind text not null, source_name text not null, picture text,
+    picture_kind text, unique (town, slug));
+  insert into public.town_pages (town, slug, name, kind, source_name, picture_kind) values
+    ('st-joseph-mn', 'town', 'Joetown', 'St. Joseph''s events', 'JoeTown', 'town'),
+    ('st-joseph-mn', 'city', 'City of St. Joseph', 'City government', 'City of St. Joseph', null);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -512,8 +520,9 @@ test("a host you've been into lifts its other Events and is named; routine busin
   await reset();
   const fair = await add('Craft fair', '2026-10-04', { start_time: '10 AM' });
   const zoo = await add('Zoo day', '2026-10-09', { start_time: '10 AM' });
-  const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM' });
-  const meetingLastWeek = await add('Planning commission', '2026-10-01', { start_time: '6 PM' });
+  // Another host's routine business: a City meeting reaches only the City's followers (town-feed 27).
+  const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM', source_name: 'School board' });
+  const meetingLastWeek = await add('Planning commission', '2026-10-01', { start_time: '6 PM', source_name: 'School board' });
   await add('Bingo', '2026-10-09', { start_time: '11 AM', source_name: "Sal's" });
   await db.query(`update public.club_events set draw = 1 where id in ($1, $2)`, [council, meetingLastWeek]);
   await tap('event_likes', fair, YOU, '2026-10-04 12:00');
@@ -2046,5 +2055,91 @@ test('the Score line gives the follow lift to what the card names, a friend Goin
                    ['follow', 3, 0, 3, 1]);
   await db.exec('reset test.admin; reset role');
   await db.query('delete from auth.users where id = $1', [FRIEND]);
+  await noPlaces();
+});
+
+// The City, its boards and Joetown (town-feed 27): a page you follow lifts the Events carrying its name, a
+// board its meetings; a City meeting (draw 1) reaches only the City's or that board's followers, lower.
+async function followPage(who, slug) {
+  await db.exec('reset role');
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id)
+                  select $1, 'page', id from public.town_pages where slug = $2`, [who, slug]);
+}
+async function followBoard(who, name) {
+  await db.exec('reset role');
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id)
+                  select $1, 'board', id from public.city_boards where name = $2`, [who, name]);
+}
+async function meeting(title, date) {
+  const id = await add(title, date, { start_time: '6 PM' });
+  await db.query('update public.club_events set draw = 1 where id = $1', [id]);
+  return id;
+}
+const reasons = async (at) => (await feed(at)).map((r) => [r.title, r.reason, r.reason_name]);
+
+test("a City meeting reaches only those who follow the City or its board, and sits lower for them", async () => {
+  await reset();
+  await meeting('City Council Meeting', '2026-10-09');
+  await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
+  const [CITYFAN, BOARDFAN, PARKFAN] = ['00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2',
+                                        '00000000-0000-0000-0000-0000000000f3'];
+  await followPage(CITYFAN, 'city');
+  await followBoard(BOARDFAN, 'City Council');
+  await followBoard(PARKFAN, 'Park Board');
+  await db.exec('set role anon');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'signed out: no meetings');
+  await signIn(PARKFAN);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "another board's follower doesn't get it");
+  await signIn(BOARDFAN);
+  assert.deepEqual(await reasons('2026-10-08 12:00'), [['Fall fair', 'tomorrow', null],
+    ['City Council Meeting', 'follow', 'City Council']], 'lifted, and still under the fair at x 0.3');
+  await signIn(CITYFAN);
+  assert.deepEqual(await reasons('2026-10-08 12:00'), [['Fall fair', 'tomorrow', null],
+    ['City Council Meeting', 'follow', CITY]]);
+});
+
+test('a City meeting you are Going to or saved stays in your feed, lower, followed or not', async () => {
+  await reset();
+  const council = await meeting('City Council Meeting', '2026-10-09');
+  const parks = await meeting('Park Board', '2026-10-10');
+  await goes(council, ME);
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [parks, ME]);
+  await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'City Council Meeting', 'Park Board']);
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "someone else's Going brings it to nobody else");
+});
+
+test("a City meeting that matches no board reaches only the City's followers", async () => {
+  await reset();
+  await meeting('Special Meeting', '2026-10-09');
+  const [CITYFAN, BOARDFAN] = ['00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2'];
+  await followPage(CITYFAN, 'city');
+  await followBoard(BOARDFAN, 'City Council');
+  await signIn(BOARDFAN);
+  assert.deepEqual(await titles('2026-10-08 12:00'), []);
+  await signIn(CITYFAN);
+  assert.deepEqual(await reasons('2026-10-08 12:00'), [['Special Meeting', 'follow', CITY]]);
+});
+
+test("the City's and Joetown's other Events lift for their followers; a Place you follow is named first", async () => {
+  await reset();
+  await add('Pilates class', '2026-10-12', { start_time: '6 PM' });
+  await add('Winterwalk', '2026-10-12', { start_time: '5 PM', source_name: 'JoeTown' });
+  const fest = await add('Fall Fest', '2026-10-12', { start_time: '4 PM', source_name: 'JoeTown' });
+  await db.query(`update public.club_events set place_entry_id = 'white-peony' where id = $1`, [fest]);
+  await add('Bingo', '2026-10-09', { start_time: '6 PM', source_name: "Sal's" });
+  await signIn(ME);
+  assert.equal((await titles('2026-10-08 12:00'))[0], 'Bingo', 'following nothing: soonest first');
+  await followPage(ME, 'city');
+  await followPage(ME, 'town');
+  await followPlace(ME);
+  await signIn(ME);
+  const by = Object.fromEntries((await reasons('2026-10-08 12:00')).map(([t, r, n]) => [t, [r, n]]));
+  assert.deepEqual(by, { 'Pilates class': ['follow', CITY], Winterwalk: ['follow', 'Joetown'],
+                         'Fall Fest': ['follow', PEONY], Bingo: ['tomorrow', null] });
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall Fest', 'Pilates class', 'Bingo', 'Winterwalk'],
+                   "Joetown's second Event counts half, as any host's");
   await noPlaces();
 });
