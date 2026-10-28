@@ -299,7 +299,21 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(item.id, "added:Clemens Library:2026-10-21", "one item a day for each")
         let one = HelloItem(what: .added(HelloItem.Added.found(Array(cards.prefix(1)), now: now)[0]), at: now)
         XCTAssertEqual(one.message?.text, "Clemens Library added an event")
-        XCTAssertTrue(one.row(now: now).words.hasPrefix("added an event: Board Game Night, "), one.row(now: now).words)
+        XCTAssertEqual(one.row(now: now).words, "added an event: Board Game Night, Fri 6 PM.")
+    }
+
+    /// The bell's when stays short: the day word, the weekday within the week, else the date.
+    func testTheAddedRowsWhenIsShort() {
+        let now = town("2026-10-21 09:00")
+        func when(_ day: String, _ time: String?) -> String? {
+            HelloItem.Added(name: "x", day: "", eventId: "", title: "", eventDate: day, startTime: time, count: 1,
+                            picture: nil, pictureIsPhoto: false, photo: nil).when(now: now)
+        }
+        XCTAssertEqual(when("2026-10-21", "7 PM"), "Tonight 7 PM")
+        XCTAssertEqual(when("2026-10-22", "6 PM"), "Tomorrow 6 PM")
+        XCTAssertEqual(when("2026-10-23", "6 PM"), "Fri 6 PM")
+        XCTAssertEqual(when("2026-10-24", nil), "Sat")
+        XCTAssertEqual(when("2026-11-20", "6 PM"), "Nov 20")
     }
 
     /// The first look only notes the feed. After it, a card that wasn't there is new, however long
