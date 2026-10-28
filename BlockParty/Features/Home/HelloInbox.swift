@@ -319,14 +319,14 @@ final class HelloInbox {
 
     /// The Town feed's cards, as they land: Events of what you follow found since the last look
     /// are new (hello-drop 07). The first look only notes where the feed is, so nothing already
-    /// there is said; DEBUG `-hello-seen-days N` starts that look N days back.
+    /// there is said; DEBUG `-hello-seen-days N` looks from N days back.
     // ponytail: an Event held for review keeps when it was first found, so once approved it sits
     // behind the cursor and is never said; stamp approval on the row if that matters.
     func look(at cards: [FeedCardItem], now: Date = Date()) {
         guard let newest = cards.compactMap(\.createdAt).max() else { return }
         let last = keep.object(forKey: Self.addedKey) as? Double
         keep.set(max(newest.timeIntervalSince1970, last ?? 0), forKey: Self.addedKey)
-        guard let since = last.map(Date.init(timeIntervalSince1970:)) ?? HelloDrop.debugSeen(now: now) else { return }
+        guard let since = HelloDrop.debugSeen(now: now) ?? last.map(Date.init(timeIntervalSince1970:)) else { return }
         for added in HelloItem.Added.found(cards, since: since, now: now) {
             add(.added(added), at: cards.first { $0.id == added.eventId }?.createdAt ?? now, now: now)
         }
