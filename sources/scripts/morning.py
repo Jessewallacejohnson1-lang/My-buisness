@@ -615,7 +615,7 @@ def own_pages(events, get=None, stop=None):
     return sum(1 for e in events if e["page"])
 
 
-def thin(out, today, stop=None, get=own_page):
+def thin(out, today, stop=None, get=None):
     d = out / "describe"
     if d.exists():
         shutil.rmtree(d)
