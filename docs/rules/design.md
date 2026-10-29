@@ -82,8 +82,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
     `registerBlockPartyFonts()` registers every bundled ttf, so Jost self-registers;
     `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
 - **Brand artwork** `[prose]` — the app icon is Jesse's Icon Composer file
-  `BlockParty/AppIcon.icon` (2026-10-08): **"Block / Party." stacked, black on a yellow
-  gradient**, with dark, tinted and clear looks. Edit it in Icon Composer, never by hand;
+  `BlockParty/AppIcon.icon` (2026-10-29): **"Bp." in black on solid BP yellow, matte
+  like Spotify's** (no shadow, no specular), with dark, tinted and clear looks. Edit it in Icon Composer, never by hand;
   `LaunchMark` is its Default export inset 36 px (see `BlockPartyMark`). The one-line
   `Wordmark` still comes from `docs/brand/source-logo-1254.png` through
   `scripts/brand/wordmark.py`, whose `AppIcon`/`LaunchMark` outputs are retired.

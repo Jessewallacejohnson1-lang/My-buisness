@@ -168,30 +168,31 @@ SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), 
 
 ## Logo & app icon
 
-The icon is **the wordmark lockup** (Sep 19, 2026 revision): black "BlockParty." on a
-yellow field, shipped 1:1 from `docs/brand/source-logo-1254.png`. It replaced the Aug
-25 wave figure — a painted figure inside broadcast arcs — which Jesse cut on
-2026-09-19 ("remove that logo with a person, totally delete it"); that master and the
-"bp" render before it are gone from the repo, along with the dead `MarkTemplate`
-and `LaunchWordmark` imagesets.
+The icon is **"Bp."** (Oct 29, 2026 revision), Jesse's Icon Composer file
+`BlockParty/AppIcon.icon`: black "Bp." on solid BP yellow `#FCE804`, matte like
+Spotify's (no drop shadow, no specular shine), with dark (yellow on near-black),
+tinted and clear looks. Edit it in Icon Composer. It replaced the stacked "Block /
+Party." of Oct 8, which replaced the one-line "BlockParty." lockup of Sep 19 and the
+Aug 25 wave figure (Jesse, 2026-09-19: "remove that logo with a person, totally
+delete it").
 
-Unlike the painted renders, this art is **flat two-colour**, so it can be separated:
-`scripts/brand/wordmark.py` resolves every pixel to an ink-coverage value and writes
-the icon, the launch crop, and the letterforms-on-alpha from that one measurement.
+The one-line lockup's master `docs/brand/source-logo-1254.png` still makes the
+header's `Wordmark`: `scripts/brand/wordmark.py` resolves every pixel to an
+ink-coverage value and writes the letterforms-on-alpha from that measurement.
 
 The icon is brand **content**, like photography and the basemap — not UI chrome. The
 in-app world stays ink on paper; the icon is the front door.
 
-- Assets in `BlockParty/Assets.xcassets`: `AppIcon` (1024, full-bleed, no alpha),
-  `LaunchMark` (the same art inset 36/1024 on every side), and `Wordmark` (the tight
-  crop of the letterforms, black on alpha, **template-rendered** so it takes `Hue.ink`).
+- Assets: `BlockParty/AppIcon.icon` (the home-screen icon), and in
+  `BlockParty/Assets.xcassets` `LaunchMark` (the icon's Default export inset 36/1024 on
+  every side, corners filled flat yellow) and `Wordmark` (the tight crop of the
+  letterforms, black on alpha, **template-rendered** so it takes `Hue.ink`).
 - **Two views, two meanings.** `BlockPartyMark` is *the app icon* — field and all,
   squircle-clipped, for the launch loader, invite cards, and anywhere the home-screen
   icon is what is meant. `BlockPartyWordmark` is *the logo on our own page* — ink
   letterforms, no tile — and it is what the Today bar carries.
-- `LoaderBlockPartyMark.contentFraction` (0.9014) is the one number that moves when
-  the icon is re-exported; the squircle clip is the iOS corner ratio, so the loader
-  mark reads as the icon does on the home screen.
+- Re-export `LaunchMark` whenever the .icon changes; the squircle clip is the iOS
+  corner ratio, so the loader mark reads as the icon does on the home screen.
 - **The yellow field stays on the loader mark.** The loader shows the actual icon,
   background and all — decided, not an oversight. The header is the other case: there
   the logo belongs *to the page*, so it is the alpha wordmark in ink.

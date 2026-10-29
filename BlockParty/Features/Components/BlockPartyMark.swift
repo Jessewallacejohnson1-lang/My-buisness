@@ -9,13 +9,13 @@
 //  shows `LaunchMark`, which is the app icon's own export with its outer margin
 //  cropped off.
 //
-//  The icon (Oct 8, 2026 revision) is Jesse's Icon Composer file, `BlockParty/AppIcon.icon`:
-//  "Block / Party." stacked on two lines, black on a yellow gradient, with its own dark,
-//  tinted and clear looks. It replaced the one-line wordmark lockup of Sep 19, which
-//  replaced the Aug 25 wave figure; those masters are retired.
+//  The icon (Oct 29, 2026 revision) is Jesse's Icon Composer file, `BlockParty/AppIcon.icon`:
+//  "Bp." in black on solid BP yellow, matte (no shadow, no specular), with its own dark,
+//  tinted and clear looks. It replaced the stacked "Block / Party." of Oct 8, the one-line
+//  wordmark lockup of Sep 19 and the Aug 25 wave figure; those masters are retired.
 //
 //  `LaunchMark` is Icon Composer's Default export (1024 px) inset by 36 px on every side,
-//  which drops the glass rim; corners outside the export's mask are filled yellow. The
+//  which drops the glass rim on the sides; the four corners are filled flat yellow. The
 //  squircle clip below is the iOS icon corner ratio, so the mark reads as the app icon
 //  does on the home screen. Re-export it whenever the .icon changes.
 //

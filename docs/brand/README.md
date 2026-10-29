@@ -1,10 +1,12 @@
 # Block Party — the mark
 
-The app icon (Oct 8, 2026) is Jesse's Icon Composer file `BlockParty/AppIcon.icon`:
-`Block` / `Party.` stacked, black on a yellow gradient, with dark, tinted and clear
-looks. Edit it in Icon Composer. `LaunchMark` (the icon inside the app) is its Default
-export inset 36 px. It replaced the one-line Sep 19 lockup, whose master
-`source-logo-1254.png` still makes the header's `Wordmark`.
+The app icon (Oct 29, 2026) is Jesse's Icon Composer file `BlockParty/AppIcon.icon`:
+`Bp.` in black on solid BP yellow `#FCE804`, matte like Spotify's (no shadow, no
+specular shine), with dark, tinted and clear looks. Edit it in Icon Composer.
+`LaunchMark` (the icon inside the app) is its Default export inset 36 px, corners
+filled flat yellow. It replaced the stacked `Block` / `Party.` of Oct 8 and the
+one-line Sep 19 lockup, whose master `source-logo-1254.png` still makes the header's
+`Wordmark`.
 
 It replaced the Aug 25 **wave figure** — a painted black figure with raised arms
 inside three yellow broadcast arcs — which Jesse cut on 2026-09-19 ("remove that logo
@@ -23,7 +25,7 @@ python3 scripts/brand/wordmark.py docs/brand/source-logo-1254.png
 
 | asset | size | format |
 |---|---|---|
-| `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 952² | RGB, Icon Composer's Default export inset 36 px (not from this script since 2026-10-08) |
+| `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 952² | RGB, Icon Composer's Default export inset 36 px, corners filled flat yellow (not from this script since 2026-10-08) |
 | `Assets.xcassets/Wordmark.imageset/Wordmark.png` | 1051 × 216 | RGBA, the letterforms alone, **template-rendered** |
 
 The script writes them into `docs/brand/`; move them into the asset catalog. It also
