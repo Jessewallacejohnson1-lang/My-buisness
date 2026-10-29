@@ -161,17 +161,17 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await apply(placed('2026-10-21'), [], [], []);
   assert.deepEqual(await marks(), [{ f: false, team: 'rocori', name: 'Volleyball, Girls' }]);
 
-  // The save says what it did with each item, in the order given (smooth-mornings 05): an Event added or
-  // merged into the one already listed, a News added or a repeat. One News is one link: the same post
-  // again under a reworded title is a repeat, and left as it is.
+  // The save says which items it added, by their place in its lists (smooth-mornings 05): every other Event
+  // was merged into one already listed, every other News a repeat. Its counts stay as they were. One News is
+  // one link: the same post again under a reworded title is a repeat, and left as it is.
   await db.exec(migration('20261029151242_apply_judged_says_what_it_did.sql'));
   const hayride = placed('2026-10-22').map((g) => ({ ...g, title: 'Haunted Hayride', source_uid: 'hay:1' }));
   const post = { blurb: 'Boo baskets are back.', category: 'business', source_name: 'White Peony Boutique',
     source_url: 'https://www.instagram.com/p/DeBoo/', tier: 1, status: 'published', starts_at: null, own_link: true };
   const first = await apply([...hayride, ...placed('2026-10-21')], [], [], [{ ...post, title: 'Boo baskets for Halloween' }]);
-  assert.deepEqual([first.events, first.news], [['added', 'merged'], ['added']]);
+  assert.deepEqual([first.events, first.news, first.added], [2, 1, { events: [0], news: [0] }]);
   const again = await apply(hayride, [], [], [{ ...post, title: 'Halloween boo baskets are back' }]);
-  assert.deepEqual([again.events, again.news], [['merged'], ['repeat']]);
+  assert.deepEqual([again.events, again.news, again.added], [1, 0, { events: [], news: [] }]);
   const titles = async (source) => (await db.query(
     'select title from public.board_items where source_name = $1 order by title', [source])).rows.map((r) => r.title);
   assert.deepEqual(await titles('White Peony Boutique'), ['Boo baskets for Halloween'], 'the repeat is left out');
@@ -180,13 +180,14 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   const page = { ...post, source_name: 'Stearns County', source_url: 'https://www.stearnscountymn.gov/', own_link: false };
   const cow = { ...post, source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/DeCow/' };
   assert.deepEqual((await apply([], [], [], [{ ...page, title: 'Early Voting' }, { ...page, title: 'County Road 134 closed' },
-    { ...cow, title: 'Pumpkin pie is the flavor' }, { ...cow, title: 'Flavor of the week: pumpkin pie' }])).news,
-  ['added', 'added', 'added', 'repeat']);
-  assert.deepEqual((await apply([], [], [], [{ ...page, title: 'early voting' }])).news, ['repeat']);
+    { ...cow, title: 'Pumpkin pie is the flavor' }, { ...cow, title: 'Flavor of the week: pumpkin pie' }])).added.news,
+  [0, 1, 2]);
+  const reread = await apply([], [], [], [{ ...page, title: 'early voting' }]);
+  assert.deepEqual([reread.news, reread.added.news], [1, []], 'a re-read by title is written, not added');
   assert.deepEqual(await titles('Stearns County'), ['County Road 134 closed', 'Early Voting']);
   assert.deepEqual(await titles('The Wandering Cow'), ['Flight Friday', 'Pumpkin pie is the flavor']);
-  assert.deepEqual((await apply([], [], [], [])), { events: [], news: [], mentions: 0, published_by_mention: 0,
-                                                     cancelled: 0, restored: 0 });
+  assert.deepEqual((await apply([], [], [], [])), { events: 0, news: 0, mentions: 0, published_by_mention: 0,
+                                                     cancelled: 0, restored: 0, added: { events: [], news: [] } });
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');

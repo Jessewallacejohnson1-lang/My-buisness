@@ -246,17 +246,16 @@ def read_items(path):
 
 
 def summary_lines(prep, result, written):
-    """The new counts are what the database did (apply_judged's answer, item by item: smooth-mornings
-    05), and the new Events and News are listed from the rows it added. A dry run's are the plan's."""
+    """The new counts are what the database did (apply_judged's `added`: smooth-mornings 05), and the new
+    Events and News are listed from the rows it added. A dry run's are the plan's."""
     count = {}
     for what, _ in result["outcomes"]:
         count[what] = count.get(what, 0) + 1
     sent = write_judged.payloads(result)
-    answered = isinstance((written or {}).get("news"), list)
-    did = written if answered else {"events": ["merged" if g["old"] else "added" for g in result["events"] if g["row"]],
-                                    "news": ["added"] * len(sent["p_news"])}
-    events = [e for e, d in zip(sent["p_events"], did["events"]) if d == "added"]
-    news = [n for n, d in zip(sent["p_news"], did["news"]) if d == "added"]
+    answered = isinstance((written or {}).get("added"), dict)
+    added = written["added"] if answered else {"events": [i for i, g in enumerate(g for g in result["events"] if g["row"])
+                                                          if not g["old"]], "news": range(len(sent["p_news"]))}
+    events, news = [sent["p_events"][i] for i in added["events"]], [sent["p_news"][i] for i in added["news"]]
     lines = [f"Social watch ({prep['run']}), {prep['today']}" if prep.get("run") else f"Morning watch, {prep['today']}",
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
@@ -272,7 +271,7 @@ def summary_lines(prep, result, written):
         lines.append(f"- Written: {written['mentions']} mentions, {written['published_by_mention']} published by a "
                      f"mention, {written['cancelled']} cancelled, {written['restored']} back on")
     else:
-        lines.append(f"- Written: {json.dumps(written)}; the save didn't say what it did with each item, so the "
+        lines.append(f"- Written: {json.dumps(written)}; the save didn't say which items it added, so the "
                      "counts above are what was sent (apply_judged from before smooth-mornings 05)")
     lines += ["New Events:"] * bool(events) + [f"- {new_event(e)}" for e in events]
     lines += ["New News:"] * bool(news) + [f"- {n['title']} ({n['source_name']})" for n in news]
@@ -705,12 +704,13 @@ def counts_what_the_database_did():
              + [news("Thanksgiving pies")] + [news(f"Post number {k}") for k in range(25)])
     answers = []
 
-    def apply(result):  # the database's half: what it already has is a repeat or merged, the rest added
+    def apply(result):  # the database's half: what it already has is merged or a repeat, the rest added
         p = write_judged.payloads(result)
-        answers.append({"events": ["merged" if (e["source_name"], e["source_uid"]) in held_events else "added"
-                                   for e in p["p_events"]],
-                        "news": ["repeat" if n["title"].lower() in held_news else "added" for n in p["p_news"]],
-                        "mentions": 5, "published_by_mention": 0, "cancelled": 0, "restored": 0})
+        answers.append({"events": len(p["p_events"]), "news": len(p["p_news"]), "mentions": 5, "published_by_mention": 0,
+                        "cancelled": 0, "restored": 0,
+                        "added": {"events": [i for i, e in enumerate(p["p_events"])
+                                             if (e["source_name"], e["source_uid"]) not in held_events],
+                                  "news": [i for i, n in enumerate(p["p_news"]) if n["title"].lower() not in held_news]}})
         return answers[-1]
     names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
     saved = tuple(getattr(write_judged, n) for n in names)

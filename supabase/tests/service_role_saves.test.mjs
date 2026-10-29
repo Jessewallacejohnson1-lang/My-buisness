@@ -119,14 +119,14 @@ test('prepare and write: the registry sync, the listed events, apply_judged and 
   const first = await apply([game(day(7))], [{ event_source_name: 'ROCORI High School', event_source_uid: uid,
     source_name: 'Sartell High School', source_url: 'https://sartell.k12.mn.us/athletics', source_uid: 's1',
     trust: 'official', sure: true }], [news]);
-  // What the save did with each item (smooth-mornings 05): the game added, the News added.
-  assert.deepEqual([first.events, first.mentions, first.news], [['added'], 1, ['added']]);
+  // The counts it always gave, and which items it added (smooth-mornings 05): the game and the News.
+  assert.deepEqual([first.events, first.mentions, first.news, first.added], [1, 1, 1, { events: [0], news: [0] }]);
   const [{ id }] = await asJob('read back', 'select id from public.club_events');
   // The next morning it moved a day and its schedule dropped it, then another school listed it again. The
   // same post came back reworded: one News is one link.
   const next = await apply([game(day(8), { description: 'Senior night: the Storm honors its seniors before the game.' })],
     [], [{ ...news, title: 'Four scoops for $5 every Friday' }]);
-  assert.deepEqual([next.events, next.news], [['merged'], ['repeat']]);
+  assert.deepEqual([next.events, next.news, next.added], [1, 0, { events: [], news: [] }]);
   assert.equal((await apply([], [], [], [id])).cancelled, 1);
   assert.equal((await apply([], [], [], [], [id])).restored, 1);
   await asJob('write: fingerprints', `update public.sources set last_hash = $3, last_changed_at = now()

@@ -1,8 +1,9 @@
 -- The save says what it did with each item (BP app smooth-mornings 05). The morning report counted what
 -- the writer sent: on Oct 28 it said "26 new" News and the database got 1 new row, the other 25 only a new
--- fetched_at. apply_judged now answers, in the order given, "added" or "merged" (a re-read of one already
--- listed) for each Event and "added" or "repeat" for each News; morning.py write counts and lists the new
--- ones from that answer. Those two lists replace the counts of Events and News written.
+-- fetched_at. apply_judged now also answers which items it added: `added` holds the positions (from 0) in
+-- p_events and p_news of the rows it inserted. Every other Event was merged into one already listed, and
+-- every other News was a repeat. morning.py write counts and lists the new ones from that answer. The
+-- counts it always gave stay as they were, so a writer from before this still reads its answer.
 --
 -- One News is one link: an item with a link of its own (own_link: a post's address, a feed item's link, as
 -- write_judged.own_link decides) whose source already has that link, or an earlier item in the same call
@@ -20,7 +21,8 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  events_done jsonb; news_done jsonb; n_mentions int; n_upgrades int; n_cancelled int; n_restored int;
+  n_events int; n_mentions int; n_upgrades int; n_news int; n_cancelled int; n_restored int;
+  events_added jsonb; news_added jsonb;
 begin
   -- 0. Every team a game names (game-card 01), so its card has both before a logo is found.
   insert into public.teams (id, name, short_name)
@@ -30,8 +32,8 @@ begin
   where t.id is not null and t.name is not null
   on conflict (id) do nothing;
 
-  -- 1. New found events, and re-reads of ones already listed (same source and uid). Each says which it
-  --    was: the statement reads the table as it was before its own insert.
+  -- 1. New found events, and re-reads of ones already listed (same source and uid). Added are the ones
+  --    not there before: the statement reads the table as it was before its own insert.
   with given as (
     select a.n, x.*
     from jsonb_array_elements(p_events) with ordinality as a(item, n)
@@ -79,11 +81,12 @@ begin
           and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)
               is distinct from (excluded.title, excluded.event_date, excluded.start_time, excluded.all_day, excluded.location)
         then 'pending' else club_events.status end
+    returning 1
   )
-  select coalesce(jsonb_agg(case when exists (select 1 from public.club_events e
-                                              where e.source_name = g.source_name and e.source_uid = g.source_uid)
-                                 then 'merged' else 'added' end order by g.n), '[]')
-  into events_done
+  select (select count(*) from written),
+    coalesce(jsonb_agg(g.n - 1 order by g.n) filter (where not exists (select 1 from public.club_events e
+      where e.source_name = g.source_name and e.source_uid = g.source_uid)), '[]')
+  into n_events, events_added
   from given g;
 
   -- 2. Every mention (ADR-021), counted toward the two-mention rule next time.
@@ -140,9 +143,11 @@ begin
         then 'published' else board_items.status end,
       published_at = case when board_items.status = 'staging' and excluded.status = 'published'
         then now() else board_items.published_at end
+    returning 1
   )
-  select coalesce(jsonb_agg(case when linked or listed then 'repeat' else 'added' end order by n), '[]')
-  into news_done
+  select (select count(*) from written),
+    coalesce(jsonb_agg(n - 1 order by n) filter (where not linked and not listed), '[]')
+  into n_news, news_added
   from judged;
 
   -- 5. Found events their schedule dropped: kept and marked cancelled, never deleted; the app
@@ -159,9 +164,10 @@ begin
   where e.id = x.id::uuid and e.cancelled_at is not null;
   get diagnostics n_restored = row_count;
 
-  return jsonb_build_object('events', events_done, 'mentions', n_mentions,
-                            'published_by_mention', n_upgrades, 'news', news_done,
-                            'cancelled', n_cancelled, 'restored', n_restored);
+  return jsonb_build_object('events', n_events, 'mentions', n_mentions,
+                            'published_by_mention', n_upgrades, 'news', n_news,
+                            'cancelled', n_cancelled, 'restored', n_restored,
+                            'added', jsonb_build_object('events', events_added, 'news', news_added));
 end;
 $$;
 

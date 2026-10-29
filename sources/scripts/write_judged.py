@@ -9,9 +9,9 @@ this is everything after the judge. Dry-run by default (ADR-009): prints what ea
 becomes. How the writes land lives in the database, in public.apply_judged (the newest
 supabase/migrations/*.sql that makes it): `--apply` calls it with this morning's writes over the
 service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment), `--sql FILE`
-writes the same call as SQL to run by hand. It answers what it did with each item, in the order
-sent: "added" or "merged" (into one already listed) for each Event, "added" or "repeat" for each
-News (BP app smooth-mornings 05), and morning.py write counts from that answer.
+writes the same call as SQL to run by hand. Besides its counts, it answers which items it added
+(`added`: their places in the Events and News sent; every other Event was merged into one already
+listed, every other News a repeat; BP app smooth-mornings 05), and morning.py write counts from that.
 
   python3 sources/scripts/write_judged.py judged.jsonl --existing existing.json [--sql out.sql]
   python3 sources/scripts/write_judged.py judged.jsonl --existing db --apply
@@ -623,16 +623,18 @@ def repeat_of(n, recent):
     initials say it's another one: "I-94 eastbound: Crash" and "MN 23 westbound: Crash", "SJU
     Athlete of the Week" and "CSB Athlete of the Week". A date only one title gives doesn't:
     "Cloudy collection launches Oct 25" is the "Comfort With a Chance of Cloudy collection"
-    launching that Sunday; two different dates ("Closed Oct 24", "Closed Oct 31") do."""
+    launching that Sunday; two different dates ("Closed Oct 24", "Closed Oct 31") do. Capitals and
+    hyphens don't either: White Peony's "Build-your-own boo basket", "Build-your-own BOO baskets" and
+    "Build Your Own Boo Baskets" were one offer posted three times (Oct 26 and 27)."""
     stop = STOP | {"is", "are", "our", "your", "its", "this", "now"}
-    mine = words(DAY.sub(" ", n["title"]), stop) - words(n["source_name"])
     for old in recent:
         if (old.get("place_entry_id") or old["source_name"]) != (n["place_entry_id"] or n["source_name"]):
             continue
-        (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"]), marks(n["title"])
+        (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"], n["title"]), marks(n["title"], old["title"])
         if theirs_marks != my_marks or (their_days and my_days and their_days != my_days):
             continue
-        theirs = words(DAY.sub(" ", old["title"]), stop) - words(old["source_name"])
+        mine = words(DAY.sub(" ", joined(n["title"], old["title"])), stop) - words(n["source_name"])
+        theirs = words(DAY.sub(" ", joined(old["title"], n["title"])), stop) - words(old["source_name"])
         shared = mine & theirs
         if len(shared) >= 2 and len(shared) >= 2 / 3 * min(len(mine), len(theirs)):
             return old
@@ -642,11 +644,27 @@ def repeat_of(n, recent):
 DAY = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?\b", re.I)
 
 
-def marks(title):
+def marks(title, other=""):
     """A title's numbers and initials ("94", "MN", "SJU"), the words that tell one from another,
-    and apart from them the dates it names ("Oct 25")."""
+    and apart from them the dates it names ("Oct 25"). A word in capitals that `other` has too, in any
+    letters, is the same word shouted, not initials: "BOO baskets" and "Boo Baskets"."""
     days = {d.lower().replace(".", "") for d in DAY.findall(title or "")}
-    return set(re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))), days
+    theirs = set(re.findall(r"[a-z]+", (other or "").lower()))
+    return {m for m in re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))
+            if not (m.isalpha() and m.lower() in theirs)}, days
+
+
+HYPHENED = re.compile(r"[A-Za-z]+(?:-[A-Za-z]+)+")
+
+
+def joined(title, other):
+    """Words a hyphen joins in either title are one word in both: "Build Your Own" is "Build-your-own"
+    (words() already makes that "buildyourown"). Words joined in neither stay apart, so "Two-for-one apps"
+    and "Two-for-one drinks" share one word, not three."""
+    for compound in HYPHENED.findall(title or "") + HYPHENED.findall(other or ""):
+        parts = compound.split("-")
+        title = re.sub(r"\b" + r"[\s-]+".join(map(re.escape, parts)) + r"\b", "".join(parts), title, flags=re.I)
+    return title
 
 
 def group(old=None, facts=None, home="St. Joseph MN"):
@@ -1006,6 +1024,25 @@ def t_news_repeat_left_out():
     assert [outcome(r, i) for i in range(11)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news",
                                                   "repeat", "news", "news"], r["outcomes"]
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
+
+
+def t_news_shouted_or_hyphened_is_one():
+    """White Peony's boo baskets: one offer posted three times on Oct 26 and 27, as "Build-your-own boo
+    basket", "Build-your-own BOO baskets" and "Build Your Own Boo Baskets at White Peony". Capitals and
+    hyphens don't make it another News (smooth-mornings 05). Different specials from one place stay apart."""
+    peony = dict(kind="news", start=None, category="business", source_name="White Peony Boutique",
+                 source_url="https://www.instagram.com/p/x/")
+    first = {"title": "Build-your-own boo basket", "source_name": "White Peony Boutique",
+             "place_entry_id": where(None, "White Peony Boutique")}
+    r = plan([item(title="Build-your-own BOO baskets", **peony), item(title="Build Your Own Boo Baskets at White Peony", **peony)],
+             [], TODAY, INTERESTS, recent_news=[first])
+    assert [outcome(r, i) for i in range(2)] == ["repeat", "repeat"], r["outcomes"]
+    house = dict(peony, source_name="The House Food & Tap")
+    week = [{"title": t, "source_name": "The House Food & Tap", "place_entry_id": where(None, "The House Food & Tap")}
+            for t in ("Half-price wings Tuesday", "Two-for-one apps", "Wing NIGHT")]
+    titles = ["Half price burgers Thursday", "Two-for-one drinks", "Taco night", "$10 Pour of the Week", "Half-price taps"]
+    r = plan([item(title=t, **house) for t in titles], [], TODAY, INTERESTS, recent_news=week)
+    assert [outcome(r, i) for i in range(5)] == ["news"] * 5, list(zip(titles, r["outcomes"]))
 
 
 def t_all_day_a_day_apart_is_one():
@@ -1498,7 +1535,7 @@ def t_one_place_two_names():
 
 
 TESTS = [t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_one_news_one_link, t_news_look_back_is_the_feeds_week,
+         t_one_news_one_link, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
