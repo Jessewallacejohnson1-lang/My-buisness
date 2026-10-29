@@ -2117,6 +2117,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.320
 ## Sunny Mary Meadow
 ```yaml
 id: mary-meadow-sunny
+venues: ["The Bloom Room"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -2126,7 +2127,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). The Bloom Room is its event room (its page is sunnymarymeadow.com/bloomroom), so an event there is at Sunny Mary Meadow (smooth-mornings 08).
 
 ## Taco John's
 ```yaml
@@ -2344,6 +2345,8 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ## White Peony Boutique
 ```yaml
 id: boutique-peony-white
+aka: ["White Peony"]
+address: "25 1st Ave NW, Suite 200"
 status: active
 tier: watched
 added_by: agent:discover
@@ -2353,7 +2356,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: White Peony is Suite 200 and W|R Home Suite 100 of one building, so an event at "25 First Ave NW" is at both (smooth-mornings 08).
 
 ## Williams Dingmann Funeral Homes
 ```yaml
@@ -2388,7 +2391,8 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ## W|R Home Company
 ```yaml
 id: home-r-w
-aka: ["W|R Home Co."]
+aka: ["W|R Home Co.", "WR Home"]
+address: "25 1st Ave NW, Ste 100"
 status: active
 tier: watched
 added_by: agent:discover
@@ -2398,7 +2402,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: Suite 100 of White Peony's building (smooth-mornings 08).
 
 ## 24 North: Lofts on College Avenue
 ```yaml

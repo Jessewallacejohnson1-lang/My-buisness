@@ -141,12 +141,14 @@ def validate(entries):
 # Where an event happens, as a registry entry (BP app docs/plans/place-photos): the key that
 # picks the place's photo or logo for the event's card.
 STREET_WORDS = {"street": "st", "saint": "st", "avenue": "ave", "road": "rd", "drive": "dr", "lane": "ln",
-                "east": "e", "west": "w", "north": "n", "south": "s", "theatre": "theater", "county": "co"}
+                "east": "e", "west": "w", "north": "n", "south": "s", "theatre": "theater", "county": "co",
+                # JoeTown's "25 First Ave NW" is the registry's "25 1st Ave NW" (smooth-mornings 08).
+                "first": "1st", "second": "2nd", "third": "3rd", "fourth": "4th", "fifth": "5th"}
 
 
 def place_key(text):
     """A place line or name reduced to what tells places apart: the part before its first comma
-    (the town comes after it), saint/street spelled one way, no leading "the", letters and digits."""
+    (the town comes after it), saint/street/ordinals spelled one way, no leading "the", letters and digits."""
     t = (text or "").lower().split(",")[0].replace("’", "'").replace("&", " and ")
     t = " ".join(STREET_WORDS.get(w, w) for w in re.findall(r"[a-z0-9']+", t))
     return re.sub(r"[^a-z0-9]", "", re.sub(r"^the ", "", t))
@@ -158,16 +160,24 @@ TOWN_KEYS = {"stjoseph", "collegeville", "stcloud", "sartell", "waitepark", "avo
              "freeport", "saukrapids", "stjosephmn", "minnesota", "mn"}
 
 
-def place_index(entries):
-    """Every name, other name (`aka`), venue and address an entry answers to -> its id."""
+def names_index(entries):
+    """Every name, other name (`aka`), venue and address an entry answers to -> every entry answering
+    to it, in file order: two shops in one building share its address (White Peony and W|R Home)."""
     index = {}
     for e in entries:
         if e.get("status") == "retired":
             continue
         for name in [e["_name"], *(e.get("aka") or []), *(e.get("venues") or []), e.get("address")]:
-            if name and place_key(name) and place_key(name) not in TOWN_KEYS:
-                index.setdefault(place_key(name), e["id"])
+            key = place_key(name)
+            if name and key and key not in TOWN_KEYS and e["id"] not in index.get(key, []):
+                index.setdefault(key, []).append(e["id"])
     return index
+
+
+def place_index(entries):
+    """Every name, other name (`aka`), venue and address an entry answers to -> its id (the first
+    entry in the file answering to it)."""
+    return {key: ids[0] for key, ids in names_index(entries).items()}
 
 
 def place_for(place, poster, index):
