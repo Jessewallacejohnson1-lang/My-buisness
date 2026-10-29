@@ -36,6 +36,7 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             sentence (feed and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
             routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24). Never a game
             (write_judged.is_game: its reader wrote its About) or an Event laid out before (smooth-mornings 06).
+            A campus Event linking to its sign-up page is laid out once even with a full About (event-details).
             Each comes with the text of its own link, read politely within about 6 minutes (Jesse, 2026-10-29)
   describe  write the helpers' Abouts (.runs/morning/describe.jsonl) onto those Events, each
             only when longer than the one it has, mark every Event they answered as researched
@@ -67,7 +68,7 @@ from urllib.parse import quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
-from read_events import LOCAL
+from read_events import LOCAL, CAMPUS_HOSTS
 from batch import layout
 import write_judged
 from run import Supabase, fetch, fetch_watched, to_text, deadline, late, part_state, resume_part, aside_lines
@@ -455,18 +456,38 @@ def to_describe(today):
     first. Older ones were researched already (the 2026-10-24 backfill), and one laid out before
     was researched on its morning (described_at), so a thin one stays thin rather than being
     searched again every day (smooth-mornings 06)."""
-    since = (today - timedelta(days=2)).isoformat()
-    return to_research(Supabase().rest(
-        "GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,source_url,"
-               "sport,category,clubs(name)&status=eq.approved&kind=eq.event"
-               f"&event_date=gte.{today}&created_at=gte.{since}&described_at=is.null&order=event_date&limit=1000"))
+    since, db = (today - timedelta(days=2)).isoformat(), Supabase()
+    ask = ("club_events?select=id,title,event_date,start_time,location,description,source_name,source_url,"
+           "sport,category,clubs(name)&status=eq.approved&kind=eq.event"
+           f"&event_date=gte.{today}&described_at=is.null&order=event_date&limit=1000")
+    found = db.rest("GET", f"{ask}&created_at=gte.{since}")
+    # A campus Event with a sign-up page is laid out once whenever it was found (event-details), after
+    # the newly found, which have only two days to be read; it waits for a morning with room.
+    hosts = quote(",".join(f'"{h}"' for h in sorted(CAMPUS)))
+    known = {r["id"] for r in found}
+    later = [r for r in db.rest("GET", f"{ask}&source_name=in.({hosts})&source_url=not.like.{quote(CALENDAR_PAGE)}")
+             if r["id"] not in known]
+    return to_research(found + later)
+
+
+# The campus calendar's hosts. Their Event links to the calendar's own page unless the calendar names
+# a sign-up page (read_events.pathify_items; BP app event-details).
+CAMPUS = set(CAMPUS_HOSTS.values())
+CALENDAR_PAGE = "*/public/events/*"
+
+
+def signs_up(row):
+    """A campus Event linking to its sign-up page: its About is laid out even when it is a sentence or
+    more, since the calendar's text leaves out the fee, the limits and "registration is filled"."""
+    return row.get("source_name") in CAMPUS and "/public/events/" not in (row.get("source_url") or "")
 
 
 def to_research(rows):
-    """The rows whose About is empty or under a sentence, games left out (write_judged.is_game: a
-    game's reader wrote its About from the schedule, and there is nothing more to find), as the
-    helpers read them, at most DESCRIBE_MAX."""
-    thin = [r for r in rows if len((r.get("description") or "").strip()) < THIN and not write_judged.is_game(r)]
+    """The rows whose About is empty or under a sentence, or that link to a campus sign-up page, games
+    left out (write_judged.is_game: a game's reader wrote its About from the schedule, and there is
+    nothing more to find), as the helpers read them, at most DESCRIBE_MAX."""
+    thin = [r for r in rows if (len((r.get("description") or "").strip()) < THIN or signs_up(r))
+            and not write_judged.is_game(r)]
     return [{"id": r["id"], "title": r["title"], "date": r["event_date"], "start": r.get("start_time") or "",
              "place": r.get("location") or "", "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
              "link": r.get("source_url") or "", "about": (r.get("description") or "").strip()}
@@ -530,13 +551,13 @@ def own_pages(events, get=own_page, minutes=PART_MINUTES):
     return sum(1 for e in events if e["page"])
 
 
-def thin(out, today):
+def thin(out, today, get=own_page):
     d = out / "describe"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
     events = to_describe(today)
-    pages = own_pages(events)
+    pages = own_pages(events, get)
     for i in range(0, len(events), DESCRIBE_BATCH):
         (d / f"batch-{i // DESCRIBE_BATCH + 1}.txt").write_text(
             "\n".join(json.dumps(e, ensure_ascii=False) for e in events[i:i + DESCRIBE_BATCH]) + "\n")
@@ -784,7 +805,7 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
-    checks += games_aside() + described_once()
+    checks += games_aside() + described_once() + sign_up_pages()
     asked = []
 
     def get(url):
@@ -1035,6 +1056,41 @@ def games_aside():
              "their readers, every title over 40 (a game's too) is in both, no game is laid out to describe")]
 
 
+def sign_up_pages():
+    """A campus Event linking to its sign-up page is laid out with a full About; one linking to the
+    calendar's own page, or another host's, is not. Newly found Events come first, and an Event both
+    reads give is laid out once."""
+    global Supabase
+    long = "Explore the Benedictine practice of stability by learning self-compassion. " * 3
+
+    def row(i, host, link, about=long, made="2026-10-28"):
+        return {"id": i, "title": f"Event {i}", "event_date": "2026-11-03", "start_time": "9 AM", "location": "x",
+                "description": about, "source_name": host, "source_url": link, "sport": None, "category": None,
+                "clubs": None, "created_at": made}
+    retreat = row("r", "Saint Benedict's Monastery", "https://sbm.osb.org/event/grounding/2026-11-03/", made="2026-09-01")
+    talk = row("t", "CSB SJU Libraries", "https://my.csbsju.edu/public/events/5")
+    other = row("o", "Sisters of the Order of Saint Benedict", "https://sbm.osb.org/event/deep-waters/")
+    new = row("n", "City of St. Joseph", "https://c/1", about="")
+    both = row("b", "CSB SJU Campus Events", "https://forms.csbsju.edu/x")
+    asked = []
+
+    class FakeDb:
+        def rest(self, method, path, body=None, prefer=None):
+            asked.append(path)
+            return [new, both] if "created_at=gte." in path else [both, retreat]
+    saved, Supabase = Supabase, FakeDb
+    try:
+        laid = [e["id"] for e in to_describe(date(2026, 10, 29))]
+    finally:
+        Supabase = saved
+    picked = [e["id"] for e in to_research([retreat, talk, other])]
+    return [(picked == ["r"], "a campus Event with a sign-up page is researched though its About is full; the "
+                              "calendar's own page or another host's page is not"),
+            (laid == ["n", "b", "r"] and "source_name=in.(" in asked[1] and "Saint%20Benedict" in asked[1]
+             and "source_url=not.like." in asked[1],
+             "the newly found come first, then the campus sign-up pages from any morning, each Event once")]
+
+
 def described_once():
     """thin and describe across two mornings against a fake database: an Event the helpers answered
     (filled or not) is never laid out again, one they didn't answer is, and a game never is."""
@@ -1055,7 +1111,7 @@ def described_once():
 
     def morning(answers):
         with contextlib.redirect_stdout(io.StringIO()):
-            thin(out, date(2026, 10, 29))
+            thin(out, date(2026, 10, 29), lambda url: (200, ""))
             given = [e["id"] for e in json.loads((out / "describe" / "events.json").read_text())]
             (out / "describe.jsonl").write_text("".join(json.dumps(a) + "\n" for a in answers if a["id"] in given))
             describe(out, False)
