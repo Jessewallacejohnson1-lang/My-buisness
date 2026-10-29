@@ -41,10 +41,10 @@
         }
       ],
       "shadow" : {
-        "kind" : "none",
-        "opacity" : 0.5
+        "kind" : "neutral",
+        "opacity" : 0.25
       },
-      "specular" : false,
+      "specular" : true,
       "translucency" : {
         "enabled" : false,
         "value" : 0.3
