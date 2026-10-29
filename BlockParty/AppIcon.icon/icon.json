@@ -2,39 +2,13 @@
   "fill-specializations" : [
     {
       "value" : {
-        "linear-gradient" : [
-          "srgb:0.99608,0.95294,0.20784,1.00000",
-          "srgb:1.00000,0.86667,0.00000,1.00000"
-        ],
-        "orientation" : {
-          "start" : {
-            "x" : 0.5,
-            "y" : 1
-          },
-          "stop" : {
-            "x" : 0.5,
-            "y" : 0
-          }
-        }
+        "solid" : "srgb:0.98824,0.90980,0.01569,1.00000"
       }
     },
     {
       "appearance" : "dark",
       "value" : {
-        "linear-gradient" : [
-          "display-p3:0.21176,0.21176,0.21569,1.00000",
-          "srgb:0.05490,0.05490,0.05882,1.00000"
-        ],
-        "orientation" : {
-          "start" : {
-            "x" : 0.5,
-            "y" : 1
-          },
-          "stop" : {
-            "x" : 0.5,
-            "y" : 0
-          }
-        }
+        "solid" : "srgb:0.05490,0.05490,0.05882,1.00000"
       }
     }
   ],
@@ -46,7 +20,7 @@
             {
               "appearance" : "dark",
               "value" : {
-                "solid" : "srgb:0.99608,0.94510,0.05490,1.00000"
+                "solid" : "srgb:0.98824,0.90980,0.01569,1.00000"
               }
             },
             {
@@ -54,14 +28,23 @@
               "value" : "system-light"
             }
           ],
+          "glass" : true,
           "image-name" : "bp-mark.svg",
-          "name" : "bp-mark"
+          "name" : "bp-mark",
+          "position" : {
+            "scale" : 1.08,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {
-        "kind" : "neutral",
+        "kind" : "none",
         "opacity" : 0.5
       },
+      "specular" : false,
       "translucency" : {
         "enabled" : false,
         "value" : 0.3
