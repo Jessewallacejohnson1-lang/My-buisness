@@ -54,8 +54,8 @@
               "value" : "system-light"
             }
           ],
-          "image-name" : "block-party-wordmark.svg",
-          "name" : "block-party-wordmark"
+          "image-name" : "bp-mark.svg",
+          "name" : "bp-mark"
         }
       ],
       "shadow" : {
