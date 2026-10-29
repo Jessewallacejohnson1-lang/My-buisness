@@ -651,16 +651,23 @@ def games(listings, today):
 # on 2026-10-25 six of twelve schools failed, from the cloud and from the Mac alike. One school
 # failing keeps every school's called-off games up that morning (read_all's schedule line), so
 # each call gets three more tries, a while apart. A hang is given up after 8 seconds, not
-# run.py's 20: with 20, the retries made a read of the schools 11 to 18 minutes. In prepare's
-# 6-minute parts a school is one unit, read to its end once started.
-# ponytail: a school whose every call hangs (65 s each) started as a part ends could pass the
-# cloud's 10 minutes; make each league call a unit of the part if the league ever gets that bad.
+# run.py's 20: with 20, the retries made a read of the schools 11 to 18 minutes. A hanging call
+# costs about two minutes with its tries (fetch's own retry doubles each), and a school makes 8 to
+# 10 calls, so in prepare's timed parts a school's calls stop 150 s past the part's end and the
+# school is read whole in the next part: no part passes the cloud's 10 minutes.
 LEAGUE_WAITS = (3, 10, 20)
 LEAGUE_TIMEOUT = 8
+PART_STOP = None  # the timed part's end, set by read_all
+
+
+class LeftForNextPart(Exception):
+    pass
 
 
 def league_fetch(url, wait=sleep):
     for pause in (*LEAGUE_WAITS, None):
+        if late(PART_STOP, 150):
+            raise LeftForNextPart(url)
         try:
             return fetch(url, timeout=LEAGUE_TIMEOUT)[1]
         except urllib.error.HTTPError as ex:
@@ -799,6 +806,7 @@ def one_each(items):
         if same is None:
             keep.append(it)
             continue
+        same = tuple(same)  # a list once read back from a timed part's file
         k = seen.get(it["source_uid"]) or seen.get(same)
         if k is None:
             seen[it["source_uid"]] = seen[same] = len(keep)
@@ -942,8 +950,9 @@ def read_all(entries, today, readers=READERS, saved=None, stop=None):
 
     In a timed part, `saved` holds what each source gave in the morning's earlier parts, which
     is not read again (this part's are added to it), and no source starts after `stop`."""
+    global PART_STOP
     items, summary, listings = [], [], []
-    saved = {} if saved is None else saved
+    saved, PART_STOP = ({} if saved is None else saved), stop
     for e in entries:
         for s in e.get("sources") or []:
             name = reader_of(s)
@@ -955,13 +964,15 @@ def read_all(entries, today, readers=READERS, saved=None, stop=None):
                     continue  # left for the next part
                 try:
                     saved[key] = [readers[name](s, e, today), None]
+                except LeftForNextPart:
+                    continue  # its calls ran past the part: read whole next part
                 except Exception as ex:  # a site down or changed is a line in the summary
                     saved[key] = [[], f"{type(ex).__name__}: {ex}"[:300]]
             got, error = saved[key]
             row = {"source": e["_name"], "reader": name, "url": s["url"], "items": len(got), "error": error}
             # A listing's day comes back from a part's file as text.
             listings += [{**g["listing"], "day": date.fromisoformat(str(g["listing"]["day"]))} for g in got if "listing" in g]
-            items += [g for g in got if "listing" not in g]
+            items += [dict(g) for g in got if "listing" not in g]  # one_each changes them; the part's file keeps them whole
             if not got and not error and name in ("mshsl", "gobound"):
                 row["note"] = "0 games on its schedule: its games are left as they are"
             summary.append(row)
@@ -1285,28 +1296,41 @@ def t_league_schedule_line():
 
 
 def t_parts():
-    """Timed parts on a fake clock against a slow league: each part reads what it can, the next
-    reads the rest from what the last saved, each school once, and the games are one long read's."""
+    """Timed parts on a fake clock against a slow league and slow Bound calendars: each part reads
+    what it can, the next reads the rest from what the last saved, each source once, and the games
+    and the one jazz festival three schools list are one long read's."""
     import run
     clock, reads = type("Clock", (), {"t": 0.0, "monotonic": lambda self: self.t})(), []
+    jazz = ("BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:20261120T190000\r\nGEO:45.570271;-94.210471\r\n"
+            "LOCATION:St. Cloud Tech High School Performing Arts Center\r\nSTATUS:CONFIRMED\r\n"
+            "SUMMARY:Jazzband: Central Lakes Jazz Festival (Varsity)\r\nUID:j1\r\nURL:https://gobound.com/direct/comps/j1/show"
+            "\r\nX-BND-ACTIVITYKEY:jazzband\r\nX-BND-ACTIVITYLEVEL:Varsity\r\nX-BND-ACTIVITYNAME:Jazz Band\r\nEND:VEVENT\r\n")
 
-    def school(s, e, t):
-        reads.append(e["_name"])
-        clock.t += 100
-        return [{"listing": l} for l in league_sample() if l["lister"] == e["_name"]]
-    entries = [{"_name": n, "sources": [{"url": n, "reader": "mshsl"}]}
-               for n in ("Tech High School", "Sartell High School", "Cathedral High School")]
-    whole, was = read_all(entries, LEAGUE_DAY, {"mshsl": school})[0], run.time
+    def slow(read):
+        def reader(s, e, t):
+            reads.append(s["url"])
+            clock.t += 100
+            return read(s, e, t)
+        return reader
+    readers = {"mshsl": slow(lambda s, e, t: [{"listing": l} for l in league_sample() if l["lister"] == e["_name"]]),
+               "gobound": slow(lambda s, e, t: bound_items(jazz, e, s, t))}
+    entries = [{"_name": n, "sources": [{"url": f"{r}:{n.split()[0]}", "reader": r, "trust": "official"}]}
+               for r, names in (("mshsl", ("Tech High School", "Sartell High School", "Cathedral High School")),
+                                ("gobound", ("Apollo High School", "Tech High School", "Sartell High School")))
+               for n in names]
+    whole, was = read_all(entries, LEAGUE_DAY, readers)[0], run.time
     try:
         run.time, saved, parts = clock, {}, []
         while len(saved) < len(entries) and len(parts) < 5:
             n = len(reads)
-            items, _ = read_all(entries, LEAGUE_DAY, {"mshsl": school}, saved, deadline(2))
+            items, _ = read_all(entries, LEAGUE_DAY, readers, saved, deadline(2))
             parts.append(reads[n:])
             saved = json.loads(json.dumps(saved, default=str))  # the part's file
     finally:
         run.time = was
-    assert parts == [["Tech High School", "Sartell High School"], ["Cathedral High School"]], parts
+    assert parts == [["mshsl:Tech", "mshsl:Sartell"], ["mshsl:Cathedral", "gobound:Apollo"],
+                     ["gobound:Tech", "gobound:Sartell"]], parts
+    assert [i["source_name"] for i in items if "Jazz" in i.get("title", "")] == ["Tech High School"], "one festival, its venue's"
     assert items == whole and items[-1]["kind"] == "schedule", "the same games and schedule line as one long read"
 
 
@@ -1443,8 +1467,39 @@ def t_gobound():
     assert "same" not in one_each(both)[0], "the merge key never reaches the writer"
 
 
+
+def t_league_stops_past_the_part():
+    """A league that hangs on every call: once the part is 150 s past its end the school's next
+    call isn't made, nothing of the school is saved, and the next part reads it whole, so no part
+    passes the cloud's 10 minutes."""
+    import run
+    global fetch
+    clock, made = type("Clock", (), {"t": 0.0, "monotonic": lambda self: self.t})(), []
+
+    def hanging(url, timeout=None):
+        made.append(url)
+        clock.t += 117  # a hanging call with fetch's own retry
+        raise TimeoutError("timed out")
+
+    def school(s, e, t):
+        league_fetch(s["url"], wait=lambda pause: setattr(clock, "t", clock.t + pause))
+        return []
+    entries = [{"_name": "Tech High School", "sources": [{"url": "mshsl:Tech", "reader": "mshsl", "trust": "official"}]}]
+    was = run.time, fetch
+    try:
+        run.time, fetch, saved = clock, hanging, {}
+        read_all(entries, LEAGUE_DAY, {"mshsl": school}, saved, deadline(2))
+        cut = (len(made), clock.t, dict(saved))
+        fetch = lambda url, timeout=None: (200, "page")
+        read_all(entries, LEAGUE_DAY, {"mshsl": school}, saved, deadline(2))
+    finally:
+        run.time, fetch = was
+    assert cut[2] == {} and cut[0] == 3, f"the school is left for the next part after 3 calls: {cut}"
+    assert cut[1] <= 120 + 150 + 117 + 20, f"the part's league calls end in time: {cut[1]} s"
+    assert list(saved.values()) == [[[], None]], "the next part reads the school whole"
+
 TESTS = [t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
-         t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
+         t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts]
 
 

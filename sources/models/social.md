@@ -25,8 +25,8 @@ carry on with the rest.
    caption is under 30 words or gives no time of day also gets up to 3 of its pictures downloaded
    into `.runs/morning/pictures/`, named at the end of its page (Jesse, 2026-10-26: Obbink's Oct 29
    trivia night was on its picture alone). Its `[social] pictures` line says what that added to
-   the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, run it
-   again, and it carries on where it stopped. It starts nothing paid. Done when it prints its
+   the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, or is stopped at
+   the timeout, run it again, and it carries on where it stopped. It starts nothing paid. Done when it prints its
    `[social] busy: …` or `[social] weekly: …` line. No batches means nothing new was posted: run
    step 4's `done`, answer with the `[social]` lines and stop.
 3. **Read, judge, title, write.** Follow steps 3 to 6 of `sources/models/morning.md`: the

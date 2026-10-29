@@ -16,8 +16,8 @@ source is a line in the summary; carry on with the rest.
 2. **Prepare.** Run `python3 sources/scripts/morning.py prepare` with a 600000 ms timeout. It
    fetches every watched page the polite way, reads the feeds and data sources, and writes the
    changed pages in batches to `.runs/morning/batches/`. It works in parts of about 6 minutes:
-   while it prints `[morning] run again`, run it again, and it carries on where it stopped. Done
-   when it prints its `[morning] fetched …` line. A changed page's fingerprint moves only at step
+   while it prints `[morning] run again`, or is stopped at the timeout, run it again, and it carries
+   on where it stopped. Done when it prints its `[morning] fetched …` line. A changed page's fingerprint moves only at step
    6's write, so a second prepare finds the same pages, and a morning that stops early reads them
    again tomorrow. Its counts are in `.runs/morning/prepare.json` if you need them again.
 3. **The cheap model reads.** For each batch file, start one helper on the cheap model (Haiku),
@@ -48,7 +48,8 @@ source is a line in the summary; carry on with the rest.
    "Read `sources/models/tag.md` and follow it for the Events in
    `.runs/morning/tag/batch-N.txt`. Answer with the JSON lines only." Write every line the
    helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
-   tag`, again while it prints `[morning] run again`. No batches means nothing to tag: skip the
+   tag` with a 600000 ms timeout, again while it prints `[morning] run again` or is stopped at the
+   timeout. No batches means nothing to tag: skip the
    helpers. Done when `tag` prints its `[morning] tagged …` line.
 8. **Describe.** Run `python3 sources/scripts/morning.py thin`. It lays out the upcoming Events
    whose About is empty or under a sentence, at most 30, in batches in `.runs/morning/describe/`.

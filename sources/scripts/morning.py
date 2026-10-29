@@ -176,6 +176,8 @@ def prepare(today, out, minutes=PART_MINUTES):
         if games:
             games.kill()
         raise
+    part.update(pages=report["results"], state=part_state())
+    part_f.write_text(json.dumps(part))  # before waiting on the readers: a stopped part keeps its pages
     # The feeds share servers with the pages, so they are read after them.
     feeds = None
     if not report["left"] and "feeds" not in done and not late(stop):
@@ -384,11 +386,11 @@ def tag(out, dry_run, minutes=PART_MINUTES):
             if event_id in written:
                 continue
             if late(stop):
-                done_f.write_text(json.dumps(sorted(written)))
                 return print(f"[morning] run again: {len(written)} of {len(writes)} events tagged")
             stamp = {} if set(write) == {"what"} else {"interests_tagged_at": now}
             db.rest("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
             written.add(event_id)
+            done_f.write_text(json.dumps(sorted(written)))  # each write kept, so a stopped part loses none
     empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
     words = sum(1 for w in writes.values() if "what" in w)
     draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
@@ -795,6 +797,23 @@ def in_parts():
                     tag(out, False, 2)
                 tagged.append(said.getvalue())
             patched = asked[n:]
+            (out / "tag" / "written.json").unlink(missing_ok=True)  # a new morning's tagging
+            n, real = len(asked), FakeDb.rest
+
+            def dies(self, method, path, body=None, prefer=None):
+                if len(asked) - n == 2:
+                    raise KeyboardInterrupt  # the cloud stops the command mid-way
+                return real(self, method, path, body, prefer)
+            FakeDb.rest = dies
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    tag(out, False, None)
+            except KeyboardInterrupt:
+                pass
+            FakeDb.rest = real
+            with contextlib.redirect_stdout(io.StringIO()):
+                tag(out, False, None)
+            stopped = asked[n:]
     finally:
         (runner.read_page, runner.validate, runner.find_root, runner.time, Supabase, load, start_reader,
          fetch_watched, write_judged.listed_in_db, write_judged.interest_ids) = saved
@@ -815,6 +834,8 @@ def in_parts():
          "a part whose time is spent says run again with what is left, and the next part reads just that"),
         (tagged[0] == "[morning] run again: 3 of 5 events tagged\n" and tagged[1].startswith("[morning] tagged 5 events")
          and sorted(patched) == [f"club_events?id=eq.e{i}" for i in range(5)], "tag in parts writes each Event once"),
+        (sorted(stopped) == [f"club_events?id=eq.e{i}" for i in range(5)],
+         "a tag run the cloud stops keeps what it wrote: the next run writes only the rest"),
     ]
 
 

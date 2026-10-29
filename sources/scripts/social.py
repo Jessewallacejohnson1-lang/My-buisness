@@ -425,6 +425,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
             mark, _ = None, part["failed"].append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[run].days} days")
         part["mark"] = mark and mark.isoformat()
+    now = datetime.fromisoformat(part.setdefault("now", now.isoformat()))  # every part by the first part's clock
     lists, failed = page_lists(root), part["failed"]
     mark = part["mark"] and datetime.fromisoformat(part["mark"])
     if "posts" not in part:
@@ -470,7 +471,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         interests = write_judged.interest_ids()
     except Exception as e:  # no database keys (a dry run on a Mac): the judge then uses null
         interests, _ = [], failed.append(f"interest ids unread: {e}")
-    checked =sum(len(v) for (r, _), v in lists.items() if r == run)
+    checked = sum(len(v) for (r, _), v in lists.items() if r == run)
     summary = {"today": str(today), "run": run, "since": mark.isoformat() if mark else None,
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
