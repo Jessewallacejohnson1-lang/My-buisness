@@ -6,10 +6,15 @@
 -- counts it always gave stay as they were, so a writer from before this still reads its answer.
 --
 -- One News is one link: an item with a link of its own (own_link: a post's address, a feed item's link, as
--- write_judged.own_link decides) whose source already has that link, or an earlier item in the same call
--- has, is a repeat whatever its title says, and is left as it is. White Peony's boo baskets were written
--- three times on Oct 26 and 27 under three wordings of one Instagram post. An item without one (its
--- source's home page, a page the registry reads, or a writer from before this) keeps the title rule.
+-- write_judged.own_link decides) whose source has that link on a News shown in the last 7 days (the Town
+-- feed's week, live rows only) is a repeat whatever its title says, and is left as it is. The North
+-- Table's brunch post (instagram.com/p/De3AnqRDaIV) was written twice on Oct 23 and 24 under two wordings.
+-- An older or archived News with the link doesn't count: a landing page (legion.org/sweepstakes) can carry
+-- a different News next month. Links compare without a trailing slash. An item without a link of its own
+-- (its source's home page, a page the registry reads, or a writer from before this) keeps the title rule;
+-- White Peony's boo baskets, three posts on Oct 26 and 27 (De9cyx3FThW, DfABY7uD_gR, DfA5sp-gVAT), are
+-- caught by that rule in write_judged.repeat_of, not by this one. The writer folds News from one post
+-- into one before the save, so a call never has two of one link.
 --
 -- 20261026135926_apply_judged_keeps_public.sql's apply_judged line for line but for steps 1 and 4 and what
 -- it returns.
@@ -109,8 +114,8 @@ begin
 
   -- 4. News for the town board's store, with its publish time, its interests and the place that
   --    posted it (town-feed 35). One News is one link: an item with a link of its own that its source
-  --    already has, or an earlier item here has, is a repeat and left as it is. The rest are added, or
-  --    re-read into the one already there under the same title (a repeat too).
+  --    has on a live News of the last 7 days is a repeat and left as it is. The rest are added, or re-read
+  --    into the one already there under the same title (a repeat too).
   with given as (
     select a.n, x.*
     from jsonb_array_elements(p_news) with ordinality as a(item, n)
@@ -119,10 +124,9 @@ begin
       own_link boolean)
   ), judged as (
     select g.*,
-      g.own_link is true and (
-        exists (select 1 from public.board_items b where b.source_name = g.source_name and b.source_url = g.source_url)
-        or exists (select 1 from given e where e.n < g.n and e.own_link is true
-                   and e.source_name = g.source_name and e.source_url = g.source_url)) as linked,
+      g.own_link is true and exists (select 1 from public.board_items b
+        where b.source_name = g.source_name and rtrim(b.source_url, '/') = rtrim(g.source_url, '/')
+          and b.status = 'published' and b.created_at > now() - interval '7 days') as linked,
       exists (select 1 from public.board_items b where lower(b.title) = lower(g.title) and b.source_name = g.source_name
               and coalesce(b.starts_at, '-infinity'::timestamptz) = coalesce(g.starts_at, '-infinity'::timestamptz)) as listed
     from given g

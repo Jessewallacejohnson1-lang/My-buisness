@@ -22,7 +22,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             the changed pages' new fingerprints (fingerprints.json) and print the morning's
             summary: a morning that stops before this reads the same pages again tomorrow. Its new
             counts are what the database did (apply_judged's answer), and it lists each new Event
-            (date, time, title, place) and News title (BP app smooth-mornings 05)
+            (date, time, title, place; soonest first, 40 at most, the rest counted by source) and
+            News title, and names News folded into their post's News (BP app smooth-mornings 05)
   untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
             what they are), upcoming or still running, in batches of 40 for the cheap model
             (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
@@ -56,7 +57,7 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py --selftest
 """
 
-import argparse, contextlib, json, re, shutil, subprocess, sys, time
+import argparse, collections, contextlib, json, re, shutil, subprocess, sys, time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -77,6 +78,7 @@ THIN = 120        # characters: an About under this says less than a sentence
 DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
 DESCRIBE_BATCH = 10
 ABOUT_MAX = 1000   # as write_judged.clip
+LIST_MAX = 40  # new Events listed one by one; the rest as a count per source (a first read can add hundreds)
 PART_MINUTES = 6  # a part starts nothing new after this, so it ends within 9: the cloud stops a command at 10
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
@@ -260,11 +262,13 @@ def summary_lines(prep, result, written):
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
              f"- Events: {len(events)} new, {count.get('published', 0) + count.get('merged', 0) - len(events)} already listed",
-             f"- News: {len(news)} new, {count.get('news', 0) + count.get('repeat', 0) - len(news)} repeats left out",
+             f"- News: {len(news)} new, {count.get('news', 0) + count.get('repeat', 0) - len(news)} repeats left out"
+             + (f", {count['folded']} folded into the News of the post they came in" if count.get("folded") else ""),
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
     lines += [f"- Source failed: {f}" for f in prep.get("failed", [])]
     lines += [f"- {a}" for a in prep.get("aside", [])]
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
+    lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
     if written is None:
         lines.append("- Dry run: nothing written")
     elif answered:
@@ -273,15 +277,26 @@ def summary_lines(prep, result, written):
     else:
         lines.append(f"- Written: {json.dumps(written)}; the save didn't say which items it added, so the "
                      "counts above are what was sent (apply_judged from before smooth-mornings 05)")
-    lines += ["New Events:"] * bool(events) + [f"- {new_event(e)}" for e in events]
+    lines += ["New Events:"] * bool(events) + event_lines(events)
     lines += ["New News:"] * bool(news) + [f"- {n['title']} ({n['source_name']})" for n in news]
     return lines
 
 
+def event_lines(rows):
+    """The new Events soonest first, each with its date, time, title and place (Jesse's morning-report
+    rule, 2026-10-22); past LIST_MAX, the rest as a count for each source."""
+    rows = sorted(rows, key=lambda r: r["event_date"])
+    rest = collections.Counter(r["source_name"] for r in rows[LIST_MAX:])
+    return [f"- {new_event(r)}" for r in rows[:LIST_MAX]] + [f"- {n} more from {s}" for s, n in rest.most_common()]
+
+
 def new_event(row):
-    """Date, time, title and place (Jesse's morning-report rule, 2026-10-22)."""
+    """One new Event's line. A run over days says its last day ("Mon Oct 26 to Fri Oct 30"): its end less
+    6 hours, so a run that ends at the midnight after its last day, or a night that ends at 1 AM, reads right."""
     day = date.fromisoformat(row["event_date"])
-    return " · ".join(x for x in (f"{day:%a %b} {day.day}", "all day" if row["all_day"] else row["start_time"],
+    last = row.get("end_at") and (datetime.fromisoformat(row["end_at"]).astimezone(LOCAL) - timedelta(hours=6)).date()
+    when = f"{day:%a %b} {day.day}" + (f" to {last:%a %b} {last.day}" if last and last > day else "")
+    return " · ".join(x for x in (when, "all day" if row["all_day"] else row["start_time"],
                                   row["title"], row["location"]) if x)
 
 
@@ -310,13 +325,13 @@ def write(out, dry_run, today):
     items = feeds + judged
     existing = write_judged.listed_in_db()
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
-                               teams=write_judged.known_teams(), recent_news=write_judged.news_in_db(today))
+                               teams=write_judged.known_teams(), recent_news=write_judged.news_in_db())
     write_judged.report(items, result)
     try:
         written = None if dry_run else write_judged.apply(result)
-        print("\n".join(summary_lines(prep, result, written)))
-        if not dry_run:
+        if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(out)
+        print("\n".join(summary_lines(prep, result, written)))
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
         sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
 
@@ -597,13 +612,31 @@ def selftest():
     tmp.with_name("titles.json").unlink()
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
-    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x")],
+    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x"),
+                           ("folded", "'Wrinkle-Free Wednesdays' into 'Molly now at Well & Company', the News of the post they share")],
               "events": [], "news": []}
     lines = summary_lines(prep, result, None)
+    checks.append((lines[3].endswith(", 1 folded into the News of the post they came in")
+                   and "- Folded: 'Wrinkle-Free Wednesdays' into 'Molly now at Well & Company', the News of the post "
+                       "they share" in lines, "the summary names each News folded into its post's News"))
     checks.append((summary_lines({**prep, "first_seen": 2}, result, None)[1].endswith(", 2 new kept as a starting copy"),
                    "the summary counts new pages kept as a starting copy"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    run_ = {"event_date": "2026-10-26", "end_at": "2026-10-31T00:00:00-05:00", "all_day": True, "start_time": None,
+            "title": "Bootique Week", "location": "White Peony Boutique", "source_name": "White Peony Boutique"}
+    night = {"event_date": "2026-10-24", "end_at": "2026-10-25T01:00:00-05:00", "all_day": False, "start_time": "9 PM",
+             "title": "Live music", "location": "Bo-Diddley's", "source_name": "Bo-Diddley's"}
+    game = lambda day, school: {"event_date": day, "end_at": None, "all_day": False, "start_time": "7 PM",
+                                "title": "Football", "location": "", "source_name": school}
+    games = ([game(f"2026-11-{d % 28 + 1:02d}", "Sartell High School") for d in range(38)]
+             + [game("2026-12-10", "Sartell High School")] * 2 + [game("2026-12-11", "Apollo High School")] * 3)
+    listed = event_lines([run_, *games, night])
+    checks.append((listed[:2] == ["- Sat Oct 24 · 9 PM · Live music · Bo-Diddley's",
+                                  "- Mon Oct 26 to Fri Oct 30 · all day · Bootique Week · White Peony Boutique"]
+                   and listed[2] == "- Sun Nov 1 · 7 PM · Football" and len(listed) == LIST_MAX + 2
+                   and listed[-2:] == ["- 3 more from Apollo High School", "- 2 more from Sartell High School"],
+                   "new Events soonest first, a run with its last day, and past 40 a count for each source"))
     checks.append((counts_what_the_database_did(), "the new counts are what the save did: 3 new and 2 listed Events, "
                    "1 new and 25 re-read News say 3 and 1 new, and list each new Event (date, time, title, place) "
                    "and News"))
@@ -674,7 +707,7 @@ def selftest():
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
     checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
-                   "prepare finds the same pages again"))
+                   "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
     checks += set_aside_across_days()
     failed = [why for ok, why in checks if not ok]
@@ -747,7 +780,7 @@ def counts_what_the_database_did():
 def fingerprints_wait_for_write():
     """prepare's fetch and write's save against a fake database and fake sites, offline."""
     import io, tempfile, run as runner
-    global Supabase
+    global Supabase, summary_lines
 
     class FakeDb(runner.Supabase):
         rows = {"milk|https://m/events": {"last_hash": "old", "last_checked_at": "2026-10-24"}}
@@ -804,10 +837,22 @@ def fingerprints_wait_for_write():
             unmoved = FakeDb.rows["milk|https://m/events"]["last_hash"] == "old"
             starting_copy = FakeDb.rows["new|https://n/"].get("last_hash") is not None
             again = prepare_fetch()
-            write_with(lambda result: {"events": 0})
+            printing = summary_lines
+
+            def breaks(*args):
+                raise RuntimeError("the summary broke")
+            summary_lines = breaks  # the write lands, then printing its summary breaks
+            try:
+                write_with(lambda result: {"events": 0})
+                broke = False
+            except RuntimeError:
+                broke = True
+            finally:
+                summary_lines = printing
             one_line = refused == ('[morning] save refused: Supabase POST rpc/apply_judged failed 403: '
                                    '{"code":"42501", "message":"permission denied for schema private"}')
-            return first == again == ["milk"] and unmoved and starting_copy and one_line and prepare_fetch() == []
+            return (first == again == ["milk"] and unmoved and starting_copy and one_line and broke
+                    and prepare_fetch() == [])
     finally:
         (runner.read_page, runner.validate, runner.find_root, Supabase,
          write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,

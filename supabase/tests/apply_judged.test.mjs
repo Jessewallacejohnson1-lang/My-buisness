@@ -164,28 +164,38 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   // The save says which items it added, by their place in its lists (smooth-mornings 05): every other Event
   // was merged into one already listed, every other News a repeat. Its counts stay as they were. One News is
   // one link: the same post again under a reworded title is a repeat, and left as it is.
+  await db.exec('alter table public.board_items add column created_at timestamptz not null default now()');
   await db.exec(migration('20261029151242_apply_judged_says_what_it_did.sql'));
   const hayride = placed('2026-10-22').map((g) => ({ ...g, title: 'Haunted Hayride', source_uid: 'hay:1' }));
   const post = { blurb: 'Boo baskets are back.', category: 'business', source_name: 'White Peony Boutique',
     source_url: 'https://www.instagram.com/p/DeBoo/', tier: 1, status: 'published', starts_at: null, own_link: true };
   const first = await apply([...hayride, ...placed('2026-10-21')], [], [], [{ ...post, title: 'Boo baskets for Halloween' }]);
   assert.deepEqual([first.events, first.news, first.added], [2, 1, { events: [0], news: [0] }]);
-  const again = await apply(hayride, [], [], [{ ...post, title: 'Halloween boo baskets are back' }]);
+  const again = await apply(hayride, [], [], [{ ...post, title: 'Halloween boo baskets are back',
+                                                source_url: 'https://www.instagram.com/p/DeBoo' }]);
   assert.deepEqual([again.events, again.news, again.added], [1, 0, { events: [], news: [] }]);
   const titles = async (source) => (await db.query(
     'select title from public.board_items where source_name = $1 order by title', [source])).rows.map((r) => r.title);
   assert.deepEqual(await titles('White Peony Boutique'), ['Boo baskets for Halloween'], 'the repeat is left out');
+  // Only a live News of the last 7 days counts: a landing page carries a different News next month, and an
+  // archived one is no longer shown.
+  const legion = { ...post, source_name: 'American Legion Post 328', source_url: 'https://legion.org/sweepstakes' };
+  await apply([], [], [], [{ ...legion, title: 'Legion sweepstakes' }]);
+  await db.exec(`update public.board_items set created_at = now() - interval '8 days' where title = 'Legion sweepstakes'`);
+  const cow = { ...post, source_name: 'The Wandering Cow', source_url: 'https://wanderingcowmn.com/ice-cream-advent-calendar' };
+  await apply([], [], [], [{ ...cow, title: 'Ice cream advent calendar' }]);
+  await db.exec(`update public.board_items set status = 'archived' where title = 'Ice cream advent calendar'`);
+  assert.deepEqual((await apply([], [], [], [{ ...legion, title: 'Veterans Day raffle' },
+    { ...cow, title: 'Advent calendar pickup days' }])).added.news, [0, 1]);
   // A home page (or a writer from before this, which says nothing of the link) is no link of its own:
-  // two News sharing it are two, and the title rule still finds a re-read. One post twice in one call is one.
+  // two News sharing it are two, and the title rule still finds a re-read.
   const page = { ...post, source_name: 'Stearns County', source_url: 'https://www.stearnscountymn.gov/', own_link: false };
-  const cow = { ...post, source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/DeCow/' };
-  assert.deepEqual((await apply([], [], [], [{ ...page, title: 'Early Voting' }, { ...page, title: 'County Road 134 closed' },
-    { ...cow, title: 'Pumpkin pie is the flavor' }, { ...cow, title: 'Flavor of the week: pumpkin pie' }])).added.news,
-  [0, 1, 2]);
+  assert.deepEqual((await apply([], [], [], [{ ...page, title: 'Early Voting' },
+    { ...page, title: 'County Road 134 closed' }])).added.news, [0, 1]);
   const reread = await apply([], [], [], [{ ...page, title: 'early voting' }]);
   assert.deepEqual([reread.news, reread.added.news], [1, []], 'a re-read by title is written, not added');
   assert.deepEqual(await titles('Stearns County'), ['County Road 134 closed', 'Early Voting']);
-  assert.deepEqual(await titles('The Wandering Cow'), ['Flight Friday', 'Pumpkin pie is the flavor']);
+  assert.deepEqual(await titles('The Wandering Cow'), ['Advent calendar pickup days', 'Flight Friday', 'Ice cream advent calendar']);
   assert.deepEqual((await apply([], [], [], [])), { events: 0, news: 0, mentions: 0, published_by_mention: 0,
                                                      cancelled: 0, restored: 0, added: { events: [], news: [] } });
 
