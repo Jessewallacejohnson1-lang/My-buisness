@@ -19,7 +19,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender']);
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1010,7 +1010,7 @@ test("an event card shows its place's photo of what the event is, in season, tak
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
-test('a Christmas photo shows only from November 1 to January 6 (event-photos 07, round 2)', async () => {
+test('a Christmas photo shows on a holiday event from November 1, on any from December 1 to January 6 (event-photos 07)', async () => {
   await reset();
   await db.exec(`delete from public.place_photos;
     insert into public.place_photos (entry_id, url, source_url, position, kind, status, subjects, seasons) values
@@ -1021,7 +1021,9 @@ test('a Christmas photo shows only from November 1 to January 6 (event-photos 07
     `insert into public.club_events (title, event_date, source_name, place_entry_id) values ($1, $2, 'Shop', 'shop')
      returning id`, [title, date])).rows[0].id])).rows[0].p.url;
   assert.equal(await pic('Boo-tique Bash', '2026-10-28'), 'https://x/racks.webp', 'never on a Halloween party');
-  assert.equal(await pic('Black Friday', '2026-11-27'), 'https://x/sweaters.webp', 'in its window it goes first');
+  assert.equal(await pic('Black Friday', '2026-11-27'), 'https://x/sweaters.webp', 'a holiday event in November: it goes first');
+  assert.equal(await pic('Open House', '2026-11-08'), 'https://x/racks.webp', 'not on any November event');
+  assert.equal(await pic('Open House', '2026-12-03'), 'https://x/sweaters.webp', 'on any event in December');
   assert.equal(await pic('Pink Friday', '2027-01-06'), 'https://x/sweaters.webp');
   assert.equal(await pic('Black Friday', '2027-01-07'), 'https://x/racks.webp', 'gone after Epiphany');
   await db.exec('delete from public.place_photos;');
