@@ -4,6 +4,7 @@ The live values. Everything here is a fact about the running app, not a preferen
 check it before you type an identifier from memory.
 
 - **Bundle id and logging subsystem:** `Jesse.BlockParty`. `[prose]`
+- **App link scheme:** `blockparty`, registered in `Info.plist` (`CFBundleURLTypes`). `blockparty://neighbor/<user id>` is what Your code holds and opens a neighbour's page (`YourCode.swift`, BP app friends 07). It gives way to `https://blockpartymn.com/n/<user id>` once the paid Apple Developer account turns on app links (BP app backlog 10); the app reads both. `[prose]`
 - **Xcode project** `BlockParty.xcodeproj` · **scheme** `BlockParty` · **iOS deployment target 26.5** · Swift 5. `[prose]`
 - **Built with Xcode 27 and the iOS 27 SDK** (since 2026-09-27). `[prose]` An iOS 27-only API goes behind
   `if #available(iOS 27, *)` with an iOS 26 fallback, since the app still runs on 26.5. Check a new API

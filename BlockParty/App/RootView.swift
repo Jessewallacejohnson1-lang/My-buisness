@@ -445,6 +445,8 @@ struct MainTabsView: View {
     @State private var showMap = false
     /// Profile, in Apple's standard sheet, from the photo at the top left of You.
     @State private var showProfileSheet = false
+    /// Log in, for an Anonymous account that opened a neighbour's code.
+    @State private var signingIn = false
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -545,6 +547,16 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
+        // A neighbour's code from the iPhone camera (friends 07): their page once it's read. An
+        // Anonymous account logs in first, as Add friend asks; your own code opens your Profile.
+        .onOpenURL { url in
+            guard let id = YourCode.userID(from: url) else { return }
+            showMap = false
+            if id == auth.userId?.lowercased() { showProfileSheet = true; return }
+            guard auth.isSignedIn, !auth.isAnonymous else { signingIn = true; return }
+            Task { if let neighbor = try? await Neighbor.read(id) { path.append(neighbor) } }
+        }
+        .signInSheet(isPresented: $signingIn)
         .overlay { BusinessPage().environment(placeOpener) }
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
