@@ -62,6 +62,12 @@ their facts like the caption, and deleted with the check's scratch folder: never
 uploaded or kept, so "posts, their photos and their words still wait for the place's yes"
 stands. Each check reports what the pictures cost on the Claude plan
 (`sources/models/social.md`).
+**Amended 2026-10-29 (Jesse):** photos in a school team's own Facebook page's posts (rocorihoops,
+ROCORI boys' basketball) may show as event photos on that team's event cards, before the team
+says yes: credited to the post and taken down on request, like a photo from a place's website.
+The page is read through Apify like any other, each photo is picked by eye and saved to Block
+Party's storage (BP app `docs/plans/event-photos`). Every other page's posts, their photos and
+their words still wait for the place's yes.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

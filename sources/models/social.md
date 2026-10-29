@@ -12,14 +12,15 @@ carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 sources/scripts/ready.py social`, and install nothing
+**Ready.** Run `python3 sources/scripts/ready.py social`, and install nothing
    any other way. It installs the libraries the scripts need and checks the keys by name; their
    values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so.
    Apify's key is the environment's network secret for `api.apify.com`, which the session never
    sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused
    the request means the secret is missing or wrong: stop and say so.
-2. **Prepare.** Run `python3 sources/scripts/social.py prepare <busy|weekly>` with a 600000 ms
+
+**Prepare.** Run `python3 sources/scripts/social.py prepare <busy|weekly>` with a 600000 ms
    timeout. It reads every Apify run of this list that finished since the last check, waits for
    one still going, and lays out each new post as a page in `.runs/morning/batches/`. A post whose
    caption is under 30 words or gives no time of day also gets up to 3 of its pictures downloaded
@@ -28,14 +29,15 @@ carry on with the rest.
    the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, or is stopped at
    the timeout, run it again, and it carries on where it stopped. It starts nothing paid. Done when it prints its
    `[social] busy: …` or `[social] weekly: …` line. No batches means nothing new was posted: run
-   step 4's `done`, answer with the `[social]` lines and stop.
-3. **Read, judge, title, write.** Follow steps 3 to 6 of `sources/models/morning.md`: the
-   cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`), shorten long
-   titles, and `morning.py write` writes them. Each page is one post, and its first line says
-   who posted it and when: read "tonight", "tomorrow" and "this Friday" from the day it was
-   posted, not from today.
+   `social.py done` (Mark it read), answer with the `[social]` lines and stop.
 
-   **Keep everything (Jesse, 2026-10-22).** Social posts follow one rule that overrides
+**Read and judge, then Save.** Follow `sources/models/morning.md`'s **Read and judge** and
+   **Save**: the cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`),
+   shorten long titles, and `morning.py save` writes them (on a social check it only writes).
+   Each page is one post, and its first line says who posted it and when: read "tonight",
+   "tomorrow" and "this Friday" from the day it was posted, not from today.
+
+   *Keep everything (Jesse, 2026-10-22).* Social posts follow one rule that overrides
    `flag.md`'s and `judge.md`'s "standing menu, product, ad or sales post" exclusions: every
    post with something a neighbour could know or do is kept, because people who care about it
    will want it. Add this to each cheap-model helper's prompt: "These pages are a place's
@@ -60,13 +62,15 @@ carry on with the rest.
      (a job at another location); and anything at a business's location in another town,
      events included (Jesse, 2026-10-24: Neighbors' Albertville bar is out of the area); and any post about a private person's health or troubles
      (ADR-020).
-4. **Mark it finished.** Only after `morning.py write` has printed its summary, run
+
+**Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
    one starts after them; runs a check stopped before this line on (a usage limit, a failure)
    are read by the next. Run it once, at the end, and never before the write.
-5. **Answer** with the summary as `write` printed it, `done`'s lines (the pictures line is what
+
+**Answer** with the summary as `save` printed it, `done`'s lines (the pictures line is what
    reading pictures added to the cost), every `[social] FAILED` line
-   from step 2, then one line per flag you dropped that a neighbour might have wanted, and why. A
+   from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. A
    page Apify says is not available, or returns nothing for, three reads in a row sets itself aside
    and is named once in the summary; fixing its address or hiding it in
    `sources/social/st-joseph-mn.json` is the registry job's, with Jesse's yes.
@@ -77,5 +81,5 @@ carry on with the rest.
   (ADR-020). `.runs/` goes with the copy.
 - Apify's own schedules start every paid run, each task with its own spending cap; the routine
   starts none. A run that failed or is still going is a line in the answer.
-- The database is written only by `morning.py write`. SQL by hand stays unused.
+- The database is written only by `morning.py save`. SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
