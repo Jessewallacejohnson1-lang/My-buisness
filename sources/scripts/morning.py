@@ -23,7 +23,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             summary: a morning that stops before this reads the same pages again tomorrow. Its new
             counts are what the database did (apply_judged's answer), and it lists each new Event
             (date, time, title, place; soonest first, 40 at most, the rest counted by source) and
-            News title, and names News folded into their post's News (BP app smooth-mornings 05)
+            News title, and names News folded into their post's News (BP app smooth-mornings 05). The
+            morning's also tells yesterday's SJU and CSB games: how far each live score got and where its
+            final came from (Jesse, 2026-10-29)
   untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
             what they are), upcoming or still running, in batches of 40 for the cheap model
             (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
@@ -305,6 +307,49 @@ def new_event(row):
                                   row["title"], row["location"]) if x)
 
 
+# The games the live-scores job follows: private.sidearm_file's pairs, compared by a self-test with the newest
+# migration that defines it. live_games reads only a start like these, and one such game a school plays a day.
+LIVE_SPORTS = {"SJU Athletics/Football", "SJU Athletics/Soccer", "SJU Athletics/Basketball",
+               "CSB Athletics/Soccer", "CSB Athletics/Volleyball", "CSB Athletics/Basketball"}
+CLOCK_START = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$")
+
+
+def live_lines(day, rows=None):
+    """A day's games the live-scores job follows, one line each: how far its live score got and where its
+    final came from, so a game that never went live shows in the morning report with no chat watching it
+    (Jesse, 2026-10-29). A read that fails is one line, never a lost report."""
+    head = f"Live games {day:%a %b} {day.day}:"
+    if rows is None:
+        try:
+            schools = ",".join(sorted({f'"{p.split("/")[0]}"' for p in LIVE_SPORTS}))
+            rows = Supabase().rest("GET", "club_events?select=title,start_time,source_name,sport,live_score,scoring_plays,"
+                                          f"final_score&event_date=eq.{day}&source_name=in.({quote(schools)})"
+                                          "&team_ids=not.is.null&status=eq.approved&cancelled_at=is.null&order=start_time") or []
+        except Exception as e:
+            return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
+    games = [(f"{r['source_name']}/{r['sport']}", r) for r in rows if f"{r['source_name']}/{r['sport']}" in LIVE_SPORTS]
+    that_day = collections.Counter(sport for sport, _ in games)
+    lines = [head] * bool(games)
+    for sport, r in games:
+        live, final = r.get("live_score"), r.get("final_score")
+        score = final and "-".join(map(str, final))
+        backup = f"final {score} from the backup check" if final else "no final"
+        if live and live.get("complete") and final == live.get("score"):
+            plays = len(r.get("scoring_plays") or [])
+            how = f"live to the final, {score}" + (f" ({plays} scoring plays)" if plays else "")
+        elif live:
+            at = datetime.fromisoformat(live["at"]).astimezone(LOCAL)
+            how = f"live until {at:%-I:%M %p}, then {backup}"
+        elif that_day[sport] > 1:
+            how = f"not followed live, {that_day[sport]} games that day; {backup}"
+        elif not CLOCK_START.match((r.get("start_time") or "").strip().lower()):
+            how = f"not followed live, no start time; {backup}"
+        else:
+            how = f"never went live; {backup}"
+        lines.append(f"- {r['title']}, {r.get('start_time') or 'no time'}: {how}")
+    return lines
+
+
 def long_titles(out):
     items = read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
     titles = write_judged.long_titles(items, write_judged.listed_in_db())
@@ -336,7 +381,8 @@ def write(out, dry_run, today):
         written = None if dry_run else write_judged.apply(result)
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(out)
-        print("\n".join(summary_lines(prep, result, written)))
+        # A social check's summary leaves the games to the morning's.
+        print("\n".join(summary_lines(prep, result, written) + ([] if prep.get("run") else live_lines(today - timedelta(days=1)))))
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
         sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
 
@@ -805,7 +851,7 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
-    checks += games_aside() + described_once() + sign_up_pages()
+    checks += games_aside() + described_once() + sign_up_pages() + live_games_told()
     asked = []
 
     def get(url):
@@ -864,6 +910,7 @@ def counts_what_the_database_did():
     Events and 26 News, and the database already has 2 of the Events and 25 of the News (BP app
     smooth-mornings 05: on Oct 28 the report said "26 new" and the database got 1 new row)."""
     import io, tempfile
+    global live_lines
     listed = [write_judged.listed(id=f"0000000{k}-0000-0000-0000-000000000000", title=t, event_date=d, start_time="6 PM",
                                   location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid=f"mh-{k}",
                                   shows_from="2026-10-10") for k, t, d in [(1, "Yoga, Sauna & Cider", "2026-10-27"),
@@ -888,10 +935,11 @@ def counts_what_the_database_did():
                                   "news": [i for i, n in enumerate(p["p_news"]) if n["title"].lower() not in held_news]}})
         return answers[-1]
     names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
-    saved = tuple(getattr(write_judged, n) for n in names)
+    saved, games, asked = tuple(getattr(write_judged, n) for n in names), live_lines, []
     try:
         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = apply, (lambda: listed), (lambda: ["bars"])
         write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
+        live_lines = lambda day: asked.append(day) or []
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             (out / "prepare.json").write_text(json.dumps({"today": "2026-10-20", "fetched": 9, "changed": 2,
@@ -905,6 +953,7 @@ def counts_what_the_database_did():
     finally:
         for n, f in zip(names, saved):
             setattr(write_judged, n, f)
+        live_lines = games
     old = summary_lines({"today": "2026-10-20", "fetched": 9, "changed": 2, "to_read": 2, "failed": [], "readers": []},
                         result, {"events": 5, "news": 26})
     at = lines.index("New Events:") if "New Events:" in lines else len(lines)
@@ -916,7 +965,9 @@ def counts_what_the_database_did():
                                "- Mon Oct 26 · all day · Harvest Market · Milk & Honey Ciders",
                                "New News:", "- Thanksgiving pies (Milk & Honey Ciders)"]
             # An apply_judged from before this answers counts only: the plan's counts, said so, no crash.
-            and "- News: 26 new, 0 repeats left out" in old and any("the save didn't say" in ln for ln in old))
+            and "- News: 26 new, 0 repeats left out" in old and any("the save didn't say" in ln for ln in old)
+            # The morning's summary tells yesterday's games.
+            and asked == [date(2026, 10, 19)])
 
 
 def fingerprints_wait_for_write():
@@ -1129,6 +1180,54 @@ def described_once():
              and rows[0]["described_at"] and not rows[2]["described_at"],
              "an Event laid out and answered is researched: the next morning lays out only the one nobody answered, "
              "and never the game")]
+
+
+def live_games_told():
+    """A day's games as the morning report tells them, offline: each way a live score can go, a sport the job
+    doesn't follow, and a database that can't be read."""
+    global Supabase
+    game = lambda title, start, source, sport, live=None, final=None, plays=None: {
+        "title": title, "start_time": start, "source_name": source, "sport": sport, "live_score": live,
+        "final_score": final, "scoring_plays": plays}
+    rows = [game("CSB Soccer vs Carleton", "1 PM", "CSB Athletics", "Soccer", final=[2, 1]),
+            game("SJU Swimming and Diving vs Macalester", "1 PM", "SJU Athletics", "Swimming and Diving"),
+            game("SJU Football vs Bethel", "TBA", "SJU Athletics", "Football"),
+            game("CSB Basketball vs Augsburg", "2 PM", "CSB Athletics", "Basketball"),
+            game("CSB Basketball vs Carleton", "4 PM", "CSB Athletics", "Basketball", final=[60, 58]),
+            game("SJU Basketball vs St. Cloud State", "6 PM", "SJU Athletics", "Basketball", plays=[{}] * 23, final=[78, 71],
+                 live={"score": [78, 71], "complete": True, "at": "2026-10-30T01:58:00+00:00"}),
+            game("CSB Volleyball vs Augsburg", "7 PM", "CSB Athletics", "Volleyball", final=[3, 1],
+                 live={"score": [2, 1], "complete": False, "at": "2026-10-30T01:12:00+00:00"}),
+            game("SJU Soccer vs Carleton", "7:30 p.m.", "SJU Athletics", "Soccer")]
+
+    class Unread:
+        def __init__(self):
+            raise DbError("GET", "club_events", 503, "Service\n Unavailable")
+    newest = [m for m in sorted((Path(__file__).resolve().parents[2] / "supabase" / "migrations").glob("*.sql"))
+              if "function private.sidearm_file(" in m.read_text()][-1].read_text()
+    followed = re.findall(r"when '([^']+/[^']+)' then",
+                          newest.split("function private.sidearm_file(", 1)[1].split("$$", 2)[1])
+    saved = Supabase
+    try:
+        Supabase = Unread
+        unread = live_lines(date(2026, 10, 29))
+    finally:
+        Supabase = saved
+    return [(live_lines(date(2026, 10, 29), rows) == [
+                "Live games Thu Oct 29:",
+                "- CSB Soccer vs Carleton, 1 PM: never went live; final 2-1 from the backup check",
+                "- SJU Football vs Bethel, TBA: not followed live, no start time; no final",
+                "- CSB Basketball vs Augsburg, 2 PM: not followed live, 2 games that day; no final",
+                "- CSB Basketball vs Carleton, 4 PM: not followed live, 2 games that day; final 60-58 from the backup check",
+                "- SJU Basketball vs St. Cloud State, 6 PM: live to the final, 78-71 (23 scoring plays)",
+                "- CSB Volleyball vs Augsburg, 7 PM: live until 8:12 PM, then final 3-1 from the backup check",
+                "- SJU Soccer vs Carleton, 7:30 p.m.: never went live; no final"],
+             "each followed game says how far its live score got and where its final came from; a game the job "
+             "skips says why, and a sport it doesn't follow isn't listed"),
+            (live_lines(date(2026, 10, 30), rows[1:2]) == [], "a day with no followed game adds no lines"),
+            (unread == ["Live games Thu Oct 29: not read (Supabase GET club_events failed 503: Service Unavailable)"],
+             "a database that can't be read is one line, never a lost report"),
+            (set(followed) == LIVE_SPORTS, "the report follows the games private.sidearm_file names, as its newest migration says")]
 
 
 def in_parts():
