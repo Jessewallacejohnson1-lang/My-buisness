@@ -878,52 +878,58 @@ def fingerprints_wait_for_write():
 
 
 def games_aside():
-    """The titles step, the save's [long title] check and the describe layout agree on what a game
-    is (write_judged.is_game), offline: Oct 28's long game titles as Bound and the league brought them
-    (teams nobody has added yet, a "C game" About), a campus game, and Events that aren't games."""
-    import io
-    game = lambda title, host, sport, teams, about=None: {
-        "kind": "event", "title": title, "start": "2026-11-21T17:45:00-06:00", "place": f"{host} Gym", "town": "St. Cloud",
-        "area": "game", "source_name": host, "source_url": "https://www.gobound.com/x", "source_uid": f"bound:{title}",
-        "trust": "official", "size": "everyday", "interest": "watch_sports", "blurb": about, "followers_only": True,
-        "game": {"sport": sport, "teams": teams}}
+    """The titles step, the save's [long title] check and the describe layout agree, offline: Oct 28's
+    long game titles as Bound's calendars give them now (each read by its reader, so short), a
+    campus game and a judge's game still over 40 (both go to the titles step, review of 06d3b8e0),
+    and Events that aren't games. No game is ever laid out to describe (write_judged.is_game)."""
+    import ast, io
+    from read_events import bound_items, pathify_items
+
+    def ev(uid, summary, act, level, place):
+        a = act.replace(",", "\\,")
+        return (f"BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:20261201T174500\r\nGEO:45.4;-94.6\r\nLOCATION:{place}\r\n"
+                f"SUMMARY:{a}: {summary} ({level})\r\nUID:{uid}\r\nX-BND-ACTIVITYKEY:{act.split(',')[0].lower()}\r\n"
+                f"X-BND-ACTIVITYLEVEL:{level}\r\nX-BND-ACTIVITYNAME:{a}\r\nEND:VEVENT\r\n")
+    oct28 = {"Kennedy Community School": [ev("k", "North Junior High vs Kennedy Community MS", "Basketball, Boys", "Middle School",
+                                             "Kennedy Community School Kennedy Gym")],
+             "Sauk Rapids-Rice High School": [ev("s", "St. Cloud Apollo vs Sauk Rapids-Rice", "Basketball, Boys", "C",
+                                                 "Sauk Rapids-Rice High School Auxiliary Gym")],
+             "Sartell High School": [ev("t", "Sauk Rapids-Rice vs Sartell", "Basketball, Boys", "8th Grade", "Sartell Middle School Gym")],
+             "ROCORI High School": [ev(f"r{i}", f"{them} vs River Lakes", "Hockey, Boys", "Junior Varsity", "River Lakes Civic Arena")
+                                    for i, them in enumerate(("Prairie Centre", "Hutchinson", "Litchfield"))]}
+    games = [i for school, evs in oct28.items() for i in bound_items("".join(evs), {"_name": school}, {"url": "u"},
+                                                                    date(2026, 10, 28)) if i["kind"] == "event"]
+    games += pathify_items([{"id": 7, "title": "Saint John's University Basketball vs University of Wisconsin-Eau Claire",
+                             "location": "Collegeville, Minn., Sexton Arena", "calendar": {"name": "SJU Athletics"},
+                             "start_date": "2026-12-02T01:00:00Z", "all_day": False}], {"_name": "x"},
+                           {"url": "https://my.csbsju.edu/api"}, date(2026, 10, 28))
     other = lambda title, host, interest=None, about=None: {
         "kind": "event", "title": title, "start": "2026-11-21T19:00:00-06:00", "place": "Sacred Heart Chapel",
         "town": "St. Joseph", "area": "town", "source_name": host, "source_url": "https://x/e", "source_uid": title,
         "trust": "official", "size": "everyday", "interest": interest, "blurb": about}
-    oct28 = [game("North Junior High Boys Basketball vs Kennedy · Middle school", "Kennedy Community School",
-                  "Boys Basketball", ["North Junior High", "Kennedy"], "Middle School game"),
-             game("Apollo Boys Basketball vs Sauk Rapids-Rice · C-squad", "Sauk Rapids-Rice High School", "Boys Basketball",
-                  ["Apollo", "Sauk Rapids-Rice"], "C game"),
-             game("Sauk Rapids-Rice Boys Basketball vs Sartell · 8th Grade", "Sartell High School", "Boys Basketball",
-                  ["Sauk Rapids-Rice", "Sartell"], "8th Grade game"),
-             game("Prairie Centre Boys Hockey vs River Lakes · JV", "ROCORI High School", "Boys Hockey",
-                  ["Prairie Centre", "River Lakes"], "Junior Varsity game"),
-             game("Sartell-Sauk Rapids Girls Hockey vs Thief River Falls", "Sartell High School", "Girls Hockey",
-                  ["Sartell-Sauk Rapids", "Thief River Falls"])]
-    games = oct28 + [{**other("College of Saint Benedict Soccer vs Hamline - Senior Night", "CSB Athletics", "watch_sports"),
-                      "place": "St. Joseph, Minn., CSB Stadium", "area": "campus"},
-                     {**other("Sartell vs Tech football", "Sartell High School", "watch_sports"), "place": "Sartell High School"},
-                     other("Cathedral Boys Hockey vs Academy of Holy Angels: Senior Night", "Cathedral High School",
-                           "watch_sports")]  # the judge's, with no `game`
+    judge = other("Cathedral Boys Hockey vs Academy of Holy Angels: Senior Night", "Cathedral High School", "watch_sports")
     others = [other("Anniversary of the Dedication of Sacred Heart Chapel", "Saint Benedict's Monastery", "faith"),
               other("Plant Bingo", "Milk & Honey Ciders", "markets", "$10."),
               other("Vikings vs Colts Game Day at Neighbors Route 75 Bar and Grill", "Neighbors Route 75", "dining"),
               other("Fall Play", "Apollo High School", None, "Varsity")]
-    items = games + others
+    items = games + [judge] + others
     titles = write_judged.long_titles(items)
     result = write_judged.plan(items, [], date(2026, 10, 28), write_judged.interest_ids(), teams={})
     said = io.StringIO()
     with contextlib.redirect_stdout(said):
         write_judged.report(items, result)
-    flagged = [ln.split("'")[1] for ln in said.getvalue().splitlines() if ln.startswith("[long title]")]
+    flagged = [ast.literal_eval(ln[len("[long title] "):].rsplit(": over", 1)[0]) for ln in said.getvalue().splitlines()
+               if ln.startswith("[long title]")]
     rows = [dict(g["row"], id=g["row"]["source_uid"]) for g in result["events"]]
     laid = [e["title"] for e in to_research(rows)]
-    long_other = "Vikings vs Colts Game Day at Neighbors Route 75 Bar and Grill"
-    return [(len(rows) == len(items) and titles == flagged == ["Anniversary of the Dedication of Sacred Heart Chapel", long_other]
+    return [(len(games) == 7 and all("game" in i or "Athletics" in i["source_name"] for i in games) and len(rows) == len(items)
+             and titles == flagged == ["SJU Basketball vs University of Wisconsin-Eau Claire",
+                                       "Cathedral Boys Hockey vs Academy of Holy Angels",
+                                       "Anniversary of the Dedication of Sacred Heart Chapel",
+                                       "Vikings vs Colts Game Day at Neighbors Route 75 Bar and Grill"]
              and laid == [write_judged.tidy_title(i["title"]) for i in others],
-             "the titles step, the save's long-title check and the describe layout agree: no game in any (Oct 28's "
-             "long game titles among them), every long title that isn't a game in both, every thin one laid out")]
+             "the titles step, the save's long-title check and the describe layout agree: Oct 28's games come short from "
+             "their readers, every title over 40 (a game's too) is in both, no game is laid out to describe")]
 
 
 def described_once():
