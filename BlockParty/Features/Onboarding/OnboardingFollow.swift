@@ -203,18 +203,27 @@ struct OnboardingFollowList: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 24)
         } else {
-            ForEach(0..<6, id: \.self) { _ in
-                HStack(spacing: 12) {
-                    SkeletonBlock(cornerRadius: 14).frame(width: 48, height: 48)
-                    SkeletonBlock(cornerRadius: 6).frame(width: 140, height: 12)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 8)
-                .shimmering()
-                .accessibilityHidden(true)
-            }
-            .padding(.top, 36)
+            OnboardingLoadingRows(round: false)
         }
+    }
+}
+
+/// Six shimmering rows while a list is read: Follow 3's square pictures, Contacts' round faces.
+struct OnboardingLoadingRows: View {
+    let round: Bool
+
+    var body: some View {
+        ForEach(0..<6, id: \.self) { _ in
+            HStack(spacing: 12) {
+                SkeletonBlock(cornerRadius: round ? 24 : 14).frame(width: 48, height: 48)
+                SkeletonBlock(cornerRadius: 6).frame(width: 140, height: 12)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 8)
+            .shimmering()
+            .accessibilityHidden(true)
+        }
+        .padding(.top, 36)
     }
 }
 
@@ -241,7 +250,7 @@ private struct SuggestionRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            OnboardingFollowPill(on: on, name: suggestion.name, action: toggle)
+            OnboardingListPill(title: on ? "Following" : "Follow", on: on, name: suggestion.name, action: toggle)
         }
         .padding(.vertical, 8)
     }
@@ -280,9 +289,10 @@ private struct SuggestionPicture: View {
     }
 }
 
-/// Follow as the mock's pill (Instagram's 32 pt capsule, 104 pt wide): ink Follow, grey Following. A
-/// tap sinks it to 94%, ticks, and pops it to 106% as it turns.
-private struct OnboardingFollowPill: View {
+/// Follow, and Contacts' Add friend, as the mock's pill (Instagram's 32 pt capsule, 104 pt wide): ink
+/// Follow, grey Following once on. A tap sinks it to 94%, ticks, and pops it to 106% as it turns.
+struct OnboardingListPill: View {
+    let title: String
     let on: Bool
     let name: String
     let action: () -> Void
@@ -299,7 +309,7 @@ private struct OnboardingFollowPill: View {
                 withAnimation(.easeOut(duration: 0.1)) { pop = 1 }
             }
         } label: {
-            Text(on ? "Following" : "Follow")
+            Text(title)
                 .font(.sansSemibold(14))
                 .foregroundStyle(on ? Hue.ink : Hue.surface)
                 .lineLimit(1)
@@ -313,7 +323,7 @@ private struct OnboardingFollowPill: View {
         // It turns at once, as Instagram's does, and the pop carries the motion: a fade left one
         // frame of ink words on ink, or two words over each other.
         .scaleEffect(pop)
-        .accessibilityLabel("\(on ? "Following" : "Follow"), \(name)")
+        .accessibilityLabel("\(title), \(name)")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 }

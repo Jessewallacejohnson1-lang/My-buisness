@@ -249,4 +249,53 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(OnboardingStore.takeFollows(defaults), [b])
         XCTAssertEqual(OnboardingStore.takeFollows(defaults), [], "taken once")
     }
+
+    // MARK: Find friends (ticket 23)
+
+    func testRequestsToggleAndOutliveARelaunch() {
+        let store = OnboardingStore(defaults: defaults)
+        store.toggleRequest("sam")
+        store.toggleRequest("maya")
+        store.toggleRequest("sam")
+        XCTAssertEqual(store.requests, ["maya"])
+        XCTAssertEqual(OnboardingStore(defaults: defaults).requests, ["maya"])
+    }
+
+    func testRequestsWaitForTheFinishAndTheSavedName() async {
+        let store = OnboardingStore(defaults: defaults)
+        store.firstName = "Avery"
+        store.toggleRequest("maya")
+        var sent: [String] = []
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, [], "not before the flow is done")
+        store.finish()
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, [], "not before the name is on the account")
+        await store.saveAnswers { _, _ in }
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, ["maya"])
+        XCTAssertEqual(store.requests, [])
+    }
+
+    func testNoSignalKeepsTheRequestsAndARefusalDropsThem() async {
+        let store = OnboardingStore(defaults: defaults)
+        store.firstName = "Avery"
+        store.toggleRequest("maya")
+        store.toggleRequest("sam")
+        store.finish()
+        await store.saveAnswers { _, _ in }
+        await store.sendRequests { _ in throw URLError(.notConnectedToInternet) }
+        XCTAssertEqual(OnboardingStore(defaults: defaults).requests, ["maya", "sam"], "kept for the next launch")
+        await store.sendRequests { id in
+            if id == "maya" { throw SupabaseError(message: "friend_limit", status: 400) }
+        }
+        XCTAssertEqual(store.requests, [], "the server answered both: one refused, one sent")
+    }
+
+    func testTooYoungForgetsTheRequests() {
+        let store = OnboardingStore(defaults: defaults)
+        store.toggleRequest("maya")
+        store.leaveTooYoung()
+        XCTAssertEqual(OnboardingStore(defaults: defaults).requests, [])
+    }
 }
