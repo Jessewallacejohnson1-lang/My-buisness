@@ -42,14 +42,15 @@ ends the morning: answer with it.
   Answer with the JSON lines only." Their lines go to `.runs/morning/tags.jsonl`.
 - for each `.runs/morning/describe/batch-N.txt`, one helper on your own model with the same
   words for `describe.md` and its batch. Their lines go to `.runs/morning/describe.jsonl`.
-- Once the tag helpers' lines are in, run `python3 sources/scripts/morning.py today`, then read
-  `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt`, writing
-  your lines to `.runs/morning/standouts.jsonl`.
+- Once every helper's lines are in, run `python3 sources/scripts/morning.py today`, then read
+  `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
+  Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
-**Finish.** Once every helper has answered, run `python3 sources/scripts/morning.py finish`
-until it prints the report. It saves the tags, Abouts and standouts and prints the whole morning
-report. Answer with that report as printed, then your `[season]` lines, then one line per flag
-you dropped that a neighbour might have wanted, and why. Nothing else.
+**Finish.** Run `python3 sources/scripts/morning.py finish` until it prints the report. It saves
+the tags, Abouts and standouts and prints the whole morning report; a save that failed is a line
+in it. Answer with Ready's line if it said `ready, but`, then that report as printed, then your
+`[season]` lines, then one line per flag you dropped that a neighbour might have wanted, and
+why. Nothing else.
 
 ## Rules
 
