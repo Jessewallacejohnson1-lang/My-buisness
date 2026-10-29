@@ -174,12 +174,6 @@ def names_index(entries):
     return index
 
 
-def place_index(entries):
-    """Every name, other name (`aka`), venue and address an entry answers to -> its id (the first
-    entry in the file answering to it)."""
-    return {key: ids[0] for key, ids in names_index(entries).items()}
-
-
 def place_for(place, poster, index):
     """(entry id, True) for the place an event happens at: its place line matched whole, or the
     longest known name inside it ("Centennial Park shelter"). Otherwise (the poster's id, False):

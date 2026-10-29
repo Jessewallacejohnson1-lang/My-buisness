@@ -3140,7 +3140,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## The Bloom Room
 ```yaml
 id: bloom-room
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 added_by: agent:town-verify
@@ -3150,7 +3150,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.sunnymarymeadow.com/bloomroom (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.sunnymarymeadow.com/bloomroom (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-29: The Bloom Room is Sunny Mary Meadow's event room (its page is sunnymarymeadow.com/bloomroom), now a venue of `mary-meadow-sunny`, so one entry answers to its name (smooth-mornings 08).
 
 ## Bloom Styling & Events
 ```yaml

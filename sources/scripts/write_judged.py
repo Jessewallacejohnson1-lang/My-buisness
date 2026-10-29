@@ -99,13 +99,14 @@ THE RULES
     duplicate stays visible, a wrong merge hides a real event (ADR-021).
   Two hosts (BP app smooth-mornings 08, two_hosts): copies from two hosts on the same day are one
     Event when they are at one place (a registry place both lines name, an address naming the
-    shops in its building, or a spot the registry doesn't know on the host's own grounds), their
-    names match once filler and the other host's name are out, and their times agree (an all-day
-    copy agrees with a timed one). The same day, a place both lines name and the time, with names
+    shops in its building, or a spot the registry doesn't know on the host's own grounds, where
+    only the very same name counts), their names match once filler and the other host's name are
+    out, and their times agree (an all-day copy agrees with a timed one). A copy joins that way
+    only when it matches every copy already in the Event (joins). The same day, a place both lines name and the time, with names
     sharing only a word, are named for Jesse ("kept apart", the morning report's "Maybe the same"), and both stay.
   Which copy is kept: an event already listed stays the Event and every new copy is its Mention.
     Among new copies, the official one, then its place's own host's (not a town calendar's), then
-    a timed one, then one with a place; kept all day, it takes the time another copy gives.
+    a timed one, then one with a place; kept all day, it takes the time another copy gives that day.
   Filled in (Jesse, 2026-10-27): a listed event with no time takes the time another source gives
     it later, keeping its own source, uid and title; a mention with no time joins a shown, timed
     listing before a hidden copy.
@@ -256,30 +257,41 @@ def posted_twice(a, b):
 def two_hosts(a, b):
     """One Event from two hosts (BP app smooth-mornings 08): "one" when two copies fall on the same day,
     at one place, under the same name at agreeing times; "maybe" when the day, a place both lines
-    name and the times match and the names only share a word (Sunny Mary Meadow's "Indoor Farmers Market" and "Holiday
-    Market"), for Jesse to settle while both stay; else None. A word in common keeps a game and a
-    lecture at one campus that evening from being asked about.
+    name and the times match and the names only share a word (Sunny Mary Meadow's "Indoor Farmers
+    Market" and "Holiday Market"), for Jesse to settle while both stay; else None. A word in common
+    keeps a game and a lecture at one campus that evening from being asked about.
     - One place: the same place line (same_place), a registry place both lines name (spots: "25 First
       Ave NW" is both shops in that building, a venue is its place's), or a line the registry doesn't
       know from a host the other copy names, on its own grounds (the sisters' Monastic Cemetery and the
       campus calendar's Saint Benedict's Monastery). Pairs with no place on one are same_event's.
     - The same name: same_title on the words left once filler and the other copy's host's name are
       taken out ("Free Twinkle & Toast at White Peony Friday" from W|R Home is "Twinkle & Toast", inside
-      "Twinkle & Toast: Holiday Launch"). A host's own name stays: it can be a team's ("CSB Soccer").
+      "Twinkle & Toast: Holiday Launch"). Only the other host's name comes out: a host's name in its own
+      title can be a team's, so CSB Athletics' "CSB Soccer vs Hamline" and SJU Athletics' "SJU Soccer vs
+      Hamline" stay two. On the host's grounds alone, the names must be the very same (the procession):
+      most unknown spots are away games, and Apollo's "Girls JV" at Rush City is not Upsala at Apollo.
     - Agreeing times: within an hour, or one all day (within_hour); the Event keeps the time (plan)."""
     if a["day"] != b["day"] or not (a["place"] and b["place"]) or not within_hour(a, b):
         return None
     named = bool(a["spots"] & b["spots"]) or same_place(a["place"], b["place"])
-    # ponytail: an unknown spot is taken for its host's own grounds, so a school's away game reads as at
-    # the school; the name and time still keep two events apart. Use coordinates if that ever merges wrong.
+    # ponytail: an unknown spot is taken for its host's own grounds, so a school's away game reads as at the
+    # school, and only the very same name merges on it. Use coordinates if that ever merges wrong.
     grounds = not a["spots"] and a["host"] in b["spots"] or not b["spots"] and b["host"] in a["spots"]
     if not (named or grounds):
         return None
-    mine, theirs = ({w for w in f["title"] if w not in host and w.removesuffix("s") not in host} - FILLER - {"annual", "event", "vs"}
-                    for f, host in ((a, b["names"]), (b, a["names"])))
-    if same_title(mine, theirs):
+    mine, theirs = ({w for w in f["title"] if w not in host and w.removesuffix("s") not in host}
+                    - FILLER - {"annual", "event", "vs"} for f, host in ((a, b["names"]), (b, a["names"])))
+    if same_title(mine, theirs) and (named or mine == theirs):
         return "one"
     return "maybe" if named and mine & theirs else None
+
+
+def joins(g, f):
+    """A copy joins a group by same_event with its first copy, or by two_hosts with every copy in it: a
+    shared address is all its shops, so JoeTown's "Holiday Open House" at 25 First Ave NW must not make
+    White Peony's and W|R Home's, each at its own shop, one."""
+    return same_event(g["facts"], f) or all(same_event(x, f) or two_hosts(x, f) == "one"
+                                            for x in [g["facts"], *(ev["facts"] for _, ev in g["items"])])
 
 
 def spots(place):
@@ -842,8 +854,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
         else:
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
-            g = by_uid.get(key) or min((g for g in groups if (same_event(g["facts"], ev["facts"])
-                                                              or two_hosts(g["facts"], ev["facts"]) == "one")
+            g = by_uid.get(key) or min((g for g in groups if joins(g, ev["facts"])
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
                                                       g["facts"]["at"] is None), default=None)
@@ -896,7 +907,9 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             # then one with a place; the rest are its Mentions, and a timed one gives it its time.
             primary = min(g["items"], key=lambda e: (items[e[0]]["trust"] != "official", not own_host(e[1]["facts"]),
                                                      e[1]["facts"]["at"] is None, not e[1]["facts"]["place"]))
-            timed = next((ev for _, ev in g["items"] if ev["facts"]["at"]), None)
+            # Only a time from the kept copy's own day: Nov 1's all-day copy never reads "Nov 1, 4 PM".
+            timed = next((ev for _, ev in g["items"]
+                          if ev["facts"]["at"] and ev["facts"]["day"] == primary[1]["facts"]["day"]), None)
             g["status"] = "approved"
         if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or ""):
             # A title the morning job or Jesse shortened stays when its source sends the long one
@@ -1801,6 +1814,12 @@ def t_two_hosts_copy_kept():
     assert (row["title"], row["source_name"], row["start_time"]) == ("Twinkle & Toast: Holiday Launch", PEONY["source_name"], "6 PM")
     row = run([JOETOWN, WR_HOME])["events"][0]["row"]
     assert (row["source_name"], row["start_time"], row["all_day"]) == ("W|R Home Company", "6 PM", False), row
+    # Only its own day's time: an official all-day copy a day later (one by the all-day rule) stays all day.
+    days = [item(source_name="Newsleaders", trust="secondhand", start="2026-10-31", end=None, all_day=True),
+            item(start="2026-11-01", end=None, all_day=True),
+            item(source_name="City of St. Joseph", trust="secondhand", start="2026-10-31T16:00:00-05:00", end=None)]
+    g = run(days)["events"]
+    assert len(g) == 1 and (g[0]["row"]["event_date"], g[0]["row"]["all_day"]) == ("2026-11-01", True), g[0]["row"]
 
 
 def t_two_hosts_maybe_the_same():
@@ -1823,7 +1842,8 @@ def t_two_hosts_maybe_the_same():
 
 def t_two_hosts_kept_apart():
     """No two different things at one place on one day become one: Dec 3's two Detroit Mountain Invite races (9 AM
-    and 10:30 AM), two Clemens Library events one evening, and two colleges' games under their own names."""
+    and 10:30 AM), two Clemens Library events one evening, two colleges' games under their own names, away games,
+    and two shops' own events in one building."""
     race = dict(title="Detroit Mountain Invite", place="Detroit Mountain", area="game", interest="watch_sports", end=None,
                 size="everyday")
     races = [item(start="2026-12-03T09:00:00-06:00", source_name="Cathedral High School",
@@ -1840,10 +1860,29 @@ def t_two_hosts_kept_apart():
     games = [item(title="CSB Soccer vs Hamline", place="Clemens Stadium", source_name="CSB Athletics", area="campus"),
              item(title="SJU Soccer vs Hamline", place="Clemens Stadium", source_name="SJU Athletics", area="campus")]
     assert len(run(games)["events"]) == 2, "a host's own name stays in its title: two teams"
+    # On a host's grounds alone (an away game's gym the registry doesn't know), only the very same name merges:
+    # Apollo's "Girls JV" at Rush City (Dec 17) and Upsala at Apollo; Sartell's varsity at Brainerd and Tech at Sartell.
+    away = dict(area="game", interest="watch_sports", end=None, size="everyday")
+    for there, home in [(item(title="Girls JV", place="Rush City High School Main Gym", source_name="Apollo High School",
+                              start="2026-12-17T17:00:00-06:00", **away),
+                         item(title="Upsala Girls Basketball vs St. Cloud · JV", place="St. Cloud Apollo High School Gym",
+                              source_name="Tech High School", start="2026-12-17T17:45:00-06:00", **away)),
+                        (item(title="Boys Varsity", place="Brainerd High School Main Gym", source_name="Sartell High School",
+                              start="2027-01-19T19:15:00-06:00", **away),
+                         item(title="Tech Boys Basketball vs Sartell · Varsity", place="Sartell High School Gym, Main",
+                              source_name="Tech High School", start="2027-01-19T19:00:00-06:00", **away))]:
+        assert len(run([there, home])["events"]) == 2, there["title"]
+    # A shared address is all its shops, but a copy there joins only an Event every copy of which it matches: JoeTown's
+    # open house at 25 First Ave NW doesn't make White Peony's and W|R Home's, each at its own shop, one.
+    house = dict(title="Holiday Open House", end=None, interest=None, size="everyday")
+    shops = [item(place="25 First Ave NW", source_name="JoeTown", start="2026-11-07", all_day=True, **house),
+             item(place="White Peony Boutique", source_name="White Peony Boutique", start="2026-11-07T09:00:00-06:00", **house),
+             item(place="W|R Home Company", source_name="W|R Home Company", start="2026-11-07T08:00:00-06:00", **house)]
+    assert len(run(shops)["events"]) == 2, [o for o in run(shops)["outcomes"]]
 
 
 TESTS = [t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
-         t_two_hosts_maybe_the_same, t_two_hosts_kept_apart,t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
+         t_two_hosts_maybe_the_same, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
