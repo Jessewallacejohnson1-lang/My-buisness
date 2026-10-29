@@ -558,6 +558,7 @@ Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the
 ## ROCORI High School
 ```yaml
 id: rocori-high-school
+venues: ["River Lakes Civic Arena, Richmond", "River Lakes Arena, Richmond", "Koronis Civic Arena, Paynesville"]
 status: active
 tier: watched
 category: nearby-school
@@ -576,7 +577,7 @@ sources:
     league_id: 491
     team: ROCORI
 ```
-Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan"). 2026-10-29: its hockey plays as the River Lakes co-op, at home in Richmond and at Koronis Civic Arena in Paynesville (Jesse); those rinks are its `venues` (BP app event-photos 10).
 
 ## Sauk Rapids-Rice High School
 ```yaml
@@ -8792,6 +8793,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Scheels Athletic Complex
 ```yaml
 id: scheels-athletic-complex
+venues: ["Bernick's Arena, Sartell", "RDR Arena, Sartell"]
 status: proposed
 tier: listed
 category: "sports_complex"
@@ -8804,7 +8806,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-10-29: its two rinks, Bernick's Arena and RDR Arena, are its `venues` (BP app event-photos 10).
 
 ## Municipal Athletic Complex
 ```yaml
