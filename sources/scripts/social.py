@@ -16,7 +16,9 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
   setup           makes or updates the tasks and schedules from sources/social/<town>.json; run it
                   after the list changes (prepare also refreshes the tasks' pages)
   prepare busy    the busy list's Apify runs that finished since the last busy check
-  prepare weekly  the weekly runs that finished since the last weekly check
+  prepare weekly  the weekly runs that finished since the last weekly check. Either works in parts
+                  of about 6 minutes, as morning.py prepare does: run it again while it prints
+                  "run again"
   done            after `morning.py write`: marks those runs read, so the next check starts after
                   them. A check that stopped early never marks, and the next reads its runs too.
                   It repeats the pictures line, so the answer carries what pictures cost.
@@ -57,6 +59,7 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
+from run import deadline, late
 from batch import layout
 import composio
 
@@ -80,6 +83,8 @@ HEADS_UP = 15.0
 STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
 DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
+WAIT = 480  # seconds, over every part, that a check waits for an Apify run still going
+PART_MINUTES = 6  # as morning.py prepare's parts: the cloud stops a command at 10 minutes
 
 # Pictures (Jesse, 2026-10-26: the words on a post's picture, when its caption doesn't say enough)
 PICTURES = 3        # most read per post: a carousel's flyer is often its second or third slide
@@ -246,12 +251,12 @@ def setup():
             mark_read(run, now)
 
 
-def runs_since(run, mark, now, wait_s=480):
-    """{kind: [finished runs]} of a run's tasks since the mark, waiting up to wait_s for one that
-    started within the last 90 minutes and is still going. Runs older than LOOKBACK are never read."""
+def runs_since(run, mark, now, give_up, stop=None):
+    """{kind: [finished runs]} of a run's tasks since the mark, waiting until `give_up` (time.time())
+    for one that started within the last 90 minutes and is still going, or until the part's `stop`.
+    Runs older than LOOKBACK are never read."""
     tasks = {n: x for n, x in by_name("/actor-tasks").items() if n.startswith(f"bp-{run}-")}
     floor = max(mark, now - LOOKBACK[run]) if mark else now - LOOKBACK[run]
-    deadline = time.time() + wait_s
     while True:
         out, waiting = {}, []
         for name, task in tasks.items():
@@ -262,7 +267,7 @@ def runs_since(run, mark, now, wait_s=480):
                         out.setdefault(name.split("-", 2)[2], []).append(r)
                 elif now - started < timedelta(minutes=90):
                     waiting.append(name)
-        if not waiting or time.time() > deadline:
+        if not waiting or time.time() > give_up or late(stop):
             return out, waiting
         time.sleep(15)
 
@@ -318,35 +323,35 @@ def fetch_picture(url, dest):
     return im.size
 
 
-def add_pictures(pages, folder, fetch=fetch_picture):
+def add_pictures(pages, folder, fetch=fetch_picture, stop=None, counts=None):
     """Every page with pictures gets them downloaded and named at its end, for the cheap model
     to open. A picture that won't download is a line in the summary, and its page keeps Meta's
-    description. Returns the counts for the cost line."""
+    description. Returns the counts for the cost line, added to an earlier part's `counts`; a page
+    not reached by the part's `stop` keeps its `pictures` for the next part."""
     folder.mkdir(parents=True, exist_ok=True)
-    read, posts, tokens, failed = 0, 0, 0, []
+    c = counts or {"read": 0, "posts": 0, "tokens": 0, "failed": []}
     for p in pages:
-        pics = p.pop("pictures", [])
-        if not pics:
+        if not p.get("pictures") or late(stop):
             continue
         lines = []
-        for i, pic in enumerate(pics, 1):
+        for i, pic in enumerate(p.pop("pictures"), 1):
             dest = folder / f"{p['file']}-{i}.jpg"
             try:
                 w, h = fetch(pic["url"], dest)
-                read, tokens = read + 1, tokens + picture_tokens(w, h)
+                c["read"], c["tokens"] = c["read"] + 1, c["tokens"] + picture_tokens(w, h)
                 lines.append(f"Picture {i}: {dest}")
             except Exception as e:
-                failed.append(f"{p['name']} {p['file']} picture {i}: {e}")
+                c["failed"].append(f"{p['name']} {p['file']} picture {i}: {e}")
             if pic["about"]:
                 lines.append(f"Meta's own description of picture {i}: {pic['about']}")
         if any(ln.startswith("Picture ") for ln in lines):
-            posts += 1
+            c["posts"] += 1
             lines.insert(0, "The post's caption doesn't say much, so its pictures come with it. Open each "
                             "picture below with the Read tool and read every word on it: those words are "
                             "part of this post.")
         if lines:
             p["text"] += "\n\n" + "\n".join(lines)
-    return {"read": read, "posts": posts, "tokens": tokens, "failed": failed}
+    return c
 
 
 def pictures_line(pics):
@@ -399,46 +404,64 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
-def prepare(run, today, out, now):
+def prepare(run, today, out, now, minutes=PART_MINUTES):
+    """In timed parts, as morning.py's: the wait for an Apify run still going and the pictures'
+    downloads stop after `minutes` and say "run again", and social-part.json carries the check to
+    the next part."""
     root = find_root()
-    if out.exists():
-        shutil.rmtree(out)
-    (out / "batches").mkdir(parents=True)
-    lists = page_lists(root)
-    failed = []
-    try:
-        sync_tasks(root)  # the next run reads the list as it is now
-    except Exception as e:
-        failed.append(f"task pages not refreshed: {e}")
-    try:
-        mark = last_read(run)
-    except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
-        mark, _ = None, failed.append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[run].days} days")
-    found, waiting = runs_since(run, mark, now)
-    failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
+    stop, part_f = deadline(minutes), out / "social-part.json"
+    part = json.loads(part_f.read_text()) if part_f.exists() else {}
+    if part.get("run") != run or part.get("today") != str(today) or (out / "prepare.json").exists():  # a new check
+        if out.exists():
+            shutil.rmtree(out)
+        (out / "batches").mkdir(parents=True)
+        part = {"run": run, "today": str(today), "failed": [], "give_up": time.time() + WAIT}
+        try:
+            sync_tasks(root)  # the next run reads the list as it is now
+        except Exception as e:
+            part["failed"].append(f"task pages not refreshed: {e}")
+        try:
+            mark = last_read(run)
+        except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
+            mark, _ = None, part["failed"].append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[run].days} days")
+        part["mark"] = mark and mark.isoformat()
+    now = datetime.fromisoformat(part.setdefault("now", now.isoformat()))  # every part by the first part's clock
+    lists, failed = page_lists(root), part["failed"]
+    mark = part["mark"] and datetime.fromisoformat(part["mark"])
+    if "posts" not in part:
+        found, waiting = runs_since(run, mark, now, part["give_up"], stop)
+        if waiting and time.time() <= part["give_up"]:  # the part's time is spent first
+            part_f.write_text(json.dumps(part))
+            return print(f"[social] run again: {', '.join(waiting)} still running on Apify")
+        failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
-    posts, cost, until, states = [], 0.0, mark, []
-    for kind, runs in found.items():
-        by_url = {p["url"].rstrip("/").lower(): p for p in lists.get((run, kind), [])}
-        if kind == "events":
-            by_url = {events_tab(u): p for u, p in by_url.items()} | by_url
-        for r in runs:
-            cost += float(r.get("usageTotalUsd") or 0)
-            finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
-            until = max(until, finished) if until else finished
-            states.append(r["status"])
-            got, hidden = post_pages(kind, items(r["defaultDatasetId"]), by_url)
-            posts += got
-            failed += [f"{kind}: {h}" for h in hidden]
-            if r["status"] != "SUCCEEDED":
-                failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
-    seen, unique = set(), []
-    for p in posts:  # overlapping windows read a post twice; one page each
-        if p["file"] not in seen:
-            seen.add(p["file"]), unique.append(p)
-    posts = unique
-    pics = add_pictures(posts, out / "pictures")
-    failed += [f"picture not downloaded: {f}" for f in pics["failed"]]
+        posts, cost, until = [], 0.0, mark
+        for kind, runs in found.items():
+            by_url = {p["url"].rstrip("/").lower(): p for p in lists.get((run, kind), [])}
+            if kind == "events":
+                by_url = {events_tab(u): p for u, p in by_url.items()} | by_url
+            for r in runs:
+                cost += float(r.get("usageTotalUsd") or 0)
+                finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
+                until = max(until, finished) if until else finished
+                got, hidden = post_pages(kind, items(r["defaultDatasetId"]), by_url)
+                posts += got
+                failed += [f"{kind}: {h}" for h in hidden]
+                if r["status"] != "SUCCEEDED":
+                    failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
+        seen, unique = set(), []
+        for p in posts:  # overlapping windows read a post twice; one page each
+            if p["file"] not in seen:
+                seen.add(p["file"]), unique.append(p)
+        part.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
+    posts = part["posts"]
+    pics = add_pictures(posts, out / "pictures", fetch_picture, stop, part.get("pics"))
+    if any(p.get("pictures") for p in posts):
+        part_f.write_text(json.dumps({**part, "pics": pics}))
+        return print(f"[social] run again: {sum(bool(p.get('pictures')) for p in posts)} posts' pictures still to read")
+    failed = failed + [f"picture not downloaded: {f}" for f in pics["failed"]]
+    cost, runs = part["cost"], part["runs"]
+    until = part["until"] and datetime.fromisoformat(part["until"])
     for i, text in enumerate(layout(posts, today), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
@@ -448,7 +471,6 @@ def prepare(run, today, out, now):
         interests = write_judged.interest_ids()
     except Exception as e:  # no database keys (a dry run on a Mac): the judge then uses null
         interests, _ = [], failed.append(f"interest ids unread: {e}")
-    runs = sum(len(v) for v in found.values())
     checked = sum(len(v) for (r, _), v in lists.items() if r == run)
     summary = {"today": str(today), "run": run, "since": mark.isoformat() if mark else None,
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
@@ -567,7 +589,77 @@ def selftest():
                "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; social.spend()")
     r = subprocess.run([sys.executable, "-c", blocked], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
     check(r.stdout == "Apify: $8.40 of $25 this month\n", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
+    for cond, what in in_parts():
+        check(cond, what)
     print(f"social.py selftest: {ok} passed, 0 failed")
+
+
+def in_parts():
+    """prepare in 2-minute parts against a fake Apify whose run is still going for 200 seconds and
+    pictures that take 30 seconds each, offline on a fake clock; then one long check, and one whose
+    run never ends."""
+    import contextlib, run as runner, write_judged
+    g, clock, got = globals(), type("Clock", (), {})(), []
+    clock.monotonic = clock.time = lambda: clock.t
+    clock.sleep = lambda s: setattr(clock, "t", clock.t + s)
+    page = {"url": "https://www.facebook.com/krewe", "name": "Krewe", "entry_id": "krewe", "category": None}
+    rows = [{"inputUrl": page["url"], "postId": str(i), "url": f"https://fb/p/{i}", "text": "Fun night!",
+             "time": "2026-10-28T22:00:00.000Z", "media": [{"photo_image": {"uri": f"https://fb/{i}.jpg"}}]} for i in range(3)]
+
+    def apify(method, path, body=None):
+        if path.startswith("/actor-tasks?"):
+            return {"data": {"items": [{"name": "bp-busy-facebook", "id": "t1"}]}}
+        done = clock.t >= 1000 + ends
+        return {"data": {"items": [{"id": "r1", "status": "SUCCEEDED" if done else "RUNNING", "startedAt": "2026-10-28T23:25:00Z",
+                                    "finishedAt": "2026-10-28T23:33:00Z" if done else None, "defaultDatasetId": "d1",
+                                    "usageTotalUsd": 0.17}]}}
+
+    def picture(url, dest):
+        got.append(url)
+        clock.t += 30
+        dest.write_bytes(b"x")
+        return 1080, 1350
+
+    def check(minutes):
+        """One check's prepare, part after part: each part's words, and the batches it laid out."""
+        clock.t, said = 1000.0, []
+        while len(said) < 6 and (not said or "run again" in said[-1]):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                prepare("busy", date(2026, 10, 28), folder, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc), minutes)
+            said.append(out.getvalue())
+        return said, {f.name: f.read_text() for f in (folder / "batches").iterdir()} if (folder / "batches").exists() else {}
+    fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root: None, "fetch_picture": picture,
+             "last_read": lambda run: datetime(2026, 10, 28, 2, 40, tzinfo=timezone.utc), "time": clock,
+             "page_lists": lambda root: {("busy", "facebook"): [page]}}
+    saved = {k: g[k] for k in (*fakes, "find_root")}, runner.time, write_judged.interest_ids
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "morning"
+            g.update(fakes, find_root=lambda *a: Path(tmp))
+            runner.time, write_judged.interest_ids = clock, lambda: ["dining"]
+            ends = 200
+            one, one_batches = check(None)
+            got.clear()
+            parts, batches = check(2)
+            pictures = list(got)
+            ends = float("inf")
+            never, _ = check(2)
+    finally:
+        g.update(saved[0])
+        runner.time, write_judged.interest_ids = saved[1:]
+    (n, parts), (m, never) = (len(parts), parts + [""] * 3), (len(never), never + [""] * 4)  # a failing check reads as one
+    return [
+        (parts[0] == "[social] run again: bp-busy-facebook still running on Apify\n" and n == 3,
+         "a run still going when the part's time is spent: run again, not a wait past it"),
+        (parts[1] == "[social] run again: 1 posts' pictures still to read\n"
+         and sorted(pictures) == [f"https://fb/{i}.jpg" for i in range(3)],
+         "pictures over parts: each read once, the rest left for the next part"),
+        (batches == one_batches and len(batches) == 1 and parts[2].split("\n")[0] == one[0].split("\n")[0],
+         "the parts lay out what one long check does"),
+        (m == 4 and "[social] FAILED bp-busy-facebook still running after 8 minutes" in never[3],
+         "a run that never ends is waited for 8 minutes over every part, then left for the next check"),
+    ]
 
 
 def main():

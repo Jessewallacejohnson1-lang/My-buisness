@@ -13,19 +13,13 @@ source is a line in the summary; carry on with the rest.
    values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so. A `ready, but` line names a missing key that only weakens the run: say so
    and go on.
-2. **Prepare.** Start `(python3 sources/scripts/morning.py prepare; echo "prepare exit $?") >
-   /tmp/prepare.log 2>&1` with `run_in_background: true`. It fetches every watched page the
-   polite way, reads the feeds and data sources, and writes the changed pages in batches to
-   `.runs/morning/batches/`. It takes 10 to 20 minutes, longer than one Bash call may run, so
-   wait for it in the foreground 9 minutes at a time (timeout 600000 ms):
-   `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
-   Repeat that wait until `prepare exit` shows, without ending your turn in between. Don't wait
-   with `pgrep -f` (it finds the wait itself) or through a `tail` pipe (it prints nothing until
-   the end). Done when `prepare exit 0` shows under its `[morning] fetched …` line. A background
-   command is stopped at 30 minutes; a prepare that nears that needs splitting into parts. A
-   changed page's fingerprint moves only at step 6's write, so a second prepare finds the same
-   pages, and a morning that stops early reads them again tomorrow. Its counts are in
-   `.runs/morning/prepare.json` if you need them again.
+2. **Prepare.** Run `python3 sources/scripts/morning.py prepare` with a 600000 ms timeout. It
+   fetches every watched page the polite way, reads the feeds and data sources, and writes the
+   changed pages in batches to `.runs/morning/batches/`. It works in parts of about 6 minutes:
+   while it prints `[morning] run again`, or is stopped at the timeout, run it again, and it carries
+   on where it stopped. Done when it prints its `[morning] fetched …` line. A changed page's fingerprint moves only at step
+   6's write, so a second prepare finds the same pages, and a morning that stops early reads them
+   again tomorrow. Its counts are in `.runs/morning/prepare.json` if you need them again.
 3. **The cheap model reads.** For each batch file, start one helper on the cheap model (Haiku),
    all at once, each with this prompt: "Read `sources/models/flag.md` and follow it for the
    pages in `.runs/morning/batches/batch-N.txt`. Answer with the JSON lines only." Write every
@@ -54,8 +48,9 @@ source is a line in the summary; carry on with the rest.
    "Read `sources/models/tag.md` and follow it for the Events in
    `.runs/morning/tag/batch-N.txt`. Answer with the JSON lines only." Write every line the
    helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
-   tag`. No batches means nothing to tag: skip the helpers. Done when `tag` prints its
-   `[morning] tagged …` line.
+   tag` with a 600000 ms timeout, again while it prints `[morning] run again` or is stopped at the
+   timeout. No batches means nothing to tag: skip the
+   helpers. Done when `tag` prints its `[morning] tagged …` line.
 8. **Describe.** Run `python3 sources/scripts/morning.py thin`. It lays out the upcoming Events
    whose About is empty or under a sentence, at most 30, in batches in `.runs/morning/describe/`.
    For each batch file, start one helper on your own model, all at once, each with this prompt:
