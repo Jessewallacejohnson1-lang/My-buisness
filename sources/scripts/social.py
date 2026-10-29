@@ -36,9 +36,11 @@ already returns the addresses, so this costs nothing on Apify; it costs the Clau
 tokens of looking at them, which prepare prints as one `[social] pictures` line.
 
 A page Apify says is "not available", or returns nothing at all for, on three reads in a row is set
-aside (BP app smooth-mornings 04); "no new posts" is a good read. The next sync takes it off its paid
-list and the Thursday read tries it, a busy page every week and a weekly page in the first week of
-each month; a good read puts it back. It is named once when set aside and once when back.
+aside (BP app smooth-mornings 04); "no new posts" is a good read, and a run that missed more than
+half its pages (Facebook blocking Apify, a run stopped at its cap) counts against none. The next sync
+takes it off its paid list and the Thursday read tries it, a busy page every week and a weekly page
+in the first week of each month; a good read puts it back. It is named once when set aside and once
+when back.
 
 The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
 `read-busy` and `read-weekly`), so it survives each routine's throwaway copy; so do the set-aside
@@ -223,13 +225,15 @@ def canon(url):
     return url.rstrip("/").lower()
 
 
-def monthly_try(today):
-    """Whether the next Thursday read falls in a month's first week. Every check, so every sync, runs
-    after Thursday's 3 PM read, so a sync on a Thursday is for next week's."""
-    return (today + timedelta(days=(3 - today.weekday()) % 7 or 7)).day <= 7
+def monthly_try(now):
+    """Whether the next Thursday 3 PM read after `now` (SCHEDULES' bp-weekly) falls in a month's first
+    week. By the clock, not the date: a 9:30 PM check that starts past midnight is still before it."""
+    t = now.astimezone(LOCAL).replace(hour=15, minute=0, second=0, microsecond=0)
+    t += timedelta(days=(3 - t.weekday()) % 7)
+    return (t if t > now else t + timedelta(days=7)).day <= 7
 
 
-def page_lists(root, missed=None, today=None):
+def page_lists(root, missed=None, now=None):
     """{(run, kind): pages} for every task: each list's own pages, and the busy list's Facebook
     pages again for the weekly Events tabs. A page set aside (`missed`) leaves its list for the
     Thursday read: a busy page every week, a weekly page in the first week of each month."""
@@ -241,18 +245,18 @@ def page_lists(root, missed=None, today=None):
             p["category"] = category.get(p["entry_id"])
             if canon(p["url"]) not in aside:
                 out.setdefault((run, p["kind"]), []).append(p)
-            elif run == "busy" or (today and monthly_try(today)):
+            elif run == "busy" or (now and monthly_try(now)):
                 out.setdefault(("weekly", p["kind"]), []).append(p)
     out[("weekly", "events")] = [p for p in out.get(("busy", "facebook"), [])]
     # ponytail: a list left empty keeps its task's last pages; give the task no pages if one ever empties
     return {k: v for k, v in out.items() if k in ACTORS}
 
 
-def sync_tasks(root, missed=None, today=None):
+def sync_tasks(root, missed=None, now=None):
     """Each task's pages as the list now has them, set-aside pages moved (page_lists); makes a task
     that is missing."""
     tasks, ids = by_name("/actor-tasks"), {}
-    for (run, kind), pages in page_lists(root, missed, today).items():
+    for (run, kind), pages in page_lists(root, missed, now).items():
         actor, cap = ACTORS[(run, kind)]
         body = {"input": actor_input(kind, [p["url"] for p in pages], next(w for _, _, r, w in SCHEDULES if r == run)),
                 "options": {"timeoutSecs": 600, "maxTotalChargeUsd": cap}}
@@ -267,7 +271,7 @@ def sync_tasks(root, missed=None, today=None):
 
 def setup():
     root = find_root()
-    ids = sync_tasks(root, read_missed(), datetime.now(LOCAL).date())
+    ids = sync_tasks(root, read_missed(), datetime.now(LOCAL))
     have = by_name("/schedules")
     for name, cron, run, window in SCHEDULES:
         actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid,
@@ -422,10 +426,11 @@ def tally(reads, missed, today):
     """Each page the posts runs read, oldest run first: read when a row of it is a post or says it
     posted nothing new (`no_items`: most busy pages, most reads); missed when Apify says it is not
     available, or gives no row for it at all (Sal's, every read in October). MISSES misses in a row set
-    a page aside; a good read brings it back. `reads`: (finished, pages, rows) per run. Returns the
-    new state and the pages set aside and back."""
-    state, aside, back = {u: dict(m) for u, m in missed.items()}, [], []
-    for _, pages, rows in sorted(reads, key=lambda x: x[0]):
+    a page aside; a good read brings it back. A run that missed more than half its pages (Facebook
+    blocking Apify, a run stopped at its cap) counts against none. `reads`: (finished, pages, rows,
+    what) per run. Returns the new state, the pages set aside and back, and a line per run not counted."""
+    state, aside, back, uncounted = {u: dict(m) for u, m in missed.items()}, [], [], []
+    for _, pages, rows, what in sorted(reads, key=lambda x: x[0]):
         found, why, given = set(), {}, {p: p for p in pages}
         for r in rows:
             u = page_of(src_of(r), given)
@@ -433,18 +438,21 @@ def tally(reads, missed, today):
                 why[u] = r["error"]
             elif u:
                 found.add(u)
+        counted = (len(pages) - len(found & set(pages))) * 2 <= len(pages)
+        if not counted:
+            uncounted.append(f"{what}: {len(pages) - len(found & set(pages))} of {len(pages)} pages not read, not counted")
         for u in pages:
             m = state.get(u, {})
             if u in found:
                 back += [u] if m.get("aside") else []
                 state.pop(u, None)
-            elif not m.get("aside"):
+            elif counted and not m.get("aside"):
                 m = {"misses": m.get("misses", 0) + 1, "why": why.get(u, "nothing back")}
                 if m["misses"] >= MISSES:
                     m["aside"] = str(today)
                     aside.append(u)
                 state[u] = m
-    return state, aside, back
+    return state, aside, back, uncounted
 
 
 def aside_lines(state, aside, back, lists):
@@ -513,9 +521,10 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         except Exception as e:  # every page read this time, and none counted
             part["missed"], _ = None, part["failed"].append(f"set-aside pages unreadable: {e}")
         try:
-            sync_tasks(root, part["missed"], today)  # the next run reads the list as it is now
+            sync_tasks(root, part["missed"], now)  # the next run reads the list as it is now
         except Exception as e:
             part["failed"].append(f"task pages not refreshed: {e}")
+        part["listed"] = sum(len(v) for (r, _), v in page_lists(root, part["missed"], now).items() if r == run)
         try:
             mark = last_read(run)
         except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
@@ -547,7 +556,8 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
                 if kind == "events":  # a posts page Apify can't read is named once, set aside (tally)
                     failed += [f"{kind}: {h}" for h in hidden]
                 elif r["status"] == "SUCCEEDED" and part.get("missed") is not None:
-                    reads.append((r["finishedAt"], run_pages(r["id"]), rows))
+                    reads.append((r["finishedAt"], run_pages(r["id"]), rows,
+                                  f"{kind} run at {finished.astimezone(LOCAL):%a %-I:%M %p}"))
                 if r["status"] != "SUCCEEDED":
                     failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
         seen, unique = set(), []
@@ -555,8 +565,9 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
             if p["file"] not in seen:
                 seen.add(p["file"]), unique.append(p)
         if part.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
-            state, aside, back = tally(reads, part["missed"], today)
+            state, aside, back, uncounted = tally(reads, part["missed"], today)
             part.update(missed=state, aside=aside_lines(state, aside, back, lists))
+            failed += uncounted
         part.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
     posts = part["posts"]
     pics = add_pictures(posts, out / "pictures", fetch_picture, stop, part.get("pics"))
@@ -575,7 +586,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         interests = write_judged.interest_ids()
     except Exception as e:  # no database keys (a dry run on a Mac): the judge then uses null
         interests, _ = [], failed.append(f"interest ids unread: {e}")
-    checked = sum(len(v) for (r, _), v in lists.items() if r == run)
+    checked = part.get("listed", 0)  # set-aside pages left out
     summary = {"today": str(today), "run": run, "since": mark.isoformat() if mark else None,
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
@@ -602,6 +613,8 @@ def finish(out):
     try:
         mark_read(prep["run"], prep["read_until"])
         if prep.get("missed") is not None:  # with the mark, so no run is counted twice
+            # ponytail: last save wins; a busy and a weekly check overlapping (hours apart by schedule) could
+            # undo the other's comeback. Save only the pages this check changed if they ever overlap.
             save_missed(prep["missed"])
     except Exception as e:  # the next check then reads these runs again; the writer merges repeats
         return print(f"[social] FAILED marking {prep['run']} read ({e}): check the Apify network secret")
@@ -708,13 +721,15 @@ def selftest():
 def set_aside_reads():
     """Six checks against a fake Apify, offline, each prepare and done as the routine runs them: Sal's,
     on the busy list, comes back not available three busy reads in a row, then Thursday's weekly read
-    finds a post. Krewe (busy) and Hall (weekly) always post. Apify's schedules are played by hand:
+    finds a post. Krewe and Bo (busy) post nothing new on the busy reads; Hall (weekly) posts. Apify's
+    schedules are played by hand:
     each run reads its task's pages as they were when it started (smooth-mornings 04)."""
     import contextlib, write_judged
     g = globals()
-    sals, krewe, hall = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "hallcomponents"))
+    sals, krewe, bo, hall = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "bodiddleys", "hallcomponents"))
     pages = [{"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True},
              {"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": krewe, "busy": True},
+             {"entry_id": "bo", "name": "Bo", "kind": "facebook", "url": bo, "busy": True},
              {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": hall, "busy": False}]
     tasks, runs, store, data = {}, {}, {"read-busy": {"finished_at": "2026-10-26T00:00:00+00:00"},
                                         "read-weekly": {"finished_at": "2026-10-26T00:00:00+00:00"}}, {}
@@ -752,7 +767,7 @@ def set_aside_reads():
         with contextlib.redirect_stdout(said):
             prepare(run, now.astimezone(LOCAL).date(), folder, now, None)
             finish(folder)
-        return [ln for ln in said.getvalue().splitlines() if "salsbar" in ln or "Sal's" in ln]
+        return said.getvalue().splitlines()
     fakes = {"api": apify, "items": lambda rid: data[rid][1], "load": lambda root: ([], [])}
     saved = {k: g[k] for k in (*fakes, "find_root")}, write_judged.interest_ids
     said, inputs = [], {}
@@ -765,35 +780,44 @@ def set_aside_reads():
             write_judged.interest_ids = lambda: ["dining"]
             sync_tasks(root, {}, date(2026, 10, 26))
             for i, (day, hour) in enumerate([(26, 23), (27, 2), (27, 23), (28, 2)]):  # 6 and 9 PM Chicago, Mon and Tue
-                ran("bp-busy-facebook", f"2026-10-{day}T{hour:02d}:05:00+00:00", quiet=[krewe])
+                ran("bp-busy-facebook", f"2026-10-{day}T{hour:02d}:05:00+00:00", quiet=[krewe, bo])
                 said.append(check("busy", f"2026-10-{day}T{hour:02d}:30:00+00:00"))
                 inputs[i] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
             ran("bp-weekly-facebook", "2026-10-29T20:05:00+00:00", [hall, sals])  # Thursday 3 PM
             said.append(check("weekly", "2026-10-29T20:45:00+00:00"))
-            ran("bp-busy-facebook", "2026-10-29T23:05:00+00:00", [krewe])
+            ran("bp-busy-facebook", "2026-10-29T23:05:00+00:00", [krewe], [bo])
             said.append(check("busy", "2026-10-29T23:30:00+00:00"))
             inputs["after"] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
             on_lists = sorted(t for t, given in inputs["after"].items() if sals in given)
-            wk = lambda day, missed: page_lists(root, missed, date(2026, 11, day)).get(("weekly", "facebook"), [])
-            monthly = [len(wk(d, {canon(hall): {"aside": "2026-10-22"}})) for d in (4, 5)]
+            wk = lambda *when: page_lists(root, {canon(hall): {"aside": "2026-10-22"}},
+                                          datetime(2026, 11, *when, tzinfo=LOCAL)).get(("weekly", "facebook"), [])
+            monthly = [len(wk(4, 21, 30)), len(wk(5, 0, 5)), len(wk(5, 15, 45))]
     finally:
         g.update(saved[0])
         write_judged.interest_ids = saved[1]
-    named = [i for i, lines in enumerate(said) if lines]
+    named = [i for i, lines in enumerate(said) if any("salsbar" in ln or "Sal's" in ln for ln in lines)]
+    sal_lines = [[ln for ln in lines if "salsbar" in ln or "Sal's" in ln] for lines in said]
+    counts = [next(ln.split(", ")[1] for ln in lines if ln.startswith("[social] busy:")) for lines in said[:4]]
+    twenty_four = [f"https://www.facebook.com/p{i}" for i in range(24)]
+    blocked = tally([(f"2026-10-2{i}", twenty_four, [], f"facebook run {i}") for i in range(3)], {}, date(2026, 10, 28))
     return [
         (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-facebook"]
          and sals in inputs[2]["bp-busy-facebook"] and on_lists == ["bp-busy-facebook"]
-         and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs),
+         and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs) and counts == ["3 pages"] * 3 + ["2 pages"],
          "a social page not available three reads in a row leaves its paid list at the next sync, for the "
-         "Thursday read, and goes back on its list when that read finds it; one with no new posts stays"),
-        (named == [2, 4] and said[2] == [f"[social] Set aside: Sal's Bar and Grill's Facebook {sals}: not available 3 "
+         "Thursday read, and goes back on its list when that read finds it; one with no new posts stays; "
+         "the pages count leaves set-aside pages out"),
+        (named == [2, 4] and sal_lines[2] == [f"[social] Set aside: Sal's Bar and Grill's Facebook {sals}: not available 3 "
                                          "reads in a row; off its paid list, tried with the Thursday read"]
-         and said[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
+         and sal_lines[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
          "a social page is named the check it is set aside and the check it is back, and no other"),
-        (monthly == [1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week"),
-        (tally([("t", [sals], [])] * 3, {}, date(2026, 10, 28))[0] == {sals: {"misses": 3, "why": "nothing back",
-                                                                             "aside": "2026-10-28"}},
+        (monthly == [1, 1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week, "
+                               "by the clock: a 9:30 PM check that starts past midnight still puts it on"),
+        (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],
+                 "x")] * 3, {}, date(2026, 10, 28))[0] == {sals: {"misses": 3, "why": "nothing back", "aside": "2026-10-28"}},
          "a page Apify gives no row for three reads in a row is set aside too"),
+        (blocked[0] == {} and blocked[3] == [f"facebook run {i}: 24 of 24 pages not read, not counted" for i in range(3)],
+         "a run that reads few of its pages (Facebook blocking Apify, a cap) counts against none, in one line"),
     ]
 
 
@@ -835,7 +859,7 @@ def in_parts():
     fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root, *a: None, "fetch_picture": picture,
              "read_missed": dict,
              "last_read": lambda run: datetime(2026, 10, 28, 2, 40, tzinfo=timezone.utc), "time": clock,
-             "page_lists": lambda root: {("busy", "facebook"): [page]}}
+             "page_lists": lambda root, *a: {("busy", "facebook"): [page]}}
     saved = {k: g[k] for k in (*fakes, "find_root")}, runner.time, write_judged.interest_ids
     try:
         with tempfile.TemporaryDirectory() as tmp:

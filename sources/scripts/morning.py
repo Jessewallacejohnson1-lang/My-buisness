@@ -11,8 +11,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             for the routine to flag new season dates (BP app business-hours, Jesse 2026-10-26).
             It works in parts of about 6 minutes, since the cloud stops a command at 10 (BP app
             smooth-mornings 03): run it again while it prints "run again". A page failing three
-            mornings in a row is set aside, skipped except on Mondays, and named only the morning
-            it is set aside and the morning it is back (smooth-mornings 04)
+            mornings' reads in a row is set aside, skipped except on Mondays, and named only the
+            morning it is set aside and the morning it is back; one line a morning counts the pages
+            that failed, naming the town's own (smooth-mornings 04)
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
@@ -179,6 +180,9 @@ def prepare(today, out, minutes=PART_MINUTES):
             games.kill()
         raise
     part.update(pages=report["results"], state=part_state())
+    # ponytail: a part killed after fetch_watched recorded its pages but before this line loses their results:
+    # the next part fetches them again (a morning counts once, run.set_aside) but a page set aside or back
+    # in the lost part goes unnamed. Save each result as it is recorded if that is ever seen.
     part_f.write_text(json.dumps(part))  # before waiting on the readers: a stopped part keeps its pages
     # The feeds share servers with the pages, so they are read after them.
     feeds = None
@@ -847,14 +851,17 @@ def in_parts():
 
 def set_aside_across_days():
     """Eight mornings, Tuesday Oct 20 to Tuesday Oct 27, on a fake clock against fake sites and a fake
-    database, offline: each morning's prepare and write as the routine runs them. `dsl` fails Tuesday
-    to Thursday and reads whenever it is asked after; `gone` always fails; `ok` always reads. An error
+    database, offline: each morning's prepare and write as the routine runs them. Tuesday's morning is
+    run twice, Wednesday's never runs (as Oct 29's refused 6 AM run), and on Thursday the network is
+    down. `dsl` fails until Saturday and reads whenever it is asked after; `gone` always fails; `late`
+    fails Saturday to Monday; the City's page fails Tuesday the 27th; the rest always read. An error
     row from the first test waits in the table for a page no longer watched (smooth-mornings 04)."""
     import io, tempfile, run as runner
     from datetime import timezone
     global Supabase, load, start_reader
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
-                "sources": [{"url": f"https://{i}.example/", "method": "fetch"}]} for i in ("dsl", "gone", "ok")]
+                "category": "gov" if i == "city" else None, "sources": [{"url": f"https://{i}.example/", "method": "fetch"}]}
+               for i in ("dsl", "gone", "late", "city", "ok1", "ok2", "ok3", "ok4")]
     asked = []
 
     class FakeDb(runner.Supabase):
@@ -878,8 +885,11 @@ def set_aside_across_days():
             return []
 
     def site(url, kind):
-        asked.append((runner.NOW.day, url[8:url.index(".")]))
-        if "gone" in url or ("dsl" in url and runner.NOW.day <= 22):
+        d, page = runner.NOW.day, url[8:url.index(".")]
+        asked.append((d, page))
+        if d == 22:
+            raise RuntimeError("<urlopen error [Errno 8] nodename nor servname provided, or not known>")
+        if page == "gone" or (page == "dsl" and d <= 24) or (page == "late" and d in (24, 25, 26)) or (page, d) == ("city", 27):
             raise RuntimeError("HTTP Error 500: Internal Server Error")
         return 200, f"Harvest supper Oct 30 at {url}", "fetch"
 
@@ -890,7 +900,7 @@ def set_aside_across_days():
     names = ("listed_in_db", "interest_ids", "known_teams", "news_in_db")
     saved = (runner.read_page, runner.validate, runner.find_root, runner.NOW, Supabase, load, start_reader,
              *(getattr(write_judged, n) for n in names))
-    said, cleared = {}, None
+    mornings, said, cleared = [20, 20, 22, 23, 24, 25, 26, 27], [], None
     try:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "morning"
@@ -898,33 +908,44 @@ def set_aside_across_days():
             Supabase, load, start_reader = FakeDb, (lambda root: (entries, [])), reader
             write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams = (lambda: []), (lambda: []), dict
             write_judged.news_in_db = lambda today=None: []
-            for d in range(20, 28):
+            for d in mornings:
                 runner.NOW, report = datetime(2026, 10, d, 11, tzinfo=timezone.utc), io.StringIO()
                 with contextlib.redirect_stdout(io.StringIO()):
                     prepare(date(2026, 10, d), out, None)
                 with contextlib.redirect_stdout(report):
                     write(out, True, date(2026, 10, d))
-                said[d] = [ln for ln in report.getvalue().splitlines() if ".example/" in ln or "aside" in ln]
-                cleared = cleared if cleared is not None else FakeDb.rows["old|https://old.example/"]
+                said.append([ln for ln in report.getvalue().splitlines() if ln.startswith("- ") and any(
+                    w in ln for w in (".example/", "aside", "Failed", "not counted"))])
+                cleared = cleared if cleared is not None else dict(FakeDb.rows["old|https://old.example/"])
     finally:
         (runner.read_page, runner.validate, runner.find_root, runner.NOW, Supabase, load, start_reader,
          write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams, write_judged.news_in_db) = saved
-    on = lambda page: sorted(d for d, p in asked if p == page)
-    named = lambda page: sorted(d for d, lines in said.items() if any(f" {page} " in ln for ln in lines))
+    on = lambda page: [d for d, p in asked if p == page]
+    named = lambda page: [d for d, lines in zip(mornings, said) if any(f" {page} " in ln for ln in lines)]
+    with_line = lambda start: [d for d, lines in zip(mornings, said) for ln in lines if ln.startswith(start)]
     monday = ("- Pages set aside: 1, tried again today and still failing. Fixing a page's address or retiring a place "
               "is the registry job's, with Jesse's yes (source-registry skill)")
+    quiet = {"failed": [], "fetched": 8, "uncounted": False, "set_aside": [], "back": [], "still": []}
     return [
-        (on("dsl") == [20, 21, 22, 26, 27] and on("gone") == [20, 21, 22, 26] and on("ok") == list(range(20, 28)),
-         "a page failing three mornings in a row is set aside: skipped after, tried on Monday, read daily once back"),
-        (named("dsl") == [22, 26] and named("gone") == [22] and named("ok") == []
+        (on("dsl") == [20, 20, 22, 23, 24, 26, 27] and on("gone") == [20, 20, 22, 23, 24, 26]
+         and on("late") == [20, 20, 22, 23, 24, 25, 26] and on("ok1") == mornings,
+         "a page failing three mornings' reads in a row is set aside: skipped after, tried on Monday, read daily once back"),
+        (named("dsl") == [24, 26] and named("gone") == [24] and named("late") == [26] and named("ok1") == []
          and "- Set aside: dsl https://dsl.example/: HTTP Error 500: Internal Server Error (failing since Oct 20); "
-             "tried again on Mondays" in said[22] and "- Back: dsl https://dsl.example/ reads again (set aside since Oct 22)" in said[26],
+             "tried again on Mondays" in said[4] and "- Back: dsl https://dsl.example/ reads again (set aside since Oct 24)" in said[6],
+         "reads, not days: a rerun, a morning that never ran and a morning the network was down count for nothing; "
          "the report names a page the morning it is set aside and the morning it is back, and no other"),
-        ([d for d, lines in said.items() if monday in lines] == [26], "on Mondays one line counts the pages still set aside"),
-        (cleared == {"last_error": None, "failing_since": None, "set_aside_at": None, "last_checked_at": "2026-10-14T16:00:00+00:00"},
-         "the sync clears the error row of a page no longer watched"),
+        ([ln[2:].split(",")[0] for lines in said for ln in lines if ln.startswith("- Failed today")] == [f"Failed today: {n}" for n in (2, 2, 8, 2, 3, 1, 2, 1)]
+         and with_line("- 8 of 8 pages failed, not counted") == [22]
+         and said[7][0] == "- Failed today: 1, the town's own among them: city https://city.example/ (HTTP Error 500: "
+                           "Internal Server Error)" and named("city") == [22, 27],
+         "a daily line counts the pages that failed, naming the town's own; most pages failing at once is one line, not counted"),
+        (with_line(monday) == [26] and runner.aside_lines(quiet, date(2026, 11, 2)) == ["Failed today: 0"],
+         "on Mondays one line counts the set-aside pages tried again and still failing, never one set aside that "
+         "Monday, and none when there are none"),
+        (cleared == {"last_error": None, "failing_since": None, "failing_reads": 0, "set_aside_at": None,
+                     "last_checked_at": "2026-10-14T16:00:00+00:00"}, "the sync clears the error row of a page no longer watched"),
     ]
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
