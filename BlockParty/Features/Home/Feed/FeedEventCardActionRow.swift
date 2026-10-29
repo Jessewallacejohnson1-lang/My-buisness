@@ -77,6 +77,7 @@ struct FeedEventCardActionRow: View {
                 shareButton
                 if let onMenu {
                     FeedCardMenuButton(action: onMenu)
+                        .padding(.leading, FeedCardMenuButton.gap)
                 }
             }
 

@@ -53,7 +53,8 @@ struct TownNewsCard: View {
             .buttonStyle(FeedCardLinkStyle())
             .gesture(FeedTouchDownTracker(isPressed: $pressed))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(["News", news.headline, news.facts].compactMap { $0 }.joined(separator: ". "))
+            .accessibilityLabel([news.place.isEmpty ? "News" : "News from \(news.place)", news.headline, news.facts]
+                .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
 
@@ -104,6 +105,7 @@ struct TownNewsCard: View {
                 PhotoCredit(names: credit)
                     .padding(-PhotoCredit.edgeInset)
                     .animation(reduceMotion ? nil : Motion.smooth, value: credit)
+                placeMark
             }
             .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
@@ -112,6 +114,26 @@ struct TownNewsCard: View {
             copy.padding(16)
         }
         .padding(.horizontal, DailyFeedMetric.contentInset)
+    }
+
+    /// Whose post it is, on the picture's top right, as an Event's host rides it (Jesse, 2026-10-29:
+    /// "water marks for businesses or people"): the place's logo on a white disc, else its first
+    /// letter, since the feed sends no logo beside a photo. None over its own logo.
+    @ViewBuilder
+    private var placeMark: some View {
+        if !onLogo, !news.place.isEmpty {
+            Group {
+                if let picture = news.picture, picture.kind == .logo {
+                    LogoDisc(logo: picture.url, initial: String(news.place.prefix(1)).uppercased(),
+                             logoSide: PhotoChip.height * 0.875, letter: .sansSemibold(14), fits: true)
+                        .frame(width: PhotoChip.height, height: PhotoChip.height)
+                } else {
+                    FeedAuthorAvatar(url: nil, name: news.place, side: PhotoChip.height)
+                }
+            }
+            .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+        }
     }
 
     @ViewBuilder

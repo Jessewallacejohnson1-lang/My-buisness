@@ -42,6 +42,8 @@ struct FeedEventCard: View {
     private static let hostMarkSide: CGFloat = PhotoChip.height
     /// Between the photo's credit and the host's mark beside it.
     private static let hostMarkGap: CGFloat = 8
+    /// The white ring round the host's mark: Instagram's story ring, at its own 1.5 pt.
+    private static let hostMarkRing: CGFloat = 1.5
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
@@ -192,22 +194,24 @@ struct FeedEventCard: View {
 
     /// Whose it is, on the photo's top right: the business's logo or the person's photo, never
     /// Block Party's (Jesse, 2026-10-29: no row above the photo). A game's teams are on the card
-    /// itself, and a card whose picture is the host's own logo already shows it, so they have none.
+    /// itself, and a card showing a logo instead of a photo already says whose it is (the same
+    /// school's or shop's logo twice, read 2026-10-29), so they have none.
     private var showsHostMark: Bool {
-        guard !item.hostName.isEmpty, item.game == nil else { return false }
-        if case .placeLogo(let picture) = displayImage, picture.url == item.hostPicture?.url { return false }
-        return true
+        !item.hostName.isEmpty && item.game == nil && displayImage.logo == nil
     }
 
-    /// The host's picture at the date chip's height, lifted off the photo by the credit's shadow,
-    /// its touch area grown to 44 pt without moving it.
+    /// The host's picture at the date chip's height in a white ring, so a person's photo stands off
+    /// the event's, lifted off it by the credit's shadow; its touch area grown to 44 pt without
+    /// moving it. Read before the title, as the row it replaced was.
     @ViewBuilder
     private var hostMark: some View {
         let mark = hostAvatar
+            .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.hostMarkRing))
             .trackFrame(hostFrame)
             .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
-            .contentShape(Circle().inset(by: -(SearchMetric.tapMin - Self.hostMarkSide) / 2))
+            .contentShape(Circle().inset(by: -(MeetupPillStyle.minTarget - Self.hostMarkSide) / 2))
             .accessibilityLabel(item.hostName)
+            .accessibilitySortPriority(1)
         if hostOpener != nil {
             Button(action: openHost) { mark }
                 .buttonStyle(PressableStyle())
@@ -669,6 +673,9 @@ struct FeedCardMenuButton: View {
 
     private static let glyph: CGFloat = 20
     private static let width: CGFloat = 28
+    /// Added to the row's own spacing after the send (the RSVP area's 8 pt makes 16), so neither's
+    /// 44 pt reaches into the other's.
+    static let gap: CGFloat = 8
 
     var body: some View {
         Button(action: action) {

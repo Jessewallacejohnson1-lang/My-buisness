@@ -158,6 +158,7 @@ struct RSVPArea: View {
 
             if let onMenu {
                 FeedCardMenuButton(action: onMenu)
+                    .padding(.leading, leadingSend && !shareUp && onInvite != nil ? FeedCardMenuButton.gap : 0)
             }
 
             // Faces only beside words: a called-off card with no "You're going!" has none.
