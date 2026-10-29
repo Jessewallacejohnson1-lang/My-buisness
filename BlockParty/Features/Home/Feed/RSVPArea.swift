@@ -123,6 +123,8 @@ struct RSVPArea: View {
     /// The Town card: its send leads the line, and once you're going it leaves for the yellow share
     /// beside the X (event-card 06).
     var leadingSend = false
+    /// The Town card's •••, after the send (found-posts): it stays when the send leaves.
+    var onMenu: (() -> Void)? = nil
 
     /// The yellow share is up beside the X, so the send at the left has gone.
     @State private var shareUp = false
@@ -152,6 +154,11 @@ struct RSVPArea: View {
                 .accessibilityLabel("Share")
                 // Out the way it came: to the left, as the share pops up beside the X.
                 .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            if let onMenu {
+                FeedCardMenuButton(action: onMenu)
+                    .padding(.leading, leadingSend && !shareUp && onInvite != nil ? FeedCardMenuButton.gap : 0)
             }
 
             // Faces only beside words: a called-off card with no "You're going!" has none.

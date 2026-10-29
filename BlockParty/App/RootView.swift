@@ -449,6 +449,10 @@ struct MainTabsView: View {
     @State private var showMap = false
     /// Profile, in Apple's standard sheet, from the photo at the top left of You.
     @State private var showProfileSheet = false
+    /// Log in, for an Anonymous account that opened a neighbour's code.
+    @State private var signingIn = false
+    /// That code's neighbour, opened once the login lands.
+    @State private var codeAfterLogin: String?
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -549,6 +553,19 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
+        // A neighbour's code from the iPhone camera (friends 07): their page once it's read. An
+        // Anonymous account logs in first, as Add friend asks; your own code opens your Profile.
+        .onOpenURL { url in
+            if let id = YourCode.userID(from: url) { openCode(id) }
+        }
+        .signInSheet(isPresented: $signingIn)
+        // Logged in from that ask: the neighbour whose code it was.
+        .onChange(of: auth.accountKey) {
+            if let id = codeAfterLogin, auth.isSignedIn, !auth.isAnonymous {
+                codeAfterLogin = nil
+                openCode(id)
+            }
+        }
         .overlay { BusinessPage().environment(placeOpener) }
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
@@ -711,6 +728,20 @@ struct MainTabsView: View {
         if DailySamples.on { return DailyWeek.sampleFriends(from: DailyClock.now(Date())) }
         #endif
         return DailyWeek.friendsGoing(in: townFeed.cards)
+    }
+
+    /// A neighbour's code (friends 07): their page on the shell's stack, over the map and your
+    /// Profile, once `get_neighbor` answers; your own opens your Profile.
+    private func openCode(_ id: String) {
+        showMap = false
+        if id == auth.userId?.lowercased() { showProfileSheet = true; return }
+        guard auth.isSignedIn, !auth.isAnonymous else {
+            codeAfterLogin = id
+            signingIn = true
+            return
+        }
+        showProfileSheet = false
+        Task { if let neighbor = try? await Neighbor.read(id) { path.append(neighbor) } }
     }
 
     /// The friends mark pushes the Friends page, covering the tab bar like an event page.

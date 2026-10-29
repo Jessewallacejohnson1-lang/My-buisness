@@ -10,7 +10,7 @@
 //  cropped off.
 //
 //  The icon (Oct 29, 2026 revision) is Jesse's Icon Composer file, `BlockParty/AppIcon.icon`:
-//  "Bp." in black on solid BP yellow, letters lifted slightly (edge highlight, soft shadow), with its own dark,
+//  "Bp!" in black on solid BP yellow, its "!" leaning 12°, letters lifted slightly (edge highlight, soft shadow), with its own dark,
 //  tinted and clear looks. It replaced the stacked "Block / Party." of Oct 8, the one-line
 //  wordmark lockup of Sep 19 and the Aug 25 wave figure; those masters are retired.
 //

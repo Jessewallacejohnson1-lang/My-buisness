@@ -264,19 +264,6 @@ private struct TeamColumn: View {
     }
 }
 
-/// A game's host row: the host school's logo where a host's photo goes, as the Reference
-/// draws it; its first letter until the logo lands.
-struct GameHostMark: View {
-    let team: Game.Team
-    let side: CGFloat
-
-    var body: some View {
-        LogoDisc(logo: team.logo, initial: team.initial, logoSide: side * 0.75, letter: .sansSemibold(14))
-            .frame(width: side, height: side)
-            .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
-    }
-}
-
 /// A logo fitted on a white disc, or its first letter: while the logo loads, for a school or
 /// place with none yet, and for one that fails. A game's schools, and town news's places.
 struct LogoDisc: View {

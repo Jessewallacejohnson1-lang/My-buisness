@@ -246,7 +246,7 @@ struct FollowedNeighborPage: View {
         NeighborPage(neighbor: read ?? standIn, settled: settled)
             .task {
                 do {
-                    read = try await Self.read(row.targetId)
+                    read = try await Neighbor.read(row.targetId)
                     settled = read != nil
                 } catch {
                     settled = true
@@ -257,15 +257,6 @@ struct FollowedNeighborPage: View {
     private var standIn: Neighbor {
         Neighbor(userId: row.targetId, displayName: row.name, avatarUrl: row.picture, since: nil,
                  relation: book.friends.first { $0.id == row.targetId }?.relation ?? .stranger, mutualFriends: 0)
-    }
-
-    /// `get_neighbor`; under DEBUG `-town-samples` the sample by that id.
-    private static func read(_ id: String) async throws -> Neighbor? {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
-        case .live: return try await CommunityAPI(auth: AuthStore.shared).getNeighbor(id)
-        case .offline: throw URLError(.notConnectedToInternet)
-        case .samples: return Neighbor.samples.first { $0.id == id }
-        }
     }
 }
 

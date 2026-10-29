@@ -24,8 +24,19 @@
 	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Block Party adds the events you're Going to and keeps them up to date. It only changes events it added.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Jesse.BlockParty</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>blockparty</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Take a profile picture so friends know it’s you.</string>
+	<string>Take a profile picture or scan a neighbor’s code.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>See which neighbors are already here. Only scrambled codes leave your phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
