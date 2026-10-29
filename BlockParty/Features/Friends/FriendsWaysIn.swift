@@ -7,8 +7,9 @@
 //  requests, the page under it shows three grey faces, one line and Invite friends.
 //  Mock Jesse said yes to on 2026-10-22: https://claude.ai/artifact/VMjT4AVQBogeL47oJhG9Sh
 //
-//  Every button sends one message with the website (Jesse: blockpartymn.com). A link that
-//  opens your own page in the app comes with ticket 07 and Apple's paid developer account.
+//  Every button sends one message with the website (Jesse: blockpartymn.com). Your code (ticket
+//  07, `YourCode.swift`) carries your own link; the others send it too once Apple's paid developer
+//  account turns on app links (BP app backlog 10).
 //
 
 import SwiftUI
@@ -48,10 +49,12 @@ enum FriendsInvite {
 }
 
 /// The card of round buttons under the Friends page's search: Messages, Copy link, Contacts
-/// (friends 06), More. Your code takes More's place when ticket 07 lands. Messages shows only
-/// where the phone can send texts, as the share row's does.
+/// (friends 06), Your code (friends 07, in More's place: taste/people-and-groups.md 2026-10-22).
+/// Messages shows only where the phone can send texts, as the share row's does.
 struct FriendsWaysCard: View {
     @State private var copied = false
+    @State private var showingCode = false
+    @Environment(\.hostOpener) private var opener
 
     var body: some View {
         HStack(spacing: 0) {
@@ -81,12 +84,11 @@ struct FriendsWaysCard: View {
                 }
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            ShareLink(item: FriendsInvite.link, message: Text(FriendsInvite.words)) {
-                face("More") {
-                    Image(systemName: "ellipsis").font(.glyph(21, weight: .bold)).foregroundStyle(Hue.ink)
-                }
+            way("Your code") {
+                Image(systemName: "qrcode").font(.glyph(21, weight: .medium)).foregroundStyle(Hue.ink)
+            } action: {
+                showingCode = true
             }
-            .buttonStyle(PressableStyle(scale: 0.9))
             Spacer(minLength: 0)
         }
         .padding(.top, FriendsMetric.waysPadTop)
@@ -103,6 +105,10 @@ struct FriendsWaysCard: View {
         }
         .padding(.horizontal, FriendsMetric.side)
         .padding(.top, FriendsMetric.waysTop)
+        .sheet(isPresented: $showingCode) {
+            // A neighbour found by Scan a code opens on the shell's stack, as a host's page does.
+            YourCodeSheet { opener?.push($0) }
+        }
         .animation(.easeInOut(duration: 0.18), value: copied)
         .task(id: copied) {
             guard copied else { return }
