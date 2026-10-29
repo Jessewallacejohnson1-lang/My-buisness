@@ -102,8 +102,17 @@ test('prepare and write: the registry sync, the listed events, apply_judged and 
       kind = excluded.kind, method = excluded.method, trust = excluded.trust, place_id = excluded.place_id,
       extra = excluded.extra`;
   await asJob('prepare: sources sync', sync, [JSON.stringify([page])]);
-  await asJob('prepare: sources check', `update public.sources set last_checked_at = now(), last_error = null
-    where entry_id = $1 and url = $2`, [page.entry_id, page.url]);
+  await asJob('prepare: sources state', `select entry_id, url, last_hash, last_checked_at, last_error, failing_since,
+    set_aside_at from public.sources`);
+  // A failing page: since when, then set aside (smooth-mornings 04); a good read clears both; the sync
+  // clears a page no longer watched.
+  const check = (fields, params) => asJob('prepare: sources check', `update public.sources set last_checked_at = now(),
+    ${fields} where entry_id = $1 and url = $2`, [page.entry_id, page.url, ...params]);
+  await check('last_error = $3, failing_since = now()', ['HTTP Error 500']);
+  await check('last_error = $3, set_aside_at = now()', ['HTTP Error 500']);
+  await check('last_error = null, failing_since = null, set_aside_at = null', []);
+  await asJob('prepare: clear a page no longer watched', `update public.sources set last_error = null,
+    failing_since = null, set_aside_at = null where entry_id = $1 and url = $2`, ['old-page', 'https://old.example/']);
   await asJob('listed_for_writer', 'select public.listed_for_writer()');
 
   const first = await apply([game(day(7))], [{ event_source_name: 'ROCORI High School', event_source_uid: uid,

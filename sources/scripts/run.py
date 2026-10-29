@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).parent))
 from registry import find_root, load, validate, is_todo
@@ -34,6 +35,12 @@ TIMEOUT = 20
 # than at full speed. Matches the delay stjosephchamber.com asks for when it answers.
 UNKNOWN_ROBOTS_DELAY = 10.0
 NOW = datetime.now(timezone.utc)
+CHICAGO = ZoneInfo("America/Chicago")
+# Set aside (sources/CONTEXT.md; BP app smooth-mornings 04): a watched page failing three mornings
+# in a row is skipped by the morning job except on its weekly try, until it reads again.
+ASIDE_AFTER = 3   # mornings failing in a row
+TRY_DAY = 0       # Monday (the agent's default; smooth-mornings map, Not yet specified)
+CLEAR = {"last_error": None, "failing_since": None, "set_aside_at": None}
 
 
 FEED = re.compile(r"<(rss|feed|rdf:RDF)\b")
@@ -512,11 +519,15 @@ class Supabase(Db):
                   prefer="resolution=merge-duplicates,return=minimal")
 
     def state(self):
-        """Yesterday's fingerprints, and which pages were ever checked (a cleared fingerprint
-        forces a read; a page never checked is new and only gets its starting copy)."""
-        rows = self.rest("GET", "sources?select=entry_id,url,last_hash,last_checked_at") or []
+        """Yesterday's fingerprints, which pages were ever checked (a cleared fingerprint
+        forces a read; a page never checked is new and only gets its starting copy), and each
+        page with an error, failing or set aside."""
+        rows = self.rest("GET", "sources?select=entry_id,url,last_hash,last_checked_at,"
+                                "last_error,failing_since,set_aside_at") or []
         return ({f"{r['entry_id']}|{r['url']}": r.get("last_hash") for r in rows},
-                {f"{r['entry_id']}|{r['url']}" for r in rows if r.get("last_checked_at")})
+                {f"{r['entry_id']}|{r['url']}" for r in rows if r.get("last_checked_at")},
+                {f"{r['entry_id']}|{r['url']}": {k: r.get(k) for k in CLEAR} for r in rows
+                 if any(r.get(k) for k in CLEAR)})
 
     def record(self, entry_id, url, fields):
         q = f"sources?entry_id=eq.{entry_id}&url=eq.{urllib.parse.quote(url, safe='')}"
@@ -532,7 +543,40 @@ class Supabase(Db):
                 self.record(r["entry_id"], r["url"], {"last_hash": r["hash"], "last_changed_at": now})
 
 
-def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_dir=None):
+def day(stamp):
+    """A stored time's day in Chicago, where mornings are counted."""
+    return datetime.fromisoformat(stamp).astimezone(CHICAGO).date()
+
+
+def set_aside(r, was, today):
+    """The fetch table's memory of a failing page, as the fields to record with this result and
+    its mark for the report: since when it has been failing (cleared by a good read), and when it
+    was set aside, the third morning in a row it failed. A set-aside page that reads is back."""
+    since, aside = was.get("failing_since"), was.get("set_aside_at")
+    if r["ok"]:
+        return ({"failing_since": None, "set_aside_at": None} if since or aside else {},
+                {"aside": "back", "since": aside} if aside else {})
+    if not since:
+        return {"failing_since": NOW.isoformat()}, {}
+    if not aside and (today - day(since)).days >= ASIDE_AFTER - 1:
+        return {"set_aside_at": NOW.isoformat()}, {"aside": "set", "since": since}
+    return {}, {}
+
+
+def aside_lines(report, today):
+    """The morning report's words on set-aside pages: each page the morning it is set aside and
+    the morning it is back, and on the weekly try's day how many are still set aside."""
+    lines = [f"Set aside: {r['entry_id']} {r['url']}: {r['error']} (failing since {day(r['since']):%b %-d}); "
+             f"tried again on Mondays" for r in report["set_aside"]]
+    lines += [f"Back: {r['entry_id']} {r['url']} reads again (set aside since {day(r['since']):%b %-d})"
+              for r in report["back"]]
+    if today.weekday() == TRY_DAY:
+        lines.append(f"Pages set aside: {report['aside']}, tried again today and still failing. Fixing a page's "
+                     "address or retiring a place is the registry job's, with Jesse's yes (source-registry skill)")
+    return lines
+
+
+def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_dir=None, today=None):
     """Validate the registry, sync it (with `db`), fetch `picked` (default: every active watched
     entry), save the changed pages' snapshots and return the report (also in report.json).
 
@@ -540,6 +584,10 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
     for db.commit_fingerprints, which the caller runs once the page's events are written: a
     morning that dies after fetching then reads the same pages again tomorrow. A page seen for
     the first time saves its starting copy now; nothing is read from it (ADR-022).
+
+    A page failing three mornings in a row is set aside (set_aside). The morning job passes its
+    `today`: a set-aside page is then skipped, except on Mondays. By hand (no `today`) every page
+    is fetched. The sync clears the error rows of pages no longer watched.
 
     A timed part (morning.py prepare) passes the earlier parts' results as `done`, which are not
     fetched again, one `run_dir` for every part, and `stop` (deadline): no page starts after it.
@@ -571,19 +619,36 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
                                               if k not in ("url", "kind", "method", "trust")}}}
                 for e in entries for s in e["sources"] if not is_todo(s["url"])]
         db.upsert_registry(rows)
-        prev, seen = db.state()
+        prev, seen, failing = db.state()
         print(f"synced {len(rows)} source rows")
     else:
         prev = json.loads(local_state_path.read_text()) if local_state_path.exists() else {}
-        seen = set(prev)
+        seen, failing = set(prev), {}
+
+    # Only a watched page's error means anything: the rest (a page retired, re-addressed or no longer
+    # watched, the first test's rows) are cleared, so they never read as today's trouble.
+    watched = {f"{e['id']}|{s['url']}" for e in entries if e["status"] == "active"
+               and e.get("tier", "listed") == "watched" for s in e["sources"] if s["method"] == "fetch"}
+    unrecorded = []
+    for key in [k for k in failing if k not in watched]:
+        entry_id, url = key.split("|", 1)
+        try:
+            db.record(entry_id, url, CLEAR)
+            del failing[key]
+        except DbError as ex:
+            unrecorded.append({"entry_id": entry_id, "url": url, "error": str(ex)[:300]})
+    aside_on = today or NOW.astimezone(CHICAGO).date()
 
     jobs, agent_tasks, skipped = [], [], []
     for e in picked:
         for s in e["sources"]:
             ref = {"entry_id": e["id"], "name": e["_name"], "town": e["_town"],
                    "url": s["url"], "trust": s.get("trust"), "kind": s.get("kind")}
+            aside = (failing.get(f"{e['id']}|{s['url']}") or {}).get("set_aside_at")
             if is_todo(s["url"]):
                 skipped.append({**ref, "why": "url TODO"})
+            elif s["method"] == "fetch" and aside and today and today.weekday() != TRY_DAY:
+                skipped.append({**ref, "why": f"set aside since {day(aside):%b %-d}, tried on Mondays"})
             elif s["method"] == "fetch":
                 jobs.append(ref)
             elif s["method"] == "search_snippet":
@@ -621,7 +686,7 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
     with ThreadPoolExecutor(max_workers=workers) as pool:
         new = [r for r in pool.map(work, todo) if r]
 
-    new_state, unrecorded = dict(prev), []
+    new_state = dict(prev)
     for r in new:
         key = f"{r['entry_id']}|{r['url']}"
         if r["ok"]:
@@ -631,8 +696,10 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
             fields.update({"last_error": None} if r["ok"] else {"last_error": r["error"]})
             if r["ok"] and r["changed"] and r["first_seen"]:
                 fields.update({"last_hash": r["hash"], "last_changed_at": NOW.isoformat()})
+            memo, mark = set_aside(r, failing.get(key) or {}, aside_on)
             try:
-                db.record(r["entry_id"], r["url"], fields)
+                db.record(r["entry_id"], r["url"], {**fields, **memo})
+                r.update(mark)  # named only once it is recorded, so it is named once
             except DbError as ex:  # one bad row is one report line; the rest still get recorded
                 unrecorded.append({"entry_id": r["entry_id"], "url": r["url"], "error": str(ex)[:300]})
     if not db:
@@ -642,10 +709,14 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
     results = sorted([*done, *new], key=lambda r: order.get(page(r), len(order)))
     changed = [r for r in results if r["ok"] and r["changed"]]
     failed = [r for r in results if not r["ok"]]
+    marked = lambda how: [r for r in results if r.get("aside") == how]
+    still = ({k for k, f in failing.items() if f.get("set_aside_at")} | {page(r) for r in new if r.get("aside") == "set"}) \
+        - {page(r) for r in new if r.get("aside") == "back"}
     report = {"mode": "write" if db else "dry-run", "at": NOW.isoformat(), "run_dir": str(run_dir),
               "fetched": len(results), "changed": changed, "failed": failed,
               "unchanged": [r["entry_id"] for r in results if r["ok"] and not r["changed"]],
               "agent_tasks": agent_tasks, "skipped": skipped, "unrecorded": unrecorded,
+              "set_aside": marked("set"), "back": marked("back"), "aside": len(still),
               "left": len(todo) - len(new)}
     (run_dir / "report.json").write_text(json.dumps(report, indent=1))
 
@@ -657,7 +728,9 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
     for r in changed:
         print(f"  CHANGED {r['entry_id']} {'(first seen) ' if r['first_seen'] else ''}-> snapshots/{r['snapshot']}")
     for r in failed:
-        print(f"  FAILED  {r['entry_id']} {r['url']}: {r['error']}")
+        print(f"  FAILED  {r['entry_id']} {r['url']}: {r['error']}" + (" (set aside now)" if r.get("aside") else ""))
+    for r in report["back"]:
+        print(f"  BACK    {r['entry_id']} {r['url']}: reads again after being set aside")
     for u in unrecorded:
         print(f"  NOT RECORDED {u['entry_id']} {u['url']}: {u['error']}")
     for t in agent_tasks:

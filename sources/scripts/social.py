@@ -35,8 +35,14 @@ up to PICTURES of the post's pictures from the address Apify saved, shrunk, into
 already returns the addresses, so this costs nothing on Apify; it costs the Claude plan the
 tokens of looking at them, which prepare prints as one `[social] pictures` line.
 
+A page Apify says is "not available", or returns nothing at all for, on three reads in a row is set
+aside (BP app smooth-mornings 04); "no new posts" is a good read. The next sync takes it off its paid
+list and the Thursday read tries it, a busy page every week and a weekly page in the first week of
+each month; a good read puts it back. It is named once when set aside and once when back.
+
 The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
-`read-busy` and `read-weekly`), so it survives each routine's throwaway copy.
+`read-busy` and `read-weekly`), so it survives each routine's throwaway copy; so do the set-aside
+pages (record `missed`), saved by `done` with the mark.
 
 Everything lands in .runs/morning/, the morning job's folder (each routine runs in its own copy
 of the repository). In the cloud, Apify's REST API is called with no key: the environment's
@@ -85,6 +91,7 @@ LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never re
 DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
 WAIT = 480  # seconds, over every part, that a check waits for an Apify run still going
 PART_MINUTES = 6  # as morning.py prepare's parts: the cloud stops a command at 10 minutes
+MISSES = 3  # reads in a row a page comes back not available or with nothing before it is set aside (smooth-mornings 04)
 
 # Pictures (Jesse, 2026-10-26: the words on a post's picture, when its caption doesn't say enough)
 PICTURES = 3        # most read per post: a carousel's flyer is often its second or third slide
@@ -197,27 +204,55 @@ def mark_read(run, finished_at):
     api("PUT", f"/key-value-stores/{_store_id()}/records/read-{run}", {"finished_at": finished_at})
 
 
+def read_missed():
+    """The pages Apify came back not available or with nothing for, {page: {misses, why, aside}}, kept in
+    the store beside the marks; `aside` is the day a page was set aside."""
+    rec = api("GET", f"/key-value-stores/{_store_id()}/records/missed")
+    return rec if isinstance(rec, dict) else {}
+
+
+def save_missed(missed):
+    api("PUT", f"/key-value-stores/{_store_id()}/records/missed", missed)
+
+
 def by_name(path):
     return {x["name"]: x for x in api("GET", f"{path}?limit=1000")["data"]["items"]}
 
 
-def page_lists(root):
+def canon(url):
+    return url.rstrip("/").lower()
+
+
+def monthly_try(today):
+    """Whether the next Thursday read falls in a month's first week. Every check, so every sync, runs
+    after Thursday's 3 PM read, so a sync on a Thursday is for next week's."""
+    return (today + timedelta(days=(3 - today.weekday()) % 7 or 7)).day <= 7
+
+
+def page_lists(root, missed=None, today=None):
     """{(run, kind): pages} for every task: each list's own pages, and the busy list's Facebook
-    pages again for the weekly Events tabs."""
+    pages again for the weekly Events tabs. A page set aside (`missed`) leaves its list for the
+    Thursday read: a busy page every week, a weekly page in the first week of each month."""
     category = {e["id"]: e.get("category") for e in load(root)[0]}
+    aside = {u for u, m in (missed or {}).items() if m.get("aside")}
     out = {}
     for run in ("busy", "weekly"):
         for p in pages_for(run, root):
             p["category"] = category.get(p["entry_id"])
-            out.setdefault((run, p["kind"]), []).append(p)
+            if canon(p["url"]) not in aside:
+                out.setdefault((run, p["kind"]), []).append(p)
+            elif run == "busy" or (today and monthly_try(today)):
+                out.setdefault(("weekly", p["kind"]), []).append(p)
     out[("weekly", "events")] = [p for p in out.get(("busy", "facebook"), [])]
+    # ponytail: a list left empty keeps its task's last pages; give the task no pages if one ever empties
     return {k: v for k, v in out.items() if k in ACTORS}
 
 
-def sync_tasks(root):
-    """Each task's pages as the list now has them; makes a task that is missing."""
+def sync_tasks(root, missed=None, today=None):
+    """Each task's pages as the list now has them, set-aside pages moved (page_lists); makes a task
+    that is missing."""
     tasks, ids = by_name("/actor-tasks"), {}
-    for (run, kind), pages in page_lists(root).items():
+    for (run, kind), pages in page_lists(root, missed, today).items():
         actor, cap = ACTORS[(run, kind)]
         body = {"input": actor_input(kind, [p["url"] for p in pages], next(w for _, _, r, w in SCHEDULES if r == run)),
                 "options": {"timeoutSecs": 600, "maxTotalChargeUsd": cap}}
@@ -232,7 +267,7 @@ def sync_tasks(root):
 
 def setup():
     root = find_root()
-    ids = sync_tasks(root)
+    ids = sync_tasks(root, read_missed(), datetime.now(LOCAL).date())
     have = by_name("/schedules")
     for name, cron, run, window in SCHEDULES:
         actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid,
@@ -365,6 +400,65 @@ def pictures_line(pics):
             + (f"; {len(pics['failed'])} would not download" if pics["failed"] else ""))
 
 
+def src_of(row):
+    """The page an Apify row came from, as its list's address would be written (canon)."""
+    src = canon(row.get("inputUrl") or row.get("facebookUrl") or "")
+    return src or (f"https://www.instagram.com/{row['ownerUsername'].lower()}" if row.get("ownerUsername") else "")
+
+
+def page_of(src, by_url):
+    return by_url.get(src) or next((p for u, p in by_url.items() if u and u in src), None)
+
+
+def run_pages(run_id):
+    """The pages an Apify run was given, from its own input (a schedule's run carries the task's
+    pages as they were when it started)."""
+    got = api("GET", f"/actor-runs/{run_id}/key-value-store/records/INPUT") or {}
+    urls = [u.get("url") if isinstance(u, dict) else u for u in got.get("startUrls") or []] + list(got.get("username") or [])
+    return [canon(u) for u in urls if isinstance(u, str)]
+
+
+def tally(reads, missed, today):
+    """Each page the posts runs read, oldest run first: read when a row of it is a post or says it
+    posted nothing new (`no_items`: most busy pages, most reads); missed when Apify says it is not
+    available, or gives no row for it at all (Sal's, every read in October). MISSES misses in a row set
+    a page aside; a good read brings it back. `reads`: (finished, pages, rows) per run. Returns the
+    new state and the pages set aside and back."""
+    state, aside, back = {u: dict(m) for u, m in missed.items()}, [], []
+    for _, pages, rows in sorted(reads, key=lambda x: x[0]):
+        found, why, given = set(), {}, {p: p for p in pages}
+        for r in rows:
+            u = page_of(src_of(r), given)
+            if u and r.get("error") and r["error"] != "no_items":
+                why[u] = r["error"]
+            elif u:
+                found.add(u)
+        for u in pages:
+            m = state.get(u, {})
+            if u in found:
+                back += [u] if m.get("aside") else []
+                state.pop(u, None)
+            elif not m.get("aside"):
+                m = {"misses": m.get("misses", 0) + 1, "why": why.get(u, "nothing back")}
+                if m["misses"] >= MISSES:
+                    m["aside"] = str(today)
+                    aside.append(u)
+                state[u] = m
+    return state, aside, back
+
+
+def aside_lines(state, aside, back, lists):
+    """The answer's words: each page the check it is set aside and the check it is back."""
+    named = {canon(p["url"]): p for pages in lists.values() for p in pages}
+    name = lambda u: f"{named[u]['name']}'s {named[u]['kind'].title()} {u}" if u in named else u
+    retry = lambda u: ("the Thursday read" if named.get(u, {}).get("busy")
+                       else "the Thursday read in the first week of each month")
+    return ([f"Set aside: {name(u)}: {state[u]['why'].replace('_', ' ')} {MISSES} reads in a row; off its paid list, "
+             f"tried with {retry(u)}"
+             for u in aside]
+            + [f"Back: {name(u)}: read again, back on its list" for u in back])
+
+
 def post_pages(kind, rows, by_url):
     """Apify's rows as pages: one post each, with who posted it, where and when. An empty row
     (a page with nothing new, hidden, gone) is no page; a hidden one is reported. A post whose
@@ -372,14 +466,12 @@ def post_pages(kind, rows, by_url):
     with no caption but a picture is a page too, since its words may all be on the picture."""
     pages, hidden = [], []
     for r in rows:
-        src = (r.get("inputUrl") or r.get("facebookUrl") or "").rstrip("/").lower()
-        if not src and r.get("ownerUsername"):
-            src = f"https://www.instagram.com/{r['ownerUsername'].lower()}"
+        src = src_of(r)
         if r.get("error") in EMPTY or r.get("error"):
             if r.get("error") != "no_items":
                 hidden.append(f"{src}: {r.get('error')}")
             continue
-        page = by_url.get(src) or next((p for u, p in by_url.items() if u and u in src), None)
+        page = page_of(src, by_url)
         if kind == "events":
             text = r.get("description") or ""
             where = r.get("location", {}).get("name") if isinstance(r.get("location"), dict) else r.get("location")
@@ -417,7 +509,11 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         (out / "batches").mkdir(parents=True)
         part = {"run": run, "today": str(today), "failed": [], "give_up": time.time() + WAIT}
         try:
-            sync_tasks(root)  # the next run reads the list as it is now
+            part["missed"] = read_missed()
+        except Exception as e:  # every page read this time, and none counted
+            part["missed"], _ = None, part["failed"].append(f"set-aside pages unreadable: {e}")
+        try:
+            sync_tasks(root, part["missed"], today)  # the next run reads the list as it is now
         except Exception as e:
             part["failed"].append(f"task pages not refreshed: {e}")
         try:
@@ -435,24 +531,32 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
             return print(f"[social] run again: {', '.join(waiting)} still running on Apify")
         failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
-        posts, cost, until = [], 0.0, mark
+        posts, cost, until, reads = [], 0.0, mark, []
         for kind, runs in found.items():
-            by_url = {p["url"].rstrip("/").lower(): p for p in lists.get((run, kind), [])}
+            # Every page of its kind, either list: a run may carry a page set aside or back since.
+            by_url = {canon(p["url"]): p for (_, k), ps in lists.items() if k == kind for p in ps}
             if kind == "events":
                 by_url = {events_tab(u): p for u, p in by_url.items()} | by_url
             for r in runs:
                 cost += float(r.get("usageTotalUsd") or 0)
                 finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
                 until = max(until, finished) if until else finished
-                got, hidden = post_pages(kind, items(r["defaultDatasetId"]), by_url)
+                rows = items(r["defaultDatasetId"])
+                got, hidden = post_pages(kind, rows, by_url)
                 posts += got
-                failed += [f"{kind}: {h}" for h in hidden]
+                if kind == "events":  # a posts page Apify can't read is named once, set aside (tally)
+                    failed += [f"{kind}: {h}" for h in hidden]
+                elif r["status"] == "SUCCEEDED" and part.get("missed") is not None:
+                    reads.append((r["finishedAt"], run_pages(r["id"]), rows))
                 if r["status"] != "SUCCEEDED":
                     failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
         seen, unique = set(), []
         for p in posts:  # overlapping windows read a post twice; one page each
             if p["file"] not in seen:
                 seen.add(p["file"]), unique.append(p)
+        if part.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
+            state, aside, back = tally(reads, part["missed"], today)
+            part.update(missed=state, aside=aside_lines(state, aside, back, lists))
         part.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
     posts = part["posts"]
     pics = add_pictures(posts, out / "pictures", fetch_picture, stop, part.get("pics"))
@@ -476,12 +580,15 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
-               "read_until": until.isoformat() if until and runs else None, "pictures": pics}
+               "read_until": until.isoformat() if until and runs else None, "pictures": pics,
+               "aside": part.get("aside", []), "missed": part.get("missed")}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
     since = f"since {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "of the last days"
     print(f"[social] {run}: {runs} Apify runs {since}, {checked} pages, {len(posts)} new posts in "
           f"{summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
     print(pictures_line(pics))
+    for a in summary["aside"]:
+        print(f"[social] {a}")
     for f in failed:
         print(f"[social] FAILED {f}")
 
@@ -494,6 +601,8 @@ def finish(out):
         return print(f"[social] {prep['run']}: no Apify runs to mark")
     try:
         mark_read(prep["run"], prep["read_until"])
+        if prep.get("missed") is not None:  # with the mark, so no run is counted twice
+            save_missed(prep["missed"])
     except Exception as e:  # the next check then reads these runs again; the writer merges repeats
         return print(f"[social] FAILED marking {prep['run']} read ({e}): check the Apify network secret")
     print(f"[social] {prep['run']}: {prep['apify_runs']} runs marked read, up to "
@@ -591,7 +700,101 @@ def selftest():
     check(r.stdout == "Apify: $8.40 of $25 this month\n", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
     for cond, what in in_parts():
         check(cond, what)
+    for cond, what in set_aside_reads():
+        check(cond, what)
     print(f"social.py selftest: {ok} passed, 0 failed")
+
+
+def set_aside_reads():
+    """Six checks against a fake Apify, offline, each prepare and done as the routine runs them: Sal's,
+    on the busy list, comes back not available three busy reads in a row, then Thursday's weekly read
+    finds a post. Krewe (busy) and Hall (weekly) always post. Apify's schedules are played by hand:
+    each run reads its task's pages as they were when it started (smooth-mornings 04)."""
+    import contextlib, write_judged
+    g = globals()
+    sals, krewe, hall = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "hallcomponents"))
+    pages = [{"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True},
+             {"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": krewe, "busy": True},
+             {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": hall, "busy": False}]
+    tasks, runs, store, data = {}, {}, {"read-busy": {"finished_at": "2026-10-26T00:00:00+00:00"},
+                                        "read-weekly": {"finished_at": "2026-10-26T00:00:00+00:00"}}, {}
+
+    def apify(method, path, body=None):
+        bits = path.split("?")[0].split("/")
+        if path.startswith("/actor-tasks?"):
+            return {"data": {"items": [{"name": n, "id": n} for n in tasks]}}
+        if path.endswith("/runs?desc=true&limit=30"):
+            return {"data": {"items": runs.get(bits[2], [])[::-1]}}
+        if bits[1] == "actor-tasks":
+            tasks[body.get("name") or bits[2]] = json.loads(json.dumps(body["input"]))
+            return {"data": {"id": body.get("name") or bits[2]}}
+        if path.startswith("/key-value-stores?"):
+            return {"data": {"id": "s"}}
+        if bits[1] == "key-value-stores":
+            return store.update({bits[-1]: body}) if method == "PUT" else store.get(bits[-1])
+        return data[bits[2]][0]  # a run's INPUT
+
+    def ran(task, at, posting=(), quiet=()):
+        """Apify's schedule starts `task` with its pages as they are: a page posts if `posting`, says it
+        posted nothing new if `quiet`, else Apify says it is not available."""
+        rid = f"r{len(data)}"
+        given = [u["url"] for u in tasks[task]["startUrls"]]
+        rows = [{"inputUrl": u, "postId": f"{rid}-{u[-4:]}", "url": f"{u}/posts/{rid}", "text": "Trivia tonight at 7 pm",
+                 "time": at} if u in posting else {"inputUrl": u, "error": "no_items" if u in quiet else "not_available"}
+                for u in given]
+        data[rid] = (tasks[task], rows)
+        runs.setdefault(task, []).append({"id": rid, "status": "SUCCEEDED", "startedAt": at, "finishedAt": at,
+                                          "defaultDatasetId": rid, "usageTotalUsd": 0.01})
+
+    def check(run, when):
+        now = datetime.fromisoformat(when)
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            prepare(run, now.astimezone(LOCAL).date(), folder, now, None)
+            finish(folder)
+        return [ln for ln in said.getvalue().splitlines() if "salsbar" in ln or "Sal's" in ln]
+    fakes = {"api": apify, "items": lambda rid: data[rid][1], "load": lambda root: ([], [])}
+    saved = {k: g[k] for k in (*fakes, "find_root")}, write_judged.interest_ids
+    said, inputs = [], {}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, root = Path(tmp) / "morning", Path(tmp)
+            (root / "sources" / "social").mkdir(parents=True)
+            (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(pages))
+            g.update(fakes, find_root=lambda *a: root)
+            write_judged.interest_ids = lambda: ["dining"]
+            sync_tasks(root, {}, date(2026, 10, 26))
+            for i, (day, hour) in enumerate([(26, 23), (27, 2), (27, 23), (28, 2)]):  # 6 and 9 PM Chicago, Mon and Tue
+                ran("bp-busy-facebook", f"2026-10-{day}T{hour:02d}:05:00+00:00", quiet=[krewe])
+                said.append(check("busy", f"2026-10-{day}T{hour:02d}:30:00+00:00"))
+                inputs[i] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
+            ran("bp-weekly-facebook", "2026-10-29T20:05:00+00:00", [hall, sals])  # Thursday 3 PM
+            said.append(check("weekly", "2026-10-29T20:45:00+00:00"))
+            ran("bp-busy-facebook", "2026-10-29T23:05:00+00:00", [krewe])
+            said.append(check("busy", "2026-10-29T23:30:00+00:00"))
+            inputs["after"] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
+            on_lists = sorted(t for t, given in inputs["after"].items() if sals in given)
+            wk = lambda day, missed: page_lists(root, missed, date(2026, 11, day)).get(("weekly", "facebook"), [])
+            monthly = [len(wk(d, {canon(hall): {"aside": "2026-10-22"}})) for d in (4, 5)]
+    finally:
+        g.update(saved[0])
+        write_judged.interest_ids = saved[1]
+    named = [i for i, lines in enumerate(said) if lines]
+    return [
+        (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-facebook"]
+         and sals in inputs[2]["bp-busy-facebook"] and on_lists == ["bp-busy-facebook"]
+         and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs),
+         "a social page not available three reads in a row leaves its paid list at the next sync, for the "
+         "Thursday read, and goes back on its list when that read finds it; one with no new posts stays"),
+        (named == [2, 4] and said[2] == [f"[social] Set aside: Sal's Bar and Grill's Facebook {sals}: not available 3 "
+                                         "reads in a row; off its paid list, tried with the Thursday read"]
+         and said[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
+         "a social page is named the check it is set aside and the check it is back, and no other"),
+        (monthly == [1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week"),
+        (tally([("t", [sals], [])] * 3, {}, date(2026, 10, 28))[0] == {sals: {"misses": 3, "why": "nothing back",
+                                                                             "aside": "2026-10-28"}},
+         "a page Apify gives no row for three reads in a row is set aside too"),
+    ]
 
 
 def in_parts():
@@ -629,7 +832,8 @@ def in_parts():
                 prepare("busy", date(2026, 10, 28), folder, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc), minutes)
             said.append(out.getvalue())
         return said, {f.name: f.read_text() for f in (folder / "batches").iterdir()} if (folder / "batches").exists() else {}
-    fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root: None, "fetch_picture": picture,
+    fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root, *a: None, "fetch_picture": picture,
+             "read_missed": dict,
              "last_read": lambda run: datetime(2026, 10, 28, 2, 40, tzinfo=timezone.utc), "time": clock,
              "page_lists": lambda root: {("busy", "facebook"): [page]}}
     saved = {k: g[k] for k in (*fakes, "find_root")}, runner.time, write_judged.interest_ids

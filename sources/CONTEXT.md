@@ -148,6 +148,13 @@ One URL inside an entry, together with how to read it. An entry can have several
 What happened the last time a source was read. It belongs to the runner, never to the
 town files.
 
+**Set aside**:
+A watched page skipped for failing three mornings in a row and tried weekly until it reads
+again. Its entry stays watched. A social page Apify says is not available, or returns nothing
+for, three reads in a row is set aside from its paid list the same way, and tried with the
+Thursday read.
+_Avoid_: parked, dead, retired
+
 **Sync**:
 The one-way copy of registry fields from the town files into the database. When the two
 disagree, the town file wins.
