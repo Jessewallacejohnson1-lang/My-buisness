@@ -350,11 +350,31 @@ def game_of(it, title):
     return {"sport": m["sport"], "teams": [host[1], them], "occasion": m["night"]}
 
 
+# A title in the readers' game form: "Sartell Girls Soccer vs St. Cloud", "Boys Basketball vs Willmar · C-squad",
+# "CSB Soccer vs Hamline: Senior Night".
+GAME_TITLE = re.compile(r"^\S.*? vs\.? (?P<them>.+?)(?: · .+?)?(?:: .+)?$")
+
+
+def is_game(e):
+    """What a game is (BP app smooth-mornings 06), one rule for the titles step, the save's
+    long-title check and the describe layout, read the same from a judged item or a listed row:
+    two teams playing a sport. A `game` that names a sport and two teams says so, and so does the
+    sport the writer gave a row; else Watch sports and a title in the readers' form, a team after
+    its "vs" (or one still to come), not a meet. A game's title and About are its reader's
+    (read_events.game_title, game_about), so it needs no model's short title or research."""
+    if not isinstance(e, dict):
+        return False
+    if e.get("sport") or isinstance(e.get("game"), dict) and game_of(e, ""):
+        return True
+    m = GAME_TITLE.match(str(e.get("title") or ""))
+    return bool(m) and e.get("interest", e.get("category")) == "watch_sports" and not NOT_A_TEAM.search(m["them"])
+
+
 def long_titles(items, existing=()):
     """Event titles still over TITLE_MAX once tidied, for the morning job's model to shorten by
     the title-and-place skill, never cut mid-word (Jesse, 2026-10-21: three lines don't fit the
-    Town's Event of the day poster). Games aside: two team names stay whole. An event already
-    listed with a short title keeps it (plan), so it isn't asked again."""
+    Town's Event of the day poster). Games aside: their readers write them short (is_game). An
+    event already listed with a short title keeps it (plan), so it isn't asked again."""
     short = {(r.get("source_name"), r.get("source_uid")) for r in existing
              if r.get("source_uid") and len(r.get("title") or "") <= TITLE_MAX}
     out = []
@@ -363,7 +383,7 @@ def long_titles(items, existing=()):
             continue
         source = str(it.get("source_name") or "").strip()
         t = tidy_title(it["title"], source)
-        if len(t) > TITLE_MAX and not game_of(dict(it, source_name=source), t) and t not in out \
+        if len(t) > TITLE_MAX and not is_game(dict(it, title=t)) and t not in out \
                 and (source, str(it.get("source_uid") or "").strip()) not in short:
             out.append(t)
     return out
@@ -790,7 +810,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             primary = min(g["items"], key=lambda e: items[e[0]]["trust"] != "official")
             g["status"] = "approved"
         if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or "") \
-                and not primary[1]["row"]["sport"]:
+                and not is_game(primary[1]["row"]):
             # A title the morning job or Jesse shortened stays when its source sends the long one
             # again (title-and-place: 40 at most). ponytail: a source that renames an event to
             # another long title keeps the old short one; compare words if renames show up.
@@ -917,7 +937,7 @@ def report(items, r):
     for n in r["notes"]:
         print(f"[note] {n}")
     for g in r["events"]:
-        if g["row"] and len(g["row"]["title"]) > TITLE_MAX and not g["row"]["sport"]:
+        if g["row"] and len(g["row"]["title"]) > TITLE_MAX and not is_game(g["row"]):
             print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
 
 
@@ -929,7 +949,13 @@ def t_long_titles_shortened_and_kept():
     chapel = item(title="Anniversary of the Dedication of Sacred Heart Chapel", source_uid="sisters:1")
     hockey = item(title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9",
                   game={"sport": "Girls Hockey", "teams": ["Sartell-Sauk Rapids", "Fergus Falls"]})
-    assert long_titles([chapel, hockey, item()]) == [chapel["title"]], "a game's team names stay whole"
+    assert long_titles([chapel, hockey, item()]) == [chapel["title"]], "a game's title is its reader's (is_game)"
+    # One rule for a judged item and a listed row: a row whose teams nobody has added has no sport.
+    row = lambda title, category="watch_sports", sport=None: {"title": title, "category": category, "sport": sport}
+    assert [is_game(row(t)) for t in ("Boys Basketball vs Willmar · C-squad", "CSB Soccer vs Hamline: Senior Night",
+                                      "SJU Wrestling vs North Country Open", "SJU Soccer vs TBD: MIAC Quarterfinals",
+                                      "Central Lakes Conference Swim Meet")] == [True, True, False, True, False]
+    assert not is_game(row("Vikings vs Colts Game Day", "dining")) and is_game(row("Apollo game", sport="Volleyball"))
     short = {chapel["title"]: "Sacred Heart Chapel Anniversary"}
     assert run([chapel])["events"][0]["row"]["title"] == chapel["title"], "no short one given: as written"
     got = plan([chapel], [], TODAY, INTERESTS, titles=short)["events"][0]["row"]["title"]

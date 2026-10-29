@@ -53,7 +53,8 @@ source is a line in the summary; carry on with the rest.
    timeout. No batches means nothing to tag: skip the
    helpers. Done when `tag` prints its `[morning] tagged …` line.
 8. **Describe.** Run `python3 sources/scripts/morning.py thin`. It lays out the upcoming Events
-   whose About is empty or under a sentence, at most 30, in batches in `.runs/morning/describe/`.
+   whose About is empty or under a sentence, never a game (its reader wrote its About) or an Event
+   researched before, at most 30, in batches in `.runs/morning/describe/`.
    For each batch file, start one helper on your own model, all at once, each with this prompt:
    "Read `sources/models/describe.md` and follow it for the Events in
    `.runs/morning/describe/batch-N.txt`. Answer with the JSON lines only." Write every line the

@@ -33,10 +33,12 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             Event tagged before only gets its words, so nobody's feed reshuffles. One write per
             Event (901 on 2026-10-27), so it works in parts like prepare
   thin      lay out the upcoming Events found in the last two days whose About is empty or under a
-            sentence (feed, game and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
-            routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24)
+            sentence (feed and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
+            routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24). Never a game
+            (write_judged.is_game: its reader wrote its About) or an Event laid out before (smooth-mornings 06)
   describe  write the helpers' Abouts (.runs/morning/describe.jsonl) onto those Events, each
-            only when longer than the one it has, and print their CHECK lines
+            only when longer than the one it has, mark every Event they answered as researched
+            (club_events.described_at), and print how many it was given and filled, and their CHECK lines
   today     lay out today's Events as the Town feed takes them, for the routine's model to pick
             the day's standouts (BP app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
   standouts write the model's standouts (.runs/morning/standouts.jsonl) as today's
@@ -447,14 +449,22 @@ def tag(out, dry_run, minutes=PART_MINUTES):
 
 
 def to_describe(today):
-    """Approved upcoming Events found in the last two days whose About is empty or under a
-    sentence, soonest first. Older ones were researched already (the 2026-10-24 backfill, or an
-    earlier morning), so a thin one stays thin rather than being searched again every day."""
+    """Approved upcoming Events found in the last two days and never laid out before, soonest
+    first. Older ones were researched already (the 2026-10-24 backfill), and one laid out before
+    was researched on its morning (described_at), so a thin one stays thin rather than being
+    searched again every day (smooth-mornings 06)."""
     since = (today - timedelta(days=2)).isoformat()
-    rows = Supabase().rest("GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,"
-                                  "source_url,clubs(name)&status=eq.approved&kind=eq.event"
-                           f"&event_date=gte.{today}&created_at=gte.{since}&order=event_date&limit=1000")
-    thin = [r for r in rows if len((r.get("description") or "").strip()) < THIN]
+    return to_research(Supabase().rest(
+        "GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,source_url,"
+               "sport,category,clubs(name)&status=eq.approved&kind=eq.event"
+               f"&event_date=gte.{today}&created_at=gte.{since}&described_at=is.null&order=event_date&limit=1000"))
+
+
+def to_research(rows):
+    """The rows whose About is empty or under a sentence, games left out (write_judged.is_game: a
+    game's reader wrote its About from the schedule, and there is nothing more to find), as the
+    helpers read them, at most DESCRIBE_MAX."""
+    thin = [r for r in rows if len((r.get("description") or "").strip()) < THIN and not write_judged.is_game(r)]
     return [{"id": r["id"], "title": r["title"], "date": r["event_date"], "start": r.get("start_time") or "",
              "place": r.get("location") or "", "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
              "link": r.get("source_url") or "", "about": (r.get("description") or "").strip()}
@@ -493,12 +503,19 @@ def plan_descriptions(lines, events):
 
 def describe(out, dry_run):
     events = json.loads((out / "describe" / "events.json").read_text())
-    writes, checks = plan_descriptions(read_items(out / "describe.jsonl"), events)
+    lines = read_items(out / "describe.jsonl")
+    writes, checks = plan_descriptions(lines, events)
+    # Every Event a helper answered, filled or not, is researched: thin never lays it out again. One
+    # nobody answered waits for tomorrow's helpers.
+    given = {e["id"] for e in events}
+    answered = {ln["id"] for ln in lines if isinstance(ln, dict) and ln.get("id") in given}
     if not dry_run:
-        db = Supabase()
-        for event_id, about in writes.items():
-            db.rest("PATCH", f"club_events?id=eq.{event_id}", {"description": about}, prefer="return=minimal")
-    print(f"[morning] described {len(writes)} of {len(events)} thin events" + (" (dry run: nothing written)" if dry_run else ""))
+        db, now = Supabase(), datetime.now(LOCAL).isoformat()
+        for event_id in sorted(answered):
+            db.rest("PATCH", f"club_events?id=eq.{event_id}",
+                    {"described_at": now, **({"description": writes[event_id]} if event_id in writes else {})},
+                    prefer="return=minimal")
+    print(f"[morning] described {len(writes)} of {len(events)} events given" + (" (dry run: nothing written)" if dry_run else ""))
     for c in checks:
         print(f"[check] {c}")
 
@@ -705,6 +722,7 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
+    checks += games_aside() + described_once()
     checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
@@ -857,6 +875,95 @@ def fingerprints_wait_for_write():
         (runner.read_page, runner.validate, runner.find_root, Supabase,
          write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids, write_judged.known_teams,
          write_judged.news_in_db) = saved
+
+
+def games_aside():
+    """The titles step, the save's [long title] check and the describe layout agree on what a game
+    is (write_judged.is_game), offline: Oct 28's long game titles as Bound and the league brought them
+    (teams nobody has added yet, a "C game" About), a campus game, and Events that aren't games."""
+    import io
+    game = lambda title, host, sport, teams, about=None: {
+        "kind": "event", "title": title, "start": "2026-11-21T17:45:00-06:00", "place": f"{host} Gym", "town": "St. Cloud",
+        "area": "game", "source_name": host, "source_url": "https://www.gobound.com/x", "source_uid": f"bound:{title}",
+        "trust": "official", "size": "everyday", "interest": "watch_sports", "blurb": about, "followers_only": True,
+        "game": {"sport": sport, "teams": teams}}
+    other = lambda title, host, interest=None, about=None: {
+        "kind": "event", "title": title, "start": "2026-11-21T19:00:00-06:00", "place": "Sacred Heart Chapel",
+        "town": "St. Joseph", "area": "town", "source_name": host, "source_url": "https://x/e", "source_uid": title,
+        "trust": "official", "size": "everyday", "interest": interest, "blurb": about}
+    oct28 = [game("North Junior High Boys Basketball vs Kennedy · Middle school", "Kennedy Community School",
+                  "Boys Basketball", ["North Junior High", "Kennedy"], "Middle School game"),
+             game("Apollo Boys Basketball vs Sauk Rapids-Rice · C-squad", "Sauk Rapids-Rice High School", "Boys Basketball",
+                  ["Apollo", "Sauk Rapids-Rice"], "C game"),
+             game("Sauk Rapids-Rice Boys Basketball vs Sartell · 8th Grade", "Sartell High School", "Boys Basketball",
+                  ["Sauk Rapids-Rice", "Sartell"], "8th Grade game"),
+             game("Prairie Centre Boys Hockey vs River Lakes · JV", "ROCORI High School", "Boys Hockey",
+                  ["Prairie Centre", "River Lakes"], "Junior Varsity game"),
+             game("Sartell-Sauk Rapids Girls Hockey vs Thief River Falls", "Sartell High School", "Girls Hockey",
+                  ["Sartell-Sauk Rapids", "Thief River Falls"])]
+    games = oct28 + [{**other("College of Saint Benedict Soccer vs Hamline - Senior Night", "CSB Athletics", "watch_sports"),
+                      "place": "St. Joseph, Minn., CSB Stadium", "area": "campus"},
+                     {**other("Sartell vs Tech football", "Sartell High School", "watch_sports"), "place": "Sartell High School"},
+                     other("Cathedral Boys Hockey vs Academy of Holy Angels: Senior Night", "Cathedral High School",
+                           "watch_sports")]  # the judge's, with no `game`
+    others = [other("Anniversary of the Dedication of Sacred Heart Chapel", "Saint Benedict's Monastery", "faith"),
+              other("Plant Bingo", "Milk & Honey Ciders", "markets", "$10."),
+              other("Vikings vs Colts Game Day at Neighbors Route 75 Bar and Grill", "Neighbors Route 75", "dining"),
+              other("Fall Play", "Apollo High School", None, "Varsity")]
+    items = games + others
+    titles = write_judged.long_titles(items)
+    result = write_judged.plan(items, [], date(2026, 10, 28), write_judged.interest_ids(), teams={})
+    said = io.StringIO()
+    with contextlib.redirect_stdout(said):
+        write_judged.report(items, result)
+    flagged = [ln.split("'")[1] for ln in said.getvalue().splitlines() if ln.startswith("[long title]")]
+    rows = [dict(g["row"], id=g["row"]["source_uid"]) for g in result["events"]]
+    laid = [e["title"] for e in to_research(rows)]
+    long_other = "Vikings vs Colts Game Day at Neighbors Route 75 Bar and Grill"
+    return [(len(rows) == len(items) and titles == flagged == ["Anniversary of the Dedication of Sacred Heart Chapel", long_other]
+             and laid == [write_judged.tidy_title(i["title"]) for i in others],
+             "the titles step, the save's long-title check and the describe layout agree: no game in any (Oct 28's "
+             "long game titles among them), every long title that isn't a game in both, every thin one laid out")]
+
+
+def described_once():
+    """thin and describe across two mornings against a fake database: an Event the helpers answered
+    (filled or not) is never laid out again, one they didn't answer is, and a game never is."""
+    import io, tempfile
+    global Supabase
+    rows = [{"id": i, "title": t, "event_date": "2026-11-05", "start_time": "7 PM", "location": "Field", "description": d,
+             "source_name": "Host", "source_url": "https://h", "sport": None, "category": c, "clubs": None,
+             "described_at": None, "created_at": "2026-10-28"}
+            for i, t, d, c in [("a", "Harvest Supper", "", "dining"), ("b", "Fix-It Clinic", "Bring it.", None),
+                               ("c", "Kennedy Girls Basketball vs Holdingford", "", "watch_sports")]]
+
+    class FakeDb:
+        def rest(self, method, path, body=None, prefer=None):
+            if method == "PATCH":
+                next(r for r in rows if path == f"club_events?id=eq.{r['id']}").update(body)
+                return None
+            return [dict(r) for r in rows if "described_at=is.null" not in path or r["described_at"] is None]
+
+    def morning(answers):
+        with contextlib.redirect_stdout(io.StringIO()):
+            thin(out, date(2026, 10, 29))
+            given = [e["id"] for e in json.loads((out / "describe" / "events.json").read_text())]
+            (out / "describe.jsonl").write_text("".join(json.dumps(a) + "\n" for a in answers if a["id"] in given))
+            describe(out, False)
+        return given
+    saved = Supabase
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out, Supabase = Path(tmp), FakeDb
+            first = morning([{"id": "a", "about": "", "check": ""}])  # b: no helper answered it
+            second = morning([{"id": "b", "about": "Bring a broken lamp or toaster; volunteers fix it for free."}])
+            third = morning([])
+    finally:
+        Supabase = saved
+    return [(first == ["a", "b"] and second == ["b"] and third == [] and rows[1]["description"].startswith("Bring a broken")
+             and rows[0]["described_at"] and not rows[2]["described_at"],
+             "an Event laid out and answered is researched: the next morning lays out only the one nobody answered, "
+             "and never the game")]
 
 
 def in_parts():
