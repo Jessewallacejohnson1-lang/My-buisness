@@ -35,7 +35,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   thin      lay out the upcoming Events found in the last two days whose About is empty or under a
             sentence (feed and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
             routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24). Never a game
-            (write_judged.is_game: its reader wrote its About) or an Event laid out before (smooth-mornings 06)
+            (write_judged.is_game: its reader wrote its About) or an Event laid out before (smooth-mornings 06).
+            Each comes with the text of its own link, read politely within about 6 minutes (Jesse, 2026-10-29)
   describe  write the helpers' Abouts (.runs/morning/describe.jsonl) onto those Events, each
             only when longer than the one it has, mark every Event they answered as researched
             (club_events.described_at), and print how many it was given and filled, and their CHECK lines
@@ -59,17 +60,17 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py --selftest
 """
 
-import argparse, collections, contextlib, json, re, shutil, subprocess, sys, time
+import argparse, collections, contextlib, json, re, shutil, subprocess, sys, time, urllib.error
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
 from batch import layout
 import write_judged
-from run import Supabase, fetch_watched, deadline, late, part_state, resume_part, aside_lines
+from run import Supabase, fetch, fetch_watched, to_text, deadline, late, part_state, resume_part, aside_lines
 from db import DbError
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -79,6 +80,7 @@ STANDOUTS = 9
 THIN = 120        # characters: an About under this says less than a sentence
 DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
 DESCRIBE_BATCH = 10
+PAGE_MAX = 3000    # characters of an Event's own page its helper reads
 ABOUT_MAX = 1000   # as write_judged.clip
 LIST_MAX = 40  # new Events listed one by one; the rest as a count per source (a first read can add hundreds)
 PART_MINUTES = 6  # a part starts nothing new after this, so it ends within 9: the cloud stops a command at 10
@@ -471,17 +473,77 @@ def to_research(rows):
             for r in thin[:DESCRIBE_MAX]]
 
 
+def page_excerpt(text, title, limit=PAGE_MAX):
+    """The part of an Event's own page about it: the stretch around the line naming most of its
+    title's words (a league's full schedule lists every game). Nothing when no line names two of
+    them: a page built by JavaScript reads as its menu (MSHSL's schedules, the CSB SJU calendar)."""
+    want = set(re.findall(r"[a-z]{4,}", title.lower()))
+    lines = text.split("\n")
+    hits = [sum(w in ln.lower() for w in want) for ln in lines]
+    best = max(range(len(lines)), key=hits.__getitem__)
+    if hits[best] < min(2, len(want)):
+        return ""
+    if len(text) <= limit:
+        return text
+    start = max(0, sum(len(ln) + 1 for ln in lines[:best]) - limit // 3)
+    return text[start:start + limit]
+
+
+# Bound's server refuses a name that doesn't start the way crawlers' names do: 403 to
+# "BlockPartyBot/1.0", 200 to the same name in Googlebot's form (2026-10-29). Still our own name,
+# never a browser's (ADR-014).
+CRAWLER_UA = "Mozilla/5.0 (compatible; BlockPartyBot/1.0; +https://blockpartystjoe.com)"
+_crawler_form = set()  # hosts that answered only that form
+# The league reader links a game to its school's whole MSHSL schedule, which JavaScript builds: no
+# page of the game's own to read.
+SCHEDULE_LINK = re.compile(r"/full-schedule$")
+
+
+def own_page(url, get=fetch):
+    host = urlparse(url).netloc
+    if host in _crawler_form:
+        return get(url, headers={"User-Agent": CRAWLER_UA})
+    try:
+        return get(url)
+    except urllib.error.HTTPError as ex:
+        if ex.code != 403:
+            raise
+        _crawler_form.add(host)
+        return get(url, headers={"User-Agent": CRAWLER_UA})
+
+
+def own_pages(events, get=own_page, minutes=PART_MINUTES):
+    """Each Event's own page, read once per link the polite way (robots, Crawl-delay): the school's
+    Bound page, the league's schedule, the college calendar. Its helper reads it before searching,
+    since a search finds old seasons (Jesse, 2026-10-29: "go off Bound and open links"). A page that
+    can't be read, or isn't reached within the part's minutes, stays empty and the helper searches."""
+    stop, read = deadline(minutes), {}
+    for e in events:
+        url = e["link"]
+        if url and not SCHEDULE_LINK.search(url) and url not in read and not late(stop):
+            try:
+                read[url] = to_text(get(url)[1])
+            except Exception as ex:
+                read[url] = ""
+                print(f"[morning] page not read: {url} ({str(ex)[:100]})")
+        e["page"] = page_excerpt(read.get(url) or "", e["title"])
+    return sum(1 for e in events if e["page"])
+
+
 def thin(out, today):
     d = out / "describe"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
     events = to_describe(today)
+    pages = own_pages(events)
     for i in range(0, len(events), DESCRIBE_BATCH):
         (d / f"batch-{i // DESCRIBE_BATCH + 1}.txt").write_text(
             "\n".join(json.dumps(e, ensure_ascii=False) for e in events[i:i + DESCRIBE_BATCH]) + "\n")
-    (d / "events.json").write_text(json.dumps(events, indent=1, ensure_ascii=False))
-    print(f"[morning] {len(events)} events to describe in {len(list(d.glob('batch-*.txt')))} batches ({d})")
+    (d / "events.json").write_text(json.dumps([{k: v for k, v in e.items() if k != "page"} for e in events],
+                                              indent=1, ensure_ascii=False))
+    print(f"[morning] {len(events)} events to describe in {len(list(d.glob('batch-*.txt')))} batches, "
+          f"{pages} with their own page read ({d})")
 
 
 def plan_descriptions(lines, events):
@@ -723,6 +785,47 @@ def selftest():
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
     checks += games_aside() + described_once()
+    asked = []
+
+    def get(url):
+        asked.append(url)
+        if url == "https://bad/":
+            raise RuntimeError("HTTP Error 403")
+        return 200, ("<p>Sartell vs. Alexandria Area</p><p>Section 8AAAAA Football Semifinal</p>" if url == "https://b/1"
+                     else "<p>Kimball vs Eden Valley-Watkins Oct 31</p>")
+    linked = [{"title": "Sartell Football vs Alexandria", "link": "https://b/1"},
+              {"title": "Sartell Football vs Alexandria", "link": "https://b/1"},
+              {"title": "Kimball Football vs Eden Valley-Watkins", "link": "https://mshsl/full-schedule"},
+              {"title": "Banquet", "link": "https://bad/"}, {"title": "Posted", "link": ""}]
+    read = own_pages(linked, get)
+    checks.append((asked == ["https://b/1", "https://bad/"] and read == 2 and "Semifinal" in linked[1]["page"]
+                   and linked[2]["page"] == linked[3]["page"] == linked[4]["page"] == "",
+                   "each Event gets its own link's page, a link read once; a league schedule, one that fails "
+                   "or none stays empty"))
+    asked.clear()
+    late_ones = [{"title": "Game", "link": "https://b/1"}]
+    checks.append((own_pages(late_ones, get, minutes=-1) == 0 and asked == [] and late_ones[0]["page"] == "",
+                   "past the part's minutes no page is asked for, so the step ends before the cloud stops it"))
+    schedule = "\n".join([f"Oct {d} Somebody vs Someone Else at 7 PM" for d in range(1, 200)]
+                         + ["Oct 31 Kimball vs Eden Valley-Watkins 2 PM"] + ["Nov 1 Other vs Team"] * 200)
+    part = page_excerpt(schedule, "Kimball Football vs Eden Valley-Watkins", 600)
+    checks.append((len(part) == 600 and "Kimball vs Eden Valley-Watkins" in part and page_excerpt("short", "x") == "short",
+                   "a long schedule page is cut to the stretch naming the Event"))
+    menu = "News\nTickets\nSports & Activities\nFootball\nVolleyball\nContact"
+    checks.append((page_excerpt(menu, "Kimball Football vs Eden Valley-Watkins") == "",
+                   "a page that never names the Event (a JavaScript page's menu) is no page"))
+    tries = []
+
+    def bound(url, headers=None):
+        tries.append((url, (headers or {}).get("User-Agent")))
+        if not headers:
+            raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+        return 200, "<p>Sartell vs. Alexandria Area</p>"
+    first, second = own_page("https://bound.test/1", bound), own_page("https://bound.test/2", bound)
+    checks.append((first == second == (200, "<p>Sartell vs. Alexandria Area</p>")
+                   and tries == [("https://bound.test/1", None), ("https://bound.test/1", CRAWLER_UA),
+                                 ("https://bound.test/2", CRAWLER_UA)],
+                   "a site that refuses our name answers it in the crawlers' form, asked that way from then on"))
     checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))

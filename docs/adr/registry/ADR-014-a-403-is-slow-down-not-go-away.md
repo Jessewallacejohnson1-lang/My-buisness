@@ -86,3 +86,18 @@ as a robots rule. We identify ourselves and take what we are given.
 - Two ADRs in two days have now corrected facts that were written down confidently and
   never measured. The lesson is not about robots.txt: a claim about the outside world
   that nobody has tested does not belong in an accepted ADR.
+
+## 2026-10-29: the crawlers' form of our name
+
+Bound (gobound.com) is the opposite case to the chamber. Measured the same morning, one URL, twelve
+seconds apart:
+
+| Request | Result |
+| --- | --- |
+| `BlockPartyBot/1.0 (+https://blockpartystjoe.com)` | **HTTP 403** (its load balancer) |
+| `Mozilla/5.0 (compatible; BlockPartyBot/1.0; +https://blockpartystjoe.com)` | **HTTP 200** |
+
+The second string is the form Googlebot and Bingbot use: it still names us and claims no browser.
+`morning.py own_page` asks in that form only after a 403 to our plain name, and keeps asking that
+host that way for the rest of the run. Every other fetch keeps the plain name, and a browser's
+string stays forbidden.

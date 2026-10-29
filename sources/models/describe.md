@@ -6,17 +6,24 @@ out and find sources"). Games never come here: their readers write their Abouts 
 schedule. Every line you write goes live, so only facts a source states.
 
 Each batch file gives the Events, one JSON object per line: `id`, `title`, `date`, `start`,
-`place`, `host` (who puts it on), `link` (the page it was found on) and `about` (what it says
-now, often empty).
+`place`, `host` (who puts it on), `link` (the page it was found on), `about` (what it says
+now, often empty) and `page`: the text of that link, read this morning (empty when it couldn't be
+read).
 
 ## Research
 
-- Search the web (WebSearch) with the title, host and "St. Joseph MN": the host's own site,
+- **Its own page comes first** (Jesse, 2026-10-29: "go off Bound and open links"). `page` is the
+  official listing the Event was found on: the school's Bound page, MSHSL, the college calendar,
+  the host's site. It is the truth about the date, time, place, teams, level and what kind of
+  event it is (a section semifinal, a tournament of eight schools), and often has the records and
+  tickets. Use every fact it states before searching.
+- Then search the web (WebSearch) with the title, host and "St. Joseph MN": the host's own site,
   the City (stjosephmn.gov), school and CSB/SJU pages (csbsju.edu, gobennies.com,
   gojohnnies.com), MSHSL, parish bulletins, local news (St. Joseph Newsleader, St. Cloud Times,
   WJON). Search results only: pages are fetched by `morning.py` alone.
-- Search each Event at least twice before settling (its title with the host, then the host or
-  the series alone): a school concert's grades or a meet's field are often one search away.
+- When its page leaves the About short, search at least twice before settling (its title with
+  the host, then the host or the series alone): a school concert's grades or a meet's field are
+  often one search away.
   A short line is for an Event two searches found nothing more about.
 - **The host's own site is the truth** about whether it is open and what is on. Another source
   outranks it only when newer and urgent: a closure, cancellation, fire or move in the last
@@ -43,7 +50,10 @@ One JSON line per Event, nothing else:
 {"id": "<id>", "about": "<the About>", "check": "<empty, or what looks wrong>"}
 
 `check` is for anything a source contradicts in the Event itself (the date, time, place or
-title, a cancellation, a duplicate): one plain sentence naming the source and its date. A
+title, a cancellation, a duplicate): one plain sentence naming the source and its date. When
+`page` lists the Event as it is, that is the truth: a search that finds nothing, or an older
+season's schedule or story, is no check (Sartell vs Alexandria on Oct 31 was the section
+semifinal its Bound page showed, though a search found only last year's games). A
 2023 report that a bar closed says nothing about a 2026 show its own site lists (Sal's had
 reopened): that is no check. The writer never
 changes those; the morning's answer carries them to Jesse.
