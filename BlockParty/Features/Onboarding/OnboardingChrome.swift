@@ -209,6 +209,37 @@ struct OnboardingLink: View {
     }
 }
 
+/// The search box over Interests' chips and Follow 3's places: a 44 pt white box on a 1.5 pt
+/// hairline, 24 pt under the question's line.
+struct OnboardingSearchField: View {
+    let prompt: String
+    @Binding var query: String
+    @FocusState private var searching: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.glyph(15, weight: .semibold))
+                .foregroundStyle(Hue.inkSecondary)
+            TextField(prompt, text: $query, prompt: Text(prompt).foregroundStyle(Hue.inkSecondary))
+                .font(.sans(15))
+                .foregroundStyle(Hue.ink)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+                .focused($searching)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+        .background(Hue.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Hue.hairline, lineWidth: 1.5))
+        // The whole 44 pt box takes the tap, not only the line of text.
+        .contentShape(Rectangle())
+        .onTapGesture { searching = true }
+        .padding(.top, 24)
+    }
+}
+
 /// A press that sinks on touch-down (80 ms) and springs back (70 ms): the chevron, the links
 /// and the Welcome's white pills, which also grey to `pill` under the finger.
 struct OnboardingPress: ButtonStyle {

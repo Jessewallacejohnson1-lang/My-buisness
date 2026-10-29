@@ -573,6 +573,35 @@ struct FollowTarget: Hashable, Codable {
     let id: String
 }
 
+/// One upcoming Event as Popular and Follow 3 read it (`CommunityAPI.upcomingTags`): what it's about,
+/// and whose it is: its Place's registry entry, the schools (`teams.id`) it's a game or activity of,
+/// and the source it came from, which a Town page names.
+struct UpcomingTags: Equatable {
+    var interests: [String]
+    var place: String? = nil
+    var teams: [String] = []
+    var source: String? = nil
+}
+
+/// A school of the Town's own (`teams.local`), followed by its `uuid`.
+struct LocalSchool: Decodable, Equatable {
+    let id: String
+    let uuid: String
+    let name: String
+    let logoUrl: String?
+}
+
+/// One of the Town's pages (`town_pages`): the Town's own, its City's, a campus calendar's.
+struct TownPageRow: Decodable, Equatable {
+    let id: String
+    let slug: String
+    let name: String
+    let kind: String?
+    let sourceName: String?
+    let picture: String?
+    let pictureKind: String?
+}
+
 /// A local team's page (`team_page`, hello-drop 03).
 struct TeamProfile: Decodable, Hashable {
     let id: String

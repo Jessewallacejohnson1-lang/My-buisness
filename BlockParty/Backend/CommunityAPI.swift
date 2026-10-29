@@ -474,16 +474,35 @@ struct CommunityAPI {
     }
 
     /// Each upcoming Event's interests (its tags once tagged, else its one category), for the
-    /// interest chips' "Popular in St. Joseph" (BP app onboarding 20).
-    func upcomingInterests() async throws -> [[String]] {
-        struct Row: Decodable { let interests: [String]?; let category: String?; let interestsTaggedAt: String? }
+    /// interest chips' "Popular in St. Joseph" (BP app onboarding 20), and whose it is, for the
+    /// places Follow 3 suggests (onboarding 22).
+    func upcomingTags() async throws -> [UpcomingTags] {
+        struct Row: Decodable {
+            let interests: [String]?; let category: String?; let interestsTaggedAt: String?
+            let placeEntryId: String?; let teamIds: [String]?; let activityTeam: String?; let sourceName: String?
+        }
         // Before the account exists (step 7 comes before phone sign-in lands), the public key reads.
+        // ponytail: Supabase answers at most 1,000 rows (games are most of them); page through if counts matter.
         let t = await readToken()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=interests,category,interests_tagged_at&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(Town.day(Date()))\(Self.realOnly)",
+            query: "select=interests,category,interests_tagged_at,place_entry_id,team_ids,activity_team,source_name&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(Town.day(Date()))\(Self.realOnly)",
             accessToken: t)
         let rows: [Row] = try decode(data)
-        return rows.map { $0.interestsTaggedAt == nil ? [$0.category].compactMap { $0 } : $0.interests ?? [] }
+        return rows.map {
+            UpcomingTags(interests: $0.interestsTaggedAt == nil ? [$0.category].compactMap { $0 } : $0.interests ?? [],
+                         place: $0.placeEntryId, teams: ($0.teamIds ?? []) + [$0.activityTeam].compactMap { $0 },
+                         source: $0.sourceName)
+        }
+    }
+
+    /// The Town's own schools (`teams.local`) and pages (`town_pages`), which Follow 3 suggests
+    /// beside its Places (onboarding 22). Read with the public key, as there may be no account yet.
+    func followableSchoolsAndPages() async throws -> (schools: [LocalSchool], pages: [TownPageRow]) {
+        let t = await readToken()
+        async let schools = SupabaseHTTP.rest("teams", query: "select=id,uuid,name,logo_url&local=eq.true", accessToken: t)
+        async let pages = SupabaseHTTP.rest("town_pages",
+            query: "select=id,slug,name,kind,source_name,picture,picture_kind&town=eq.\(Town.slug)", accessToken: t)
+        return (try decode((try await schools).0), try decode((try await pages).0))
     }
 
     // MARK: - Your Day (the Today rail — one day, town time)

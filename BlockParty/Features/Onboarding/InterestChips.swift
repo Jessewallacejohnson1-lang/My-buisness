@@ -21,7 +21,6 @@ struct InterestChips: View {
     /// once a finger is on the chips, counts landing late never push them down.
     @State private var shownPopular: [String]?
     @State private var touched = false
-    @FocusState private var searching: Bool
     /// The chip just picked, whose check pops as it lands in Added.
     @State private var landing: String?
     @Namespace private var glide
@@ -32,7 +31,7 @@ struct InterestChips: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            search
+            OnboardingSearchField(prompt: "Search interests", query: $query)
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) { groups }
                     .padding(.top, 4)
@@ -46,30 +45,6 @@ struct InterestChips: View {
             guard !touched else { return }
             withAnimation(.easeOut(duration: 0.25)) { shownPopular = new }
         }
-    }
-
-    private var search: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.glyph(15, weight: .semibold))
-                .foregroundStyle(Hue.inkSecondary)
-            TextField("Search interests", text: $query,
-                      prompt: Text("Search interests").foregroundStyle(Hue.inkSecondary))
-                .font(.sans(15))
-                .foregroundStyle(Hue.ink)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.search)
-                .focused($searching)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 44)
-        .background(Hue.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Hue.hairline, lineWidth: 1.5))
-        // The whole 44 pt box takes the tap, not only the line of text.
-        .contentShape(Rectangle())
-        .onTapGesture { searching = true }
-        .padding(.top, 24)
     }
 
     @ViewBuilder private var groups: some View {

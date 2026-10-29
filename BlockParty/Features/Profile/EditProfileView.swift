@@ -87,8 +87,8 @@ struct EditProfileView: View {
             InterestsSheet(picked: $interests, popular: popular)
         }
         .task {
-            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
-                popular = Interests.popular(events)
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags() {
+                popular = Interests.popular(events.map(\.interests))
             }
         }
     }

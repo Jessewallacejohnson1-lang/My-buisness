@@ -597,6 +597,12 @@ struct MainTabsView: View {
             friendsBook.reset()
             Task { await friendsBook.refreshDot() }
         }
+        // Onboarding's Follow 3 picks wait on the phone until a signed-up account can take them
+        // (BP app onboarding 22): at launch, and when one arrives.
+        .task(id: auth.accountKey) {
+            guard !actions.needsSignUp else { return }
+            for target in OnboardingStore.takeFollows() { actions.followOn(target) }
+        }
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.

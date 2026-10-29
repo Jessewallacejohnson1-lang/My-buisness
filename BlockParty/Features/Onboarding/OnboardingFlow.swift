@@ -71,6 +71,11 @@ final class OnboardingStore {
             defaults.set(true, forKey: Self.pendingKey)
         }
     }
+    /// Follow 3's picks (ticket 22), in the order made. Kept on the phone: following needs a signed-up
+    /// account, so the shell sends them once there is one (`takeFollows`).
+    private(set) var follows: [FollowTarget] {
+        didSet { defaults.set(try? JSONEncoder().encode(follows), forKey: Self.followsKey) }
+    }
     /// An answer changed since the last save reached the server.
     private(set) var answersPending: Bool
     /// A save is out, so a second caller doesn't upload the photo again.
@@ -84,6 +89,7 @@ final class OnboardingStore {
     private static let photoKey = "onboarding.photo"
     private static let pendingKey = "onboarding.answersPending"
     private static let birthdayKey = "onboarding.birthday"
+    private static let followsKey = "onboarding.follows"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -97,6 +103,25 @@ final class OnboardingStore {
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
         interests = Interests.get()
+        follows = Self.savedFollows(defaults)
+    }
+
+    /// Follow or unfollow on Follow 3, on the phone only.
+    func toggleFollow(_ target: FollowTarget) {
+        if let i = follows.firstIndex(of: target) { follows.remove(at: i) } else { follows.append(target) }
+    }
+
+    /// Hands over the finished flow's follows and forgets them, once a signed-up account can send
+    /// them; none while onboarding is still going.
+    static func takeFollows(_ defaults: UserDefaults = .standard) -> [FollowTarget] {
+        guard defaults.bool(forKey: finishedKey) else { return [] }
+        let picks = savedFollows(defaults)
+        defaults.removeObject(forKey: followsKey)
+        return picks
+    }
+
+    private static func savedFollows(_ defaults: UserDefaults) -> [FollowTarget] {
+        defaults.data(forKey: followsKey).flatMap { try? JSONDecoder().decode([FollowTarget].self, from: $0) } ?? []
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
@@ -146,6 +171,7 @@ final class OnboardingStore {
         lastName = ""
         photo = nil
         birthday = nil
+        follows = []
         interests = []   // kept under bp.interests, not onboarding.
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
@@ -192,6 +218,8 @@ struct OnboardingFlow: View {
     @State private var keyboardUp = false
     /// "Popular in St. Joseph", read while the earlier steps are up.
     @State private var popular: [String] = []
+    /// Follow 3's Places, schools and pages, read with Popular: nil while reading, empty if it failed.
+    @State private var suggestions: [FollowSuggestion]?
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -219,10 +247,11 @@ struct OnboardingFlow: View {
             }
         }
         .task {
-            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
-                popular = Interests.popular(events)
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags() {
+                popular = Interests.popular(events.map(\.interests))
             }
         }
+        .task { suggestions = (try? await FollowSuggestions.load()) ?? [] }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
         }
@@ -254,7 +283,7 @@ struct OnboardingFlow: View {
             .padding(.top, 56)
             .ignoresSafeArea(.container)
 
-            if store.step == .interests { foot.transition(.opacity) }
+            if store.step == .interests || store.step == .follow { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
@@ -330,6 +359,9 @@ struct OnboardingFlow: View {
                 .padding(.top, 8)
             InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
                           popular: popular)
+        case .follow:
+            OnboardingFollowList(suggestions: suggestions, interests: store.interests, follows: store.follows,
+                                 toggle: { [store] in store.toggleFollow($0) })
         default:
             EmptyView()
         }
@@ -361,10 +393,18 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// "Pick 2 more" until step 7 has its 3.
+    /// "Pick 2 more" until step 7 has its 3, "Follow 2 more" until step 8 has.
     private var nextTitle: String {
         if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
+        if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
+    }
+
+    /// Follows still to make on step 8; none when the read failed or found fewer than 3, so a
+    /// neighbour with no signal is never stuck there (SPEC: never block on the network).
+    private var followsNeeded: Int {
+        guard let suggestions, suggestions.count >= 3 else { return suggestions == nil ? 3 : 0 }
+        return max(0, 3 - store.follows.count)
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
@@ -379,6 +419,7 @@ struct OnboardingFlow: View {
         case .photo: return store.photo != nil
         case .birthday: return store.birthday != nil
         case .interests: return store.interests.count >= 3
+        case .follow: return followsNeeded == 0
         default:     return true
         }
     }

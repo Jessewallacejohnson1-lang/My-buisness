@@ -432,6 +432,13 @@ final class RealLifeActions {
         if let first { HelloMoments.shared.reach(first) }
     }
 
+    /// Follows with no tap and never unfollows: onboarding's Follow 3 picks (BP app onboarding 22),
+    /// once a signed-up account can take them. Written, and kept until written, as a tap is.
+    func followOn(_ target: FollowTarget) {
+        guard !needsSignUp, !follow(target).isFollowing else { return }
+        choose(Self.key(target), true)
+    }
+
     /// The photo's double tap: hearts, never un-hearts (taste.md, 2026-09-27). One
     /// during a failed heart's wait keeps it on and writes it again.
     func heartOn(_ item: FeedCardItem) {

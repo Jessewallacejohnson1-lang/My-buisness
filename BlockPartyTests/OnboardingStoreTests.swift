@@ -195,4 +195,58 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(again.step, .welcome)
         XCTAssertNil(again.birthday)
     }
+
+    // MARK: Follow 3 (onboarding 22)
+
+    private func poi(_ id: String, _ name: String, _ type: String, entry: String? = nil) -> POI {
+        POI(id: id, placeId: nil, name: name, lat: 0, lon: 0, family: .business, primaryType: type, types: [],
+            address: nil, logoUrl: nil, entryId: entry)
+    }
+
+    private var town: [FollowSuggestion] {
+        FollowSuggestions.build(
+            places: [poi("p1", "The Local Blend", "coffee_shop"), poi("p2", "The Middy", "bar", entry: "middy"),
+                     poi("p3", "Bad Habit", "brewery"), poi("p4", "Coborn's", "grocery_store"),
+                     poi("p5", "Little Saints", "day_care_center")],
+            schools: [LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", logoUrl: nil)],
+            pages: [TownPageRow(id: "c1", slug: "city", name: "City", kind: "City government", sourceName: "City",
+                                picture: nil, pictureKind: nil)],
+            events: [UpcomingTags(interests: ["games"], place: "middy"), UpcomingTags(interests: ["games"], place: "middy"),
+                     UpcomingTags(interests: ["watch_sports"], teams: ["kennedy"]),
+                     UpcomingTags(interests: ["live_music"], teams: ["kennedy"]),
+                     UpcomingTags(interests: ["town_meetings"], source: "City")])
+    }
+
+    func testFollowThreeShowsWhatFitsThePickedInterestsFirst() {
+        let names = { (picked: [String]) in FollowSuggestions.ordered(self.town, picked: picked).map(\.name) }
+        XCTAssertEqual(names(["coffee"]).first, "The Local Blend")
+        XCTAssertEqual(Array(names(["bars"]).prefix(2)), ["The Middy", "Bad Habit"], "busiest first within an interest")
+        // A place's Events add what its kind doesn't say: trivia makes The Middy a Games place.
+        XCTAssertEqual(names(["games"]).first, "The Middy")
+        XCTAssertEqual(names(["live_music"]).first, "Kennedy")
+        XCTAssertEqual(names(["town_meetings"]).first, "City")
+        // Picks take turns, in the order picked, so each shows near the top.
+        XCTAssertEqual(Array(names(["coffee", "families_kids", "bars"]).prefix(3)),
+                       ["The Local Blend", "Little Saints", "The Middy"])
+        XCTAssertNotEqual(names(["coffee"]), names(["bars"]))
+    }
+
+    func testFollowThreeFillsToEightAndSearchesEverything() {
+        XCTAssertEqual(FollowSuggestions.ordered(town, picked: ["coffee"]).count, 7, "all 7 when the town has fewer than 8")
+        XCTAssertEqual(FollowSuggestions.search(town, "brew").map(\.name), ["Bad Habit"])
+        XCTAssertEqual(FollowSuggestions.search(town, "school").map(\.name), ["Kennedy"], "kinds are searched too")
+        XCTAssertTrue(FollowSuggestions.search(town, "zzz").isEmpty)
+    }
+
+    func testFollowsWaitOnThePhoneUntilTheFlowIsDoneAndAreTakenOnce() {
+        let store = OnboardingStore(defaults: defaults)
+        let a = FollowTarget(type: .place, id: "p1"), b = FollowTarget(type: .team, id: "k1")
+        store.toggleFollow(a); store.toggleFollow(b); store.toggleFollow(a)
+        XCTAssertEqual(store.follows, [b])
+        XCTAssertEqual(OnboardingStore(defaults: defaults).follows, [b], "kept over a relaunch")
+        XCTAssertEqual(OnboardingStore.takeFollows(defaults), [], "nothing goes up mid-flow")
+        store.finish()
+        XCTAssertEqual(OnboardingStore.takeFollows(defaults), [b])
+        XCTAssertEqual(OnboardingStore.takeFollows(defaults), [], "taken once")
+    }
 }
