@@ -122,16 +122,16 @@ final class TabBarTests: XCTestCase {
                              "the selected house is not filled")
     }
 
-    /// Daily's Bp. is a logo, not a symbol: it has no outline form, so it draws the same
+    /// Daily's Bp! is a logo, not a symbol: it has no outline form, so it draws the same
     /// picked or not and only the grey bubble (not in this render) marks it (Jesse,
-    /// 2026-10-29). Equal ink both ways fails if an outlined Bp. ever comes back.
+    /// 2026-10-29). Equal ink both ways fails if an outlined Bp! ever comes back.
     func testDailyMarkIsSolidPickedOrNot() throws {
         let inkPixels = { (bitmap: TabBarBitmap) in
             bitmap.pixels(in: self.iconBox(.daily)).filter { self.isInkDark($0.0, $0.1, $0.2, $0.3) }.count
         }
         let picked = inkPixels(try renderedItems(selected: .daily))
-        XCTAssertGreaterThan(picked, 0, "Daily's Bp. is not drawn")
-        XCTAssertEqual(picked, inkPixels(try renderedItems(selected: .town)), "Daily's Bp. changes when picked")
+        XCTAssertGreaterThan(picked, 0, "Daily's Bp! is not drawn")
+        XCTAssertEqual(picked, inkPixels(try renderedItems(selected: .town)), "Daily's Bp! changes when picked")
     }
 
     func testEveryIconIsInkAndNothingIsYellow() throws {

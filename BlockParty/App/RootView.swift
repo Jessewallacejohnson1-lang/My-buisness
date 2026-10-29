@@ -34,7 +34,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     /// `selectedSymbol` in the same ink, as Instagram's bar does. Search draws BP's own
     /// traced magnifier instead (`MagnifierGlyph`); this name is only its large-content
     /// stand-in. Daily's is not an SF Symbol: it names the `DailyMark` asset, the app
-    /// icon's own Bp. letters (Jesse, 2026-10-29).
+    /// icon's own Bp! letters (Jesse, 2026-10-29).
     var symbol: String {
         switch self {
         case .town:     return "house"
@@ -45,7 +45,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     }
 
     /// A magnifier has no fill: selected, it thickens instead (`MagnifierGlyph.bold`).
-    /// Daily's Bp. is a logo with no outline form, so it stays solid and the grey
+    /// Daily's Bp! is a logo with no outline form, so it stays solid and the grey
     /// bubble alone shows it's picked (Jesse, 2026-10-29).
     var selectedSymbol: String { self == .search || self == .daily ? symbol : symbol + ".fill" }
 
@@ -973,9 +973,9 @@ nonisolated enum TabBarMetric {
     /// Search's traced magnifier fills its own box: Instagram's search mark, 22pt
     /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
     static let searchGlyphSize: CGFloat = 22
-    /// Daily's Bp.: 38pt wide (Jesse's pick at Check-in 1, 2026-10-29), which makes it
-    /// 22.6pt tall, about Instagram's 22pt glyph box.
-    static let dailyMarkWidth: CGFloat = 38
+    /// Daily's Bp!: letters at the size Jesse picked at Check-in 1 (38pt for Bp.,
+    /// 2026-10-29), 22.6pt tall, about Instagram's 22pt glyph box; the ! adds 4.3pt.
+    static let dailyMarkWidth: CGFloat = 42.33
     static let iconCentreY: CGFloat = height / 2
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25

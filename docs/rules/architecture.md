@@ -104,7 +104,7 @@ seeder, and mounts `RootView` directly.
 ### The tab bar
 
 `MainTabsView` owns **four** tabs (`Tab`: town/daily/search/you), the custom
-`BlockPartyTabBar` and the full-screen map cover. **Town** (`house`) is the town feed, **Daily** (the app icon's Bp., `DailyMark`, solid picked or not: Jesse, 2026-10-29) is the personalised paper
+`BlockPartyTabBar` and the full-screen map cover. **Town** (`house`) is the town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is the personalised paper
 (town feed ∩ what the neighbour follows), **Search** is BP's traced magnifier (`MagnifierGlyph`,
 thicker when selected, as Instagram's is) — it took Business's slot on 2026-09-29, when the
 Town bar's leading control became a friends mark — and **You** mounts
