@@ -308,7 +308,8 @@ def pathify_url(url, today):
     after, before = (datetime.combine(d, time(), LOCAL).astimezone(timezone.utc)
                      for d in (today, today + timedelta(days=DAYS_AHEAD)))
     fields = "".join(f"&field={f}" for f in ("id", "title", "start_date", "end_date", "all_day", "start_day",
-                                             "calendar__name", "recurrence_rule", "location", "description"))
+                                             "calendar__name", "recurrence_rule", "location", "description",
+                                             "ticket_url"))
     return (f"{url}{'&' if '?' in url else '?'}in_range_after={after:%Y-%m-%dT%H:%M:%SZ}"
             f"&in_range_before={before:%Y-%m-%dT%H:%M:%SZ}{fields}&paginate=false&published=true")
 
@@ -361,7 +362,11 @@ def pathify_items(rows, entry, src, today):
                           place=place, town=campus_town(place), area="campus",
                           blurb=about,
                           source_name=CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
-                          source_url=f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
+                          # Its sign-up page when the calendar names one, so the Event page's link
+                          # registers in one tap and the describe step reads its fee and dates (BP app
+                          # event-details; Jesse, 2026-10-29); the id stays the calendar's.
+                          source_url=(r.get("ticket_url") or "").strip()
+                          or f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           source_uid=str(r["id"])))
     return out
 
@@ -1212,7 +1217,17 @@ def t_pathify():
     assert title_clock("Unplugged at 7", datetime(2026, 1, 1, 9), None) == (datetime(2026, 1, 1, 9), None)
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
-    assert "&field=description&" in url, url
+    assert "&field=description&" in url and "&field=ticket_url&" in url, url
+    retreat, talk = pathify_items([
+        {"id": 4155871, "title": "Grounding Our Emotions", "location": "104 Chapel Lane, Saint Joseph, MN, USA",
+         "calendar": {"name": "St. Benedict's Monastery"}, "start_date": "2026-11-03T15:00:00Z", "all_day": False,
+         "ticket_url": "https://sbm.osb.org/event/grounding-our-emotions-during-tough-times/2026-11-03/"},
+        {"id": 5, "title": "Salvage", "location": "Clemens Library", "calendar": {"name": "Library"},
+         "start_date": "2026-11-03T20:00:00Z", "all_day": False, "ticket_url": ""}], {"_name": "x"}, src, TODAY)
+    assert (retreat["source_url"], retreat["source_uid"]) == (
+        "https://sbm.osb.org/event/grounding-our-emotions-during-tough-times/2026-11-03/", "4155871"), \
+        "an Event with a sign-up page links to it, still known by the calendar's id"
+    assert talk["source_url"] == "https://my.csbsju.edu/public/events/5", "no sign-up page: the calendar's own page"
     assert campus_blurb("<p>SJU Football vs Gustavus</p><p>Tickets: https://tickets.csbsju.edu/x</p>",
                         "SJU Athletics") is None, "a game shows no About"
     assert campus_blurb("", "Library") is None and campus_blurb(None, "Library") is None

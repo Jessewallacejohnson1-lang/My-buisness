@@ -42,6 +42,12 @@ read).
 - Only what a source states, in your own calm words. The app shows the date, time and place
   beside the About, so the About adds what those don't.
 - Keep the good facts in `about`. With nothing more found, answer with `about` as it is.
+- **A sign-up or ticket page** (a campus Event's `link` when the calendar names one: Saint
+  Benedict's Monastery's retreats and workshops) is the host's own page too. Its fee, limits,
+  leader, every date of a series and "Registration is filled" are the truth. Such an Event often
+  already has a long `about` from the calendar without them: keep every fact `about` has and add
+  the page's, the fee and a full registration first (BP app event-details; Jesse, 2026-10-29: "i
+  want max info"). Up to about 700 characters is fine for these.
 
 ## Answer
 
