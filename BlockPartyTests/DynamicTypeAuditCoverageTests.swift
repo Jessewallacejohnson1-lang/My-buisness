@@ -44,6 +44,8 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "RootView.swift:$showProfileSheet": .notYetAudited(reason: "The You tab's profile. Not a developed page yet — see DynamicTypeAuditTests.notDevelopedYet. High priority the day it settles: a profile is user-generated text of any length."),
 
         "OnboardingNamePhoto.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
+        "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
+        "YourCode.swift:$scanning": .notYetAudited(reason: "Scan a code (friends 07): Apple's own scanner (VisionKit) with our round X and a one-line pill; the camera-off note wraps. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Needs a launch flag; its own text is mostly frozen map-marker chrome, so the payoff is the search and filter row, not the map."),
         "FriendMenu.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "FeedEventCard.swift:$commentsPresented": .notYetAudited(reason: "Event comments. User-generated text of any length — high priority."),
