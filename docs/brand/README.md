@@ -27,7 +27,7 @@ python3 scripts/brand/wordmark.py docs/brand/source-logo-1254.png
 |---|---|---|
 | `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 952² | RGB, Icon Composer's Default export inset 36 px, corners filled flat yellow (not from this script since 2026-10-08) |
 | `Assets.xcassets/Wordmark.imageset/Wordmark.png` | 1051 × 216 | RGBA, the letterforms alone, **template-rendered** |
-| `Assets.xcassets/DailyMark.imageset/DailyMark.svg` | vector, 729 × 433 | the icon's own `AppIcon.icon/Assets/bp-mark.svg` paths, viewBox cropped to the letters, **template-rendered**: the Daily tab's icon (2026-10-29; not from this script, re-crop it whenever the .icon changes) |
+| `Assets.xcassets/DailyMark.imageset/DailyMark.svg` | vector, 38 × 22.57 pt (viewBox 729 × 433) | the icon's own `AppIcon.icon/Assets/bp-mark.svg` paths, viewBox cropped to the letters, **template-rendered**: the Daily tab's icon (2026-10-29; not from this script, re-crop it whenever the .icon changes) |
 
 The script writes them into `docs/brand/`; move them into the asset catalog. It also
 leaves `clean-<n>.png`, the de-noised master it resamples from — an intermediate, not
