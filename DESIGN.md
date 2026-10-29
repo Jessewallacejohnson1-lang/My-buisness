@@ -168,10 +168,11 @@ SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), 
 
 ## Logo & app icon
 
-The icon is **"Bp."** (Oct 29, 2026 revision), Jesse's Icon Composer file
-`BlockParty/AppIcon.icon`: black "Bp." on solid BP yellow `#FCE804`, flat like
+The icon is **"Bp!"** (Oct 29, 2026 revision), Jesse's Icon Composer file
+`BlockParty/AppIcon.icon`: black "Bp!" on solid BP yellow `#FCE804`, flat like
 Spotify's, the letters lifted slightly as Spotify's green is (Apple's edge highlight and
-a 25% neutral shadow), with dark (yellow on near-black),
+a 25% neutral shadow), the `!` Yahoo-style (Fraunces Black Soft's stem over the logo's own period, the stem
+leaning 12°), with dark (yellow on near-black),
 tinted and clear looks. Edit it in Icon Composer. It replaced the stacked "Block /
 Party." of Oct 8, which replaced the one-line "BlockParty." lockup of Sep 19 and the
 Aug 25 wave figure (Jesse, 2026-09-19: "remove that logo with a person, totally
