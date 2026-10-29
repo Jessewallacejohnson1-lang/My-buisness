@@ -86,7 +86,7 @@ const game = (date, more = {}) => ({ status: 'approved', title: 'Sartell Volleyb
   team_ids: ['rocori', 'sartell'], team_names: ['ROCORI', 'Sartell'], occasion: 'Senior Night', ...more });
 const news = { title: 'Flight Friday', blurb: 'Four scoops for $5 on Fridays.', category: 'business',
   source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/x/', tier: 1, status: 'published',
-  starts_at: null, interests: ['breweries'], place_entry_id: 'cow-wandering' };
+  starts_at: null, interests: ['breweries'], place_entry_id: 'cow-wandering', own_link: true };
 // write_judged.payloads' six lists.
 const apply = (events, mentions, news, cancelled = [], restored = []) => asJob('apply_judged',
   'select public.apply_judged($1, $2, $3, $4, $5, $6) as r',
@@ -102,17 +102,31 @@ test('prepare and write: the registry sync, the listed events, apply_judged and 
       kind = excluded.kind, method = excluded.method, trust = excluded.trust, place_id = excluded.place_id,
       extra = excluded.extra`;
   await asJob('prepare: sources sync', sync, [JSON.stringify([page])]);
-  await asJob('prepare: sources check', `update public.sources set last_checked_at = now(), last_error = null
-    where entry_id = $1 and url = $2`, [page.entry_id, page.url]);
+  await asJob('prepare: sources state', `select entry_id, url, last_hash, last_checked_at, last_error, failing_since,
+    failing_reads, set_aside_at from public.sources`);
+  // A failing page: since when, then set aside (smooth-mornings 04); a good read clears both; the sync
+  // clears a page no longer watched.
+  const check = (fields, params) => asJob('prepare: sources check', `update public.sources set last_checked_at = now(),
+    ${fields} where entry_id = $1 and url = $2`, [page.entry_id, page.url, ...params]);
+  await check('last_error = $3, failing_since = now(), failing_reads = 1', ['HTTP Error 500']);
+  await check('last_error = $3, failing_reads = 3, set_aside_at = now()', ['HTTP Error 500']);
+  await check('last_error = null, failing_since = null, failing_reads = 0, set_aside_at = null', []);
+  await asJob('prepare: clear a page no longer watched', `update public.sources set last_error = null,
+    failing_since = null, failing_reads = 0, set_aside_at = null where entry_id = $1 and url = $2`,
+    ['old-page', 'https://old.example/']);
   await asJob('listed_for_writer', 'select public.listed_for_writer()');
 
   const first = await apply([game(day(7))], [{ event_source_name: 'ROCORI High School', event_source_uid: uid,
     source_name: 'Sartell High School', source_url: 'https://sartell.k12.mn.us/athletics', source_uid: 's1',
     trust: 'official', sure: true }], [news]);
-  assert.deepEqual([first.events, first.mentions, first.news], [1, 1, 1]);
+  // The counts it always gave, and which items it added (smooth-mornings 05): the game and the News.
+  assert.deepEqual([first.events, first.mentions, first.news, first.added], [1, 1, 1, { events: [0], news: [0] }]);
   const [{ id }] = await asJob('read back', 'select id from public.club_events');
-  // The next morning it moved a day and its schedule dropped it, then another school listed it again.
-  await apply([game(day(8), { description: 'Senior night: the Storm honors its seniors before the game.' })], [], [news]);
+  // The next morning it moved a day and its schedule dropped it, then another school listed it again. The
+  // same post came back reworded: one News is one link.
+  const next = await apply([game(day(8), { description: 'Senior night: the Storm honors its seniors before the game.' })],
+    [], [{ ...news, title: 'Four scoops for $5 every Friday' }]);
+  assert.deepEqual([next.events, next.news, next.added], [1, 0, { events: [], news: [] }]);
   assert.equal((await apply([], [], [], [id])).cancelled, 1);
   assert.equal((await apply([], [], [], [], [id])).restored, 1);
   await asJob('write: fingerprints', `update public.sources set last_hash = $3, last_changed_at = now()
@@ -128,7 +142,7 @@ test('tag, describe and standouts write onto the Event', async () => {
     returning id`, [day(8)]);
   await asJob('tag', `update public.club_events set interests = $2, draw = $3, what = $4, interests_tagged_at = now()
     where id = $1`, [id, ['outdoors', 'trails_hiking'], 3, 'Hayride']);
-  await asJob('describe', 'update public.club_events set description = $2 where id = $1',
+  await asJob('describe', 'update public.club_events set description = $2, described_at = now() where id = $1',
               [id, 'A tractor-pulled ride through the haunted woods, with cider and a bonfire after. Dress warm.']);
   await asJob('standouts: clear today', 'delete from public.daily_standouts where town = $1 and day = $2',
               ['st-joseph-mn', day(8)]);

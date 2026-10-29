@@ -48,6 +48,10 @@ game from both teams is one Event, a tournament day one Event; playoff games are
 playoff game with no opponent yet waits. On a morning every school was read, a game gone from
 the schedules is marked cancelled by the writer (Jesse, 2026-10-15); a school whose schedule came
 back with nothing on it is left out of that, so its games stay as they are (Jesse, 2026-10-27).
+Games arrive complete (BP app smooth-mornings 06): every game the league, Bound and the CSB/SJU
+Athletics calendars bring has a title of 40 characters or fewer (game_title, the title-and-place
+rules) and an About made of its schedule's facts (game_about), so no game reaches the morning's
+titles or describe work.
 
 Dry-run by default (ADR-009): prints what each reader found. `--items FILE` writes the
 judged items, one per line, for the writer, which merges them with what is already listed
@@ -59,6 +63,7 @@ and writes the SQL; it sets each event's show-from day too:
 """
 
 import argparse, html, json, math, re, sys, urllib.error
+from collections import Counter
 from time import sleep
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from datetime import date, datetime, time, timedelta, timezone
@@ -101,6 +106,61 @@ def utc_local(stamp):
 
 def ahead(day, today):
     return today <= day <= today + timedelta(days=DAYS_AHEAD)
+
+
+# A game's title and About (BP app smooth-mornings 06) ------------------------------------
+
+TITLE_MAX = 40  # characters: past it the Town's Event of the day poster takes three lines (write_judged's)
+# A school's kind after its name, which the level already says: "Willmar MS", "North Junior High".
+SCHOOL_KIND = re.compile(r"\s+(?:MS|Middle School|Junior High|Jr\.? High|High School|School)$")
+LEVEL_SHORT = {"Middle school": "MS"}  # "C-squad" stays whole: the merge rule tells it from varsity by it
+
+
+def game_title(teams, sport, ours=None, level=""):
+    """A game's title by the title-and-place rules, "<home> <sport> vs <away>", then " · <level>"
+    below varsity, in 40 characters or fewer so the poster fits without the morning's model. Too
+    long, it gives up a little at a time and never cuts a word: a school's kind ("Willmar MS" is
+    "Willmar"); our own team, which the host line names ("Boys Basketball vs Willmar · C-squad");
+    a co-op's or district's later towns ("Sartell-Sauk Rapids" is "Sartell"); the level's short
+    form ("8th", "MS"); the boys or girls; then the level. The About keeps all of it. `ours`:
+    which of the two teams is the host's own, when known."""
+    names, lv = list(teams), level
+
+    def title():
+        head = f"{names[0]} {sport} vs {names[1]}" if all(names) else f"{sport} vs {''.join(names)}"
+        return head + (f" · {lv}" if lv else "")
+    if len(title()) > TITLE_MAX:
+        names = [SCHOOL_KIND.sub("", n) for n in names]
+    if len(title()) > TITLE_MAX and ours is not None:
+        names[ours] = ""
+    if len(title()) > TITLE_MAX:
+        names = [n.split("-")[0] for n in names]
+    if len(title()) > TITLE_MAX:
+        lv = LEVEL_SHORT.get(lv) or re.sub(r"^(\d+th) grade$", r"\1", lv, flags=re.I)
+    if len(title()) > TITLE_MAX:
+        # ponytail: the boys or girls go only when nothing else fits (48 of Bound's 791 games on
+        # 2026-10-29, a C-squad or JV with a long opponent); two names longer still stay long.
+        sport = re.sub(r"^(Boys|Girls) ", "", sport)
+    if len(title()) > TITLE_MAX:
+        lv = ""
+    return title()
+
+
+def plays_for(team, school):
+    """A team is this registry school's, its co-op's included: "St. Cloud Apollo" and Apollo High
+    School, "Sartell-Sauk Rapids" and Sartell High School."""
+    name, team = re.sub(r" (Area )?(High|Community) School$", "", school).lower(), short_team(team).lower()
+    return name == team or name in team.split("-")
+
+
+def game_about(level, sport, home, away, place, hosted=True, occasion=None):
+    """A game's About from its schedule alone: its level and sport, who hosts whom (or who plays
+    whom, on ground that is neither's), where, and the night or playoff round the schedule names.
+    Nothing here to research, so the describe layout leaves games out."""
+    what = f"{level} {sport.lower()}".strip()
+    who = f"{home} hosts {away}" if hosted else f"{home} and {away} play"
+    return f"{what[:1].upper()}{what[1:]}: {who}" + (f" at {place}" if place else "") + "." \
+        + (f" {occasion}." if occasion else "")
 
 
 # iCal ------------------------------------------------------------------------------------
@@ -216,10 +276,28 @@ def campus_town(place):
     return "St. Joseph" if re.fullmatch(r"(st\.?|saint) joseph", town, re.I) else town
 
 
+# A playoff round in an opponent's place: "vs MIAC Quarterfinals", "vs TBD: MIAC Quarterfinals".
+ROUND = re.compile(r"^(tbd|tba)$|\b(quarterfinals?|semifinals?|finals?|playoffs?)\b", re.I)
+
+
+def campus_game(title, place, host):
+    """An Athletics calendar's game as the writer reads it ("SJU Football vs Concordia: Homecoming",
+    tidy_title and game_of, so the card reads the same), and its About from the schedule's facts
+    (smooth-mornings 06): (title, About), or (title, None) for a meet."""
+    from write_judged import tidy_title, tidy_place, game_of  # the writer imports this file
+    g = game_of({"source_name": host}, tidy_title(title, host, event=False))  # its night, which a long title gives up
+    if not g:
+        return title, None
+    (home, away), night, place = g["teams"], g["occasion"], tidy_place(place)
+    if ROUND.search(away):  # its opponent still to come
+        away, night = f"the {night if ROUND.match(away) and night else away}", None
+    return tidy_title(title, host), game_about("", g["sport"], home, away, place, occasion=night)
+
+
 def campus_blurb(markup, cal):
     """The calendar's own description as plain text, a line to each paragraph, for the Event
-    page's About (Jesse, 2026-10-19). None for a game: an Athletics calendar's description is
-    only the title and the links to its stream and tickets, and a game shows no About."""
+    page's About (Jesse, 2026-10-19). None for an Athletics calendar: its description is only the
+    title and the links to its stream and tickets (a game's About is its facts, campus_game)."""
     if "Athletics" in cal:
         return None
     paras = (plain(p) for p in re.split(r"</p>|<br\s*/?>", markup or "", flags=re.I))
@@ -275,10 +353,13 @@ def pathify_items(rows, entry, src, today):
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
         news = bool(NEWS.search(title))
+        about = campus_blurb(r.get("description"), cal)
+        if "Athletics" in cal:
+            title, about = campus_game(title, place, CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"))
         out.append(judged(entry, src, kind="news" if news else "event", category="campus" if news else None,
                           title=title, start=start, end=end, all_day=bool(r.get("all_day")),
                           place=place, town=campus_town(place), area="campus",
-                          blurb=campus_blurb(r.get("description"), cal),
+                          blurb=about,
                           source_name=CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
                           source_url=f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           source_uid=str(r["id"])))
@@ -604,6 +685,10 @@ def games(listings, today):
             left["waiting"] += 1  # a playoff game with no opponent yet waits until it has one
         else:
             kept.append(l)
+    # A school's own team in a sport is the one in more than half its rows, its co-op's included
+    # ("River Lakes" for Albany, which the league may list second, as at River Lakes Arena).
+    rows = Counter((l["lister"], l["activity"]) for l in listings)
+    named = Counter((l["lister"], l["activity"], n) for l in listings for n in {l["team"], l["opponent"]})
     busy = {}
     for l in kept:
         k = (l["lister"], l["day"], l["activity"], l["venue"])
@@ -628,14 +713,22 @@ def games(listings, today):
                 name = re.sub(r"\b(Meet|Invite|Invitational)\b", lambda m: f"{first['family']} {m[1]}", name, count=1) \
                     if re.search(r"\b(Meet|Invite|Invitational)\b", name) else f"{name}: {first['sport']}"
             title, uid = name, f"mshsl:meet:{first['family'].lower()}:{first['day']}:{first['venue'].lower()}"
-            game = None
+            game = about = None
             when = min(ls, key=lambda l: league_start(l["day"], l["time"])[::-1])  # timed first, earliest
         else:
-            us, them = first["team"], first["opponent"]
-            if not own and home:  # read from the visitors' schedule: the home team goes first
-                us, them = them, us
-            title = f"{short_team(us)} {first['sport']} vs {short_team(them)}"
-            game = {"sport": first["sport"], "teams": [short_team(us), short_team(them)]}
+            pair, act = (first["team"], first["opponent"]), first["activity"]
+            mine = lambda lister: [n for n, t in enumerate(pair) if named[(lister, act, t)] * 2 > rows[(lister, act)]]
+            # The venue's school hosts only a game it plays in, and then goes first: a section game on a
+            # third school's ground has no host and keeps both teams. On ground that is no school's, the
+            # host line is the lister's, and its own team may leave a long title.
+            hosts = ([n for n, t in enumerate(pair) if plays_for(t, home)] or (mine(home) if own else [])) if home else []
+            us, them = pair[::-1] if hosts == [1] else pair
+            teams = [short_team(us), short_team(them)]
+            listed = mine(first["lister"])
+            ours = 0 if len(hosts) == 1 else listed[0] if not home and len(listed) == 1 else None
+            title = game_title(teams, first["sport"], ours)
+            about = game_about("Varsity", first["sport"], teams[0], teams[1], first["venue"], hosted=len(hosts) == 1)
+            game = {"sport": first["sport"], "teams": teams}
             pair = "|".join(sorted(t.lower() for t in (first["team"], first["opponent"])))
             uid, when = f"mshsl:{first['activity']}:{pair}:{first['n']}", first
         start, all_day = league_start(when["day"], when["time"])
@@ -643,7 +736,7 @@ def games(listings, today):
                       "place": first["venue"], "town": town, "area": "game", "source_name": host,
                       "source_url": first["page"], "source_uid": uid, "trust": "official", "sure": True,
                       "size": "notable" if PLAYOFF.search(title) else "everyday", "interest": "watch_sports",
-                      "blurb": None, **({"game": game} if game else {})})
+                      "blurb": about, **({"game": game} if game else {})})
     return sorted(items, key=lambda i: (i["start"], i["title"])), left
 
 
@@ -736,7 +829,7 @@ def bound_team(entry):
 
 
 def bound_items(text, entry, src, today):
-    out, levels = [], set(src.get("game_levels") or ())
+    out, games, levels = [], [], set(src.get("game_levels") or ())
     for ev in parse_ics(text):
         get = lambda k: unescape(ev.get(k, ("", ""))[1])
         title, key, level = get("SUMMARY"), get("X-BND-ACTIVITYKEY"), get("X-BND-ACTIVITYLEVEL")
@@ -754,8 +847,9 @@ def bound_items(text, entry, src, today):
         name = re.sub(r"\s*\([^)]*$", "", name)
         name = name.split(": ", 1)[1].strip() if ": " in name and key else "" if key and name.endswith(":") else name
         if not re.sub(r"\bvs\b", "", name).strip():
-            # Posted with no name ("Choir:  vs"): its level may be the name ("Fall Show"), else skip it.
-            if not level or BOUND_LEVEL.fullmatch(f" ({level})"):
+            # Posted with no name ("Choir:  vs"): a show's level may be its name ("Fall Show"), else skip
+            # it. A sport's is a game with no opponent yet: Sartell's "Girls Varsity" wrestling, Dec 18.
+            if not level or key not in BOUND_ARTS or BOUND_LEVEL.fullmatch(f" ({level})"):
                 continue
             name = level
         quoted = re.search(r'"([^"]+)"', name)
@@ -773,21 +867,35 @@ def bound_items(text, entry, src, today):
         elif key and " vs " in name:
             if level == "Varsity" and not far:
                 continue  # the league's
-            teams = [BOUND_TEAMS.get(t.strip(), short_team(t)) for t in name.split(" vs ", 1)]
-            if {t.lower() for t in teams} & PLACEHOLDERS or UNDECIDED.search(name):
+            # Bound names the visitors first ("Brainerd vs St. Cloud Apollo" at Apollo); a title and a game
+            # card put the home team first, as the league's do.
+            away, home = [BOUND_TEAMS.get(t.strip(), short_team(t)) for t in name.split(" vs ", 1)]
+            if {away.lower(), home.lower()} & PLACEHOLDERS or UNDECIDED.search(name):
                 continue  # an opponent not named yet
             sport = bound_sport(get("X-BND-ACTIVITYNAME"))
-            words = "" if level == "Varsity" else f" · {BOUND_LEVEL_WORDS.get(level, level)}" if level else ""
-            out.append(judged(entry, src, title=f"{teams[0]} {sport} vs {teams[1]}{words}", start=start_at,
-                              all_day=all_day, place=place, area="announced" if far else "game",
-                              interest="watch_sports", blurb=f"{level} game" if level else None,
-                              followers_only=far or level not in levels,
-                              game={"sport": sport, "teams": teams}, same=(start_at, key, level, place[:25]), **mark))
+            words = "" if level == "Varsity" else BOUND_LEVEL_WORDS.get(level, level)
+            game = judged(entry, src, title="", start=start_at, all_day=all_day, place=place,
+                          area="announced" if far else "game", interest="watch_sports",
+                          blurb=game_about(level and (words or "Varsity"), sport, home, away, place, hosted=any(
+                              re.search(rf"\b{re.escape(n)}\b", place, re.I) for n in {home, *home.split("-")})),
+                          followers_only=far or level not in levels,
+                          game={"sport": sport, "teams": [home, away]}, same=(start_at, key, level, place[:25]), **mark)
+            out.append(game)
+            games.append((game, words))
         elif key:
             # A banquet, a meeting: for those following its activity or school. The school's own days
             # with no activity ("No School", "Mass", "Conferences") stay out.
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
                               followers_only=True, same=(start_at, key or name, level, place[:25]), **mark))
+    # The school's own team, which a title too long for both leaves out: its own name, or a co-op's
+    # ("St. Cloud", "River Lakes") as the one team in more than half that activity's games here.
+    played = Counter(g["activity_name"] for g, _ in games)
+    seen = Counter((g["activity_name"], t) for g, _ in games for t in g["game"]["teams"])
+    for g, words in games:
+        teams, act = g["game"]["teams"], g["activity_name"]
+        ours = [n for n, t in enumerate(teams) if bound_team({"_name": t}) == bound_team(entry)] \
+            or [n for n, t in enumerate(teams) if seen[(act, t)] * 2 > played[act]]
+        g["title"] = game_title(teams, g["game"]["sport"], ours[0] if len(ours) == 1 else None, words)
     # The whole schedule was read: an event of this school's gone from it was called off. A schedule
     # with nothing on it is a feed that came back empty, not a school that called off everything.
     if not out:
@@ -1419,13 +1527,15 @@ def t_gobound():
         ev("a11", "Volleyball\\, Girls: Brainerd vs St. Cloud Apollo (Junior Varsity)", "volleyball", "Junior Varsity",
            "Volleyball\\, Girls"),
         ev("a12", "Volleyball\\, Girls: St. Cloud Apollo vs Fergus Falls (Varsity)", "volleyball", "Varsity",
-           "Volleyball\\, Girls", geo="46.283016;-96.077558"),
+           "Volleyball\\, Girls", geo="46.283016;-96.077558", place="Fergus Falls High School Gold Gym"),
         ev("a13", "Volleyball\\, Girls: Volleyball Banquet (Varsity)", "volleyball", "Varsity", "Volleyball\\, Girls"),
         # Real ones from the first dry run (2026-10-26): no activity, a banquet a show word matched,
         # an empty name, a meet named only "Competition".
         ev("a14", "No School"), ev("a15", "Boys Soccer Banquet - Play Soccer"),
         ev("a16", "Wrestling:", "wrestling", "", "Wrestling"),
         ev("a17", "Robotics: Competition", "robotics", "", "Robotics"),
+        # A sport's event with no name, its level standing in: Sartell's "Girls Varsity" wrestling, Dec 18.
+        ev("a18", "Wrestling:  vs  (Girls Varsity)", "wrestling", "Girls Varsity", "Wrestling"),
     ])
     src = {"url": "https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical", "trust": "official"}
     got = bound_items(ics, {"_name": "Apollo High School"}, src, date(2026, 10, 25))
@@ -1436,8 +1546,8 @@ def t_gobound():
     assert [(i["title"], i["followers_only"]) for i in events] == [
         ("Apollo Theater Presents: The SpongeBob Musical", False), ("Detroit Lakes Band Festival", True),
         ("Fall Show", False), ("Fall Play", False), ("The Little Mermaid", False),
-        ("Melrose Boys Soccer vs Kennedy · Middle school", True), ("Holdingford Girls Basketball vs Kennedy · Middle school", True),
-        ("Brainerd Volleyball vs Apollo · JV", True), ("Apollo Volleyball vs Fergus Falls", True),
+        ("Kennedy Boys Soccer vs Melrose · MS", True), ("Kennedy Basketball vs Holdingford · MS", True),
+        ("Apollo Volleyball vs Brainerd · JV", True), ("Fergus Falls Volleyball vs Apollo", True),
         ("Volleyball Banquet", True), ("Boys Soccer Banquet - Play Soccer", True),
         ("Robotics Competition", False)], events
     assert [(i["activity_team"], i["activity_name"]) for i in events[:2]] == [("apollo", "Drama"), ("apollo", "Band")]
@@ -1451,11 +1561,16 @@ def t_gobound():
     kennedy = bound_items(ics, {"_name": "Kennedy Community School"}, {**src, "game_levels": ["Middle School"]},
                           date(2026, 10, 25))
     game = [i for i in kennedy if "game" in i]
-    assert [(i["title"], i["game"], i["followers_only"]) for i in game if i["title"].startswith("Melrose")] == [
-        ("Melrose Boys Soccer vs Kennedy · Middle school", {"sport": "Boys Soccer", "teams": ["Melrose", "Kennedy"]},
-         False)], game
-    assert "Holdingford Girls Basketball vs Kennedy · Middle school" in [i["title"] for i in game], \
+    # The home team first, as the league's (Bound names the visitors first); too long for both, the
+    # school's own team leaves the title, since the host line names it (smooth-mornings 06).
+    assert [(i["title"], i["game"], i["followers_only"], i["blurb"]) for i in game if "Melrose" in i["title"]] == [
+        ("Boys Soccer vs Melrose · Middle school", {"sport": "Boys Soccer", "teams": ["Kennedy", "Melrose"]}, False,
+         "Middle school boys soccer: Kennedy hosts Melrose at Kennedy Community School Kennedy Field.")], game
+    assert "Girls Basketball vs Holdingford · MS" in [i["title"] for i in game], \
         "a title Bound cut off loses its stub"
+    away = next(i for i in events if "Fergus" in i["title"])
+    assert (away["game"]["teams"], away["blurb"]) == (["Fergus Falls", "Apollo"], "Varsity volleyball: Fergus Falls "
+                                                      "hosts Apollo at Fergus Falls High School Gold Gym."), away
     assert bound_team({"_name": "Kennedy Community School"}) == "kennedy"
     assert bound_team({"_name": "Sauk Rapids-Rice High School"}) == "sauk-rapids-rice"
     # One Event for a festival every school lists, posted by the school whose venue it is.
@@ -1498,7 +1613,110 @@ def t_league_stops_past_the_part():
     assert cut[1] <= 120 + 150 + 117 + 20, f"the part's league calls end in time: {cut[1]} s"
     assert list(saved.values()) == [[[], None]], "the next part reads the school whole"
 
-TESTS = [t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
+def facts_only(about, *facts):
+    """Every word of an About is one of its schedule's own (teams, sport, level, place, night), or one
+    of the few that join them."""
+    said = set(re.findall(r"[a-z0-9'#]+", " ".join(facts).lower())) | {"hosts", "and", "play", "at", "the", "jv", "c", "squad"}
+    return bool(about) and set(re.findall(r"[a-z0-9'#]+", about.lower())) <= said
+
+
+def t_games_complete():
+    """Every game the school readers bring arrives titled in 40 characters or fewer by the
+    title-and-place rules, with an About of its schedule's facts alone (smooth-mornings 06): the
+    league's, the CSB/SJU Athletics calendars', and Bound's, Oct 28's long titles among them."""
+    league = [i for i in games(league_sample(), LEAGUE_DAY)[0] if "game" in i]
+    assert league and all(len(i["title"]) <= TITLE_MAX for i in league), [i["title"] for i in league]
+    soccer = next(i for i in league if i["title"] == "Sartell Girls Soccer vs St. Cloud")
+    assert soccer["blurb"] == "Varsity girls soccer: Sartell hosts St. Cloud at Sartell High School.", soccer["blurb"]
+    for i in league:
+        assert facts_only(i["blurb"], "varsity", i["title"], i["place"]), i["blurb"]
+    # Albany's girls play as River Lakes, which the league listed second at River Lakes Arena (Oct 29's
+    # dry run): the team Albany's host line names is River Lakes, not the first.
+    row = lambda them, venue, n, team="River Lakes": {
+        "lister": "Albany High School", "page": f"{LEAGUE}/group/1/full-schedule", "activity": 133, "family": "Hockey",
+        "sport": "Girls Hockey", "day": LEAGUE_DAY + timedelta(n), "time": "7:00 PM", "team": team, "opponent": them,
+        "named": False, "venue": venue, "n": 1}
+    hockey = games([row("River Lakes", "River Lakes Arena", 1, team="Detroit Lakes"), row("Fergus Falls", "Fergus Falls Ice Arena", 2),
+                    row("Brainerd", "Essentia Health Sports Center", 3)], LEAGUE_DAY)[0]
+    assert [(i["title"], i["blurb"]) for i in hockey] == [("Girls Hockey vs Detroit Lakes", "Varsity girls hockey: "
+                                                          "Detroit Lakes and River Lakes play at River Lakes Arena.")], hockey
+    # A section game on a third school's ground: the venue's school plays in neither team, so nobody hosts
+    # and both teams stay in the title (review of 06d3b8e0: "Eden Valley-Watkins hosts Albany" at Sartell).
+    section = [dict(row("Eden Valley-Watkins", "Sartell High School", 4, team="Albany"), sport="Girls Basketball", activity=7),
+               dict(row("Albany", "Sartell High School", 4, team="Eden Valley-Watkins"), sport="Girls Basketball", activity=7,
+                    lister="Eden Valley-Watkins High School")]
+    assert [(i["title"], i["blurb"], i["source_name"]) for i in games(section, LEAGUE_DAY)[0]] == [
+        ("Albany Girls Basketball vs Eden Valley", "Varsity girls basketball: Albany and Eden Valley-Watkins play at "
+         "Sartell High School.", "Sartell High School")], games(section, LEAGUE_DAY)[0]
+    campus = [i for i in pathify_items(json.loads(sample("csbsju-events.json")), {"_name": "x"},
+                                       {"url": "https://my.csbsju.edu/api"}, TODAY) if "Athletics" in i["source_name"]]
+    raw = {str(r["id"]): r for r in json.loads(sample("csbsju-events.json"))}
+    assert [(i["title"], i["blurb"]) for i in campus] == [
+        ("CSB Soccer vs Hamline: Senior Night", "Soccer: Saint Benedict hosts Hamline at CSB Stadium. Senior Night."),
+        ("SJU Soccer vs UW-River Falls", "Soccer: Saint John's hosts UW-River Falls at Haws Field, Collegeville."),
+        ("SJU Football vs Concordia: Homecoming",
+         "Football: Saint John's hosts Concordia at Clemens Stadium, Collegeville. Homecoming.")], campus
+    for i in campus:
+        r = raw[i["source_uid"]]
+        assert len(i["title"]) <= TITLE_MAX and facts_only(i["blurb"], r["title"], r["location"]), i
+    # A calendar the reader doesn't know yet is read, never a stop (review of 06d3b8e0).
+    club = pathify_items([{"id": 9, "title": "Club Hockey vs Bemidji State", "location": "Collegeville, Minn., Sexton Arena",
+                           "calendar": {"name": "Club Athletics"}, "start_date": "2026-10-20T00:00:00Z", "all_day": False}],
+                         {"_name": "x"}, {"url": "https://my.csbsju.edu/api"}, TODAY)
+    assert [(i["source_name"], i["title"], i["blurb"]) for i in club] == [
+        ("CSB SJU Club Athletics", "Club Hockey vs Bemidji State", None)], club
+    # A playoff round in the opponent's place (Oct 29's dry run): no team "TBD" hosted.
+    assert [campus_game(t, "St. Joseph, Minn., CSB Stadium", "CSB Athletics")[1] for t in (
+        "College of Saint Benedict Soccer vs MIAC Quarterfinals", "College of Saint Benedict Soccer vs TBD - MIAC Semifinals")] \
+        == ["Soccer: Saint Benedict hosts the MIAC Quarterfinals at CSB Stadium.",
+            "Soccer: Saint Benedict hosts the MIAC Semifinals at CSB Stadium."]
+    # Oct 28's long game titles, as Bound's calendars give them (the visitors first). The school's own
+    # team leaves a title too long for both; a co-op's ("River Lakes") is the team in most of its games.
+    def ev(uid, summary, act, level, place):
+        return (f"BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:20261201T174500\r\nGEO:45.4;-94.6\r\n"
+                f"LOCATION:{place}\r\nSTATUS:CONFIRMED\r\nSUMMARY:{act.replace(',', '\\,')}: {summary} ({level})\r\n"
+                f"UID:{uid}\r\nX-BND-ACTIVITYKEY:{act.split(',')[0].lower()}\r\nX-BND-ACTIVITYLEVEL:{level}\r\n"
+                f"X-BND-ACTIVITYNAME:{act.replace(',', '\\,')}\r\nEND:VEVENT\r\n")
+    calendars = {
+        "Sauk Rapids-Rice High School": [
+            ev("s1", "North Junior High vs Sauk Rapids-Rice", "Basketball, Girls", "7th Grade", "Sauk Rapids-Rice Middle School Gym"),
+            ev("s2", "St. Cloud Apollo vs Sauk Rapids-Rice", "Basketball, Boys", "C", "Sauk Rapids-Rice High School Auxiliary Gym")],
+        "Sartell High School": [
+            ev("t1", "Sauk Rapids-Rice vs Sartell", "Basketball, Boys", "8th Grade", "Sartell Middle School Gym"),
+            ev("t2", "Sartell/Sauk Rapids vs Thief River Falls", "Hockey, Girls", "Junior Varsity", "Huck Olson Memorial Arena"),
+            ev("t3", "Sartell/Sauk Rapids vs Willmar", "Hockey, Girls", "Junior Varsity", "Willmar Civic Center"),
+            ev("t4", "Detroit Lakes vs Sartell/Sauk Rapids", "Hockey, Girls", "Junior Varsity", "Bernicks Arena")],
+        "ROCORI High School": [
+            ev("r1", "Prairie Centre vs River Lakes", "Hockey, Boys", "Junior Varsity", "River Lakes Civic Arena"),
+            ev("r2", "River Lakes vs Hutchinson", "Hockey, Boys", "Junior Varsity", "Hutchinson Civic Arena"),
+            ev("r3", "Little Falls vs ROCORI", "Basketball, Boys", "C", "ROCORI Middle School Gym")],
+        # A game on a third school's ground (Whitney, Cathedral's calendar): nobody hosts.
+        "Cathedral High School": [
+            ev("c1", "Montevideo vs Sauk Rapids-Rice", "Basketball, Boys", "Junior Varsity", "Whitney Recreation Center Gym")]}
+    got = {}
+    for school, events in calendars.items():
+        for i in bound_items("".join(events), {"_name": school}, {"url": "u"}, date(2026, 10, 28)):
+            if "game" in i:
+                got[i["source_uid"][6:]] = (i["title"], i["blurb"])
+    assert {k: t for k, (t, _) in got.items()} == {
+        "s1": "Girls Basketball vs North · 7th Grade", "s2": "Boys Basketball vs Apollo · C-squad",
+        "t1": "Boys Basketball vs Sauk Rapids · 8th", "t2": "Girls Hockey vs Thief River Falls · JV",
+        "t3": "Girls Hockey vs Willmar · JV", "t4": "Girls Hockey vs Detroit Lakes · JV",
+        "r1": "Boys Hockey vs Prairie Centre · JV", "r2": "Boys Hockey vs Hutchinson · JV",
+        "r3": "Basketball vs Little Falls · C-squad", "c1": "Sauk Rapids Basketball vs Montevideo"}, got
+    assert got["c1"][1] == ("JV boys basketball: Sauk Rapids-Rice and Montevideo play at Whitney Recreation Center Gym."), got["c1"]
+    assert got["s1"][1] == ("7th Grade girls basketball: Sauk Rapids-Rice hosts North Junior High at "
+                            "Sauk Rapids-Rice Middle School Gym."), got["s1"]
+    for uid, (title, about) in got.items():
+        source = next(e for es in calendars.values() for e in es if f"UID:{uid}\r" in e)
+        assert len(title) <= TITLE_MAX and facts_only(about, source.replace("/", "-")), (title, about)
+    # Two long names on a third school's ground, the host line naming neither, still fit.
+    assert game_title(["Montevideo", "Sauk Rapids-Rice"], "Boys Basketball") == "Montevideo Basketball vs Sauk Rapids"
+    assert game_title(["Sartell", "Fergus Falls"], "Girls Soccer") == "Sartell Girls Soccer vs Fergus Falls", \
+        "a title that fits is never touched"
+
+
+TESTS = [t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts]
 

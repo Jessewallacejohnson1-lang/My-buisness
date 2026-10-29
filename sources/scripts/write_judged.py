@@ -6,10 +6,12 @@ and the spec's Area rule, which amends ADR-019 and ADR-021's in-town rule).
 
 The part of the morning job that needs no model: saved pages in, Events and News out, and
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
-becomes. How the writes land lives in the database, in public.apply_judged
-(supabase/migrations/20261016090200_apply_judged_title_kept.sql): `--apply` calls it with this
-morning's writes over the service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in
-the environment), `--sql FILE` writes the same call as SQL to run by hand.
+becomes. How the writes land lives in the database, in public.apply_judged (the newest
+supabase/migrations/*.sql that makes it): `--apply` calls it with this morning's writes over the
+service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment), `--sql FILE`
+writes the same call as SQL to run by hand. Besides its counts, it answers which items it added
+(`added`: their places in the Events and News sent; every other Event was merged into one already
+listed, every other News a repeat; BP app smooth-mornings 05), and morning.py write counts from that.
 
   python3 sources/scripts/write_judged.py judged.jsonl --existing existing.json [--sql out.sql]
   python3 sources/scripts/write_judged.py judged.jsonl --existing db --apply
@@ -74,8 +76,15 @@ THE RULES
   Goes live: every kept item is published (events `approved`, news `published`), official or
     secondhand, on its first mention (Jesse, 2026-10-26: "only hold back if its the exact same").
     Nothing waits for review; the only thing kept out is a repeat.
-  News repeats: News from the same place in the last 6 days with much the same title (two
-    shared words at least, two thirds of the shorter title's, the place's own name not
+  News repeats: one News is one link (smooth-mornings 05). News from the same source with the
+    same link of its own (a post's address, a feed item's link; own_link) as a live News of the
+    last 7 days is a repeat however its title is worded: apply_judged leaves it out. This
+    morning's News from one post fold into the first one, whose blurb names the others ("Also:
+    ..."). Links compare without tracking, a trailing slash, or Facebook's and Instagram's m.
+    (clean_link). A site's home page or a page the registry or the social watch reads is no link
+    of its own, since every News read from it shares it. And News from the same place in the last
+    7 days (as long as the Town feed shows it) with much the same title (two shared words at
+    least, two thirds of the shorter title's, the place's own name, weekdays, free and new not
     counted) is a repeat and is not added (repeat_of).
   Merging: same place (or two names for one registry place), start within an hour (all-day ones: a day apart; one with no time: the
     same day), shared title words = one
@@ -121,6 +130,7 @@ EXISTING (--existing): the events already in the list, from yesterday on (cancel
 import argparse, json, re, secrets, sys
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
@@ -136,7 +146,8 @@ NEWS_CATEGORIES = {"announcement", "road", "school", "campus", "business"}
 STOP = set("a an and at by for from in of on the to with".split())
 # Words that tell two games at one place apart; both titles must carry the same ones.
 # A lower level's title carries it: "· C-squad", "· 9th grade", "· Middle school" (school-activities 03).
-TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens squad grade 9th middle".split())
+TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens squad grade 9th middle "
+           "ms 6th 7th 8th csquad bsquad".split())  # words() reads "C-squad" as "csquad"
 # Words that name the town or a kind of spot rather than which place: "Centennial Park
 # shelter" and "Millstream Park shelter" are two places, and so are "St. Cloud Apollo High
 # School" and "St. Cloud Tech High School".
@@ -340,10 +351,30 @@ def game_of(it, title):
     return {"sport": m["sport"], "teams": [host[1], them], "occasion": m["night"]}
 
 
+# A title in the readers' game form: "Sartell Girls Soccer vs St. Cloud", "Boys Basketball vs Willmar · C-squad",
+# "CSB Soccer vs Hamline: Senior Night".
+GAME_TITLE = re.compile(r"^\S.*? vs\.? (?P<them>.+?)(?: · .+?)?(?:: .+)?$")
+
+
+def is_game(e):
+    """What a game is (BP app smooth-mornings 06), read the same from a judged item or a listed row,
+    for the describe layout: two teams playing a sport. A `game` that names a sport and two teams says so, and so does the
+    sport the writer gave a row; else Watch sports and a title in the readers' form, a team after
+    its "vs" (or one still to come), not a meet. A game's About is its reader's (read_events.game_about),
+    so there is nothing to research."""
+    if not isinstance(e, dict):
+        return False
+    if e.get("sport") or isinstance(e.get("game"), dict) and game_of(e, ""):
+        return True
+    m = GAME_TITLE.match(str(e.get("title") or ""))
+    return bool(m) and e.get("interest", e.get("category")) == "watch_sports" and not NOT_A_TEAM.search(m["them"])
+
+
 def long_titles(items, existing=()):
     """Event titles still over TITLE_MAX once tidied, for the morning job's model to shorten by
     the title-and-place skill, never cut mid-word (Jesse, 2026-10-21: three lines don't fit the
-    Town's Event of the day poster). Games aside: two team names stay whole. An event already
+    Town's Event of the day poster). A game's reader writes it short (read_events.game_title), so
+    one over 40 is the judge's or a calendar's, and is shortened like any other. An event already
     listed with a short title keeps it (plan), so it isn't asked again."""
     short = {(r.get("source_name"), r.get("source_uid")) for r in existing
              if r.get("source_uid") and len(r.get("title") or "") <= TITLE_MAX}
@@ -353,7 +384,7 @@ def long_titles(items, existing=()):
             continue
         source = str(it.get("source_name") or "").strip()
         t = tidy_title(it["title"], source)
-        if len(t) > TITLE_MAX and not game_of(dict(it, source_name=source), t) and t not in out \
+        if len(t) > TITLE_MAX and t not in out \
                 and (source, str(it.get("source_uid") or "").strip()) not in short:
             out.append(t)
     return out
@@ -567,14 +598,57 @@ def news_of(it, interests, notes):
     if interest is not None and interest not in interests:
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
+    url = clean_link(it["source_url"])
     return {"title": tidy_title(it["title"], it["source_name"], event=False), "blurb": (it.get("blurb") or "").strip() or None,
             "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
-            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
+            "source_name": it["source_name"].strip(), "source_url": url,
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
             "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
             # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
-            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
+            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"]),
+            "own_link": own_link(url)}, None
+
+
+TRACKING = re.compile(r"igsh|img_index|utm_.*|fbclid", re.I)
+
+
+def clean_link(url):
+    """A News link as it is saved and compared: without tracking (?igsh=, &img_index=, utm_...) and with
+    Facebook's and Instagram's m. site as www., so one post shared two ways is one link."""
+    u = urlsplit((url or "").strip())
+    host = re.sub(r"^m\.(?=(facebook|instagram)\.com$)", "www.", u.netloc.lower())
+    query = urlencode([(k, v) for k, v in parse_qsl(u.query, keep_blank_values=True) if not TRACKING.fullmatch(k)])
+    return urlunsplit((u.scheme, host, u.path, query, u.fragment))
+
+
+def same_link(a, b):
+    return clean_link(a).rstrip("/") == clean_link(b).rstrip("/")
+
+
+def link_key(url):
+    """A link without its scheme, www. or m., query, fragment or trailing slash: "stjosephmn.gov/calendar.aspx"."""
+    u = urlsplit((url or "").strip().lower())
+    return (re.sub(r"^(www|m)\.", "", u.netloc) + u.path).rstrip("/")
+
+
+_PAGES = None
+
+
+def own_link(url):
+    """Whether a News item's link is its own (a post's address, a feed item's link), so the same link
+    from the same source again is a repeat (apply_judged). A site's home page, or a page the registry
+    or the social watch reads, is the link of every News read from it: Stearns County gives its home
+    page for all its news, Kennedy its calendar's ?cal_date=2026-11-01 for each day off in November.
+    Those keep the title rule alone."""
+    global _PAGES
+    if _PAGES is None:
+        root = Path(__file__).resolve().parents[2]
+        social = [p["url"] for f in (root / "sources" / "social").glob("*.json") for p in json.loads(f.read_text())]
+        _PAGES = {link_key(v) for e in registry.load(root)[0] for s in e.get("sources") or []
+                  for v in s.values() if isinstance(v, str) and v.startswith("http")} | {link_key(u) for u in social}
+    key = link_key(url)
+    return "/" in key and key not in _PAGES
 
 
 def mention(it, uid):
@@ -590,30 +664,51 @@ def repeat_of(n, recent):
     initials say it's another one: "I-94 eastbound: Crash" and "MN 23 westbound: Crash", "SJU
     Athlete of the Week" and "CSB Athlete of the Week". A date only one title gives doesn't:
     "Cloudy collection launches Oct 25" is the "Comfort With a Chance of Cloudy collection"
-    launching that Sunday; two different dates ("Closed Oct 24", "Closed Oct 31") do."""
-    stop = STOP | {"is", "are", "our", "your", "its", "this", "now"}
-    mine = words(DAY.sub(" ", n["title"]), stop) - words(n["source_name"])
+    launching that Sunday; two different dates ("Closed Oct 24", "Closed Oct 31") do. Capitals and
+    hyphens don't either: White Peony's "Build-your-own boo basket", "Build-your-own BOO baskets" and
+    "Build Your Own Boo Baskets" were one offer posted three times (Oct 26 and 27). Weekdays and words
+    like free and new say nothing of which offer: "FREE coffee Friday" is not "Free cookie Friday"."""
+    stop = STOP | FILLER
     for old in recent:
         if (old.get("place_entry_id") or old["source_name"]) != (n["place_entry_id"] or n["source_name"]):
             continue
-        (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"]), marks(n["title"])
+        (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"], n["title"]), marks(n["title"], old["title"])
         if theirs_marks != my_marks or (their_days and my_days and their_days != my_days):
             continue
-        theirs = words(DAY.sub(" ", old["title"]), stop) - words(old["source_name"])
+        mine = words(DAY.sub(" ", joined(n["title"], old["title"])), stop) - words(n["source_name"])
+        theirs = words(DAY.sub(" ", joined(old["title"], n["title"])), stop) - words(old["source_name"])
         shared = mine & theirs
         if len(shared) >= 2 and len(shared) >= 2 / 3 * min(len(mine), len(theirs)):
             return old
     return None
 
 
+FILLER = set("is are our your its this now free new".split()) | {
+    d + s for d in "monday tuesday wednesday thursday friday saturday sunday".split() for s in ("", "s")}
 DAY = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?\b", re.I)
 
 
-def marks(title):
+def marks(title, other=""):
     """A title's numbers and initials ("94", "MN", "SJU"), the words that tell one from another,
-    and apart from them the dates it names ("Oct 25")."""
+    and apart from them the dates it names ("Oct 25"). A word in capitals that `other` has too, in any
+    letters, is the same word shouted, not initials: "BOO baskets" and "Boo Baskets"."""
     days = {d.lower().replace(".", "") for d in DAY.findall(title or "")}
-    return set(re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))), days
+    theirs = set(re.findall(r"[a-z]+", (other or "").lower()))
+    return {m for m in re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))
+            if not (m.isalpha() and m.lower() in theirs)}, days
+
+
+HYPHENED = re.compile(r"[A-Za-z]+(?:-[A-Za-z]+)+")
+
+
+def joined(title, other):
+    """Words a hyphen joins in either title are one word in both: "Build Your Own" is "Build-your-own"
+    (words() already makes that "buildyourown"). Words joined in neither stay apart, so "Two-for-one apps"
+    and "Two-for-one drinks" share one word, not three."""
+    for compound in HYPHENED.findall(title or "") + HYPHENED.findall(other or ""):
+        parts = compound.split("-")
+        title = re.sub(r"\b" + r"[\s-]+".join(map(re.escape, parts)) + r"\b", "".join(parts), title, flags=re.I)
+    return title
 
 
 def group(old=None, facts=None, home="St. Joseph MN"):
@@ -630,7 +725,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
            "teams_checked": teams is not None}
     schedules = []
-    groups, by_uid, news = [group(row, home=home) for row in existing], {}, {}
+    groups, by_uid, news, also = [group(row, home=home) for row in existing], {}, {}, {}
     for g in groups:
         for m in [g["old"]] + g["mentions"]:
             if m.get("source_uid"):
@@ -652,6 +747,14 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             old = repeat_of(n, [*recent_news, *news.values()])
             if old:
                 out["outcomes"][i] = ("repeat", f"of {old['title']!r} (already in the app)")
+                continue
+            # One post is one News (smooth-mornings 05): a second News from the same post joins the first's
+            # blurb by its title (Well & Company's one post was three News on Oct 23).
+            post = n["own_link"] and next((m for m in news.values() if m["own_link"] and m["source_name"] == n["source_name"]
+                                           and same_link(m["source_url"], n["source_url"])), None)
+            if post:
+                also.setdefault(id(post), (post, []))[1].append(n["title"])
+                out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
                 continue
             n["status"] = "published"
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
@@ -679,6 +782,8 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             m = mention(it, key[1])
             g["mentions"] = [x for x in g["mentions"]
                              if (x["source_name"], x.get("source_url")) != (m["source_name"], m["source_url"])] + [m]
+    for post, titles in also.values():
+        post["blurb"] = " ".join(x for x in (post["blurb"], f"Also: {'; '.join(titles)}.") if x)
     out["news"] = list(news.values())
 
     for g in groups:
@@ -705,8 +810,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
         else:
             primary = min(g["items"], key=lambda e: items[e[0]]["trust"] != "official")
             g["status"] = "approved"
-        if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or "") \
-                and not primary[1]["row"]["sport"]:
+        if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or ""):
             # A title the morning job or Jesse shortened stays when its source sends the long one
             # again (title-and-place: 40 at most). ponytail: a source that renames an event to
             # another long title keeps the old short one; compare words if renames show up.
@@ -805,11 +909,12 @@ def listed_in_db():
     return Supabase().rest("POST", "rpc/listed_for_writer", {})
 
 
-def news_in_db(today=None):
-    """This week's News already in the app, for repeat_of."""
-    since = (today or datetime.now(LOCAL).date()) - timedelta(6)
+def news_in_db(now=None):
+    """The News already in the app from the 7 days the Town feed shows it (Chicago's now minus 7 days),
+    for repeat_of."""
+    since = ((now or datetime.now(LOCAL)) - timedelta(7)).replace(microsecond=0).isoformat()
     return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id"
-                                  f"&status=eq.published&created_at=gte.{since}") or []
+                                  f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
 
 
 def report(items, r):
@@ -832,7 +937,7 @@ def report(items, r):
     for n in r["notes"]:
         print(f"[note] {n}")
     for g in r["events"]:
-        if g["row"] and len(g["row"]["title"]) > TITLE_MAX and not g["row"]["sport"]:
+        if g["row"] and len(g["row"]["title"]) > TITLE_MAX:
             print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
 
 
@@ -844,7 +949,14 @@ def t_long_titles_shortened_and_kept():
     chapel = item(title="Anniversary of the Dedication of Sacred Heart Chapel", source_uid="sisters:1")
     hockey = item(title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9",
                   game={"sport": "Girls Hockey", "teams": ["Sartell-Sauk Rapids", "Fergus Falls"]})
-    assert long_titles([chapel, hockey, item()]) == [chapel["title"]], "a game's team names stay whole"
+    assert long_titles([chapel, hockey, item()]) == [chapel["title"], hockey["title"]], \
+        "every title over 40 is listed, a game's too: its reader writes it short, so this one is the judge's"
+    # One rule for a judged item and a listed row: a row whose teams nobody has added has no sport.
+    row = lambda title, category="watch_sports", sport=None: {"title": title, "category": category, "sport": sport}
+    assert [is_game(row(t)) for t in ("Boys Basketball vs Willmar · C-squad", "CSB Soccer vs Hamline: Senior Night",
+                                      "SJU Wrestling vs North Country Open", "SJU Soccer vs TBD: MIAC Quarterfinals",
+                                      "Central Lakes Conference Swim Meet")] == [True, True, False, True, False]
+    assert not is_game(row("Vikings vs Colts Game Day", "dining")) and is_game(row("Apollo game", sport="Volleyball"))
     short = {chapel["title"]: "Sacred Heart Chapel Anniversary"}
     assert run([chapel])["events"][0]["row"]["title"] == chapel["title"], "no short one given: as written"
     got = plan([chapel], [], TODAY, INTERESTS, titles=short)["events"][0]["row"]["title"]
@@ -856,6 +968,18 @@ def t_long_titles_shortened_and_kept():
     assert run([chapel], [old])["events"][0]["row"]["title"] == "Sacred Heart Chapel Anniversary"
     long_old = dict(old, title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9")
     assert run([hockey], [long_old])["events"][0]["row"]["title"] == hockey["title"]
+
+
+def t_short_levels_kept_apart():
+    """A lower level in its short form ("· MS", "· 8th", "· C-squad", as read_events writes a long
+    game) is never that day's varsity game at the same place an hour on (smooth-mornings 06 review)."""
+    at = dict(place="Kennedy Community School", area="game", interest="watch_sports", size="everyday")
+    for varsity, lower in [("Girls Basketball vs Holdingford", "Girls Basketball vs Holdingford · MS"),
+                           ("Boys Basketball vs Apollo", "Boys Basketball vs Apollo · C-squad"),
+                           ("Girls Basketball vs Willmar", "Girls Basketball vs Willmar · 8th")]:
+        two = [item(title=varsity, start="2026-10-23T19:00:00-05:00", source_name="Kennedy Community School", **at),
+               item(title=lower, start="2026-10-23T18:00:00-05:00", source_name="Holdingford High School", **at)]
+        assert len(run(two)["events"]) == 2, lower
 
 
 def t_description_cut_at_a_word():
@@ -973,6 +1097,28 @@ def t_news_repeat_left_out():
     assert [outcome(r, i) for i in range(11)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news",
                                                   "repeat", "news", "news"], r["outcomes"]
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
+
+
+def t_news_shouted_or_hyphened_is_one():
+    """White Peony's boo baskets: one offer posted three times on Oct 26 and 27, as "Build-your-own boo
+    basket", "Build-your-own BOO baskets" and "Build Your Own Boo Baskets at White Peony". Capitals and
+    hyphens don't make it another News (smooth-mornings 05). Different specials from one place stay apart."""
+    def posts(source, titles):  # each its own post, as they were
+        return [item(kind="news", start=None, category="business", source_name=source, title=t,
+                     source_url=f"https://www.instagram.com/p/{re.sub(r'\W', '', t)}/") for t in titles]
+    first = {"title": "Build-your-own boo basket", "source_name": "White Peony Boutique",
+             "place_entry_id": where(None, "White Peony Boutique")}
+    r = plan(posts("White Peony Boutique", ["Build-your-own BOO baskets", "Build Your Own Boo Baskets at White Peony"]),
+             [], TODAY, INTERESTS, recent_news=[first])
+    assert [outcome(r, i) for i in range(2)] == ["repeat", "repeat"], r["outcomes"]
+    week = [{"title": t, "source_name": "The House Food & Tap", "place_entry_id": where(None, "The House Food & Tap")}
+            for t in ("Half-price wings Tuesday", "Two-for-one apps", "Wing NIGHT", "Free cookie Friday", "New winter menu",
+                      "BOO Basket")]
+    # Weekdays, free and new are filler: "FREE coffee Friday" shares nothing with "Free cookie Friday" that names it.
+    titles = ["Half price burgers Thursday", "Two-for-one drinks", "Taco night", "$10 Pour of the Week", "Half-price taps",
+              "FREE coffee Friday", "NEW fall menu", "BOO Bash"]
+    r = plan(posts("The House Food & Tap", titles), [], TODAY, INTERESTS, recent_news=week)
+    assert [outcome(r, i) for i in range(len(titles))] == ["news"] * len(titles), list(zip(titles, r["outcomes"]))
 
 
 def t_all_day_a_day_apart_is_one():
@@ -1158,9 +1304,9 @@ def t_cancelled():
     merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
     r = run([seen, line], [merged])
     assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "a cancelled one still merges"
-    db = writes().read_text()
-    assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
-    assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"
+    db = " ".join(writes().read_text().split())
+    assert "cancelled_at = null, shows_from" in db, "a re-read by its own source restores it"
+    assert "set cancelled_at = now() " in db and "set cancelled_at = null " in db, "only the mark changes"
     assert "'Cancelled: ' ||" not in db, "the title stays as written: the app shows the tag (ticket 12)"
     assert not re.search(r"\bdelete\s+from\b", db, re.I), "never deleted"
 
@@ -1257,6 +1403,56 @@ def t_past_and_invalid_skipped():
     assert [o[0] for o in r["outcomes"]] == ["skipped"] * len(bad) + ["published"], r["outcomes"]
     news = run([item(kind="news", title="No school", start="2026-10-15")])["news"][0]
     assert news["starts_at"] == "2026-10-15T00:00:00-05:00", news
+
+
+def t_one_news_one_link():
+    """One News is one link (smooth-mornings 05): a post's address or a feed item's link is its own, so
+    apply_judged takes it again from the same source as a repeat. A home page, or a page the registry
+    or the social watch reads, is shared by every News read from it, so it keeps the title rule alone."""
+    own = [own_link(u) for u in ("https://www.instagram.com/p/DeBoo/",
+                                 "https://thenewsleaders.com/where-do-i-vote-on-election-day-nov-3/",
+                                 "https://www.facebook.com/permalink.php?story_fbid=pfbid0u6&id=6156",
+                                 "https://www.stearnscountymn.gov/", "http://www.2ndavecuts.com",
+                                 "https://kennedy.isd742.org/calendar?cal_date=2026-11-01",
+                                 "https://www.facebook.com/BelloCucinaStJoseph/")]
+    assert own == [True, True, True, False, False, False, False], own
+    # Saved and compared clean: no tracking, m. as www.; Facebook's m. site of a page is still a page.
+    assert clean_link("https://www.instagram.com/p/DeBoo/?igsh=MW1&img_index=2") == "https://www.instagram.com/p/DeBoo/"
+    assert clean_link("https://m.facebook.com/story.php?story_fbid=1&id=2&utm_source=ig") == \
+        "https://www.facebook.com/story.php?story_fbid=1&id=2"
+    assert not own_link("https://m.facebook.com/BelloCucinaStJoseph")
+    assert same_link("https://www.instagram.com/p/DeBoo", "https://m.instagram.com/p/DeBoo/?igsh=MW1")
+    r = run([item(kind="news", title="Boo baskets", start=None, source_url="https://m.instagram.com/p/DeBoo/?igsh=MW1")])
+    assert [(n["source_url"], n["own_link"]) for n in payloads(r)["p_news"]] == [("https://www.instagram.com/p/DeBoo/", True)]
+
+
+def t_one_post_is_one_news():
+    """Well & Company's one post was three News on Oct 23. The second and third fold into the first,
+    whose blurb names them, and the report names each one folded. A link shared two ways (a trailing
+    slash, m.) is one post; a home page several News share is no post of its own, so they stay."""
+    well = dict(kind="news", start=None, category="business", source_name="Well & Company",
+                source_url="https://www.instagram.com/p/DeujfJRqwLr/", blurb="Molly joins the team.")
+    stearns = dict(well, source_name="Stearns County", source_url="https://www.stearnscountymn.gov/", blurb=None)
+    r = run([item(title="Molly now at Well & Company in St. Joe", **well),
+             item(title="Microneedling $275 at Well & Company", **dict(well, source_url="https://m.instagram.com/p/DeujfJRqwLr")),
+             item(title="Wrinkle-Free Wednesdays", **well),
+             item(title="Early Voting", **stearns), item(title="County Road 134 closed", **stearns)])
+    assert [outcome(r, i) for i in range(5)] == ["news", "folded", "folded", "news", "news"], r["outcomes"]
+    assert r["news"][0]["blurb"] == "Molly joins the team. Also: Microneedling $275 at Well & Company; Wrinkle-Free Wednesdays."
+    assert "'Wrinkle-Free Wednesdays' into 'Molly now at Well & Company in St. Joe'" in r["outcomes"][2][1]
+
+
+def t_news_look_back_is_the_feeds_week():
+    """The title rule looks back over the 7 days the Town feed shows News (smooth-mornings 05), not 6,
+    counted from Chicago's now rather than a midnight."""
+    global Supabase
+    asked, saved = [], Supabase
+    Supabase = lambda: type("Db", (), {"rest": lambda self, method, path: asked.append(path) or []})()
+    try:
+        news_in_db(datetime(2026, 10, 29, 21, 40, 12, 5, tzinfo=LOCAL))
+    finally:
+        Supabase = saved
+    assert asked[0].endswith("&created_at=gte.2026-10-22T21:40:12-05:00"), asked
 
 
 def t_writes_are_one_safe_call():
@@ -1438,11 +1634,12 @@ def t_one_place_two_names():
 
 
 TESTS = [t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
+         t_one_news_one_link, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
-         t_long_titles_shortened_and_kept]
+         t_long_titles_shortened_and_kept, t_short_levels_kept_apart]
 
 
 def selftest():
@@ -1483,7 +1680,7 @@ def main():
     if not interests:
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
-    news = [] if not args.news else news_in_db(today) if args.news == "db" else json.loads(Path(args.news).read_text())
+    news = [] if not args.news else news_in_db() if args.news == "db" else json.loads(Path(args.news).read_text())
     r = plan(items, existing, today, interests, TOWNS[args.town], teams=known_teams() if args.apply else None,
              recent_news=news)
     report(items, r)

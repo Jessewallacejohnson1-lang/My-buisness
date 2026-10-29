@@ -41,7 +41,8 @@ source is a line in the summary; carry on with the rest.
    `{"the long title": "the short one"}`. None listed: skip. Done when every listed title has one.
 6. **Write.** Run `python3 sources/scripts/morning.py write`. It merges the feed items with
    yours, gives the long titles their short ones, writes them to the database and prints the
-   summary. A `[long title]` line in it names one still too long: say so in your answer.
+   summary: what the database did, with each new Event and News listed. A `[long title]` line in
+   it names one still too long: say so in your answer.
 7. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
    tagger has read yet or that has no words saying what it is, today's new ones included, in batches in `.runs/morning/tag/`. For each
    batch file, start one helper on the cheap model (Haiku), all at once, each with this prompt:
@@ -52,7 +53,8 @@ source is a line in the summary; carry on with the rest.
    timeout. No batches means nothing to tag: skip the
    helpers. Done when `tag` prints its `[morning] tagged …` line.
 8. **Describe.** Run `python3 sources/scripts/morning.py thin`. It lays out the upcoming Events
-   whose About is empty or under a sentence, at most 30, in batches in `.runs/morning/describe/`.
+   whose About is empty or under a sentence, never a game (its reader wrote its About) or an Event
+   researched before, at most 30, in batches in `.runs/morning/describe/`.
    For each batch file, start one helper on your own model, all at once, each with this prompt:
    "Read `sources/models/describe.md` and follow it for the Events in
    `.runs/morning/describe/batch-N.txt`. Answer with the JSON lines only." Write every line the

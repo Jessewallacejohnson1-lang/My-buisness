@@ -22,14 +22,21 @@ skill covers the calls the code can't make.
   Event of the day poster (Jesse, 2026-10-21). The morning job lists every one still over 40
   (`morning.py titles`) and its model gives each a short one; the writer keeps a listed short
   title when its source sends the long one again.
-- **Games:** `<School> <Sport> vs <Opponent>`, then `: <name>` when the game has one ("CSB
-  Soccer vs Hamline: Senior Night"). Keep the team's level words (JV, varsity, girls,
-  boys): the merge rule tells games apart by them.
+- **Games:** `<Home> <Sport> vs <Visitors>`, then `: <name>` when the game has one ("CSB
+  Soccer vs Hamline: Senior Night"), or ` · <level>` below varsity ("Apollo Volleyball vs
+  Brainerd · JV"). Keep the team's level words (JV, varsity, girls, boys): the merge rule tells
+  games apart by them. The school readers write every game's title and About (read_events.py
+  `game_title`, `game_about`; smooth-mornings 06), so no game reaches the morning's titles or
+  describe work.
 - **High school teams as neighbours say them:** "Apollo", "Tech", "Cathedral" (not "St. Cloud
   Apollo"), "Kimball" (not "Kimball Area"); a co-op joined with a hyphen ("Sartell-Sauk
   Rapids"); "Girls Swim", and no "Girls" on volleyball. A meet or tournament keeps its own name,
-  with its sport when the name lacks one ("Central Lakes Conference Swim Meet"). Two long team
-  names may run past 40 characters; both stay whole (read_events.py writes these).
+  with its sport when the name lacks one ("Central Lakes Conference Swim Meet").
+- **A game over 40** gives up a little at a time, never a word cut, until it fits: a school's kind
+  ("Willmar MS" is "Willmar"), the host line's own team ("Boys Basketball vs Willmar · C-squad"),
+  a co-op's later towns ("Sartell-Sauk Rapids" is "Sartell"), the level's short form ("8th", "MS";
+  "C-squad" stays whole), the boys or girls, then the level. Its About keeps all of them. On a
+  third school's ground (a section game) neither team is the host's, so both stay.
 - **The colleges are CSB and SJU.** Both together are "CSB SJU", written with a space only
   (Jesse, 2026-10-14). When the host line already names both, leave them out of the title.
   Host names follow the same rule: "CSB SJU Campus Events".
