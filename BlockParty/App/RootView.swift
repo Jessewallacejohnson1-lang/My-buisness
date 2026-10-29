@@ -33,18 +33,21 @@ enum Tab: Int, CaseIterable, Identifiable {
     /// The resting glyph, drawn as an ink outline. The selected tab shows the filled
     /// `selectedSymbol` in the same ink, as Instagram's bar does. Search draws BP's own
     /// traced magnifier instead (`MagnifierGlyph`); this name is only its large-content
-    /// stand-in.
+    /// stand-in. Daily's is not an SF Symbol: it names the `DailyMark` asset, the app
+    /// icon's own Bp. letters (Jesse, 2026-10-29).
     var symbol: String {
         switch self {
         case .town:     return "house"
-        case .daily:    return "newspaper"
+        case .daily:    return "DailyMark"
         case .search:   return "magnifyingglass"
         case .you:      return "person"
         }
     }
 
     /// A magnifier has no fill: selected, it thickens instead (`MagnifierGlyph.bold`).
-    var selectedSymbol: String { self == .search ? symbol : symbol + ".fill" }
+    /// Daily's Bp. is a logo with no outline form, so it stays solid and the grey
+    /// bubble alone shows it's picked (Jesse, 2026-10-29).
+    var selectedSymbol: String { self == .search || self == .daily ? symbol : symbol + ".fill" }
 
     /// One line on what the slot is for — shown by the placeholder screens, so an
     /// unbuilt tab reads as reserved rather than broken.
@@ -935,6 +938,9 @@ nonisolated enum TabBarMetric {
     /// Search's traced magnifier fills its own box: Instagram's search mark, 22pt
     /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
     static let searchGlyphSize: CGFloat = 22
+    /// Daily's Bp.: 38pt wide (Jesse's pick at Check-in 1, 2026-10-29), which makes it
+    /// 22.6pt tall, about Instagram's 22pt glyph box.
+    static let dailyMarkWidth: CGFloat = 38
     static let iconCentreY: CGFloat = height / 2
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25
@@ -1256,7 +1262,11 @@ struct BlockPartyTabBar: View {
                         .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
                         .contentShape(Rectangle())
                         .accessibilityShowsLargeContentViewer {
-                            Label(tab.title, systemImage: selection == tab ? tab.selectedSymbol : tab.symbol)
+                            if tab == .daily {
+                                Label(tab.title, image: tab.symbol)
+                            } else {
+                                Label(tab.title, systemImage: selection == tab ? tab.selectedSymbol : tab.symbol)
+                            }
                         }
                         .position(x: centreX(tab), y: TabBarMetric.height / 2)
                 }
@@ -1289,6 +1299,11 @@ struct BlockPartyTabBar: View {
             Group {
                 if tab == .search {
                     MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected)
+                } else if tab == .daily {
+                    Image(tab.symbol)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: TabBarMetric.dailyMarkWidth)
                 } else {
                     Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
                         .font(.glyph(TabBarMetric.iconSize))
