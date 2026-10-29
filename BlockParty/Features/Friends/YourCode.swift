@@ -34,6 +34,9 @@ extension FriendsMetric {
     static let codeCard: CGFloat = 260
     static let codeCardRadius: CGFloat = 28
     static let code: CGFloat = 212
+    /// Pixels a module, and white modules round the code for Share.
+    static let codeScale: CGFloat = 12
+    static let codeMargin: CGFloat = 4
     static let codeHintTop: CGFloat = 18
     static let codeActsTop: CGFloat = 26
     static let codeActsGap: CGFloat = 10
@@ -119,6 +122,8 @@ struct YourCodeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var scanning = false
     @State private var height: CGFloat = 640
+    /// Your code, drawn once for the card and once framed in white for Share.
+    @State private var codes: (card: UIImage, share: UIImage)?
 
     private var owner: CodeOwner? {
         #if DEBUG
@@ -132,18 +137,17 @@ struct YourCodeSheet: View {
             NeighborFace(url: owner?.avatarUrl, size: FriendsMetric.codeFace)
                 .overlay(Circle().strokeBorder(Hue.surface, lineWidth: FriendsMetric.codeFaceRing))
                 .mapFloatShadow()
-            Text(owner?.name ?? "")
+            // A space until they arrive, so the sheet is as tall from the start.
+            Text(owner.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? " ")
                 .font(.eventDisplay(26))
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
                 .padding(.top, FriendsMetric.codeNameTop)
                 .accessibilityAddTraits(.isHeader)
-            if let since = owner?.since {
-                Text("Neighbor since \(since)")
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, FriendsMetric.codeSinceTop)
-            }
+            Text(owner?.since.map { "Neighbor since \($0)" } ?? " ")
+                .font(.sans(13))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, FriendsMetric.codeSinceTop)
             code
                 .padding(.top, FriendsMetric.codeCardTop)
             Text("Let a neighbor scan this.")
@@ -155,7 +159,7 @@ struct YourCodeSheet: View {
                     action("Scan a code", glyph: "viewfinder", ink: true)
                 }
                 .buttonStyle(PressableStyle())
-                if let owner, let picture = YourCode.image(for: YourCode.link(for: owner.id), scale: 12, margin: 4) {
+                if let picture = codes?.share {
                     let image = Image(uiImage: picture)
                     ShareLink(item: image, message: Text(FriendsInvite.message),
                               preview: SharePreview("Your code", image: image)) {
@@ -175,6 +179,14 @@ struct YourCodeSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.paper)
         .task { await model.load() }
+        .task(id: owner?.id) {
+            guard let owner else { codes = nil; return }
+            let link = YourCode.link(for: owner.id)
+            if let card = YourCode.image(for: link),
+               let share = YourCode.image(for: link, scale: FriendsMetric.codeScale, margin: FriendsMetric.codeMargin) {
+                codes = (card, share)
+            }
+        }
         .fullScreenCover(isPresented: $scanning) {
             CodeScanner(me: owner?.id) { neighbor in
                 scanning = false
@@ -194,7 +206,7 @@ struct YourCodeSheet: View {
             }
             .shadow(color: Hue.ink.opacity(0.08), radius: 15, y: 8)
             .overlay {
-                if let owner, let picture = YourCode.image(for: YourCode.link(for: owner.id)) {
+                if let picture = codes?.card {
                     Image(uiImage: picture)
                         .interpolation(.none)
                         .resizable()
@@ -247,9 +259,11 @@ struct CodeScanner: View {
                              button: "Allow in Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
+                .frame(maxHeight: .infinity)
             case .missing:
                 Hue.paper.ignoresSafeArea()
                 ContactsNote(glyph: "camera", title: nil, line: "This iPhone can't scan codes.")
+                    .frame(maxHeight: .infinity)
             }
             // The Event page's white round button, where its back sits.
             FeedEventDetailDestination.circleButton(glyph: Image(systemName: "xmark"), label: "Close",
@@ -267,7 +281,6 @@ struct CodeScanner: View {
                     .background(Capsule().fill(Hue.surface).mapFloatShadow())
                     .padding(.bottom, FriendsMetric.scanPillBottom)
                     .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : 12)))
-                    .accessibilityAddTraits(.updatesFrequently)
             }
         }
         .animation(Motion.snappy, value: pill)
@@ -291,8 +304,12 @@ struct CodeScanner: View {
 
     private func seen(_ words: String) {
         guard !reading else { return }
-        guard let id = YourCode.userID(from: words), id != me?.lowercased() else {
+        guard let id = YourCode.userID(from: words) else {
             say("Not a Block Party code")
+            return
+        }
+        guard id != me?.lowercased() else {
+            say("That's your code")
             return
         }
         reading = true
@@ -314,6 +331,7 @@ struct CodeScanner: View {
     private func say(_ words: String) {
         Haptics.error()
         pill = words
+        AccessibilityNotification.Announcement(words).post()
     }
 }
 
