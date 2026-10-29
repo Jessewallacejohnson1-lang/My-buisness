@@ -1239,7 +1239,8 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
     where source_name = 'SJU Athletics'`);
   const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
                                               [game, JSON.stringify(g)])).rows[0].r;
-  const row = async () => (await db.query('select live_score, final_score from public.club_events where id = $1', [game])).rows[0];
+  const row = async () => (await db.query('select live_score, final_score, final_checked_at from public.club_events where id = $1',
+                                          [game])).rows[0];
   // Which games a listener joins: this one from 15 minutes before its start, by its school and sport's channel.
   const on = async (t) => (await db.query(`select id, grp from private.live_games(($1::timestamp at time zone 'America/Chicago'))`,
                                           [t])).rows;
@@ -1261,8 +1262,10 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   await db.exec('reset role');
   assert.equal(await record(sjuFinal), 'live', 'complete once is not yet final: the 2026-10-24 volleyball flickered');
   assert.equal((await row()).live_score.complete, true);
+  assert.equal((await row()).final_checked_at, null);
   assert.equal(await record(sjuFinal), 'final');
   assert.deepEqual((await row()).final_score, [2, 1]);
+  assert.ok((await row()).final_checked_at, "a final read live is read: the hello pill's team finals list it");
   assert.equal((await row()).live_score.complete, true, 'the last live score stays beside the final, for its period scores');
   assert.equal(await record(sjuLive), 'ignored', 'nothing moves a final');
   assert.deepEqual(await on('2026-10-24 13:30'), [], 'a final game is no longer listened to');
