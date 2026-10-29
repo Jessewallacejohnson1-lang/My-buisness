@@ -118,7 +118,7 @@ enum HelloDrop {
     /// `town` the Town feed's cards as the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
                         town: [DailyEvent], news: [TownNews] = [], waiting: Message? = nil,
-                        yesterday: String? = nil) -> Message? {
+                        yesterday: String = "") -> Message? {
         let calendar = Town.gregorian
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
@@ -157,19 +157,21 @@ enum HelloDrop {
             return Message(text: text, target: .news(post), logo: post.picture?.url,
                            photo: post.picture?.kind == .photo)
         }
-        // The counts, top down; the first that isn't yesterday's words is said.
-        var counts: [Message] = []
+        // The counts, top down, each about different events than the ones above it (Friday's week is
+        // its weekend; Sunday's weekend is today); the first that isn't yesterday's words is said.
+        var counts: [(message: Message, events: Set<String>)] = []
+        func count(_ events: [DailyEvent], _ words: (Int) -> String) {
+            let ids = Set(events.map(\.item.id))
+            guard !ids.isEmpty, !counts.contains(where: { $0.events == ids }) else { return }
+            counts.append((Message(text: words(ids.count), target: .town), ids))
+        }
         if let lastSeen {
-            let new = town.filter { ($0.item.createdAt ?? .distantPast) > lastSeen }.count
-            if new > 0 {
-                let overnight = Town.day(lastSeen) == Town.day(calendar.date(byAdding: .day, value: -1, to: now) ?? now)
-                counts.append(Message(text: "\(new) new event\(new == 1 ? "" : "s") \(overnight ? "overnight" : "since you were last here")",
-                                      target: .town))
+            let overnight = Town.day(lastSeen) == Town.day(calendar.date(byAdding: .day, value: -1, to: now) ?? now)
+            count(town.filter { ($0.item.createdAt ?? .distantPast) > lastSeen }) {
+                "\($0) new event\($0 == 1 ? "" : "s") \(overnight ? "overnight" : "since you were last here")"
             }
         }
-        if !todays.isEmpty {
-            counts.append(Message(text: "\(todays.count) thing\(todays.count == 1 ? "" : "s") happening today", target: .town))
-        }
+        count(todays) { "\($0) thing\($0 == 1 ? "" : "s") happening today" }
         // The days left of this week, today to Sunday, and its weekend, Friday to Sunday.
         let weekday = calendar.component(.weekday, from: now)
         // Sunday's week is today and the six days after it, so a quiet Sunday still names Monday on.
@@ -180,12 +182,10 @@ enum HelloDrop {
         let week = Set(days.map(Town.day))
         let upcoming = town.filter { $0.ends > now && !$0.item.cancelled }
         if [5, 6, 7, 1].contains(weekday) {
-            let count = upcoming.filter { weekend.contains(Town.day($0.starts)) }.count
-            if count > 0 { counts.append(Message(text: "\(count) event\(count == 1 ? "" : "s") this weekend", target: .town)) }
+            count(upcoming.filter { weekend.contains(Town.day($0.starts)) }) { "\($0) event\($0 == 1 ? "" : "s") this weekend" }
         }
-        let count = upcoming.filter { week.contains(Town.day($0.starts)) }.count
-        if count > 0 { counts.append(Message(text: "\(count) event\(count == 1 ? "" : "s") this week", target: .town)) }
-        return counts.first { $0.text != yesterday }
+        count(upcoming.filter { week.contains(Town.day($0.starts)) }) { "\($0) event\($0 == 1 ? "" : "s") this week" }
+        return counts.map(\.message).first { $0.text != yesterday }
     }
 
     /// "4", "7:30": the hour alone, as the board words it ("Rocktoberfest is today at 4").
