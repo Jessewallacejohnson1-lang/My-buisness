@@ -1706,10 +1706,11 @@ def t_games_complete():
     # Oct 28's long game titles, as Bound's calendars give them (the visitors first). The school's own
     # team leaves a title too long for both; a co-op's ("River Lakes") is the team in most of its games.
     def ev(uid, summary, act, level, place):
+        name = act.replace(",", "\\,")
         return (f"BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:20261201T174500\r\nGEO:45.4;-94.6\r\n"
-                f"LOCATION:{place}\r\nSTATUS:CONFIRMED\r\nSUMMARY:{act.replace(',', '\\,')}: {summary} ({level})\r\n"
+                f"LOCATION:{place}\r\nSTATUS:CONFIRMED\r\nSUMMARY:{name}: {summary} ({level})\r\n"
                 f"UID:{uid}\r\nX-BND-ACTIVITYKEY:{act.split(',')[0].lower()}\r\nX-BND-ACTIVITYLEVEL:{level}\r\n"
-                f"X-BND-ACTIVITYNAME:{act.replace(',', '\\,')}\r\nEND:VEVENT\r\n")
+                f"X-BND-ACTIVITYNAME:{name}\r\nEND:VEVENT\r\n")
     calendars = {
         "Sauk Rapids-Rice High School": [
             ev("s1", "North Junior High vs Sauk Rapids-Rice", "Basketball, Girls", "7th Grade", "Sauk Rapids-Rice Middle School Gym"),

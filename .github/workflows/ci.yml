@@ -167,7 +167,16 @@ jobs:
       # The registry's validator and the morning job's self-tests, all offline. Their libraries
       # are listed in sources/scripts/ci-packages.txt (import name, Ubuntu package); the runner's
       # system Python refuses pip installs.
+      # The cloud routines run Python 3.11; ci_checks.sh parses every script with it.
+      - uses: actions/setup-python@v5
+        id: py311
+        with:
+          python-version: '3.11'
+          update-environment: false
+
       - name: Registry and morning job self-tests
+        env:
+          BP_PY311: ${{ steps.py311.outputs.python-path }}
         run: |
           set -euo pipefail
           list=sources/scripts/ci-packages.txt

@@ -1208,7 +1208,7 @@ def t_news_shouted_or_hyphened_is_one():
     hyphens don't make it another News (smooth-mornings 05). Different specials from one place stay apart."""
     def posts(source, titles):  # each its own post, as they were
         return [item(kind="news", start=None, category="business", source_name=source, title=t,
-                     source_url=f"https://www.instagram.com/p/{re.sub(r'\W', '', t)}/") for t in titles]
+                     source_url="https://www.instagram.com/p/" + re.sub(r"\W", "", t) + "/") for t in titles]
     first = {"title": "Build-your-own boo basket", "source_name": "White Peony Boutique",
              "place_entry_id": where(None, "White Peony Boutique")}
     r = plan(posts("White Peony Boutique", ["Build-your-own BOO baskets", "Build Your Own Boo Baskets at White Peony"]),

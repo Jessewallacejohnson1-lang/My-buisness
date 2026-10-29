@@ -53,6 +53,11 @@ if missing:
     sys.exit("Add each to sources/scripts/ci-packages.txt with its Ubuntu package and pip name "
              "(GitHub's runner lacks it):\n  " + "\n  ".join(missing))
 EOF
+            # The cloud routines' python3 is 3.11: a script only a newer Python parses stops every
+            # routine at its first command (Oct 29's social watch). ready.py checks the same there.
+            py311=${BP_PY311:-$(command -v python3.11 || uv python find 3.11 2>/dev/null || true)}
+            [ -n "$py311" ] || { echo "ci_checks.sh: no Python 3.11 to parse the scripts with (uv python install 3.11)" >&2; exit 1; }
+            "$py311" -c 'import sys; [compile(open(f).read(), f, "exec") for f in sys.argv[1:]]' sources/scripts/*.py
             sh sources/validate
             python3 sources/scripts/test_census.py
             for s in accounts batch check_flags composio find_calendars morning place_photos read_events ready run social verify write_judged; do
