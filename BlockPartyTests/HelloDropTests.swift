@@ -54,7 +54,7 @@ final class HelloDropTests: XCTestCase {
     func testYesterdaysHelloIsNeverSaidAgain() {
         let said = hello("2026-10-21 08:00", yesterday: "Morning")
         XCTAssertNotEqual(said, "Morning, Jesse")
-        XCTAssertTrue(["Hi", "Hey", "Hello", "Hey there", "Good to see you", "There you are"]
+        XCTAssertTrue(["Hi", "Hey", "Hello"]
             .map { "\($0), Jesse" }.contains(said))
     }
 
@@ -67,9 +67,10 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: nil), "Welcome to Block Party, Jesse")
     }
 
-    func testNoNameSaysTheHelloAlone() {
+    /// Everyone gets a name: someone who hasn't given one is a neighbor.
+    func testNoNameIsANeighbor() {
         XCTAssertEqual(HelloDrop.hello(name: nil, now: town("2026-10-21 08:00"),
-                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning")
+                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning, neighbor")
     }
 
     // MARK: Firsts and milestones (hello-drop 02)
