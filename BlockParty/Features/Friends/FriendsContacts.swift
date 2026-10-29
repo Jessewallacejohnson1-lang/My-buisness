@@ -127,6 +127,9 @@ final class ContactsMatch {
         } catch let error as SupabaseError where error.message == "contacts_limit" {
             state = .limit
         } catch {
+            // Left mid-check (Back on onboarding's Contacts, or off the Friends page): not a failure, so
+            // the next visit checks again rather than saying the connection failed.
+            if Task.isCancelled { started = false; return }
             state = .failed
         }
     }

@@ -571,6 +571,17 @@ final class ContactsMatchTests: XCTestCase {
         XCTAssertEqual(offline.state, .failed)
     }
 
+    func testLeavingMidCheckIsNotAFailure() async {
+        let model = ContactsMatch(match: { _, _ in
+            try await Task.sleep(for: .seconds(5))
+            return []
+        })
+        let check = Task { await model.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, emailCodes: ["e"])]) }
+        check.cancel()
+        await check.value
+        XCTAssertNotEqual(model.state, .failed, "the next visit checks again")
+    }
+
     func testNoCodesAsksNobody() async {
         let model = ContactsMatch(match: { _, _ in XCTFail("asked"); return [] })
         await model.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil)])

@@ -386,11 +386,12 @@ struct OnboardingFlow: View {
     }
 
     /// Contacts' check found nobody on Block Party, so the question says so (Jesse at onboarding 23's
-    /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask.
+    /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask, and a
+    /// phone with no numbers or emails asks nobody.
     private var firstHere: Bool {
         guard store.step == .contacts, !AuthStore.shared.isAnonymous,
-              case .ready(let onApp, _) = contacts.state else { return false }
-        return onApp.isEmpty
+              case .ready(let onApp, let invite) = contacts.state else { return false }
+        return onApp.isEmpty && !invite.isEmpty
     }
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
@@ -492,7 +493,11 @@ struct OnboardingFlow: View {
             _ = try? await CNContactStore().requestAccess(for: .contacts)
             let status = CNContactStore.authorizationStatus(for: .contacts)
             let allowed = status == .authorized || status == .limited
-            go { [store] in allowed ? store.next() : store.finish() }()
+            // A second tap's answer lands too: only the first moves on, or it would skip Contacts.
+            go { [store] in
+                guard store.step == .friends else { return }
+                allowed ? store.next() : store.finish()
+            }()
         }
     }
 

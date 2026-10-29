@@ -81,7 +81,8 @@ struct OnboardingContactsList: View {
         case .limit:
             line("You've reached today's limit. Try again tomorrow.")
         case .ready(let onApp, let invite):
-            let people = Self.addable(onApp)
+            // Only people you could still add: a friend, a request either way or a block isn't offered again.
+            let people = onApp.filter { $0.relation == .stranger }
             if !people.isEmpty {
                 section("On Block Party")
                 ForEach(people) { person in
@@ -111,10 +112,6 @@ struct OnboardingContactsList: View {
         }
     }
 
-    /// Only people you could still add: someone already a friend, asked either way or blocked isn't
-    /// offered again.
-    static func addable(_ found: [Neighbor]) -> [Neighbor] { found.filter { $0.relation == .stranger } }
-
     private func invitePill(_ contact: PhoneContact) -> some View {
         let done = invited.contains(contact.id)
         return Button {
@@ -125,7 +122,7 @@ struct OnboardingContactsList: View {
         }
         .buttonStyle(MeetupPillStyle(height: FollowMetric.rowHeight, minWidth: FollowMetric.listWidth,
                                      grey: done, sidePadding: 16))
-        .accessibilityLabel("Invite \(contact.name)")
+        .accessibilityLabel("\(done ? "Invited" : "Invite") \(contact.name)")
     }
 
     private func section(_ title: String) -> some View {
