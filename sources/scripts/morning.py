@@ -17,49 +17,48 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
-  write     merge the feed items with the judge's items, give long titles their short ones
-            (titles.json), write them (public.apply_judged over the service role key), then save
-            the changed pages' new fingerprints (fingerprints.json) and print the morning's
-            summary: a morning that stops before this reads the same pages again tomorrow. Its new
-            counts are what the database did (apply_judged's answer), and it lists each new Event
-            (date, time, title, place; soonest first, 40 at most, the rest counted by source) and
-            News title, and names News folded into their post's News (BP app smooth-mornings 05). The
-            morning's also tells yesterday's SJU and CSB games: how far each live score got and where its
-            final came from (Jesse, 2026-10-29)
-  untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
-            what they are), upcoming or still running, in batches of 40 for the cheap model
-            (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
-  tag       write the cheap model's tags (.runs/morning/tags.jsonl) onto those Events: only
-            ids from the shared interest list, a draw of 1, 2 or 3, an Event's first interest
-            becomes its category when it has none, and what it is in one to three words; an
-            Event tagged before only gets its words, so nobody's feed reshuffles. One write per
-            Event (901 on 2026-10-27), so it works in parts like prepare
-  thin      lay out the upcoming Events found in the last two days whose About is empty or under a
-            sentence (feed and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
-            routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24). Never a game
-            (write_judged.is_game: its reader wrote its About) or an Event laid out before (smooth-mornings 06).
-            A campus Event linking to its sign-up page is laid out once even with a full About (event-details).
-            Each comes with the text of its own link, read politely within about 6 minutes (Jesse, 2026-10-29)
-  describe  write the helpers' Abouts (.runs/morning/describe.jsonl) onto those Events, each
-            only when longer than the one it has, mark every Event they answered as researched
-            (club_events.described_at), and print how many it was given and filled, and their CHECK lines
-  today     lay out today's Events as the Town feed takes them, for the routine's model to pick
-            the day's standouts (BP app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
-  standouts write the model's standouts (.runs/morning/standouts.jsonl) as today's
-            daily_standouts, best first, and print each with its reason
+  save      once the judge is done: merge the feed items with the judge's items, give long titles their
+            short ones (titles.json), write them (public.apply_judged over the service role key), then save
+            the changed pages' new fingerprints (fingerprints.json) and print the morning's summary: a
+            morning that stops before this reads the same pages again tomorrow. Its new counts are what the
+            database did (apply_judged's answer), and it lists each new Event (date, time, title, place;
+            soonest first, 40 at most, the rest counted by source) and News title, names News folded into
+            their post's News (BP app smooth-mornings 05) and the pairs the writer kept apart under "Maybe
+            the same", and the morning's also tells yesterday's SJU and CSB games: how far each live score got
+            and where its final came from (Jesse, 2026-10-29). The summary waits in report.txt for finish, and a second save the same morning
+            writes nothing again (Oct 22's job wrote twice). Then it lays out the helpers' work: the Events
+            no tagger has read yet (or that have no draw, or no words saying what they are), upcoming or
+            still running, in batches of 40 for the cheap model (town-feed tickets 33 and 34, BP app
+            event-card 05; sources/models/tag.md), and the upcoming Events found in the last two days whose
+            About is empty or under a sentence (feed and catalog events skip the judge), at most 30, in
+            batches of 10 for the routine's helpers to research (sources/models/describe.md; Jesse,
+            2026-10-24), never a game (write_judged.is_game: its reader wrote its About) or an Event laid
+            out before (smooth-mornings 06), and each campus Event linking to its sign-up page once even with a
+            full About (event-details), each with the text of its own link, read politely within the
+            rest of the part's 6 minutes (Jesse, 2026-10-29). A social check (social.py prepare) only writes
+  today     once the tag helpers have answered: lay out today's Events as the Town feed takes them, with
+            the helpers' tags not saved yet, for the routine's model to pick the day's standouts (BP app
+            docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
+  finish    once every helper has answered: write the cheap model's tags (.runs/morning/tags.jsonl)
+            onto those Events: only ids from the shared interest list, a draw of 1, 2 or 3, an Event's
+            first interest becomes its category when it has none, and what it is in one to three words; an
+            Event tagged before only gets its words, so nobody's feed reshuffles. One write per Event (901
+            on 2026-10-27), so it works in parts like prepare. Then the helpers' Abouts
+            (.runs/morning/describe.jsonl), each only when longer than the one it has, marking every Event
+            they answered as researched (club_events.described_at), and the model's standouts
+            (.runs/morning/standouts.jsonl) as today's daily_standouts, best first. It ends with the whole
+            morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
+            and the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
+            step can skip it (Oct 29's run did). The routine answers with it (BP app smooth-mornings 07)
 
-Everything lands in .runs/morning/. Both steps need SUPABASE_URL and
-SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
+Everything lands in .runs/morning/. Every command needs SUPABASE_URL and
+SUPABASE_SERVICE_ROLE_KEY in the environment; `save --dry-run` and `finish --dry-run` write nothing.
 
   python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD]
   python3 sources/scripts/morning.py titles
-  python3 sources/scripts/morning.py write [--dry-run]
-  python3 sources/scripts/morning.py untagged
-  python3 sources/scripts/morning.py tag [--dry-run]
-  python3 sources/scripts/morning.py thin
-  python3 sources/scripts/morning.py describe [--dry-run]
+  python3 sources/scripts/morning.py save [--dry-run]
   python3 sources/scripts/morning.py today
-  python3 sources/scripts/morning.py standouts [--dry-run]
+  python3 sources/scripts/morning.py finish [--dry-run]
   python3 sources/scripts/morning.py --selftest
 """
 
@@ -73,6 +72,7 @@ from registry import find_root, load
 from read_events import LOCAL, CAMPUS_HOSTS
 from batch import layout
 import write_judged
+import social
 from run import Supabase, fetch, fetch_watched, to_text, deadline, late, part_state, resume_part, aside_lines
 from db import DbError
 
@@ -276,6 +276,8 @@ def summary_lines(prep, result, written):
     lines += [f"- {a}" for a in prep.get("aside", [])]
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
+    lines += [f"- Still over {write_judged.TITLE_MAX} characters: {g['row']['title']}" for g in result["events"]
+              if g["row"] and len(g["row"]["title"]) > write_judged.TITLE_MAX]
     if written is None:
         lines.append("- Dry run: nothing written")
     elif answered:
@@ -286,7 +288,16 @@ def summary_lines(prep, result, written):
                      "counts above are what was sent (apply_judged from before smooth-mornings 05)")
     lines += ["New Events:"] * bool(events) + event_lines(events)
     lines += ["New News:"] * bool(news) + [f"- {n['title']} ({n['source_name']})" for n in news]
+    pairs = maybe_same(result.get("notes", []))
+    lines += ["Maybe the same:"] * bool(pairs) + [f"- {p}" for p in pairs]
     return lines
+
+
+def maybe_same(notes):
+    """The pairs the writer kept apart but can't be sure of (same day, same place or title), for Jesse to
+    settle once. watch-every-place 14 gives the writer its own "Maybe the same" notes: take those here."""
+    return [n.removeprefix("kept apart: ").split("; if they are one event", 1)[0] for n in notes
+            if n.startswith("kept apart: ")]
 
 
 def event_lines(rows):
@@ -382,7 +393,9 @@ def write(out, dry_run, today):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(out)
         # A social check's summary leaves the games to the morning's.
-        print("\n".join(summary_lines(prep, result, written) + ([] if prep.get("run") else live_lines(today - timedelta(days=1)))))
+        lines = summary_lines(prep, result, written) + ([] if prep.get("run") else live_lines(today - timedelta(days=1)))
+        print("\n".join(lines))
+        return lines
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
         sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
 
@@ -484,7 +497,7 @@ def tag(out, dry_run, minutes=PART_MINUTES):
             if event_id in written:
                 continue
             if late(stop):
-                return print(f"[morning] run again: {len(written)} of {len(writes)} events tagged")
+                return f"[morning] run again: {len(written)} of {len(writes)} events tagged"
             stamp = {} if set(write) == {"what"} else {"interests_tagged_at": now}
             db.rest("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
             written.add(event_id)
@@ -492,9 +505,9 @@ def tag(out, dry_run, minutes=PART_MINUTES):
     empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
     words = sum(1 for w in writes.values() if "what" in w)
     draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
-    print(f"[morning] tagged {len(writes)} events ({empty} with no interest; draw 3/2/1: "
-          f"{draws[3]}/{draws[2]}/{draws[1]}), {words} with what they are in words, "
-          f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
+    return (f"[morning] tagged {len(writes)} events ({empty} with no interest; draw 3/2/1: "
+            f"{draws[3]}/{draws[2]}/{draws[1]}), {words} with what they are in words, "
+            f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
 
 
 def to_describe(today):
@@ -579,12 +592,12 @@ def own_page(url, get=fetch):
         return get(url, headers={"User-Agent": CRAWLER_UA})
 
 
-def own_pages(events, get=own_page, minutes=PART_MINUTES):
+def own_pages(events, get=None, stop=None):
     """Each Event's own page, read once per link the polite way (robots, Crawl-delay): the school's
     Bound page, the league's schedule, the college calendar. Its helper reads it before searching,
     since a search finds old seasons (Jesse, 2026-10-29: "go off Bound and open links"). A page that
-    can't be read, or isn't reached within the part's minutes, stays empty and the helper searches."""
-    stop, read = deadline(minutes), {}
+    can't be read, or isn't reached before the part's `stop`, stays empty and the helper searches."""
+    get, read = get or own_page, {}
     for e in events:
         url = e["link"]
         if url and not SCHEDULE_LINK.search(url) and url not in read and not late(stop):
@@ -597,13 +610,13 @@ def own_pages(events, get=own_page, minutes=PART_MINUTES):
     return sum(1 for e in events if e["page"])
 
 
-def thin(out, today, get=own_page):
+def thin(out, today, stop=None, get=own_page):
     d = out / "describe"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
     events = to_describe(today)
-    pages = own_pages(events, get)
+    pages = own_pages(events, get, stop=stop)
     for i in range(0, len(events), DESCRIBE_BATCH):
         (d / f"batch-{i // DESCRIBE_BATCH + 1}.txt").write_text(
             "\n".join(json.dumps(e, ensure_ascii=False) for e in events[i:i + DESCRIBE_BATCH]) + "\n")
@@ -644,15 +657,15 @@ def describe(out, dry_run):
             db.rest("PATCH", f"club_events?id=eq.{event_id}",
                     {"described_at": now, **({"description": writes[event_id]} if event_id in writes else {})},
                     prefer="return=minimal")
-    print(f"[morning] described {len(writes)} of {len(events)} events given" + (" (dry run: nothing written)" if dry_run else ""))
-    for c in checks:
-        print(f"[check] {c}")
+    return ([f"[morning] described {len(writes)} of {len(events)} events given" + (" (dry run: nothing written)" if dry_run else "")]
+            + [f"[check] {c}" for c in checks])
 
 
-def todays_events(today):
+def todays_events(today, tags=None):
     """Today's Events as the Town feed takes them (approved, posted by a neighbour or found by a
     source, not called off), with what the model weighs: interests, draw, Going and hearts. The
-    feed's function itself reads private helpers the service key can't reach."""
+    feed's function itself reads private helpers the service key can't reach. `tags`: the tag
+    helpers' answers finish has yet to save, so an Event found this morning carries them too."""
     db = Supabase()
     rows = db.rest("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
                           "interests,interests_tagged_at,category,draw,clubs(name)"
@@ -660,6 +673,9 @@ def todays_events(today):
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
     if not rows:
         return []
+    for r in rows:
+        t = (tags or {}).get(r["id"]) or {}
+        r.update(t, **({"interests_tagged_at": str(today)} if "interests" in t else {}))
     ids = ",".join(r["id"] for r in rows)
     count = lambda table: [x["event_id"] for x in db.rest("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
     going, hearts = count("event_rsvps"), count("event_likes")
@@ -679,7 +695,10 @@ def event_line(row, going, hearts):
 
 def lay_out_today(out, today):
     out.mkdir(parents=True, exist_ok=True)
-    events = todays_events(today)
+    given = out / "tag" / "events.json"
+    tags = plan_tags(read_items(out / "tags.jsonl"), json.loads(given.read_text()),
+                     write_judged.interest_ids()) if given.exists() else {}
+    events = todays_events(today, tags)
     (out / "today.txt").write_text(f"Today: {today}\n\nEvents:\n"
                                    + "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events))
     print(f"[morning] {len(events)} events today for the standouts ({out / 'today.txt'})")
@@ -707,13 +726,50 @@ def standouts(out, dry_run, today):
         db = Supabase()
         db.rest("DELETE", f"daily_standouts?town=eq.{TOWN}&day=eq.{today}", prefer="return=minimal")
         db.rest("POST", "daily_standouts", rows, prefer="return=minimal")
-    print(f"[morning] standouts: {len(rows)} of {len(events)} events today"
-          + (" (dry run: nothing written)" if dry_run else "")
-          + ("" if rows or not events else "; none written, so Daily shows the Town feed's top pick"))
     by_id = {e["id"]: e for e in events}
-    for r in rows:
-        e = by_id[r["event_id"]]
-        print(f"[morning] #{r['rank']} {e['title']} ({e['start']}): {r['why']}")
+    return ([f"[morning] standouts: {len(rows)} of {len(events)} events today"
+             + (" (dry run: nothing written)" if dry_run else "")
+             + ("" if rows or not events else "; none written, so Daily shows the Town feed's top pick")]
+            + [f"[morning] #{r['rank']} {by_id[r['event_id']]['title']} ({by_id[r['event_id']]['start']}): {r['why']}"
+               for r in rows])
+
+
+def save(out, dry_run, today, minutes=PART_MINUTES):
+    """write, once a morning, then lay out the helpers' work within the rest of the part's minutes. The
+    summary waits in report.txt for finish; a save run again the same morning writes nothing again (the
+    Oct 22 job wrote twice) and only lays the batches out again."""
+    stop, kept = deadline(minutes), out / "report.txt"
+    if kept.exists():
+        print("[morning] saved already this morning: nothing written again; finish prints its summary")
+    else:
+        lines = write(out, dry_run, today)
+        if not dry_run:
+            kept.write_text("\n".join(lines) + "\n")
+    if json.loads((out / "prepare.json").read_text()).get("run"):
+        return  # a social check: social.py done finishes it
+    untagged(out, today)
+    thin(out, today, stop)
+
+
+def finish(out, dry_run, today, minutes=PART_MINUTES):
+    """In timed parts while the tags are written, then the Abouts and standouts, then the whole report."""
+    kept = out / "report.txt"
+    if not kept.exists():
+        sys.exit("[morning] nothing saved this morning: run save first")
+    tagged = tag(out, dry_run, minutes)
+    if tagged.startswith("[morning] run again"):
+        return print(tagged)
+    print("\n".join([*kept.read_text().splitlines(), tagged, *describe(out, dry_run), *standouts(out, dry_run, today),
+                     spend_line()]))
+
+
+def spend_line():
+    """The social watch's Apify spend for the report (Jesse, 2026-10-22), asked by finish itself: the
+    Oct 29 morning skipped the step that asked for it."""
+    try:
+        return social.spend()
+    except Exception as e:  # no network, no key: a line, never a lost report
+        return f"Apify: spend unknown ({' '.join(str(e).split())[:120]})"
 
 
 def selftest():
@@ -871,7 +927,7 @@ def selftest():
                    "or none stays empty"))
     asked.clear()
     late_ones = [{"title": "Game", "link": "https://b/1"}]
-    checks.append((own_pages(late_ones, get, minutes=-1) == 0 and asked == [] and late_ones[0]["page"] == "",
+    checks.append((own_pages(late_ones, get, stop=deadline(-1)) == 0 and asked == [] and late_ones[0]["page"] == "",
                    "past the part's minutes no page is asked for, so the step ends before the cloud stops it"))
     schedule = "\n".join([f"Oct {d} Somebody vs Someone Else at 7 PM" for d in range(1, 200)]
                          + ["Oct 31 Kimball vs Eden Valley-Watkins 2 PM"] + ["Nov 1 Other vs Team"] * 200)
@@ -898,6 +954,7 @@ def selftest():
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
     checks += set_aside_across_days()
+    checks += instructions() + whole_morning()
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -1162,7 +1219,7 @@ def described_once():
 
     def morning(answers):
         with contextlib.redirect_stdout(io.StringIO()):
-            thin(out, date(2026, 10, 29), lambda url: (200, ""))
+            thin(out, date(2026, 10, 29), get=lambda url: (200, ""))
             given = [e["id"] for e in json.loads((out / "describe" / "events.json").read_text())]
             (out / "describe.jsonl").write_text("".join(json.dumps(a) + "\n" for a in answers if a["id"] in given))
             describe(out, False)
@@ -1306,10 +1363,7 @@ def in_parts():
                                                     for i in range(5)))
             tagged, n = [], len(asked)
             while len(tagged) < 3 and "[morning] tagged" not in "".join(tagged):
-                said = io.StringIO()
-                with contextlib.redirect_stdout(said):
-                    tag(out, False, 2)
-                tagged.append(said.getvalue())
+                tagged.append(tag(out, False, 2))
             patched = asked[n:]
             (out / "tag" / "written.json").unlink(missing_ok=True)  # a new morning's tagging
             n, real = len(asked), FakeDb.rest
@@ -1346,7 +1400,7 @@ def in_parts():
          and parts[1][1] == "[morning] run again: 6 of 7 pages fetched; still to read: the feeds\n"
          and [u[8:13] for u in left[1]] == ["site3", "site4", "site5"] and [u[8:13] for u in left[2]] == ["site6"],
          "a part whose time is spent says run again with what is left, and the next part reads just that"),
-        (tagged[0] == "[morning] run again: 3 of 5 events tagged\n" and tagged[1].startswith("[morning] tagged 5 events")
+        (tagged[0] == "[morning] run again: 3 of 5 events tagged" and tagged[1].startswith("[morning] tagged 5 events")
          and sorted(patched) == [f"club_events?id=eq.e{i}" for i in range(5)], "tag in parts writes each Event once"),
         (sorted(stopped) == [f"club_events?id=eq.e{i}" for i in range(5)],
          "a tag run the cloud stops keeps what it wrote: the next run writes only the rest"),
@@ -1451,37 +1505,260 @@ def set_aside_across_days():
                      "last_checked_at": "2026-10-14T16:00:00+00:00"}, "the sync clears the error row of a page no longer watched"),
     ]
 
-def main():
+ROUTINE_FILES = ("morning.md", "social.md", "photos.md")  # sources/models/: what the routines follow
+
+
+def wrong_in(texts):
+    """What the routines' instruction files get wrong (BP app smooth-mornings 07): a step number (a
+    renumbering sent the morning routine to the wrong steps on Oct 21-24), or a script command the
+    script doesn't have, `x.py word` in backticks where x.py never spells "word" out.
+    ponytail: any string in the script counts as a command, so a dropped command whose word the script
+    still uses passes here; whole_morning catches morning.py's own."""
+    import ast
+    wrong = []
+    for name, text in texts.items():
+        wrong += [f"{name}: {m.group(0).strip()!r}" for m in re.finditer(r"\b[Ss]teps?\s+\d+|^\s*\d+\.\s+\*\*", text, re.M)]
+        for span in re.findall(r"`([^`]+)`", text):
+            for script, word in re.findall(r"\b([\w-]+)\.py\s+([a-z][\w-]*)", span):
+                path = SCRIPTS / f"{script}.py"
+                words = {n.value for n in ast.walk(ast.parse(path.read_text()))
+                         if isinstance(n, ast.Constant) and isinstance(n.value, str)} if path.exists() else set()
+                if word not in words:
+                    wrong.append(f"{name}: {script}.py {word}")
+    return wrong
+
+
+def instructions():
+    texts = {n: (SCRIPTS.parent / "models" / n).read_text() for n in ROUTINE_FILES}
+    made_up = dict(texts, **{"morning.md": texts["morning.md"] + "\nRun `python3 sources/scripts/morning.py frobnicate`.\n"})
+    numbered = {"social.md": "Follow steps 3 to 6 of `sources/models/morning.md`.\n1. **Ready.** Run `ready.py social`.\n"}
+    return [(wrong_in(texts) == [], f"the routines' files name only commands the scripts have, and no step number: {wrong_in(texts)}"),
+            (wrong_in(made_up) == ["morning.md: morning.py frobnicate"] and wrong_in(numbered) == ["social.md: 'steps 3'", "social.md: '1. **'"],
+             "a made-up command or a step number fails it")]
+
+
+def whole_morning():
+    """One whole morning as the routine runs it, each step through its command, offline (BP app
+    smooth-mornings 07): Ready, Prepare in parts, the titles step, Save (twice, as on Oct 22), the
+    standouts' layout and Finish in parts, over fake sites (one failing its third morning in a row, so
+    set aside), a fake database, a fake clock and fake Apify, with the helpers' and the judge's lines
+    written here. A command taken out of main fails it."""
+    import functools, io, tempfile, ready, run as runner
+    from datetime import timezone
+    global Supabase, load, start_reader, fetch_watched, find_root, own_page
+    clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
+    sites = ["p0", "p1", "p2", "p3", "dsl"]
+    entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
+                "sources": [{"url": f"https://{i}.example/", "method": "fetch"}]} for i in sites]
+
+    class FakeDb(runner.Supabase):
+        rows = {f"{i}|https://{i}.example/": {"last_hash": "old", "last_checked_at": "2026-11-02T11:00:00+00:00"} for i in sites}
+        rows["dsl|https://dsl.example/"].update(last_error="HTTP Error 500", failing_reads=2,
+                                                 failing_since="2026-10-31T11:00:00+00:00")
+        events, standouts, saves = [], [], []
+
+        def __init__(self):
+            pass
+
+        def upsert_registry(self, rows):
+            pass
+
+        def state(self):
+            return ({k: r.get("last_hash") for k, r in self.rows.items()},
+                    {k for k, r in self.rows.items() if r.get("last_checked_at")},
+                    {k: dict(r) for k, r in self.rows.items() if any(r.get(c) for c in runner.CLEAR)})
+
+        def record(self, entry_id, url, fields):
+            self.rows.setdefault(f"{entry_id}|{url}", {}).update(fields)
+
+        def rest(self, method, path, body=None, prefer=None):
+            if method == "PATCH":
+                clock.t += 150  # a write takes long enough that finish's tags take two parts
+                next(e for e in self.events if path == f"club_events?id=eq.{e['id']}").update(body)
+            elif path.startswith("daily_standouts"):
+                self.standouts[:] = body if method == "POST" else []
+            elif path.startswith("club_events"):
+                return [dict(e) for e in self.events if
+                        ("event_date=eq.2026-11-03" not in path or e["event_date"] == "2026-11-03")
+                        and ("described_at=is.null" not in path or not e["described_at"])
+                        and ("interests_tagged_at.is.null" not in path or not (e["interests_tagged_at"] and e["what"]))]
+            return []
+
+    def save_items(result):  # apply_judged: every Event and News new
+        p = write_judged.payloads(result)
+        FakeDb.saves.append(p)
+        FakeDb.events += [dict(row, id=f"e{len(FakeDb.events) + i}", status="approved", clubs=None, interests=None,
+                               interests_tagged_at=None, draw=None, what=None, described_at=None)
+                          for i, row in enumerate(p["p_events"])]
+        return {"events": len(p["p_events"]), "news": len(p["p_news"]), "mentions": 0, "published_by_mention": 0,
+                "cancelled": 0, "restored": 0, "added": {"events": list(range(len(p["p_events"]))),
+                                                         "news": list(range(len(p["p_news"])))}}
+
+    def site(url, kind):
+        clock.t += 100  # four pages to a part
+        if "dsl" in url:
+            raise RuntimeError("HTTP Error 500: Internal Server Error")
+        return 200, f"Harvest Supper Nov 3 at {url}", "fetch"
+
+    chapel = write_judged.item(title="Anniversary of the Dedication of Sacred Heart Chapel", start="2026-11-21T19:00:00-06:00",
+                               end=None, place="Sacred Heart Chapel", source_name="Saint Benedict's Monastery",
+                               source_url="https://sbm.example/events", interest="faith", blurb=None, size="everyday")
+
+    def reader(out, today, name, which, stop):
+        (out / f"{name}.log").write_text(f"[read] ok     {name} (fake): {int(name == 'feeds')} items\n")
+        (out / f"{name}-items.jsonl").write_text(json.dumps(chapel) + "\n" if name == "feeds" else "")
+        return type("Done", (), {"wait": lambda self: 0, "kill": lambda self: None})()
+    long_about = ("Vendors from around St. Joseph fill the hall with crafts, baking and gifts; free to walk "
+                  "through, with coffee and cider for sale.")
+    judged = [write_judged.item(title="Harvest Supper", start="2026-11-03T17:00:00-06:00", end=None, blurb="", interest="dining"),
+              write_judged.item(title="Holiday Market", start="2026-11-07T09:00:00-06:00", end=None, blurb=long_about),
+              write_judged.item(title="Holiday Market Bake Sale", start="2026-11-07T14:00:00-06:00", end=None, blurb=long_about),
+              write_judged.item(kind="news", title="Pumpkin pie pre-orders open", start=None, category="business",
+                                source_url="https://www.instagram.com/p/pies", interest="dining")]
+
+    def command(*argv):
+        said = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(said), contextlib.redirect_stderr(io.StringIO()):
+                main([*argv, "--today", "2026-11-03"])
+        except SystemExit as e:
+            said.write(f"exit {e.code}\n")
+        except Exception as e:  # a step that broke, as one line of what it said
+            said.write(f"broke: {type(e).__name__}: {e}\n")
+        return said.getvalue()
+
+    def parts(*argv):
+        said = [command(*argv)]
+        while "run again" in said[-1] and len(said) < 4:
+            said.append(command(*argv))
+        return said
+    names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
+    saved = (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
+             start_reader, fetch_watched, find_root, own_page, *(getattr(write_judged, n) for n in names))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / ".runs" / "morning"
+            runner.read_page, runner.validate, runner.find_root, runner.time = site, (lambda e: []), (lambda *a: Path(tmp)), clock
+            runner.NOW = datetime(2026, 11, 3, 11, tzinfo=timezone.utc)  # a Tuesday: no weekly try
+            social.limits = lambda: {"current": {"monthlyUsageUsd": 4.2}, "limits": {"maxMonthlyUsageUsd": 25},
+                                     "monthlyUsageCycle": {"endAt": "2026-11-18T00:00:00.000Z"}}
+            Supabase, load, start_reader, find_root = FakeDb, (lambda root: (entries, [])), reader, (lambda *a: Path(tmp))
+            fetch_watched = functools.partial(runner.fetch_watched, workers=1)  # one page at a time, as the clock counts
+            own_page = lambda url: (200, f"<p>Harvest Supper, a church supper open to all, at {url}</p>")
+            write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = save_items, (lambda: []), (lambda: ["dining", "faith", "markets"])
+            write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
+            env = {"SUPABASE_URL": "u", "SUPABASE_SERVICE_ROLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
+            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [])[0]
+            prepared = parts("prepare")
+            out.mkdir(parents=True, exist_ok=True)  # prepare made it, unless its command is gone
+            (out / "flags.jsonl").write_text("")  # the cheap model's flags, then the judge's items
+            (out / "judged.jsonl").write_text("".join(json.dumps(i) + "\n" for i in judged))
+            titled = command("titles")
+            listed = (out / "titles.txt").read_text() if (out / "titles.txt").exists() else ""
+            (out / "titles.json").write_text(json.dumps({"Anniversary of the Dedication of Sacred Heart Chapel":
+                                                         "Sacred Heart Chapel Anniversary"}))
+            saves = [command("save"), command("save")]
+            given = lambda d: json.loads((out / d / "events.json").read_text()) if (out / d / "events.json").exists() else []
+            is_supper = lambda e: e["title"] == "Harvest Supper"
+            about = "A harvest supper of roast turkey and pie, open to all; $12 a plate, kids under 10 free."
+            tags = [{"id": e["id"], "interests": ["dining"], "draw": 3 if is_supper(e) else 2, "what": "Supper"}
+                    for e in given("tag")]
+            told = [{"id": e["id"], "about": about} if is_supper(e) else {"id": e["id"], "about": "", "check": "Starts at 7:30, not 7."}
+                    for e in given("describe")]
+            for name, lines in (("tags.jsonl", tags), ("describe.jsonl", told)):
+                (out / name).write_text("".join(json.dumps(x) + "\n" for x in lines))
+            laid = command("today")
+            today_txt = [e for e in read_items(out / "today.txt") if isinstance(e, dict)]
+            (out / "standouts.jsonl").write_text("".join(json.dumps({"id": e["id"], "why": "A church supper open to all"}) + "\n"
+                                                         for e in today_txt))
+            finished = parts("finish")
+            supper = next((e for e in FakeDb.events if is_supper(e)), {})
+            stored = (len(FakeDb.saves) == 1 and all(e["interests_tagged_at"] for e in FakeDb.events)
+                      and supper.get("description", "").startswith("A harvest supper")
+                      and [r["event_id"] for r in FakeDb.standouts] == [supper.get("id")]
+                      and all(r["last_hash"] != "old" for k, r in FakeDb.rows.items() if not k.startswith("dsl")))
+            # A social check's save (its prepare.json names the run) only writes: no batches for helpers.
+            prep = json.loads((out / "prepare.json").read_text()) if (out / "prepare.json").exists() else {}
+            (out / "prepare.json").write_text(json.dumps({**prep, "run": "busy"}))
+            (out / "report.txt").unlink(missing_ok=True)
+            shutil.rmtree(out / "tag", ignore_errors=True), shutil.rmtree(out / "describe", ignore_errors=True)
+            evening = command("save")
+            evening_laid = (out / "tag").exists() or (out / "describe").exists()
+    finally:
+        (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
+         start_reader, fetch_watched, find_root, own_page, write_judged.apply, write_judged.listed_in_db,
+         write_judged.interest_ids, write_judged.known_teams, write_judged.news_in_db) = saved
+    report = finished[-1].splitlines()
+    return [
+        (readied == "[ready] ready", f"Ready says ready: {readied}"),
+        (len(prepared) == 2 and prepared[0] == "[morning] run again: 4 of 5 pages fetched; still to read: the feeds\n"
+         and prepared[1].startswith("[morning] fetched 5 watched pages, 4 changed, 4 for the cheap model in 1 batches"),
+         f"Prepare takes two parts and says run again between: {prepared}"),
+        (titled.startswith("[morning] 1 titles over 40") and listed == "Anniversary of the Dedication of Sacred Heart Chapel\n",
+         f"the titles step lists the feed's long title: {titled}"),
+        ("saved already this morning" in saves[1] and "Morning watch, 2026-11-03" in saves[0] and "events to tag in 1 batches" in saves[0]
+         and "events to describe in 1 batches, 1 with their own page read" in saves[0],
+         f"Save writes once, then lays out the tag and describe batches; run again it writes nothing: {saves}"),
+        (laid.startswith("[morning] 1 events today") and [(e["title"], e["interests"], e["draw"]) for e in today_txt]
+         == [("Harvest Supper", ["dining"], 3)], f"today's Events carry the tag helpers' tags before they are saved: {today_txt}"),
+        (len(finished) == 2 and finished[0] == "[morning] run again: 3 of 4 events tagged\n",
+         f"Finish takes two parts while the tags are written: {finished[:1]}"),
+        (report == ["Morning watch, 2026-11-03",
+                    "- Pages: 5 fetched, 4 changed, 4 read by the cheap model",
+                    "- Events: 4 new, 0 already listed",
+                    "- News: 1 new, 0 repeats left out",
+                    "- Skipped: 0 (past, outside the area or unreadable)",
+                    "- Failed today: 1",
+                    "- Set aside: dsl https://dsl.example/: HTTP Error 500: Internal Server Error (failing since Oct 31); "
+                    "tried again on Mondays",
+                    "- Written: 0 mentions, 0 published by a mention, 0 cancelled, 0 back on",
+                    "New Events:",
+                    "- Tue Nov 3 · 5 PM · Harvest Supper · Milk & Honey Ciders",
+                    "- Sat Nov 7 · 9 AM · Holiday Market · Milk & Honey Ciders",
+                    "- Sat Nov 7 · 2 PM · Holiday Market Bake Sale · Milk & Honey Ciders",
+                    "- Sat Nov 21 · 7 PM · Sacred Heart Chapel Anniversary · Sacred Heart Chapel",
+                    "New News:",
+                    "- Pumpkin pie pre-orders open (Milk & Honey Ciders)",
+                    "Maybe the same:",
+                    "- 'Holiday Market Bake Sale' and 'Holiday Market' on 2026-11-07",
+                    "[morning] tagged 4 events (0 with no interest; draw 3/2/1: 1/3/0), 4 with what they are in words, "
+                    "0 left for tomorrow",
+                    "[morning] described 1 of 2 events given",
+                    "[check] Sacred Heart Chapel Anniversary (2026-11-21): Starts at 7:30, not 7.",
+                    "[morning] standouts: 1 of 1 events today",
+                    "[morning] #1 Harvest Supper (5 PM): A church supper open to all",
+                    "Apify: $4.20 of $25 this month (resets after 2026-11-18)"],
+         "Finish prints the whole report:\n" + "\n".join(report)),
+        (stored, "Save wrote once and moved the changed pages' fingerprints; Finish saved the tags, the About and "
+                 "the standout"),
+        ("Social watch (busy), 2026-11-03" in evening and len(FakeDb.saves) == 2 and not evening_laid,
+         f"a social check's save writes and lays out nothing for helpers: {evening[-300:]}"),
+    ]
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "titles", "write", "untagged", "tag", "thin", "describe", "today", "standouts"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "titles", "save", "today", "finish"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
-    ap.add_argument("--dry-run", action="store_true", help="write, tag, describe, standouts: print what would be written, write nothing")
+    ap.add_argument("--dry-run", action="store_true", help="save, finish: print what would be written, write nothing")
     ap.add_argument("--selftest", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("prepare, titles, write, untagged, tag, thin, describe, today or standouts")
+        ap.error("prepare, titles, save, today or finish")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
     if args.step == "prepare":
         prepare(today, out)
     elif args.step == "titles":
         long_titles(out)
-    elif args.step == "write":
-        write(out, args.dry_run, today)
-    elif args.step == "untagged":
-        untagged(out, today)
-    elif args.step == "thin":
-        thin(out, today)
-    elif args.step == "describe":
-        describe(out, args.dry_run)
+    elif args.step == "save":
+        save(out, args.dry_run, today)
     elif args.step == "today":
         lay_out_today(out, today)
-    elif args.step == "standouts":
-        standouts(out, args.dry_run, today)
     else:
-        tag(out, args.dry_run)
+        finish(out, args.dry_run, today)
 
 
 if __name__ == "__main__":

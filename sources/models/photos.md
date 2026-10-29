@@ -9,21 +9,24 @@ that fails is a line in the answer, and you carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 sources/scripts/ready.py photos`, and install nothing
+**Ready.** Run `python3 sources/scripts/ready.py photos`, and install nothing
    any other way. It installs the libraries the scripts need and checks the keys by name; their
    values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so.
-2. **Check.** Run `python3 sources/scripts/place_photos.py check` in the foreground with a 600000 ms
+
+**Check.** Run `python3 sources/scripts/place_photos.py check` in the foreground with a 600000 ms
    timeout, never in the background: ending your turn ends the run. It reads about 140 pages
    politely, about 6 minutes at a time, saving what it read; while it prints `… run check again`,
    run it again. In January, April, July and October also run `check --logos` the same way after it, and report its stale logos in the answer without proposing:
    a logo is picked by hand. A photo marked unsure (its page or some pictures didn't answer) gets no
    proposal: name it in the answer. Done when `check` prints its `… checked against … pages` line.
-3. **Find candidates.** Run `python3 sources/scripts/place_photos.py candidates` the same way, again
+
+**Find candidates.** Run `python3 sources/scripts/place_photos.py candidates` the same way, again
    while it prints `… run candidates again`. For each stale photo and each place still without a real photo it downloads the
    pictures on their pages now and draws them, numbered, on `.runs/photos/sheet-<n>.png`; each
    block's heading carries its key (a row id, or the place's entry id) and why it is there.
-4. **Pick by eye.** Open every sheet with the Read tool, at most four at a time, and look at each
+
+**Pick by eye.** Open every sheet with the Read tool, at most four at a time, and look at each
    candidate. Pick at most one per block: a real photo of this place, its people or its own work,
    the one that best shows the place (its storefront, room or team before a detail). These are not
    real photos and get no proposal: stock photos (posed models, a smiling couple, a generic
@@ -35,15 +38,19 @@ that fails is a line in the answer, and you carry on with the rest.
    `candidates` already leaves out any picture a place shows now, this one's or another's.
    An owner's headshot counts but is weaker than the place. When no candidate is clearly real,
    propose nothing for that block: Jesse sees every proposal, and a wrong one costs his time.
-5. **Look over the live photos.** Run `python3 sources/scripts/place_photos.py live-sheets` and open
+
+**Look over the live photos.** Run `python3 sources/scripts/place_photos.py live-sheets` and open
    every `.runs/photos/live-<n>.png` the same way. Each tile is labelled with its row id and place.
-   List every live photo that isn't a real photo by step 4's rules, and every picture shown on two
-   places (name both), with the row id and one plain reason. Take nothing down: Jesse decides.
-6. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
+   List every live photo that isn't a real photo by Pick by eye's rules, and every picture shown on
+   two places (name both), with the row id and one plain reason. Take nothing down: Jesse decides.
+
+**Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
    saves the picture as a proposal; the app never shows a proposal.
-7. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
+
+**Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
    you proposed or why nothing); then the places without a photo you proposed one for; then, if
-   you made any proposals, "Swaps waiting for Jesse: N"; then step 5's list under "To take down?".
+   you made any proposals, "Swaps waiting for Jesse: N"; then the live photos' list (Look over the
+   live photos) under "To take down?".
    With any proposals or any photo to take down, also send Jesse one push notification saying how
    many of each wait for him; none otherwise.
 

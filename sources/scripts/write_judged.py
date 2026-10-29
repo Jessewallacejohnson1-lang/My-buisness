@@ -11,7 +11,7 @@ supabase/migrations/*.sql that makes it): `--apply` calls it with this morning's
 service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment), `--sql FILE`
 writes the same call as SQL to run by hand. Besides its counts, it answers which items it added
 (`added`: their places in the Events and News sent; every other Event was merged into one already
-listed, every other News a repeat; BP app smooth-mornings 05), and morning.py write counts from that.
+listed, every other News a repeat; BP app smooth-mornings 05), and morning.py save counts from that.
 
   python3 sources/scripts/write_judged.py judged.jsonl --existing existing.json [--sql out.sql]
   python3 sources/scripts/write_judged.py judged.jsonl --existing db --apply
