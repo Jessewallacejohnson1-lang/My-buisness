@@ -2,7 +2,7 @@
 
 The app icon (Oct 29, 2026) is Jesse's Icon Composer file `BlockParty/AppIcon.icon`:
 `Bp!` in black on solid BP yellow (the `!` is Fraunces Black Soft's stem over the
-logo's own period, turned 12°, after Yahoo's) `#FCE804`, flat like Spotify's, letters lifted
+logo's own period, leaning 12°, after Yahoo's) `#FCE804`, flat like Spotify's, letters lifted
 slightly by Apple's edge highlight and a 25% neutral shadow, with dark, tinted and clear looks. Edit it in Icon Composer.
 `LaunchMark` (the icon inside the app) is its Default export inset 36 px, corners
 filled flat yellow. It replaced the stacked `Block` / `Party.` of Oct 8 and the
