@@ -16,7 +16,7 @@ import SwiftUI
 import UIKit
 
 /// One contact as the page needs it, read on the phone.
-struct PhoneContact: Identifiable, Equatable {
+nonisolated struct PhoneContact: Identifiable, Equatable {
     let id: String
     let name: String
     /// The first phone number, as typed: who Invite writes to. Nil: not on the Invite list.
@@ -305,7 +305,10 @@ private struct InviteRow: View {
 }
 
 /// Off, failed, limit or nothing to show: a line, and a button when there's something to do.
-private struct ContactsNote: View {
+/// A note in place of a list: a glyph and a title when something is off, a line, and a button.
+/// The scanner's camera notes use it too (friends 07).
+struct ContactsNote: View {
+    var glyph = "person.text.rectangle"
     let title: String?
     let line: String
     var button: String?
@@ -314,7 +317,7 @@ private struct ContactsNote: View {
     var body: some View {
         VStack(spacing: 0) {
             if let title {
-                Image(systemName: "person.text.rectangle")
+                Image(systemName: glyph)
                     .font(.glyph(26, weight: .medium))
                     .foregroundStyle(Hue.ink)
                     .frame(width: FriendsMetric.ghost, height: FriendsMetric.ghost)
