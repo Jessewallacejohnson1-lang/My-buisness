@@ -208,7 +208,7 @@ final class OnboardingStoreTests: XCTestCase {
             places: [poi("p1", "The Local Blend", "coffee_shop"), poi("p2", "The Middy", "bar", entry: "middy"),
                      poi("p3", "Bad Habit", "brewery"), poi("p4", "Coborn's", "grocery_store"),
                      poi("p5", "Little Saints", "day_care_center")],
-            schools: [LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", logoUrl: nil)],
+            schools: [LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", schoolName: nil, logoUrl: nil)],
             pages: [TownPageRow(id: "c1", slug: "city", name: "City", kind: "City government", sourceName: "City",
                                 picture: nil, pictureKind: nil)],
             events: [UpcomingTags(interests: ["games"], place: "middy"), UpcomingTags(interests: ["games"], place: "middy"),

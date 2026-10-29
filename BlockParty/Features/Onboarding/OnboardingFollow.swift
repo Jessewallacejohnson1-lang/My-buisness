@@ -84,7 +84,7 @@ enum FollowSuggestions {
         }
         func with(_ s: FollowSuggestion, _ fit: [String], _ mine: [UpcomingTags]) -> FollowSuggestion {
             var s = s
-            s.interests = Set(fit + mine.flatMap { Interests.migrate($0.interests.map { Interests.legacy[$0]?.first ?? $0 }) })
+            s.interests = Set(fit + mine.flatMap { Interests.ofEvent($0.interests) })
             s.events = mine.count
             return s
         }
@@ -95,7 +95,8 @@ enum FollowSuggestions {
                  interests(ofKind: poi.primaryType), poi.entryId.flatMap { byPlace[$0] } ?? [])
         }
         let fromSchools = schools.map { school in
-            with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: school.name, kind: "School",
+            with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: school.schoolName ?? school.name,
+                                  kind: "School",
                                   picture: school.logoUrl.flatMap(URL.init(string:))),
                  Self.school, byTeam[school.id] ?? [])
         }
@@ -136,14 +137,12 @@ enum FollowSuggestions {
             .sorted { $0.events != $1.events ? $0.events > $1.events : $0.name < $1.name }
     }
 
-    /// The Places, schools and pages, and the upcoming Events that fit each, read together.
-    static func load() async throws -> [FollowSuggestion] {
+    /// The Places, schools and pages, read together, with the upcoming Events Popular already read.
+    static func load(events: [UpcomingTags]) async throws -> [FollowSuggestion] {
         let api = CommunityAPI(auth: AuthStore.shared)
         async let places = api.getPlaces()
-        async let others = api.followableSchoolsAndPages()
-        async let events = api.upcomingTags()
-        let (s, p) = try await others
-        return build(places: try await places, schools: s, pages: p, events: (try? await events) ?? [])
+        let (s, p) = try await api.followableSchoolsAndPages()
+        return build(places: try await places, schools: s, pages: p, events: events)
     }
 }
 
@@ -311,8 +310,9 @@ private struct OnboardingFollowPill: View {
                 .contentShape(Rectangle().inset(by: (FollowMetric.rowHeight - SearchMetric.tapMin) / 2))
         }
         .buttonStyle(OnboardingPress(scale: 0.94))
+        // It turns at once, as Instagram's does, and the pop carries the motion: a fade left one
+        // frame of ink words on ink, or two words over each other.
         .scaleEffect(pop)
-        .animation(.easeInOut(duration: 0.18), value: on)
         .accessibilityLabel("\(on ? "Following" : "Follow"), \(name)")
         .accessibilityAddTraits(on ? .isSelected : [])
     }

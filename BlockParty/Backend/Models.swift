@@ -588,6 +588,8 @@ struct LocalSchool: Decodable, Equatable {
     let id: String
     let uuid: String
     let name: String
+    /// "Sartell High School", where `name` is the team's "Sartell".
+    let schoolName: String?
     let logoUrl: String?
 }
 

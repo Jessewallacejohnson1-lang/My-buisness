@@ -138,10 +138,15 @@ enum Interests {
     /// interests given as a list. Only interests with at least `minimum` Events count, and the
     /// row is empty, so hidden, when fewer than 3 do. An Event's old id counts as the first of the
     /// new ones, as the server maps it: an old game is Watch sports, not Play sports too.
+    /// An Event's tags in today's ids: an old id counts as the first of the new ones.
+    static func ofEvent(_ tags: [String]) -> [String] {
+        migrate(tags.map { legacy[$0]?.first ?? $0 })
+    }
+
     static func popular(_ events: [[String]], limit: Int = 6, minimum: Int = 3) -> [String] {
         var counts: [String: Int] = [:]
         for tags in events {
-            for id in Set(migrate(tags.map { legacy[$0]?.first ?? $0 })) { counts[id, default: 0] += 1 }
+            for id in Set(ofEvent(tags)) { counts[id, default: 0] += 1 }
         }
         let order = all.map(\.id)
         let ranked = order.filter { (counts[$0] ?? 0) >= minimum }

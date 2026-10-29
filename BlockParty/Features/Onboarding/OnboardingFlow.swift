@@ -246,18 +246,27 @@ struct OnboardingFlow: View {
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing))
             }
         }
-        .task {
-            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags() {
-                popular = Interests.popular(events.map(\.interests))
+        // One read of the upcoming Events, for Popular and for Follow 3, while the earlier steps are up.
+        .task { await readSuggestions() }
+        // Reached Follow 3 with nothing read (no signal back then): read again.
+        .onChange(of: store.step) { _, step in
+            if step == .follow, suggestions?.isEmpty == true {
+                suggestions = nil
+                Task { await readSuggestions() }
             }
         }
-        .task { suggestions = (try? await FollowSuggestions.load()) ?? [] }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = false }
         }
+    }
+
+    private func readSuggestions() async {
+        let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags()
+        if let events { popular = Interests.popular(events.map(\.interests)) }
+        suggestions = (try? await FollowSuggestions.load(events: events ?? [])) ?? []
     }
 
     /// Every question step: the backdrop, the fixed top row and Next bar, and the one part
@@ -400,10 +409,10 @@ struct OnboardingFlow: View {
         return "Next"
     }
 
-    /// Follows still to make on step 8; none when the read failed or found fewer than 3, so a
-    /// neighbour with no signal is never stuck there (SPEC: never block on the network).
+    /// Follows still to make on step 8; none while the read is out, when it failed or when it found
+    /// fewer than 3, so a neighbour on a weak signal is never stuck there (SPEC: never block on the network).
     private var followsNeeded: Int {
-        guard let suggestions, suggestions.count >= 3 else { return suggestions == nil ? 3 : 0 }
+        guard let suggestions, suggestions.count >= 3 else { return 0 }
         return max(0, 3 - store.follows.count)
     }
 

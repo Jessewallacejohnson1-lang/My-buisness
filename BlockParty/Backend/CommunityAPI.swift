@@ -499,7 +499,7 @@ struct CommunityAPI {
     /// beside its Places (onboarding 22). Read with the public key, as there may be no account yet.
     func followableSchoolsAndPages() async throws -> (schools: [LocalSchool], pages: [TownPageRow]) {
         let t = await readToken()
-        async let schools = SupabaseHTTP.rest("teams", query: "select=id,uuid,name,logo_url&local=eq.true", accessToken: t)
+        async let schools = SupabaseHTTP.rest("teams", query: "select=id,uuid,name,school_name,logo_url&local=eq.true", accessToken: t)
         async let pages = SupabaseHTTP.rest("town_pages",
             query: "select=id,slug,name,kind,source_name,picture,picture_kind&town=eq.\(Town.slug)", accessToken: t)
         return (try decode((try await schools).0), try decode((try await pages).0))
