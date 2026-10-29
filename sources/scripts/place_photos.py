@@ -299,13 +299,7 @@ def public_url(path):
 
 # --- The monthly check ----------------------------------------------------------------------------
 
-def deadline(minutes):
-    """When a timed part stops starting new work (None: never); a part's work then has 3 minutes to end."""
-    return time.monotonic() + minutes * 60 if minutes else None
-
-
-def late(stop, grace=0):
-    return stop is not None and time.monotonic() > stop + grace
+deadline, late = run.deadline, run.late  # timed parts, as the morning job's
 
 
 def check(logos=False, rows=None, minutes=None):

@@ -67,6 +67,16 @@ await db.exec(one('_moved_notices.sql'));
 await db.exec(`create function private.friends_going(p uuid[]) returns table (event_id uuid, friends int, people jsonb)
   language sql stable as $$ select x, 1, '[{"name": "Anna", "photo": null}]'::jsonb from unnest(p) x $$`);
 await db.exec(one('_my_changes_friends.sql'));
+// Its card picture from event_picture (event-photos 07), which falls back to place_picture.
+await db.exec(one('_place_photos.sql'));
+await db.exec(one('_place_photo_kind.sql'));
+await db.exec('alter table public.place_photos add column width int, add column height int'); // _place_photo_size.sql
+await db.exec('grant select on public.place_photos to anon, authenticated');
+await db.exec(one('_event_photos.sql'));
+await db.exec(one('_event_photos_christmas.sql'));
+await db.exec(one('_event_photos_gender.sql'));
+await db.exec(one('_event_photos_christmas_fit.sql'));
+await db.exec(one('_event_photos_my_changes.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
 const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
