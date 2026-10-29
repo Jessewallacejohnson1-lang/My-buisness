@@ -20,7 +20,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   write     merge the feed items with the judge's items, give long titles their short ones
             (titles.json), write them (public.apply_judged over the service role key), then save
             the changed pages' new fingerprints (fingerprints.json) and print the morning's
-            summary: a morning that stops before this reads the same pages again tomorrow
+            summary: a morning that stops before this reads the same pages again tomorrow. Its new
+            counts are what the database did (apply_judged's answer), and it lists each new Event
+            (date, time, title, place) and News title (BP app smooth-mornings 05)
   untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
             what they are), upcoming or still running, in batches of 40 for the cheap model
             (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
@@ -244,20 +246,44 @@ def read_items(path):
 
 
 def summary_lines(prep, result, written):
+    """The new counts are what the database did (apply_judged's answer, item by item: smooth-mornings
+    05), and the new Events and News are listed from the rows it added. A dry run's are the plan's."""
     count = {}
     for what, _ in result["outcomes"]:
         count[what] = count.get(what, 0) + 1
+    sent = write_judged.payloads(result)
+    answered = isinstance((written or {}).get("news"), list)
+    did = written if answered else {"events": ["merged" if g["old"] else "added" for g in result["events"] if g["row"]],
+                                    "news": ["added"] * len(sent["p_news"])}
+    events = [e for e, d in zip(sent["p_events"], did["events"]) if d == "added"]
+    news = [n for n, d in zip(sent["p_news"], did["news"]) if d == "added"]
     lines = [f"Social watch ({prep['run']}), {prep['today']}" if prep.get("run") else f"Morning watch, {prep['today']}",
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
-             f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed",
-             f"- News: {count.get('news', 0)} new, {count.get('repeat', 0)} repeats left out",
+             f"- Events: {len(events)} new, {count.get('published', 0) + count.get('merged', 0) - len(events)} already listed",
+             f"- News: {len(news)} new, {count.get('news', 0) + count.get('repeat', 0) - len(news)} repeats left out",
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
     lines += [f"- Source failed: {f}" for f in prep.get("failed", [])]
     lines += [f"- {a}" for a in prep.get("aside", [])]
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
-    lines.append(f"- Written: {json.dumps(written)}" if written is not None else "- Dry run: nothing written")
+    if written is None:
+        lines.append("- Dry run: nothing written")
+    elif answered:
+        lines.append(f"- Written: {written['mentions']} mentions, {written['published_by_mention']} published by a "
+                     f"mention, {written['cancelled']} cancelled, {written['restored']} back on")
+    else:
+        lines.append(f"- Written: {json.dumps(written)}; the save didn't say what it did with each item, so the "
+                     "counts above are what was sent (apply_judged from before smooth-mornings 05)")
+    lines += ["New Events:"] * bool(events) + [f"- {new_event(e)}" for e in events]
+    lines += ["New News:"] * bool(news) + [f"- {n['title']} ({n['source_name']})" for n in news]
     return lines
+
+
+def new_event(row):
+    """Date, time, title and place (Jesse's morning-report rule, 2026-10-22)."""
+    day = date.fromisoformat(row["event_date"])
+    return " · ".join(x for x in (f"{day:%a %b} {day.day}", "all day" if row["all_day"] else row["start_time"],
+                                  row["title"], row["location"]) if x)
 
 
 def long_titles(out):
@@ -572,13 +598,16 @@ def selftest():
     tmp.with_name("titles.json").unlink()
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
-    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x")]}
-    lines = summary_lines(prep, result, {"events": 2})
+    result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x")],
+              "events": [], "news": []}
+    lines = summary_lines(prep, result, None)
     checks.append((summary_lines({**prep, "first_seen": 2}, result, None)[1].endswith(", 2 new kept as a starting copy"),
                    "the summary counts new pages kept as a starting copy"))
-    checks.append((lines[2] == "- Events: 1 new, 1 already listed" and lines[3] == "- News: 1 new, 1 repeats left out"
-                   and "- Source failed: x https://x: HTTP 403" in lines
+    checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    checks.append((counts_what_the_database_did(), "the new counts are what the save did: 3 new and 2 listed Events, "
+                   "1 new and 25 re-read News say 3 and 1 new, and list each new Event (date, time, title, place) "
+                   "and News"))
     import gzip, run as runner
     checks.append((runner.decoded(gzip.compress(b"Trivia Oct 24"), "") == b"Trivia Oct 24"
                    and runner.decoded(gzip.compress(b"Trivia Oct 24" * 50)[:60], "gzip").startswith(b"Trivia")
@@ -654,6 +683,65 @@ def selftest():
         print(f"FAIL {why}")
     print(f"{len(checks) - len(failed)} passed, {len(failed)} failed")
     sys.exit(1 if failed else 0)
+
+
+def counts_what_the_database_did():
+    """write against a fake database that answers as apply_judged does, item by item: the plan sends 5
+    Events and 26 News, and the database already has 2 of the Events and 25 of the News (BP app
+    smooth-mornings 05: on Oct 28 the report said "26 new" and the database got 1 new row)."""
+    import io, tempfile
+    listed = [write_judged.listed(id=f"0000000{k}-0000-0000-0000-000000000000", title=t, event_date=d, start_time="6 PM",
+                                  location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid=f"mh-{k}",
+                                  shows_from="2026-10-10") for k, t, d in [(1, "Yoga, Sauna & Cider", "2026-10-27"),
+                                                                           (2, "Pumpkin Carving", "2026-10-28")]]
+    held_events = {(e["source_name"], e["source_uid"]) for e in listed}
+    held_news = {f"post number {k}" for k in range(25)}
+    news = lambda title: write_judged.item(kind="news", title=title, start=None, category="business",
+                                           source_url="https://www.instagram.com/p/" + title.replace(" ", ""))
+    items = ([write_judged.item(), write_judged.item(title="Cider Tasting", start="2026-10-25T18:00:00-05:00", end=None),
+              write_judged.item(title="Harvest Market", start="2026-10-26", end=None, all_day=True)]
+             + [write_judged.item(title=e["title"], start=f"{e['event_date']}T18:00:00-05:00", end=None,
+                                  source_uid=e["source_uid"]) for e in listed]
+             + [news("Thanksgiving pies")] + [news(f"Post number {k}") for k in range(25)])
+    answers = []
+
+    def apply(result):  # the database's half: what it already has is a repeat or merged, the rest added
+        p = write_judged.payloads(result)
+        answers.append({"events": ["merged" if (e["source_name"], e["source_uid"]) in held_events else "added"
+                                   for e in p["p_events"]],
+                        "news": ["repeat" if n["title"].lower() in held_news else "added" for n in p["p_news"]],
+                        "mentions": 5, "published_by_mention": 0, "cancelled": 0, "restored": 0})
+        return answers[-1]
+    names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
+    saved = tuple(getattr(write_judged, n) for n in names)
+    try:
+        write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = apply, (lambda: listed), (lambda: ["bars"])
+        write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "prepare.json").write_text(json.dumps({"today": "2026-10-20", "fetched": 9, "changed": 2,
+                                                          "to_read": 2, "failed": [], "readers": []}))
+            (out / "judged.jsonl").write_text("".join(json.dumps(it) + "\n" for it in items))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                write(out, False, date(2026, 10, 20))
+            lines = printed.getvalue().splitlines()
+            result = write_judged.plan(items, listed, date(2026, 10, 20), ["bars"], teams={})
+    finally:
+        for n, f in zip(names, saved):
+            setattr(write_judged, n, f)
+    old = summary_lines({"today": "2026-10-20", "fetched": 9, "changed": 2, "to_read": 2, "failed": [], "readers": []},
+                        result, {"events": 5, "news": 26})
+    at = lines.index("New Events:") if "New Events:" in lines else len(lines)
+    return ("- Events: 3 new, 2 already listed" in lines and "- News: 1 new, 25 repeats left out" in lines
+            and "- Written: 5 mentions, 0 published by a mention, 0 cancelled, 0 back on" in lines
+            and lines[at:] == ["New Events:",
+                               "- Sat Oct 24 · 4 PM · Plant Bingo · Milk & Honey Ciders",
+                               "- Sun Oct 25 · 6 PM · Cider Tasting · Milk & Honey Ciders",
+                               "- Mon Oct 26 · all day · Harvest Market · Milk & Honey Ciders",
+                               "New News:", "- Thanksgiving pies (Milk & Honey Ciders)"]
+            # An apply_judged from before this answers counts only: the plan's counts, said so, no crash.
+            and "- News: 26 new, 0 repeats left out" in old and any("the save didn't say" in ln for ln in old))
 
 
 def fingerprints_wait_for_write():

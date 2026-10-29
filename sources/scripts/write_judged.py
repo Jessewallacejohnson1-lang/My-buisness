@@ -6,10 +6,12 @@ and the spec's Area rule, which amends ADR-019 and ADR-021's in-town rule).
 
 The part of the morning job that needs no model: saved pages in, Events and News out, and
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
-becomes. How the writes land lives in the database, in public.apply_judged
-(supabase/migrations/20261016090200_apply_judged_title_kept.sql): `--apply` calls it with this
-morning's writes over the service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in
-the environment), `--sql FILE` writes the same call as SQL to run by hand.
+becomes. How the writes land lives in the database, in public.apply_judged (the newest
+supabase/migrations/*.sql that makes it): `--apply` calls it with this morning's writes over the
+service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment), `--sql FILE`
+writes the same call as SQL to run by hand. It answers what it did with each item, in the order
+sent: "added" or "merged" (into one already listed) for each Event, "added" or "repeat" for each
+News (BP app smooth-mornings 05), and morning.py write counts from that answer.
 
   python3 sources/scripts/write_judged.py judged.jsonl --existing existing.json [--sql out.sql]
   python3 sources/scripts/write_judged.py judged.jsonl --existing db --apply
@@ -74,9 +76,13 @@ THE RULES
   Goes live: every kept item is published (events `approved`, news `published`), official or
     secondhand, on its first mention (Jesse, 2026-10-26: "only hold back if its the exact same").
     Nothing waits for review; the only thing kept out is a repeat.
-  News repeats: News from the same place in the last 6 days with much the same title (two
-    shared words at least, two thirds of the shorter title's, the place's own name not
-    counted) is a repeat and is not added (repeat_of).
+  News repeats: one News is one link (smooth-mornings 05). News from the same source with the
+    same link of its own (a post's address, a feed item's link; own_link) is a repeat however
+    its title is worded: apply_judged leaves it out. A site's home page or a page the registry or
+    the social watch reads is no link of its own, since every News read from it shares it. And
+    News from the same place in the last 7 days (as long as the Town feed shows it) with much
+    the same title (two shared words at least, two thirds of the shorter title's, the place's
+    own name not counted) is a repeat and is not added (repeat_of).
   Merging: same place (or two names for one registry place), start within an hour (all-day ones: a day apart; one with no time: the
     same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
@@ -121,6 +127,7 @@ EXISTING (--existing): the events already in the list, from yesterday on (cancel
 import argparse, json, re, secrets, sys
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
@@ -574,7 +581,33 @@ def news_of(it, interests, notes):
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
             "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
             # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
-            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
+            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"]),
+            "own_link": own_link(it["source_url"])}, None
+
+
+def link_key(url):
+    """A link without its scheme, www., query, fragment or trailing slash: "stjosephmn.gov/calendar.aspx"."""
+    u = urlsplit((url or "").strip().lower())
+    return (u.netloc.removeprefix("www.") + u.path).rstrip("/")
+
+
+_PAGES = None
+
+
+def own_link(url):
+    """Whether a News item's link is its own (a post's address, a feed item's link), so the same link
+    from the same source again is a repeat (apply_judged). A site's home page, or a page the registry
+    or the social watch reads, is the link of every News read from it: Stearns County gives its home
+    page for all its news, Kennedy its calendar's ?cal_date=2026-11-01 for each day off in November.
+    Those keep the title rule alone."""
+    global _PAGES
+    if _PAGES is None:
+        root = Path(__file__).resolve().parents[2]
+        social = [p["url"] for f in (root / "sources" / "social").glob("*.json") for p in json.loads(f.read_text())]
+        _PAGES = {link_key(v) for e in registry.load(root)[0] for s in e.get("sources") or []
+                  for v in s.values() if isinstance(v, str) and v.startswith("http")} | {link_key(u) for u in social}
+    key = link_key(url)
+    return "/" in key and key not in _PAGES
 
 
 def mention(it, uid):
@@ -806,8 +839,8 @@ def listed_in_db():
 
 
 def news_in_db(today=None):
-    """This week's News already in the app, for repeat_of."""
-    since = (today or datetime.now(LOCAL).date()) - timedelta(6)
+    """The News already in the app from the 7 days the Town feed shows it, for repeat_of."""
+    since = (today or datetime.now(LOCAL).date()) - timedelta(7)
     return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id"
                                   f"&status=eq.published&created_at=gte.{since}") or []
 
@@ -1158,9 +1191,9 @@ def t_cancelled():
     merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
     r = run([seen, line], [merged])
     assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "a cancelled one still merges"
-    db = writes().read_text()
-    assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
-    assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"
+    db = " ".join(writes().read_text().split())
+    assert "cancelled_at = null, shows_from" in db, "a re-read by its own source restores it"
+    assert "set cancelled_at = now() " in db and "set cancelled_at = null " in db, "only the mark changes"
     assert "'Cancelled: ' ||" not in db, "the title stays as written: the app shows the tag (ticket 12)"
     assert not re.search(r"\bdelete\s+from\b", db, re.I), "never deleted"
 
@@ -1257,6 +1290,33 @@ def t_past_and_invalid_skipped():
     assert [o[0] for o in r["outcomes"]] == ["skipped"] * len(bad) + ["published"], r["outcomes"]
     news = run([item(kind="news", title="No school", start="2026-10-15")])["news"][0]
     assert news["starts_at"] == "2026-10-15T00:00:00-05:00", news
+
+
+def t_one_news_one_link():
+    """One News is one link (smooth-mornings 05): a post's address or a feed item's link is its own, so
+    apply_judged takes it again from the same source as a repeat. A home page, or a page the registry
+    or the social watch reads, is shared by every News read from it, so it keeps the title rule alone."""
+    own = [own_link(u) for u in ("https://www.instagram.com/p/DeBoo/",
+                                 "https://thenewsleaders.com/where-do-i-vote-on-election-day-nov-3/",
+                                 "https://www.facebook.com/permalink.php?story_fbid=pfbid0u6&id=6156",
+                                 "https://www.stearnscountymn.gov/", "http://www.2ndavecuts.com",
+                                 "https://kennedy.isd742.org/calendar?cal_date=2026-11-01",
+                                 "https://www.facebook.com/BelloCucinaStJoseph/")]
+    assert own == [True, True, True, False, False, False, False], own
+    r = run([item(kind="news", title="Boo baskets", start=None, source_url="https://www.instagram.com/p/DeBoo/")])
+    assert payloads(r)["p_news"][0]["own_link"] is True, payloads(r)["p_news"]
+
+
+def t_news_look_back_is_the_feeds_week():
+    """The title rule looks back over the 7 days the Town feed shows News (smooth-mornings 05), not 6."""
+    global Supabase
+    asked, saved = [], Supabase
+    Supabase = lambda: type("Db", (), {"rest": lambda self, method, path: asked.append(path) or []})()
+    try:
+        news_in_db(date(2026, 10, 29))
+    finally:
+        Supabase = saved
+    assert "created_at=gte.2026-10-22" in asked[0], asked
 
 
 def t_writes_are_one_safe_call():
@@ -1438,6 +1498,7 @@ def t_one_place_two_names():
 
 
 TESTS = [t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
+         t_one_news_one_link, t_news_look_back_is_the_feeds_week,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,

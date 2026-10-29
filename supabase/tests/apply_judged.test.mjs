@@ -19,7 +19,8 @@ test('the story below loads every migration that makes the writer\'s functions',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
                     '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
                     '20261024090000_keep_longer_description.sql', '20261025090000_keep_place_on_reread.sql',
-                    '20261026132256_apply_judged_followers_only.sql', '20261026135926_apply_judged_keeps_public.sql']);
+                    '20261026132256_apply_judged_followers_only.sql', '20261026135926_apply_judged_keeps_public.sql',
+                    '20261029151242_apply_judged_says_what_it_did.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -159,6 +160,33 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.deepEqual(await marks(), [{ f: false, team: 'rocori', name: 'Volleyball, Girls' }]);
   await apply(placed('2026-10-21'), [], [], []);
   assert.deepEqual(await marks(), [{ f: false, team: 'rocori', name: 'Volleyball, Girls' }]);
+
+  // The save says what it did with each item, in the order given (smooth-mornings 05): an Event added or
+  // merged into the one already listed, a News added or a repeat. One News is one link: the same post
+  // again under a reworded title is a repeat, and left as it is.
+  await db.exec(migration('20261029151242_apply_judged_says_what_it_did.sql'));
+  const hayride = placed('2026-10-22').map((g) => ({ ...g, title: 'Haunted Hayride', source_uid: 'hay:1' }));
+  const post = { blurb: 'Boo baskets are back.', category: 'business', source_name: 'White Peony Boutique',
+    source_url: 'https://www.instagram.com/p/DeBoo/', tier: 1, status: 'published', starts_at: null, own_link: true };
+  const first = await apply([...hayride, ...placed('2026-10-21')], [], [], [{ ...post, title: 'Boo baskets for Halloween' }]);
+  assert.deepEqual([first.events, first.news], [['added', 'merged'], ['added']]);
+  const again = await apply(hayride, [], [], [{ ...post, title: 'Halloween boo baskets are back' }]);
+  assert.deepEqual([again.events, again.news], [['merged'], ['repeat']]);
+  const titles = async (source) => (await db.query(
+    'select title from public.board_items where source_name = $1 order by title', [source])).rows.map((r) => r.title);
+  assert.deepEqual(await titles('White Peony Boutique'), ['Boo baskets for Halloween'], 'the repeat is left out');
+  // A home page (or a writer from before this, which says nothing of the link) is no link of its own:
+  // two News sharing it are two, and the title rule still finds a re-read. One post twice in one call is one.
+  const page = { ...post, source_name: 'Stearns County', source_url: 'https://www.stearnscountymn.gov/', own_link: false };
+  const cow = { ...post, source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/DeCow/' };
+  assert.deepEqual((await apply([], [], [], [{ ...page, title: 'Early Voting' }, { ...page, title: 'County Road 134 closed' },
+    { ...cow, title: 'Pumpkin pie is the flavor' }, { ...cow, title: 'Flavor of the week: pumpkin pie' }])).news,
+  ['added', 'added', 'added', 'repeat']);
+  assert.deepEqual((await apply([], [], [], [{ ...page, title: 'early voting' }])).news, ['repeat']);
+  assert.deepEqual(await titles('Stearns County'), ['County Road 134 closed', 'Early Voting']);
+  assert.deepEqual(await titles('The Wandering Cow'), ['Flight Friday', 'Pumpkin pie is the flavor']);
+  assert.deepEqual((await apply([], [], [], [])), { events: [], news: [], mentions: 0, published_by_mention: 0,
+                                                     cancelled: 0, restored: 0 });
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');

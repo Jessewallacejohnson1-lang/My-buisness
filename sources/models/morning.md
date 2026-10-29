@@ -41,7 +41,8 @@ source is a line in the summary; carry on with the rest.
    `{"the long title": "the short one"}`. None listed: skip. Done when every listed title has one.
 6. **Write.** Run `python3 sources/scripts/morning.py write`. It merges the feed items with
    yours, gives the long titles their short ones, writes them to the database and prints the
-   summary. A `[long title]` line in it names one still too long: say so in your answer.
+   summary: what the database did, with each new Event and News listed. A `[long title]` line in
+   it names one still too long: say so in your answer.
 7. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
    tagger has read yet or that has no words saying what it is, today's new ones included, in batches in `.runs/morning/tag/`. For each
    batch file, start one helper on the cheap model (Haiku), all at once, each with this prompt:
