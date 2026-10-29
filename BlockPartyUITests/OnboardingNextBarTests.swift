@@ -3,7 +3,8 @@
 //  Block Party — onboarding's locked rule (ONBOARDING.md): the Next bar never moves, except
 //  to ride with the keyboard. Walks every question step and reads the bar's frame on each,
 //  then steps back once. Name needs a first name to go on and Photo is skipped (ticket 18);
-//  Birthday starts on a saved one, so Next is allowed (ticket 19); Interests takes 3 picks (20).
+//  Birthday starts on a saved one, so Next is allowed (ticket 19); Interests takes 3 picks (20);
+//  Follow 3 takes 3 follows once its places are read (22).
 //
 //  `-onboarding` shows the flow as a first launch would; the `-onboarding.*` pairs set its
 //  saved place and name, and `-bp.interests` its picks, through the launch arguments' defaults domain, so every run starts
@@ -68,6 +69,20 @@ final class OnboardingNextBarTests: XCTestCase {
                     XCTAssertTrue(chip.waitForExistence(timeout: 3), "no chip to pick \(picked)")
                     Thread.sleep(forTimeInterval: 0.6)
                     chip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                }
+                XCTAssertEqual(next.label, "Next")
+                next.tap()
+            case 8:
+                // Follow 3 asks for 3 once its places are read (ticket 22); a failed read lets Next on.
+                if app.staticTexts["Suggested for you"].waitForExistence(timeout: 10) {
+                    XCTAssertEqual(next.label, "Follow 3 more")
+                    for followed in 1...3 {
+                        let pill = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)
+                        XCTAssertTrue(pill.waitForExistence(timeout: 3), "no place to follow \(followed)")
+                        // Once the step has slid in and the last pill has popped, as the chips above.
+                        Thread.sleep(forTimeInterval: 0.6)
+                        pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                    }
                 }
                 XCTAssertEqual(next.label, "Next")
                 next.tap()
