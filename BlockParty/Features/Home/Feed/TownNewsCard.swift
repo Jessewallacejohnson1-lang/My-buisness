@@ -2,12 +2,14 @@
 //  TownNewsCard.swift
 //  Block Party — town news in the Town feed (BP app docs/plans/town-feed, ticket 35).
 //
-//  Threads' text post in the event card's own sizes (Reference: BP app references/town-news/):
-//  the place's logo where a host's photo goes, its name, its one line of facts beside the
-//  avatar from 58 pt in, and the send under them. No time: Block Party knows when it saved a
-//  post, not when the place posted it. A tap opens the post in Instagram or Facebook when that
-//  app is on the phone, else in Apple's in-app browser; the card squishes the instant a finger
-//  lands, as an event card does.
+//  A Town card that says News (Jesse, 2026-10-29: "similar format to cards just news", BP app
+//  references/found-posts): the place's photo in its own shape, else its logo on its Search
+//  backdrop, else ink; a white "News" chip where an event's day and time go; the headline over
+//  it as an event's title, the facts under that; the send under the picture. No place name and no
+//  picture beside one: a found post carries only the place's own mark. No time: Block Party knows
+//  when it saved a post, not when the place posted it. A tap opens the post in Instagram or
+//  Facebook when that app is on the phone, else in Apple's in-app browser; the picture sinks the
+//  instant a finger lands, as an event card's does.
 //
 
 import SwiftUI
@@ -21,37 +23,38 @@ struct TownNewsCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var pressed = false
     @State private var link: SafariLink?
+    /// The photo once its bitmap is on screen: its credit waits for it.
+    @State private var shown: Set<URL> = []
+    /// A photo that couldn't load: the card turns to ink, keeping its shape.
+    @State private var failed = false
+    /// The words' height over the picture, so a logo stays in the room above them.
+    @State private var copyHeight: CGFloat = 0
 
-    /// The event card's host avatar and its gap to the name (`FeedEventCard.hostRow`), so the
-    /// words start where an event's host name does.
-    private static let avatarSide: CGFloat = 32
-    private static let avatarGap: CGFloat = 10
-    /// The send's glyph sits 2 pt inside its 28 pt target: this lines it up under the words.
-    private static let sendInset: CGFloat = avatarSide + avatarGap - 2
+    /// The place's picture, which also sets the card's shape, failed or not.
+    private var source: FeedCardImageSource { news.picture.map(FeedCardImageSource.init) ?? .fallback }
+    private var image: FeedCardImageSource { failed ? .fallback : source }
+    /// Ink words over a logo's light backdrop, white over a photo or ink.
+    private var onLogo: Bool { image.logo != nil }
+
+    private var credit: [String] {
+        guard let url = image.url, PhotoPager.isShown(url, in: shown), let credit = image.attribution else { return [] }
+        return [credit]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: open) {
-                HStack(alignment: .top, spacing: Self.avatarGap) {
-                    // The name says whose post it is: VoiceOver skips the avatar's letter.
-                    avatar.accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(news.place)
-                            .font(.sansSemibold(14))
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                        Text(news.words)
-                            .font(.sans(15))
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .foregroundStyle(Hue.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(Rectangle())
+                picture
+                    .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
+                    .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
+                    .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(FeedCardLinkStyle())
             .gesture(FeedTouchDownTracker(isPressed: $pressed))
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(["News", news.headline, news.facts].compactMap { $0 }.joined(separator: ". "))
+            .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
 
             if sendable {
@@ -67,30 +70,84 @@ struct TownNewsCard: View {
                     onComment: {},
                     onShare: share
                 )
-                .padding(.leading, Self.sendInset)
                 .padding(.top, 2)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
             }
         }
-        .padding(.horizontal, DailyFeedMetric.contentInset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
-        .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
-        .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
 
-    /// The place's logo on a white disc, as Search shows it, else its photo; with neither, its
-    /// first letter, as a neighbour with no photo gets.
-    @ViewBuilder
-    private var avatar: some View {
-        if let picture = news.picture, picture.kind == .logo {
-            LogoDisc(logo: picture.url, initial: initial, logoSide: Self.avatarSide * 0.875, letter: .sansSemibold(14),
-                     fits: true)
-                .frame(width: Self.avatarSide, height: Self.avatarSide)
-                .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
-        } else {
-            FeedAuthorAvatar(url: news.picture?.url, name: news.place, side: Self.avatarSide)
+    /// The event card's picture (`FeedEventCard.imageSection`): the photo's own shape, 20 pt
+    /// corners, the chip along the top with the photo's credit at the right, the words off the
+    /// bottom left.
+    private var picture: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                pictureContent
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .background(Hue.ink)
+                    .clipped()
+                if image.isPhoto {
+                    FeedCardPhotoScrim(imageHeight: proxy.size.height)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(source.cardAspect), contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(alignment: .top) {
+            HStack(alignment: .center, spacing: 8) {
+                PhotoChip(text: "News")
+                Spacer(minLength: 0)
+                PhotoCredit(names: credit)
+                    .padding(-PhotoCredit.edgeInset)
+                    .animation(reduceMotion ? nil : Motion.smooth, value: credit)
+            }
+            .frame(minHeight: PhotoChip.height)
+            .padding(PhotoChip.inset)
+        }
+        .overlay(alignment: .bottomLeading) {
+            copy.padding(16)
+        }
+        .padding(.horizontal, DailyFeedMetric.contentInset)
+    }
+
+    @ViewBuilder
+    private var pictureContent: some View {
+        if let url = image.url {
+            PhotoPager(urls: [url], page: .constant(0), shown: $shown, value: "",
+                       onFailure: { _ in failed = true }, skeleton: false, bounces: true)
+        } else if let logo = image.logo {
+            FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
+        } else {
+            Rectangle().fill(Hue.ink)
+        }
+    }
+
+    /// The headline as an event's title (`FeedEventCard.imageCopy`), the facts in its place line's
+    /// type, two lines at most: news facts run a sentence where an event's place is a few words.
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(news.headline)
+                .font(.eventDisplay(28))
+                .lineSpacing(-2)
+                .foregroundStyle(onLogo ? Hue.ink : .white)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            if let facts = news.facts {
+                Text(facts)
+                    .font(.sans(13))
+                    .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
+        .allowsHitTesting(false)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
@@ -104,10 +161,6 @@ struct TownNewsCard: View {
                 link = SafariLink(url: post)
             }
         }
-    }
-
-    private var initial: String {
-        news.place.first(where: \.isLetter).map { String($0).uppercased() } ?? ""
     }
 
     private func share() {

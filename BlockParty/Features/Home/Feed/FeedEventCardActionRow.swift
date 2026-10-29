@@ -35,6 +35,8 @@ struct FeedEventCardActionRow: View {
     let onSave: ((Bool) -> Void)?
     let onComment: () -> Void
     let onShare: (() -> Void)?
+    /// The Town card's •••, after the send (found-posts).
+    var onMenu: (() -> Void)? = nil
 
     @State private var heartScale: CGFloat = 1
     @State private var bookmarkOffset: CGFloat = 0
@@ -73,6 +75,9 @@ struct FeedEventCardActionRow: View {
                     )
                 }
                 shareButton
+                if let onMenu {
+                    FeedCardMenuButton(action: onMenu)
+                }
             }
 
             Spacer(minLength: 12)

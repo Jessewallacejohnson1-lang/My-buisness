@@ -73,6 +73,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(flight.words, "Four scoops for $5 at Wandering Cow on Fridays.")
         XCTAssertEqual(flight.post.absoluteString, "https://www.instagram.com/p/Deki5CwgiQG/")
         XCTAssertEqual(flight.picture?.kind, .logo)
+        XCTAssertEqual(flight.title, "Flight Friday", "its headline rides along for the card")
         XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
         XCTAssertNil(happy.picture)
         // The events' own readers (the Event of the day, a kept list) never see news.
@@ -82,6 +83,23 @@ final class TownFeedEventsTests: XCTestCase {
         await town.refresh()
         XCTAssertEqual(town.shown.map(\.id), ["e1", "n1", "n2"])
         XCTAssertEqual(town.cards.map(\.id), ["e1"])
+    }
+
+    /// A News card's words (found-posts): its headline over the picture and its facts under it;
+    /// with no headline the facts stand in for it, and nothing is said twice.
+    func testNewsCardSaysItsHeadlineThenItsFacts() {
+        let post = URL(string: "https://www.instagram.com/p/Deki5CwgiQG/")!
+        let flight = TownNews(id: "n1", place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",
+                              post: post, leavesAt: .distantFuture, title: "Flight Friday")
+        XCTAssertEqual(flight.headline, "Flight Friday")
+        XCTAssertEqual(flight.facts, "Four scoops for $5 on Fridays.")
+        let untitled = TownNews(id: "n2", place: "Sal's", words: "Meat raffle moved to Saturday", post: post,
+                                leavesAt: .distantFuture, title: "  ")
+        XCTAssertEqual(untitled.headline, "Meat raffle moved to Saturday")
+        XCTAssertNil(untitled.facts)
+        let same = TownNews(id: "n3", place: "Neighbors", words: "Happy hour", post: post, leavesAt: .distantFuture,
+                            title: "Happy hour")
+        XCTAssertNil(same.facts, "nothing said twice")
     }
 
     /// The columns `get_town_feed` returns, as PostgREST sends them. A renamed column

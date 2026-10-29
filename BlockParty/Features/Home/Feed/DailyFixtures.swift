@@ -111,22 +111,22 @@ enum DailyFixtures {
 
     private static func newsSamples(now: Date) -> [TownFeedEntry] {
         let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
-        let samples: [(String, String, String, String?)] = [
-            ("The Wandering Cow", "Four scoops for $5 at Wandering Cow on Fridays.",
+        let samples: [(String, String, String, String, String?)] = [
+            ("The Wandering Cow", "Flight Friday", "Four scoops for $5 at Wandering Cow on Fridays.",
              "https://www.instagram.com/p/Deki5CwgiQG/", "ChIJFfdMxRVZtFIR77H-NqLzUTc/logo-7225f2ed.webp"),
-            ("City of St. Joseph", "St. Joseph police, fire and Mayo Ambulance members received Life Saving Awards at the Oct 19 council meeting.",
+            ("City of St. Joseph", "Life Saving Awards", "St. Joseph police, fire and Mayo Ambulance members received Life Saving Awards at the Oct 19 council meeting.",
              "https://www.facebook.com/CityofStJosephMN/", "city-of-st-joseph/logo-009e4537f4.webp"),
-            ("White Peony Boutique", "White Peony's Layer Up collection of fall jackets and layers goes on sale tonight at 7 PM, in store and online.",
+            ("White Peony Boutique", "Layer Up drop tonight", "White Peony's Layer Up collection of fall jackets and layers goes on sale tonight at 7 PM, in store and online.",
              "https://www.instagram.com/p/DezQTPEjSr0/", "stjoe-white-peony-boutique/logo-65fd9c1b.webp"),
-            ("Neighbors Route 75", "Taco Tuesday at Neighbors Route 75, with a drink purchase, dine in only.",
+            ("Neighbors Route 75", "Taco Tuesday", "Taco Tuesday at Neighbors Route 75, with a drink purchase, dine in only.",
              "https://www.facebook.com/NeighborsEateryandSaloon/", "ChIJz-W_cL1ZtFIRnuug5NtJwqA/logo-ffdc8eb9.webp"),
-            ("Stearns County", "Early voting locations open Friday, October 16, with extended hours before Election Day.",
+            ("Stearns County", "Early voting opens", "Early voting locations open Friday, October 16, with extended hours before Election Day.",
              "https://www.stearnscountymn.gov/", nil),
         ]
         return samples.enumerated().map { i, s in
-            let news = TownNews(id: "n\(i + 1)", place: s.0, words: s.1, post: URL(string: s.2)!,
-                                picture: s.3.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
-                                leavesAt: now.addingTimeInterval(7 * 86_400))
+            let news = TownNews(id: "n\(i + 1)", place: s.0, words: s.2, post: URL(string: s.3)!,
+                                picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
+                                leavesAt: now.addingTimeInterval(7 * 86_400), title: s.1)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
     }
