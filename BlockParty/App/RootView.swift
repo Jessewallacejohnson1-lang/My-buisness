@@ -241,6 +241,10 @@ struct RootView: View {
             if let name { Interests.displayName = name }
             if !picks.isEmpty { Interests.set(picks) }
         }
+        // Contacts' Add friend picks, after the name: the server refuses a request without one
+        // (onboarding 23). A quiet account can't send them; a real one later can.
+        guard auth.isSignedIn, !auth.isAnonymous else { return }
+        await onboarding.sendRequests { _ = try await CommunityAPI(auth: AuthStore.shared).friendWrite(.add, $0) }
     }
 
     /// Pull the community profile once per *user*: mirror interests/name locally (so

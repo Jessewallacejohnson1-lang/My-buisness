@@ -12,6 +12,10 @@ import name): the cloud's Debian Pillow imports as PIL but fails at PIL.Image ("
 '_imaging'"). It is installed with --ignore-installed, because pip can't uninstall Debian's own
 copies ("Cannot uninstall PyYAML 6.0.1, RECORD file not found"; Oct 27 social run).
 
+Every script must parse on this python3: the cloud's is 3.11, and on Oct 29 two self-tests written
+on a newer Python (a backslash inside an f-string's braces) stopped the social watch at its first
+script while this step still said ready. `scripts/ci_checks.sh registry` parses them on 3.11 too.
+
 The cloud environment's own setup script stays unused: each routine's copy starts on
 integration/block-party, which has no sources/, so it would find nothing to install from. Apify's
 key is the environment's network secret, never seen by the session: the social routines check it
@@ -42,7 +46,18 @@ def broken(modules):
     return [m for m in modules if subprocess.run([sys.executable, "-c", f"import {m}"], capture_output=True).returncode]
 
 
-def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip, probe=broken):
+def unparsable(folder=HERE):
+    """Each script in folder this python3 can't parse, with its line and why."""
+    bad = []
+    for p in sorted(folder.glob("*.py")):
+        try:
+            compile(p.read_text(), p.name, "exec")
+        except SyntaxError as e:
+            bad.append(f"{p.name} line {e.lineno} ({e.msg})")
+    return bad
+
+
+def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip, probe=broken, scripts=HERE):
     """The routine's one line, and whether it may go on."""
     libs = {}  # pip name: the module that must import
     for line in listing.read_text().splitlines():
@@ -55,8 +70,10 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
     if lacking and not failed and probe([libs[n] for n in lacking]):
         failed = "installed, still won't import"
     unset = [k for k in KEYS if not env.get(k)]
+    wont_run = unparsable(scripts)
     missing = ([f"libraries {', '.join(lacking)} (pip: {failed})"] if failed else []) + (
-        [f"keys {', '.join(unset)} not set"] if unset else [])
+        [f"keys {', '.join(unset)} not set"] if unset else []) + (
+        [f"Python {sys.version.split()[0]} can't parse {'; '.join(wont_run)}"] if wont_run else [])
     if missing:
         return "[ready] not ready: " + "; ".join(missing), False
     done = f" (installed {', '.join(lacking)})" if lacking else ""
@@ -104,6 +121,12 @@ def selftest():
         check(not go and "still won't import" in line, f"pip saying yes is not enough: the probe runs again: {line}")
         fixed.update(["fakepil", "bp_nothing"])
         check(ready("social", env, fake, fake_pip(), probe) == ("[ready] ready", True), "Firecrawl is the morning job's alone")
+        (Path(tmp) / "fine.py").write_text("x = 1\n")
+        (Path(tmp) / "newer.py").write_text("x = 1\ndef (:\n")
+        line, go = ready("social", env, fake, fake_pip(), probe, scripts=Path(tmp))
+        check(not go and "can't parse newer.py line 2" in line and "fine.py" not in line,
+              f"a script this python3 can't parse stops the routine at Ready, named with its line: {line}")
+    check(unparsable() == [], f"every script here parses on this python3: {unparsable()}")
     check(broken(["json", "bp_nothing_here.Image"]) == ["bp_nothing_here.Image"], "the probe imports in a fresh python3")
     rows = [l.split() for l in (HERE / "ci-packages.txt").read_text().splitlines() if l.strip() and not l.startswith("#")]
     check(all(len(r) >= 3 for r in rows) and ["PIL", "python3-pil", "pillow", "PIL.Image"] in rows,

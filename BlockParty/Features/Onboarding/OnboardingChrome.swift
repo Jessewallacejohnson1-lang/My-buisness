@@ -126,10 +126,12 @@ struct OnboardingProgressBar: View {
 /// edge (`Hue.nextEdge`). Pressed, the face sinks onto the edge in 80 ms and springs back in
 /// 70 ms with a hair of overshoot (REFERENCE-SPEC §8: 4 pt travel, damping 0.62), with a light
 /// haptic on the press-down. Not allowed, it greys and shakes instead of acting, so it stays
-/// tappable: a disabled button could not shake.
+/// tappable: a disabled button could not shake. On Find your friends it is BP yellow, lit as the
+/// yellow share is, on the same yellow under a shade (mock v7).
 struct OnboardingNextBar: View {
     let title: String
     var allowed = true
+    var yellow = false
     let action: () -> Void
 
     @State private var shakes = 0
@@ -143,7 +145,9 @@ struct OnboardingNextBar: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
-        .buttonStyle(NextBarStyle(allowed: allowed))
+        .buttonStyle(NextBarStyle(allowed: allowed, yellow: yellow))
+        // Yellow to charcoal at once, as the mock does: a cross-fade passed through olive.
+        .animation(nil, value: yellow)
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -160,6 +164,7 @@ struct OnboardingNextBar: View {
 
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
+    let yellow: Bool
 
     private var face: some ShapeStyle {
         LinearGradient(stops: [.init(color: Hue.pillTop, location: 0),
@@ -172,20 +177,30 @@ private struct NextBarStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed
         return ZStack(alignment: .top) {
-            Capsule().fill(allowed ? Hue.nextEdge : Hue.nextOffEdge)
+            if yellow {
+                // The exact yellow under a 22% ink shade (mock v7), so no new yellow exists.
+                Capsule().fill(Hue.brandDisc).overlay(Capsule().fill(Hue.ink.opacity(0.22)))
+            } else {
+                Capsule().fill(allowed ? Hue.nextEdge : Hue.nextOffEdge)
+            }
             configuration.label
-                .foregroundStyle(allowed ? Color.white : Hue.inkSecondary)
+                .foregroundStyle(yellow ? Hue.onBrandDisc : allowed ? Color.white : Hue.inkSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .background {
-                    if allowed { Capsule().fill(face) } else { Capsule().fill(Hue.nextOffFace) }
+                    if yellow { YellowDiscStyle.lit(Capsule()) }
+                    else if allowed { Capsule().fill(face) } else { Capsule().fill(Hue.nextOffFace) }
                 }
                 .offset(y: down ? 4 : 0)
                 .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62),
                            value: down)
         }
         .frame(height: 52)
-        .shadow(color: Hue.ink.opacity(allowed ? (down ? 0.2 : 0.3) : 0), radius: down ? 3 : 8, y: down ? 2 : 6)
+        // One shadow under the whole bar, so the words cast none on the face (it showed on the
+        // yellow). The yellow casts a lighter one, as the yellow share does.
+        .compositingGroup()
+        .shadow(color: Hue.ink.opacity(allowed ? (down ? 0.2 : 0.3) * (yellow ? 0.75 : 1) : 0),
+                radius: down ? 3 : 8, y: down ? 2 : 6)
         .contentShape(Capsule())
         .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
     }

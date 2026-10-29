@@ -38,7 +38,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Take a profile picture or scan a neighbor’s code.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>Find neighbors you already know.</string>
+	<string>See which neighbors are already here. Only scrambled codes leave your phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Block Party uses your location to show what's happening close by in St. Joseph.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

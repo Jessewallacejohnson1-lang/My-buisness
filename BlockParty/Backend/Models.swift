@@ -496,6 +496,17 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     /// When Block Party added it (the morning watch's read, not the post's own date); the hello pill
     /// says news added since your last open (hello-drop 03).
     var published: Date? = nil
+    /// Its headline, over its picture on the Town card (found-posts); nil where only the words are known.
+    var title: String? = nil
+
+    /// What the Town card sets as its title: the headline, else the facts stand in for it.
+    var headline: String {
+        let title = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? words : title
+    }
+
+    /// The facts under the headline, when they say more than it.
+    var facts: String? { words == headline ? nil : words }
 }
 
 /// One line of `get_town_feed`, in its order: an Event, or news under them (town-feed 35).

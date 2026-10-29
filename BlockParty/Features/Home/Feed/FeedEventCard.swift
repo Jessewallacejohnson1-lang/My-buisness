@@ -2,12 +2,12 @@
 //  FeedEventCard.swift
 //  Block Party — reusable static visual for a normalized feed event.
 //
-//  Instagram's layout, Apple News's type (Jesse, 2026-09-19). The host — the
-//  business, parish or neighbour putting the event on — sits in a row ABOVE the
-//  photograph, the way a poster's name does on Instagram; the headline is set OVER
-//  the photograph, ranged left off its bottom-left corner. The host's picture and name
-//  open its own page, as an Instagram name opens its profile (follows 08); one with no
-//  page of its own opens the Event's.
+//  Instagram's layout, Apple News's type (Jesse, 2026-09-19). No row above the
+//  photograph: the host — the business, parish or neighbour putting the event on —
+//  rides the photo's top right as its logo or photo, as Apple News marks a story with
+//  its paper's (Jesse, 2026-10-29, BP app references/found-posts); the headline is set
+//  OVER the photograph, ranged left off its bottom-left corner. The host's picture
+//  opens its own page (follows 08); one with no page of its own opens the Event's.
 //
 //  The card has no container of its own: no fill, no border, no shadow. The only
 //  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
@@ -37,27 +37,13 @@ struct FeedEventCard: View {
     let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
-    /// The host avatar. An avatar beside a name is a mark at a size the row is drawn
-    /// around, not text, so it does not scale.
-    private static let hostAvatarSide: CGFloat = 32
-
-    /// The ••• button: a 44pt target round the app's Lucide ellipsis at 20pt, whose dots
-    /// span 15pt (Instagram's span 14.7, 15pt from the edge). Its dots end at the
-    /// card's inset, so the button reaches 14.5pt past it.
-    private static let menuTarget: CGFloat = 44
-    private static let menuGlyph: CGFloat = 20
-    private static let menuDotsInset: CGFloat = 14.5
-    /// Kept clear at the end of the host row so a long name stops short of the dots.
-    private static let menuRoom: CGFloat = menuDots + 8
-    private static let menuDots: CGFloat = 15
-
-    /// Join beside a group's name (rsvp-and-groups 07): the Figma page's Club pill ("Meetup
-    /// depth"), 30 pt tall, 16 pt in from each end, 10 pt before the •••. Its 14 pt word snaps
-    /// to 15 (`.sans`), the card's RSVP word.
-    private static let groupPillHeight: CGFloat = 30
-    private static let groupPillSide: CGFloat = 16
-    private static let groupPillGap: CGFloat = 10
-    private static let groupPillWord: CGFloat = 15
+    /// The host's mark on the photo: the date chip's height, so the two sit level along the top.
+    /// A mark, not text, so it does not scale.
+    private static let hostMarkSide: CGFloat = PhotoChip.height
+    /// Between the photo's credit and the host's mark beside it.
+    private static let hostMarkGap: CGFloat = 8
+    /// The white ring round the host's mark: Instagram's story ring, at its own 1.5 pt.
+    private static let hostMarkRing: CGFloat = 1.5
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
@@ -84,14 +70,6 @@ struct FeedEventCard: View {
     @State private var heartTappedAt = 0
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
-    /// Joined from this card: it keeps saying Joined after a read that says you're in.
-    @State private var joinedHere = false
-    /// `actions.memberFailureCount` at the last Join: a tap mid-shake stills it (as `RSVPArea`'s).
-    @State private var groupTappedAt = 0
-    /// The Join pill's width, which the host's name stops short of.
-    @State private var groupPillWidth: CGFloat = 0
-    /// Join with no signed-up account opens sign-up (follows 02).
-    @State private var signingIn = false
     /// Where the host's picture is, for a Place's page to fly out of, and a tap already reading who
     /// the host is (follows 08).
     @State private var hostFrame = FrameBox()
@@ -120,23 +98,18 @@ struct FeedEventCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // The host opens its own page (follows 08), so it sits outside the photo's link.
-            hostRow
-                .padding(.horizontal, DailyFeedMetric.contentInset)
-
             // The photo is the link to the event's page. The RSVP area and the action row
             // stay outside it, so their own buttons keep their own taps and pressing them
             // never squishes the card.
             NavigationLink(value: item) {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Only the photo sinks in on a press; the host row and the line under it
-                    // stay still (Jesse, 2026-10-27).
+                    // Only the photo sinks in on a press; the line under it stays still
+                    // (Jesse, 2026-10-27).
                     imageSection
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
                         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
                         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
-                        .padding(.top, showsHostRow ? 10 : 0)
                 }
                 .contentShape(Rectangle())
             }
@@ -160,36 +133,43 @@ struct FeedEventCard: View {
                         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
+            // The host's mark on the photo's top right, its own button over the link, as the heart is:
+            // it opens the host's page (follows 08), not the Event's.
+            .overlay(alignment: .topTrailing) {
+                if showsHostMark {
+                    // Rides the photo's corner in as it sinks.
+                    hostMark
+                        .padding(.trailing, DailyFeedMetric.contentInset + PhotoChip.inset)
+                        .padding(.top, PhotoChip.inset)
+                        .offset(x: -photoSize.width * (1 - pressScale) / 2,
+                                y: photoSize.height * (1 - pressScale) / 2)
+                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                }
+            }
 
             // Under a photo that swipes, the dots that say which one is up (Instagram's).
             if swipes {
                 PageDots(count: cardPhotos.count, page: pageShown)
             }
 
-            // One line under the photo (event-card 06): the send, the faces, the count and Attend
-            // (rsvp-and-groups 01; 12 pt below the photo), or under the dots' row. Called off, a red
-            // "Canceled" pill and no count. Going, the pill turns into the X that leaves (attend-x)
-            // and the send into the yellow share beside it. The heart is on the photo.
+            // One line under the photo (event-card 06): the send, the •••, the faces, the count and
+            // Attend (rsvp-and-groups 01; 12 pt below the photo), or under the dots' row. Called off,
+            // a red "Canceled" pill and no count. Going, the pill turns into the X that leaves
+            // (attend-x) and the send into the yellow share beside it. The heart is on the photo.
             if let rsvp = actions.rsvp(item, town: true) {
-                RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true)
+                RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true, onMenu: openMenu)
                     .padding(.top, swipes ? 0 : 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
                     .transition(.opacity)
             } else {
-                // Signed out: no Attend and no heart, the send alone.
+                // Signed out: no Attend and no heart, the send and the ••• alone.
                 actionRow
                     .padding(.top, 2)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
             }
         }
-        // Over the host row's end, outside the link: pressing it neither squishes nor
-        // opens the card.
-        // Join first: the ••• wins where their touch areas meet, and VoiceOver reads Join first.
-        .overlay(alignment: .topTrailing) { groupJoin }
-        .overlay(alignment: .topTrailing) { menuButton }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .signInSheet(isPresented: $signingIn)
         .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                     report: currentPhoto.report(place: item.whereLine)))
         .sheet(isPresented: $commentsPresented) {
@@ -212,56 +192,40 @@ struct FeedEventCard: View {
 
     // MARK: - Host
 
-    /// A Town feed card always has the row, for its •••; anywhere else a card with no
-    /// host has none.
-    private var showsHostRow: Bool { !item.hostName.isEmpty || item.why != nil }
+    /// Whose it is, on the photo's top right: the business's logo or the person's photo, never
+    /// Block Party's (Jesse, 2026-10-29: no row above the photo). A game's teams are on the card
+    /// itself, and a card showing a logo instead of a photo already says whose it is (the same
+    /// school's or shop's logo twice, read 2026-10-29), so they have none.
+    private var showsHostMark: Bool {
+        !item.hostName.isEmpty && item.game == nil && displayImage.logo == nil
+    }
 
-    /// Who is putting this on, above the photograph. A missing host draws no
-    /// placeholder — the headline is still the card — only the room for the •••.
+    /// The host's picture at the date chip's height in a white ring, so a person's photo stands off
+    /// the event's, lifted off it by the credit's shadow; its touch area grown to 44 pt without
+    /// moving it. Read before the title, as the row it replaced was.
     @ViewBuilder
-    private var hostRow: some View {
-        if !item.hostName.isEmpty {
-            HStack(spacing: 0) {
-                if hostOpener != nil {
-                    Button(action: openHost) { hostLabel }
-                        .buttonStyle(PressableStyle())
-                } else {
-                    hostLabel
-                }
-                Spacer(minLength: 18)
-            }
-            .padding(.trailing, hostRowRoom)
-        } else if item.why != nil {
-            Color.clear.frame(height: Self.hostAvatarSide)
+    private var hostMark: some View {
+        let mark = hostAvatar
+            .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.hostMarkRing))
+            .trackFrame(hostFrame)
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+            .contentShape(Circle().inset(by: -(MeetupPillStyle.minTarget - Self.hostMarkSide) / 2))
+            .accessibilityLabel(item.hostName)
+            .accessibilitySortPriority(1)
+        if hostOpener != nil {
+            Button(action: openHost) { mark }
+                .buttonStyle(PressableStyle())
+        } else {
+            mark
         }
     }
 
-    /// The host's picture and name, its touch area grown to 44 pt without moving the row.
-    private var hostLabel: some View {
-        HStack(spacing: 10) {
-            hostAvatar
-                .trackFrame(hostFrame)
-
-            Text(item.hostName)
-                .font(.sansSemibold(14))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-        }
-        .contentShape(Rectangle().inset(by: -(SearchMetric.tapMin - Self.hostAvatarSide) / 2))
-        .accessibilityElement(children: .combine)
-    }
-
-    /// The host's own page (follows 08): a game's school, the card's Group, else whatever
-    /// `event_host` names; one with no page of its own opens the Event's, as the row did before.
-    /// Asking who the host is waits a second at most, then opens the Event; a card scrolled away
-    /// meanwhile opens nothing.
+    /// The host's own page (follows 08): the card's Group, else whatever `event_host` names; one
+    /// with no page of its own opens the Event's. Asking who the host is waits a second at most,
+    /// then opens the Event; a card scrolled away meanwhile opens nothing.
     private func openHost() {
         guard let opener = hostOpener, Date().timeIntervalSince(hostTapped) > HostOpener.again else { return }
         hostTapped = Date()
-        if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
-            opener.push(team)
-            return
-        }
         if let id = item.groupID {
             if let group = opener.group(id) { opener.push(group) } else { opener.push(item) }
             return
@@ -285,92 +249,24 @@ struct FeedEventCard: View {
         }
     }
 
-    /// Kept clear at the host row's end: the •••, and Join with its gap.
-    private var hostRowRoom: CGFloat {
-        let menu = item.why == nil ? 0 : Self.menuRoom
-        guard showsGroupJoin else { return menu }
-        return (item.why == nil ? 8 : menu + Self.groupPillGap) + groupPillWidth
-    }
-
-    /// A group you weren't in when the feed read it, or joined here, or left since, once Join can
-    /// work: no Join before the account exists, as no RSVP.
-    private var showsGroupJoin: Bool {
-        guard let groupID = item.groupID, actions.canAct else { return false }
-        return !item.inGroup || joinedHere || !actions.member(groupID: groupID, inGroup: item.inGroup).isMember
-    }
-
-    /// Meetup's charcoal pill beside the group's name, outside the card's link, so pressing it
-    /// never squishes the card. One tap joins: it turns white, "Joined", over the RSVP pill's
-    /// 0.18 s, and the Group page agrees (one `RealLifeActions` entry). Joined only squishes:
-    /// leaving stays on the Group page (Jesse, 2026-10-19). A refused join holds, turns back, then
-    /// shakes.
-    @ViewBuilder
-    private var groupJoin: some View {
-        if showsGroupJoin, let groupID = item.groupID {
-            let isMember = actions.member(groupID: groupID, inGroup: item.inGroup).isMember
-            let failures = actions.memberFailureCount(groupID)
-            Button {
-                guard !isMember else { return }
-                guard !actions.needsSignUp else { signingIn = true; return }
-                groupTappedAt = failures
-                joinedHere = true
-                actions.toggleMember(groupID: groupID, inGroup: item.inGroup)
-            } label: {
-                Text(isMember ? "Joined" : "Join")
-                    .font(.sansSemibold(Self.groupPillWord))
-                    .contentTransition(.opacity)
-            }
-            .buttonStyle(MeetupPillStyle(height: Self.groupPillHeight, minWidth: 0, light: isMember,
-                                         sidePadding: Self.groupPillSide))
-            // Only the card the tap came from shakes: the group's failures are every card's.
-            .turnBackShake(failures: failures, shakes: !motionIsReduced && joinedHere && groupTappedAt != failures)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { groupPillWidth = $0 }
-            .animation(.easeInOut(duration: motionIsReduced ? 0.15 : RealLifeActions.flip), value: isMember)
-            .accessibilityLabel("\(isMember ? "Joined" : "Join") \(item.hostName)")
-            // Joined does nothing but squish, so VoiceOver doesn't offer it as a button.
-            .accessibilityRemoveTraits(isMember ? .isButton : [])
-            // Centred on the 32 pt host row, 10 pt before the dots.
-            .padding(.top, (Self.hostAvatarSide - Self.groupPillHeight) / 2)
-            .padding(.trailing, DailyFeedMetric.contentInset + (item.why == nil ? 0 : Self.menuDots + Self.groupPillGap))
-        }
-    }
-
     /// The card's ••• menu (`FeedCardMenu`), on the Town feed's own cards.
-    @ViewBuilder
-    private var menuButton: some View {
-        if item.why != nil {
-            Button { menuPresented = true } label: {
-                Image("Lucide/ellipsis")
-                    .resizable()
-                    .frame(width: Self.menuGlyph, height: Self.menuGlyph)
-                    .foregroundStyle(Hue.ink)
-                    .frame(width: Self.menuTarget, height: Self.menuTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(MenuPressStyle())
-            .padding(.trailing, DailyFeedMetric.contentInset - Self.menuDotsInset)
-            // Centred on the 32pt host row.
-            .offset(y: (Self.hostAvatarSide - Self.menuTarget) / 2)
-            .accessibilityLabel("More options")
-        }
+    private var openMenu: (() -> Void)? {
+        item.why == nil ? nil : { menuPresented = true }
     }
 
     @ViewBuilder
     private var hostAvatar: some View {
-        // A game's host is its first team: the school's logo, as the Reference draws it.
-        if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil {
-            GameHostMark(team: team, side: Self.hostAvatarSide)
-        } else if item.hostAvatar == nil, let picture = item.hostPicture, picture.kind == .logo {
+        if item.hostAvatar == nil, let picture = item.hostPicture, picture.kind == .logo {
             // A place's logo on a white disc, as Town news shows a place (Jesse, 2026-10-23).
             LogoDisc(logo: picture.url, initial: item.hostName.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
-                     logoSide: Self.hostAvatarSide * 0.875, letter: .sansSemibold(14), fits: true)
-                .frame(width: Self.hostAvatarSide, height: Self.hostAvatarSide)
+                     logoSide: Self.hostMarkSide * 0.875, letter: .sansSemibold(14), fits: true)
+                .frame(width: Self.hostMarkSide, height: Self.hostMarkSide)
                 .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {
             FeedAuthorAvatar(
                 url: item.hostAvatar ?? item.hostPicture?.url,
                 name: item.hostName,
-                side: Self.hostAvatarSide
+                side: Self.hostMarkSide
             )
         }
     }
@@ -445,9 +341,9 @@ struct FeedEventCard: View {
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        // Along the top: the day and time on the left, the photo's credit on the right, so
-        // the title has the photo's whole width below (picked 2026-10-19: under the narrower
-        // inset card, a credit beside the title cut "Plant Bingo for Angel Reins" short).
+        // Along the top: the day and time on the left, the photo's credit on the right, before the
+        // host's mark, so the title has the photo's whole width below (picked 2026-10-19: under the
+        // narrower inset card, a credit beside the title cut "Plant Bingo for Angel Reins" short).
         .overlay(alignment: .top) {
             HStack(alignment: .center, spacing: 8) {
                 if let when = item.whenLine {
@@ -483,6 +379,8 @@ struct FeedEventCard: View {
                     .padding(-PhotoCredit.edgeInset)
                     // Fades in with its photo, and across to the next one's on a swipe.
                     .animation(motionIsReduced ? nil : Motion.smooth, value: creditNames)
+                    // The host's mark rides above the photo in its own layer (`hostMark`).
+                    .padding(.trailing, showsHostMark ? Self.hostMarkSide + Self.hostMarkGap : 0)
             }
             .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
@@ -610,7 +508,8 @@ struct FeedEventCard: View {
             onLike: nil,
             onSave: nil,
             onComment: { commentsPresented = true },
-            onShare: onShare
+            onShare: onShare,
+            onMenu: openMenu
         )
     }
 
@@ -763,6 +662,32 @@ struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
         default:
             isPressed = false
         }
+    }
+}
+
+/// A card's •••, beside its send under the photo (Jesse, 2026-10-29: the row above the photo it
+/// sat at the end of is gone): the app's Lucide ellipsis at 20 pt, whose dots span 15 pt
+/// (Instagram's 14.7), in the send's 28 pt width, reaching Apple's 44 pt.
+struct FeedCardMenuButton: View {
+    let action: () -> Void
+
+    private static let glyph: CGFloat = 20
+    private static let width: CGFloat = 28
+    /// Added to the row's own spacing after the send (the RSVP area's 8 pt makes 16), so neither's
+    /// 44 pt reaches into the other's.
+    static let gap: CGFloat = 8
+
+    var body: some View {
+        Button(action: action) {
+            Image("Lucide/ellipsis")
+                .resizable()
+                .frame(width: Self.glyph, height: Self.glyph)
+                .foregroundStyle(Hue.ink)
+                .frame(width: Self.width, height: MeetupPillStyle.minTarget)
+                .contentShape(Rectangle().inset(by: (Self.width - MeetupPillStyle.minTarget) / 2))
+        }
+        .buttonStyle(MenuPressStyle())
+        .accessibilityLabel("More options")
     }
 }
 

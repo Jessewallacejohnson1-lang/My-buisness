@@ -7,6 +7,7 @@
 //  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
 //
 
+import Contacts
 import SwiftUI
 
 /// The flow's steps in order. The bar counts the nine after the Welcome.
@@ -76,6 +77,12 @@ final class OnboardingStore {
     private(set) var follows: [FollowTarget] {
         didSet { defaults.set(try? JSONEncoder().encode(follows), forKey: Self.followsKey) }
     }
+    /// Contacts' Add friend picks (ticket 23), people's ids in the order made. Kept on the phone: the
+    /// server refuses a request from an account with no name, and the name waits here until the flow
+    /// is done, so they go up after it (`sendRequests`).
+    private(set) var requests: [String] {
+        didSet { defaults.set(requests, forKey: Self.requestsKey) }
+    }
     /// An answer changed since the last save reached the server.
     private(set) var answersPending: Bool
     /// A save is out, so a second caller doesn't upload the photo again.
@@ -90,6 +97,7 @@ final class OnboardingStore {
     private static let pendingKey = "onboarding.answersPending"
     private static let birthdayKey = "onboarding.birthday"
     private static let followsKey = "onboarding.follows"
+    private static let requestsKey = "onboarding.requests"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -104,11 +112,28 @@ final class OnboardingStore {
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
         interests = Interests.get()
         follows = Self.savedFollows(defaults)
+        requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
     }
 
     /// Follow or unfollow on Follow 3, on the phone only.
     func toggleFollow(_ target: FollowTarget) {
         if let i = follows.firstIndex(of: target) { follows.remove(at: i) } else { follows.append(target) }
+    }
+
+    /// Add friend, or take it back, on Contacts, on the phone only.
+    func toggleRequest(_ id: String) {
+        if let i = requests.firstIndex(of: id) { requests.remove(at: i) } else { requests.append(id) }
+    }
+
+    /// Hands Contacts' requests to `send` once the flow is done and the name has reached the account,
+    /// forgetting each the server answered, sent or refused. No answer (no signal, the server down)
+    /// keeps the rest for the next save, which every launch makes.
+    func sendRequests(_ send: (String) async throws -> Void) async {
+        guard finished, !answersPending, !saving else { return }
+        for id in requests {
+            do { try await send(id) } catch let error where SupabaseHTTP.noAnswer(error) { return } catch {}
+            requests.removeAll { $0 == id }
+        }
     }
 
     /// Hands over the finished flow's follows and forgets them, once a signed-up account can send
@@ -172,6 +197,7 @@ final class OnboardingStore {
         photo = nil
         birthday = nil
         follows = []
+        requests = []
         interests = []   // kept under bp.interests, not onboarding.
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
@@ -220,6 +246,13 @@ struct OnboardingFlow: View {
     @State private var popular: [String] = []
     /// Follow 3's Places, schools and pages, read with Popular: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
+    /// Contacts' check, held here so back to Find your friends and on again spends no second one of
+    /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
+    /// sign-in makes one at step 2 (onboarding 17) it finds nobody.
+    @State private var contacts = ContactsMatch { emails, phones in
+        guard !AuthStore.shared.isAnonymous else { return [] }
+        return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
+    }
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -292,7 +325,7 @@ struct OnboardingFlow: View {
             .padding(.top, 56)
             .ignoresSafeArea(.container)
 
-            if store.step == .interests || store.step == .follow { foot.transition(.opacity) }
+            if [.interests, .follow, .contacts].contains(store.step) { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
@@ -331,10 +364,12 @@ struct OnboardingFlow: View {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
             VStack(alignment: .leading, spacing: 0) {
-                Text(store.step.question)
+                Text(firstHere ? "You're one of the first here" : store.step.question)
                     .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.2), value: firstHere)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityFocused($questionFocused)
                 answer
@@ -345,6 +380,18 @@ struct OnboardingFlow: View {
         .padding(.top, 128)
         .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
+        .onChange(of: firstHere) { _, now in
+            if now { AccessibilityNotification.Announcement("You're one of the first here").post() }
+        }
+    }
+
+    /// Contacts' check found nobody on Block Party, so the question says so (Jesse at onboarding 23's
+    /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask, and a
+    /// phone with no numbers or emails asks nobody.
+    private var firstHere: Bool {
+        guard store.step == .contacts, !AuthStore.shared.isAnonymous,
+              case .ready(let onApp, let invite) = contacts.state else { return false }
+        return onApp.isEmpty && !invite.isEmpty
     }
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
@@ -371,6 +418,11 @@ struct OnboardingFlow: View {
         case .follow:
             OnboardingFollowList(suggestions: suggestions, interests: store.interests, follows: store.follows,
                                  toggle: { [store] in store.toggleFollow($0) })
+        case .friends:
+            OnboardingFriendsReason()
+        case .contacts:
+            OnboardingContactsList(model: contacts, requests: store.requests,
+                                   toggle: { [store] in store.toggleRequest($0) })
         default:
             EmptyView()
         }
@@ -380,7 +432,8 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, action: go { [store] in store.next() })
+            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, yellow: store.step == .friends,
+                              action: store.step == .friends ? askContacts : go { [store] in store.next() })
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
@@ -430,6 +483,21 @@ struct OnboardingFlow: View {
         case .interests: return store.interests.count >= 3
         case .follow: return followsNeeded == 0
         default:     return true
+        }
+    }
+
+    /// Find your friends' Next: Apple's contacts prompt, which answers at once when it was settled
+    /// before. Allowed, all of them or some, goes on to Contacts; refused ends the flow, with no nag.
+    private func askContacts() {
+        Task {
+            _ = try? await CNContactStore().requestAccess(for: .contacts)
+            let status = CNContactStore.authorizationStatus(for: .contacts)
+            let allowed = status == .authorized || status == .limited
+            // A second tap's answer lands too: only the first moves on, or it would skip Contacts.
+            go { [store] in
+                guard store.step == .friends else { return }
+                allowed ? store.next() : store.finish()
+            }()
         }
     }
 
@@ -572,21 +640,24 @@ private struct WelcomePill: View {
     }
 }
 
-private extension View {
-    /// The Welcome's entrance: up 14 pt and in over 0.55 s, out-quint, after `delay`.
-    func rise(_ shown: Bool, delay: Double) -> some View {
-        modifier(Rise(shown: shown, delay: delay))
+extension View {
+    /// The Welcome's entrance: up 14 pt and in over 0.55 s, out-quint, after `delay`. Find your
+    /// friends' lines rise 10 pt over 0.38 s (mock v7).
+    func rise(_ shown: Bool, delay: Double, by distance: CGFloat = 14, duration: Double = 0.55) -> some View {
+        modifier(Rise(shown: shown, delay: delay, distance: distance, duration: duration))
     }
 }
 
 private struct Rise: ViewModifier {
     let shown: Bool
     let delay: Double
+    let distance: CGFloat
+    let duration: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func body(content: Content) -> some View {
         content
             .opacity(shown || reduceMotion ? 1 : 0)
-            .offset(y: shown || reduceMotion ? 0 : 14)
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.55).delay(delay), value: shown)
+            .offset(y: shown || reduceMotion ? 0 : distance)
+            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: duration).delay(delay), value: shown)
     }
 }

@@ -4,7 +4,8 @@
 //  to ride with the keyboard. Walks every question step and reads the bar's frame on each,
 //  then steps back once. Name needs a first name to go on and Photo is skipped (ticket 18);
 //  Birthday starts on a saved one, so Next is allowed (ticket 19); Interests takes 3 picks (20);
-//  Follow 3 takes 3 follows once its places are read (22).
+//  Follow 3 takes 3 follows once its places are read (22); Find your friends' Next asks iPhone for
+//  contacts, which the test allows, from a fresh answer each run (23).
 //
 //  `-onboarding` shows the flow as a first launch would; the `-onboarding.*` pairs set its
 //  saved place and name, and `-bp.interests` its picks, through the launch arguments' defaults domain, so every run starts
@@ -29,9 +30,27 @@ final class OnboardingNextBarTests: XCTestCase {
         return next.frame
     }
 
+    /// Taps iPhone's contacts prompt through to allowed until the bar reads step 9: SpringBoard's
+    /// Continue, then the Contacts sheet's "Share All 7 Contacts" (iOS 26), whichever comes up.
+    private func allowContacts(_ app: XCUIApplication) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let sheet = XCUIApplication(bundleIdentifier: "com.apple.ContactsUI.LimitedAccessPromptView")
+        let allow = NSPredicate(format: "label == 'Continue' OR label BEGINSWITH 'Share All' OR label == 'Allow Full Access'")
+        let deadline = Date().addingTimeInterval(20)
+        while !bar(app, 9).exists, Date() < deadline {
+            for owner in [springboard, sheet] {
+                let button = owner.buttons.matching(allow).firstMatch
+                if button.exists { button.tap() }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
+    }
+
     func testNextBarHoldsStillOnEveryStep() {
         continueAfterFailure = false
         let app = XCUIApplication()
+        // A refusal kept from an earlier run would end the flow at step 8.
+        app.resetAuthorizationStatus(for: .contacts)
         app.launchArguments = ["-ui-tests", "-onboarding",
                                "-onboarding.step", "0", "-onboarding.finished", "NO",
                                "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24",
@@ -86,6 +105,9 @@ final class OnboardingNextBarTests: XCTestCase {
                 }
                 XCTAssertEqual(next.label, "Next")
                 next.tap()
+            case 9:
+                next.tap()
+                allowContacts(app)
             default:
                 next.tap()
             }

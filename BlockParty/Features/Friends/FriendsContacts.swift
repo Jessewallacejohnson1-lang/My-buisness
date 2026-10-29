@@ -127,6 +127,9 @@ final class ContactsMatch {
         } catch let error as SupabaseError where error.message == "contacts_limit" {
             state = .limit
         } catch {
+            // Left mid-check (Back on onboarding's Contacts, or off the Friends page): not a failure, so
+            // the next visit checks again rather than saying the connection failed.
+            if Task.isCancelled { started = false; return }
             state = .failed
         }
     }
@@ -271,20 +274,7 @@ private struct InviteRow: View {
 
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
-            Group {
-                if let data = contact.thumbnail, let image = UIImage(data: data) {
-                    Image(uiImage: image).resizable().scaledToFill()
-                } else {
-                    Text(contact.initials)
-                        .font(.sansSemibold(20))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Hue.fill)
-                }
-            }
-            .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
-            .clipShape(Circle())
-            .accessibilityHidden(true)
+            ContactFace(contact: contact, size: FriendsMetric.neighborFace)
             Text(contact.name)
                 .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)
@@ -301,6 +291,29 @@ private struct InviteRow: View {
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
+    }
+}
+
+/// A contact's own photo, or their initials on the light fill, round. Onboarding's Contacts draws it too.
+struct ContactFace: View {
+    let contact: PhoneContact
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let data = contact.thumbnail, let image = UIImage(data: data) {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Text(contact.initials)
+                    .font(.sansSemibold(size / 3))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Hue.fill)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 }
 
