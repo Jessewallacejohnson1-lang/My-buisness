@@ -272,13 +272,14 @@ struct MainTabsView: View {
     @State private var helloLink: SafariLink?
 
     @MainActor
-    private func helloMessage(_ lastSeen: Date?, _ waiting: HelloDrop.Message?) -> HelloDrop.Message? {
+    private func helloMessage(_ lastSeen: Date?, _ waiting: HelloDrop.Message?, _ yesterday: String) -> HelloDrop.Message? {
         let news = townFeed.shown.compactMap { entry -> TownNews? in
             if case .news(let post) = entry.item { post } else { nil }
         }
         return HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
                                  groups: you.groups ?? [],
-                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, waiting: waiting)
+                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, waiting: waiting,
+                                 yesterday: yesterday)
     }
 
     /// Where a tap on the hello pill goes.

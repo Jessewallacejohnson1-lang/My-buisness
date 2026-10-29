@@ -112,11 +112,13 @@ enum HelloDrop {
     /// The first true one, top down: your event today, your group meets today, friends going
     /// today, your event tomorrow, the news waiting in the pill's memory that comes after your own
     /// day (a contact who joined, what you follow added: `HelloItem.waitsForYourDay`), new since
-    /// your last open, then today's, the weekend's (Thu to Sun) and the week's count. nil when the
-    /// Town has nothing coming this week. `going` is your Going, `town` the Town feed's cards as
-    /// the screen shows them.
+    /// your last open, then today's, the weekend's (Thu to Sun) and the week's count. A count that
+    /// would say `yesterday`'s words gives way to the next one down (hello-drop 08). nil when the
+    /// Town has nothing coming this week, or every count would repeat. `going` is your Going,
+    /// `town` the Town feed's cards as the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
-                        town: [DailyEvent], news: [TownNews] = [], waiting: Message? = nil) -> Message? {
+                        town: [DailyEvent], news: [TownNews] = [], waiting: Message? = nil,
+                        yesterday: String? = nil) -> Message? {
         let calendar = Town.gregorian
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
@@ -155,16 +157,18 @@ enum HelloDrop {
             return Message(text: text, target: .news(post), logo: post.picture?.url,
                            photo: post.picture?.kind == .photo)
         }
+        // The counts, top down; the first that isn't yesterday's words is said.
+        var counts: [Message] = []
         if let lastSeen {
             let new = town.filter { ($0.item.createdAt ?? .distantPast) > lastSeen }.count
             if new > 0 {
                 let overnight = Town.day(lastSeen) == Town.day(calendar.date(byAdding: .day, value: -1, to: now) ?? now)
-                return Message(text: "\(new) new event\(new == 1 ? "" : "s") \(overnight ? "overnight" : "since you were last here")",
-                               target: .town)
+                counts.append(Message(text: "\(new) new event\(new == 1 ? "" : "s") \(overnight ? "overnight" : "since you were last here")",
+                                      target: .town))
             }
         }
         if !todays.isEmpty {
-            return Message(text: "\(todays.count) thing\(todays.count == 1 ? "" : "s") happening today", target: .town)
+            counts.append(Message(text: "\(todays.count) thing\(todays.count == 1 ? "" : "s") happening today", target: .town))
         }
         // The days left of this week, today to Sunday, and its weekend, Friday to Sunday.
         let weekday = calendar.component(.weekday, from: now)
@@ -177,10 +181,11 @@ enum HelloDrop {
         let upcoming = town.filter { $0.ends > now && !$0.item.cancelled }
         if [5, 6, 7, 1].contains(weekday) {
             let count = upcoming.filter { weekend.contains(Town.day($0.starts)) }.count
-            if count > 0 { return Message(text: "\(count) event\(count == 1 ? "" : "s") this weekend", target: .town) }
+            if count > 0 { counts.append(Message(text: "\(count) event\(count == 1 ? "" : "s") this weekend", target: .town)) }
         }
         let count = upcoming.filter { week.contains(Town.day($0.starts)) }.count
-        return count > 0 ? Message(text: "\(count) event\(count == 1 ? "" : "s") this week", target: .town) : nil
+        if count > 0 { counts.append(Message(text: "\(count) event\(count == 1 ? "" : "s") this week", target: .town)) }
+        return counts.first { $0.text != yesterday }
     }
 
     /// "4", "7:30": the hour alone, as the board words it ("Rocktoberfest is today at 4").
@@ -278,7 +283,7 @@ struct HelloDropView: View {
     let prepare: @MainActor () async -> Void
     /// Whether the Going and the Town feed are in.
     let ready: @MainActor () -> Bool
-    let message: @MainActor (_ lastSeen: Date?, _ waiting: HelloDrop.Message?) -> HelloDrop.Message?
+    let message: @MainActor (_ lastSeen: Date?, _ waiting: HelloDrop.Message?, _ yesterday: String) -> HelloDrop.Message?
     let open: @MainActor (HelloDrop.Target) -> Void
     /// Events attended (hello-drop 02), read on each open; nil when the read failed.
     let attended: @MainActor () async -> Int?
@@ -317,6 +322,8 @@ struct HelloDropView: View {
     private let inbox = HelloInbox.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
+    /// The day's line the last first open said, so a count isn't said two days running (hello-drop 08).
+    @AppStorage("helloDrop.lastLine") private var lastLine = ""
     /// When the app last left the screen; 0 before the very first open.
     @AppStorage("helloDrop.lastSeen") private var lastSeen: Double = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -546,11 +553,13 @@ struct HelloDropView: View {
                 if waiting.waitsForYourDay {
                     after = waiting.message
                 } else {
+                    lastLine = waiting.message?.text ?? ""
                     await say(waiting, fromHello: true)
                     return
                 }
             }
-            guard let message = message(seen, after) else { dismiss(); return }
+            guard let message = message(seen, after, lastLine) else { lastLine = ""; dismiss(); return }
+            lastLine = message.text
             if let waiting, message == after {
                 saying = waiting.id
                 inbox.tell(waiting.id)

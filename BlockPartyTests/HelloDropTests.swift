@@ -34,9 +34,10 @@ final class HelloDropTests: XCTestCase {
 
     private func message(_ now: String, lastSeen: String? = nil, going: [DailyEvent] = [],
                          groups: [TownGroup] = [], town towns: [DailyEvent] = [], news: [TownNews] = [],
-                         joined: Neighbor? = nil) -> String? {
+                         joined: Neighbor? = nil, yesterday: String? = nil) -> String? {
         HelloDrop.message(now: town(now), lastSeen: lastSeen.map(town), going: going,
-                          groups: groups, town: towns, news: news, waiting: joined.map(HelloDrop.joined))?.text
+                          groups: groups, town: towns, news: news, waiting: joined.map(HelloDrop.joined),
+                          yesterday: yesterday)?.text
     }
 
     // MARK: The hello
@@ -522,6 +523,25 @@ final class HelloDropTests: XCTestCase {
                        "9 new events overnight")
         XCTAssertEqual(message("2026-10-21 09:00", lastSeen: "2026-10-18 21:00", town: new + [old]),
                        "10 new events since you were last here")
+    }
+
+    /// Never the same count two days running: the next one down says it, and with none left the
+    /// hello says itself alone (hello-drop 08). Your own day always says itself.
+    func testACountIsNeverSaidTwoDaysRunning() {
+        let today = [event("a", "2026-10-23", "6 PM"), event("b", "2026-10-23", "7 PM")]
+        let weekend = today + [event("c", "2026-10-24", "6 PM")]
+        // Friday: today's 2, the weekend's 3, the week's 3.
+        XCTAssertEqual(message("2026-10-23 09:00", town: weekend), "2 things happening today")
+        XCTAssertEqual(message("2026-10-23 09:00", town: weekend, yesterday: "2 things happening today"),
+                       "3 events this weekend")
+        XCTAssertEqual(message("2026-10-23 09:00", town: today, yesterday: "2 things happening today"),
+                       "2 events this weekend")
+        // Wednesday, one count left, and it was yesterday's: the hello alone.
+        let week = [event("d", "2026-10-23", "6 PM")]
+        XCTAssertNil(message("2026-10-21 09:00", town: week, yesterday: "1 event this week"))
+        let rock = event("Rocktoberfest", "2026-10-21", "4 PM")
+        XCTAssertEqual(message("2026-10-21 09:00", going: [rock], yesterday: "Rocktoberfest is today at 4"),
+                       "Rocktoberfest is today at 4", "your own day isn't a count")
     }
 
     func testTheCounts() {
