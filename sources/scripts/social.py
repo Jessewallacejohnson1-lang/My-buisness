@@ -3,8 +3,9 @@
 social.py: the social watch's script half (registry ADR-020, amended 2026-10-22). Places'
 public Facebook and Instagram posts, read through Apify and never logged in, laid out exactly
 as morning.py lays out changed pages, so the routine's next steps are the morning job's own:
-the cheap model flags (flag.md), the routine's model judges (judge.md), and `morning.py titles`
-and `morning.py write` write Events and News. The routine's steps are sources/models/social.md.
+the cheap model flags (flag.md), the routine's model judges (judge.md), and `morning.py save`
+writes Events and News (morning.md's Read and judge, and Save). The routine's steps are
+sources/models/social.md.
 
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
 check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
@@ -19,7 +20,7 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
   prepare weekly  the weekly runs that finished since the last weekly check. Either works in parts
                   of about 6 minutes, as morning.py prepare does: run it again while it prints
                   "run again"
-  done            after `morning.py write`: marks those runs read, so the next check starts after
+  done            after `morning.py save`: marks those runs read, so the next check starts after
                   them. A check that stopped early never marks, and the next reads its runs too.
                   It repeats the pictures line, so the answer carries what pictures cost.
   spend           one line for the morning report, "Apify: $X of $25 this month", with a
@@ -635,10 +636,10 @@ def spend():
     try:
         d = limits()
     except urllib.error.HTTPError as e:  # 401: the environment's Apify network secret is missing or wrong
-        return print(f"Apify: spend unknown, Apify refused the request (HTTP {e.code}): check the routine's network secret")
+        return f"Apify: spend unknown, Apify refused the request (HTTP {e.code}): check the routine's network secret"
     end = d.get("monthlyUsageCycle", {}).get("endAt", "")[:10]
-    print(spend_line(float(d["current"]["monthlyUsageUsd"]), float(d["limits"]["maxMonthlyUsageUsd"]))
-          + (f" (resets after {end})" if end else ""))
+    return (spend_line(float(d["current"]["monthlyUsageUsd"]), float(d["limits"]["maxMonthlyUsageUsd"]))
+            + (f" (resets after {end})" if end else ""))
 
 
 def selftest():
@@ -708,7 +709,7 @@ def selftest():
     check(spend_line(8.4, 19) == "Apify: $8.40 of $19 this month", "the plain spend line")
     check("Heads-up" in spend_line(15.2, 19) and "cap is reached" in spend_line(19, 19), "the heads-up and the cap")
     blocked = ("import sys; sys.modules['PIL'] = None; import social; social.limits = lambda: "
-               "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; social.spend()")
+               "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; print(social.spend())")
     r = subprocess.run([sys.executable, "-c", blocked], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
     check(r.stdout == "Apify: $8.40 of $25 this month\n", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
     for cond, what in in_parts():
@@ -900,7 +901,7 @@ def main():
     if args.selftest:
         return selftest()
     if args.step == "spend":
-        return spend()
+        return print(spend())
     if args.step == "setup":
         return setup()
     if args.step == "done":

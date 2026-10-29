@@ -558,6 +558,7 @@ Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the
 ## ROCORI High School
 ```yaml
 id: rocori-high-school
+venues: ["River Lakes Civic Arena, Richmond", "River Lakes Arena, Richmond", "Koronis Civic Arena, Paynesville"]
 status: active
 tier: watched
 category: nearby-school
@@ -576,7 +577,7 @@ sources:
     league_id: 491
     team: ROCORI
 ```
-Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan"). 2026-10-29: its hockey plays as the River Lakes co-op, at home in Richmond and at Koronis Civic Arena in Paynesville (Jesse); those rinks are its `venues` (BP app event-photos 10).
 
 ## Sauk Rapids-Rice High School
 ```yaml
@@ -2117,6 +2118,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.320
 ## Sunny Mary Meadow
 ```yaml
 id: mary-meadow-sunny
+venues: ["The Bloom Room"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -2126,7 +2128,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). The Bloom Room is its event room (its page is sunnymarymeadow.com/bloomroom), so an event there is at Sunny Mary Meadow (smooth-mornings 08).
 
 ## Taco John's
 ```yaml
@@ -2344,6 +2346,8 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ## White Peony Boutique
 ```yaml
 id: boutique-peony-white
+aka: ["White Peony"]
+address: "25 1st Ave NW, Suite 200"
 status: active
 tier: watched
 added_by: agent:discover
@@ -2353,7 +2357,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: White Peony is Suite 200 and W|R Home Suite 100 of one building, so an event at "25 First Ave NW" is at both (smooth-mornings 08).
 
 ## Williams Dingmann Funeral Homes
 ```yaml
@@ -2388,7 +2392,8 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ## W|R Home Company
 ```yaml
 id: home-r-w
-aka: ["W|R Home Co."]
+aka: ["W|R Home Co.", "WR Home"]
+address: "25 1st Ave NW, Ste 100"
 status: active
 tier: watched
 added_by: agent:discover
@@ -2398,7 +2403,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: Suite 100 of White Peony's building (smooth-mornings 08).
 
 ## 24 North: Lofts on College Avenue
 ```yaml
@@ -3136,7 +3141,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## The Bloom Room
 ```yaml
 id: bloom-room
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 added_by: agent:town-verify
@@ -3146,7 +3151,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.sunnymarymeadow.com/bloomroom (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.sunnymarymeadow.com/bloomroom (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-29: The Bloom Room is Sunny Mary Meadow's event room (its page is sunnymarymeadow.com/bloomroom), now a venue of `mary-meadow-sunny`, so one entry answers to its name (smooth-mornings 08).
 
 ## Bloom Styling & Events
 ```yaml
@@ -8788,6 +8793,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Scheels Athletic Complex
 ```yaml
 id: scheels-athletic-complex
+venues: ["Bernick's Arena, Sartell", "RDR Arena, Sartell"]
 status: proposed
 tier: listed
 category: "sports_complex"
@@ -8800,7 +8806,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-10-29: its two rinks, Bernick's Arena and RDR Arena, are its `venues` (BP app event-photos 10).
 
 ## Municipal Athletic Complex
 ```yaml
