@@ -35,7 +35,8 @@ skill covers the calls the code can't make.
 - **A game over 40** gives up a little at a time, never a word cut, until it fits: a school's kind
   ("Willmar MS" is "Willmar"), the host line's own team ("Boys Basketball vs Willmar · C-squad"),
   a co-op's later towns ("Sartell-Sauk Rapids" is "Sartell"), the level's short form ("8th", "MS";
-  "C-squad" stays whole), the boys or girls, then the level. Its About keeps all of them. On a
+  "C-squad" stays whole, and a school's second C team is "C2-squad"), the boys or girls, then the
+  level. Its About keeps all of them. On a
   third school's ground (a section game) neither team is the host's, so both stay.
 - **The colleges are CSB and SJU.** Both together are "CSB SJU", written with a space only
   (Jesse, 2026-10-14). When the host line already names both, leave them out of the title.

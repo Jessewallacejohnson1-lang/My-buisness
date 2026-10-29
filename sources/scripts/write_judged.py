@@ -234,11 +234,21 @@ def real_uid(uid):
     return bool(uid) and not str(uid).startswith(("page:", "board:"))
 
 
-def own_ids_differ(g, source, uid):
-    """The source itself gave the two their own ids: two events, however alike."""
+def posted_twice(a, b):
+    """One listing a source posted twice under two ids: the very same title, day, start and place.
+    The campus calendar posted the winter's games again on 2026-10-28, and each showed twice in
+    the Town feed and lost its live score. Two levels of one game differ in their titles ("C-squad",
+    "C2-squad"), and a doubleheader in its start.
+    ponytail: two activities at one meet under one title become one, its first activity's; compare
+    activity_name once listed_for_writer returns it, if such pairs show up."""
+    return a["title"] == b["title"] and a["day"] == b["day"] and a["at"] == b["at"] and same_event(a, b)
+
+
+def own_ids_differ(g, source, uid, facts):
+    """The source itself gave the two their own ids: two events, however alike, unless posted twice."""
     seen = ([g["old"]] if g["old"] else []) + g["mentions"]
     return real_uid(uid) and any(m["source_name"] == source and real_uid(m.get("source_uid"))
-                                 and m["source_uid"] != uid for m in seen)
+                                 and m["source_uid"] != uid for m in seen) and not posted_twice(g["facts"], facts)
 
 
 def town_key(name):
@@ -763,14 +773,14 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
             g = by_uid.get(key) or min((g for g in groups if same_event(g["facts"], ev["facts"])
-                                        and not own_ids_differ(g, *key)),
+                                        and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
                                                       g["facts"]["at"] is None), default=None)
             if g is None:
                 # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
                     same_place(g["facts"]["place"], ev["facts"]["place"])
-                    or same_title(g["facts"]["title"], ev["facts"]["title"])) and not own_ids_differ(g, *key)]
+                    or same_title(g["facts"]["title"], ev["facts"]["title"])) and not own_ids_differ(g, *key, ev["facts"])]
                 for o in near:
                     other = o["old"]["title"] if o["old"] else o["items"][0][1]["row"]["title"]
                     out["notes"].append(f"kept apart: {ev['row']['title']!r} and {other!r} on "
@@ -791,12 +801,14 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             continue
         old = g["old"]
         if old:
-            # The listed row's own source re-reading it: by the same uid, or (no ids on that
+            # The listed row's own source re-reading it: by the same uid, by the second id it posted the
+            # row under (posted_twice; the campus calendar lists only the new one), or (no ids on that
             # source) the same event a little reworded or retimed. It keeps its uid.
             mine = [(i, ev) for i, ev in g["items"] if ev["row"]["source_name"] == old["source_name"]]
-            primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == old.get("source_uid")),
-                           next(((i, ev) for i, ev in mine if not real_uid(ev["row"]["source_uid"])
-                                 and not real_uid(old.get("source_uid")) and old.get("source_uid")), None))
+            uid = old.get("source_uid")
+            primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == uid),
+                           next(((i, ev) for i, ev in mine if real_uid(ev["row"]["source_uid"]) == real_uid(uid)
+                                 and uid), None))
             filled = False
             if primary is None and g["facts"]["at"] is None:
                 # Another source gives the time this one left out: the listed event takes it, under
@@ -1205,6 +1217,34 @@ def t_merge_near_miss_kept_apart():
     r2 = run([feed], [board])
     assert r2["events"][0]["id"] == board["id"] and outcome(r2, 0) == "merged", "a board copy is not the source's own id"
     assert any("kept apart" in n and "City Council Work Session" in n for n in r["notes"]), r["notes"]
+
+
+def t_posted_twice():
+    """One listing a source posted twice under two ids is one Event (watch-every-place 14); two
+    levels of one game, or a doubleheader, stay two."""
+    game = dict(title="SJU Basketball vs St. Cloud State", place="Sexton Arena, Collegeville", source_name="SJU Athletics",
+                source_url="https://my.csbsju.edu/public/events/4852614", start="2026-10-29T18:00:00-05:00", end=None,
+                area="game", interest="watch_sports", size="everyday")
+    old = listed(title=game["title"], event_date="2026-10-29", start_time="6 PM", location=game["place"],
+                 source_name="SJU Athletics", source_uid="4168764")
+    r = run([item(source_uid="4852614", **game)], [old])
+    assert len(r["events"]) == 1 and r["events"][0]["id"] == old["id"] and outcome(r, 0) == "merged", r["outcomes"]
+    assert len(run([item(source_uid="4168764", **game), item(source_uid="4852614", **game)])["events"]) == 1, \
+        "both new the same morning"
+    # The calendar now lists only the new id: the listed row takes its changes, under its own uid.
+    twin = dict(old, mentions=[{"source_name": "SJU Athletics", "source_url": game["source_url"], "source_uid": "4852614"}])
+    moved = run([item(source_uid="4852614", **dict(game, start="2026-10-29T19:00:00-05:00"))], [twin])["events"][0]
+    assert moved["id"] == old["id"] and moved["row"]["start_time"] == "7 PM" and moved["row"]["source_uid"] == "4168764", moved
+    at = dict(game, title="", place="Sartell High School Gym, Auxiliary", source_name="Sartell High School")
+    levels = [item(source_uid="bound:c", **dict(at, title="Apollo Boys Basketball vs Sartell · C-squad")),
+              item(source_uid="bound:c2", **dict(at, title="Apollo Boys Basketball vs Sartell · C2-squad"))]
+    assert len(run(levels)["events"]) == 2, "a school's C and C2 games are two"
+    later = [item(source_uid="a1", **game), item(source_uid="a2", **dict(game, start="2026-10-29T18:45:00-05:00"))]
+    assert len(run(later)["events"]) == 2, "two starts, even 45 minutes apart, are two"
+    meet = dict(title="Section 6A Girls Swim Meet", place="St. Cloud Tech High School", source_name="Tech High School",
+                all_day=True, end=None, area="game", interest="watch_sports", size="everyday")
+    days = [item(source_uid="mshsl:12", start="2026-11-12", **meet), item(source_uid="mshsl:13", start="2026-11-13", **meet)]
+    assert len(run(days)["events"]) == 2, "a meet's two days are two"
 
 
 def t_same_time_no_place():
@@ -1636,7 +1676,7 @@ def t_one_place_two_names():
 TESTS = [t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
+         t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
          t_long_titles_shortened_and_kept, t_short_levels_kept_apart]

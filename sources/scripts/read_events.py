@@ -802,8 +802,9 @@ BOUND_PASS = re.compile(r"\b(pass|practice|tryouts?)\b", re.I)
 # The level Bound adds to a title: "(Varsity)", "(Middle School)", "(High School Choir)".
 BOUND_LEVEL = re.compile(r"\s*\((varsity|jv|junior varsity|middle school|high school[^)]*|c|b)\)$", re.I)
 BOUND_TEAMS = {"Kennedy Community MS": "Kennedy"}
-# A lower level as its title says it: "Apollo Girls Volleyball vs Brainerd · JV".
-BOUND_LEVEL_WORDS = {"Junior Varsity": "JV", "JV": "JV", "C": "C-squad", "C2": "C-squad", "C Team": "C-squad",
+# A lower level as its title says it: "Apollo Girls Volleyball vs Brainerd · JV". A school's second
+# C team plays beside its first, same time and gym, so its title says so (2026-10-29: 14 pairs).
+BOUND_LEVEL_WORDS = {"Junior Varsity": "JV", "JV": "JV", "C": "C-squad", "C2": "C2-squad", "C Team": "C-squad",
                      "B": "B-squad", "Middle School": "Middle school", "9th Grade": "9th grade", "MS": "Middle school"}
 # A level that only says who plays ("Girls Varsity", "Boys MS"), posted where a meet's name goes.
 BOUND_WHO = re.compile(r"(girls|boys)\s+(varsity|jv|ms|c|b)", re.I)
@@ -1697,7 +1698,8 @@ def t_games_complete():
     calendars = {
         "Sauk Rapids-Rice High School": [
             ev("s1", "North Junior High vs Sauk Rapids-Rice", "Basketball, Girls", "7th Grade", "Sauk Rapids-Rice Middle School Gym"),
-            ev("s2", "St. Cloud Apollo vs Sauk Rapids-Rice", "Basketball, Boys", "C", "Sauk Rapids-Rice High School Auxiliary Gym")],
+            ev("s2", "St. Cloud Apollo vs Sauk Rapids-Rice", "Basketball, Boys", "C", "Sauk Rapids-Rice High School Auxiliary Gym"),
+            ev("s3", "St. Cloud Apollo vs Sauk Rapids-Rice", "Basketball, Boys", "C2", "Sauk Rapids-Rice High School Auxiliary Gym")],
         "Sartell High School": [
             ev("t1", "Sauk Rapids-Rice vs Sartell", "Basketball, Boys", "8th Grade", "Sartell Middle School Gym"),
             ev("t2", "Sartell/Sauk Rapids vs Thief River Falls", "Hockey, Girls", "Junior Varsity", "Huck Olson Memorial Arena"),
@@ -1717,6 +1719,7 @@ def t_games_complete():
                 got[i["source_uid"][6:]] = (i["title"], i["blurb"])
     assert {k: t for k, (t, _) in got.items()} == {
         "s1": "Girls Basketball vs North · 7th Grade", "s2": "Boys Basketball vs Apollo · C-squad",
+        "s3": "Boys Basketball vs Apollo · C2-squad",
         "t1": "Boys Basketball vs Sauk Rapids · 8th", "t2": "Girls Hockey vs Thief River Falls · JV",
         "t3": "Girls Hockey vs Willmar · JV", "t4": "Girls Hockey vs Detroit Lakes · JV",
         "r1": "Boys Hockey vs Prairie Centre · JV", "r2": "Boys Hockey vs Hutchinson · JV",
