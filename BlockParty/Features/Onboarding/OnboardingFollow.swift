@@ -275,9 +275,9 @@ private struct SuggestionPicture: View {
             .accessibilityHidden(true)
     }
 
-    /// "CS" of "City of St. Joseph": the first letters of the first two words that start with one.
+    /// "CS" of "City of St. Joseph": the first two capitals that start a word, so "of" is skipped.
     private var initials: String {
-        String(suggestion.name.split(separator: " ").compactMap { $0.first }.filter(\.isLetter).prefix(2)).uppercased()
+        String(suggestion.name.split(separator: " ").compactMap { $0.first }.filter(\.isUppercase).prefix(2))
     }
 }
 

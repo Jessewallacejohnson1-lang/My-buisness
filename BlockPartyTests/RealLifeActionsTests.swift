@@ -1039,6 +1039,24 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.followFailureCount(Self.krewe), 1, "no shake with no button on screen")
     }
 
+    /// Onboarding's Follow 3 picks (onboarding 22): sent only for a signed-up account, written as
+    /// follows, and never undoing one, however often they arrive.
+    func testOnboardingPicksOnlyEverFollowAndWaitForASignedUpAccount() async throws {
+        let server = Server()
+        let school = FollowTarget(type: .team, id: "ae12dd85-f0e8-47f2-9f38-426a2560ff72")
+        actions(server, anonymous: true).followOn(Self.krewe)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, [], "an Anonymous account sends nothing")
+
+        let actions = actions(server)
+        actions.followOn(Self.krewe)
+        actions.followOn(school)
+        actions.followOn(Self.krewe)
+        XCTAssertTrue(actions.follow(Self.krewe).isFollowing)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows.sorted(), ["place \(Self.krewe.id) true", "team \(school.id) true"])
+    }
+
     /// A Place and a person are kept apart, each written as its own kind.
     func testAPersonsFollowIsTheirsAlone() async throws {
         let server = Server()
