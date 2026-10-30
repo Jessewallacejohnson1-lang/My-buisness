@@ -52,7 +52,7 @@ final class MapModel: ObservableObject {
     static let pinExpandZoom: Double = 14.5
 
     private var auth: AuthStore?
-    private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
+    private var api: CommunityAPI? { auth.map { CommunityAPI(auth: $0) } }
 
     private var realtime: RealtimeClient?
     private var currentDate = Town.day(.now)
