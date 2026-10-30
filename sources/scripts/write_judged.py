@@ -290,8 +290,21 @@ def joins(g, f):
     """A copy joins a group by same_event with its first copy, or by two_hosts with every copy in it: a
     shared address is all its shops, so JoeTown's "Holiday Open House" at 25 First Ave NW must not make
     White Peony's and W|R Home's, each at its own shop, one."""
-    return same_event(g["facts"], f) or all(same_event(x, f) or two_hosts(x, f) == "one"
+    return same_event(g["facts"], f) or all(same_event(x, f) or two_hosts(x, f) == "one" or renamed(x, f)
                                             for x in [g["facts"], *(ev["facts"] for _, ev in g["items"])])
+
+
+def renamed(a, b):
+    """One host's Event under two names (smooth-mornings 08): Sartell High School's calendar listed "Fall Play"
+    and its Instagram "The Crucible", at its Performing Arts Center at 7 PM on Oct 29 and 30 and 2 PM on Oct 31.
+    The same poster, start to the minute and place line, one copy a listing with its own id and the other a
+    post, neither a game, and names with no word in common: a calendar's plain name and the show's own. Names
+    sharing a word are two of a kind, as the City's "City Council Meeting" and "City Council Work Session" at
+    6 PM. Two listings with their own ids stay two (own_ids_differ), and so do two posts: one post can be two
+    things at once ("Trunk or Treat and chili cook-off at 5")."""
+    return (a["names"] == b["names"] and a["own_id"] != b["own_id"] and a["at"] is not None and a["at"] == b["at"]
+            and bool(a["place"]) and a["place"] == b["place"] and not (a["game"] or b["game"])
+            and not (a["title"] - a["names"]) & (b["title"] - b["names"]))
 
 
 def spots(place):
@@ -534,7 +547,8 @@ def listed_facts(row, home="St. Joseph MN"):
     poster = row.get("source_name") or ""
     place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster))
     return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
-            "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster)}
+            "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
+            "own_id": real_uid(row.get("source_uid")), "game": is_game(row)}
 
 
 def show_from(day, size, signup_by):
@@ -676,7 +690,8 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None):
         if all(ids):
             row.update(sport=game["sport"], team_ids=ids, team_names=game["teams"], occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
-             "title": words(title), **place_facts(place, it["source_name"])}
+             "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
+             "game": bool(game) or is_game(row)}
     return {"row": row, "facts": facts}, None
 
 
@@ -1881,7 +1896,30 @@ def t_two_hosts_kept_apart():
     assert len(run(shops)["events"]) == 2, [o for o in run(shops)["outcomes"]]
 
 
-TESTS = [t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+def t_one_host_two_names():
+    """Sartell High School's calendar (Bound) listed "Fall Play" and its Instagram "The Crucible", each at its
+    Performing Arts Center at 7 PM on Oct 29 (2026-10-29): one Event, whichever came first. Two listings with
+    their own ids, two posts, a game, or another start stay two."""
+    stage = dict(place="Sartell High School Performing Arts Center", source_name="Sartell High School", interest=None,
+                 start="2026-10-29T19:00:00-05:00", end=None, size="everyday", area="announced")
+    bound = item(title="Fall Play", source_url="https://gobound.com/direct/noncomps/h1/h", source_uid="bound:h1", **stage)
+    post = item(title="The Crucible", source_url="https://www.instagram.com/p/De1v7gmE6RA/", **stage)
+    r = run([bound, post])
+    assert len(r["events"]) == 1 and len(r["events"][0]["mentions"]) == 2, r["outcomes"]
+    as_listed = dict(location=stage["place"], source_name=stage["source_name"], event_date="2026-10-29", start_time="7 PM")
+    for first, then in ((listed(title="Fall Play", source_uid="bound:h1", **as_listed), post),
+                        (listed(title="The Crucible", source_uid="page:2026-10-29T1900:crucible", **as_listed), bound)):
+        g = run([then], [first])["events"]
+        assert len(g) == 1 and g[0]["id"] == first["id"], (first["title"], g)
+    apart = [[bound, dict(bound, title="Senior Recital", source_uid="bound:h2")],
+             [post, dict(post, title="Art Show Opening", source_url="https://www.instagram.com/p/other/")],
+             [post, dict(bound, title="Sartell Volleyball vs Brainerd", interest="watch_sports")],
+             [post, dict(bound, start="2026-10-29T19:30:00-05:00")]]
+    for pair in apart:
+        assert len(run(pair)["events"]) == 2, [i["title"] for i in pair]
+
+
+TESTS = [t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

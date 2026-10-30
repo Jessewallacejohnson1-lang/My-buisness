@@ -68,7 +68,7 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
-from run import deadline, late
+from run import deadline, late, only_one
 from batch import layout
 import composio
 
@@ -87,7 +87,6 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
 SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
              ("bp-busy-9pm", "0 21 * * *", "busy", "4 hours"),
              ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
-EMPTY = {"no_items", "not_available", "not_found", "Restricted profile"}
 HEADS_UP = 15.0
 STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
@@ -407,7 +406,7 @@ def pictures_line(pics):
 
 def src_of(row):
     """The page an Apify row came from, as its list's address would be written (canon)."""
-    src = canon(row.get("inputUrl") or row.get("facebookUrl") or "")
+    src = canon(row.get("inputUrl") or row.get("facebookUrl") or row.get("input") or "")  # "input": an events row's error
     return src or (f"https://www.instagram.com/{row['ownerUsername'].lower()}" if row.get("ownerUsername") else "")
 
 
@@ -476,11 +475,12 @@ def post_pages(kind, rows, by_url):
     pages, hidden = [], []
     for r in rows:
         src = src_of(r)
-        if r.get("error") in EMPTY or r.get("error"):
-            if r.get("error") != "no_items":
-                hidden.append(f"{src}: {r.get('error')}")
-            continue
         page = page_of(src, by_url)
+        if r.get("error"):
+            # "no_results" is a page's events tab listing none: each of Oct 29's 20 read fine as posts.
+            if r["error"] not in ("no_items", "no_results"):
+                hidden.append(f"{page['name'] if page else src}: {r['error']}")
+            continue
         if kind == "events":
             text = r.get("description") or ""
             where = r.get("location", {}).get("name") if isinstance(r.get("location"), dict) else r.get("location")
@@ -510,6 +510,13 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
     downloads stop after `minutes` and say "run again", and social-part.json carries the check to
     the next part."""
     root = find_root()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not only_one(out.parent / "prepare.lock"):
+        return print("[social] another prepare is still running in this copy: let it finish, and start no second one")
+    prep = json.loads((out / "prepare.json").read_text()) if (out / "prepare.json").exists() else {}
+    if prep.get("run") == run and prep.get("today") == str(today) and not prep.get("done"):
+        print("[social] prepared already: nothing read again")  # run again after it was done; never start over
+        return say_prepared(prep, out)
     stop, part_f = deadline(minutes), out / "social-part.json"
     part = json.loads(part_f.read_text()) if part_f.exists() else {}
     if part.get("run") != run or part.get("today") != str(today) or (out / "prepare.json").exists():  # a new check
@@ -595,19 +602,26 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
                "aside": part.get("aside", []), "missed": part.get("missed")}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
+    say_prepared(summary, out)
+
+
+def say_prepared(s, out):
+    mark = s["since"] and datetime.fromisoformat(s["since"])
     since = f"since {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "of the last days"
-    print(f"[social] {run}: {runs} Apify runs {since}, {checked} pages, {len(posts)} new posts in "
-          f"{summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
-    print(pictures_line(pics))
-    for a in summary["aside"]:
+    print(f"[social] {s['run']}: {s['apify_runs']} Apify runs {since}, {s['fetched']} pages, {s['changed']} new posts in "
+          f"{s['batches']} batches ({out / 'batches'}), Apify ${s['apify_usd']:.2f}")
+    print(pictures_line(s["pictures"]))
+    for a in s["aside"]:
         print(f"[social] {a}")
-    for f in failed:
+    for f in s["failed"]:
         print(f"[social] FAILED {f}")
 
 
 def finish(out):
-    """After the write: mark this check's runs read, so the next check starts after them."""
+    """After the write: mark this check's runs read, so the next check starts after them, and the next
+    prepare a new check."""
     prep = json.loads((out / "prepare.json").read_text())
+    (out / "prepare.json").write_text(json.dumps({**prep, "done": True}, indent=1))
     print(pictures_line(prep.get("pictures")))
     if not prep.get("read_until"):
         return print(f"[social] {prep['run']}: no Apify runs to mark")
@@ -663,6 +677,9 @@ def selftest():
     check(len(got) == 1 and got[0]["file"] == "facebook-1" and got[0]["trust"] == "official", "one post becomes one page")
     check("Thursday, October 22 at 6:05 PM" in got[0]["text"] and "Krewe posted this on Facebook" in got[0]["text"], "the page says who posted it and when, in Chicago time")
     check(hidden == ["https://www.facebook.com/gone: not_available"], "a hidden page is reported, an empty one is not")
+    tab = lambda e: {"error": e, "input": "https://www.facebook.com/krewe/upcoming_hosted_events"}
+    _, hidden = post_pages("events", [tab("no_results"), tab("blocked")], {events_tab(u): p for u, p in by_url.items()})
+    check(hidden == ["Krewe: blocked"], "an events tab listing none says nothing; another error names its page")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
@@ -851,6 +868,9 @@ def in_parts():
     def check(minutes):
         """One check's prepare, part after part: each part's words, and the batches it laid out."""
         clock.t, said = 1000.0, []
+        prep = folder / "prepare.json"
+        if prep.exists():  # the last check's `done`: this prepare starts a new check
+            prep.write_text(json.dumps({**json.loads(prep.read_text()), "done": True}))
         while len(said) < 6 and (not said or "run again" in said[-1]):
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
@@ -874,6 +894,11 @@ def in_parts():
             pictures = list(got)
             ends = float("inf")
             never, _ = check(2)
+            again, flags = io.StringIO(), folder / "flags.jsonl"
+            flags.write_text("{}\n")  # the helpers' flags, already in
+            with contextlib.redirect_stdout(again):  # run again once done, before `done`: nothing read again
+                prepare("busy", date(2026, 10, 28), folder, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc), 2)
+            again = (again.getvalue(), flags.exists())
     finally:
         g.update(saved[0])
         runner.time, write_judged.interest_ids = saved[1:]
@@ -888,6 +913,8 @@ def in_parts():
          "the parts lay out what one long check does"),
         (m == 4 and "[social] FAILED bp-busy-facebook still running after 8 minutes" in never[3],
          "a run that never ends is waited for 8 minutes over every part, then left for the next check"),
+        (again[0].startswith("[social] prepared already") and again[0].endswith(never[3]) and again[1],
+         "prepare run again once done says its summary again and starts nothing over"),
     ]
 
 
