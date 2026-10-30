@@ -1058,6 +1058,8 @@ struct BlockPartyTabBar: View {
     /// Apple's does: to the end of a tap's travel, or a short collapse after a drag.
     @State private var landing = false
     @State private var landingTask: Task<Void, Never>?
+    /// Taps on Daily, each one a hop of its ! (`DailyMarkGlyph`).
+    @State private var dailyHops = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     struct Touch: Equatable {
@@ -1097,7 +1099,7 @@ struct BlockPartyTabBar: View {
                     .position(x: bubbleX, y: TabBarMetric.height / 2)
                     .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
-                      avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX)
+                      avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -1114,8 +1116,11 @@ struct BlockPartyTabBar: View {
                     .onEnded { value in
                         land(after: abs(value.translation.width) > 4
                              ? TabBarMetric.collapseAfterDrag : TabBarMetric.landingAfterTap)
-                        onSelect(TabBarMetric.tab(atX: pressedX(value.location.x, capsule: capsule),
-                                                  capsuleWidth: width))
+                        let tab = TabBarMetric.tab(atX: pressedX(value.location.x, capsule: capsule),
+                                                   capsuleWidth: width)
+                        // Every tap on Daily hops its !, already-picked included.
+                        if tab == .daily && !reduceMotion { dailyHops += 1 }
+                        onSelect(tab)
                     }
             )
         }
@@ -1235,6 +1240,8 @@ struct BlockPartyTabBar: View {
         var avatarURL: String? = nil
         /// The Lens centre while held; icons near it magnify.
         var lensX: CGFloat? = nil
+        /// Taps on Daily so far; each one hops the Bp!'s !.
+        var dailyHops = 0
 
         var body: some View {
             ZStack(alignment: .topLeading) {
@@ -1297,9 +1304,7 @@ struct BlockPartyTabBar: View {
                 } else if tab == .town {
                     HouseGlyph(filled: selected)
                 } else if tab == .daily {
-                    Image(tab.symbol)
-                        .resizable()
-                        .scaledToFit()
+                    DailyMarkGlyph(hops: dailyHops)
                         .frame(width: TabBarMetric.dailyMarkWidth)
                 } else {
                     Image(systemName: selected ? tab.selectedSymbol : tab.symbol)

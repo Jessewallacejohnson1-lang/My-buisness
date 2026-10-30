@@ -2,8 +2,8 @@
 //  BarGlyphs.swift
 //  Block Party — two traced marks: the search magnifier (the tab bar's Search tab
 //  since 2026-09-29; the Today bar's leading control before that) and the Today
-//  bar's notifications bell. Plus the Town tab's house, drawn rather than traced
-//  (2026-10-30, at the end of this file).
+//  bar's notifications bell. Plus the Town tab's house, drawn rather than traced,
+//  and the Daily tab's Bp! whose ! hops (2026-10-30, at the end of this file).
 //
 //  Both are drawn rather than taken from SF Symbols, for the same reason `MapPinGlyph`
 //  next door is: the reference's marks and Apple's are different SILHOUETTES, not the
@@ -317,6 +317,98 @@ nonisolated struct HouseShape: Shape {
         }
         path.closeSubpath()
         return path
+    }
+}
+
+// MARK: - Daily mark
+
+/// The Daily tab's Bp!, in three layers on one canvas so its ! can hop: each tap on
+/// Daily, the ! line crouches and jumps 4 pt, the dot follows 60 ms behind with a 2 pt
+/// hop and lands first, and the line falls back onto it (Jesse, 2026-10-30: "do the
+/// hop but let the dot and line not hop in parallel but sync to fall into place
+/// discrete"). Every value is GUESSED: there was no recording to copy. Mock:
+/// https://claude.ai/artifact/WMQMUeHc9QnwKRU39KojSa
+///
+/// The two layers never touch: the dot sits 0.63 pt under the line's foot, so the line
+/// leads both ways (the mock's `#frames` view checks it every 40 ms).
+struct DailyMarkGlyph: View {
+    /// Bumped on every tap on Daily; each change plays the hop from the start.
+    var hops: Int
+
+    /// Where the line's foot and the dot's base sit on the mark's canvas, from
+    /// `DailyMark.svg`'s paths. The squashes pivot there, so neither foot slides.
+    private static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
+    private static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+
+    struct Hop {
+        var y: CGFloat = 0
+        var width: CGFloat = 1
+        var height: CGFloat = 1
+    }
+
+    var body: some View {
+        ZStack {
+            layer("DailyMarkBp")
+            layer("DailyMarkBangLine")
+                .keyframeAnimator(initialValue: Hop(), trigger: hops) { content, hop in
+                    content
+                        .scaleEffect(x: hop.width, y: hop.height, anchor: Self.lineFoot)
+                        .offset(y: hop.y)
+                } keyframes: { _ in
+                    // Crouch 70 ms, up by 230, down at 360, settled by 500.
+                    KeyframeTrack(\.y) {
+                        LinearKeyframe(0, duration: 0.07)
+                        CubicKeyframe(-4, duration: 0.16)
+                        CubicKeyframe(0, duration: 0.13)
+                        LinearKeyframe(0, duration: 0.14)
+                    }
+                    KeyframeTrack(\.width) {
+                        CubicKeyframe(1.12, duration: 0.07)
+                        CubicKeyframe(0.94, duration: 0.16)
+                        CubicKeyframe(1.1, duration: 0.13)
+                        CubicKeyframe(0.97, duration: 0.07)
+                        CubicKeyframe(1, duration: 0.07)
+                    }
+                    KeyframeTrack(\.height) {
+                        CubicKeyframe(0.86, duration: 0.07)
+                        CubicKeyframe(1.08, duration: 0.16)
+                        CubicKeyframe(0.9, duration: 0.13)
+                        CubicKeyframe(1.03, duration: 0.07)
+                        CubicKeyframe(1, duration: 0.07)
+                    }
+                }
+            layer("DailyMarkBangDot")
+                .keyframeAnimator(initialValue: Hop(), trigger: hops) { content, hop in
+                    content
+                        .scaleEffect(x: hop.width, y: hop.height, anchor: Self.dotBase)
+                        .offset(y: hop.y)
+                } keyframes: { _ in
+                    // Leaves 60 ms after the line, up by 180, down at 300, settled by 380.
+                    KeyframeTrack(\.y) {
+                        LinearKeyframe(0, duration: 0.06)
+                        CubicKeyframe(-2, duration: 0.12)
+                        CubicKeyframe(0, duration: 0.12)
+                        LinearKeyframe(0, duration: 0.08)
+                    }
+                    KeyframeTrack(\.width) {
+                        LinearKeyframe(1, duration: 0.06)
+                        CubicKeyframe(0.95, duration: 0.12)
+                        CubicKeyframe(1.15, duration: 0.12)
+                        CubicKeyframe(1, duration: 0.08)
+                    }
+                    KeyframeTrack(\.height) {
+                        LinearKeyframe(1, duration: 0.06)
+                        CubicKeyframe(1.06, duration: 0.12)
+                        CubicKeyframe(0.85, duration: 0.12)
+                        CubicKeyframe(1, duration: 0.08)
+                    }
+                }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func layer(_ name: String) -> some View {
+        Image(name).resizable().scaledToFit()
     }
 }
 
