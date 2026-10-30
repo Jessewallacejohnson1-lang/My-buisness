@@ -226,12 +226,14 @@ enum DailyFixtures {
             ),
             // No description and no category (none fits a council meeting), so the
             // event page's About and category rows hide. Nobody going yet, so its card
-            // shows RSVP alone (rsvp-and-groups 01).
+            // shows RSVP alone (rsvp-and-groups 01). No photo, only the City's logo: the short
+            // white card (BP app references/no-photo-cards), as e3 is with no logo at all.
             event(
                 id: "e5", title: "City Council — regular meeting",
                 host: "City of St. Joseph", hostAvatar: false,
                 chip: "TUE", meta: "6pm · City Hall",
                 photo: false, hoursUntil: 20, going: 0,
+                logo: "city-of-st-joseph/logo-009e4537f4.webp",
                 now: now
             ),
             event(
@@ -291,14 +293,18 @@ enum DailyFixtures {
         category: EventCategory? = nil, description: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
         friends: [(name: String, photo: String?)] = [], score: FeedScore? = nil, credit: String? = nil,
+        logo: String? = nil,
         now: Date
     ) -> TownFeedEntry {
+        // A place's saved logo in Storage, read from the network, as `-town-news`'s are.
+        let placeLogo = logo.flatMap { URL(string: "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/" + $0) }
+            .map { FeedCardImageSource.placeLogo(PlacePicture(url: $0, kind: .logo, hue: 35)) }
         var item = FeedCardItem(
             id: id,
             title: title,
             dateChip: chip,
             metaLine: meta,
-            image: photo ? Self.photoURL(id, credit: credit) : .fallback,
+            image: photo ? Self.photoURL(id, credit: credit) : placeLogo ?? .fallback,
             recurrence: nil,
             hostName: host,
             hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,

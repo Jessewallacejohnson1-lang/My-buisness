@@ -105,7 +105,7 @@ struct FeedEventCard: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Only the photo sinks in on a press; the line under it stays still
                     // (Jesse, 2026-10-27).
-                    imageSection
+                    face
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
                         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
@@ -121,15 +121,17 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the photo sinks the
             // moment a finger lands.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
-            // The heart on the photo's bottom right, over the link as its own button (event-card 06).
-            .overlay(alignment: .bottomTrailing) {
+            // The heart on the photo's bottom right, over the link as its own button (event-card 06);
+            // on the white card with no photo, at its right, halfway down (no-photo-cards).
+            .overlay(alignment: item.isPhotoless ? .trailing : .bottomTrailing) {
                 if actions.canAct {
                     // Rides the photo's corner in as it sinks.
                     photoHeart
-                        .padding(.trailing, DailyFeedMetric.contentInset + Self.photoHeartInset)
-                        .padding(.bottom, Self.photoHeartInset)
+                        .padding(.trailing, DailyFeedMetric.contentInset
+                                 + (item.isPhotoless ? Self.whiteHeartInset : Self.photoHeartInset))
+                        .padding(.bottom, item.isPhotoless ? 0 : Self.photoHeartInset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
-                                y: -photoSize.height * (1 - pressScale) / 2)
+                                y: item.isPhotoless ? 0 : -photoSize.height * (1 - pressScale) / 2)
                         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
@@ -197,7 +199,7 @@ struct FeedEventCard: View {
     /// itself, and a card showing a logo instead of a photo already says whose it is (the same
     /// school's or shop's logo twice, read 2026-10-29), so they have none.
     private var showsHostMark: Bool {
-        !item.hostName.isEmpty && item.game == nil && displayImage.logo == nil
+        !item.hostName.isEmpty && item.game == nil && displayImage.logo == nil && !item.isPhotoless
     }
 
     /// The host's picture at the date chip's height in a white ring, so a person's photo stands off
@@ -268,6 +270,34 @@ struct FeedEventCard: View {
     }
 
     // MARK: - Image
+
+    /// The photo, or with none the short white card (no-photo-cards).
+    @ViewBuilder
+    private var face: some View {
+        if item.isPhotoless { whiteCard } else { imageSection }
+    }
+
+    /// No photo: the place's logo on the left and the day in a grey pill, the chip's words (Jesse at
+    /// Check-in 1), turning to Now at the start minute as the chip does.
+    private var whiteCard: some View {
+        TimelineView(.everyMinute) { context in
+            let now = item.isNow(at: context.date)
+            NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
+                        name: item.hostName.isEmpty ? item.title : item.hostName,
+                        pill: now ? "Now" : item.whenLine?.text, pillSpoken: now ? "Happening now" : item.whenLine?.spoken,
+                        pillDot: now ? Hue.now : nil, title: item.title, facts: metaSummary,
+                        trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0)
+        }
+        // Called off: grey, as the photo goes (Jesse, 2026-10-15).
+        .grayscale(item.cancelled ? 1 : 0)
+        .padding(.horizontal, DailyFeedMetric.contentInset)
+    }
+
+    /// The place's logo the card would have shown, else the host's.
+    private var whiteCardLogo: URL? {
+        if case .placeLogo(let picture) = item.image { return picture.url }
+        return item.hostPicture?.kind == .logo ? item.hostPicture?.url : nil
+    }
 
     /// What the card shows: its picture, or ink once that picture has failed to load.
     private var displayImage: FeedCardImageSource {
@@ -512,6 +542,10 @@ struct FeedEventCard: View {
     static let photoHeartSide: CGFloat = 38
     static let photoHeartInset: CGFloat = 12
     static let photoHeartGlyph: CGFloat = 20
+    /// On the white card: the glyph 13 pt in from its right edge, as the mock's, and the words kept
+    /// clear of it.
+    static let whiteHeartInset: CGFloat = 4
+    static let whiteHeartRoom: CGFloat = 26
 
     private var pressScale: CGFloat {
         FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
@@ -520,7 +554,7 @@ struct FeedEventCard: View {
     private var photoHeart: some View {
         let hearted = actions.heart(item).isHearted
         let failures = actions.heartFailureCount(item.id)
-        let onWhite = item.game != nil
+        let onWhite = item.game != nil || item.isPhotoless
         return Button {
             heartTappedAt = failures
             withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {

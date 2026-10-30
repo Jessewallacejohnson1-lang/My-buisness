@@ -163,6 +163,34 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardImageSource.fallback.cardAspect, 1.5, accuracy: 0.0001, "ink keeps 3:2")
     }
 
+    /// A card with no photo is the short white card (BP app references/no-photo-cards): its place's
+    /// logo or nothing at all makes it one; a photo or a game never does. News the same.
+    func testACardWithNoPhotoIsTheShortWhiteCard() throws {
+        let row = { (id: String, extra: String) in """
+        {"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM","location":"Fire Hall",
+         "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph","end_at":null,
+         "all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+         "recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00"\(extra)}
+        """ }
+        let json = "[" + [
+            row("logo", ##","place_picture":{"url":"https://x/logo.webp","kind":"logo","hue":35}"##),
+            row("ink", ""),
+            row("photo", ##","place_picture":{"url":"https://x/hall.webp","kind":"photo","w":1600,"h":1067}"##),
+            row("game", ##","game":{"sport":"Football","teams":[{"name":"Saint John's","short":"Saint John's"},{"name":"Concordia","short":"Concordia"}]}"##),
+        ].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        XCTAssertEqual(cards.map(\.isPhotoless), [true, true, false, false], "logo, ink, photo, game")
+
+        let post = URL(string: "https://www.instagram.com/p/1/")!
+        let news = { (picture: PlacePicture?) in
+            TownNews(id: "n", place: "The Wandering Cow", words: "Four scoops for $5", post: post,
+                     picture: picture, leavesAt: .distantFuture)
+        }
+        XCTAssertTrue(news(nil).isPhotoless, "no picture: its first letter")
+        XCTAssertTrue(news(PlacePicture(url: URL(string: "https://x/cow.webp")!, kind: .logo)).isPhotoless)
+        XCTAssertFalse(news(PlacePicture(url: URL(string: "https://x/cow.jpg")!, kind: .photo)).isPhotoless)
+    }
+
     /// The place's other photos reach the card (BP app event-card 02): the card and its page
     /// show the cover, then the rest in order, each once with its own credit; one that doesn't
     /// decode is left out and the cover kept.

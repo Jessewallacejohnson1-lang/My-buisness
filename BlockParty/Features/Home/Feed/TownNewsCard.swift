@@ -47,7 +47,7 @@ struct TownNewsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: open) {
-                picture
+                face
                     .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                     .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
                     .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
@@ -82,6 +82,18 @@ struct TownNewsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
+    }
+
+    /// The place's photo, or with none the short white card, its pill saying NEW (no-photo-cards).
+    @ViewBuilder
+    private var face: some View {
+        if news.isPhotoless {
+            NoPhotoCard(logo: news.picture?.url, name: news.place, pill: "NEW", title: news.headline,
+                        facts: news.facts, factsLines: 2)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
+        } else {
+            picture
+        }
     }
 
     /// The event card's picture (`FeedEventCard.imageSection`): the photo's own shape, 20 pt
