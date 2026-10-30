@@ -126,7 +126,8 @@ enum DailyFixtures {
         return samples.enumerated().map { i, s in
             let news = TownNews(id: "n\(i + 1)", place: s.0, words: s.2, post: URL(string: s.3)!,
                                 picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
-                                leavesAt: now.addingTimeInterval(7 * 86_400), title: s.1)
+                                leavesAt: now.addingTimeInterval(7 * 86_400), title: s.1,
+                                interest: i == 0 ? "dining" : nil)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
     }

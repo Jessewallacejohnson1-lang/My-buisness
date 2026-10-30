@@ -182,7 +182,7 @@ final class TownFeed {
     @ObservationIgnored private(set) var unsent: [FeedAction] = []
     @ObservationIgnored private var lastSent: Date = .distantPast
 
-    /// Events said Not interested to and host names muted this session (ticket 21).
+    /// Events and News said Not interested to and host names muted this session (ticket 21).
     private(set) var hiddenIDs: Set<String> = []
     private(set) var mutedNames: Set<String> = []
     /// The card showing "Hidden · Undo" in its place, for 5 seconds.
@@ -264,7 +264,7 @@ final class TownFeed {
             guard entry.leavesAt > (holding ? heldClock : clock) else { return false }
             switch entry.item {
             case .event(let card): return !isHidden(card)
-            case .news(let news): return !mutedNames.contains(news.place)
+            case .news(let news): return !isHidden(id: news.id, host: news.place)
             }
         }
     }
@@ -516,9 +516,12 @@ final class TownFeed {
 
     /// Out of the feed: said Not interested to, or its host muted. The card showing Undo stays
     /// in, drawn as its Undo line.
-    func isHidden(_ card: FeedCardItem) -> Bool {
-        guard undo?.id != card.id else { return false }
-        return hiddenIDs.contains(card.id) || (!card.hostName.isEmpty && mutedNames.contains(card.hostName))
+    func isHidden(_ card: FeedCardItem) -> Bool { isHidden(id: card.id, host: card.hostName) }
+
+    /// An Event's card or a News post (news-menu), by its id and its host's name.
+    private func isHidden(id: String, host: String) -> Bool {
+        guard undo?.id != id else { return false }
+        return hiddenIDs.contains(id) || (!host.isEmpty && mutedNames.contains(host))
     }
 
     /// Report a card (ticket 22), from its sheet, which waits for the answer to say thanks or shake.
@@ -551,22 +554,23 @@ final class TownFeed {
         }
     }
 
-    /// Not interested (`mute` false) or Mute on a card: out at once, then to the server. One that
-    /// doesn't go through comes back. A newer one ends the last one's Undo.
-    func hide(_ card: FeedCardItem, mute: Bool) async {
-        if mute { mutedNames.insert(card.hostName) } else { hiddenIDs.insert(card.id) }
-        showUndo(FeedHide(id: card.id, hostName: card.hostName, mute: mute))
+    /// Not interested (`mute` false) or Mute on an Event's card or a News post (news-menu), by its
+    /// id and its host's name: out at once, then to the server. One that doesn't go through comes
+    /// back. A newer one ends the last one's Undo.
+    func hide(id: String, host hostName: String, mute: Bool) async {
+        if mute { mutedNames.insert(hostName) } else { hiddenIDs.insert(id) }
+        showUndo(FeedHide(id: id, hostName: hostName, mute: mute))
         let choose = self.choose
-        let send = Task { try await choose(mute ? .mute(card.id) : .notInterested(card.id)) }
+        let send = Task { try await choose(mute ? .mute(id) : .notInterested(id)) }
         sending = send
         do {
             let host = try await send.value
-            if mute, let host { muteKeys[card.hostName] = host }
+            if mute, let host { muteKeys[hostName] = host }
             muted = nil
         } catch {
             Log.network("TownFeed: \(mute ? "Mute" : "Not interested") not sent: \(error)")
-            if mute { mutedNames.remove(card.hostName) } else { hiddenIDs.remove(card.id) }
-            if undo?.id == card.id { undo = nil }
+            if mute { mutedNames.remove(hostName) } else { hiddenIDs.remove(id) }
+            if undo?.id == id { undo = nil }
             Haptics.error()
         }
     }
@@ -682,8 +686,13 @@ final class TownFeed {
 @MainActor
 private final class SampleMutes {
     var list = [MutedHost(host: "sample-library", name: "St. Joe Public Library")]
-    private let names = Dictionary(DailyFixtures.townEntries().compactMap(\.card).map { ($0.id, $0.hostName) },
-                                   uniquingKeysWith: { first, _ in first })
+    /// Each sample's host by its id, news by its place (news-menu).
+    private let names = Dictionary(DailyFixtures.townEntries().map { entry in
+        switch entry.item {
+        case .event(let card): (card.id, card.hostName)
+        case .news(let news): (news.id, news.place)
+        }
+    }, uniquingKeysWith: { first, _ in first })
 
     func choose(_ choice: FeedChoice) async throws -> String? {
         switch choice {

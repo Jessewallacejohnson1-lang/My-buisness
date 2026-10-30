@@ -77,7 +77,7 @@ struct DailyFeedColumn: View {
 
     @ViewBuilder
     private func card(for item: DailyFeedItem) -> some View {
-        if let feed, let hide = feed.undo, hide.id == item.eventID {
+        if let feed, let hide = feed.undo, hide.id == item.hideID {
             FeedUndoLine(hide: hide, feed: feed)
         } else {
             plainCard(for: item)

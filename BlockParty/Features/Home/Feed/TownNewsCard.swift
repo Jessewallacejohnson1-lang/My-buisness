@@ -5,7 +5,8 @@
 //  A Town card that says News (Jesse, 2026-10-29: "similar format to cards just news", BP app
 //  references/found-posts): the place's photo in its own shape, else its logo on its Search
 //  backdrop, else ink; a white "News" chip where an event's day and time go; the headline over
-//  it as an event's title, the facts under that; the send under the picture. No place name and no
+//  it as an event's title, the facts under that; the send and the ••• under the picture (news-menu:
+//  Not interested and Mute its place, as an Event card's). No place name and no
 //  picture beside one: a found post carries only the place's own mark. No time: Block Party knows
 //  when it saved a post, not when the place posted it. A tap opens the post in Instagram or
 //  Facebook when that app is on the phone, else in Apple's in-app browser; the picture sinks the
@@ -23,6 +24,8 @@ struct TownNewsCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var pressed = false
     @State private var link: SafariLink?
+    /// The •••'s sheet, an Event card's: Not interested and Mute its place (news-menu).
+    @State private var menuPresented = false
     /// The photo once its bitmap is on screen: its credit waits for it.
     @State private var shown: Set<URL> = []
     /// A photo that couldn't load: the card turns to ink, keeping its shape.
@@ -69,7 +72,8 @@ struct TownNewsCard: View {
                     onLike: nil,
                     onSave: nil,
                     onComment: {},
-                    onShare: share
+                    onShare: share,
+                    onMenu: { menuPresented = true }
                 )
                 .padding(.top, 2)
                 .padding(.horizontal, DailyFeedMetric.contentInset)
@@ -77,6 +81,7 @@ struct TownNewsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
+        .modifier(FeedCardMenuSheet(isPresented: $menuPresented, news: news))
     }
 
     /// The event card's picture (`FeedEventCard.imageSection`): the photo's own shape, 20 pt

@@ -48,6 +48,13 @@ enum DailyFeedItem: Identifiable {
         }
     }
 
+    /// The id Not interested and Mute fold it by: the Event's, or the news item's (news-menu). Not
+    /// `eventID`, whose ids go to the views table, which takes Events only.
+    var hideID: String? {
+        if case .news(let news) = self { return news.id }
+        return eventID
+    }
+
     /// The Town feed's column: your Event of the day on top, then the events and news in the feed's
     /// order, leaving out the event the poster shows, so it never shows twice (Jesse, 2026-10-21).
     /// The admin's Score names each card's place as it sits on screen, the poster's first, news

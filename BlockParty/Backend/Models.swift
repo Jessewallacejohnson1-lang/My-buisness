@@ -498,6 +498,8 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var published: Date? = nil
     /// Its headline, over its picture on the Town card (found-posts); nil where only the words are known.
     var title: String? = nil
+    /// The interest it shares with you, by id, for its ••• sheet's why line (news-menu); nil when none.
+    var interest: String? = nil
 
     /// What the Town card sets as its title: the headline, else the facts stand in for it.
     var headline: String {

@@ -76,6 +76,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(flight.title, "Flight Friday", "its headline rides along for the card")
         XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
         XCTAssertNil(happy.picture)
+        // The ••• sheet's why line (news-menu): the interest it shares, else only that it's News.
+        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: flight).why, "Matches Food & dining")
+        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: happy).why, "News")
         // The events' own readers (the Event of the day, a kept list) never see news.
         XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
 
@@ -962,6 +965,49 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(ids(town), ["a", "b", "c"])
     }
 
+    // MARK: News's ••• (news-menu)
+
+    /// Event a from Parks, then Parks' news p1 and p2 and the City's news c1.
+    private func newsFeed(_ chooser: Chooser) async -> TownFeed {
+        let news = [("p1", "Parks"), ("p2", "Parks"), ("c1", "City of St. Joseph")].map { id, place in
+            TownNews(id: id, place: place, words: "News \(id)", post: URL(string: "https://x/\(id)")!,
+                     leavesAt: now.addingTimeInterval(86_400))
+        }
+        let entries = [TownFeed.entry(row("a", source: "Parks"))]
+            + news.map { TownFeedEntry(item: .news($0), leavesAt: $0.leavesAt) }
+        let town = TownFeed(read: { entries }, choose: chooser.choose)
+        await town.reload(at: now)
+        return town
+    }
+
+    func testNotInterestedOnNewsFoldsThatPostAloneAndSendsItsID() async {
+        let chooser = Chooser()
+        let town = await newsFeed(chooser)
+        await town.hide(id: "p1", host: "Parks", mute: false)
+        XCTAssertEqual(chooser.told, [.notInterested("p1")])
+        XCTAssertEqual(town.shown.map(\.id), ["a", "p1", "p2", "c1"], "p1 stays in, drawn as its Undo line")
+        town.undoEnded("p1")
+        XCTAssertEqual(town.shown.map(\.id), ["a", "p2", "c1"])
+    }
+
+    func testMuteOnNewsTakesItsPlacesNewsAndEventsAndUndoBringsThemBack() async {
+        let chooser = Chooser()
+        let town = await newsFeed(chooser)
+        await town.hide(id: "p2", host: "Parks", mute: true)
+        XCTAssertEqual(chooser.told, [.mute("p2")])
+        XCTAssertEqual(town.shown.map(\.id), ["p2", "c1"], "p2 shows its Undo line")
+        await town.undoHide()
+        XCTAssertEqual(chooser.told, [.mute("p2"), .unmute("parks-key")])
+        XCTAssertEqual(town.shown.map(\.id), ["a", "p1", "p2", "c1"])
+    }
+
+    func testTheUndoLineFindsNewsByItsOwnID() {
+        let news = DailyFeedItem.news(TownNews(id: "p1", place: "Parks", words: "x", post: URL(string: "https://x")!,
+                                               leavesAt: .distantFuture))
+        XCTAssertEqual(news.hideID, "p1")
+        XCTAssertNil(news.eventID, "views still go for Events only")
+    }
+
     // MARK: Report (ticket 22)
 
     func testReportSendsTheReasonThenTheCardFoldsAndUndoLiftsOnlyTheHide() async throws {
@@ -1072,3 +1118,8 @@ final class TownFeedEventsTests: XCTestCase {
     }
 }
 
+
+private extension TownFeed {
+    /// A card's own hide, as its ••• sheet sends it.
+    func hide(_ card: FeedCardItem, mute: Bool) async { await hide(id: card.id, host: card.hostName, mute: mute) }
+}

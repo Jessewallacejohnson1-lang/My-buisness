@@ -436,14 +436,44 @@ private struct ScoreBox: View {
 
 /// A Town card's ••• sheet with Not interested and Mute (ticket 21): the choice waits until the
 /// sheet has closed, so the card it hangs on isn't taken away under it. Off the Town feed (no
-/// `TownFeed` around) or signed out, the sheet has neither row.
+/// `TownFeed` around) or signed out, the sheet has neither row. A News post's sheet (news-menu)
+/// has the same two rows and no Report.
 struct FeedCardMenuSheet: ViewModifier {
     @Binding var isPresented: Bool
-    let item: FeedCardItem
+    /// What it hides, by its id and its host's name.
+    let id: String
+    let hostName: String
+    let why: String?
+    let score: FeedScore?
     let report: PhotoReport?
+    /// The Event's card, which Report sends; nil for News.
+    let card: FeedCardItem?
+
+    init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?) {
+        _isPresented = isPresented
+        id = item.id
+        hostName = item.hostName
+        why = item.why
+        score = item.score
+        self.report = report
+        card = item
+    }
+
+    /// News says the interest it shares with you, else only that it's News (Jesse at news-menu's
+    /// Check-in 1: "just do news").
+    init(isPresented: Binding<Bool>, news: TownNews) {
+        _isPresented = isPresented
+        id = news.id
+        hostName = news.place
+        why = news.interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News"
+        score = nil
+        report = nil
+        card = nil
+    }
 
     @Environment(TownFeed.self) private var feed: TownFeed?
-    @Environment(RealLifeActions.self) private var actions
+    /// Optional: a News post's share picture draws its card with this modifier and no actions around.
+    @Environment(RealLifeActions.self) private var actions: RealLifeActions?
     @State private var chosen: Bool?
     /// A report that went and hides the card (ticket 22): the card folds once the sheet has closed.
     @State private var reported = false
@@ -455,18 +485,18 @@ struct FeedCardMenuSheet: ViewModifier {
     // Its own property and methods: GitHub's older Swift couldn't type-check the menu with its
     // closures written inline in the sheet.
     @ViewBuilder private var menu: some View {
-        if let why = item.why {
-            FeedCardMenu(why: why, score: item.score, report: report,
-                         hostName: item.hostName.isEmpty ? nil : item.hostName,
+        if let why {
+            FeedCardMenu(why: why, score: score, report: report,
+                         hostName: hostName.isEmpty ? nil : hostName,
                          onHide: onHide,
-                         reasons: ReportReason.offered(photo: report != nil, found: item.found),
+                         reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) } ?? [],
                          onReport: onReport)
         }
     }
 
-    private var canAct: Bool { feed != nil && actions.canAct }
+    private var canAct: Bool { feed != nil && actions?.canAct == true }
     /// Once per card: a second report from the same phone would only add to its count.
-    private var canReport: Bool { canAct && feed?.reportedIDs.contains(item.id) == false }
+    private var canReport: Bool { canAct && card != nil && feed?.reportedIDs.contains(id) == false }
 
     private var onHide: ((Bool) -> Void)? {
         guard canAct else { return nil }
@@ -479,23 +509,24 @@ struct FeedCardMenuSheet: ViewModifier {
     }
 
     private func send(_ reason: ReportReason) async throws {
-        try await feed?.report(item, reason)
+        guard let card else { return }
+        try await feed?.report(card, reason)
         guard reason.hides else { return }
         // The sheet was dragged away while it sent: fold now, not at the next close.
-        if isPresented { reported = true } else { feed?.hideReported(item) }
+        if isPresented { reported = true } else { feed?.hideReported(card) }
     }
 
     private func hide() {
         guard let feed else { return }
-        if reported {
+        if reported, let card {
             reported = false
             Haptics.light()
-            feed.hideReported(item)
+            feed.hideReported(card)
             return
         }
         guard let mute = chosen else { return }
         chosen = nil
         Haptics.light()
-        Task { await feed.hide(item, mute: mute) }
+        Task { await feed.hide(id: id, host: hostName, mute: mute) }
     }
 }
