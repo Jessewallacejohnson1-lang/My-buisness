@@ -1,12 +1,14 @@
 //
 //  MapModel.swift
-//  Block Party — the map tab's view-model: today's events + the live Realtime pipeline.
+//  Block Party — the map's view-model: today's events at their real spots, kept live.
 //
-//  Owns a single RealtimeClient subscribed to club_events. A change that touches
-//  *today* re-syncs the event list (debounced), so a new happening lights its pin
-//  and an ended / deleted one goes quiet — with no manual refresh. Handles the
-//  full lifecycle the map depends on: teardown on disappear, reconnect + re-sync
-//  on foreground, and the midnight rollover (a "today" event stops being today).
+//  Today's events are the Town feed's (`get_town_feed`, the one read iOS and Android
+//  share), so the map shows what the Town feed shows, with the same hearts and Going,
+//  and the card opens the same Event page. Their spots come from `club_events.lat,lng`
+//  (BP app references/map-reset). Owns a single RealtimeClient on club_events: a change
+//  that touches today re-reads (debounced), so a new happening gets its bubble and a
+//  deleted one goes, with no refresh. Tears down on disappear, re-reads and resubscribes
+//  on foreground, and rolls over at midnight.
 //
 
 import Foundation
@@ -16,40 +18,15 @@ import CoreLocation
 @MainActor
 final class MapModel: ObservableObject {
 
-    /// What the header status line reflects. The base map + curated pins always
-    /// render; this is only about *today's happenings* data.
-    enum LoadState: Equatable { case loading, loaded, empty, error, offline }
+    /// Whether today's events have been read. The map always draws; this only says
+    /// whether its one pill offers a retry.
+    enum LoadState: Equatable { case loading, loaded, offline, error }
 
-    @Published private(set) var todayEvents: [TimelineEvent] = [] {
-        didSet { todayPlaces = TodayPlaces(events: todayEvents) }
-    }
-    /// Which pin each of today's events is at: worked out once per load, read by every pin,
-    /// bubble, list and search.
-    private(set) var todayPlaces = TodayPlaces(events: [])
-    /// The town's permanent food/business venues (Supabase `places`). Loaded once —
-    /// they don't change with today's events or the Realtime pipeline.
-    @Published private(set) var pois: [POI] = []
-    /// Block Party's photos and logos of each place, by registry entry (`place_photos`):
-    /// the picture a today bubble falls back to when its event has none.
-    @Published private(set) var placePictures: [String: [PlacePicture]] = [:]
+    @Published private(set) var today = TodayPlaces.none
     @Published private(set) var state: LoadState = .loading
-    /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
-    /// model re-evaluates `TimelineEvent.isOn` off the current time even when no
-    /// data changes — a pin/"Now" badge must light at an event's start minute and go
-    /// quiet at its end without needing a pan/tap to force a re-render.
+    /// A 1-minute wall-clock heartbeat, so a bubble that ends drops off and "Nothing else
+    /// today" comes on with no data change.
     @Published private(set) var clockTick = 0
-    /// The town the map is currently panned over — names the top pill. Starts on
-    /// St. Joe (the initial camera) and follows the map as it moves.
-    @Published private(set) var townLabel = Town.name
-    /// Whether pins should show their icon+label (true) or shrink to a small dot
-    /// (false) — driven by zoom, so labels only take up map space once there's
-    /// room for them. Starts `false` to match SJMapView's default camera zoom
-    /// (13.5, below `Self.pinExpandZoom`); the first `updateZoom` call corrects it
-    /// immediately if the camera actually starts elsewhere (e.g. `-map-zoom`).
-    @Published private(set) var pinsExpanded = false
-    /// Zoom at/above which pins expand — matches the old pin-hierarchy's label
-    /// threshold (T=14.5), a value already tuned by screenshot for this town.
-    static let pinExpandZoom: Double = 14.5
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
@@ -59,15 +36,10 @@ final class MapModel: ObservableObject {
 
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
-    private var townTask: Task<Void, Never>?
-    private var zoomTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
-    private var placesLoaded = false
-    private var placesLoading = false
-    /// Monotonic token so an older in-flight load can't clobber a newer one's
-    /// result — load() is fired from start/foreground/retry/resync/midnight and
-    /// its fetch suspends, so responses can arrive out of launch order.
+    /// Monotonic token so an older in-flight load can't clobber a newer one's result:
+    /// load() is fired from start/foreground/retry/resync/midnight and its reads suspend.
     private var loadGeneration = 0
 
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
@@ -78,7 +50,6 @@ final class MapModel: ObservableObject {
         started = true
         currentDate = Town.day(.now)
         Task { await load(initial: true) }
-        Task { await loadPlaces() }
         subscribe()
         scheduleMidnightRollover()
         startClock()
@@ -90,13 +61,9 @@ final class MapModel: ObservableObject {
         realtime = nil
         resyncTask?.cancel(); resyncTask = nil
         midnightTask?.cancel(); midnightTask = nil
-        townTask?.cancel(); townTask = nil
         clockTask?.cancel(); clockTask = nil
-        zoomTask?.cancel(); zoomTask = nil
     }
 
-    /// Re-render observers once a minute so wall-clock-derived state (isOn)
-    /// stays truthful with no data change. Runs only while the map is active.
     private func startClock() {
         guard clockTask == nil else { return }
         clockTask = Task { @MainActor [weak self] in
@@ -108,49 +75,12 @@ final class MapModel: ObservableObject {
         }
     }
 
-    // MARK: Town label (reverse-geocoded map center)
-
-    /// The map center changed. High-frequency camera events land here — never the
-    /// view's @State (Mapbox guidance) — debounced so only the settled town name
-    /// publishes. A quiet failure (offline / unnamed area) keeps the last name.
-    func updateTown(center: CLLocationCoordinate2D) {
-        townTask?.cancel()
-        townTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 500_000_000)   // wait for the pan to settle
-            guard !Task.isCancelled else { return }
-            let name = await GeocoderService.shared.town(lat: center.latitude, lon: center.longitude)
-            guard !Task.isCancelled, let name else { return }
-            self?.townLabel = name
-        }
-    }
-
-    // MARK: Pin expand/shrink (zoom-driven)
-
-    /// The map's zoom changed. Same "never the view's @State" rule as `updateTown`
-    /// — `onCameraChanged` fires every rendering frame, so the actual `@Published`
-    /// write is deferred to a task, not made synchronously in the callback. Unlike
-    /// the town name this doesn't wait for the pan to fully settle (a shrink/expand
-    /// that lagged the whole gesture would feel unresponsive) — just a short debounce
-    /// so hovering exactly on the threshold during a bouncy fling doesn't flicker,
-    /// and a same-value write is skipped so panning within one zoom band is a no-op.
-    func updateZoom(_ zoom: Double) {
-        let expanded = zoom >= Self.pinExpandZoom
-        guard expanded != pinsExpanded else { return }
-        zoomTask?.cancel()
-        zoomTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled else { return }
-            self?.pinsExpanded = expanded
-        }
-    }
-
-    /// App returned to foreground: the socket was dropped on background and the
-    /// date may have rolled over while away. Re-filter, re-sync, re-subscribe.
+    /// App returned to foreground: the socket was dropped on background and the date may
+    /// have rolled over while away. Re-read and re-subscribe.
     func onForeground() {
         guard started else { return }
-        rolloverIfNeeded()
+        currentDate = Town.day(.now)
         Task { await load(initial: false) }
-        Task { await loadPlaces() }     // retry if the initial places load failed (no-op once loaded)
         subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
         startClock()
@@ -163,73 +93,34 @@ final class MapModel: ObservableObject {
         clockTask?.cancel(); clockTask = nil
     }
 
+    func retry() { Task { await load(initial: true) } }
+
     // MARK: Data
 
     private func load(initial: Bool) async {
         guard let api else { return }
         loadGeneration += 1
         let gen = loadGeneration
-        if initial && todayEvents.isEmpty { state = .loading }
+        if initial && today.events.isEmpty { state = .loading }
         do {
-            let events = try await api.getTodayEvents()
+            let day = Town.day(.now)
+            let events = try await api.getTownFeed().compactMap { line -> FeedCardItem? in
+                guard case .event(let row) = line else { return nil }
+                let card = TownFeed.card(row)
+                return card.eventDate == day ? card : nil
+            }
+            let spots = try await api.eventSpots(events.map(\.id))
             guard gen == loadGeneration else { return }   // a newer load superseded us
-            todayEvents = events
-            state = events.isEmpty ? .empty : .loaded
-            prefetchBubblePictures()
+            today = TodayPlaces(events: events, spots: spots)
+            state = .loaded
+            // Warm the bubbles' pictures so each pops in with its photo, not empty glass.
+            POILogoCache.shared.prefetch(today.bubbles(now: TodayBubbleClock.now()).compactMap { $0.picture?.url })
         } catch {
             guard gen == loadGeneration else { return }
-            // A URLError means the network is down; keep any cached events visible.
-            let offline = error is URLError
-            if !todayEvents.isEmpty {
-                state = .loaded                 // stale-but-useful beats an error screen
-            } else {
-                state = offline ? .offline : .error
-            }
+            // Stale but useful beats a pill: keep what's on the map.
+            if today.events.isEmpty { state = error is URLError ? .offline : .error }
         }
     }
-
-    /// The town's permanent venues (Supabase `places`). Loaded once; a failure keeps
-    /// the (empty) set and is retried on foreground / retry — never blocks the map.
-    private func loadPlaces() async {
-        // `placesLoading` guards the check-then-set across the await, so a start() +
-        // foreground/retry overlap can't fire two duplicate fetches (mirrors load()'s
-        // loadGeneration guard). `placesLoaded` makes it a true no-op once it succeeds.
-        guard let api, !placesLoaded, !placesLoading else { return }
-        placesLoading = true
-        defer { placesLoading = false }
-        do {
-            pois = try await api.getPlaces()
-            placesLoaded = true
-            // Warm the whole (small-town) logo set once so pins render their final
-            // state on first frame — see POILogoCache's header for why not AsyncImage.
-            POILogoCache.shared.prefetch(pois.compactMap(\.logoURL))
-        } catch {
-            // Leave pois empty; foreground / retry will try again. The map still works.
-        }
-        if placePictures.isEmpty, let pictures = try? await api.getPlacePhotos() {
-            placePictures = pictures
-            prefetchBubblePictures()
-        }
-    }
-
-    /// The picture a today bubble shows for an event: its own photo, else its place's
-    /// photo, else its place's logo (MEMORY.md 2026-10-16: every automated event shows its
-    /// place's photo, else the place's logo). `isLogo` sizes a logo to sit inside the glass.
-    func bubblePicture(for event: TimelineEvent) -> (url: URL, isLogo: Bool)? {
-        if let own = event.imageURL { return (own, false) }
-        guard let entry = event.placeEntryId else { return nil }
-        if let photo = placePictures[entry]?.first(where: { $0.kind == .photo }) { return (photo.url, false) }
-        if let logo = pois.first(where: { $0.entryId == entry })?.logoURL { return (logo, true) }
-        return nil
-    }
-
-    /// Warm today's bubble pictures so each bubble pops in with its photo, not empty glass.
-    private func prefetchBubblePictures() {
-        POILogoCache.shared.prefetch(todayEvents.compactMap { bubblePicture(for: $0)?.url })
-    }
-
-    /// Public retry hook for the error / offline states.
-    func retry() { Task { await load(initial: true); await loadPlaces() } }
 
     // MARK: Realtime
 
@@ -244,8 +135,8 @@ final class MapModel: ObservableObject {
         realtime?.start()
     }
 
-    /// A guaranteed-fresh access token for the socket join / keepalive. @MainActor
-    /// so the nonisolated token-provider closure hops here to touch auth safely.
+    /// A guaranteed-fresh access token for the socket join / keepalive. @MainActor so the
+    /// nonisolated token-provider closure hops here to touch auth safely.
     private func freshToken() async -> String? {
         guard let auth else { return nil }
         return try? await auth.validAccessToken()
@@ -257,7 +148,7 @@ final class MapModel: ObservableObject {
            new.withoutScores == old.withoutScores,
            new.finalScore != old.finalScore || new.liveScore != old.liveScore || new.scoringPlays != old.scoringPlays { return }
         // Today's map: a row dated today, or one it shows (an edit that moves it off today, a delete).
-        guard ClubEventRelevance.matters(change, shownIDs: Set(todayEvents.map(\.id)),
+        guard ClubEventRelevance.matters(change, shownIDs: Set(today.events.map(\.id)),
                                          days: currentDate...currentDate) else { return }
         scheduleResync()
     }
@@ -273,11 +164,6 @@ final class MapModel: ObservableObject {
     }
 
     // MARK: Midnight rollover
-
-    private func rolloverIfNeeded() {
-        let today = Town.day(.now)
-        if today != currentDate { currentDate = today }
-    }
 
     private func scheduleMidnightRollover() {
         midnightTask?.cancel()

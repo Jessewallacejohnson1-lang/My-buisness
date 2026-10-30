@@ -14,6 +14,11 @@
 //  Every bubble is squishy: it follows a drag a little, any direction, stretches
 //  along it and springs back.
 //
+//  Map reset (BP app references/map-reset, 2026-10-30): one bubble per real spot, with
+//  every Event there today behind it for the card to page through. It grows as you zoom
+//  in, 36 pt zoomed out to 46 at the opening zoom to 72 (Jesse's picks); the tag under it
+//  keeps its size. The tapped one grows 12% more and sits on top.
+//
 
 import SwiftUI
 import CoreLocation
@@ -30,14 +35,16 @@ enum TodayBubbleRules {
     }
 
     /// From its start to its end (`EventWhen`: `end_at`, else two hours), as the Town card.
-    static func phase(_ event: TimelineEvent, now: Date) -> Phase {
+    /// Called off, or a game whose final is in, it's over.
+    static func phase(_ event: FeedCardItem, now: Date) -> Phase {
+        if event.cancelled || event.game?.final != nil { return .ended }
         guard let when = event.when, when.timed else { return .untimed }
         if now < when.start { return .upcoming(secondsLeft: Int(when.start.timeIntervalSince(now).rounded(.up))) }
         return when.isOn(now) ? .live : .ended
     }
 
     /// Its start, for ordering; untimed ones last.
-    static func starts(_ event: TimelineEvent) -> Date {
+    static func starts(_ event: FeedCardItem) -> Date {
         event.when.flatMap { $0.timed ? $0.start : nil } ?? .distantFuture
     }
 
@@ -64,18 +71,30 @@ enum TodayBubbleRules {
         return max(0, Double(secondsLeft) / 3600)
     }
 
-    /// The event a place's bubble shows: one that's on (earliest start), else the next to
-    /// start, else an untimed one. Ended events drop off the map.
-    static func lead(_ events: [TimelineEvent], now: Date) -> TimelineEvent? {
-        let phased = events.map { ($0, phase($0, now: now)) }
-        if let on = phased.filter({ $0.1 == .live }).min(by: { starts($0.0) < starts($1.0) }) {
-            return on.0
+    /// A spot's events in the order its bubble and card show them: the ones on now (earliest
+    /// start first), then the ones still to start (soonest first), then untimed ones. Ended
+    /// events drop off. The first is the one the bubble shows.
+    static func order(_ events: [FeedCardItem], now: Date) -> [FeedCardItem] {
+        func rank(_ p: Phase) -> Int? {
+            switch p {
+            case .live: 0
+            case .upcoming: 1
+            case .untimed: 2
+            case .ended: nil
+            }
         }
-        let next = phased.compactMap { e, p -> (TimelineEvent, Int)? in
-            if case .upcoming(let left) = p { return (e, left) } else { return nil }
-        }
-        if let soonest = next.min(by: { $0.1 < $1.1 }) { return soonest.0 }
-        return phased.first { $0.1 == .untimed }?.0
+        return events
+            .compactMap { e in rank(phase(e, now: now)).map { (e, $0) } }
+            .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : starts($0.0) < starts($1.0) }
+            .map(\.0)
+    }
+
+    /// The bead's width at a zoom, in points: 46 at the opening zoom, growing two zoom steps
+    /// in to 72 and shrinking 1.6 steps out to 36, and holding past either end.
+    static func bead(zoom: Double) -> CGFloat {
+        let open = SJMapView.openZoom
+        if zoom >= open { return min(72, 46 + CGFloat(zoom - open) * 13) }
+        return max(36, 46 - CGFloat(open - zoom) * 6.25)
     }
 
     /// Rubber-band pull: follows the finger at first, then resists. A 40 pt drag moves it about
@@ -92,11 +111,6 @@ enum TodayBubbleRules {
 }
 
 // MARK: - Clock
-
-extension TimelineEvent {
-    /// On right now, on the map's clock (`-map-now` moves it in DEBUG).
-    func isOn(_ now: Date = TodayBubbleClock.now()) -> Bool { when?.isOn(now) ?? false }
-}
 
 enum TodayBubbleClock {
     /// Now. In DEBUG, `-map-now HH:MM` pins the map's clock there at launch and lets it
@@ -119,20 +133,45 @@ enum TodayBubbleClock {
 // MARK: - Model
 
 struct TodayBubble: Identifiable {
-    let id: String              // the place: spot id, or the venue's rounded coordinate
+    let id: String              // its spot, "lat,lng"
     let coordinate: CLLocationCoordinate2D
-    let spot: Spot?
-    let event: TimelineEvent
-    let picture: URL?
-    let isLogo: Bool
+    /// Every event here not yet over, in `TodayBubbleRules.order`; never empty.
+    var events: [FeedCardItem]
     /// Its place in the opening pop-in, earliest start first.
     var order = 0
+
+    /// The one the bubble shows.
+    var event: FeedCardItem { events[0] }
+
+    /// Its picture, as the card's first photo: the event's own, else its place's photo, else
+    /// its place's logo (`isLogo` sits a logo inside the glass).
+    var picture: (url: URL, isLogo: Bool)? {
+        switch event.photos().first {
+        case .eventPhoto(let url), .placePhoto(let url, _, _): (url, false)
+        case .placeLogo(let logo): (logo.url, true)
+        case .fallback, nil: nil
+        }
+    }
+}
+
+/// The map's zoom as the bubbles size themselves by it, kept out of the map view so a pinch
+/// redraws only the bubbles (as `CompassHeading` keeps the bearing to the compass).
+@Observable
+final class MapZoom {
+    private(set) var bead: CGFloat = 46
+
+    func update(_ zoom: Double) {
+        let new = TodayBubbleRules.bead(zoom: zoom)
+        if abs(new - bead) >= 0.25 { bead = new }
+    }
 }
 
 // MARK: - The bubble
 
 struct TodayEventBubble: View {
     let bubble: TodayBubble
+    let zoom: MapZoom
+    var selected = false
     let onTap: () -> Void
 
     @ObservedObject private var images = POILogoCache.shared
@@ -150,17 +189,23 @@ struct TodayEventBubble: View {
     private static let swell: CGFloat = 0.04      // 4% bigger at the peak
 
     var body: some View {
+        // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo's dome.
+        let scale = zoom.bead / Self.bead * (selected ? 1.12 : 1)
         TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
             let phase = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(tick.date))
             ZStack {
-                if phase == .live { LiveBleed(bead: Self.bead, period: Self.breath, still: reduceMotion) }
-                breathing(phase == .live, gel(phase))
+                ZStack {
+                    if phase == .live { LiveBleed(bead: Self.bead, period: Self.breath, still: reduceMotion) }
+                    breathing(phase == .live, gel(phase, scale: scale))
+                }
+                .scaleEffect(scale)
                 tag(phase)
-                    .offset(y: Self.bead / 2 + 20)
+                    .offset(y: Self.bead * scale / 2 + 20)
             }
             // Room for the shadow bleed to spread (2.1x the bead) without being clipped
             // by the annotation's frame; only the bead itself takes touches.
-            .frame(width: 104, height: 104)
+            .frame(width: 104 * scale, height: 104 * scale)
+            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.65), value: selected)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(a11yLabel(phase))
             .accessibilityAddTraits(.isButton)
@@ -185,8 +230,10 @@ struct TodayEventBubble: View {
 
     /// The bead: a Liquid Glass disc with the photo on it, bent like a dome and fading
     /// into the clear glass at the rim, squished and stretched by the finger.
-    private func gel(_ phase: TodayBubbleRules.Phase) -> some View {
+    private func gel(_ phase: TodayBubbleRules.Phase, scale: CGFloat) -> some View {
         let angle = Angle(radians: atan2(pull.height, pull.width))
+        // At least 44 pt to the finger however small the zoom draws it.
+        let target = max(Self.bead * 1.2, 44 / scale)
         let base: CGFloat = pressed ? 0.95 : 1
         return ZStack {
             Circle()
@@ -207,7 +254,7 @@ struct TodayEventBubble: View {
                 .allowsHitTesting(false)
             Circle()
                 .fill(.clear)
-                .frame(width: Self.bead * 1.2, height: Self.bead * 1.2)
+                .frame(width: target, height: target)
                 .contentShape(Circle())
                 .gesture(squish)
         }
@@ -232,13 +279,15 @@ struct TodayEventBubble: View {
 
     @ViewBuilder
     private var photo: some View {
-        let image = bubble.picture.flatMap { images.image(for: $0) }
+        let picture = bubble.picture
+        let image = picture.flatMap { images.image(for: $0.url) }
+        let isLogo = picture?.isLogo ?? false
         ZStack {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: bubble.isLogo ? .fit : .fill)
-                    .padding(bubble.isLogo ? 7 : 0)
+                    .aspectRatio(contentMode: isLogo ? .fit : .fill)
+                    .padding(isLogo ? 7 : 0)
                     .frame(width: Self.bead, height: Self.bead)
                     .visualEffect { content, proxy in
                         content.distortionEffect(
@@ -253,7 +302,7 @@ struct TodayEventBubble: View {
                     .init(color: MapBubbleInk.ink.opacity(0.26), location: 1),
                 ], center: UnitPoint(x: 0.5, y: 0.55), startRadius: 0, endRadius: Self.bead / 2)
             } else {
-                Image(systemName: bubble.event.category.glyph)
+                Image(systemName: (bubble.event.category ?? .other).glyph)
                     .font(.sans(17).weight(.semibold))
                     .foregroundStyle(MapBubbleInk.ink)
             }
