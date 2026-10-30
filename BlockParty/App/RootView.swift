@@ -208,7 +208,10 @@ struct RootView: View {
         Group {
             if auth.isSignedIn || !Self.requiresSignIn {
                 if onboardingUp {
-                    OnboardingFlow(store: onboarding).transition(.opacity)
+                    // Finished, the last screen waits under the island for the answers: nothing on it answers.
+                    OnboardingFlow(store: onboarding)
+                        .allowsHitTesting(!onboarding.finished)
+                        .transition(.opacity)
                 } else {
                     MainTabsView(answersLate: answersLate).transition(.opacity)
                 }
@@ -291,7 +294,7 @@ struct RootView: View {
         let fetched: TownProfile?
         do { fetched = try await ProfileAPI(auth: AuthStore.shared).getMyProfile() } catch { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
-        if fetched?.onboardedAt == nil, onboarding.finished {
+        if fetched?.onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
             await stampOnboarded()
         }
         if let profile = fetched {

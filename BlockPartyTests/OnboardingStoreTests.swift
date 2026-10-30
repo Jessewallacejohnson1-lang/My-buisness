@@ -62,7 +62,11 @@ final class OnboardingStoreTests: XCTestCase {
         // Onboarding 24 switched the flow on: a phone that had the app before never gets it.
         XCTAssertFalse(OnboardingStore(defaults: defaults).finished, "a new install starts the flow")
         defaults.set(Date().timeIntervalSince1970, forKey: HelloDrop.lastSeenKey)
-        XCTAssertTrue(OnboardingStore(defaults: defaults).finished)
+        let old = OnboardingStore(defaults: defaults)
+        XCTAssertTrue(old.finished)
+        XCTAssertTrue(old.arrivedBefore, "nothing of theirs to stamp")
+        old.finish()
+        XCTAssertFalse(OnboardingStore(defaults: defaults).arrivedBefore, "finished through the flow once: not an old install")
     }
 
     func testServerStampOnlyCountsOnTheWelcome() {

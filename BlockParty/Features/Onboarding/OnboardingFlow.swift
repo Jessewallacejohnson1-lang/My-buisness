@@ -49,6 +49,8 @@ final class OnboardingStore {
     /// Finished through the flow in this launch, not from the server's stamp: the Done island and
     /// the wait for the answers are for this one (onboarding 24). Never saved.
     private(set) var finishedHere = false
+    /// Had the app before onboarding was switched on: in without it, so nothing to stamp (24).
+    private(set) var arrivedBefore = false
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
     /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
@@ -108,8 +110,9 @@ final class OnboardingStore {
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         // An install that opened the tabs before onboarding was switched on (the hello pill's last
         // look) is already in: it never gets the flow (onboarding 24). DEBUG `-onboarding` shows it anyway.
-        finished = defaults.bool(forKey: Self.finishedKey)
-            || (defaults.double(forKey: HelloDrop.lastSeenKey) > 0 && !LaunchFlags.has(.onboarding))
+        let before = !defaults.bool(forKey: Self.finishedKey)
+            && defaults.double(forKey: HelloDrop.lastSeenKey) > 0 && !LaunchFlags.has(.onboarding)
+        finished = defaults.bool(forKey: Self.finishedKey) || before
         firstName = defaults.string(forKey: Self.firstKey) ?? ""
         lastName = defaults.string(forKey: Self.lastKey) ?? ""
         photo = defaults.data(forKey: Self.photoKey)
@@ -118,6 +121,7 @@ final class OnboardingStore {
         interests = Interests.get()
         follows = Self.savedFollows(defaults)
         requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
+        arrivedBefore = before
     }
 
     /// Follow or unfollow on Follow 3, on the phone only.

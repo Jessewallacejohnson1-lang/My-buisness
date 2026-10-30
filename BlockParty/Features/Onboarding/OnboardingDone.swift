@@ -32,7 +32,7 @@ struct OnboardingDone: View {
     /// from the screen's top.
     static let island = CGSize(width: 124, height: 36)
     static let islandTop: CGFloat = 11
-    /// Open over an island, it is the mock's 84 pt tall and its words sit under the camera, which
+    /// Open over an island, it is the onboarding mock's open island, 84 pt tall, and its words sit under the camera, which
     /// hides anything drawn on the island's own spot; at least as wide as the island plus its round
     /// ends, so the island sits inside its flat top. Dropping from the top, it is the hello pill's
     /// 58 pt. Either hugs its words with the hello pill's 24 pt either side.
@@ -116,7 +116,8 @@ struct OnboardingDone: View {
                     pull = y < 0 ? y : y / 6
                 }
                 .onEnded { value in
-                    if value.translation.height < -12, value.predictedEndTranslation.height < -30 { end() }
+                    // Let go raised at all: away, as the mock's.
+                    if value.translation.height < -12 { end() }
                 }
         )
         .allowsHitTesting(beat != .shut)
@@ -136,9 +137,10 @@ struct OnboardingDone: View {
         // One announcement for both, so the second never cuts the first off.
         AccessibilityNotification.Announcement("Hey \(YouPage.firstName(name) ?? "neighbor"). Welcome to Block Party.").post()
         if reduceMotion {
-            // The words without the motion: the pill fades in open, then cross-fades.
+            // The words without the motion: the pill is there at once, open, and only the words fade
+            // (a pill fading in would show the island grey inside it).
+            lit = true
             withTransaction(Transaction(animation: nil)) { beat = .hey }
-            withAnimation(.easeOut(duration: 0.2)) { lit = true }
         } else {
             lit = true
             withAnimation(Self.grow) { beat = .hey }
@@ -157,9 +159,15 @@ struct OnboardingDone: View {
     private func end() {
         run?.cancel()
         guard beat != .shut else { return }
-        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.close) {
+        if reduceMotion {
+            // No motion: it goes at once.
+            lit = false
             beat = .shut
-            if reduceMotion { lit = false }
+            ended()
+            return
+        }
+        withAnimation(Self.close) {
+            beat = .shut
         } completion: {
             lit = false
             ended()
