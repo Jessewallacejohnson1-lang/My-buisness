@@ -65,7 +65,7 @@ struct GameMatchup: View {
         Self.backdrop(game)
             .overlay(alignment: .top) {
                 HStack(alignment: .top, spacing: game.final == nil && game.live == nil ? Metric.gap : Metric.scoreGap) {
-                    TeamColumn(team: game.teams[0])
+                    TeamColumn(team: game.teams[0], side: 0)
                         .opacity(game.winner == 1 ? Metric.faded : 1)
                     if let final = game.final {
                         FinalScore(final: final, winner: game.winner)
@@ -80,7 +80,7 @@ struct GameMatchup: View {
                             .frame(width: Metric.vsWidth, height: Metric.disc)
                             .transition(.opacity)
                     }
-                    TeamColumn(team: game.teams[1])
+                    TeamColumn(team: game.teams[1], side: 1)
                         .opacity(game.winner == 0 ? Metric.faded : 1)
                 }
                 .padding(.top, rowTop)
@@ -88,6 +88,8 @@ struct GameMatchup: View {
                 .animation(Motion.smooth, value: game.final)
                 .animation(Motion.smooth, value: game.live == nil)
             }
+            // A scoring play while it's on screen: the pill says it, that logo pops (ticket 07).
+            .playsMoments(of: game)
     }
 
     /// The school's color; one not known yet is ink, so two of them make Apple Sports' dark
@@ -133,6 +135,7 @@ private struct FinalScore: View {
 /// The score while it's on, where VS was: FinalScore's look with neither side faded, each new
 /// number rolling in as the scoreboard's do, over a pill with the period and clock ("Q3 · 4:12";
 /// the mock's Picked row, Live phone). A clock that stops coming in is hidden, not left frozen.
+/// A scoring play turns the pill white round its words for 3 s (`MomentLine`, ticket 07).
 private struct LiveScore: View {
     let live: Game.Live
 
@@ -149,14 +152,9 @@ private struct LiveScore: View {
                 .animation(reduceMotion ? nil : Motion.smooth, value: live.score)
             // Each second, so soccer's minute turns over on time and a stale clock goes.
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(live.line(at: context.date))
-                    .font(.sansSemibold(12))
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .padding(.horizontal, 9)
-                    .frame(height: 22)
-                    .background(.white.opacity(0.22), in: Capsule())
+                MomentLine(style: .onColor) {
+                    Text(live.line(at: context.date)).monospacedDigit()
+                }
             }
         }
         .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
@@ -245,6 +243,8 @@ struct GameScoring: View {
 /// One school: its logo on a white disc, its short name under it.
 private struct TeamColumn: View {
     let team: Game.Team
+    /// 0 for the host, 1 for the other: a moment of its own pops its disc (ticket 07).
+    let side: Int
 
     var body: some View {
         VStack(spacing: GameMatchup.Metric.nameGap) {
@@ -253,6 +253,7 @@ private struct TeamColumn: View {
                 // The mock's two shadows: a tight one where it sits, a soft one under it.
                 .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
                 .shadow(color: .black.opacity(0.22), radius: 11, y: 8)
+                .momentPop(side)
 
             Text(team.short)
                 .font(.sansSemibold(13))

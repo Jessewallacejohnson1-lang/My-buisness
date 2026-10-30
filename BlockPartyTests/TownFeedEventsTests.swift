@@ -458,6 +458,53 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(updated.with(final: [21, 7], live: nil).live)
     }
 
+    /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
+    /// field goal and safety and a goal, each with its scorer when SIDEARM's words name one, in its
+    /// summary's words or its live ones; an extra point, a basket, the first read and the final are quiet.
+    func testALiveGamesScoringPlayIsAMomentAndTheRestStayQuiet() throws {
+        func play(_ text: String, side: Int = 0) -> Game.Play {
+            let json = #"{"id":"p","text":"\#(text)","period":"Q3","clock":"4:12","side":\#(side),"score":[13,3]}"#
+            return try! JSONDecoder().decode(Game.Play.self, from: Data(json.utf8))
+        }
+        func moment(_ text: String, sport: String = "Football", side: Int = 0) -> [String?] {
+            guard let m = GameMoment.of(play(text, side: side), sport: sport) else { return [] }
+            return [m.label, m.detail, String(m.side)]
+        }
+        XCTAssertEqual(moment("J. Jeffrey 52 yd TD run (M. Olson kick)"), ["Touchdown", "Jeffrey", "0"])
+        XCTAssertEqual(moment("S. Berg 18 yd TD pass from C. Kern (M. Olson kick)"), ["Touchdown", "Berg", "0"], "the catch, not the throw")
+        XCTAssertEqual(moment("Jeffrey,John rush for 52 yards to the GAC0, TOUCHDOWN, clock 03:51."), ["Touchdown", "Jeffrey", "0"])
+        XCTAssertEqual(moment("Kern,Cole pass complete to Berg,Sam for 18 yards to the GAC0, TOUCHDOWN"), ["Touchdown", "Berg", "0"])
+        XCTAssertEqual(moment("52 yd TD run"), ["Touchdown", nil, "0"], "no name: the label alone")
+        XCTAssertEqual(moment("T. Lund 41 yd field goal", side: 1), ["Field goal", "Lund, 41 yd", "1"])
+        XCTAssertEqual(moment("Lund,Tom field goal attempt from 41 GOOD", side: 1), ["Field goal", "Lund", "1"])
+        XCTAssertEqual(moment("Team safety", side: 1), ["Safety", nil, "1"])
+        XCTAssertEqual(moment("M. Olson kick attempt good"), [], "an extra point is quiet")
+        XCTAssertEqual(moment("Goal by SJU Franzman,Gabe, low right", sport: "Soccer"), ["Goal", "Franzman", "0"])
+        XCTAssertEqual(moment("Jump shot by SJU Smith,Al", sport: "Basketball"), [], "a basket is quiet")
+
+        func game(_ more: String, sport: String = "Football") throws -> Game {
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint John's","short":"Saint John's"},{"name":"Gustavus","short":"Gustavus"}]"# + more + "}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let live = #","live":{"score":[13,3],"period":"Q3","complete":false}"#
+        let td = #"{"id":"3","text":"J. Jeffrey 52 yd TD run","period":"Q3","clock":"4:12","side":0,"score":[13,3]}"#
+        let before = try game(live + #","plays":[]"#), after = try game(live + #","plays":["# + td + "]")
+        XCTAssertEqual(GameMoment.between(before, after)?.label, "Touchdown")
+        XCTAssertEqual(GameMoment.between(before, after)?.id, "3", "played once, by its play")
+        XCTAssertNil(GameMoment.between(after, after), "the same plays again: quiet")
+        XCTAssertNil(GameMoment.between(after, after.with(final: nil, live: try JSONDecoder().decode(Game.Live.self, from: Data(
+            #"{"score":[14,3],"period":"Q3","complete":false}"#.utf8)))), "an extra point that brings no new play")
+        XCTAssertNil(GameMoment.between(before, after.with(final: [13, 3], live: nil)), "the final has its own look")
+        // Volleyball keeps no plays: a set is won when the next one starts.
+        let set1 = try game(#","live":{"score":[0,0],"period":"Set 1","complete":false,"periods":[[24],[20]]}"#, sport: "Volleyball")
+        let set2 = try game(#","live":{"score":[1,0],"period":"Set 2","complete":false,"periods":[[25,0],[20,0]]}"#, sport: "Volleyball")
+        let won = try XCTUnwrap(GameMoment.between(set1, set2))
+        XCTAssertEqual([won.label, won.detail, won.id], ["Set 1", "Saint John's", "set-1"])
+        XCTAssertNil(GameMoment.between(set2, set2))
+        let first = try game(#","live":{"score":[0,0],"period":"Set 1","complete":false,"periods":[[0],[0]]}"#, sport: "Volleyball")
+        XCTAssertNil(GameMoment.between(try game("", sport: "Volleyball"), first), "the first set starting is no moment")
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
