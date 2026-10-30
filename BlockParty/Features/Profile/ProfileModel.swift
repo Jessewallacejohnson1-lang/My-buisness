@@ -153,7 +153,7 @@ final class ProfileModel: ObservableObject {
     }
 
     /// Nextdoor's 150 letters; the database holds the same line.
-    static let bioLimit = 150
+    nonisolated static let bioLimit = 150
 
     /// Letters as the database counts them (`char_length`, one per Unicode scalar): a family emoji
     /// is one to Swift but up to seven there, and a bio Swift let through was refused.

@@ -39,7 +39,7 @@ nonisolated struct Notice: Identifiable, Hashable {
 
     /// After the name: "Tonight's game vs Sartell moved to 7 PM." for what you follow (Jesse's
     /// words, 2026-10-26), "moved to Sat, Oct 31 · 7 PM." or "is canceled." after an Event's name.
-    func words(now: Date) -> String {
+    @MainActor func words(now: Date) -> String {
         let what = cancelled ? "is canceled." : "moved to \(movedTo(now: now))."
         guard followed != nil else { return what }
         return "\(subject(now: now)) \(what)"
@@ -47,7 +47,7 @@ nonisolated struct Notice: Identifiable, Hashable {
 
     /// "Tonight's game vs Sartell", "Thursday's Fall Concert", "The Nov 7 game vs Tech": the day it
     /// stood on before it moved.
-    private func subject(now: Date) -> String {
+    @MainActor private func subject(now: Date) -> String {
         let card = FeedCardItem(event)
         let thing: String
         if let teams = event.game?.teams, let name = followed,
@@ -67,7 +67,7 @@ nonisolated struct Notice: Identifiable, Hashable {
 
     /// What it moved to: its new time alone on the same day, its new day and time, its new place,
     /// or both ("7 PM at Sartell High School").
-    private func movedTo(now: Date) -> String {
+    @MainActor private func movedTo(now: Date) -> String {
         let was = movedFrom
         let newDay = was?.eventDate != event.eventDate
         let oldMinutes = EventWhen.minutes(was?.startTime), newMinutes = EventWhen.minutes(event.startTime)
@@ -89,7 +89,7 @@ nonisolated struct Notice: Identifiable, Hashable {
     }
 
     /// The round picture: the school's logo, else the Event's own picture.
-    var picture: URL? {
+    @MainActor var picture: URL? {
         if let followedLogo { return followedLogo }
         switch FeedCardItem(event).image {
         case .eventPhoto(let url), .placePhoto(let url, _, _): return url
