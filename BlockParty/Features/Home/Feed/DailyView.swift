@@ -48,10 +48,7 @@ struct DailyFeedPreview: View {
     }
 
     private static var state: String {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-daily-feed-state"), i + 1 < args.count
-        else { return "mixed" }
-        return args[i + 1]
+        LaunchFlags.value(.dailyFeedState) ?? "mixed"
     }
 }
 #endif

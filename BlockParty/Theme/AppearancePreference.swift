@@ -166,15 +166,11 @@ extension AppearanceStore {
     ///
     /// Compiles out of Release entirely.
     func applyDebugLaunchArguments() {
-        let arguments = ProcessInfo.processInfo.arguments
-
-        if let flag = arguments.firstIndex(of: "-appearance"),
-           arguments.indices.contains(flag + 1),
-           let requested = AppearanceChoice(rawValue: arguments[flag + 1]) {
+        if let requested = LaunchFlags.value(.appearance).flatMap({ AppearanceChoice(rawValue: $0) }) {
             choice = requested
         }
 
-        guard arguments.contains("-appearance-demo") else { return }
+        guard LaunchFlags.has(.appearanceDemo) else { return }
         for (step, next) in [AppearanceChoice.dark, .light, .system].enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8 + 1.6 * Double(step)) {
                 self.choice = next

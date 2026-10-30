@@ -90,9 +90,7 @@ nonisolated enum MapFilter: String, CaseIterable, Hashable {
     /// screenshotted headlessly. No effect in release / without the flag.
     static func initial() -> MapFilter {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-filter"), i + 1 < a.count,
-           let f = MapFilter(rawValue: a[i + 1]) { return f }
+        if let f = LaunchFlags.value(.mapFilter).flatMap({ MapFilter(rawValue: $0) }) { return f }
         #endif
         return .all
     }

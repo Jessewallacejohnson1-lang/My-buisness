@@ -105,9 +105,8 @@ enum TodayBubbleClock {
 
     private static let offset: TimeInterval = {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        guard let i = a.firstIndex(of: "-map-now"), i + 1 < a.count else { return 0 }
-        let parts = a[i + 1].split(separator: ":").compactMap { Int($0) }
+        guard let now = LaunchFlags.value(.mapNow) else { return 0 }
+        let parts = now.split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return 0 }
         let target = parts[0] * 3600 + parts[1] * 60
         return Town.gregorian.startOfDay(for: Date()).addingTimeInterval(TimeInterval(target)).timeIntervalSinceNow

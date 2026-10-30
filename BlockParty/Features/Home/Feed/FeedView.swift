@@ -85,9 +85,7 @@ struct FeedView: View {
     /// INSIDE the fade band can be held still and watched.
     static var forcedScrollY: CGFloat {
         #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-feed-scrolled-y"), i + 1 < args.count,
-           let y = Double(args[i + 1]) {
+        if let y = LaunchFlags.value(.feedScrolledY).flatMap({ Double($0) }) {
             return CGFloat(y)
         }
         #endif
@@ -113,31 +111,18 @@ struct FeedView: View {
     /// There is no scroll automation in this setup, so without it that state cannot
     /// be screenshotted at all.
     private var forcedCollapse: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-header-collapsed")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.headerCollapsed)
     }
 
     /// DEBUG-only: `-feed-bar-back` holds the bar out over a `-feed-scrolled` feed,
     /// so the floating bar's edge can be shot still.
     private var forcedBack: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-feed-bar-back")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.feedBarBack)
     }
 
     /// `-feed-scrolled-y` alone jumps too: on its own it once did nothing (BP app backlog 03).
     private var forcedScroll: Bool {
-        #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        return args.contains("-feed-scrolled") || args.contains("-feed-scrolled-y")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.feedScrolled) || LaunchFlags.has(.feedScrolledY)
     }
 
     var body: some View {
@@ -234,7 +219,7 @@ struct FeedView: View {
             barTravel.points = TodayHeader.homeTravel(offset: offset)
             townFeed.scrollY = offset
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
+            if LaunchFlags.has(.scrollLog) {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
             }
             #endif
@@ -322,7 +307,7 @@ struct FeedView: View {
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-feed-scroll-sweep") {
+            if LaunchFlags.has(.feedScrollSweep) {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(600))
                     withAnimation(.linear(duration: 4)) {
@@ -343,7 +328,7 @@ struct FeedView: View {
 /// enter/exit crosses the seam" — is verifiable on a console capture
 /// instead of asserted from memory. Compiled out of Release.
 nonisolated enum FeedRenderLog {
-    static let enabled = ProcessInfo.processInfo.arguments.contains("-feed-render-log")
+    static let enabled = LaunchFlags.has(.feedRenderLog)
 }
 
 /// `-frame-gap-log`: counts dropped display frames — CADisplayLink
@@ -357,7 +342,7 @@ nonisolated enum FeedRenderLog {
 final class FrameGapLog {
     static let shared = FrameGapLog()
     static var enabled: Bool {
-        ProcessInfo.processInfo.arguments.contains("-frame-gap-log")
+        LaunchFlags.has(.frameGapLog)
     }
 
     private var link: CADisplayLink?

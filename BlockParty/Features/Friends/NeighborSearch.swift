@@ -89,7 +89,7 @@ final class NeighborSearch {
     /// Asks Supabase; under DEBUG `-town-samples` the sample neighbours answer instead, and
     /// under `-town-offline` every ask fails (`RealLifeActions.backend`).
     convenience init() {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live:
             // No session is no account either: offline at first launch, or a failed one.
             self.init(find: { try await CommunityAPI(auth: AuthStore.shared).searchNeighbors($0) },

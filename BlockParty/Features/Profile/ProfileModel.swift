@@ -54,12 +54,14 @@ final class ProfileModel: ObservableObject {
         // The name at once, so the sheet never opens on "Add your name" and fades to it.
         displayName = Interests.displayName ?? ""
         #if DEBUG
-        // `-town-samples`: the switch shows on and its taps write nowhere, as Join's do.
-        if writePlans == nil, ProcessInfo.processInfo.arguments.contains("-town-samples") {
+        // `-town-samples`: the switches show on and their taps write nowhere, as Join's do;
+        // `-town-offline`: every tap fails, as with no network.
+        if writePlans == nil, LaunchFlags.backend != .live {
+            let offline = LaunchFlags.backend == .offline
             plansToFriends = true
-            self.writePlans = { _ in }
+            self.writePlans = { _ in if offline { throw URLError(.notConnectedToInternet) } }
             suggestMe = true
-            self.writeSuggest = { _ in }
+            self.writeSuggest = { _ in if offline { throw URLError(.notConnectedToInternet) } }
         }
         #endif
     }

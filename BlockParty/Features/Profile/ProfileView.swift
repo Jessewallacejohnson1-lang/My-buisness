@@ -35,28 +35,15 @@ struct ProfileView: View {
     /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
     /// headlessly. No effect in release.
     private static func debugEdit() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-profile-edit")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.profileEdit)
     }
     /// DEBUG-only: `-profile-moderation` opens the admin review queue on launch.
     private static func debugModeration() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-profile-moderation")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.profileModeration)
     }
     /// DEBUG-only: `-profile-settings` (and `-profile-bottom`, scrolled to Sign out) opens Settings.
     private static func debugSettings() -> Bool {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        return arguments.contains("-profile-settings") || arguments.contains("-profile-bottom")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.profileSettings) || LaunchFlags.has(.profileBottom)
     }
 
     var body: some View {
@@ -123,7 +110,7 @@ struct ProfileView: View {
     /// close motion can be recorded headlessly (no tap driving).
     private func debugAutoClose() {
         #if DEBUG
-        guard ProcessInfo.processInfo.arguments.contains("-profile-autoclose") else { return }
+        guard LaunchFlags.has(.profileAutoclose) else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { dismiss() }
         #endif
     }
@@ -198,7 +185,7 @@ struct ProfileView: View {
     /// bottom of the sheet can be screenshotted headlessly. No effect in release.
     private func debugScrollBottom(_ proxy: ScrollViewProxy) {
         #if DEBUG
-        guard ProcessInfo.processInfo.arguments.contains("-profile-bottom") else { return }
+        guard LaunchFlags.has(.profileBottom) else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
             withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo("bottom", anchor: .bottom) }
         }

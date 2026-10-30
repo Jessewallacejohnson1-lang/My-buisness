@@ -469,20 +469,15 @@ struct SearchPage: View {
     // MARK: DEBUG launch flags (docs/debug-flags.md)
 
     #if DEBUG
-    private static func debugArg(_ flag: String) -> String? {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
-        return args[i + 1]
-    }
     /// `-search-words <text>`: opens with those words typed.
-    private static var debugWords: String? { debugArg("-search-words") }
+    private static var debugWords: String? { LaunchFlags.value(.searchWords) }
     /// Once a launch, so coming back to Search doesn't open it again.
     private static var debugBusinessOpened = false
     /// `-open-business <place id>` (with `-open-tab search`): opens that business's page once
     /// Search has read it, its logo flying in from mid-screen as from a photo card, so a
     /// place-photos check needn't find it on the wall (BP app backlog 03).
     private func openDebugBusiness() {
-        guard !Self.debugBusinessOpened, let id = Self.debugArg("-open-business"),
+        guard !Self.debugBusinessOpened, let id = LaunchFlags.value(.openBusiness),
               let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }),
               let logo = item.logo else { return }
         Self.debugBusinessOpened = true
@@ -491,11 +486,11 @@ struct SearchPage: View {
     }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
-        ProcessInfo.processInfo.arguments.contains("-search-focus") || debugWords != nil
+        LaunchFlags.has(.searchFocus) || debugWords != nil
     }
     /// `-search-chip <all|people|businesses|events|groups|parks>`: opens on that filter.
     private static var debugChip: SearchChip? {
-        debugArg("-search-chip").flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
+        LaunchFlags.value(.searchChip).flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
     }
     #endif
 }

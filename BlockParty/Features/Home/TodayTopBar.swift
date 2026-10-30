@@ -732,7 +732,7 @@ private final class PartialBlurView: UIVisualEffectView {
         // A paused animation never finishes, so XCUITest would wait out its 60 s
         // idle timeout before every step; the UI tests run without the blur.
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-ui-tests") { return }
+        if LaunchFlags.has(.uiTests) { return }
         #endif
         let animator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [unowned self] in
             effect = UIBlurEffect(style: .systemUltraThinMaterial)

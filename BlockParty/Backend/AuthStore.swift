@@ -82,7 +82,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     private static var makesAccounts: Bool {
         if isTestRun { return false }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-town-samples") { return false }
+        if LaunchFlags.backend != .live { return false }
         #endif
         return true
     }
@@ -90,10 +90,9 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// A unit or UI test run: it must never act for whatever account the simulator
     /// kept, so it makes no account and sends no tap kept from before (`RealLifeActions`).
     static var isTestRun: Bool {
-        let process = ProcessInfo.processInfo
-        if process.environment["XCTestConfigurationFilePath"] != nil { return true }
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return true }
         #if DEBUG
-        if process.arguments.contains("-ui-tests") { return true }
+        if LaunchFlags.has(.uiTests) { return true }
         #endif
         return false
     }
@@ -180,7 +179,7 @@ final class AuthStore: ObservableObject, TokenProviding {
             // lets the anon role; any write is refused server-side the same as
             // it would be for any anonymous caller. Compiles out in release,
             // no effect without the flag or once a real session exists.
-            if ProcessInfo.processInfo.arguments.contains("-anon-data") {
+            if LaunchFlags.has(.anonData) {
                 return SupabaseConfig.anonKey
             }
             #endif

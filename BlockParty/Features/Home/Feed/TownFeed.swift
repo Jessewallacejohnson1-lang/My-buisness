@@ -233,18 +233,19 @@ final class TownFeed {
     /// `-town-offline` keeps the samples on screen with every read failing.
     convenience init(actions: RealLifeActions? = nil) {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-town-offline") {
+        switch LaunchFlags.backend {
+        case .offline:
             self.init(read: { throw URLError(.notConnectedToInternet) },
                       kept: { DailyFixtures.townEntries() }, actions: actions)
             return
-        }
-        if arguments.contains("-town-samples") {
+        case .samples:
             // Mute and the Muted list kept in memory, so the Eyes pass shows both (ticket 21).
             let mutes = SampleMutes()
             self.init(read: { DailyFixtures.townEntries() }, actions: actions,
                       choose: mutes.choose, readMuted: { mutes.list })
             return
+        case .live:
+            break
         }
         #endif
         // A test run never records views for whatever account the simulator kept. A plain
@@ -394,7 +395,7 @@ final class TownFeed {
         // A game's Event page, pushed over the feed, keeps the scores coming (game-card 05).
         guard playing, awaySince == nil || heldBy > 0 else { scores?.stop(); return }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-town-live") { replayLiveGame(); return }
+        if LaunchFlags.has(.townLive) { replayLiveGame(); return }
         #endif
         if scores == nil {
             let client = RealtimeClient(table: "club_events") { try? await AuthStore.shared.validAccessToken() }

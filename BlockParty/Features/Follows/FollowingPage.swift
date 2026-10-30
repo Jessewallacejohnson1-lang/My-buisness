@@ -112,7 +112,7 @@ struct FollowingPage: View {
 
     /// `my_follows`; under DEBUG `-town-samples` a few samples, and `-town-offline` a failed read.
     private static func read() async throws -> [FollowRow] {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).myFollows()
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples:
@@ -424,7 +424,7 @@ struct EventHostRow: View {
 
     /// `event_host`; under DEBUG `-town-samples` its Place, by the card's own words.
     static func read(_ item: FeedCardItem) async throws -> FollowRow? {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).eventHost(item.id)
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples:

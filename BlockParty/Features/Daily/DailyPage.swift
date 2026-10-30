@@ -184,7 +184,7 @@ nonisolated enum DailySun {
 /// design work. Without it a test build shows only what's real, as the App Store build does
 /// (Jesse, 2026-10-20).
 nonisolated enum DailySamples {
-    static let on = ProcessInfo.processInfo.arguments.contains("-daily-samples")
+    static let on = LaunchFlags.has(.dailySamples)
 }
 #endif
 
@@ -194,8 +194,7 @@ nonisolated enum DailyClock {
         #if DEBUG
         // `-daily-hour <h>` holds it at that hour of today in the Town, so morning and
         // evening can be shot at any time of day.
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-daily-hour"), i + 1 < args.count, let hour = Double(args[i + 1]) {
+        if let hour = LaunchFlags.value(.dailyHour).flatMap({ Double($0) }) {
             let calendar = Town.gregorian
             return calendar.startOfDay(for: date).addingTimeInterval(hour * 3600)
         }

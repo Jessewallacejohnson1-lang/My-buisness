@@ -42,7 +42,7 @@ enum PlaceSeeder {
     /// DEBUG entry point (wired in BlockPartyApp). Runs once when `-seed-places` is passed
     /// and a signed-in admin session is available; a no-op otherwise.
     static func seedIfRequested() async {
-        guard ProcessInfo.processInfo.arguments.contains("-seed-places") else { return }
+        guard LaunchFlags.has(.seedPlaces) else { return }
         // Wait briefly for auth.restore() to land a session — the seed needs a token.
         for _ in 0..<10 {
             if Task.isCancelled { return }

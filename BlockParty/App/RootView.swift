@@ -81,34 +81,34 @@ struct RootView: View {
     var body: some View {
         Group {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-show-home") {
+            if LaunchFlags.has(.showHome) {
                 // A deterministic Home route for simulator verification. The Home
                 // preview loader supplies local data, so this bypasses auth and
                 // onboarding without changing either production flow.
                 MainTabsView()
-            } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
+            } else if LaunchFlags.has(.feedCardGallery) {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
-            } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
+            } else if LaunchFlags.has(.townRainPreview) {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the
                 // real trigger is a touch on the town pill, which can't be automated.
                 TownRainPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-daily-feed-preview") {
+            } else if LaunchFlags.has(.dailyFeedPreview) {
                 // The Daily social feed over fixtures, without auth or network, so
                 // both card shapes and the ranked order can be screenshotted.
                 DailyFeedPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-review-queue-preview") {
+            } else if LaunchFlags.has(.reviewQueuePreview) {
                 // The admin Review queue over the City's real found events, without
                 // auth or network. Its only real entry is the admin's profile, which a
                 // clean simulator can't reach. Add `-review-queue-fail` to make every
                 // decision fail, so the row coming back with a shake can be recorded.
                 ModerationView(preview: true)
-            } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
+            } else if LaunchFlags.has(.showSkeletons) {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
+            } else if LaunchFlags.has(.showMapIntro),
                       !debugIntroDismissed {
                 // `-show-map-intro` forces the map's first-run explainer on stage so it
                 // can be verified headlessly in the simulator. No effect in release or
@@ -188,7 +188,7 @@ struct RootView: View {
     private var onboardingUp: Bool {
         guard !onboarding.finished else { return false }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-onboarding") { return true }
+        if LaunchFlags.has(.onboarding) { return true }
         #endif
         return Self.showsOnboarding
     }
@@ -343,24 +343,14 @@ struct MainTabsView: View {
         self.startTab = startTab
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
-        _showMap = State(initialValue: MainTabsView.debugOpenMap())
-        _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
+        // `-open-map` and `-open-profile` raise the map and the profile sheet on launch, for
+        // screenshots: their real way in is a tap.
+        _showMap = State(initialValue: LaunchFlags.has(.openMap))
+        _showProfileSheet = State(initialValue: LaunchFlags.has(.openProfile))
         let actions = RealLifeActions()
         _actions = State(initialValue: actions)
         _townFeed = State(initialValue: TownFeed(actions: actions))
         _searchModel = State(initialValue: SearchModel(actions: actions))
-    }
-
-    /// DEBUG-only: `-open-map` raises the map cover on launch. It replaces the old
-    /// `-open-tab map`, which died with the map's tab: the map is a presented cover
-    /// now, so a tab argument can no longer reach it. Screenshot automation needs
-    /// SOME way in, and tapping the Today bar's map disc is not available headlessly.
-    private static func debugOpenMap() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-open-map")
-        #else
-        return false
-        #endif
     }
 
     /// DEBUG-only: `-open-tab town|daily|search|you` launch argument selects
@@ -368,9 +358,8 @@ struct MainTabsView: View {
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
         #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-open-tab"), i + 1 < args.count {
-            switch args[i + 1] {
+        if let tab = LaunchFlags.value(.openTab) {
+            switch tab {
             case "town":     return .town
             case "daily":    return .daily
             case "search":   return .search
@@ -380,30 +369,6 @@ struct MainTabsView: View {
         }
         #endif
         return .town
-    }
-
-    /// DEBUG-only: `-open-profile` presents the profile sheet, for headless
-    /// screenshots. No effect in release or without the flag.
-    private static func debugOpenProfile() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-open-profile")
-        #else
-        return false
-        #endif
-    }
-
-    /// DEBUG-only: raise a sheet on launch by flag name. `-open-friends` and
-    /// `-open-notifications` are the Today bar's two marks, whose only real
-    /// trigger is a tap — and there is no tap automation in this setup, so without a
-    /// flag those screens cannot be screenshotted OR added to the accessibility
-    /// audit's walk. Generic because the pattern above had already been copy-pasted
-    /// three times. No effect in release or without the flag.
-    private static func debugOpen(_ flag: String) -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains(flag)
-        #else
-        return false
-        #endif
     }
 
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
@@ -688,28 +653,26 @@ struct MainTabsView: View {
             recordOpen()
             // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
             // sample inbox's newest chat, the one way left into the sample chats.
-            if Self.debugOpen("-open-friends") { openFriends() }
-            if Self.debugOpen("-open-notifications") { path.append(NotificationsRoute()) }
-            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first {
+            if LaunchFlags.has(.openFriends) { openFriends() }
+            if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
+            if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
                 path.append(FriendsRoute.inbox)
                 path.append(FriendsRoute.chat(newest.id))
             }
-            // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
-            // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
             #if DEBUG
-            let args = ProcessInfo.processInfo.arguments
             // `-open-team <uuid>` pushes that local school's page (school-activities 02).
-            if let i = args.firstIndex(of: "-open-team"), i + 1 < args.count,
+            if let id = LaunchFlags.value(.openTeam),
                let team = try? JSONDecoder().decode(Game.Team.self, from: Data(
-                   #"{"name":"","id":"\#(args[i + 1])","local":true}"#.utf8)) {
+                   #"{"name":"","id":"\#(id)","local":true}"#.utf8)) {
                 path.append(team)
             }
             // `-open-page town|city` pushes that Town page (follows 04).
-            if let i = args.firstIndex(of: "-open-page"), i + 1 < args.count, let kind = TownPageKind(slug: args[i + 1]) {
+            if let kind = LaunchFlags.value(.openPage).flatMap({ TownPageKind(slug: $0) }) {
                 path.append(kind)
             }
-            if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
-                let id = args[i + 1]
+            // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
+            // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
+            if let id = LaunchFlags.value(.openEvent) {
                 Task {
                     for _ in 0..<120 {
                         if let card = townFeed.entries?.lazy.compactMap(\.card).first(where: { $0.id == id }) {
@@ -881,10 +844,10 @@ struct MainTabsView: View {
             // `-tab-cycle` walks the bar end to end on a loop so the bubble travel, the
             // icon swap and the page slide can be recorded headlessly — there is no
             // tap automation in this setup, and motion is the whole point of the bar.
-            if ProcessInfo.processInfo.arguments.contains("-tab-cycle") {
+            if LaunchFlags.has(.tabCycle) {
                 cycleTabs(from: 1)
             }
-            if ProcessInfo.processInfo.arguments.contains("-share-demo") {
+            if LaunchFlags.has(.shareDemo) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     ShareCenter.shared.present(.event(title: "Farmers Market",
                                                       dateLabel: "Saturday, Jul 12",

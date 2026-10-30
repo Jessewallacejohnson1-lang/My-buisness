@@ -221,9 +221,8 @@ extension HelloItem.Added {
 final class HelloInbox {
     static let shared: HelloInbox = {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
         // `-notice-samples`: the mock's items beside the bell's sample changes.
-        if arguments.contains("-notice-samples") {
+        if LaunchFlags.has(.noticeSamples) {
             let inbox = HelloInbox(keep: UserDefaults(suiteName: "NoticeSamples") ?? .standard)
             inbox.items = samples(now: Date())
             return inbox

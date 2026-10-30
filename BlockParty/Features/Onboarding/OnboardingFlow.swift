@@ -474,7 +474,7 @@ struct OnboardingFlow: View {
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-onboarding-not-yet") { return false }
+        if LaunchFlags.has(.onboardingNotYet) { return false }
         #endif
         switch store.step {
         case .name:  return store.displayName != nil

@@ -175,7 +175,7 @@ final class TownPageModel {
 
     /// `town_page`; under DEBUG `-town-samples` the samples, and `-town-offline` a failed read.
     static func live(_ kind: TownPageKind) async throws -> TownPageInfo? {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).townPage(kind)
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples: return sample(kind)
@@ -184,7 +184,7 @@ final class TownPageModel {
 
     /// `board_meetings`, the same way.
     static func meetings(_ board: String) async throws -> [TownPageInfo.Event] {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).boardMeetings(board)
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples: return sample(.city).events.filter { $0.title.hasPrefix("City Council") }

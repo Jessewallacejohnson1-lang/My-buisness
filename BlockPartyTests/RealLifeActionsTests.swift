@@ -337,14 +337,6 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertTrue(actions.going(item).isGoing)
     }
 
-    /// Sample mode's writes go nowhere, so a Join on a sample card never reaches the
-    /// live database; offline's always fail. Release builds always write for real.
-    func testSampleModeNeverWritesLive() {
-        XCTAssertEqual(RealLifeActions.backend(for: ["-open-tab", "town", "-town-samples"]), .samples)
-        XCTAssertEqual(RealLifeActions.backend(for: ["-town-offline"]), .offline)
-        XCTAssertEqual(RealLifeActions.backend(for: []), .live)
-    }
-
     // MARK: Heart
 
     func testAHeartShowsAtOnceAndStays() async throws {

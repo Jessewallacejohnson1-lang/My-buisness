@@ -129,7 +129,7 @@ final class FriendsBook {
     /// going nowhere, and under `-town-offline` every read and tap failing
     /// (`RealLifeActions.backend`).
     convenience init() {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live:
             let api = { CommunityAPI(auth: AuthStore.shared) }
             self.init(read: { try await api().getFriends() },
@@ -143,8 +143,7 @@ final class FriendsBook {
         case .samples:
             // DEBUG `-friends-fail` makes every tap fail, `-friends-limit` every Add friend hit
             // the daily limit, so the flip back, the shake and the alert can be recorded.
-            let args = ProcessInfo.processInfo.arguments
-            let fails = args.contains("-friends-fail"), limited = args.contains("-friends-limit")
+            let fails = LaunchFlags.has(.friendsFail), limited = LaunchFlags.has(.friendsLimit)
             self.init(read: { Self.samplePage() },
                       readBlocked: { Neighbor.samples.filter { $0.relation == .blocked } },
                       readDot: { true }, markSeen: {},

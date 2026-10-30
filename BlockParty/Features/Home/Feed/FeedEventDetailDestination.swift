@@ -178,14 +178,14 @@ struct FeedEventDetailDestination: View {
 
     /// `event_place_name`; nothing under DEBUG samples or offline.
     private static func readPlaceName(_ eventID: String) async -> PlaceName? {
-        guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
+        guard LaunchFlags.backend == .live,
               UUID(uuidString: eventID) != nil else { return nil }
         return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
     }
 
     /// `club_events.source_url`, as `readPlaceName` reads.
     private static func readSourceURL(_ eventID: String) async -> URL? {
-        guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
+        guard LaunchFlags.backend == .live,
               UUID(uuidString: eventID) != nil else { return nil }
         return try? await CommunityAPI(auth: AuthStore.shared).eventSourceURL(eventID)
     }

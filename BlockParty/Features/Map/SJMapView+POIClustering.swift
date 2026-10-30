@@ -241,7 +241,7 @@ extension SJMapView {
     /// motion can be captured regardless of when the (network-loaded) POIs land. DEBUG-only;
     /// no effect in release / without the flag.
     func startAutozoomIfNeeded() {
-        guard ProcessInfo.processInfo.arguments.contains("-map-autozoom"), !autozoomStarted else { return }
+        guard LaunchFlags.has(.mapAutozoom), !autozoomStarted else { return }
         autozoomStarted = true
         let center = MapSpots.center
         viewport = .camera(center: center, zoom: 15)

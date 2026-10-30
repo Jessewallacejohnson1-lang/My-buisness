@@ -26,7 +26,7 @@ struct FeedCardGallery: View {
     }
 
     private var debugAutoplayEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains("-feed-card-autoplay")
+        LaunchFlags.has(.feedCardAutoplay)
     }
 
     private func shareAction(for item: FeedCardItem) -> () -> Void {

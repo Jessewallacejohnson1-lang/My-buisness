@@ -72,7 +72,7 @@ final class POILogoCache: ObservableObject {
     /// `-poi-logo-stub`: every POI renders a deterministic code-drawn mark so the
     /// pin/detail logo layout can be screenshot-verified before any real data exists.
     nonisolated static let stubEnabled =
-        ProcessInfo.processInfo.arguments.contains("-poi-logo-stub")
+        LaunchFlags.has(.poiLogoStub)
 
     private static var stubImages: [String: UIImage] = [:]
 

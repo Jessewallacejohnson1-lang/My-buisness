@@ -204,7 +204,7 @@ final class RealLifeActions {
     }
 
     /// Where writes go, chosen once at launch.
-    enum Backend: Equatable {
+    nonisolated enum Backend: Equatable {
         /// Supabase.
         case live
         /// DEBUG `-town-samples`: every write succeeds and goes nowhere, so a Join on a
@@ -214,16 +214,8 @@ final class RealLifeActions {
         case offline
     }
 
-    nonisolated static func backend(for arguments: [String]) -> Backend {
-        #if DEBUG
-        if arguments.contains("-town-offline") { return .offline }
-        if arguments.contains("-town-samples") { return .samples }
-        #endif
-        return .live
-    }
-
     convenience init() {
-        let backend = Self.backend(for: ProcessInfo.processInfo.arguments)
+        let backend = LaunchFlags.backend
         let setGoing: (String, Bool) async throws -> Void
         let setHeart: (String, Bool) async throws -> Void
         let setSave: (String, Bool) async throws -> Void
@@ -257,7 +249,7 @@ final class RealLifeActions {
         case .samples:
             // With `-town-refuse` the server says no to every Join and Join group, so the hold,
             // the turn back and the shake can be recorded on the card and the pages.
-            let refuses = ProcessInfo.processInfo.arguments.contains("-town-refuse")
+            let refuses = LaunchFlags.has(.townRefuse)
             let refuse: (String, Bool) async throws -> Void = { _, _ in
                 if refuses { throw SupabaseError(message: "refused (-town-refuse)", status: 403) }
             }

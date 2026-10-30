@@ -42,15 +42,16 @@ final class YouModel {
     convenience init() {
         let groups = { try await CommunityAPI(auth: AuthStore.shared).getGroups() }
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-town-offline") {
+        switch LaunchFlags.backend {
+        case .offline:
             self.init(read: { _, _ in throw URLError(.notConnectedToInternet) },
                       groups: { throw URLError(.notConnectedToInternet) })
             return
-        }
-        if arguments.contains("-town-samples") {
+        case .samples:
             self.init(read: { _, _ in YouCalendar.samples(now: Date()) }, groups: groups)
             return
+        case .live:
+            break
         }
         #endif
         self.init(read: { from, to in
@@ -64,14 +65,15 @@ final class YouModel {
     /// `-town-samples` the You samples come back saved, and `-town-offline` fails.
     static func saves() -> YouModel {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-town-offline") {
+        switch LaunchFlags.backend {
+        case .offline:
             return YouModel(read: { _, _ in throw URLError(.notConnectedToInternet) })
-        }
-        if arguments.contains("-town-samples") {
+        case .samples:
             return YouModel(read: { _, _ in
                 YouCalendar.samples(now: Date()).map { var event = $0; event.saved = true; return event }
             })
+        case .live:
+            break
         }
         #endif
         return YouModel(read: { from, _ in
@@ -277,10 +279,10 @@ enum YouCalendar {
         }
         // `-town-cancelled`: Rocktoberfest, three days on, is called off, so the You tab
         // leaves it out and the app opens on the alert (ticket 12).
-        let cancelledSample = ProcessInfo.processInfo.arguments.contains("-town-cancelled")
+        let cancelledSample = LaunchFlags.has(.townCancelled)
         // `-you-free-today`: today's two move two days on, so today is empty and the Agenda
         // points to the next plan (ticket 11).
-        let freeToday = ProcessInfo.processInfo.arguments.contains("-you-free-today")
+        let freeToday = LaunchFlags.has(.youFreeToday)
         let rows: [(Int, String, String, String?, String, EventCategory)] = [
             (-3, "10 AM", "Fall colors hike", "sju-arboretum-trail", "Saint John's Arboretum", .outdoors),
             (-1, "7 PM", "Trivia night", "bad-habit-brewing", "Bad Habit Brewing", .food),

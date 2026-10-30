@@ -581,7 +581,7 @@ struct FeedEventCard: View {
     /// which nothing here can tap, shows it for a screenshot.
     private func openMenuForDebug() async {
         #if DEBUG
-        guard item.id == "e1", ProcessInfo.processInfo.arguments.contains("-town-menu-open") else { return }
+        guard item.id == "e1", LaunchFlags.has(.townMenuOpen) else { return }
         try? await Task.sleep(for: .seconds(1))
         menuPresented = true
         #endif

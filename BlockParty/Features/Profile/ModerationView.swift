@@ -144,7 +144,7 @@ final class ModerationModel: ObservableObject {
         #if DEBUG
         if preview {
             try await Task.sleep(for: .milliseconds(400))
-            if ProcessInfo.processInfo.arguments.contains("-review-queue-fail") {
+            if LaunchFlags.has(.reviewQueueFail) {
                 throw SupabaseError(message: "preview failure", status: 500)
             }
             return

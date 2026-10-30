@@ -140,9 +140,7 @@ enum MapPlaceDetail: Identifiable, Hashable {
     /// resolved until its async catalogue arrives, so that flag is handled in SJMapView.
     static func debugInitialDetail() -> MapPlaceDetail? {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if let index = arguments.firstIndex(of: "-map-open"), index + 1 < arguments.count,
-           let spot = MapSpots.all.first(where: { $0.id == arguments[index + 1] }) {
+        if let id = LaunchFlags.value(.mapOpen), let spot = MapSpots.all.first(where: { $0.id == id }) {
             return .spot(spot)
         }
         #endif
@@ -214,9 +212,8 @@ struct SJMapView: View {
     /// effect in release / without the flag.
     private static func debugInitialCenter() -> CLLocationCoordinate2D? {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-center"), i + 1 < a.count {
-            let parts = a[i + 1].split(separator: ",")
+        if let center = LaunchFlags.value(.mapCenter) {
+            let parts = center.split(separator: ",")
             if parts.count == 2, let lat = Double(parts[0]), let lon = Double(parts[1]) {
                 return CLLocationCoordinate2D(latitude: lat, longitude: lon)
             }
@@ -230,8 +227,7 @@ struct SJMapView: View {
     /// release / without the flag.
     private static func debugInitialZoom() -> Double? {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-zoom"), i + 1 < a.count { return Double(a[i + 1]) }
+        if let zoom = LaunchFlags.value(.mapZoom) { return Double(zoom) }
         #endif
         return nil
     }
@@ -241,16 +237,14 @@ struct SJMapView: View {
     /// headlessly (the sim has no two-finger gesture automation). No effect in release.
     private static func debugInitialBearing() -> Double? {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-bearing"), i + 1 < a.count { return Double(a[i + 1]) }
+        if let bearing = LaunchFlags.value(.mapBearing) { return Double(bearing) }
         #endif
         return nil
     }
 
     private static func debugInitialPitch() -> Double? {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-pitch"), i + 1 < a.count { return Double(a[i + 1]) }
+        if let pitch = LaunchFlags.value(.mapPitch) { return Double(pitch) }
         #endif
         return nil
     }
@@ -348,11 +342,10 @@ struct SJMapView: View {
     /// loaded POI so the documented screenshot command stays self-contained.
     private static func debugOpenPOI(in pois: [POI]) -> POI? {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-open-poi") {
-            guard i + 1 < a.count, !a[i + 1].hasPrefix("-") else { return pois.first }
-            let key = a[i + 1].lowercased()
-            return pois.first { $0.id == a[i + 1] || $0.name.lowercased().contains(key) }
+        if LaunchFlags.has(.mapOpenPoi) {
+            guard let id = LaunchFlags.value(.mapOpenPoi), !id.hasPrefix("-") else { return pois.first }
+            let key = id.lowercased()
+            return pois.first { $0.id == id || $0.name.lowercased().contains(key) }
         }
         #endif
         return nil
@@ -362,7 +355,7 @@ struct SJMapView: View {
     /// DEBUG-only: `-town-rain` fires one town-rain burst once the POIs land, so the
     /// drop can be screen-recorded headlessly — there is no tap automation in this
     /// setup, and the press that normally starts it is a real touch on the town pill.
-    static let debugTownRain = ProcessInfo.processInfo.arguments.contains("-town-rain")
+    static let debugTownRain = LaunchFlags.has(.townRain)
 
     /// Long enough for the logo prefetch to have filled the cache after `pois` land.
     private static let debugRainDelay: TimeInterval = 1.2
@@ -372,19 +365,14 @@ struct SJMapView: View {
     /// `-map-search <query>` also types the query so the results list renders;
     /// `-map-search-committed <query>` programmatically commits the FIRST result —
     /// fly + pin open — for headless verification of the result-tap path.
-    static let debugSearchOpen = ProcessInfo.processInfo.arguments.contains("-map-search-open")
+    static let debugSearchOpen = LaunchFlags.has(.mapSearchOpen)
 
     static func debugSearchQuery() -> String? {
-        let a = ProcessInfo.processInfo.arguments
-        guard let i = a.firstIndex(of: "-map-search"), i + 1 < a.count,
-              !a[i + 1].hasPrefix("-") else { return nil }
-        return a[i + 1]
+        LaunchFlags.value(.mapSearch).flatMap { $0.hasPrefix("-") ? nil : $0 }
     }
 
     static func debugSearchCommitted() -> String? {
-        let a = ProcessInfo.processInfo.arguments
-        guard let i = a.firstIndex(of: "-map-search-committed"), i + 1 < a.count else { return nil }
-        return a[i + 1]
+        LaunchFlags.value(.mapSearchCommitted)
     }
     #endif
 
@@ -392,22 +380,8 @@ struct SJMapView: View {
     /// state, and `-map-force-live <spotid>` (repeatable) forces it Live, so those
     /// pin states render headlessly without a real save / live event. No effect in
     /// release / without the flag.
-    private static func debugSavedIds() -> Set<String> {
-        #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        return Set(zip(a, a.dropFirst()).filter { $0.0 == "-map-save" }.map { $0.1 })
-        #else
-        return []
-        #endif
-    }
-    private static func debugForceLiveIds() -> Set<String> {
-        #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        return Set(zip(a, a.dropFirst()).filter { $0.0 == "-map-force-live" }.map { $0.1 })
-        #else
-        return []
-        #endif
-    }
+    private static func debugSavedIds() -> Set<String> { Set(LaunchFlags.values(.mapSave)) }
+    private static func debugForceLiveIds() -> Set<String> { Set(LaunchFlags.values(.mapForceLive)) }
 
     @State private var showingHelp = false
     /// Browse state lives above the conditionally mounted sheet so a place-detail

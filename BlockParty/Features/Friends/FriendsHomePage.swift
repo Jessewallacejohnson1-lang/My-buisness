@@ -182,8 +182,7 @@ struct FriendsHomePage: View {
     /// DEBUG `-friends-words <text>`: opens with those words typed, as Search's flag does.
     private static var debugWords: String {
         #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-friends-words"), i + 1 < args.count { return args[i + 1] }
+        if let words = LaunchFlags.value(.friendsWords) { return words }
         #endif
         return ""
     }

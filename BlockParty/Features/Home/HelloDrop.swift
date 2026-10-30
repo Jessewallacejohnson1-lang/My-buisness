@@ -205,7 +205,7 @@ enum HelloDrop {
     static var allowed: Bool {
         #if DEBUG
         forced || later || debugMoment != nil || debugFinal != nil
-            || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
+            || !LaunchFlags.any
         #else
         return true
         #endif
@@ -214,9 +214,7 @@ enum HelloDrop {
     /// DEBUG `-hello-seen-days N`: N days before `now`, as if the last open was then; nil without it.
     static func debugSeen(now: Date) -> Date? {
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if let flag = arguments.firstIndex(of: "-hello-seen-days"), flag + 1 < arguments.count,
-           let days = Double(arguments[flag + 1]) {
+        if let days = LaunchFlags.value(.helloSeenDays).flatMap({ Double($0) }) {
             return now.addingTimeInterval(-days * 86_400)
         }
         #endif
@@ -224,55 +222,30 @@ enum HelloDrop {
     }
 
     static var forced: Bool {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        return arguments.contains("-hello-drop") || arguments.contains("-hello-welcome")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.helloDrop) || LaunchFlags.has(.helloWelcome)
     }
 
     /// DEBUG `-hello-later`: a later open, the day's hello already said. 8 s after launch a
     /// sample final and a sample contact who joined are found at once: the final drops, and the
     /// contact waits behind the bell for the hour between pills (hello-drop 05).
     static var later: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-hello-later")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.helloLater)
     }
 
     /// DEBUG `-hello-welcome`: the very first open's welcome, whatever this phone has seen.
     static var forcedWelcome: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-hello-welcome")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.helloWelcome)
     }
 
     /// DEBUG `-hello-final win|loss`: Saint John's final against Gustavus drops 8 s after launch.
     static var debugFinal: Bool? {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: "-hello-final"), flag + 1 < arguments.count else { return nil }
-        return arguments[flag + 1] == "win"
-        #else
-        return nil
-        #endif
+        LaunchFlags.value(.helloFinal).map { $0 == "win" }
     }
 
     /// DEBUG `-hello-moment <name>` (`firstEvent`, `tenthEvent`, `firstFriend`...): that moment
     /// drops 8 s after launch, said or not, and the day's hello stays away.
     static var debugMoment: HelloMoment? {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: "-hello-moment"), flag + 1 < arguments.count else { return nil }
-        return HelloMoment(rawValue: arguments[flag + 1])
-        #else
-        return nil
-        #endif
+        LaunchFlags.value(.helloMoment).flatMap { HelloMoment(rawValue: $0) }
     }
 }
 
@@ -343,7 +316,7 @@ struct HelloDropView: View {
     static var stay: Duration {
         if UIAccessibility.isVoiceOverRunning { return .seconds(10) }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-hello-drop-hold") { return .seconds(10) }
+        if LaunchFlags.has(.helloDropHold) { return .seconds(10) }
         #endif
         return .seconds(4)
     }
@@ -652,7 +625,7 @@ struct HelloDropView: View {
     private func checkJoined() async {
         #if DEBUG
         // Each check spends one of the Contacts page's 5 a day; a forced pill checks only when asked.
-        if HelloDrop.forced, !ProcessInfo.processInfo.arguments.contains("-hello-joined") { return }
+        if HelloDrop.forced, !LaunchFlags.has(.helloJoined) { return }
         #endif
         // ponytail: the cut-off and the memory are the phone's, not the account's, as the
         // moments are; key them by account if two people share a phone.

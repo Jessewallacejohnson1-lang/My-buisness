@@ -29,11 +29,7 @@ struct EditProfileView: View {
     /// DEBUG-only: `-profile-edit-interests` auto-opens the interest picker so its
     /// (non-onboarding) chrome can be screenshotted headlessly. No effect in release.
     private static func debugOpenInterests() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-profile-edit-interests")
-        #else
-        return false
-        #endif
+        LaunchFlags.has(.profileEditInterests)
     }
 
     private var interestLabels: [String] { Interests.labels(for: interests) }

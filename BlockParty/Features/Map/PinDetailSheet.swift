@@ -170,9 +170,7 @@ struct PinDetailSheet: View {
     /// `-map-detail-expanded` (with an open flag) starts straight in the
     /// full-details presentation — the headless screenshot seam. Compiles out.
     private nonisolated static func debugExpandedRequested() -> Bool {
-        let a = ProcessInfo.processInfo.arguments
-        return a.contains("-map-detail-expanded")
-            && (a.contains("-map-open") || a.contains("-map-open-poi"))
+        LaunchFlags.has(.mapDetailExpanded) && (LaunchFlags.has(.mapOpen) || LaunchFlags.has(.mapOpenPoi))
     }
     #endif
 

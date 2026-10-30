@@ -152,8 +152,7 @@ struct MapSheet: View {
     /// be screenshotted headlessly. No effect in release / without the flag.
     static func initialMode() -> SheetMode {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-sheet"), i + 1 < a.count, a[i + 1] == "places" { return .places }
+        if LaunchFlags.value(.mapSheet) == "places" { return .places }
         #endif
         return .today
     }
@@ -163,9 +162,8 @@ struct MapSheet: View {
     /// headlessly. No effect in release / without the flag.
     static func initialDetent() -> SheetDetent {
         #if DEBUG
-        let a = ProcessInfo.processInfo.arguments
-        if let i = a.firstIndex(of: "-map-detent"), i + 1 < a.count {
-            switch a[i + 1] {
+        if let detent = LaunchFlags.value(.mapDetent) {
+            switch detent {
             case "medium": return .medium
             case "full":   return .full
             default:       return .peek
@@ -173,7 +171,7 @@ struct MapSheet: View {
         }
         // `-map-sheet <mode>` targets the LIST, which only shows from medium up — open
         // there so that flag surfaces its list without also needing `-map-detent`.
-        if a.contains("-map-sheet") { return .medium }
+        if LaunchFlags.has(.mapSheet) { return .medium }
         #endif
         return .peek
     }

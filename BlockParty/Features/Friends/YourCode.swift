@@ -127,7 +127,7 @@ struct YourCodeSheet: View {
 
     private var owner: CodeOwner? {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-town-samples") { return .sample }
+        if LaunchFlags.backend != .live { return .sample }
         #endif
         return auth.userId.map { CodeOwner(id: $0, name: model.displayName, avatarUrl: model.avatarUrl, since: model.sinceLabel) }
     }
@@ -376,7 +376,7 @@ extension Neighbor {
     /// One neighbour by id (`get_neighbor`); under DEBUG `-town-samples` the sample by that id. nil
     /// for nobody you can find.
     static func read(_ id: String) async throws -> Neighbor? {
-        switch RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) {
+        switch LaunchFlags.backend {
         case .live: return try await CommunityAPI(auth: AuthStore.shared).getNeighbor(id)
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples: return Neighbor.samples.first { $0.id == id }

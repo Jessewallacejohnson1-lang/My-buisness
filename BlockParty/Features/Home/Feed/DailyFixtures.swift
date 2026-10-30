@@ -100,9 +100,9 @@ enum DailyFixtures {
     /// as `get_town_feed` sends them, each leaving two hours after it starts, as one
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
-        let games = ProcessInfo.processInfo.arguments.contains("-town-games") ? gameSamples(now: now) : []
+        let games = LaunchFlags.has(.townGames) ? gameSamples(now: now) : []
         let events = games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
-        guard ProcessInfo.processInfo.arguments.contains("-town-news") else { return events }
+        guard LaunchFlags.has(.townNews) else { return events }
         // `-town-news`: tonight's social watch posts as the feed places them (town-feed 35): one that
         // shares your interests among the events, the rest after the last one. Logos read from Storage.
         let news = newsSamples(now: now)
@@ -148,7 +148,7 @@ enum DailyFixtures {
               let data = try? Data(contentsOf: url),
               let samples = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
         // `-town-live`: the first game started an hour ago today; TownFeed plays its score (game-card 03).
-        let live = ProcessInfo.processInfo.arguments.contains("-town-live")
+        let live = LaunchFlags.has(.townLive)
         let today = Self.townClock("yyyy-MM-dd", now)
         return samples.enumerated().map { i, g in
             let started = live && i == 0
@@ -322,10 +322,10 @@ enum DailyFixtures {
         }
         // `-town-cancelled`: the first card and the photo-less council meeting are called
         // off, for the red Canceled pill on a card and an Event page with a photo and with none.
-        item.cancelled = ["e1", "e5"].contains(id) && ProcessInfo.processInfo.arguments.contains("-town-cancelled")
+        item.cancelled = ["e1", "e5"].contains(id) && LaunchFlags.has(.townCancelled)
         // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
         // its Join and the club's Group page in Search are one (rsvp-and-groups 07).
-        if id == "e1" && ProcessInfo.processInfo.arguments.contains("-town-group") {
+        if id == "e1" && LaunchFlags.has(.townGroup) {
             item.hostName = "St. Joe Rod and Gun Club"
             item.hostAvatar = nil
             item.groupID = "2e8db1f0-2090-407d-885f-b9fb7e8e01b4"

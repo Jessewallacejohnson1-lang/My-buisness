@@ -74,9 +74,8 @@ final class PhoneTilt {
     /// DEBUG-only: `-tilt <x>,<y>` holds the lean there, since the simulator has no
     /// motion sensor.
     private static var debugLean: CGPoint? {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-tilt"), i + 1 < args.count else { return nil }
-        let parts = args[i + 1].split(separator: ",").compactMap { Double($0) }
+        guard let tilt = LaunchFlags.value(.tilt) else { return nil }
+        let parts = tilt.split(separator: ",").compactMap { Double($0) }
         return parts.count == 2 ? CGPoint(x: parts[0], y: parts[1]) : nil
     }
     #endif

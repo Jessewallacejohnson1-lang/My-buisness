@@ -152,7 +152,7 @@ final class Notices {
     /// Your changes from `get_my_changes`, or under DEBUG `-notice-samples` the samples.
     convenience init() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-notice-samples") {
+        if LaunchFlags.has(.noticeSamples) {
             self.init(read: { Notices.samples(now: Date()) }, keep: UserDefaults(suiteName: "NoticeSamples") ?? .standard)
             return
         }

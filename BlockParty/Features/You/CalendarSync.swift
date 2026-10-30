@@ -90,9 +90,11 @@ final class CalendarSync {
             try await CommunityAPI(auth: AuthStore.shared).getMyGoing(from: from, to: to)
         }
         #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-town-offline") { read = { _, _ in throw URLError(.notConnectedToInternet) } }
-        if arguments.contains("-town-samples") { read = { _, _ in YouCalendar.samples(now: Date()) } }
+        switch LaunchFlags.backend {
+        case .offline: read = { _, _ in throw URLError(.notConnectedToInternet) }
+        case .samples: read = { _, _ in YouCalendar.samples(now: Date()) }
+        case .live: break
+        }
         #endif
         self.init(calendar: EventKitCalendar(), account: { AuthStore.shared.userId }, read: read)
     }
