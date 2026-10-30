@@ -23,8 +23,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             morning that stops before this reads the same pages again tomorrow. Its new counts are what the
             database did (apply_judged's answer), and it lists each new Event (date, time, title, place;
             soonest first, 40 at most, the rest counted by source) and News title, names News folded into
-            their post's News (BP app smooth-mornings 05) and the pairs the writer kept apart under "Maybe
-            the same", and the morning's also tells yesterday's SJU and CSB games: how far each live score got
+            their post's News (BP app smooth-mornings 05), the pairs the writer kept apart under "Maybe
+            the same" and the new Events whose card shows no photo of what they are (BP app event-photos 08),
+            and the morning's also tells yesterday's SJU and CSB games: how far each live score got
             and where its final came from (Jesse, 2026-10-29). The summary waits in report.txt for finish, and a second save the same morning
             writes nothing again (Oct 22's job wrote twice). Then it lays out the helpers' work: the Events
             no tagger has read yet (or that have no draw, or no words saying what they are), upcoming or
@@ -301,6 +302,7 @@ def summary_lines(prep, result, written):
         lines.append(f"- Written: {json.dumps(written)}; the save didn't say which items it added, so the "
                      "counts above are what was sent (apply_judged from before smooth-mornings 05)")
     lines += ["New Events:"] * bool(events) + event_lines(events)
+    lines += photo_lines(events) if answered else []
     lines += ["New News:"] * bool(news) + [f"- {n['title']} ({n['source_name']})" for n in news]
     notes = result.get("notes", [])
     pairs, rest = maybe_same(notes), [n for n in notes if not n.startswith("kept apart: ")]
@@ -332,6 +334,31 @@ def new_event(row):
     when = f"{day:%a %b} {day.day}" + (f" to {last:%a %b} {last.day}" if last and last > day else "")
     return " · ".join(x for x in (when, "all day" if row["all_day"] else row["start_time"],
                                   row["title"], row["location"]) if x)
+
+
+def photo_lines(rows):
+    """The new Events whose card shows their place's photo or logo, not a photo of what they are: no live scene
+    of their place fits their subject and season (BP app event-photos 08), so each is a place and subject for
+    the next photo round (the place-photos skill's scenes.py). A game is left out, by the card's own rule (two
+    teams and a sport, private.event_game): the white game card has no photo. A read that fails is one line,
+    never a lost report."""
+    rows = [r for r in rows if not (r.get("sport") and len(r.get("team_ids") or []) == 2)]
+    head = "No event photo yet:"
+    if not rows:
+        return []
+    try:
+        db = Supabase()
+        uids = ",".join(f'"{r["source_uid"]}"' for r in rows)
+        ids = {(e["source_name"], e["source_uid"]): e["id"]
+               for e in db.rest("GET", f"club_events?select=id,source_name,source_uid&source_uid=in.({quote(uids)})") or []}
+        shown = {k: (db.rest("POST", "rpc/event_picture", {"p_event": i}) or {}).get("url") for k, i in ids.items()}
+        urls = ",".join(f'"{u}"' for u in set(shown.values()) if u)
+        scenes = {s["url"] for s in db.rest("GET", f"place_photos?select=url&kind=eq.scene&url=in.({quote(urls)})") or []
+                  } if urls else set()
+    except Exception as e:
+        return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
+    bare = [r for r in rows if shown.get((r["source_name"], r["source_uid"])) not in scenes]
+    return [head] * bool(bare) + event_lines(bare)
 
 
 # The games the live-scores job follows: private.sidearm_file's pairs, compared by a self-test with the newest
@@ -964,7 +991,7 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
-    checks += games_aside() + described_once() + sign_up_pages() + live_games_told()
+    checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told()
     asked = []
 
     def get(url):
@@ -1024,7 +1051,7 @@ def counts_what_the_database_did():
     Events and 26 News, and the database already has 2 of the Events and 25 of the News (BP app
     smooth-mornings 05: on Oct 28 the report said "26 new" and the database got 1 new row)."""
     import io, tempfile
-    global live_lines
+    global live_lines, photo_lines
     listed = [write_judged.listed(id=f"0000000{k}-0000-0000-0000-000000000000", title=t, event_date=d, start_time="6 PM",
                                   location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid=f"mh-{k}",
                                   shows_from="2026-10-10") for k, t, d in [(1, "Yoga, Sauna & Cider", "2026-10-27"),
@@ -1049,11 +1076,12 @@ def counts_what_the_database_did():
                                   "news": [i for i, n in enumerate(p["p_news"]) if n["title"].lower() not in held_news]}})
         return answers[-1]
     names = ("apply", "listed_in_db", "interest_ids", "known_teams", "news_in_db")
-    saved, games, asked = tuple(getattr(write_judged, n) for n in names), live_lines, []
+    saved, games, photos, asked = tuple(getattr(write_judged, n) for n in names), live_lines, photo_lines, []
     try:
         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = apply, (lambda: listed), (lambda: ["bars"])
         write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
         live_lines = lambda day: asked.append(day) or []
+        photo_lines = lambda rows: []
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             (out / "prepare.json").write_text(json.dumps({"today": "2026-10-20", "fetched": 9, "changed": 2,
@@ -1067,7 +1095,7 @@ def counts_what_the_database_did():
     finally:
         for n, f in zip(names, saved):
             setattr(write_judged, n, f)
-        live_lines = games
+        live_lines, photo_lines = games, photos
     old = summary_lines({"today": "2026-10-20", "fetched": 9, "changed": 2, "to_read": 2, "failed": [], "readers": []},
                         result, {"events": 5, "news": 26})
     at = lines.index("New Events:") if "New Events:" in lines else len(lines)
@@ -1343,6 +1371,47 @@ def live_games_told():
              "a database that can't be read is one line, never a lost report"),
             (set(followed) == LIVE_SPORTS, "the report follows the games private.sidearm_file names, as its newest migration says")]
 
+
+def photos_told():
+    """photo_lines against a fake database: a new Event its card shows a scene for isn't listed, one showing its
+    place's photo or logo is, a game never is, and a database that can't be read is one line."""
+    global Supabase
+    row = lambda title, uid, **more: {"event_date": "2026-12-05", "end_at": None, "all_day": False, "start_time": "10 AM",
+                                      "title": title, "location": "Sunny Mary Meadow", "source_name": "Sunny Mary Meadow",
+                                      "source_uid": uid, **more}
+    rows = [row("Holiday Market", "m"), row("Winter Yoga", "y"), row("Football", "g", sport="Football", team_ids=["a", "b"]),
+            row("Boys Swim vs Brainerd", "s", sport=None, team_ids=None)]
+    shown = {"id-m": "https://x/scene-market.jpg", "id-y": "https://x/meadow.jpg", "id-s": "https://x/pool.jpg"}
+    asked = []
+
+    class FakeDb:
+        def rest(self, method, path, body=None, prefer=None):
+            asked.append(path)
+            if path.startswith("club_events?"):
+                return [{"id": f"id-{r['source_uid']}", "source_name": r["source_name"], "source_uid": r["source_uid"]}
+                        for r in rows if quote(f'"{r["source_uid"]}"') in path]
+            if path == "rpc/event_picture":
+                return {"url": shown.get(body["p_event"]), "kind": "photo"}
+            return [{"url": "https://x/scene-market.jpg"}] if "kind=eq.scene" in path else []
+
+    class Unread:
+        def __init__(self):
+            raise DbError("GET", "club_events", 503, "Service\n Unavailable")
+    saved = Supabase
+    try:
+        Supabase = FakeDb
+        told, games = photo_lines(rows), photo_lines(rows[2:3])
+        Supabase = Unread
+        unread = photo_lines(rows)
+    finally:
+        Supabase = saved
+    return [(told == ["No event photo yet:", "- Sat Dec 5 · 10 AM · Winter Yoga · Sunny Mary Meadow",
+                      "- Sat Dec 5 · 10 AM · Boys Swim vs Brainerd · Sunny Mary Meadow"],
+             "a new Event whose card shows its place's photo is listed, a meet with no two teams too; one showing a "
+             "photo of what it is isn't"),
+            (games == [] and asked.count("rpc/event_picture") == 3, "a game's white card has no photo: never listed or asked"),
+            (unread == ["No event photo yet: not read (Supabase GET club_events failed 503: Service Unavailable)"],
+             "a database that can't be read is one line, never a lost report")]
 
 def in_parts():
     """prepare and tag in timed parts against fake slow sites (50 seconds a page) and a fake database,
@@ -1823,6 +1892,11 @@ def whole_morning():
                     "tried again on Mondays",
                     "- Written: 0 mentions, 0 published by a mention, 0 cancelled, 0 back on",
                     "New Events:",
+                    "- Tue Nov 3 · 5 PM · Harvest Supper · Milk & Honey Ciders",
+                    "- Sat Nov 7 · 9 AM · Holiday Market · Milk & Honey Ciders",
+                    "- Sat Nov 7 · 2 PM · Holiday Market Bake Sale · Milk & Honey Ciders",
+                    "- Sat Nov 21 · 7 PM · Sacred Heart Chapel Anniversary · Sacred Heart Chapel",
+                    "No event photo yet:",
                     "- Tue Nov 3 · 5 PM · Harvest Supper · Milk & Honey Ciders",
                     "- Sat Nov 7 · 9 AM · Holiday Market · Milk & Honey Ciders",
                     "- Sat Nov 7 · 2 PM · Holiday Market Bake Sale · Milk & Honey Ciders",
