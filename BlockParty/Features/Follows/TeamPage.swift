@@ -210,7 +210,7 @@ struct TeamPage: View {
                             .font(.sans(20))
                             .foregroundStyle(Hue.nameOnDark)
                             .lineLimit(1)
-                        Text(activity.next.map(Self.when) ?? "No events yet")
+                        Text(activity.next.map { Self.when($0) } ?? "No events yet")
                             .font(.sans(13))
                             .foregroundStyle(Hue.nameOnDark.opacity(0.5))
                             .lineLimit(1)
