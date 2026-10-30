@@ -1581,6 +1581,34 @@ test('a host you muted keeps its news out too', async () => {
   assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Flight Friday']);
 });
 
+test('news takes the ••• too: Not interested hides that item alone, to you only; Mute its place, Events too (news-menu)', async () => {
+  await reset();
+  await add('Ice cream social', '2026-10-09', { start_time: '6 PM', source_name: 'The Wandering Cow' });
+  await news('Flight Friday', '2026-10-08 17:00');
+  await news('Milkshake Monday', '2026-10-08 16:00');
+  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Neighbors Route 75' });
+  const { rows: [{ id: flight }] } = await db.query(`select id from public.board_items where title = 'Flight Friday'`);
+  const all = ['Flight Friday', 'Ice cream social', 'Milkshake Monday', 'Taco Tuesday'];
+  await signIn(YOU);
+  await db.query('select public.set_not_interested($1)', [flight]);
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Ice cream social', 'Milkshake Monday', 'Taco Tuesday']);
+  // Someone else still sees it, and can't read your hide.
+  await signIn('00000000-0000-0000-0000-0000000000c9');
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), all);
+  assert.deepEqual((await db.query('select item_id from public.news_hides')).rows, [], "nobody reads another's hides");
+  // Undo brings it back.
+  await signIn(YOU);
+  await db.query('select public.set_not_interested($1, false)', [flight]);
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), all);
+  // Mute names the place as its card does, and takes its news and its Events.
+  assert.equal((await db.query('select public.mute_host($1) as host', [flight])).rows[0].host, 'The Wandering Cow');
+  assert.deepEqual((await db.query('select name from public.feed_mutes')).rows, [{ name: 'The Wandering Cow' }]);
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Taco Tuesday']);
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  await assert.rejects(db.query('select public.set_not_interested($1)', [flight]));
+  await db.exec('reset role');
+});
+
 test('a news item shows its place\'s logo before its photo', async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
