@@ -80,6 +80,7 @@ from db import DbError
 
 SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
+TAG_MAX = 5  # interests an Event carries at most (onboarding 21)
 TOWN = "st-joseph-mn"  # daily_standouts.town, as town_status names it
 STANDOUTS = 9
 THIN = 120        # characters: an About under this says less than a sentence
@@ -502,7 +503,7 @@ def untagged(out, today):
 
 def plan_tags(lines, events, known):
     """The cheap model's lines as writes: only Events it was given, only known interests, each
-    once, in the model's order, and a draw of 1, 2 or 3. An Event it didn't answer stays untagged
+    once, in the model's order, at most TAG_MAX, and a draw of 1, 2 or 3. An Event it didn't answer stays untagged
     for tomorrow; one with no usable draw is read again tomorrow for it."""
     given, known, writes = {e["id"]: e for e in events}, set(known), {}
     for ln in lines:
@@ -517,7 +518,7 @@ def plan_tags(lines, events, known):
             continue
         if not isinstance(ln.get("interests"), list):
             continue
-        tags = list(dict.fromkeys(t for t in ln["interests"] if t in known))
+        tags = list(dict.fromkeys(t for t in ln["interests"] if t in known))[:TAG_MAX]
         write = {"interests": tags}
         if ln.get("draw") in (1, 2, 3):
             write["draw"] = ln["draw"]
@@ -949,6 +950,9 @@ def selftest():
                    "tags keep known interests once each and a draw of 1-3, fill an empty category, and skip Events not given or not answered"))
     checks.append((plan_tags([{"id": "e1", "interests": [], "draw": 1}], events, ["dining"]) == {"e1": {"interests": [], "draw": 1}},
                    "an Event nothing fits is tagged with none, so it isn't read again"))
+    checks.append((plan_tags([{"id": "e2", "interests": ["bars", "live_music", "dining", "faith", "games", "talks"]}], events,
+                             ["bars", "live_music", "dining", "faith", "games", "talks"])["e2"]["interests"]
+                   == ["bars", "live_music", "dining", "faith", "games"], "an Event keeps 5 interests at most, the model's first"))
     words = plan_tags([{"id": "e1", "interests": ["dining"], "draw": 2, "what": "  cross  country meet. "},
                        {"id": "t1", "interests": ["faith"], "draw": 3, "what": "Lecture"},
                        {"id": "t2", "interests": ["faith"], "draw": 3, "what": "A talk about a lot of things"},

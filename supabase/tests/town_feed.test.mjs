@@ -2246,6 +2246,18 @@ test("a City meeting that matches no board reaches only the City's followers", a
   assert.deepEqual(await reasons('2026-10-08 12:00'), [['Special Meeting', 'follow', CITY]]);
 });
 
+test('a City meeting reaches those who picked Town meetings, lifted by it, as following the City does (onboarding 21)', async () => {
+  await reset();
+  const council = await meeting('City Council Meeting', '2026-10-09');
+  await db.query(`update public.club_events set interests = '{town_meetings}', interests_tagged_at = now() where id = $1`, [council]);
+  await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
+  await signIn(ME, ['town_meetings', 'live_music', 'outdoors']);
+  assert.deepEqual(await reasons('2026-10-08 12:00'), [['Fall fair', 'tomorrow', null],
+    ['City Council Meeting', 'interest', 'town_meetings']], 'in, and still under the fair at x 0.3');
+  await signIn(YOU, ['live_music', 'outdoors', 'dining']);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'not picked and following nothing City: out');
+});
+
 test("the City's and Joetown's other Events lift for their followers; a Place you follow is named first", async () => {
   await reset();
   await add('Pilates class', '2026-10-12', { start_time: '6 PM' });

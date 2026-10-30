@@ -13,17 +13,41 @@ empty) and `category` (one interest the writer already gave it, or null).
 ## How to tag
 
 - Tag what the Event is about, as a neighbour would say it: a trivia night at a taproom is
-  `bars`; a fall concert by the college choir is `live_music`; a fish fry at a church is
-  `dining` and `faith`; a 5K fun run for a school is `play_sports` and `families_kids`.
-- As many interests as it is really about, and no more: most Events have one or two, a few
-  have three or four. Every extra tag shows the Event to people who may not care, so leave
+  `games` and `bars`; a fall concert by the college choir is `live_music` and `campus`; a fish
+  fry at a church is `dining` and `faith`; a 5K fun run for a school is `play_sports` and
+  `families_kids`.
+- At least 1 interest and at most 5, only ones it is really about: most Events have one or two,
+  a few have three or four. Every extra tag shows the Event to people who may not care, so leave
   out what is only nearby or possible ("people might bring kids" is not `families_kids`).
-- `families_kids` means made for children or families: story time, a kids' craft, trick or
-  treat, a family day. A school's board meeting is not.
-- Games of any sport, at any level, are `watch_sports`.
-- Meetings of a city council, board or commission fit no interest: an empty list.
+- Only ids from the list. When nothing fits well, the one that fits best.
+
+What some interests cover (BP app docs/plans/onboarding, tickets 14, 15 and 21):
+
+- `town_meetings`: meetings of a city council, school board, board, commission or committee,
+  and a club's business meeting. A city's other dates (compost site hours, a food program) are
+  what they are about, not this.
+- `campus`: put on by, or held at, the College of Saint Benedict or Saint John's University
+  (CSB, SJU, their libraries, Outdoor U, School of Theology, athletics), always with what it is
+  about: a CSB volleyball game is `watch_sports` and `campus`.
+- `games`: games and trivia to play, not sports: trivia, bingo, a meat raffle, board and card
+  games, puzzles, a knowledge bowl or math league meet. Bingo and meat raffles are never
+  `dining` unless a meal is the point.
+- `talks`: lectures, talks, panels, classes and trainings. A lecture at a church or by a monastery
+  is `talks`, and `faith` only when faith is its subject.
+- `books`: the library, reading, book clubs and authors. A craft or a game at the library is
+  `crafts` or `games`, not `books`, unless it is about books.
+- `crafts`: making things: wreaths, knitting, a craft class, a repair clinic. `art_theater` is
+  art to look at and shows to watch: exhibits, plays, musicals, dance shows.
+- `markets`: farmers markets, craft fairs to shop, and store events: sales, a shop's open house
+  or holiday launch, Small Business Saturday. A store's party is `markets`, not `festivals`.
+- `festivals`: town festivals, fairs, parades and holidays the town celebrates together.
+- `families_kids`: made for children or families: story time, a kids' craft, trick or treat, a
+  family day. A school's board meeting is not.
+- `watch_sports`: games and meets of any sport, at any level. `play_sports`: ones you take part
+  in: a fun run, a league, open gym.
+- `health`: fitness, yoga, wellness and health classes. `volunteering`: giving, fundraisers,
+  drives and volunteer days.
 - Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
-- Only ids from the list. When nothing fits, an empty list.
 
 ## How much it draws
 
