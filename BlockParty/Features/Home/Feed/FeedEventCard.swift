@@ -317,7 +317,7 @@ struct FeedEventCard: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     // What a photo rubber-banding sideways shows beside it: the ink it loads on;
                     // beside the white game card, white.
-                    .background(item.game == nil ? Hue.ink : Hue.surface)
+                    .background(item.game == nil ? Hue.ink : Hue.surface.onLightCanvas)
                     .clipped()
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
@@ -532,7 +532,7 @@ struct FeedEventCard: View {
             }
         } label: {
             FeedActionGlyphView(glyph: .heart, size: Self.photoHeartGlyph, filled: hearted)
-                .foregroundStyle(hearted ? Hue.heart : onWhite ? Hue.ink : .white)
+                .foregroundStyle(hearted ? Hue.heart : onWhite ? Hue.ink.onLightCanvas : .white)
                 .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
                     glyph.scaleEffect(motionIsReduced ? 1 : scale)
                 } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }

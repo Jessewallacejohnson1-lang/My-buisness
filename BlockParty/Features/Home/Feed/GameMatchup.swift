@@ -18,8 +18,6 @@ struct GameMatchup: View {
     let game: Game
     /// The row of logos this far below the art's top: the card's 62 pt, or the Event page band's (ticket 05).
     var rowTop: CGFloat = Metric.rowTop
-    /// On a card the art rubber-bands sideways; the Event page's band holds still.
-    var swipes = true
 
     /// The mock's Picked row, on its 370 pt card (BP app references/game-card/mock.html).
     enum Metric {
@@ -37,18 +35,8 @@ struct GameMatchup: View {
     }
 
     var body: some View {
-        if swipes {
-            // One page that still rubber-bands, as a one-photo card does, so a sideways swipe moves
-            // it instead of reaching the link under it, which opens the Event page (event-card 02).
-            ScrollView(.horizontal, showsIndicators: false) {
-                art.containerRelativeFrame(.horizontal)
-            }
-            .scrollBounceBehavior(.always, axes: .horizontal)
-            // The card's title says the matchup ("Football, Saint John's versus Gustavus").
-            .accessibilityHidden(true)
-        } else {
-            art.accessibilityHidden(true)
-        }
+        // The page's title says the matchup.
+        art.accessibilityHidden(true)
     }
 
     /// The two schools' colors, the left one's to 40% of the width, the right one's from 60%.
@@ -128,20 +116,30 @@ struct WhiteGameCard: View {
     }
 
     var body: some View {
-        // One page that rubber-bands sideways, as a one-photo card does, so a sideways swipe moves
-        // it instead of reaching the link under it (event-card 02).
-        ScrollView(.horizontal, showsIndicators: false) {
-            TimelineView(.periodic(from: .now, by: game.live == nil ? 60 : 1)) { context in
-                card(at: context.date)
+        // On the minute, as the photo cards' chip turns to Now; each second while a score comes in.
+        let minute = Calendar.current.dateInterval(of: .minute, for: .now)?.start ?? .now
+        TimelineView(.periodic(from: minute, by: game.live == nil ? 60 : 1)) { context in
+            // One page that rubber-bands sideways, as a one-photo card does, so a sideways swipe moves
+            // it instead of reaching the link under it (event-card 02).
+            ScrollView(.horizontal, showsIndicators: false) {
+                card(at: context.date).containerRelativeFrame(.horizontal)
             }
-            .containerRelativeFrame(.horizontal)
+            .scrollBounceBehavior(.always, axes: .horizontal)
+            // One element, so the card's link reads it: a scroll view hides what's inside it from the link.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spoken(at: context.date))
         }
-        .scrollBounceBehavior(.always, axes: .horizontal)
-        // One element, so the card's link reads it ("Football, Saint John's versus Gustavus, Sat, Oct 31 ·
-        // 1 PM, Clemens Stadium"): a scroll view hides what's inside it from the link.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([game.spoken, status(at: .now)?.text, place].compactMap { $0 }.filter { !$0.isEmpty }
-            .joined(separator: ", "))
+        // White in dark mode too, as the team-color band it replaced was pinned light: it is the card's look.
+        .environment(\.colorScheme, .light)
+    }
+
+    /// "Football, Saint John's versus Gustavus, Sat, Oct 31 · 1 PM, Clemens Stadium"; "Live, Football,
+    /// Saint John's 14, Concordia 7, Q3, …"; the final's score and "final" are `Game.spoken`'s own.
+    private func spoken(at date: Date) -> String {
+        let live = game.live?.isLive(at: date) == true
+        let before = game.final == nil && game.live == nil ? status(at: date)?.text : nil
+        return [live ? "Live" : nil, game.spoken, before, place].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 
     private func card(at date: Date) -> some View {
@@ -237,7 +235,7 @@ struct WhiteGameCard: View {
     private func team(_ side: Int) -> some View {
         let team = game.teams[side]
         return VStack(spacing: 8) {
-            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(26), disc: false)
+            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(30), disc: false)
                 .frame(width: Metric.logo, height: Metric.logo)
             Text(team.short)
                 .font(.sansSemibold(13))
@@ -427,8 +425,7 @@ struct LogoDisc: View {
     /// A host's picture beside its name (Town cards, Town news): the logo's empty border trimmed,
     /// and a round badge filling the whole circle (`LogoFit`, Jesse 2026-10-24).
     var fits = false
-    /// On the white game card the logo stands bare, and only the letter keeps a round, a grey one
-    /// (game-card 06).
+    /// On the white game card the logo, or its letter, stands bare (game-card 06).
     var disc = true
 
     @ObservedObject private var logos = POILogoCache.shared
@@ -438,8 +435,8 @@ struct LogoDisc: View {
         let fit = fits ? loaded.flatMap { image in logo.map { LogoFit.of(image, url: $0) } } : nil
         let image = fit?.image ?? loaded
         ZStack {
-            if disc || image == nil {
-                Circle().fill(disc ? .white : Hue.fill)
+            if disc {
+                Circle().fill(.white)
             }
             if let image, fit?.round == true {
                 Image(uiImage: image)
