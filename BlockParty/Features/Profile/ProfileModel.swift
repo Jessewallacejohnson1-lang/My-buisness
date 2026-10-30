@@ -36,8 +36,8 @@ final class ProfileModel: ObservableObject {
     @Published var loaded = false
 
     private let auth: AuthStore
-    private var profiles: ProfileAPI { ProfileAPI(auth: auth) }
-    private var storage: Storage { Storage(auth: auth) }
+    private var profiles: ProfileAPI { ProfileAPI(auth: auth, send: send) }
+    private var send = Supabase.Send.live
     private var writePlans: ((Bool) async throws -> Void)?
     private var writeSuggest: ((Bool) async throws -> Void)?
     /// The switches with a write out, so taps queue behind it.
@@ -56,6 +56,8 @@ final class ProfileModel: ObservableObject {
         #if DEBUG
         // `-town-samples`: the switches show on and their taps write nowhere, as Join's do;
         // `-town-offline`: every tap fails, as with no network.
+        // `-town-offline`: Save fails as with no signal too, and sends nothing.
+        if LaunchFlags.backend == .offline { send = .offline }
         if writePlans == nil, LaunchFlags.backend != .live {
             let offline = LaunchFlags.backend == .offline
             plansToFriends = true
@@ -119,27 +121,22 @@ final class ProfileModel: ObservableObject {
     func save(name: String, image: UIImage?, interests: [String],
               bio: String? = nil, cover: UIImage? = nil) async -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // A newly picked photo must upload successfully; otherwise we'd save a
-        // profile that silently dropped the avatar the user chose.
-        var newUrl = avatarUrl
-        if let image, let data = Self.avatarJPEG(image), let uid = auth.userId {
-            guard let uploaded = await storage.uploadAvatar(data, userId: uid) else { return false }
-            newUrl = uploaded
-        }
-        // A cover, as wide as the phone at 3x (`coverJPEG`), into the same folder.
-        var newCover: String?
-        if let cover, let data = Self.coverJPEG(cover), let uid = auth.userId {
-            guard let uploaded = await storage.uploadAvatar(data, userId: uid, name: "cover") else { return false }
-            newCover = uploaded
-        }
         let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-
+        var newUrl = avatarUrl
+        var newCover: String?
         do {
+            // A newly picked photo must upload successfully; otherwise we'd save a
+            // profile that silently dropped the avatar the user chose.
+            if let image, let data = Self.avatarJPEG(image) { newUrl = try await profiles.uploadPhoto(data) }
+            // A cover, as wide as the phone at 3x (`coverJPEG`), into the same folder.
+            if let cover, let data = Self.coverJPEG(cover) {
+                newCover = try await profiles.uploadPhoto(data, name: "cover")
+            }
             try await profiles.upsert(displayName: trimmed.isEmpty ? nil : trimmed,
                                       avatarUrl: newUrl, interests: interests, onboarded: false,
                                       bio: canDescribe ? newBio : nil, coverUrl: canDescribe ? newCover : nil)
         } catch {
+            Log.network("Profile.save: \(error)")
             return false
         }
 

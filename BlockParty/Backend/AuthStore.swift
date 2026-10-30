@@ -160,7 +160,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// refresh token is also dead, refresh() clears the session and the auth gate
     /// routes back to Login; if the token had merely expired in a network-latency
     /// window, this silently re-arms a valid one instead of signing the user out.
-    /// Wired via SupabaseHTTP.onUnauthorized (set once at launch).
+    /// Called by `Supabase` on a 401 (`TokenProviding`).
     func handleUnauthorized() async {
         guard session != nil else { return }
         try? await refresh()

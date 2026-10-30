@@ -98,12 +98,8 @@ enum PlaceSeeder {
         // 3. Upsert into Supabase (admin-only; RLS `is_admin()`).
         guard !rows.isEmpty else { return summary }
         do {
-            let token = try await auth.validAccessToken()
-            let body = try JSONSerialization.data(withJSONObject: rows)
-            _ = try await SupabaseHTTP.rest("places", method: "POST",
-                                            query: "on_conflict=place_id",
-                                            accessToken: token, body: body,
-                                            prefer: "resolution=merge-duplicates,return=minimal")
+            try await Supabase(auth: auth).rest("places", method: "POST", [("on_conflict", "place_id")], body: rows,
+                                                prefer: "resolution=merge-duplicates,return=minimal")
             summary.seeded = rows.count
         } catch {
             print("[PlaceSeeder] upsert failed: \(error.localizedDescription)")
