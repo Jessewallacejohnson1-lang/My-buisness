@@ -146,12 +146,13 @@ final class YouCalendarTests: XCTestCase {
     /// a failed Join that turns back never shows.
     func testRealLifeActionsDriveWhatShows() async throws {
         let first = YouCalendar.firstDay(of: town("2026-10-14 12:00"))
-        var fail = false
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
-                                      setGoing: { _, _ in if fail { throw SupabaseError(message: "no", status: 403) } },
+                                      setGoing: { id, _ in if id == "refused" { throw SupabaseError(message: "no", status: 403) } },
                                       setHeart: { _, _ in }, setSave: { _, _ in }, knownEvents: { _ in [] })
         var card = FeedCardItem(row("card", "2026-10-20", "6 PM"))
         card.isJoined = false
+        var refused = FeedCardItem(row("refused", "2026-10-21", "6 PM"))
+        refused.isJoined = false
         func shown() -> [String] {
             YouCalendar.going(read: [], tapped: Array(actions.goingTapped.values),
                               isGoing: { actions.going($0).isGoing }, first: first).map(\.id)
@@ -160,11 +161,9 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(shown(), ["card"])
         actions.toggleGoing(card)
         XCTAssertEqual(shown(), [])
-        try await Task.sleep(for: .milliseconds(50))
-        fail = true
-        actions.toggleGoing(card)
-        XCTAssertEqual(shown(), ["card"])
-        try await Task.sleep(for: .milliseconds(200))
+        actions.toggleGoing(refused)
+        XCTAssertEqual(shown(), ["refused"])
+        try await waitWhile(shown() != [])
         XCTAssertEqual(shown(), [])
     }
 

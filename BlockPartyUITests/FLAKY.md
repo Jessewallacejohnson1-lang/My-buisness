@@ -10,11 +10,14 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
-- `RealLifeActionsTests.testTheLastHeartTapWins` · red once on main at 30e6168 (2026-10-25), green
-  on the next run with no change near hearts · cause not found
-
 ## Fixed
 
+- 2026-10-30 · `RealLifeActionsTests.testTheLastHeartTapWins` (red at 30e6168, 2026-10-25),
+  `RealLifeActionsTests.testAClosedPageCountsNoShake` (red at 54a27ac, 2026-10-21, and fb5cedb) and
+  `YouCalendarTests.testRealLifeActionsDriveWhatShows` (red at b2331ba) · each slept a fixed time
+  (150 ms, 720 ms, 50 + 200 ms) that a slow GitHub runner outlasted · they wait on the state they
+  check (`waitWhile`, at most 5 s), and the You test's refused Join is its own Event, so no write
+  still in flight can fail · fix in this commit
 - 2026-10-25 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red on 4 main runs
   in a row from ee03ef6 · a quick drag flung the feed until the title sat under the status bar,
   where iOS keeps the touch · fix 6484bce (the drag stops before it swipes)

@@ -228,7 +228,7 @@ final class RealLifeActionsTests: XCTestCase {
 
         actions.toggleGoing(item)
         actions.pageClosed(item.id)
-        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        try await waitWhile(actions.going(item).isGoing)
         XCTAssertFalse(actions.going(item).isGoing, "the card goes back to the truth")
         XCTAssertEqual(actions.failureCount(item.id), 0, "no shake, and so no buzz, once the page has gone")
     }
@@ -453,7 +453,7 @@ final class RealLifeActionsTests: XCTestCase {
         actions.toggleHeart(item)
         try await Task.sleep(for: .milliseconds(5))
         actions.toggleHeart(item)
-        try await Task.sleep(for: .milliseconds(150))
+        try await waitWhile(server.hearts.count < 2)
         XCTAssertEqual(server.hearts, [true, false])
         XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
     }
@@ -1148,9 +1148,13 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(FollowWords.followedBy(["Sam Rivera", "Ana Lee", "Dee Moss"], count: 7),
                        "Followed by Sam and 6 others")
     }
+}
 
-    /// Polls every 5 ms until `condition` is false, for at most 5 s.
-    private func waitWhile(_ condition: @autoclosure () -> Bool) async throws {
+extension XCTestCase {
+    /// Polls every 5 ms until `condition` is false, for at most 5 s: a test waits on the state it
+    /// checks, never a fixed time that GitHub's slower runner can outlast.
+    @MainActor
+    func waitWhile(_ condition: @autoclosure @escaping () -> Bool) async throws {
         let start = ContinuousClock.now
         while condition(), ContinuousClock.now - start < .seconds(5) {
             try await Task.sleep(for: .milliseconds(5))
