@@ -2,13 +2,15 @@
 //  MapModel.swift
 //  Block Party — the map's view-model: today's events at their real spots, kept live.
 //
-//  Today's events are the Town feed's (`get_town_feed`, the one read iOS and Android
-//  share), so the map shows what the Town feed shows, with the same hearts and Going,
-//  and the card opens the same Event page. Their spots come from `club_events.lat,lng`
-//  (BP app references/map-reset). Owns a single RealtimeClient on club_events: a change
-//  that touches today re-reads (debounced), so a new happening gets its bubble and a
-//  deleted one goes, with no refresh. Tears down on disappear, re-reads and resubscribes
-//  on foreground, and rolls over at midnight.
+//  Today's events are the Town feed's own cards (`TownFeed`, already read when the map
+//  opens from the Town bar), so the map shows what the Town feed shows, with the same
+//  hearts and Going, hides and mutes, and adds no second feed read: `get_town_feed` can
+//  take 8 s for a new account (2026-10-30). Each event's spot comes from
+//  `club_events.lat,lng` (BP app references/map-reset), read once per event. Owns a
+//  single RealtimeClient on club_events: a change that touches today asks the Town feed
+//  to read again (debounced), so a new happening gets its bubble and a deleted one goes,
+//  with no refresh. Tears down on disappear, re-reads and resubscribes on foreground, and
+//  rolls over at midnight.
 //
 
 import Foundation
@@ -18,18 +20,18 @@ import CoreLocation
 @MainActor
 final class MapModel: ObservableObject {
 
-    /// Whether today's events have been read. The map always draws; this only says
-    /// whether its one pill offers a retry.
-    enum LoadState: Equatable { case loading, loaded, offline, error }
-
     @Published private(set) var today = TodayPlaces.none
-    @Published private(set) var state: LoadState = .loading
     /// A 1-minute wall-clock heartbeat, so a bubble that ends drops off and "Nothing else
     /// today" comes on with no data change.
     @Published private(set) var clockTick = 0
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
+
+    private weak var feed: TownFeed?
+    /// Each of today's events' spot, once read; `asked` holds every id read, found or not.
+    private var spots: [String: CLLocationCoordinate2D] = [:]
+    private var asked: Set<String> = []
 
     private var realtime: RealtimeClient?
     private var currentDate = Town.day(.now)
@@ -38,18 +40,17 @@ final class MapModel: ObservableObject {
     private var midnightTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
-    /// Monotonic token so an older in-flight load can't clobber a newer one's result:
-    /// load() is fired from start/foreground/retry/resync/midnight and its reads suspend.
-    private var loadGeneration = 0
 
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
 
-    func start(auth: AuthStore) {
+    func start(auth: AuthStore, feed: TownFeed) {
         if self.auth == nil { self.auth = auth }
+        self.feed = feed
         guard !started else { return }
         started = true
         currentDate = Town.day(.now)
-        Task { await load(initial: true) }
+        show(feed.cards)
+        if feed.entries == nil { readAgain() }
         subscribe()
         scheduleMidnightRollover()
         startClock()
@@ -80,7 +81,7 @@ final class MapModel: ObservableObject {
     func onForeground() {
         guard started else { return }
         currentDate = Town.day(.now)
-        Task { await load(initial: false) }
+        readAgain()
         subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
         startClock()
@@ -93,33 +94,36 @@ final class MapModel: ObservableObject {
         clockTask?.cancel(); clockTask = nil
     }
 
-    func retry() { Task { await load(initial: true) } }
-
     // MARK: Data
 
-    private func load(initial: Bool) async {
-        guard let api else { return }
-        loadGeneration += 1
-        let gen = loadGeneration
-        if initial && today.events.isEmpty { state = .loading }
-        do {
-            let day = Town.day(.now)
-            let events = try await api.getTownFeed().compactMap { line -> FeedCardItem? in
-                guard case .event(let row) = line else { return nil }
-                let card = TownFeed.card(row)
-                return card.eventDate == day ? card : nil
+    /// The Town feed's cards, as they change: today's, at the spots read for them. A new
+    /// event's spot is read once; a failed read is asked again at the next change.
+    func show(_ cards: [FeedCardItem]) {
+        let day = Town.day(.now)
+        let events = cards.filter { $0.eventDate == day }
+        today = TodayPlaces(events: events, spots: spots)
+        let new = events.map(\.id).filter { !asked.contains($0) }
+        guard !new.isEmpty, let api else { return }
+        asked.formUnion(new)
+        Task { @MainActor [weak self] in
+            do {
+                let found = try await api.eventSpots(new)
+                guard let self else { return }
+                self.spots.merge(found) { $1 }
+                self.today = TodayPlaces(events: self.today.events, spots: self.spots)
+                // Warm the bubbles' pictures so each pops in with its photo, not empty glass.
+                POILogoCache.shared.prefetch(self.today.bubbles(now: TodayBubbleClock.now()).compactMap { $0.picture?.url })
+            } catch {
+                self?.asked.subtract(new)
             }
-            let spots = try await api.eventSpots(events.map(\.id))
-            guard gen == loadGeneration else { return }   // a newer load superseded us
-            today = TodayPlaces(events: events, spots: spots)
-            state = .loaded
-            // Warm the bubbles' pictures so each pops in with its photo, not empty glass.
-            POILogoCache.shared.prefetch(today.bubbles(now: TodayBubbleClock.now()).compactMap { $0.picture?.url })
-        } catch {
-            guard gen == loadGeneration else { return }
-            // Stale but useful beats a pill: keep what's on the map.
-            if today.events.isEmpty { state = error is URLError ? .offline : .error }
         }
+    }
+
+    /// The Town feed reads again, and every spot of today's with it (the morning job may
+    /// have set one since).
+    private func readAgain() {
+        asked.removeAll()
+        Task { await feed?.refresh() }
     }
 
     // MARK: Realtime
@@ -159,7 +163,7 @@ final class MapModel: ObservableObject {
         resyncTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
-            await self?.load(initial: false)
+            self?.readAgain()
         }
     }
 
@@ -172,7 +176,7 @@ final class MapModel: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled, let self, self.started else { return }
             self.currentDate = Town.day(.now)
-            await self.load(initial: false)
+            self.readAgain()
             self.scheduleMidnightRollover()          // arm the next day
         }
     }

@@ -6,7 +6,7 @@
 //  references/map-reset, 2026-10-30): the map shows only today's events, one glass photo
 //  bubble per real spot (TodayBubbles.swift), sized by the zoom; a tap raises Airbnb's map
 //  card (MapEventCard), and the card opens the Event page on the map's own stack, so Back
-//  comes back to the map. Bubbles that touch on screen merge into one, whose card pages
+//  comes back to the map. Bubbles that touch on screen (tags included) merge into one, whose card pages
 //  through all their events. The chrome is two circles, close and recenter, the compass
 //  once the map is turned, and one pill that says the day is over or the read failed.
 //  Business pins, chips, search, the help button, the town pill and the bottom sheet went
@@ -31,7 +31,7 @@ struct SJMapView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(RealLifeActions.self) private var actions
+    @Environment(TownFeed.self) private var townFeed
     @StateObject private var model = MapModel()
 
     /// The zoom the map opens at: downtown and Saint Ben's fill the screen, so their bubbles
@@ -80,7 +80,7 @@ struct SJMapView: View {
             .navigationDestination(for: FeedCardItem.self) { FeedEventDetailDestination(item: $0) }
         }
         .onAppear {
-            model.start(auth: auth)
+            model.start(auth: auth, feed: townFeed)
             Haptics.prepare()
         }
         .onDisappear { model.stop() }
@@ -91,8 +91,7 @@ struct SJMapView: View {
             default:          break
             }
         }
-        // Hearts and Going start from what the read said, as the Town feed's cards do.
-        .onChange(of: model.today.events) { _, events in actions.read(events) }
+        .onChange(of: townFeed.cards) { _, cards in model.show(cards) }
     }
 
     // MARK: Map
@@ -157,20 +156,21 @@ struct SJMapView: View {
         let now = TodayBubbleClock.now()
         let bubbles = model.today.bubbles(now: now)
         let merged = map.map { map in
+            // Closer than a bead and a half: their time tags would run into each other.
             TodayPlaces.merge(bubbles, at: bubbles.map { map.point(for: $0.coordinate) },
-                              within: zoom.bead, now: now)
+                              within: zoom.bead * 1.5, now: now)
         } ?? bubbles
         let wasOpen = selected
         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) { shown = merged }
+        #if DEBUG
+        debugOpenBubble()
+        #endif
         guard let wasOpen, selected == nil else { return }
         if let into = merged.first(where: { $0.events.contains { $0.id == wasOpen.event.id } }) {
             selectedID = into.id
         } else {
             select(nil)
         }
-        #if DEBUG
-        debugOpenBubble()
-        #endif
     }
 
     // MARK: Chrome
@@ -202,25 +202,22 @@ struct SJMapView: View {
         .padding(.top, 8)
     }
 
-    /// The one pill: the read failed (tap to try again), or every one of today's events is over.
+    /// The one pill: the Town feed's read failed with nothing kept (tap to try again, as the
+    /// Town bar's pill words it), or every one of today's events is over.
     @ViewBuilder
     private var pill: some View {
-        let now = TodayBubbleClock.now()
         let _ = model.clockTick
-        switch model.state {
-        case .offline, .error:
+        if townFeed.entries == nil, townFeed.failed {
             Button {
                 Haptics.light()
-                model.retry()
+                Task { await townFeed.reload() }
             } label: {
-                pillText(model.state == .offline ? "You're offline" : "Couldn't load")
+                pillText(FeedStateCopy.offline)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Tries again")
-        case .loaded where model.today.dayIsOver(now: now):
+            .accessibilityHint(FeedStateCopy.retryAction)
+        } else if townFeed.entries != nil, model.today.dayIsOver(now: TodayBubbleClock.now()) {
             pillText("Nothing else today")
-        default:
-            EmptyView()
         }
     }
 

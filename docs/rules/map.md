@@ -15,11 +15,13 @@ nothing else.
   events is over, or "You're offline" / "Couldn't load" (tap to try again). The Mapbox wordmark is
   hidden and its ⓘ attribution kept (Jesse accepted the ToS risk, 2026-08-14). Its own
   `NavigationStack` pushes the Event page, so Back returns to the map.
-- **`MapModel`** (`@MainActor`) — today's events are the Town feed's (`get_town_feed`, filtered to
-  today), so the map shows what the Town feed shows, with the same hearts and Going; their spots are
-  `club_events.lat,lng` (`CommunityAPI.eventSpots`). Owns the `RealtimeClient` on `club_events`: a
-  change touching today re-reads after 300 ms. Handles teardown, background socket-drop and
-  foreground resubscribe, and the midnight rollover.
+- **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
+  before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
+  hides and mutes, and makes no second `get_town_feed` read (8 s for a new account, 2026-10-30).
+  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Owns the
+  `RealtimeClient` on `club_events`: a change touching today asks the Town feed to read again after
+  300 ms. Handles teardown, background socket-drop and foreground resubscribe, and the midnight
+  rollover.
 - **`TodayPlaces`** — one bubble per exact spot, its events ordered on-now first
   (`TodayBubbleRules.order`); events without a spot stay off. `merge` folds bubbles that touch on
   screen into one, run when the camera settles (`onMapIdle`).
