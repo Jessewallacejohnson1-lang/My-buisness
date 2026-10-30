@@ -1,8 +1,9 @@
 # Block Party — the mark
 
 The app icon (Oct 29, 2026) is Jesse's Icon Composer file `BlockParty/AppIcon.icon`:
-`Bp!` in black on solid BP yellow (the `!` is Fraunces Black Soft's stem over the
-logo's own period, leaning 12°, after Yahoo's) `#FCE804`, flat like Spotify's, letters lifted
+`Bp!` in black on solid BP yellow (the B is the logo's own; the p is drawn to the logo's
+small letters, 75% of the B's height with stems as heavy; the `!` is Fraunces Black Soft's
+stem over a dot the size of the logo's period, leaning 12°, after Yahoo's) `#FCE804`, flat like Spotify's, letters lifted
 slightly by Apple's edge highlight and a 25% neutral shadow, with dark, tinted and clear looks. Edit it in Icon Composer.
 `LaunchMark` (the icon inside the app) is its Default export inset 36 px, corners
 filled flat yellow. It replaced the stacked `Block` / `Party.` of Oct 8 and the
@@ -28,7 +29,7 @@ python3 scripts/brand/wordmark.py docs/brand/source-logo-1254.png
 |---|---|---|
 | `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 952² | RGB, Icon Composer's Default export inset 36 px, corners filled flat yellow (not from this script since 2026-10-08) |
 | `Assets.xcassets/Wordmark.imageset/Wordmark.png` | 1051 × 216 | RGBA, the letterforms alone, **template-rendered** |
-| `Assets.xcassets/DailyMark.imageset/DailyMark.svg` | vector, 42.33 × 22.57 pt (viewBox 812 × 433) | the icon's own `AppIcon.icon/Assets/bp-mark.svg` paths, viewBox cropped to the letters, **template-rendered**: the Daily tab's icon (2026-10-29; not from this script, re-crop it whenever the .icon changes) |
+| `Assets.xcassets/DailyMark.imageset/DailyMark.svg` | vector, 39.15 × 22 pt (viewBox 751 × 422; its width is `TabBarMetric.dailyMarkWidth`) | the icon's own `AppIcon.icon/Assets/bp-mark.svg` paths, viewBox cropped to the letters, **template-rendered**: the Daily tab's icon (2026-10-29; not from this script, re-crop it whenever the .icon changes) |
 
 The script writes them into `docs/brand/`; move them into the asset catalog. It also
 leaves `clean-<n>.png`, the de-noised master it resamples from — an intermediate, not
