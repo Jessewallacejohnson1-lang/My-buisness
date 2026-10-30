@@ -74,6 +74,10 @@ def to_text(raw):
     head = raw[:600]
     if FEED.search(head) and "<html" not in head.lower():
         return feed_text(raw)
+    if "BEGIN:VCALENDAR" in head:
+        # A calendar folds a long line onto the next, which starts with a space (RFC 5545); trimming each
+        # line below would cut it there: Bound's "Adapted Floor Hockey: …Monticello v" (2026-10-30).
+        raw = re.sub(r"\r?\n[ \t]", "", raw)
     s = re.sub(r"(?is)<(script|style|noscript|svg|head)[^>]*>.*?</\1>", " ", raw)
     s = re.sub(r"(?i)<br\s*/?>|</(p|div|li|h[1-6]|tr|section|article)>", "\n", s)
     s = re.sub(r"(?s)<[^>]+>", " ", s)
@@ -244,6 +248,26 @@ def late(stop, grace=0):
     return stop is not None and time.monotonic() > stop + grace
 
 
+_held = {}
+
+
+def only_one(lock):
+    """False while another process holds `lock`: a second prepare started beside one still running (the
+    weekly social check of 2026-10-29 ran its parts in a loop and in the background, and spent 49 minutes
+    redoing pictures). Held until this process ends."""
+    import fcntl
+    if str(lock) in _held:
+        return True
+    f = open(lock, "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return False
+    _held[str(lock)] = f
+    return True
+
+
 def part_state():
     """What this run knows that the next part of a timed run (a new process) must too: each site's
     robots rules and Crawl-delay, each host's server, when each host and server was last asked (on
@@ -410,14 +434,32 @@ def selftest():
         (case(RuntimeError("HTTP Error 403: Forbidden"), "ical")[2] == "firecrawl" and calls == ["rawHtml"],
          "a refused feed is read raw"),
         (case("", "ical")[2] == "fetch" and not calls, "a short feed is not taken for a JavaScript page"),
+        ("SUMMARY:Adapted Floor Hockey: Monticello vs St. Cloud (CI)" in to_text(
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Adapted Floor Hockey: Monticello v\r\n s St. Cloud (CI)\r\n").splitlines(),
+         "a calendar's long line folded onto the next stays whole"),
         (one_bad_row_is_one_line(), "a row the database refuses is one report line; the rest are recorded"),
         (polite_across_parts(), "a timed run's next part reads no robots.txt again and waits out its Crawl-delay"),
+        (one_at_a_time(), "a second prepare beside one still running is refused, and runs once that one ends"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
     print(f"{len(checks) - len(failed)} passed, {len(failed)} failed")
     sys.exit(1 if failed else 0)
+
+
+def one_at_a_time():
+    """only_one against another process holding the lock, then after it ends."""
+    import subprocess, tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        lock = Path(tmp) / "prepare.lock"
+        hold = subprocess.Popen([sys.executable, "-c", "import fcntl, sys, time; f = open(sys.argv[1], 'w'); "
+                                 "fcntl.flock(f, fcntl.LOCK_EX); print(1, flush=True); time.sleep(30)", str(lock)],
+                                stdout=subprocess.PIPE)
+        hold.stdout.readline()
+        refused = not only_one(lock)
+        hold.kill(), hold.wait()
+        return refused and only_one(lock) and only_one(lock)
 
 
 def one_bad_row_is_one_line():

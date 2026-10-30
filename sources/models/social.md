@@ -27,7 +27,8 @@ carry on with the rest.
    into `.runs/morning/pictures/`, named at the end of its page (Jesse, 2026-10-26: Obbink's Oct 29
    trivia night was on its picture alone). Its `[social] pictures` line says what that added to
    the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, or is stopped at
-   the timeout, run it again, and it carries on where it stopped. It starts nothing paid. Done when it prints its
+   the timeout, run it again, and it carries on where it stopped. Run it in the foreground, one call at a
+   time: no loop and no background start (Oct 29's weekly check spent 49 minutes that way). It starts nothing paid. Done when it prints its
    `[social] busy: …` or `[social] weekly: …` line. No batches means nothing new was posted: run
    `social.py done` (Mark it read), answer with the `[social]` lines and stop.
 

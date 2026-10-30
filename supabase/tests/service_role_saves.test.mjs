@@ -152,3 +152,19 @@ test('tag, describe and standouts write onto the Event', async () => {
   assert.deepEqual(await asJob('read back', `select e.interests, e.draw, s.rank from public.club_events e
     join public.daily_standouts s on s.event_id = e.id`), [{ interests: ['outdoors'], draw: 3, rank: 1 }]);
 });
+
+test('finish: the morning report is one row a morning, the last finish kept, and no one in the app reads it', async () => {
+  // As PostgREST writes POST morning_reports?on_conflict=day with resolution=merge-duplicates.
+  const save = (report) => asJob('finish: morning report', `insert into public.morning_reports (day, report, saved_at)
+    values ($1, $2, now()) on conflict (day) do update set day = excluded.day, report = excluded.report,
+    saved_at = excluded.saved_at`, [day(0), report]);
+  await save('Morning watch, first finish');
+  await save('Morning watch, finish run again');
+  assert.deepEqual(await asJob('read back', 'select report from public.morning_reports'),
+                   [{ report: 'Morning watch, finish run again' }]);
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    await assert.rejects(db.query('select report from public.morning_reports'), /permission denied/, role);
+    await db.exec('reset role');
+  }
+});

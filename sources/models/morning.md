@@ -17,7 +17,8 @@ command's output and your answer.
 `[morning] fetched …` line. The changed pages are in batches in `.runs/morning/batches/`.
 
 **Read and judge.**
-- For each batch file, start one helper on the cheap model (Haiku), all at once, each with: "Read
+- For each batch file, start one helper on the cheap model (Haiku), at most 10 running at once
+  (the cloud refuses more: Oct 29's 53 at once lost six), each with: "Read
   `sources/models/flag.md` and follow it for the pages in `.runs/morning/batches/batch-N.txt`.
   Answer with the JSON lines only." Write their lines to `.runs/morning/flags.jsonl` (no
   batches: an empty file).
@@ -36,7 +37,7 @@ command's output and your answer.
 helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save refused` line
 ends the morning: answer with it.
 
-**Helpers.** Start them all at once:
+**Helpers.** Start them together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
   Answer with the JSON lines only." Their lines go to `.runs/morning/tags.jsonl`.

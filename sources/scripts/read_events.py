@@ -876,6 +876,8 @@ def bound_items(text, entry, src, today):
             name = re.sub(r"^Disney,\s*", "", quoted[1])
         if key and name.lower() in BOUND_GENERIC and get("X-BND-ACTIVITYNAME"):
             name = f"{bound_sport(get('X-BND-ACTIVITYNAME'))} {name}"
+        if key and re.search(r"\svs$", name):
+            continue  # "River Lakes vs" at West Fargo (Dec 29): a tournament game whose opponent isn't named yet
         start_at = start.isoformat()
         mark = dict(activity_team=bound_team(entry), activity_name=get("X-BND-ACTIVITYNAME") or None,
                     source_url=page_url(ev, src["url"]), source_uid=uid)
@@ -1568,6 +1570,7 @@ def t_gobound():
         ev("a18", "Wrestling:  vs  (Girls Varsity)", "wrestling", "Girls Varsity", "Wrestling", place=""),
         ev("a19", "Wrestling:", "wrestling", "Boys MS", "Wrestling"),
         ev("a20", "Basketball\\, Girls:  vs  (Girls Varsity)", "basketball", "Girls Varsity", "Basketball\\, Girls"),
+        ev("a21", "Hockey\\, Boys: River Lakes vs  (Varsity)", "hockey", "Varsity", "Boys Hockey", geo="46.867588;-96.880953"),
     ])
     src = {"url": "https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical", "trust": "official"}
     got = bound_items(ics, {"_name": "Apollo High School"}, src, date(2026, 10, 25))
