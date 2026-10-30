@@ -2,8 +2,9 @@
 -- picking it brings the City's meetings into the Town feed, as following the City does. A City
 -- meeting (draw 1 from a City's calendar) reached only those following that City or the meeting's
 -- board; it now also reaches anyone who picked Town meetings, lifted by that interest and still
--- x 0.3 as every meeting is. School board meetings were never held back, so the tag is enough for them.
--- get_town_feed is 20261030000956_news_menu.sql line for line but for its onboarding-21 line, with the
+-- x 0.3 as every meeting is. Only one tagged Town meetings: the City's compost site hours are draw 1 too.
+-- School board meetings were never held back, so the tag is enough for them.
+-- get_town_feed is 20261030000956_news_menu.sql line for line but for its onboarding-21 lines, with the
 -- same columns, so it is replaced in place.
 
 create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
@@ -205,8 +206,9 @@ as $$
       -- A City meeting reaches only those who follow that City or the meeting's board (town-feed 05, 27),
       -- or are Going to it or saved it, which always stay (ticket 05).
       and (not mt.is_meeting
-           -- Or picked Town meetings (onboarding 21).
-           or (select 'town_meetings' = any(me.interests) from me)
+           -- Or picked Town meetings, for one the tagger calls a meeting (onboarding 21): the City's
+           -- compost site hours are draw 1 too.
+           or ('town_meetings' = any(e.interests) and (select 'town_meetings' = any(me.interests) from me))
            or exists (select 1 from my_pages p where p.source = lower(e.source_name))
            or exists (select 1 from my_boards b where b.id = mt.board)
            or exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid())

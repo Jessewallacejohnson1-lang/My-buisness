@@ -2250,10 +2250,12 @@ test('a City meeting reaches those who picked Town meetings, lifted by it, as fo
   await reset();
   const council = await meeting('City Council Meeting', '2026-10-09');
   await db.query(`update public.club_events set interests = '{town_meetings}', interests_tagged_at = now() where id = $1`, [council]);
+  const compost = await meeting('Compost site open', '2026-10-09');
+  await db.query(`update public.club_events set interests = '{outdoors}', interests_tagged_at = now() where id = $1`, [compost]);
   await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
   await signIn(ME, ['town_meetings', 'live_music', 'outdoors']);
   assert.deepEqual(await reasons('2026-10-08 12:00'), [['Fall fair', 'tomorrow', null],
-    ['City Council Meeting', 'interest', 'town_meetings']], 'in, and still under the fair at x 0.3');
+    ['City Council Meeting', 'interest', 'town_meetings']], 'in, under the fair at x 0.3; the compost site hours stay the City\'s');
   await signIn(YOU, ['live_music', 'outdoors', 'dining']);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'not picked and following nothing City: out');
 });
