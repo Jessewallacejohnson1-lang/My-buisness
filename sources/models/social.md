@@ -64,12 +64,19 @@ carry on with the rest.
      events included (Jesse, 2026-10-24: Neighbors' Albertville bar is out of the area); and any post about a private person's health or troubles
      (ADR-020).
 
+**Photos.** Run `python3 sources/scripts/event_photos.py prepare`. For each
+   `.runs/morning/photos/batch-N.txt`, start one helper on the cheap model (Haiku), at most 10 at once, with:
+   "Read `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with
+   the JSON lines only." Write their lines to `.runs/morning/event_photos.jsonl`, then run
+   `python3 sources/scripts/event_photos.py keep`. Each new Event that isn't a game gets the real photo of
+   it a helper picked from its post or its place's other posts, or none (event-photos 09).
+
 **Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
    one starts after them; runs a check stopped before this line on (a usage limit, a failure)
    are read by the next. Run it once, at the end, and never before the write.
 
-**Answer** with the summary as `save` printed it, `done`'s lines (the pictures line is what
+**Answer** with the summary as `save` printed it, keep's `[photos]` line, `done`'s lines (the pictures line is what
    reading pictures added to the cost), every `[social] FAILED` line
    from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. A
    page Apify says is not available, or returns nothing for, three reads in a row sets itself aside
@@ -78,9 +85,10 @@ carry on with the rest.
 
 ## Rules
 
-- Pictures are read for their facts only: never shown, uploaded or kept past this check
-  (ADR-020). `.runs/` goes with the copy.
+- Pictures are read for their facts only, except the one a Photos helper picks as an Event's photo:
+  it is saved, credited to its place and taken down on request (Jesse, 2026-10-30; ADR-020). No other
+  picture is shown, uploaded or kept past this check. `.runs/` goes with the copy.
 - Apify's own schedules start every paid run, each task with its own spending cap; the routine
   starts none. A run that failed or is still going is a line in the answer.
-- The database is written only by `morning.py save`. SQL by hand stays unused.
+- The database is written only by `morning.py save` and `event_photos.py keep`. SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

@@ -1010,6 +1010,50 @@ test("an event card shows its place's photo of what the event is, in season, tak
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test("an Event's own photo shows before any scene, credited, and is never its place's cover (event-photos 09)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons) values
+      ('prep', 'https://x/prep.webp', 'https://sjprep.net/', 0, 'photo', 'live', 1600, 1067, '{}', '{}'),
+      ('prep', 'https://x/stage.webp', 'https://sjprep.net/t', 1, 'scene', 'live', 1600, 1067, '{theater}', '{}');`);
+  const add = async (title) => (await db.query(
+    `insert into public.club_events (title, event_date, category, source_name, place_entry_id, created_at)
+     values ($1, '2026-10-09', 'art_theater', 'Saint John''s Prep', 'prep', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
+  const own = (event, url, status = 'live', kind = 'event') => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, credit, width, height)
+     values ('prep', $2, 'https://www.facebook.com/SaintJohnsPrepMN/posts/1', $4, $3, $1, 'Saint John''s Prep', 1536, 2048)`,
+    [event, url, status, kind]);
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+  const fall = await add('Fall Play');
+  const spring = await add('Spring Play');
+  await own(fall, 'https://x/cast.webp');
+
+  const p = await pic(fall);
+  assert.deepEqual([p.url, p.credit, p.site, p.w, p.h], ['https://x/cast.webp', "Saint John's Prep",
+    'https://www.facebook.com/SaintJohnsPrepMN/posts/1', 1536, 2048], 'its own photo before the scene, credited to its post');
+  assert.deepEqual(p.more.map((m) => m.url), ['https://x/prep.webp'], "the Event page's more: the place's photos");
+  assert.equal((await pic(spring)).url, 'https://x/stage.webp', "another Event never shows this one's photo");
+  assert.equal((await db.query("select public.place_picture('prep') as p")).rows[0].p.url, 'https://x/prep.webp',
+               "an Event's photo is never the place's cover, though it takes the cover's position");
+  await assert.rejects(own(fall, 'https://x/second.webp'), /place_photos_one_per_event/, 'one live photo per Event');
+  await assert.rejects(own(null, 'https://x/loose.webp'), /place_photos_event_kind/, "an Event's photo names its Event");
+  await assert.rejects(own(spring, 'https://x/scene.webp', 'live', 'scene'), /place_photos_event_kind/, 'a scene names none');
+
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, place_picture
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.place_picture.url]),
+                   [['Fall Play', 'https://x/cast.webp'], ['Spring Play', 'https://x/stage.webp']], 'the Town feed card, signed out too');
+
+  await db.query("update public.place_photos set status = 'retired' where event_id = $1", [fall]);
+  assert.equal((await pic(fall)).url, 'https://x/stage.webp', 'taken down on request: the scene again');
+  await db.query('delete from public.club_events where id = $1', [fall]);
+  assert.equal((await db.query('select count(*)::int as n from public.place_photos where event_id is not null')).rows[0].n, 0,
+               'an Event deleted takes its photo with it');
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
 test('a Christmas photo shows on a holiday event from November 1, on any from December 1 to January 6 (event-photos 07)', async () => {
   await reset();
   await db.exec(`delete from public.place_photos;

@@ -47,6 +47,18 @@ What some interests cover (BP app docs/plans/onboarding, tickets 14, 15 and 21):
   in: a fun run, a league, open gym.
 - `health`: fitness, yoga, wellness and health classes. `volunteering`: giving, fundraisers,
   drives and volunteer days.
+- `college`, `high_school`, `middle_school`: for students of that age and their parents. A high
+  school's game, concert, play, dance or meet is `high_school`; a middle school or junior high's
+  (grades 6 to 8, "MS", "JH") is `middle_school`, and a K-8 school's Event is `middle_school` only
+  when it is for those grades. `college` is made for college students, often for them alone: a
+  Student Mass or campus ministry night, a student club's or association's event, a student
+  showcase, the campus libraries' study breaks (therapy dogs, popcorn, game and craft nights), a
+  college night in town. A CSB concert, lecture, exhibit or game put on for the public is `campus`
+  without `college`.
+- `networking`: business and career Events: a chamber mixer, business after hours, a job fair, a
+  small-business or professional workshop, a service club's meeting (Rotary, Lions).
+- List what an Event is about first: `campus`, `college`, `high_school` and `middle_school` come
+  after it ("Volleyball game" is `watch_sports`, `high_school`).
 - Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
 
 ## How much it draws

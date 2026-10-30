@@ -1,6 +1,6 @@
 //
 //  InterestsTests.swift
-//  The 21 interests (BP app onboarding 20): the old-to-new map, search's everyday words, and
+//  The 25 interests (BP app onboarding 20 and 21): the old-to-new map, search's everyday words, and
 //  "Popular in St. Joseph".
 //
 
@@ -9,11 +9,14 @@ import XCTest
 
 final class InterestsTests: XCTestCase {
 
-    func testTwentyOneInSevenGroups() {
-        XCTAssertEqual(Interests.all.count, 21)
+    func testTwentyFiveInEightGroups() {
+        XCTAssertEqual(Interests.all.count, 25)
         XCTAssertEqual(Interests.sections.map(\.title),
-                       ["Outdoors", "Food & drink", "Arts & music", "Fun", "Sports & health", "Community", "Civics"])
-        XCTAssertEqual(Set(Interests.all.map(\.id)).count, 21)
+                       ["Outdoors", "Food & drink", "Arts & music", "Fun", "Sports & health", "Community", "Students",
+                        "Civics"])
+        XCTAssertEqual(Interests.sections.first { $0.title == "Students" }?.items.map(\.label),
+                       ["College", "High school", "Middle school"])
+        XCTAssertEqual(Set(Interests.all.map(\.id)).count, 25)
     }
 
     func testOldPicksMapOntoTheNew() {
@@ -36,7 +39,11 @@ final class InterestsTests: XCTestCase {
         XCTAssertTrue(Interests.search("lib").map(\.id).contains("books"))
         XCTAssertTrue(Interests.search("bingo night").map(\.id).contains("games"))
         XCTAssertEqual(Interests.search("zzzz"), [])
-        XCTAssertEqual(Interests.search("  ").count, 21)
+        XCTAssertEqual(Interests.search("  ").count, 25)
+        XCTAssertEqual(Interests.search("networking").map(\.id), ["networking"])
+        XCTAssertEqual(Interests.search("junior high").map(\.id), ["middle_school"])
+        XCTAssertTrue(Interests.search("high school").map(\.id).contains("high_school"))
+        XCTAssertTrue(Interests.search("college").map(\.id).contains("college"))
     }
 
     func testPopularCountsRealEvents() {
