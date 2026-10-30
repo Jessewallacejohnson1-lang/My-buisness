@@ -131,6 +131,8 @@ struct WhiteGameCard: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(spoken(at: context.date))
         }
+        // A scoring play while it's on screen: the line under the score says it, that logo pops (ticket 07).
+        .playsMoments(of: game)
         // White in dark mode too, as the team-color band it replaced was pinned light: it is the card's look.
         .environment(\.colorScheme, .light)
     }
@@ -217,17 +219,16 @@ struct WhiteGameCard: View {
             .minimumScaleFactor(0.7)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.live?.score)
             if let status {
-                HStack(spacing: 5) {
-                    if let dot = status.dot {
-                        Circle().fill(dot).frame(width: Metric.dot, height: Metric.dot)
+                // A scoring play turns it into an ink capsule round the moment for 3 s (ticket 07).
+                MomentLine(style: .onWhite) {
+                    HStack(spacing: 5) {
+                        if let dot = status.dot {
+                            Circle().fill(dot).frame(width: Metric.dot, height: Metric.dot)
+                        }
+                        Text(status.text).monospacedDigit()
                     }
-                    Text(status.text)
-                        .font(.sansSemibold(13))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .monospacedDigit()
+                    .minimumScaleFactor(0.8)
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
             }
         }
         .frame(minWidth: Metric.middle, minHeight: Metric.logo)
@@ -239,6 +240,7 @@ struct WhiteGameCard: View {
         return VStack(spacing: 8) {
             LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(30), disc: false)
                 .frame(width: Metric.logo, height: Metric.logo)
+                .momentPop(side)
             Text(team.short)
                 .font(.sansSemibold(13))
                 .foregroundStyle(Hue.ink)

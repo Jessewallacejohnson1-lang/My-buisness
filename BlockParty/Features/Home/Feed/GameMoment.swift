@@ -174,31 +174,11 @@ private struct MomentPop: ViewModifier {
 /// The line keeps its own place in the layout; the capsule floats over it and never pushes the
 /// logos aside.
 struct MomentLine<Line: View>: View {
-    let style: Style
+    let style: MomentLineStyle
     @ViewBuilder var line: Line
 
     @Environment(\.gameMoment) private var moments
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// How the line and its capsule look on each surface (the mock's two phones).
-    struct Style {
-        /// The line's own fill, side padding, height and words' color.
-        let plain: (fill: Color, padding: CGFloat, height: CGFloat, words: Color)
-        /// The moment's, and its detail's color.
-        let filled: (fill: Color, padding: CGFloat, height: CGFloat, words: Color, detail: Color)
-        let font: Font
-        let detailFont: Font
-
-        /// The white game card (06): grey words under the score; a moment is an ink capsule.
-        static let onWhite = Style(plain: (.clear, 0, 16, Hue.inkSecondary),
-                                   filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
-                                   font: .sansSemibold(13), detailFont: .sans(13))
-        /// On team colors (the Event page's band, the card before 06): the clear pill; a moment is white.
-        static let onColor = Style(plain: (.white.opacity(0.22), 9, 22, .white),
-                                   filled: (.white.opacity(0.97), 9, 24, Hue.ink.onLightCanvas,
-                                            Hue.inkSecondary.onLightCanvas),
-                                   font: .sansSemibold(12), detailFont: .sans(12))
-    }
 
     var body: some View {
         let filled = moments.phase != .line
@@ -219,10 +199,12 @@ struct MomentLine<Line: View>: View {
                 .font(style.font)
                 .foregroundStyle(filled ? style.filled.words : style.plain.words)
                 .lineLimit(1)
+                // The line fits where it sits, as its hidden copy does; the moment's words (and the line
+                // back on the fill) take the width they need, past the line's own.
+                .fixedSize(horizontal: filled, vertical: false)
                 .padding(.horizontal, filled ? style.filled.padding : style.plain.padding)
                 .frame(height: filled ? style.filled.height : style.plain.height)
                 .background(filled ? style.filled.fill : style.plain.fill, in: Capsule())
-                .fixedSize()
                 // A moment arriving nudges the capsule up 8% as it grows.
                 .keyframeAnimator(initialValue: CGFloat(1), trigger: reduceMotion ? 0 : moments.beat) { view, scale in
                     view.scaleEffect(scale)
@@ -239,4 +221,24 @@ struct MomentLine<Line: View>: View {
         guard let detail = moment.detail else { return Text(moment.label) }
         return Text("\(moment.label) \(Text(detail).font(style.detailFont).foregroundStyle(style.filled.detail))")
     }
+}
+
+/// How the line and its capsule look on each surface (the mock's two phones).
+struct MomentLineStyle {
+    /// The line's own fill, side padding, height and words' color.
+    let plain: (fill: Color, padding: CGFloat, height: CGFloat, words: Color)
+    /// The moment's, and its detail's color.
+    let filled: (fill: Color, padding: CGFloat, height: CGFloat, words: Color, detail: Color)
+    let font: Font
+    let detailFont: Font
+
+    /// The white game card (06): grey words under the score; a moment is an ink capsule.
+    static let onWhite = MomentLineStyle(plain: (.clear, 0, 16, Hue.inkSecondary),
+                                         filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
+                                         font: .sansSemibold(13), detailFont: .sans(13))
+    /// On team colors (the Event page's band, the card before 06): the clear pill; a moment is white.
+    static let onColor = MomentLineStyle(plain: (.white.opacity(0.22), 9, 22, .white),
+                                         filled: (.white.opacity(0.97), 9, 24, Hue.ink.onLightCanvas,
+                                                  Hue.inkSecondary.onLightCanvas),
+                                         font: .sansSemibold(12), detailFont: .sans(12))
 }
