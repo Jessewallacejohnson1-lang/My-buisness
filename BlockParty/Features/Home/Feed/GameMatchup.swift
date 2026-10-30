@@ -430,6 +430,9 @@ struct LogoDisc: View {
     var fits = false
     /// On the white game card the logo, or its letter, stands bare (game-card 06).
     var disc = true
+    /// Behind the letter alone, while the logo loads or when it can't: the Town's white card shows a
+    /// place with no logo as a letter on the light fill (no-photo-cards), so one still loading matches.
+    var blank: Color? = nil
 
     @ObservedObject private var logos = POILogoCache.shared
 
@@ -456,6 +459,9 @@ struct LogoDisc: View {
                     .frame(width: logoSide, height: logoSide)
                     .transition(.opacity)
             } else {
+                if let blank {
+                    Circle().fill(blank).transition(.opacity)
+                }
                 Text(initial)
                     .font(letter)
                     .foregroundStyle(Hue.ink.onLightCanvas)

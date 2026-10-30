@@ -3,14 +3,15 @@
 //  Block Party — town news in the Town feed (BP app docs/plans/town-feed, ticket 35).
 //
 //  A Town card that says News (Jesse, 2026-10-29: "similar format to cards just news", BP app
-//  references/found-posts): the place's photo in its own shape, else its logo on its Search
-//  backdrop, else ink; a white "News" chip where an event's day and time go; the headline over
-//  it as an event's title, the facts under that; the send and the ••• under the picture (news-menu:
-//  Not interested and Mute its place, as an Event card's). No place name and no
+//  references/found-posts): the place's photo in its own shape, ink when it fails; a white "News"
+//  chip where an event's day and time go; the headline over it as an event's title, the facts
+//  under that; the send and the ••• under the picture (news-menu: Not interested and Mute its
+//  place, as an Event card's). No place name and no
 //  picture beside one: a found post carries only the place's own mark. No time: Block Party knows
 //  when it saved a post, not when the place posted it. A tap opens the post in Instagram or
 //  Facebook when that app is on the phone, else in Apple's in-app browser; the picture sinks the
-//  instant a finger lands, as an event card's does.
+//  instant a finger lands, as an event card's does. With no photo it is the short white card, its
+//  pill saying NEW (BP app references/no-photo-cards).
 //
 
 import SwiftUI
@@ -30,14 +31,10 @@ struct TownNewsCard: View {
     @State private var shown: Set<URL> = []
     /// A photo that couldn't load: the card turns to ink, keeping its shape.
     @State private var failed = false
-    /// The words' height over the picture, so a logo stays in the room above them.
-    @State private var copyHeight: CGFloat = 0
 
     /// The place's picture, which also sets the card's shape, failed or not.
     private var source: FeedCardImageSource { news.picture.map(FeedCardImageSource.init) ?? .fallback }
     private var image: FeedCardImageSource { failed ? .fallback : source }
-    /// Ink words over a logo's light backdrop, white over a photo or ink.
-    private var onLogo: Bool { image.logo != nil }
 
     private var credit: [String] {
         guard let url = image.url, PhotoPager.isShown(url, in: shown), let credit = image.attribution else { return [] }
@@ -134,22 +131,14 @@ struct TownNewsCard: View {
     }
 
     /// Whose post it is, on the picture's top right, as an Event's host rides it (Jesse, 2026-10-29:
-    /// "water marks for businesses or people"): the place's logo on a white disc, else its first
-    /// letter, since the feed sends no logo beside a photo. None over its own logo.
+    /// "water marks for businesses or people"): its first letter, since the feed sends no logo
+    /// beside a photo, and a post with only a logo is the white card (no-photo-cards).
     @ViewBuilder
     private var placeMark: some View {
-        if !onLogo, !news.place.isEmpty {
-            Group {
-                if let picture = news.picture, picture.kind == .logo {
-                    LogoDisc(logo: picture.url, initial: String(news.place.prefix(1)).uppercased(),
-                             logoSide: PhotoChip.height * 0.875, letter: .sansSemibold(14), fits: true)
-                        .frame(width: PhotoChip.height, height: PhotoChip.height)
-                } else {
-                    Avatar(nil, size: PhotoChip.height, blank: .initial(news.place))
-                }
-            }
-            .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))
-            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+        if !news.place.isEmpty {
+            Avatar(nil, size: PhotoChip.height, blank: .initial(news.place))
+                .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
         }
     }
 
@@ -158,8 +147,6 @@ struct TownNewsCard: View {
         if let url = image.url {
             PhotoPager(urls: [url], page: .constant(0), shown: $shown, value: "",
                        onFailure: { _ in failed = true }, skeleton: false, bounces: true)
-        } else if let logo = image.logo {
-            FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
         } else {
             Rectangle().fill(Hue.ink)
         }
@@ -172,20 +159,19 @@ struct TownNewsCard: View {
             Text(news.headline)
                 .font(.eventDisplay(28))
                 .lineSpacing(-2)
-                .foregroundStyle(onLogo ? Hue.ink : .white)
+                .foregroundStyle(.white)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let facts = news.facts {
                 Text(facts)
                     .font(.sans(13))
-                    .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
+        .feedCardPhotoTypeShadow()
         .allowsHitTesting(false)
     }
 

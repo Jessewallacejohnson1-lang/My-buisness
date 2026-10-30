@@ -109,8 +109,10 @@ enum DailyFixtures {
         return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
     }
 
+    /// The places' saved logos in Storage, read from the network.
+    private static let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
+
     private static func newsSamples(now: Date) -> [TownFeedEntry] {
-        let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
         let samples: [(String, String, String, String, String?)] = [
             ("The Wandering Cow", "Flight Friday", "Four scoops for $5 at Wandering Cow on Fridays.",
              "https://www.instagram.com/p/Deki5CwgiQG/", "ChIJFfdMxRVZtFIR77H-NqLzUTc/logo-7225f2ed.webp"),
@@ -296,8 +298,7 @@ enum DailyFixtures {
         logo: String? = nil,
         now: Date
     ) -> TownFeedEntry {
-        // A place's saved logo in Storage, read from the network, as `-town-news`'s are.
-        let placeLogo = logo.flatMap { URL(string: "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/" + $0) }
+        let placeLogo = logo.flatMap { URL(string: Self.logos + $0) }
             .map { FeedCardImageSource.placeLogo(PlacePicture(url: $0, kind: .logo, hue: 35)) }
         var item = FeedCardItem(
             id: id,

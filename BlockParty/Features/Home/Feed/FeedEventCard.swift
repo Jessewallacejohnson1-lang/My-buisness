@@ -135,6 +135,16 @@ struct FeedEventCard: View {
                         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
+            // On the white card with no photo, its logo is the host's mark, its own button over the
+            // link in the same way, at the card's left (no-photo-cards).
+            .overlay(alignment: .leading) {
+                if item.isPhotoless, marksHost {
+                    whiteCardMark
+                        .padding(.leading, DailyFeedMetric.contentInset + NoPhotoCard.Metric.horizontal)
+                        .offset(x: photoSize.width * (1 - pressScale) / 2)
+                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                }
+            }
             // The host's mark on the photo's top right, its own button over the link, as the heart is:
             // it opens the host's page (follows 08), not the Event's.
             .overlay(alignment: .topTrailing) {
@@ -199,7 +209,7 @@ struct FeedEventCard: View {
     /// itself, and a card showing a logo instead of a photo already says whose it is (the same
     /// school's or shop's logo twice, read 2026-10-29), so they have none.
     private var showsHostMark: Bool {
-        !item.hostName.isEmpty && item.game == nil && displayImage.logo == nil && !item.isPhotoless
+        !item.hostName.isEmpty && item.game == nil && !item.isPhotoless
     }
 
     /// The host's picture at the date chip's height in a white ring, so a person's photo stands off
@@ -286,11 +296,30 @@ struct FeedEventCard: View {
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         pill: now ? "Now" : item.whenLine?.text, pillSpoken: now ? "Happening now" : item.whenLine?.spoken,
                         pillDot: now ? Hue.now : nil, title: item.title, facts: metaSummary,
-                        trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0)
+                        trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
+                .animation(motionIsReduced ? nil : Motion.smooth, value: now)
         }
         // Called off: grey, as the photo goes (Jesse, 2026-10-15).
         .grayscale(item.cancelled ? 1 : 0)
+        // A double tap likes, as on a photo; a tap opens the Event once that has failed.
+        .gesture(PhotoDoubleTap { _ in performImageLike(at: nil) })
         .padding(.horizontal, DailyFeedMetric.contentInset)
+    }
+
+    /// The white card's logo opens the host's page, as the mark on a photo does, wherever a host
+    /// opener is (the Town feed); elsewhere it is drawn in the card.
+    private var marksHost: Bool { hostOpener != nil && !item.hostName.isEmpty }
+
+    /// The white card's logo as a button over the link, the host's page behind it; read before the title.
+    private var whiteCardMark: some View {
+        Button(action: openHost) {
+            NoPhotoCardMark(logo: whiteCardLogo, photo: item.hostAvatar, name: item.hostName)
+                .grayscale(item.cancelled ? 1 : 0)
+                .trackFrame(hostFrame)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilitySortPriority(1)
     }
 
     /// The place's logo the card would have shown, else the host's.
@@ -329,12 +358,6 @@ struct FeedEventCard: View {
         else { return [] }
         return [credit]
     }
-
-    /// The words over the picture: white over a photo or ink, ink over a logo's light
-    /// backdrop (as Search sets them).
-    private var onLogo: Bool { displayImage.logo != nil }
-    /// The words' height over the picture, so a logo stays in the room above them.
-    @State private var copyHeight: CGFloat = 0
 
     private var imageSection: some View {
         GeometryReader { proxy in
@@ -456,8 +479,6 @@ struct FeedEventCard: View {
             PhotoPager(urls: swipes ? cardPhotos.compactMap(\.url) : [url], page: $photoPage, shown: $shownPhotos,
                        value: "", onFailure: { if !swipes { failedPhoto = $0 } }, skeleton: false, bounces: true)
                 .accessibilityHidden(true)
-        } else if let logo = displayImage.logo {
-            FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
         } else {
             Rectangle().fill(Hue.ink)
         }
@@ -482,14 +503,14 @@ struct FeedEventCard: View {
                 // which reads airy next to the reference's ~1.1em. Negative spacing
                 // is how this codebase has always tightened a heading.
                 .lineSpacing(-2)
-                .foregroundStyle(onLogo ? Hue.ink : .white)
+                .foregroundStyle(.white)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !metaSummary.isEmpty {
                 Text(metaSummary)
                     .font(.sans(13))
-                    .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.85))
                     // Unbounded at accessibility sizes, not two lines: measured
                     // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
                     // it was the LAST finding left on Town at both AX3 and AX5. A
@@ -499,9 +520,7 @@ struct FeedEventCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        // None on ink words over a logo's light backdrop.
-        .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
+        .feedCardPhotoTypeShadow()
     }
 
     /// What it is, recurrence and place, under the title: "Lecture · Escher Auditorium". The words
