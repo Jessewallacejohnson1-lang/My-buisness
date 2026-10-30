@@ -2260,6 +2260,21 @@ test('a City meeting reaches those who picked Town meetings, lifted by it, as fo
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'not picked and following nothing City: out');
 });
 
+test("Campus lifts CSB and SJU's Events, spaced as one host's so a dozen campus calendars can't fill the top (onboarding 21)", async () => {
+  await reset();
+  for (const n of [1, 2, 3, 4]) {
+    const id = await add(`Campus ${n}`, '2026-10-09', { start_time: '6 PM', source_name: `CSB calendar ${n}` });
+    await db.query(`update public.club_events set interests = '{live_music,campus}', interests_tagged_at = now() where id = $1`, [id]);
+  }
+  for (const n of [1, 2]) {
+    const id = await add(`Trivia ${n}`, '2026-10-09', { start_time: '6 PM', source_name: `Taproom ${n}` });
+    await db.query(`update public.club_events set interests = '{games}', interests_tagged_at = now() where id = $1`, [id]);
+  }
+  await signIn(ME, ['campus', 'games', 'outdoors']);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Campus 1', 'Trivia 1', 'Trivia 2', 'Campus 2', 'Campus 3', 'Campus 4'],
+                   'the second campus Event counts 0.8, the third 0.64, as if from one calendar');
+});
+
 test("the City's and Joetown's other Events lift for their followers; a Place you follow is named first", async () => {
   await reset();
   await add('Pilates class', '2026-10-12', { start_time: '6 PM' });

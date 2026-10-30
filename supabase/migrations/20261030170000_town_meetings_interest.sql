@@ -4,6 +4,10 @@
 -- board; it now also reaches anyone who picked Town meetings, lifted by that interest and still
 -- x 0.3 as every meeting is. Only one tagged Town meetings: the City's compost site hours are draw 1 too.
 -- School board meetings were never held back, so the tag is enough for them.
+-- Campus lifts CSB and SJU's Events without flooding the feed: they are spaced as one host's, each
+-- further one counting 0.8 (`repeatCampus`). The simple recipe (20261027141014) dropped spacing by
+-- interest, and on the 2026-10-30 Events a neighbour who picked Campus got ten in a row from eleven
+-- campus calendars; now 4 of their top 10 (2 for one who didn't pick it; 0.5 left only 2 for either).
 -- get_town_feed is 20261030000956_news_menu.sql line for line but for its onboarding-21 lines, with the
 -- same columns, so it is replaced in place.
 
@@ -50,7 +54,7 @@ set search_path = public
 as $$
   with weights as (
     -- The simple recipe's weights (town-feed 36). Changing one is a migration.
-    select '{"yours":3,"interest":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"news":0.5,"meeting":0.3}'::jsonb as w
+    select '{"yours":3,"interest":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"news":0.5,"meeting":0.3}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -390,7 +394,10 @@ as $$
     where n.leaves_at > p_now
   ),
   pool as (
-    select t.id, t.host, t.base, t.sort_at, t.title, 0 as part from totals t
+    -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
+    -- dozen calendars can't fill the top of the feed between them.
+    select t.id, case when 'campus' = any(t.tags) then 'campus' else t.host end, t.base, t.sort_at, t.title, 0 as part
+    from totals t
     union all
     select n.id, n.source_name, n.base, n.published_at, n.title, 0
     from news_scored n where n.matched is not null
@@ -404,7 +411,7 @@ as $$
   -- are always placed best first, so this is its place among them.
   spaced as (
     select p.*,
-           power((select (w->>'repeatHost')::float8 from weights),
+           power((select (w->>case when p.host = 'campus' then 'repeatCampus' else 'repeatHost' end)::float8 from weights),
                  row_number() over (partition by p.part, p.host order by p.base desc, p.sort_at, p.title, p.id) - 1)
              as spacing
     from pool p
