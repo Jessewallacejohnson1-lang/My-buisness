@@ -364,7 +364,6 @@ struct CommunityAPI {
             // read it again. The function claims it once and lets go if the model doesn't answer, so a
             // lost call is retried by the next report; the reporter never waits.
             if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
-                let db = db
                 Task { try? await db.invoke("moderate-post", ["recheck": id]) }
             }
             return nil
