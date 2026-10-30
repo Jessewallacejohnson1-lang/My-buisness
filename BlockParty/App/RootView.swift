@@ -974,8 +974,8 @@ nonisolated enum TabBarMetric {
     /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
     static let searchGlyphSize: CGFloat = 22
     /// Daily's Bp!: letters at the size Jesse picked at Check-in 1 (38pt for Bp.,
-    /// 2026-10-29), 22.6pt tall, about Instagram's 22pt glyph box; the ! adds 4.3pt.
-    static let dailyMarkWidth: CGFloat = 42.33
+    /// 2026-10-29), 22pt tall, about Instagram's 22pt glyph box. `DailyMark.svg`'s own width.
+    static let dailyMarkWidth: CGFloat = 39.15
     static let iconCentreY: CGFloat = height / 2
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25
