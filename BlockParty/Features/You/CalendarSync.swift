@@ -235,7 +235,7 @@ final class CalendarSync {
 @MainActor
 final class EventKitCalendar: PhoneCalendar {
     /// One store for the app's life (Apple: release it last).
-    private static let store = EKEventStore()
+    static let store = EKEventStore()
     private var store: EKEventStore { Self.store }
     /// Shown in the entry's notes, so the person knows where it came from.
     static let note = "Added by Block Party"

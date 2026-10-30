@@ -217,6 +217,85 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(page.placeText(FeedCardItem(event(imageUrl: nil, location: "  "))))
     }
 
+    /// The day row (event-page-formats 06): the day in full over its hours, the end only when the
+    /// Event gives one; its year only past six months; days it runs over, and words we can't read.
+    func testTheDayRowSaysTheDayInFullOverItsHours() {
+        let page = FeedEventDetailDestination.self
+        let now = Town.midnight("2026-10-30")!.addingTimeInterval(12 * 3600)
+        let nov30 = Town.midnight("2026-11-30")!
+        var item = FeedCardItem(event(imageUrl: nil))
+        item.eventDate = "2026-11-30"
+        let lines = { page.dayLines(item, now: now) }
+
+        item.startTime = "4:30 PM"
+        XCTAssertEqual(lines(), .init(first: "Monday, November 30", second: "4:30 PM"), "no end given, no end said")
+        item.endAt = nov30.addingTimeInterval(18 * 3600)
+        XCTAssertEqual(lines(), .init(first: "Monday, November 30", second: "4:30 – 6 PM"))
+        XCTAssertEqual(lines()?.spoken, "Monday, November 30, 4:30 to 6 PM")
+        item.startTime = "11 AM"
+        item.endAt = nov30.addingTimeInterval(13 * 3600)
+        XCTAssertEqual(lines()?.second, "11 AM – 1 PM")
+        item.startTime = "9 PM"
+        item.endAt = nov30.addingTimeInterval(25 * 3600)
+        XCTAssertEqual(lines()?.second, "9 PM – 1 AM", "past midnight is still that night")
+        item.startTime = "7 PM"
+        item.endAt = nov30.addingTimeInterval((48 + 21) * 3600)
+        XCTAssertEqual(lines()?.second, "7 PM until Wednesday, December 2")
+
+        item.startTime = "after dark"
+        item.endAt = nil
+        XCTAssertEqual(lines(), .init(first: "Monday, November 30", second: "after dark"), "as written")
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(lines(), .init(first: "Monday, November 30"), "all day: the day alone")
+        item.eventDate = "2026-11-16"
+        item.endAt = Town.midnight("2026-11-26")
+        XCTAssertEqual(lines(), .init(first: "Monday, November 16", second: "Until Wednesday, November 25"))
+
+        item.eventDate = "2027-06-01"
+        item.endAt = nil
+        XCTAssertEqual(lines()?.first, "Tuesday, June 1, 2027")
+    }
+
+    /// The day row adds the Event to the phone's calendar only while it's still to come: not once
+    /// it's called off or over (event-page-formats 05).
+    func testTheDayRowAddsToTheCalendarOnlyWhileItsStillOn() {
+        let page = FeedEventDetailDestination.self
+        let start = Town.midnight("2026-11-30")!.addingTimeInterval(16.5 * 3600)
+        var item = FeedCardItem(event(imageUrl: nil, location: "Saint John's Abbey Arboretum, Collegeville"))
+        item.eventDate = "2026-11-30"
+        item.startTime = "4:30 PM"
+        let now = Town.midnight("2026-10-30")!
+
+        XCTAssertEqual(page.calendarEntry(item, now: now),
+                       CalendarEntry(title: "Neighborhood walk", starts: start, ends: start.addingTimeInterval(2 * 3600),
+                                     allDay: false, place: "Saint John's Abbey Arboretum, Collegeville"),
+                       "two hours when it gives no end, as the app keeps it")
+        item.endAt = start.addingTimeInterval(1.5 * 3600)
+        XCTAssertEqual(page.calendarEntry(item, now: now)?.ends, item.endAt)
+        XCTAssertNotNil(page.calendarEntry(item, now: start), "on now: still worth adding")
+        XCTAssertNil(page.calendarEntry(item, now: item.endAt!), "over")
+        item.cancelled = true
+        XCTAssertNil(page.calendarEntry(item, now: now), "called off")
+        item.cancelled = false
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(page.calendarEntry(item, now: now)?.allDay, true)
+    }
+
+    /// The place row: the name over the rest after its first comma; one line without one.
+    func testThePlaceRowSplitsAtTheFirstComma() {
+        let page = FeedEventDetailDestination.self
+
+        XCTAssertEqual(page.placeLines("Saint John's Abbey Arboretum, Collegeville"),
+                       .init(first: "Saint John's Abbey Arboretum", second: "Collegeville"))
+        XCTAssertEqual(page.placeLines("St. Joseph American Legion, St. Joseph, MN"),
+                       .init(first: "St. Joseph American Legion", second: "St. Joseph, MN"))
+        XCTAssertEqual(page.placeLines("St. Cloud Cathedral High School Holy Angels Performing Arts Center"),
+                       .init(first: "St. Cloud Cathedral High School Holy Angels Performing Arts Center"))
+        XCTAssertEqual(page.placeLines(", Collegeville"), .init(first: ", Collegeville"), "no name before it: as written")
+    }
+
     /// Report photo opens the neighbour's own mail app with an email to Block Party naming the
     /// place and the exact photo, so the place-photos skill's retire step needs nothing else
     /// (BP app place-photos 06). A name with "&" in it stays in the subject.
