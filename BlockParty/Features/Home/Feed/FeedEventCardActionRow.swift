@@ -76,8 +76,9 @@ struct FeedEventCardActionRow: View {
                 }
                 shareButton
                 if let onMenu {
+                    // 16 pt from the send, as beside Attend (`RSVPArea`): this row's 12 pt spacing and 4.
                     FeedCardMenuButton(action: onMenu)
-                        .padding(.leading, FeedCardMenuButton.gap)
+                        .padding(.leading, 16 - Metric.groupSpacing)
                 }
             }
 
