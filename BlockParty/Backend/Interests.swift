@@ -14,7 +14,8 @@ struct Interest: Identifiable, Hashable {
     let keywords: [String]
 }
 
-/// The 21 interests in 7 groups (BP app onboarding 15). The event scripts read the ids from the
+/// The 25 interests in 8 groups (BP app onboarding 15; Students and Business & networking added
+/// 2026-10-30, onboarding 21). The event scripts read the ids from the
 /// `Interest(id:` lines below, so the old ids live in `legacy` as plain strings, never as those.
 enum Interests {
     static let all: [Interest] = [
@@ -79,6 +80,17 @@ enum Interests {
         Interest(id: "campus", label: "Campus", section: "Community",
                  keywords: ["campus", "college", "university", "csb", "sju", "saint ben", "saint john", "bennies",
                             "johnnies", "student"]),
+        Interest(id: "networking", label: "Business & networking", section: "Community",
+                 keywords: ["networking", "business", "career", "job fair", "chamber", "mixer", "professional",
+                            "entrepreneur", "small business", "rotary", "lions club"]),
+        // Students (Jesse, 2026-10-30): what's on for a school age, for students and their parents
+        Interest(id: "college", label: "College", section: "Students",
+                 keywords: ["college", "college student", "university", "student life", "undergrad", "scsu",
+                            "st. cloud state", "dorm"]),
+        Interest(id: "high_school", label: "High school", section: "Students",
+                 keywords: ["high school", "high schooler", "teen", "varsity", "homecoming", "prom", "jv"]),
+        Interest(id: "middle_school", label: "Middle school", section: "Students",
+                 keywords: ["middle school", "junior high", "jh", "6th grade", "7th grade", "8th grade", "tween"]),
         // Civics
         Interest(id: "town_meetings", label: "Town meetings", section: "Civics",
                  keywords: ["city council", "council", "town hall", "school board", "commission", "city hall", "election", "vote", "civic"]),
