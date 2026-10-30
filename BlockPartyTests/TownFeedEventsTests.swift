@@ -503,6 +503,19 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(GameMoment.between(set2, set2))
         let first = try game(#","live":{"score":[0,0],"period":"Set 1","complete":false,"periods":[[0],[0]]}"#, sport: "Volleyball")
         XCTAssertNil(GameMoment.between(try game("", sport: "Volleyball"), first), "the first set starting is no moment")
+        // Football's quarters come as periods too: a new one is no set.
+        let q1 = try game(#","live":{"score":[7,0],"period":"Q1","complete":false,"periods":[[7],[0]]}"#)
+        let q2 = try game(#","live":{"score":[7,0],"period":"Q2","complete":false,"periods":[[7,0],[0,0]]}"#)
+        XCTAssertNil(GameMoment.between(q1, q2), "a quarter starting is no moment")
+
+        // Back after the app was away: the feed's fresh read brings the touchdown missed meanwhile, and
+        // its last update is minutes after the one on screen. Not replayed; a play seconds after is.
+        func at(_ time: String, _ plays: String) throws -> Game {
+            try game(#","live":{"score":[13,3],"period":"Q3","complete":false,"at":"\#(time)"},"plays":["# + plays + "]")
+        }
+        let seen = try at("2026-10-31T19:40:00Z", "")
+        XCTAssertNil(GameMoment.between(seen, try at("2026-10-31T19:52:00Z", td)), "missed while away: quiet")
+        XCTAssertEqual(GameMoment.between(seen, try at("2026-10-31T19:40:40Z", td))?.label, "Touchdown", "live: a moment")
     }
 
     /// Every reason the database sends has a line; one this app doesn't know has none,

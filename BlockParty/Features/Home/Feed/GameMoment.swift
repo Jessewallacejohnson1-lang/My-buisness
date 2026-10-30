@@ -11,7 +11,7 @@
 import SwiftUI
 
 /// One moment worth a beat: what happened, one detail, and whose it was.
-nonisolated struct GameMoment: Hashable, Sendable {
+nonisolated struct GameMoment: Equatable, Sendable {
     /// The play's id ("set-2" for a set), so a moment plays once.
     let id: String
     /// "Touchdown", "Field goal", "Safety", "Goal", "Set 2".
@@ -23,12 +23,17 @@ nonisolated struct GameMoment: Hashable, Sendable {
     let side: Int
 
     /// What a realtime update brought, or nil for a quiet one: an extra point, a basket, the clock, the
-    /// final (which has its own look), and the first read of a game, so opening the app replays nothing.
+    /// final (which has its own look), and the first read of a game. Nor a read that comes after the
+    /// app was away (its feed read again on return, or pulled): its last update is more than a stale
+    /// clock's two minutes on from the one on screen, so a touchdown missed meanwhile isn't replayed.
     static func between(_ old: Game, _ new: Game) -> GameMoment? {
-        guard new.final == nil, new.live != nil else { return nil }
+        guard new.final == nil, let live = new.live else { return nil }
+        if let before = old.live?.at, let now = live.at, now.timeIntervalSince(before) > Game.Live.staleAfter { return nil }
         if let play = new.plays.last, !old.plays.contains(where: { $0.id == play.id }) {
             return of(play, sport: new.sport)
         }
+        // SIDEARM keeps each period's score for every sport; only volleyball's are sets.
+        guard new.sport.localizedCaseInsensitiveContains("volleyball") else { return nil }
         return setWon(old.periods, new.periods, teams: new.teams)
     }
 
@@ -132,7 +137,8 @@ private struct MomentPlayer: ViewModifier {
             .environment(\.gameMoment, state)
             .onChange(of: game) { old, new in
                 guard let moment = GameMoment.between(old, new) else { return }
-                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) {
+                // Reduce Motion: it appears and goes at once (DESIGN.md's Motion), nothing grows or pops.
+                withAnimation(reduceMotion ? nil : Motion.bentoExpand) {
                     state.phase = .moment(moment)
                     state.beats[moment.side] &+= 1
                 }
@@ -142,11 +148,14 @@ private struct MomentPlayer: ViewModifier {
                 try? await Task.sleep(for: Self.hold)
                 guard !Task.isCancelled else { return }
                 // The clock's words come back on the fill, then the fill clears: never an empty capsule.
-                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { state.phase = .settling }
+                withAnimation(reduceMotion ? nil : Motion.bentoExpand) { state.phase = .settling }
                 try? await Task.sleep(for: Self.settle)
                 guard !Task.isCancelled else { return }
-                withAnimation(Motion.smooth) { state.phase = .line }
+                withAnimation(reduceMotion ? nil : Motion.smooth) { state.phase = .line }
             }
+            // A moment left mid-hold (the Event page opened over it, the card scrolled off) is over:
+            // coming back shows the line, not the rest of it again.
+            .onDisappear { state.phase = .line }
     }
 }
 
@@ -197,7 +206,11 @@ struct MomentLine<Line: View>: View {
                     }
                 }
                 .font(style.font)
-                .foregroundStyle(filled ? style.filled.words : style.plain.words)
+                // The words take their color with the fill, so the clock's white words never vanish
+                // into a white capsule as the moment arrives.
+                .animation(fillAnimation(filled)) {
+                    $0.foregroundStyle(filled ? style.filled.words : style.plain.words)
+                }
                 .lineLimit(1)
                 // The line fits where it sits, as its hidden copy does; the moment's words (and the line
                 // back on the fill) take the width they need, past the line's own.
@@ -210,9 +223,7 @@ struct MomentLine<Line: View>: View {
                     ZStack {
                         Capsule().fill(style.plain.fill)
                         Capsule().fill(style.filled.fill)
-                            .animation(reduceMotion || !filled ? Motion.smooth : .easeOut(duration: 0.08)) {
-                                $0.opacity(filled ? 1 : 0)
-                            }
+                            .animation(fillAnimation(filled)) { $0.opacity(filled ? 1 : 0) }
                     }
                 }
                 // A moment arriving nudges the capsule up 8% as it grows.
@@ -225,6 +236,11 @@ struct MomentLine<Line: View>: View {
                     }
                 }
             }
+    }
+
+    /// The fill and its words' color: in at once, out on the smooth curve; none under Reduce Motion.
+    private func fillAnimation(_ filled: Bool) -> Animation? {
+        reduceMotion ? nil : filled ? .easeOut(duration: 0.08) : Motion.smooth
     }
 
     private func words(_ moment: GameMoment) -> Text {
@@ -255,5 +271,5 @@ struct MomentLineStyle {
     static let onColor = MomentLineStyle(plain: (.white.opacity(0.22), 9, 22, .white),
                                          filled: (.white.opacity(0.97), 9, 24, Hue.ink.onLightCanvas,
                                                   Hue.inkSecondary.onLightCanvas),
-                                         font: .sansSemibold(12), detailFont: .sans(12), longest: 21)
+                                         font: .sansSemibold(12), detailFont: .sans(12), longest: 22)
 }
