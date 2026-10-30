@@ -87,7 +87,7 @@ struct Supabase {
         let run: (URLRequest) async throws -> (Data, HTTPURLResponse)
 
         static let live = Send { request in
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await Send.session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw SupabaseError(message: "The server couldn't complete this request. Check your connection and try again.", status: 0)
             }

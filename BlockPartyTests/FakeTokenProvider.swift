@@ -42,7 +42,7 @@ final class FakeServer {
     var failure: Error?
 
     var send: Supabase.Send {
-        Supabase.Send { [self] request in
+        Supabase.Send { @MainActor [self] request in
             requests.append(request)
             if let failure { throw failure }
             let path = request.url!.path

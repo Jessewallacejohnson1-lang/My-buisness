@@ -11,13 +11,8 @@ import XCTest
 @MainActor
 final class SupabaseRequestTests: XCTestCase {
     private let rest = SupabaseConfig.restURL.absoluteString
-    private var auth: FakeTokenProvider!
-    private var server: FakeServer!
-
-    override func setUp() async throws {
-        auth = FakeTokenProvider()
-        server = FakeServer()
-    }
+    private lazy var auth = FakeTokenProvider()
+    private lazy var server = FakeServer()
 
     private var community: CommunityAPI { CommunityAPI(auth: auth, send: server.send) }
     private var social: SocialAPI { SocialAPI(auth: auth, send: server.send) }
@@ -89,21 +84,21 @@ final class SupabaseRequestTests: XCTestCase {
     // MARK: - Writes
 
     func testLikeSaveGoingAndJoinWriteOnePresenceRow() async throws {
-        let writes: [(String, () async throws -> Void)] = [
-            ("event_likes", { try await self.social.likeEvent("e1") }),
-            ("event_saves", { try await self.social.saveEvent("e1") }),
-            ("event_rsvps", { try await self.community.rsvpEvent("e1") }),
-            ("club_members", { try await self.community.joinClub("e1") }),
-        ]
-        for (table, write) in writes {
-            try await write()
-            let pair = table == "club_members" ? "club_id,user_id" : "event_id,user_id"
-            XCTAssertEqual(last.httpMethod, "POST", table)
-            XCTAssertEqual(last.url!.absoluteString, "\(rest)/\(table)?on_conflict=\(pair)", table)
-            XCTAssertEqual(last.value(forHTTPHeaderField: "Prefer"), "resolution=ignore-duplicates,return=minimal", table)
-            let key = table == "club_members" ? "club_id" : "event_id"
-            XCTAssertEqual(lastBody, [key: "e1", "user_id": "test-user"], table)
-        }
+        try await social.likeEvent("e1")
+        assertPresenceRow("event_likes", "event_id")
+        try await social.saveEvent("e1")
+        assertPresenceRow("event_saves", "event_id")
+        try await community.rsvpEvent("e1")
+        assertPresenceRow("event_rsvps", "event_id")
+        try await community.joinClub("e1")
+        assertPresenceRow("club_members", "club_id")
+    }
+
+    private func assertPresenceRow(_ table: String, _ key: String, line: UInt = #line) {
+        XCTAssertEqual(last.httpMethod, "POST", line: line)
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/\(table)?on_conflict=\(key),user_id", line: line)
+        XCTAssertEqual(last.value(forHTTPHeaderField: "Prefer"), "resolution=ignore-duplicates,return=minimal", line: line)
+        XCTAssertEqual(lastBody, [key: "e1", "user_id": "test-user"], line: line)
     }
 
     func testUndoingDeletesOnlyYourRow() async throws {
