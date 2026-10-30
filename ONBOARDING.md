@@ -5,13 +5,15 @@ changing any first-run screen.
 
 ## Status
 
-The flow shell is built (BP app onboarding ticket 16, 2026-10-24): `Features/Onboarding/
+Built and on (BP app onboarding tickets 16 to 24, 2026-10-30): `Features/Onboarding/
 OnboardingFlow.swift` holds the steps, the saved place (`OnboardingStore`) and the Welcome;
-`OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar. The nine
-question steps are placeholders that tickets 17 to 24 fill. It is switched off
-(`RootView.showsOnboarding = false`) until ticket 24 turns it on; DEBUG `-onboarding` shows it
-as a first launch would. Finishing stamps `town_profiles.onboarded_at`, and a stamp already on
-the server skips the flow on a reinstall.
+`OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar;
+`OnboardingDone.swift` the Done island. Seven question steps: Phone and its texted code come
+back with phone sign-in (ticket 17). A first launch shows it; an install that opened the tabs
+before it was on never does. DEBUG `-skip-onboarding` (eyes.py adds it) and `-ui-tests` skip it,
+and `-onboarding` shows it anyway. Finishing stamps `town_profiles.onboarded_at` with the
+birthday and interests before the Town feed's first read, and a stamp already on the server
+skips the flow on a reinstall.
 
 `refs/onboarding/REFERENCE-SPEC.md` still holds the measured Duolingo press and progress
 numbers the Next bar and progress bar use (section 8).

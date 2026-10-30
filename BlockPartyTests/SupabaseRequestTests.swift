@@ -126,6 +126,24 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertNil(body["onboarded_at"])
     }
 
+    func testTheOnboardedStampCarriesWhatTheFeedSortsBy() async throws {
+        // Onboarding 24: the birthday and the interests travel with the stamp, in one write before
+        // the Town feed's first read; a name or photo already on the row is left alone.
+        let birthday = try OnboardingAge.day.parse("2001-10-24")
+        try await profiles.markOnboarded(birthday: birthday, interests: ["live_music", "coffee"])
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/town_profiles?on_conflict=user_id")
+        let body = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(body["birthday"] as? String, "2001-10-24")
+        XCTAssertEqual(body["interests"] as? [String], ["live_music", "coffee"])
+        XCTAssertNotNil(body["onboarded_at"])
+        XCTAssertNil(body["display_name"])
+        XCTAssertNil(body["avatar_url"])
+
+        try await profiles.markOnboarded()
+        let bare = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(Set(bare.keys), ["user_id", "onboarded_at"], "no picks: the row's own stay")
+    }
+
     func testASwitchPatchesOnlyThatColumnOfYourRow() async throws {
         try await profiles.setSwitch("suggest_me", false)
         XCTAssertEqual(last.httpMethod, "PATCH")

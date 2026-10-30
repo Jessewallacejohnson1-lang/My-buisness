@@ -69,15 +69,17 @@ struct ProfileAPI {
     }
 
     /// Stamp `onboarded_at` on the caller's row, making it if there is none yet (the quiet
-    /// anonymous account has none). Only those two columns travel, so a name, photo or
-    /// interests already there are left alone (BP app onboarding 16).
-    func markOnboarded(birthday: Date? = nil) async throws {
+    /// anonymous account has none). Only these columns travel, so a name or photo already there
+    /// is left alone (BP app onboarding 16).
+    func markOnboarded(birthday: Date? = nil, interests: [String] = []) async throws {
         let uid = try db.userID
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        var row = ["user_id": uid, "onboarded_at": iso.string(from: Date())]
-        // Onboarding's birthday (ticket 19), private to this account.
+        var row: [String: Any] = ["user_id": uid, "onboarded_at": iso.string(from: Date())]
+        // Onboarding's birthday (ticket 19), private to this account, and its picks (20): the two
+        // answers the Town feed sorts by, in the same write, so its first read has them (24).
         if let birthday { row["birthday"] = OnboardingAge.day.format(birthday) }
+        if !interests.isEmpty { row["interests"] = interests }
         try await db.rest("town_profiles", method: "POST", [("on_conflict", "user_id")], body: row,
                           prefer: "resolution=merge-duplicates,return=minimal")
     }

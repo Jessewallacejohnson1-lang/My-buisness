@@ -16,13 +16,14 @@ final class OnboardingStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: "OnboardingStoreTests")
     }
 
-    func testStartsOnWelcomeAndWalksTheNineBarSteps() {
+    func testStartsOnWelcomeAndWalksTheSevenBarSteps() {
         let store = OnboardingStore(defaults: defaults)
         XCTAssertEqual(store.step, .welcome)
         XCTAssertEqual(store.barIndex, 0)
         var indexes: [Int] = []
         for _ in 0..<OnboardingStep.barTotal { store.next(); indexes.append(store.barIndex) }
-        XCTAssertEqual(indexes, Array(1...9))
+        XCTAssertEqual(indexes, Array(1...7))
+        XCTAssertEqual(OnboardingStep.barTotal, 7, "Phone and Code wait for phone sign-in (onboarding 24)")
         XCTAssertEqual(store.step, .contacts)
         XCTAssertFalse(store.finished)
         store.next()
@@ -32,9 +33,9 @@ final class OnboardingStoreTests: XCTestCase {
     func testBackGoesToThePreviousStepAndStopsAtWelcome() {
         let store = OnboardingStore(defaults: defaults)
         store.next(); store.next()
-        XCTAssertEqual(store.step, .code)
+        XCTAssertEqual(store.step, .photo)
         store.back()
-        XCTAssertEqual(store.step, .phone)
+        XCTAssertEqual(store.step, .name)
         XCTAssertFalse(store.forward)
         store.back(); store.back()
         XCTAssertEqual(store.step, .welcome)
@@ -42,15 +43,22 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testRelaunchResumesOnTheSameStep() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<4 { store.next() }
+        for _ in 0..<2 { store.next() }
         XCTAssertEqual(OnboardingStore(defaults: defaults).step, .photo)
     }
 
     func testFinishedStaysFinished() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<8 { store.next() }
+        for _ in 0..<6 { store.next() }
         XCTAssertEqual(store.step, .friends)
         store.skipFriends()
+        XCTAssertTrue(OnboardingStore(defaults: defaults).finished)
+    }
+
+    func testAnInstallThatOpenedTheTabsBeforeIsAlreadyIn() {
+        // Onboarding 24 switched the flow on: a phone that had the app before never gets it.
+        XCTAssertFalse(OnboardingStore(defaults: defaults).finished, "a new install starts the flow")
+        defaults.set(Date().timeIntervalSince1970, forKey: HelloDrop.lastSeenKey)
         XCTAssertTrue(OnboardingStore(defaults: defaults).finished)
     }
 
