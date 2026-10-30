@@ -260,8 +260,8 @@ struct FollowedNeighborPage: View {
     }
 }
 
-/// A Place's or person's round picture: a person's photo (their initial without one), a Place's
-/// photo, or its logo inset on white, as the mock draws a Place with no photo. The Town's own page
+/// A Place's or person's round picture: a person's photo (Instagram's blank picture without one), a
+/// Place's photo (its initial without one), or its logo inset on white, as the mock draws a Place with no photo. The Town's own page
 /// draws the app's Town logo (follows 04).
 struct FollowPicture: View {
     let row: FollowRow
@@ -288,8 +288,7 @@ struct FollowPicture: View {
                 .overlay(Circle().strokeBorder(Hue.hairline, lineWidth: FriendsMetric.hairline))
                 .accessibilityHidden(true)
         } else {
-            FeedAuthorAvatar(url: url, name: row.name, side: size, initialSize: size * 0.4)
-                .accessibilityHidden(true)
+            Avatar(url, size: size, blank: row.targetType == .profile ? .figure : .initial(row.name, font: size * 0.4))
         }
     }
 

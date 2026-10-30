@@ -95,8 +95,8 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     let maxPixelSize: Int
 }
 
-/// Downsampled photos, the 12 used last, keyed by URL and pixel size. On the main
-/// actor, so a view can draw a photo already decoded in the frame it appears; the
+/// Downsampled photos, the 12 used last, keyed by URL and pixel size, and beside them the 48
+/// small ones used last (round faces: `Avatar`). On the main actor, so a view can draw a photo already decoded in the frame it appears; the
 /// download and the decode run off it. Emptied on a memory warning. A photo shown
 /// at another size (a venue photo on the page after its card) starts from
 /// `largest(for:)`, never from a skeleton.
@@ -105,6 +105,10 @@ final class FeedCardImageLoader {
     static let shared = FeedCardImageLoader()
 
     private static let maxCachedImages = 12
+    /// Faces keep their own room, so the feed's dozen big photos never push a face out and faces
+    /// never push a photo out; 48 more faces than that still do. A 96 pt profile photo is 288 px.
+    private static let maxCachedSmall = 48
+    private static let smallPixels = 300
     private var cache: [FeedCardImageRequest: CGImage] = [:]
     private var cacheOrder: [FeedCardImageRequest] = []
 
@@ -179,10 +183,25 @@ final class FeedCardImageLoader {
         cache[request] = image
         touch(request)
 
-        while cacheOrder.count > Self.maxCachedImages {
-            let evicted = cacheOrder.removeFirst()
-            cache.removeValue(forKey: evicted)
+        for index in Self.overflow(cacheOrder.map(\.maxPixelSize)).sorted(by: >) {
+            cache.removeValue(forKey: cacheOrder.remove(at: index))
         }
+    }
+
+    /// Which entries to drop, given each one's pixel size, oldest first: all but the 12 newest
+    /// photos and the 48 newest small ones.
+    static func overflow(_ sizes: [Int]) -> [Int] {
+        var photos = 0, small = 0, drop: [Int] = []
+        for index in sizes.indices.reversed() {
+            if sizes[index] <= smallPixels {
+                small += 1
+                if small > maxCachedSmall { drop.append(index) }
+            } else {
+                photos += 1
+                if photos > maxCachedImages { drop.append(index) }
+            }
+        }
+        return drop
     }
 }
 

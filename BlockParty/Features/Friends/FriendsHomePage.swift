@@ -242,7 +242,7 @@ private struct AcceptedLine: View {
     var body: some View {
         NavigationLink(value: person) {
             HStack(spacing: FriendsMetric.avatarGap) {
-                NeighborFace(url: person.avatarUrl, size: FriendsMetric.acceptedFace)
+                Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.acceptedFace, outlined: true)
                 Text("\(Text(person.displayName).font(.sansSemibold(15))) accepted your friend request.")
                     .font(.sans(15))
                     .foregroundStyle(Hue.ink)
@@ -275,7 +275,7 @@ private struct PersonRow: View {
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
             NavigationLink(value: person) {
-                NeighborFace(url: person.avatarUrl, size: waiting ? FriendsMetric.requestFace : FriendsMetric.neighborFace)
+                Avatar(avatarUrl: person.avatarUrl, size: waiting ? FriendsMetric.requestFace : FriendsMetric.neighborFace, outlined: true)
             }
             .buttonStyle(DimStyle())
             .accessibilityHidden(true)
@@ -329,7 +329,7 @@ struct ResultRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: FriendsMetric.avatarGap) {
-            NavigationLink(value: person) { NeighborFace(url: person.avatarUrl, size: face) }
+            NavigationLink(value: person) { Avatar(avatarUrl: person.avatarUrl, size: face, outlined: true) }
                 .buttonStyle(DimStyle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
@@ -550,30 +550,6 @@ struct NeighborPage: View {
         if let read = try? await ProfileAPI(auth: AuthStore.shared).getProfile(neighbor.userId) {
             extras = read
         }
-    }
-}
-
-/// A neighbour's round photo, or the person icon your own Profile shows without one.
-struct NeighborFace: View {
-    let url: String?
-    let size: CGFloat
-
-    var body: some View {
-        Circle()
-            .fill(Hue.surface)
-            .overlay {
-                if let url, let photo = URL(string: url) {
-                    FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.glyph(size * 0.42))
-                        .foregroundStyle(Hue.inkSecondary.opacity(0.5))
-                }
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring))
-            .accessibilityHidden(true)
     }
 }
 

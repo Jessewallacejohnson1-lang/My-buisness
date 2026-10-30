@@ -240,13 +240,13 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             Haptics.light()
             showingPhoto = true
         } label: {
-            NeighborFace(url: face.avatarUrl, size: ProfileMetric.photo)
+            Avatar(avatarUrl: face.avatarUrl, size: ProfileMetric.photo, outlined: true)
                 .padding(ProfileMetric.ring)
                 .background(Hue.paper, in: Circle())
         }
         .buttonStyle(PressableStyle())
         .disabled(face.avatarUrl == nil)
-        // No photo to open: the person icon says nothing, so VoiceOver skips it, never "dimmed".
+        // No photo to open: the blank picture says nothing, so VoiceOver skips it, never "dimmed".
         .accessibilityHidden(face.avatarUrl == nil)
         .matchedTransitionSource(id: "photo", in: zoom)
         .offset(x: Event.inset - ProfileMetric.ring, y: -(ProfileMetric.photo / 2 + ProfileMetric.ring))

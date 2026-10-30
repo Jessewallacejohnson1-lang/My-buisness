@@ -69,6 +69,24 @@ final class LoadingGuardTests: XCTestCase {
         )
     }
 
+    /// `AsyncImage` keeps no cache: a photo in one starts from its placeholder every time its view
+    /// comes back, so the You tab's photo flashed on every return (codebase-health 18). A round
+    /// photo is `Avatar`; any other goes through `FeedCardURLPhoto`, which draws a photo already
+    /// decoded in its first frame.
+    func testNoAsyncImage() throws {
+        let offenders = try scanSources(allowlist: []) { line in
+            line.contains("AsyncImage(")
+        }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            """
+            AsyncImage is back. A person's round photo is `Avatar`; any other photo is \
+            `FeedCardURLPhoto`, so it doesn't flash when its view comes back:
+            \(offenders.joined(separator: "\n"))
+            """
+        )
+    }
+
     // MARK: - Scanner (same shape as TypographyScalingGuardTests)
 
     private func scanSources(

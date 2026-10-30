@@ -14,8 +14,6 @@ struct FeedCardFacepile: View {
     let goingCount: Int
     let reduceMotion: Bool
 
-    private let placeholderInitials = ["A", "M", "S"]
-
     var body: some View {
         HStack(spacing: -8) {
             ForEach(slots) { slot in
@@ -71,22 +69,8 @@ struct FeedCardFacepile: View {
     }
 
     private func avatar(for slot: Slot) -> some View {
-        ZStack {
-            Circle().fill(Hue.fill)
-
-            if let url = slot.url {
-                FeedCardURLPhoto(url: url)
-                    .frame(width: 24, height: 24)
-                    .clipShape(Circle())
-            } else {
-                Text(placeholderInitials[slot.order % placeholderInitials.count])
-                    .font(.sansSemibold(10))
-                    .foregroundStyle(Hue.ink)
-            }
-        }
-        .frame(width: 24, height: 24)
-        .clipShape(Circle())
-        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+        Avatar(slot.url, size: 24)
+            .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
     }
 
 }
@@ -106,7 +90,7 @@ private extension FeedCardFacepile {
 
 /// The neighbour's friends Going (town-feed 28), as Facebook's event card leads its count with
 /// a friend's face: 24pt circles overlapping by 8pt like the pile above, each friend's photo or
-/// their own initial, never a stand-in. The line beside them says who; the faces are hidden
+/// Instagram's blank picture. The line beside them says who; the faces are hidden
 /// from VoiceOver.
 struct FriendFaces: View {
     let friends: [FeedFriend]
@@ -120,45 +104,11 @@ struct FriendFaces: View {
     var body: some View {
         HStack(spacing: -Self.overlap) {
             ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
-                FeedAuthorAvatar(url: friend.photo, name: friend.name, side: Self.side, initialSize: 10)
+                Avatar(friend.photo, size: Self.side)
                     .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
                     .zIndex(Double(3 - index))
             }
         }
         .accessibilityHidden(true)
-    }
-}
-
-/// A feed author's profile picture: the poster of a posting, the host of an event.
-///
-/// Always a circle (Jesse, 2026-09-19). The photo-less case is their initial on an
-/// inert fill, matching the facepile's placeholder above — NOT `BlockPartyGlyph`,
-/// which is the app icon on a rounded square, and whose wide wordmark lockup loses
-/// its ends when clipped into a circle.
-struct FeedAuthorAvatar: View {
-    let url: URL?
-    let name: String
-    var side: CGFloat = 32
-    var initialSize: CGFloat = 14
-
-    var body: some View {
-        ZStack {
-            Circle().fill(Hue.fill)
-
-            if let url {
-                FeedCardURLPhoto(url: url)
-                    .frame(width: side, height: side)
-            } else {
-                Text(initial)
-                    .font(.sansSemibold(initialSize))
-                    .foregroundStyle(Hue.ink)
-            }
-        }
-        .frame(width: side, height: side)
-        .clipShape(Circle())
-    }
-
-    private var initial: String {
-        name.first.map { String($0).uppercased() } ?? ""
     }
 }

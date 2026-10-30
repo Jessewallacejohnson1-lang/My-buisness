@@ -277,7 +277,7 @@ private struct DailyWeekFaces: View {
     var body: some View {
         HStack(spacing: -DailyWeekMetric.faceOverlap) {
             ForEach(Array(friends.prefix(DailyWeekMetric.faces).enumerated()), id: \.offset) { index, friend in
-                FeedAuthorAvatar(url: friend.photo, name: friend.name, side: DailyWeekMetric.face, initialSize: 8)
+                Avatar(friend.photo, size: DailyWeekMetric.face)
                     .overlay(Circle().strokeBorder(Hue.paper, lineWidth: DailyWeekMetric.faceRing))
                     .zIndex(Double(DailyWeekMetric.faces - index))
             }

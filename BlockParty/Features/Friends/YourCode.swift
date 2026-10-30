@@ -134,7 +134,7 @@ struct YourCodeSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NeighborFace(url: owner?.avatarUrl, size: FriendsMetric.codeFace)
+            Avatar(avatarUrl: owner?.avatarUrl, size: FriendsMetric.codeFace, outlined: true)
                 .overlay(Circle().strokeBorder(Hue.surface, lineWidth: FriendsMetric.codeFaceRing))
                 .mapFloatShadow()
             // A space until they arrive, so the sheet is as tall from the start.

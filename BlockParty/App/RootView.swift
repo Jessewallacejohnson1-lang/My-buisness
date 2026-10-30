@@ -1323,8 +1323,8 @@ struct BlockPartyTabBar: View {
         @ViewBuilder
         private func icon(_ tab: Tab) -> some View {
             let selected = selection == tab
-            if tab == .you, let avatarURL, let url = URL(string: avatarURL) {
-                TabAvatar(url: url, selected: selected, placeholder: symbol(tab, selected: selected))
+            if tab == .you, let avatarURL {
+                TabAvatar(url: avatarURL, selected: selected)
             } else {
                 symbol(tab, selected: selected)
             }
@@ -1374,30 +1374,21 @@ struct BlockPartyTabBar: View {
     }
 }
 
-/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, with an
-/// ink ring when selected (GUESSED ring: the recording never selects that tab). The
-/// person icon stands in while it loads or when it fails, so the slot is never blank.
-private struct TabAvatar<Placeholder: View>: View {
-    let url: URL
+/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, with an ink ring when
+/// selected (GUESSED ring: the recording never selects that tab). Without a photo the tab keeps the
+/// person icon, ink like every icon (taste.md 2026-09-27).
+private struct TabAvatar: View {
+    let url: String
     let selected: Bool
-    let placeholder: Placeholder
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            if case .success(let image) = phase {
-                image.resizable().scaledToFill()
-                    .frame(width: TabBarMetric.avatarSize, height: TabBarMetric.avatarSize)
-                    .clipShape(Circle())
-                    .padding(3)
-                    .overlay {
-                        if selected {
-                            Circle().strokeBorder(Hue.ink.onLightCanvas, lineWidth: 1.5)
-                        }
-                    }
-            } else {
-                placeholder
+        Avatar(avatarUrl: url, size: TabBarMetric.avatarSize)
+            .padding(3)
+            .overlay {
+                if selected {
+                    Circle().strokeBorder(Hue.ink.onLightCanvas, lineWidth: 1.5)
+                }
             }
-        }
     }
 }
 

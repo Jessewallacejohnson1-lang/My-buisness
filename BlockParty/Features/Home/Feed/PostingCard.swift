@@ -150,11 +150,7 @@ struct PostingCard: View {
     }
 
     private var avatar: some View {
-        FeedAuthorAvatar(
-            url: posting.authorAvatar,
-            name: posting.authorName,
-            side: Metric.avatarSide
-        )
+        Avatar(posting.authorAvatar, size: Metric.avatarSide, blank: .initial(posting.authorName))
     }
 
     /// Only here while you are not following. Following is the end of this button's
