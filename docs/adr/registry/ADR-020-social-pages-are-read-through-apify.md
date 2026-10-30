@@ -68,6 +68,9 @@ says yes: credited to the post and taken down on request, like a photo from a pl
 The page is read through Apify like any other, each photo is picked by eye and saved to Block
 Party's storage (BP app `docs/plans/event-photos`). Every other page's posts, their photos and
 their words still wait for the place's yes.
+**Amended again 2026-10-29 (Jesse, "Yes to all"):** the same holds for a school club's or program's own
+page (its theatre, choir, band, dance team, knowledge bowl): its posts' photos may show on its own events'
+cards, credited and taken down on request.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

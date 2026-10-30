@@ -1042,6 +1042,9 @@ test("a girls' game never shows a boys' photo, nor the other way (event-photos 0
   assert.equal(await pic("Women's Basketball vs Bethel", null), 'https://x/cover.webp', 'women is girls, though it holds "men"');
   assert.equal(await pic('Sartell vs Foley', 'Boys Basketball'), 'https://x/boys.webp');
   assert.equal(await pic('Basketball Tournament', null), 'https://x/boys.webp', 'a game naming neither takes either');
+  assert.equal(await pic('CSB Basketball Home Opener', null), 'https://x/cover.webp', "CSB's teams are women's");
+  assert.equal(await pic('SJU Basketball', null), 'https://x/boys.webp', "SJU's are men's");
+  assert.equal(await pic('CSB/SJU Basketball Night', null), 'https://x/boys.webp', 'naming both names neither');
   await db.exec('delete from public.place_photos;');
 });
 
