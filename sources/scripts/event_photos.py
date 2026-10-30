@@ -46,8 +46,8 @@ CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
 GAME_PAGE = re.compile(r"mshsl\.org|gobound\.com|gojohnnies\.com|gobennies\.com|athletics", re.I)
-SPORT = re.compile(r"hockey|basketball|wrestl|swim|diving|gymnast|volleyball|football|cross country|track|soccer|"
-                   r"nordic|\bski|tennis|golf|softball|baseball|lacrosse|bowling|\bvs\.?\b", re.I)
+SPORT = re.compile(r"hockey|basketball|wrestl|swim|diving|gymnast|volleyball|football|cross country|\btrack\b|soccer|"
+                   r"nordic|\bski(ing)?\b|tennis|golf|softball|baseball|lacrosse|bowling|\bvs\.?\b", re.I)
 TEXT = re.compile(r"\btext\b", re.I)  # Meta's own description: "May be an image of text that says ..."
 
 
@@ -110,7 +110,13 @@ def social_rows(now):
             if done and now - done < LOOKBACK and r.get("status") == "SUCCEEDED":
                 rows += [{"_task": name, "_at": r["finishedAt"], **x} for x in social.items(r["defaultDatasetId"])
                          if not x.get("error")]
-    return sorted(rows, key=lambda x: x.get("timestamp") or x.get("time") or x["_at"], reverse=True)
+    return sorted(rows, key=posted, reverse=True)
+
+
+def posted(row):
+    """When a row was posted, as text that sorts: Facebook gives seconds, Instagram an ISO time."""
+    t = row.get("timestamp") or row.get("time") or row.get("_at") or ""
+    return datetime.fromtimestamp(t, timezone.utc).isoformat() if isinstance(t, (int, float)) else str(t)
 
 
 def from_posts(group, rows):
@@ -357,7 +363,9 @@ def selftest():
           and post_key("https://www.facebook.com/events/2380009089072052") == "2380009089072052", "one post however it's written")
     check(sport({"title": "Boys Swim vs Brainerd · JV"}) and sport({"title": "Fall Play", "source_url": "https://www.mshsl.org/x"})
           and sport({"title": "Pep fest", "category": "watch_sports"}) and not sport({"title": "Annual Dog Costume Contest"})
-          and not sport({"title": "Yoga and Pelvic Floor Health", "category": "health"}), "games, meets and sports left out")
+          and not sport({"title": "Yoga and Pelvic Floor Health", "category": "health"})
+          and not sport({"title": "Fresh Skin Tattoos Fundraiser"}) and sport({"title": "Nordic Skiing Invite"}),
+          "games, meets and sports left out; a tattoo shop's Skin is no ski")
 
     post = lambda url, owner_, pics, **more: {"_task": "bp-busy-facebook", "url": url, "pageName": owner_,
                                               "media": [{"__typename": "Photo", "image": {"uri": u}, "photo_image": {"uri": u},
@@ -375,6 +383,8 @@ def selftest():
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
+    check(sorted([{"timestamp": 1761800000}, {"timestamp": "2026-10-31T01:00:00.000Z"}], key=posted, reverse=True)[0]
+          == {"timestamp": "2026-10-31T01:00:00.000Z"}, "Facebook's seconds and Instagram's times sort together")
 
     events = [{"id": f"id{i}", "title": t, "event_date": "2026-11-05", "source_url": u, "source_name": "Prep"}
               for i, (t, u) in enumerate([("Yoga", "https://www.facebook.com/prep/posts/pfbidPLAY"),
