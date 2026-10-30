@@ -472,8 +472,7 @@ struct FeedCardMenuSheet: ViewModifier {
     }
 
     @Environment(TownFeed.self) private var feed: TownFeed?
-    /// Optional: a News post's share picture draws its card with this modifier and no actions around.
-    @Environment(RealLifeActions.self) private var actions: RealLifeActions?
+    @Environment(RealLifeActions.self) private var actions
     @State private var chosen: Bool?
     /// A report that went and hides the card (ticket 22): the card folds once the sheet has closed.
     @State private var reported = false
@@ -494,7 +493,7 @@ struct FeedCardMenuSheet: ViewModifier {
         }
     }
 
-    private var canAct: Bool { feed != nil && actions?.canAct == true }
+    private var canAct: Bool { feed != nil && actions.canAct }
     /// Once per card: a second report from the same phone would only add to its count.
     private var canReport: Bool { canAct && card != nil && feed?.reportedIDs.contains(id) == false }
 

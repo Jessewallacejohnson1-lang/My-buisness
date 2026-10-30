@@ -77,11 +77,11 @@ struct TownNewsCard: View {
                 )
                 .padding(.top, 2)
                 .padding(.horizontal, DailyFeedMetric.contentInset)
+                .modifier(FeedCardMenuSheet(isPresented: $menuPresented, news: news))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
-        .modifier(FeedCardMenuSheet(isPresented: $menuPresented, news: news))
     }
 
     /// The event card's picture (`FeedEventCard.imageSection`): the photo's own shape, 20 pt
