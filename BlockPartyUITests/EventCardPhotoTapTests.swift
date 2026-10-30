@@ -26,7 +26,12 @@ final class EventCardPhotoTapTests: XCTestCase {
         app = XCUIApplication()
         // Every event page gets a second, bundled photo instead of Google's, so the edge
         // swipe below always has a carousel to start on, network or not.
-        app.launchArguments = ["-open-tab", "town", "-town-samples", "-event-page-two-photos", "-ui-tests"]
+        // `-daily-samples -daily-hour 12`: the Event of the day poster above the cards is a
+        // live read otherwise, and with no real event on (most nights) the cards sat a poster's
+        // height higher, so the title test's drag carried the title under the top bar (red on GitHub
+        // 2026-10-30 02:56 and 03:15 UTC, green at 01:59 with a live event on).
+        app.launchArguments = ["-open-tab", "town", "-town-samples", "-event-page-two-photos", "-ui-tests",
+                               "-daily-samples", "-daily-hour", "12"]
         app.launch()
     }
 
