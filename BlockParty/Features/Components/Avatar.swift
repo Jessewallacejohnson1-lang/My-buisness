@@ -2,10 +2,10 @@
 //  Avatar.swift
 //  Block Party — a round photo, the one way the app draws it (BP app codebase-health 18).
 //
-//  A person without a photo is Instagram's blank profile picture (Jesse, 2026-10-26: "Instagram's
-//  blank figure everywhere"); a place, group or host without one keeps its first letter. The photo
-//  loads through the feed's cache (`FeedCardURLPhoto`), never `AsyncImage`, so a face already
-//  decoded draws in its first frame and your own doesn't flash when you come back to it.
+//  A person without a photo is Instagram's blank profile picture (Jesse said yes to it everywhere,
+//  2026-10-26); a place, group or host without one keeps its first letter. The photo
+//  loads through the feed's cache (`FeedCardURLPhoto`), never `AsyncImage` (no cache), so a face
+//  already decoded draws in its first frame.
 //
 
 import SwiftUI
@@ -21,11 +21,11 @@ struct Avatar: View {
 
     let url: URL?
     let size: CGFloat
-    var blank: Blank = .figure
+    let blank: Blank
     /// The faint ink line the Friends pages draw around a face.
-    var outlined = false
+    let outlined: Bool
     /// A photo just picked on the phone, shown ahead of `url` (onboarding, Edit profile).
-    var picked: UIImage? = nil
+    let picked: UIImage?
 
     /// The URL that failed to load, so a dead link shows the blank instead of the light fill.
     @State private var failed: URL?
@@ -49,7 +49,8 @@ struct Avatar: View {
                 Image(uiImage: picked).resizable().scaledToFill()
                     .transition(.opacity)
             } else if let url, failed != url {
-                FeedCardURLPhoto(url: url, onFailure: { failed = url }, loadingFill: Hue.fill)
+                FeedCardURLPhoto(url: url, onFailure: { withAnimation(.easeOut(duration: 0.2)) { failed = url } },
+                                 loadingFill: Hue.fill)
             } else {
                 blankFace
             }

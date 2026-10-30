@@ -105,9 +105,8 @@ final class FeedCardImageLoader {
     static let shared = FeedCardImageLoader()
 
     private static let maxCachedImages = 12
-    /// Faces keep their own room, so a feed scrolled past a dozen photos never pushes your own
-    /// face out (the You tab's photo flashed on every return) and faces never push photos out.
-    /// A 96 pt profile photo is 288 px.
+    /// Faces keep their own room, so the feed's dozen big photos never push a face out and faces
+    /// never push a photo out; 48 more faces than that still do. A 96 pt profile photo is 288 px.
     private static let maxCachedSmall = 48
     private static let smallPixels = 300
     private var cache: [FeedCardImageRequest: CGImage] = [:]

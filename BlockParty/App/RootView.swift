@@ -1085,7 +1085,7 @@ struct BlockPartyTabBar: View {
     /// Tap handler — the parent owns the page slide and the haptic, and ignores a
     /// release on the tab that is already selected.
     var onSelect: (Tab) -> Void
-    /// The signed-in neighbour's photo for the You tab; nil draws Instagram's blank picture.
+    /// The signed-in neighbour's photo for the You tab; nil draws the person icon.
     var avatarURL: String? = nil
     /// The feed is reading down (its top bar is away): the bar rests small. A touch
     /// brings it back to full size while the finger is down.
@@ -1323,7 +1323,7 @@ struct BlockPartyTabBar: View {
         @ViewBuilder
         private func icon(_ tab: Tab) -> some View {
             let selected = selection == tab
-            if tab == .you {
+            if tab == .you, let avatarURL {
                 TabAvatar(url: avatarURL, selected: selected)
             } else {
                 symbol(tab, selected: selected)
@@ -1374,11 +1374,11 @@ struct BlockPartyTabBar: View {
     }
 }
 
-/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, Instagram's blank
-/// picture without one (codebase-health 18), with an ink ring when selected (GUESSED ring: the
-/// recording never selects that tab).
+/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, with an ink ring when
+/// selected (GUESSED ring: the recording never selects that tab). Without a photo the tab keeps the
+/// person icon, ink like every icon (taste.md 2026-09-27).
 private struct TabAvatar: View {
-    let url: String?
+    let url: String
     let selected: Bool
 
     var body: some View {
