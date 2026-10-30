@@ -275,7 +275,7 @@ struct FeedEventCard: View {
 
     /// What the card shows: its picture, or ink once that picture has failed to load.
     private var displayImage: FeedCardImageSource {
-        // A game draws its teams (`GameMatchup`), never its place's photo or logo.
+        // A game draws its white card (`WhiteGameCard`), never its place's photo or logo.
         if item.game != nil { return .fallback }
         if let url = item.image.url, url == failedPhoto { return .fallback }
         return item.image
@@ -315,14 +315,14 @@ struct FeedEventCard: View {
             ZStack(alignment: .bottom) {
                 imageContent
                     .frame(width: proxy.size.width, height: proxy.size.height)
-                    // What a photo rubber-banding sideways shows beside it: the ink it loads on.
-                    .background(Hue.ink)
+                    // What a photo rubber-banding sideways shows beside it: the ink it loads on;
+                    // beside the white game card, white.
+                    .background(item.game == nil ? Hue.ink : Hue.surface.onLightCanvas)
                     .clipped()
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
 
-                // A game's white words need the shade as a photo's do.
-                if displayImage.isPhoto || item.game != nil {
+                if displayImage.isPhoto {
                     FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
@@ -333,33 +333,36 @@ struct FeedEventCard: View {
         // are set over the picture, and at AX5 they outgrew a 3:2 frame and ran up over
         // the host row (measured 2026-09-24).
         // The event's first photo sets it, failed or not, so the card keeps its height.
-        // A game keeps one shape, 5:4 (game-card 01).
+        // A game keeps one shape, the white card's (game-card 06).
         .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1
-                     : item.game == nil ? CGFloat(item.image.cardAspect) : GameMatchup.Metric.aspect,
+                     : item.game == nil ? CGFloat(item.image.cardAspect) : WhiteGameCard.Metric.aspect,
                      contentMode: .fit)
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        // The white game card stands off the paper on the mock's hairline and soft shadow.
+        .overlay {
+            if item.game != nil {
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .strokeBorder(.black.opacity(0.08), lineWidth: 0.5)
+            }
+        }
+        .shadow(color: .black.opacity(item.game == nil ? 0 : 0.07), radius: 10, y: 6)
         // Along the top: the day and time on the left, the photo's credit on the right, before the
         // host's mark, so the title has the photo's whole width below (picked 2026-10-19: under the
         // narrower inset card, a credit beside the title cut "Plant Bingo for Angel Reins" short).
+        // The white game card says when under its VS (game-card 06).
         .overlay(alignment: .top) {
             HStack(alignment: .center, spacing: 8) {
-                if let when = item.whenLine {
+                if item.game == nil, let when = item.whenLine {
                     // Turns to Now at the start minute while you look at it (event-card 04).
                     TimelineView(.everyMinute) { context in
                         let now = item.isNow(at: context.date)
                         // A ZStack, not a Group: a Group hands the transition to each chip, and
                         // the one coming in never sees `now` change, so it would cut.
                         ZStack(alignment: .leading) {
-                            // A game with its score coming in says Live behind the red dot, not
-                            // Now (taste/town.md, 2026-10-20).
-                            let live = item.game?.live?.isLive(at: context.date) == true
-                            if live {
-                                PhotoChip(text: "Live", spoken: "Live", dot: Hue.live)
-                                    .transition(.opacity)
-                            } else if now {
+                            if now {
                                 PhotoChip(text: "Now", spoken: "Happening now", dot: Hue.now)
                                     .transition(.opacity)
                             } else {
@@ -368,7 +371,6 @@ struct FeedEventCard: View {
                             }
                         }
                         .animation(motionIsReduced ? nil : Motion.smooth, value: now)
-                        .animation(motionIsReduced ? nil : Motion.smooth, value: item.game?.live?.isLive(at: context.date) == true)
                     }
                     .layoutPriority(1)
                 }
@@ -388,20 +390,23 @@ struct FeedEventCard: View {
             .accessibilitySortPriority(-1)
             .allowsHitTesting(false)
         }
+        // The white game card sets its own sport and place (game-card 06).
         .overlay(alignment: .bottom) {
-            HStack(alignment: .bottom, spacing: 0) {
-                imageCopy
-                // Without this the HStack shrinks to its content and the overlay CENTRES
-                // it — a short headline ("Farmers Market") floated to the middle of the
-                // photograph. The copy is ranged left off the picture's bottom-left
-                // corner, always.
-                Spacer(minLength: 0)
+            if item.game == nil {
+                HStack(alignment: .bottom, spacing: 0) {
+                    imageCopy
+                    // Without this the HStack shrinks to its content and the overlay CENTRES
+                    // it — a short headline ("Farmers Market") floated to the middle of the
+                    // photograph. The copy is ranged left off the picture's bottom-left
+                    // corner, always.
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                // Clear of the heart in the bottom right corner.
+                .padding(.trailing, actions.canAct ? Self.photoHeartSide + Self.photoHeartInset - 8 : 0)
+                // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
+                .allowsHitTesting(false)
             }
-            .padding(16)
-            // Clear of the heart in the bottom right corner.
-            .padding(.trailing, actions.canAct ? Self.photoHeartSide + Self.photoHeartInset - 8 : 0)
-            // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
-            .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         // The heart in the photo's corner is the double-tap's control to mirror, and
@@ -416,7 +421,7 @@ struct FeedEventCard: View {
     @ViewBuilder
     private var imageContent: some View {
         if let game = item.game {
-            GameMatchup(game: game)
+            WhiteGameCard(item: item, game: game, place: metaSummary)
         } else if let url = displayImage.url {
             // The Event page's carousel: it pages under the finger, and one photo rubber-bands
             // (a sideways swipe used to open the Event page as if it were a tap, 2026-10-20).
@@ -438,8 +443,7 @@ struct FeedEventCard: View {
         // Called off: the photo goes black and white and the red pill under it says so; no
         // tag over the photo (Jesse, 2026-10-17).
         VStack(alignment: .leading, spacing: 4) {
-            // A game's title is its sport alone; the teams are on the discs (game-card 01).
-            Text(item.game?.sport ?? item.title)
+            Text(item.title)
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
                 // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
@@ -455,7 +459,6 @@ struct FeedEventCard: View {
                 .foregroundStyle(onLogo ? Hue.ink : .white)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(spokenTitle)
 
             if !metaSummary.isEmpty {
                 Text(metaSummary)
@@ -473,12 +476,6 @@ struct FeedEventCard: View {
         // None on ink words over a logo's light backdrop.
         .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
-    }
-
-    /// The title as VoiceOver says it: a game names its teams, which the discs show
-    /// ("Football, Saint John's versus Gustavus").
-    private var spokenTitle: String {
-        item.game?.spoken ?? item.title
     }
 
     /// What it is, recurrence and place, under the title: "Lecture · Escher Auditorium". The words
@@ -514,7 +511,8 @@ struct FeedEventCard: View {
     }
 
     /// The heart on the photo (event-card 06): a 38 pt grey glass circle, the white heart in it, red
-    /// once yours. Its pop and its shake on a refused write are the action row's.
+    /// once yours; on the white game card, the ink heart alone (game-card 06). Its pop and its shake
+    /// on a refused write are the action row's.
     static let photoHeartSide: CGFloat = 38
     static let photoHeartInset: CGFloat = 12
     static let photoHeartGlyph: CGFloat = 20
@@ -526,6 +524,7 @@ struct FeedEventCard: View {
     private var photoHeart: some View {
         let hearted = actions.heart(item).isHearted
         let failures = actions.heartFailureCount(item.id)
+        let onWhite = item.game != nil
         return Button {
             heartTappedAt = failures
             withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
@@ -533,18 +532,20 @@ struct FeedEventCard: View {
             }
         } label: {
             FeedActionGlyphView(glyph: .heart, size: Self.photoHeartGlyph, filled: hearted)
-                .foregroundStyle(hearted ? Hue.heart : .white)
+                .foregroundStyle(hearted ? Hue.heart : onWhite ? Hue.ink.onLightCanvas : .white)
                 .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
                     glyph.scaleEffect(motionIsReduced ? 1 : scale)
                 } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
                 .frame(width: Self.photoHeartSide, height: Self.photoHeartSide)
                 // Grey glass: the photo blurred through a dark tint, a line of light inside the top.
                 .background {
-                    Circle()
-                        .fill(.black.opacity(0.22))
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5) }
-                        .environment(\.colorScheme, .dark)
+                    if !onWhite {
+                        Circle()
+                            .fill(.black.opacity(0.22))
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5) }
+                            .environment(\.colorScheme, .dark)
+                    }
                 }
                 .frame(width: MeetupPillStyle.minTarget, height: MeetupPillStyle.minTarget)
                 .contentShape(Circle())
