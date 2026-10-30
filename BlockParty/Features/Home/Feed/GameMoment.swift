@@ -204,7 +204,17 @@ struct MomentLine<Line: View>: View {
                 .fixedSize(horizontal: filled, vertical: false)
                 .padding(.horizontal, filled ? style.filled.padding : style.plain.padding)
                 .frame(height: filled ? style.filled.height : style.plain.height)
-                .background(filled ? style.filled.fill : style.plain.fill, in: Capsule())
+                .background {
+                    // The moment's fill comes in at once, as the Island's black does (a fill fading in
+                    // with the growth read as a grey blob in the frames), and melts away when it ends.
+                    ZStack {
+                        Capsule().fill(style.plain.fill)
+                        Capsule().fill(style.filled.fill)
+                            .animation(reduceMotion || !filled ? Motion.smooth : .easeOut(duration: 0.08)) {
+                                $0.opacity(filled ? 1 : 0)
+                            }
+                    }
+                }
                 // A moment arriving nudges the capsule up 8% as it grows.
                 .keyframeAnimator(initialValue: CGFloat(1), trigger: reduceMotion ? 0 : moments.beat) { view, scale in
                     view.scaleEffect(scale)
