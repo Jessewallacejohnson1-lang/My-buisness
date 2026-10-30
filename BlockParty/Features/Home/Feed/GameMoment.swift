@@ -228,7 +228,10 @@ struct MomentLine<Line: View>: View {
     }
 
     private func words(_ moment: GameMoment) -> Text {
-        guard let detail = moment.detail else { return Text(moment.label) }
+        // A long name would reach the logos: the moment's name alone, then.
+        // ponytail: a character count stands in for measuring the words; measure if names still collide.
+        guard let detail = moment.detail, moment.label.count + 1 + detail.count <= style.longest
+        else { return Text(moment.label) }
         return Text("\(moment.label) \(Text(detail).font(style.detailFont).foregroundStyle(style.filled.detail))")
     }
 }
@@ -241,14 +244,16 @@ struct MomentLineStyle {
     let filled: (fill: Color, padding: CGFloat, height: CGFloat, words: Color, detail: Color)
     let font: Font
     let detailFont: Font
+    /// The most characters the moment and its detail take between the two logos.
+    let longest: Int
 
     /// The white game card (06): grey words under the score; a moment is an ink capsule.
     static let onWhite = MomentLineStyle(plain: (.clear, 0, 16, Hue.inkSecondary),
                                          filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
-                                         font: .sansSemibold(13), detailFont: .sans(13))
+                                         font: .sansSemibold(13), detailFont: .sans(13), longest: 24)
     /// On team colors (the Event page's band, the card before 06): the clear pill; a moment is white.
     static let onColor = MomentLineStyle(plain: (.white.opacity(0.22), 9, 22, .white),
                                          filled: (.white.opacity(0.97), 9, 24, Hue.ink.onLightCanvas,
                                                   Hue.inkSecondary.onLightCanvas),
-                                         font: .sansSemibold(12), detailFont: .sans(12))
+                                         font: .sansSemibold(12), detailFont: .sans(12), longest: 21)
 }
