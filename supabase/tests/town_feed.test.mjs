@@ -2304,6 +2304,24 @@ test('a City meeting reaches those who picked Town meetings, lifted by it, as fo
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'not picked and following nothing City: out');
 });
 
+test('an Event for college students reaches only those who picked College, or are Going or saved it (onboarding 21)', async () => {
+  await reset();
+  const dogs = await add('Therapy Dogs', '2026-10-09', { start_time: '7 PM', source_name: 'CSB SJU Libraries' });
+  await db.query(`update public.club_events set interests = '{books,campus,college}', interests_tagged_at = now() where id = $1`, [dogs]);
+  const choir = await add('Christmas with CSB SJU', '2026-10-09', { start_time: '7 PM', source_name: 'CSB SJU' });
+  await db.query(`update public.club_events set interests = '{live_music,campus}', interests_tagged_at = now() where id = $1`, [choir]);
+  await signIn(ME, ['college', 'live_music', 'outdoors']);
+  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Christmas with CSB SJU', 'Therapy Dogs']);
+  await signIn(YOU, ['campus', 'live_music', 'outdoors']);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas with CSB SJU'], 'Campus alone: the public concert only');
+  await db.exec('reset role');
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [dogs, YOU]);
+  await signIn(YOU, ['campus', 'live_music', 'outdoors']);
+  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Christmas with CSB SJU', 'Therapy Dogs'], 'saved, it stays');
+  await db.exec('reset role; set role anon; reset request.jwt.claim.sub');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas with CSB SJU'], 'signed out: the public concert only');
+});
+
 test("Campus lifts CSB and SJU's Events, spaced as one host's so a dozen campus calendars can't fill the top (onboarding 21)", async () => {
   await reset();
   for (const n of [1, 2, 3, 4]) {
