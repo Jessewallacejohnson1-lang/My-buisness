@@ -22,7 +22,8 @@ struct OnboardingDone: View {
     /// Drawn: from the first frame of opening (the island's size, over the island) to the last of
     /// closing. A shut pill that stayed would show round a real island its size isn't quite.
     @State private var lit = false
-    @State private var dragY: CGFloat = 0
+    /// The finger's pull, back to 0 with a spring when it lifts or iOS takes the touch.
+    @GestureState(resetTransaction: Transaction(animation: Motion.card)) private var dragY: CGFloat = 0
     @State private var burst = 0
     @State private var run: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -109,17 +110,13 @@ struct OnboardingDone: View {
         .gesture(
             // In the screen's points: the pill moves with the finger, so its own would shift under it.
             DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { value in
+                .updating($dragY) { value, pull, _ in
                     // Up follows the finger; down only stretches a little, as the hello pill.
                     let y = value.translation.height
-                    dragY = y < 0 ? y : y / 6
+                    pull = y < 0 ? y : y / 6
                 }
                 .onEnded { value in
-                    if value.translation.height < -12, value.predictedEndTranslation.height < -30 {
-                        end()
-                    } else {
-                        withAnimation(Motion.card) { dragY = 0 }
-                    }
+                    if value.translation.height < -12, value.predictedEndTranslation.height < -30 { end() }
                 }
         )
         .allowsHitTesting(beat != .shut)
@@ -162,7 +159,6 @@ struct OnboardingDone: View {
         guard beat != .shut else { return }
         withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.close) {
             beat = .shut
-            dragY = 0
             if reduceMotion { lit = false }
         } completion: {
             lit = false
