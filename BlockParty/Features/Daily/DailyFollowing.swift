@@ -191,7 +191,7 @@ private struct FollowingRow: View {
 
     private var face: some View {
         HStack(spacing: DailyMetric.followingGap) {
-            FeedAuthorAvatar(url: item.avatar, name: item.name, side: DailyMetric.followingPhoto)
+            Avatar(item.avatar, size: DailyMetric.followingPhoto, blank: .initial(item.name))
             Text(words)
                 .font(.sans(15))
                 .foregroundStyle(Hue.ink)

@@ -92,7 +92,7 @@ struct BlockedPage: View {
     /// and shakes.
     private func row(_ person: Neighbor) -> some View {
         HStack(spacing: FriendsMetric.avatarGap) {
-            NeighborFace(url: person.avatarUrl, size: FriendsMetric.neighborFace)
+            Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true)
             Text(person.displayName)
                 .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)

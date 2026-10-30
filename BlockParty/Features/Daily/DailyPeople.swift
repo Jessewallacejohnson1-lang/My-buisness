@@ -63,7 +63,7 @@ private struct SuggestionCard: View {
         VStack(spacing: 0) {
             NavigationLink(value: person) {
                 VStack(spacing: 0) {
-                    NeighborFace(url: person.avatarUrl, size: DailyPeopleMetric.face)
+                    Avatar(avatarUrl: person.avatarUrl, size: DailyPeopleMetric.face, outlined: true)
                         .padding(.top, DailyPeopleMetric.faceTop)
                     Text(person.displayName)
                         .font(.sansSemibold(15))

@@ -86,7 +86,7 @@ struct MutedPage: View {
     /// and shakes.
     private func row(_ host: MutedHost) -> some View {
         HStack(spacing: FriendsMetric.avatarGap) {
-            FeedAuthorAvatar(url: nil, name: host.name, side: FriendsMetric.neighborFace, initialSize: 20)
+            Avatar(nil, size: FriendsMetric.neighborFace, blank: .initial(host.name, font: 20))
             Text(host.name)
                 .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)

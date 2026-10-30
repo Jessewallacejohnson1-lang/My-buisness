@@ -81,7 +81,7 @@ enum YouMetric {
 
 struct YouPage: View {
     let model: YouModel
-    /// The neighbour's photo; nil draws the person icon.
+    /// The neighbour's photo; nil draws Instagram's blank picture.
     let avatarURL: String?
     let onProfile: () -> Void
     @Environment(RealLifeActions.self) private var actions
@@ -416,7 +416,7 @@ private struct YouBadge: View {
         HStack(spacing: 0) {
             // Always here, so the photo loads during the peek: no width and unseen until the
             // fold opens it up, then it comes in over the fold's last part.
-            YouPhoto(url: url)
+            Avatar(avatarUrl: url, size: YouMetric.photo)
                 .animation(Motion.smooth.delay(YouMetric.photoIn)) {
                     $0.opacity(name == nil ? 1 : 0)
                         .scaleEffect(name == nil || reduceMotion ? 1 : 0.6)
@@ -447,37 +447,6 @@ private struct YouBadge: View {
                 .modifier(CardShadow())
                 .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
         }
-    }
-}
-
-/// The neighbour's photo in the bar, or the person icon until there is one.
-private struct YouPhoto: View {
-    let url: String?
-
-    var body: some View {
-        Circle()
-            .fill(Hue.fill)
-            .overlay {
-                if let url, let photo = URL(string: url) {
-                    AsyncImage(url: photo) { phase in
-                        if case .success(let image) = phase {
-                            image.resizable().scaledToFill()
-                        } else {
-                            person
-                        }
-                    }
-                } else {
-                    person
-                }
-            }
-            .frame(width: YouMetric.photo, height: YouMetric.photo)
-            .clipShape(Circle())
-    }
-
-    private var person: some View {
-        Image(systemName: "person.fill")
-            .font(.sans(15))
-            .foregroundStyle(Hue.inkSecondary)
     }
 }
 

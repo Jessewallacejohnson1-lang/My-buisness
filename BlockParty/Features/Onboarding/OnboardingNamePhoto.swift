@@ -106,31 +106,8 @@ struct OnboardingPhotoCircle: View {
     }
 
     private var circle: some View {
-        ZStack {
-            if let data = store.photo, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .transition(.opacity)
-            } else {
-                Hue.blankAvatar
-                BlankFigure().fill(Hue.blankAvatarFigure)
-            }
-        }
-        .frame(width: Self.side, height: Self.side)
-        .clipShape(Circle())
-        .contentShape(Circle())
-    }
-}
-
-/// Instagram's blank figure, measured as fractions of the circle: a head 0.284 wide whose top
-/// sits 0.268 down, and shoulders, an ellipse 0.72 wide and 0.86 tall centred on the bottom
-/// edge, which the circle cuts off.
-private struct BlankFigure: Shape {
-    func path(in rect: CGRect) -> Path {
-        let d = min(rect.width, rect.height)
-        let x = rect.midX
-        var path = Path(ellipseIn: CGRect(x: x - 0.142 * d, y: rect.minY + 0.268 * d, width: 0.284 * d, height: 0.284 * d))
-        path.addEllipse(in: CGRect(x: x - 0.36 * d, y: rect.minY + 0.57 * d, width: 0.72 * d, height: 0.86 * d))
-        return path
+        Avatar(nil, size: Self.side, picked: store.photo.flatMap(UIImage.init(data:)))
+            .contentShape(Circle())
     }
 }
 

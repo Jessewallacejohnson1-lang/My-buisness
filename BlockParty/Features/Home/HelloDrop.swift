@@ -437,7 +437,7 @@ struct HelloDropView: View {
                 HStack(spacing: 10) {
                     Group {
                         if said.photo {
-                            FeedAuthorAvatar(url: logo, name: "", side: 34)
+                            Avatar(logo, size: 34, blank: .initial(""))
                         } else {
                             LogoDisc(logo: logo, initial: "", logoSide: 26, letter: .sansSemibold(12))
                         }

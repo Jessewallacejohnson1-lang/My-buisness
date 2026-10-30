@@ -88,7 +88,7 @@ struct OnboardingContactsList: View {
                 ForEach(people) { person in
                     let on = requests.contains(person.id)
                     row(name: person.displayName, line: "In your contacts") {
-                        NeighborFace(url: person.avatarUrl, size: 48)
+                        Avatar(avatarUrl: person.avatarUrl, size: 48, outlined: true)
                     } pill: {
                         OnboardingListPill(title: on ? "Requested" : "Add friend", on: on, name: person.displayName) {
                             toggle(person.id)

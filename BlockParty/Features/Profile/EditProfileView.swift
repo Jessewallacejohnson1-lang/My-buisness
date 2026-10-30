@@ -162,10 +162,8 @@ struct EditProfileView: View {
 
     private var avatarWell: some View {
         ZStack {
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else if let url = model.avatarUrl, let u = URL(string: url) {
-                AsyncImage(url: u) { img in img.resizable().scaledToFill() } placeholder: { Hue.surface }
+            if image != nil || model.avatarUrl != nil {
+                Avatar(avatarUrl: model.avatarUrl, size: 132, picked: image)
             } else {
                 ZStack {
                     Hue.surface

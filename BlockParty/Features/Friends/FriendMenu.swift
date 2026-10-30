@@ -56,7 +56,7 @@ struct FriendMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: FriendsMetric.menuGap) {
-                NeighborFace(url: person.avatarUrl, size: FriendsMetric.menuFace)
+                Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.menuFace, outlined: true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(person.displayName)
                         .font(.sansBold(20))

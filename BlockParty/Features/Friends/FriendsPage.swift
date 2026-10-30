@@ -275,7 +275,7 @@ struct FriendFace: View {
     let size: CGFloat
 
     var body: some View {
-        NeighborFace(url: Bundle.main.url(forResource: photo, withExtension: "jpg")?.absoluteString, size: size)
+        Avatar(Bundle.main.url(forResource: photo, withExtension: "jpg"), size: size, outlined: true)
     }
 }
 

@@ -263,11 +263,7 @@ struct FeedEventCard: View {
                 .frame(width: Self.hostMarkSide, height: Self.hostMarkSide)
                 .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {
-            FeedAuthorAvatar(
-                url: item.hostAvatar ?? item.hostPicture?.url,
-                name: item.hostName,
-                side: Self.hostMarkSide
-            )
+            Avatar(item.hostAvatar ?? item.hostPicture?.url, size: Self.hostMarkSide, blank: .initial(item.hostName))
         }
     }
 

@@ -27,10 +27,6 @@ nonisolated struct PhoneContact: Identifiable, Equatable {
     var phoneCodes: [String] = []
 
     var codes: Set<String> { Set(emailCodes + phoneCodes) }
-
-    var initials: String {
-        String(name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
-    }
 }
 
 /// What leaves the phone: SHA-256 (hex) of each email lower-cased and trimmed, and of each phone
@@ -268,7 +264,7 @@ private struct ContactsSectionTitle: View {
     }
 }
 
-/// A contact not on Block Party: their photo or initials, the name, and Invite.
+/// A contact not on Block Party: their photo or the blank picture, the name, and Invite.
 private struct InviteRow: View {
     let contact: PhoneContact
 
@@ -294,26 +290,13 @@ private struct InviteRow: View {
     }
 }
 
-/// A contact's own photo, or their initials on the light fill, round. Onboarding's Contacts draws it too.
+/// A contact's own photo, or Instagram's blank picture, round. Onboarding's Contacts draws it too.
 struct ContactFace: View {
     let contact: PhoneContact
     let size: CGFloat
 
     var body: some View {
-        Group {
-            if let data = contact.thumbnail, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Text(contact.initials)
-                    .font(.sansSemibold(size / 3))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Hue.fill)
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .accessibilityHidden(true)
+        Avatar(nil, size: size, picked: contact.thumbnail.flatMap(UIImage.init(data:)))
     }
 }
 

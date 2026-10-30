@@ -133,7 +133,7 @@ struct TownNewsCard: View {
                              logoSide: PhotoChip.height * 0.875, letter: .sansSemibold(14), fits: true)
                         .frame(width: PhotoChip.height, height: PhotoChip.height)
                 } else {
-                    FeedAuthorAvatar(url: nil, name: news.place, side: PhotoChip.height)
+                    Avatar(nil, size: PhotoChip.height, blank: .initial(news.place))
                 }
             }
             .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))

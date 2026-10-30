@@ -222,7 +222,7 @@ private struct HelloItemFace: View {
     var body: some View {
         switch picture {
         case .photo(let url):
-            NeighborFace(url: url, size: NoticeMetric.face)
+            Avatar(avatarUrl: url, size: NoticeMetric.face, outlined: true)
         case .logo(let logo):
             LogoDisc(logo: logo, initial: String(name.prefix(1)), logoSide: NoticeMetric.logo,
                      letter: .sansSemibold(17))
