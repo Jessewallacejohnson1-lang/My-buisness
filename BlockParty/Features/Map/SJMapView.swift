@@ -120,14 +120,15 @@ struct SJMapView: View {
                                        simultaneousRotateAndPinchZoomEnabled: true,
                                        pitchEnabled: true,
                                        panDecelerationFactor: 0.998))
-        // Wordmark hidden, ⓘ attribution kept bottom right, scale bar and Mapbox's own compass
-        // off (`MapCompass` replaces it: our ink, and it levels the tilt too).
+        // Wordmark hidden, ⓘ attribution kept top left under close (the card covers the bottom),
+        // scale bar and Mapbox's own compass off (`MapCompass` replaces it: our ink, and it
+        // levels the tilt too).
         .ornamentOptions(OrnamentOptions(
             scaleBar: ScaleBarViewOptions(visibility: .hidden),
             compass: CompassViewOptions(visibility: .hidden),
             logo: Self.hiddenLogoOptions,
-            attributionButton: AttributionButtonOptions(position: .bottomTrailing,
-                                                        margins: CGPoint(x: 14, y: 26))
+            attributionButton: AttributionButtonOptions(position: .topLeading,
+                                                        margins: CGPoint(x: 26, y: 62))
         ))
         .frameRate(range: 80...120, preferred: 120)
         .onStyleLoaded { _ in
@@ -202,22 +203,24 @@ struct SJMapView: View {
         .padding(.top, 8)
     }
 
-    /// The one pill: the Town feed's read failed with nothing kept (tap to try again, as the
-    /// Town bar's pill words it), or every one of today's events is over.
+    /// The one pill: a read failed with nothing to show (tap to try again, as the Town bar's
+    /// pill words it), or every one of today's events is over ("Nothing today" on a day with none).
     @ViewBuilder
     private var pill: some View {
         let _ = model.clockTick
-        if townFeed.entries == nil, townFeed.failed {
+        if townFeed.entries == nil && townFeed.failed || model.spotsFailed {
             Button {
                 Haptics.light()
-                Task { await townFeed.reload() }
+                model.readAgain()
             } label: {
                 pillText(FeedStateCopy.offline)
+                    .frame(height: 44)
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityHint(FeedStateCopy.retryAction)
         } else if townFeed.entries != nil, model.today.dayIsOver(now: TodayBubbleClock.now()) {
-            pillText("Nothing else today")
+            pillText(model.today.events.isEmpty ? "Nothing today" : "Nothing else today")
         }
     }
 

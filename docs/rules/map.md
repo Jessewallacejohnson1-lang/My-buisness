@@ -13,7 +13,8 @@ nothing else.
   and two glass circles: close top left, recenter top right, with `MapCompass` under recenter once
   the map is turned. One pill between them says "Nothing else today" once every one of today's
   events is over, or "You're offline" / "Couldn't load" (tap to try again). The Mapbox wordmark is
-  hidden and its ⓘ attribution kept (Jesse accepted the ToS risk, 2026-08-14). Its own
+  hidden and its ⓘ attribution kept, top left under close, clear of the card (Jesse accepted the ToS
+  risk, 2026-08-14). Its own
   `NavigationStack` pushes the Event page, so Back returns to the map.
 - **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
   before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
@@ -33,7 +34,9 @@ nothing else.
 - **Where an event is** — the morning job writes `club_events.lat,lng` from the source registry's
   hand-checked coordinates (`at:` per entry, `venue_at:` per named venue): the venue the event's
   location names, or its Place's own spot when the location is empty or names that Place. No real
-  match stays empty and is listed in the morning report; the map leaves it off.
+  match stays empty and is listed in the morning report; the map leaves it off. Each morning
+  re-checks every upcoming event and writes only what changed, so a moved event follows. An event
+  posted in the app (posting is paused) gets its spot the next morning.
 
 `MapSpots`, `KnownVenues`, `POI` and `POILogoCache` stay for Search, onboarding and the seeder; the
 map no longer reads them for pins.

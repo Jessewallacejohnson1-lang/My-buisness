@@ -30,6 +30,8 @@ struct MapEventCard: View {
     @State private var drag: CGFloat = 0
     @State private var scrolled: Int?
     @State private var heartTappedAt = 0
+    /// VoiceOver lands on the card's words when it opens.
+    @AccessibilityFocusState private var heard: Bool
 
     static let sideInset: CGFloat = 20
     static let bottomInset: CGFloat = 55
@@ -61,7 +63,10 @@ struct MapEventCard: View {
         .simultaneousGesture(touch)
         .onChange(of: scrolled) { _, new in if let new, new != page { page = new; Haptics.selection() } }
         .onChange(of: page) { _, new in if scrolled != new { scrolled = new } }
-        .onAppear { scrolled = page }
+        .onAppear {
+            scrolled = page
+            heard = true
+        }
         .accessibilityElement(children: .contain)
     }
 
@@ -206,6 +211,9 @@ struct MapEventCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        // The event before its heart and close.
+        .accessibilitySortPriority(1)
+        .accessibilityFocused($heard)
         .accessibilityHint(events.count > 1 ? "Swipe up or down for the other events here" : "")
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -246,9 +254,8 @@ struct MapEventCard: View {
             .onEnded { v in
                 pressed = false
                 let flung = v.predictedEndTranslation.height > 180
-                if drag > 90 || (drag > 20 && flung) {
-                    onClose()
-                }
+                // Closing leaves it where the finger let go, to slide on down from there.
+                if drag > 90 || (drag > 20 && flung) { return onClose() }
                 withAnimation(.interpolatingSpring(stiffness: 300, damping: 26)) { drag = 0 }
             }
     }

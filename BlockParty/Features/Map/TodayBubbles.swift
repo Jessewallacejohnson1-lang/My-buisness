@@ -395,10 +395,11 @@ struct TodayEventBubble: View {
     }
 
     private func a11yLabel(_ phase: TodayBubbleRules.Phase) -> String {
+        let more = bubble.events.count > 1 ? ", and \(bubble.events.count - 1) more here" : ""
         switch phase {
-        case .live: return "\(bubble.event.title), happening now"
-        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))"
-        default: return bubble.event.title
+        case .live: return "\(bubble.event.title), happening now\(more)"
+        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))\(more)"
+        default: return bubble.event.title + more
         }
     }
 }

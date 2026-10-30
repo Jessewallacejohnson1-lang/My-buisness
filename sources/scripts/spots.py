@@ -17,8 +17,9 @@ Event goes to:
 Nothing else: never the host's own grounds as a guess, since most unknown places are away games
 (write_judged.py's ponytail on spots). An Event with no spot is listed, so its venue can be added.
 
-The morning job's finish runs this for every upcoming Event still without a spot, so new ones get theirs
-the morning they arrive; the first run filled the ones already listed.
+The morning job's finish runs this over every upcoming Event, writing only the spots that changed, so a
+new Event gets its spot the morning it arrives and a moved one follows it; the first run filled the ones
+already listed. Events posted in the app (posting is paused) wait for the next morning.
 """
 import argparse
 import sys
@@ -67,30 +68,33 @@ def spot_for(location, entry_id, venues, ats, names):
 
 
 def fill(db, today, write, entries=None):
-    """Set the spot of every Event from `today` on that has none; return the report's lines."""
+    """Give every Event from `today` on the spot the rules give it now, writing only the ones that
+    differ (a new Event, a moved one, a corrected spot; one no longer known is emptied), and return
+    the report's lines."""
     entries = entries if entries is not None else registry.load(registry.find_root(Path(__file__).parent))[0]
     venues, ats = spots_index(entries)
     names = registry.names_index(entries)
     rows, page = [], 1000  # PostgREST answers at most 1,000 rows a read
     while True:
-        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id"
-                             f"&event_date=gte.{today}&lat=is.null&status=eq.approved&order=event_date,id"
+        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id,lat,lng"
+                             f"&event_date=gte.{today}&status=eq.approved&order=event_date,id"
                              f"&limit={page}&offset={len(rows)}") or []
         rows += got
         if len(got) < page:
             break
-    placed, missing = 0, []
+    changed, missing = 0, []
     for r in rows:
         at = spot_for(r["location"], r["place_entry_id"], venues, ats, names)
         if not at:
             missing.append(r)
+        if (at or [None, None]) == [r.get("lat"), r.get("lng")]:
             continue
-        placed += 1
+        changed += 1
         if write:
-            db.rest("PATCH", f"club_events?id=eq.{quote(r['id'])}", {"lat": at[0], "lng": at[1]},
-                    prefer="return=minimal")
+            db.rest("PATCH", f"club_events?id=eq.{quote(r['id'])}",
+                    {"lat": at[0] if at else None, "lng": at[1] if at else None}, prefer="return=minimal")
     verb = "set" if write else "would set"
-    lines = [f"- Map spots: {verb} {placed}, {len(missing)} with no spot"]
+    lines = [f"- Map spots: {verb} {changed}, {len(rows) - len(missing)} placed, {len(missing)} with no spot"]
     lines += [f"  - {r['event_date']} {r['title']} · {r['location'] or '(no place line)'} ({r['place_entry_id']})"
               for r in missing[:25]]
     lines += [f"  - and {len(missing) - 25} more"] * (len(missing) > 25)
@@ -142,16 +146,21 @@ def selftest():
         def rest(self, method, path, body=None, prefer=None):
             if method == "GET":
                 return [{"id": "e1", "title": "Hockey", "event_date": "2026-10-30", "place_entry_id": "activities-athletic-csb",
-                         "location": "Municipal Athletic Center, St. Cloud"},
+                         "location": "Municipal Athletic Center, St. Cloud", "lat": None, "lng": None},
                         {"id": "e2", "title": "Volleyball", "event_date": "2026-10-30", "place_entry_id": "activities-athletic-csb",
-                         "location": "Rush City High School"}]
+                         "location": "Rush City High School", "lat": None, "lng": None},
+                        {"id": "e3", "title": "Raffle", "event_date": "2026-10-30", "place_entry_id": "bar-grill-sals",
+                         "location": None, "lat": 45.56443, "lng": -94.32055},
+                        {"id": "e4", "title": "Moved game", "event_date": "2026-10-30", "place_entry_id": "sju",
+                         "location": "Great Hall", "lat": 45.5798, "lng": -94.3962}]
             self.patched.append((path, body))
     db = FakeDb()
     lines = fill(db, date(2026, 10, 30), write=True, entries=entries)
-    if db.patched != [("club_events?id=eq.e1", {"lat": 45.5731, "lng": -94.2276})] or "set 1, 1 with no spot" not in lines[0] \
-            or "Volleyball" not in lines[1]:
+    if db.patched != [("club_events?id=eq.e1", {"lat": 45.5731, "lng": -94.2276}),
+                      ("club_events?id=eq.e4", {"lat": 45.5809, "lng": -94.3920})] \
+            or "set 2, 3 placed, 1 with no spot" not in lines[0] or "Volleyball" not in lines[1]:
         failed += 1
-        print(f"FAIL fill writes only real spots and lists the rest: {db.patched} {lines}")
+        print(f"FAIL fill writes only what changed (a new spot, a moved one) and lists the rest: {db.patched} {lines}")
     print(f"{len(cases) + 1 - failed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
 

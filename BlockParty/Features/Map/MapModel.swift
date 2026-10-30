@@ -24,6 +24,8 @@ final class MapModel: ObservableObject {
     /// A 1-minute wall-clock heartbeat, so a bubble that ends drops off and "Nothing else
     /// today" comes on with no data change.
     @Published private(set) var clockTick = 0
+    /// The last read of today's spots failed: the map's pill offers to try again.
+    @Published private(set) var spotsFailed = false
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
@@ -109,21 +111,26 @@ final class MapModel: ObservableObject {
             do {
                 let found = try await api.eventSpots(new)
                 guard let self else { return }
+                self.spotsFailed = false
                 self.spots.merge(found) { $1 }
                 self.today = TodayPlaces(events: self.today.events, spots: self.spots)
                 // Warm the bubbles' pictures so each pops in with its photo, not empty glass.
                 POILogoCache.shared.prefetch(self.today.bubbles(now: TodayBubbleClock.now()).compactMap { $0.picture?.url })
             } catch {
                 self?.asked.subtract(new)
+                self?.spotsFailed = true
             }
         }
     }
 
     /// The Town feed reads again, and every spot of today's with it (the morning job may
-    /// have set one since).
-    private func readAgain() {
+    /// have set one since), even when the feed's cards come back the same.
+    func readAgain() {
         asked.removeAll()
-        Task { await feed?.refresh() }
+        Task { @MainActor [weak self] in
+            await self?.feed?.refresh()
+            if let self, let feed = self.feed { self.show(feed.cards) }
+        }
     }
 
     // MARK: Realtime
@@ -147,10 +154,11 @@ final class MapModel: ObservableObject {
     }
 
     private func handle(_ change: RealtimeClient.Change) {
-        // A game's score coming in (game-card 03) moves nothing on the map: no refetch for it.
+        // A live score coming in (game-card 03) moves nothing on the map: no refetch for it. A
+        // final does: the game is over, so its bubble goes.
         if change.kind == .update, let new = change.new, let old = change.old,
-           new.withoutScores == old.withoutScores,
-           new.finalScore != old.finalScore || new.liveScore != old.liveScore || new.scoringPlays != old.scoringPlays { return }
+           new.withoutScores == old.withoutScores, new.finalScore == old.finalScore,
+           new.liveScore != old.liveScore || new.scoringPlays != old.scoringPlays { return }
         // Today's map: a row dated today, or one it shows (an edit that moves it off today, a delete).
         guard ClubEventRelevance.matters(change, shownIDs: Set(today.events.map(\.id)),
                                          days: currentDate...currentDate) else { return }
