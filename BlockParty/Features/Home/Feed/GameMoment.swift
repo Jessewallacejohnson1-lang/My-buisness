@@ -238,8 +238,8 @@ struct MomentLine<Line: View>: View {
 
 /// How the line and its capsule look on each surface (the mock's two phones).
 struct MomentLineStyle {
-    /// The line's own fill, side padding, height and words' color.
-    let plain: (fill: Color, padding: CGFloat, height: CGFloat, words: Color)
+    /// The line's own fill, side padding, height (none: its words' own) and words' color.
+    let plain: (fill: Color, padding: CGFloat, height: CGFloat?, words: Color)
     /// The moment's, and its detail's color.
     let filled: (fill: Color, padding: CGFloat, height: CGFloat, words: Color, detail: Color)
     let font: Font
@@ -248,7 +248,7 @@ struct MomentLineStyle {
     let longest: Int
 
     /// The white game card (06): grey words under the score; a moment is an ink capsule.
-    static let onWhite = MomentLineStyle(plain: (.clear, 0, 16, Hue.inkSecondary),
+    static let onWhite = MomentLineStyle(plain: (.clear, 0, nil, Hue.inkSecondary),
                                          filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
                                          font: .sansSemibold(13), detailFont: .sans(13), longest: 24)
     /// On team colors (the Event page's band, the card before 06): the clear pill; a moment is white.
