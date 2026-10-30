@@ -8,8 +8,12 @@ The map puts each of today's Events at `club_events.lat, lng`. The spots are han
 the source registry: each entry's `at: [lat, lng]` (its main door) and `venue_at:`, a map from a venue's
 name, as event location lines write it, to its own [lat, lng] (Sexton Arena is not SJU's main door). An
 Event goes to:
-  1. the venue its location line names (the line whole, else the longest venue name inside it), else
-  2. its Place's `at:`, when the line is empty or names that Place (its name, other names or address).
+  1. the venue its location line names: the line whole, else the longest venue name inside it, from its
+     own Place's venues or, for a name long enough to be one building only (16 letters and up, "South
+     Junior High School"), anyone's: a short name like "City Hall" or "Great Hall" inside a line from
+     another town's host must not land here; else
+  2. the `at:` of the registry Place the line names (registry.place_for: name, other names, venues or
+     address), or of its own Place when the line is empty.
 Nothing else: never the host's own grounds as a guess, since most unknown places are away games
 (write_judged.py's ponytail on spots). An Event with no spot is listed, so its venue can be added.
 
@@ -30,7 +34,7 @@ LOCAL = ZoneInfo("America/Chicago")
 
 
 def spots_index(entries):
-    """(venue key -> [lat, lng], entry id -> [lat, lng]) from the registry's `venue_at` and `at`."""
+    """(venue key -> (its entry, [lat, lng]), entry id -> [lat, lng]) from the registry's `venue_at` and `at`."""
     venues, ats = {}, {}
     for e in entries:
         extra = e.get("_extra") or e
@@ -39,24 +43,27 @@ def spots_index(entries):
         for name, at in (extra.get("venue_at") or {}).items():
             key = registry.place_key(name)
             if key and key not in registry.TOWN_KEYS:
-                venues[key] = list(at)
+                venues[key] = (e["id"], list(at))
     return venues, ats
+
+
+# A venue name this long names one building wherever it's written; shorter ones match only their own Place's lines.
+ANYONE_S = 16
 
 
 def spot_for(location, entry_id, venues, ats, names):
     """[lat, lng] for an Event at `location` posted for Place `entry_id`, or None (rules in the docstring)."""
     key = registry.place_key(location)
     if key in venues:
-        return venues[key]
-    inside = [k for k in venues if len(k) >= 8 and k in key]
+        return venues[key][1]
+    inside = [k for k, (owner, _) in venues.items()
+              if len(k) >= 8 and k in key and (owner == entry_id or len(k) >= ANYONE_S)]
     if inside:
-        return venues[max(inside, key=len)]
+        return venues[max(inside, key=len)][1]
     if not key:
         return ats.get(entry_id)
     ids, found = registry.place_for(location, None, names)
-    if found and entry_id in (ids or []):
-        return ats.get(entry_id)
-    return None
+    return next((ats[i] for i in ids or [] if i in ats), None) if found else None
 
 
 def fill(db, today, write, entries=None):
@@ -64,8 +71,14 @@ def fill(db, today, write, entries=None):
     entries = entries if entries is not None else registry.load(registry.find_root(Path(__file__).parent))[0]
     venues, ats = spots_index(entries)
     names = registry.names_index(entries)
-    rows = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id"
-                          f"&event_date=gte.{today}&lat=is.null&status=eq.approved&order=event_date") or []
+    rows, page = [], 1000  # PostgREST answers at most 1,000 rows a read
+    while True:
+        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id"
+                             f"&event_date=gte.{today}&lat=is.null&status=eq.approved&order=event_date,id"
+                             f"&limit={page}&offset={len(rows)}") or []
+        rows += got
+        if len(got) < page:
+            break
     placed, missing = 0, []
     for r in rows:
         at = spot_for(r["location"], r["place_entry_id"], venues, ats, names)
@@ -95,6 +108,8 @@ def selftest():
         {"id": "activities-athletic-csb", "_name": "CSB Athletics", "_extra": {"at": [45.5600, -94.3200]}},
         {"id": "municipal-athletic-complex", "_name": "Municipal Athletic Complex",
          "_extra": {"venue_at": {"Municipal Athletic Center": [45.5731, -94.2276]}}},
+        {"id": "st-cloud-area-school-district-742", "_name": "St. Cloud Area School District 742",
+         "_extra": {"venue_at": {"South Junior High School": [45.54686, -94.16724]}}},
     ]
     venues, ats = spots_index(entries)
     names = registry.names_index(entries)
@@ -109,6 +124,11 @@ def selftest():
         ("Rush City High School", "activities-athletic-csb", None, "an unknown place is never the host's grounds"),
         ("Online", "sju", None, "online has no spot"),
         ("Collegeville", "sju", None, "a bare town is no place"),
+        ("Great Hall, SJU", "csbsju-events", [45.5809, -94.3920], "anyone's line that is the venue's name whole"),
+        ("Sartell Great Hall", "sartell-high-school", None, "a short venue name inside another host's line is not it"),
+        ("South Junior High School Gym, East", "kennedy-community-school", [45.54686, -94.16724],
+         "a long venue name inside anyone's line"),
+        ("SJU", "csbsju-events", [45.5810, -94.3926], "a line naming a Place goes to that Place, whoever posted it"),
     ]
     failed = 0
     for location, entry, want, why in cases:
