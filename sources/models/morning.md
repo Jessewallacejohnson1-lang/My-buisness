@@ -37,25 +37,31 @@ command's output and your answer.
 helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save refused` line
 ends the morning: answer with it.
 
-**Helpers.** Start them together, at most 10 running at once:
+**Helpers.** First run `python3 sources/scripts/event_photos.py prepare`: it lays out each new Event's
+pictures, games aside, on sheets in `.runs/morning/photos/` (event-photos 09). Then start the helpers
+together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
   Answer with the JSON lines only." Their lines go to `.runs/morning/tags.jsonl`.
 - for each `.runs/morning/describe/batch-N.txt`, one helper on your own model with the same
   words for `describe.md` and its batch. Their lines go to `.runs/morning/describe.jsonl`.
-- Once every helper's lines are in, run `python3 sources/scripts/morning.py today`, then read
+- for each `.runs/morning/photos/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
+  `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with the
+  JSON lines only." Their lines go to `.runs/morning/event_photos.jsonl`.
+- Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked
+  photos), then `python3 sources/scripts/morning.py today`, then read
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
   Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
 **Finish.** Run `python3 sources/scripts/morning.py finish` until it prints the report. It saves
 the tags, Abouts and standouts and prints the whole morning report; a save that failed is a line
-in it. Answer with Ready's line if it said `ready, but`, then that report as printed, then your
-`[season]` lines, then one line per flag you dropped that a neighbour might have wanted, and
-why. Nothing else.
+in it. Answer with Ready's line if it said `ready, but`, then that report as printed, then keep's
+`[photos]` line, then your `[season]` lines, then one line per flag you dropped that a neighbour might
+have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py` (the registry's fetcher obeys robots rules and
+- Pages are fetched only by `morning.py` and `event_photos.py` (the registry's fetcher obeys robots rules and
   Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish`. SQL by hand stays unused.
+- The database is written only by `morning.py save` and `finish`, and `event_photos.py keep`. SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

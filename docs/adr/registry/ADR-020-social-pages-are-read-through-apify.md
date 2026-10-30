@@ -71,6 +71,14 @@ their words still wait for the place's yes.
 **Amended again 2026-10-29 (Jesse, "Yes to all"):** the same holds for a school club's or program's own
 page (its theatre, choir, band, dance team, knowledge bowl): its posts' photos may show on its own events'
 cards, credited and taken down on request.
+**Amended 2026-10-30 (Jesse, "for each event when the event is found or when you bring it to me they
+should all have a photo of event", and yes to using a place's own post photos):** every place's posts'
+photos may now show as its own Events' photos, before the place says yes: the one real photo a cheap model
+picks from the Event's own post, else from the same page's other recent posts, is saved to Block Party's
+storage, credited to the place and taken down on request (`sources/scripts/event_photos.py`, BP app
+`docs/plans/event-photos` 09). Flyers and pictures with words are never picked. The pictures come from the
+Apify runs already made, so this costs no extra Apify reads. A post's words, and every picture not picked,
+still wait for the place's yes.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

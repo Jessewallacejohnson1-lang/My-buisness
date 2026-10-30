@@ -338,8 +338,9 @@ def new_event(row):
 
 
 def photo_lines(rows):
-    """The new Events whose card shows their place's photo or logo, not a photo of what they are: no live scene
-    of their place fits their subject and season (BP app event-photos 08), so each is a place and subject for
+    """The new Events whose card shows their place's photo or logo, not a photo of what they are: no photo of
+    their own (event_photos.py, event-photos 09) and no live scene of their place fits their subject and
+    season (BP app event-photos 08), so each is a place and subject for
     the next photo round (the place-photos skill's scenes.py). A game is left out, by the card's own rule (two
     teams and a sport, private.event_game): the white game card has no photo. A read that fails is one line,
     never a lost report."""
@@ -354,7 +355,7 @@ def photo_lines(rows):
                for e in db.rest("GET", f"club_events?select=id,source_name,source_uid&source_uid=in.({quote(uids)})") or []}
         shown = {k: (db.rest("POST", "rpc/event_picture", {"p_event": i}) or {}).get("url") for k, i in ids.items()}
         urls = ",".join(f'"{u}"' for u in set(shown.values()) if u)
-        scenes = {s["url"] for s in db.rest("GET", f"place_photos?select=url&kind=eq.scene&url=in.({quote(urls)})") or []
+        scenes = {s["url"] for s in db.rest("GET", f"place_photos?select=url&kind=in.(scene,event)&url=in.({quote(urls)})") or []
                   } if urls else set()
     except Exception as e:
         return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
@@ -1396,7 +1397,7 @@ def photos_told():
                         for r in rows if quote(f'"{r["source_uid"]}"') in path]
             if path == "rpc/event_picture":
                 return {"url": shown.get(body["p_event"]), "kind": "photo"}
-            return [{"url": "https://x/scene-market.jpg"}] if "kind=eq.scene" in path else []
+            return [{"url": "https://x/scene-market.jpg"}] if "kind=in.(scene,event)" in path else []
 
     class Unread:
         def __init__(self):
