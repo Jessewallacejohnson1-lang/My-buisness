@@ -52,7 +52,10 @@ final class OnboardingStoreTests: XCTestCase {
         for _ in 0..<6 { store.next() }
         XCTAssertEqual(store.step, .friends)
         store.skipFriends()
-        XCTAssertTrue(OnboardingStore(defaults: defaults).finished)
+        XCTAssertTrue(store.finishedHere, "finished through the flow: the Done island's")
+        let again = OnboardingStore(defaults: defaults)
+        XCTAssertTrue(again.finished)
+        XCTAssertFalse(again.finishedHere, "a relaunch has no Done to show")
     }
 
     func testAnInstallThatOpenedTheTabsBeforeIsAlreadyIn() {
@@ -70,6 +73,7 @@ final class OnboardingStoreTests: XCTestCase {
         midway.back()
         midway.serverSaysFinished()
         XCTAssertTrue(midway.finished)
+        XCTAssertFalse(midway.finishedHere, "the server's stamp gets no Done island")
     }
 
     // MARK: Name and photo (ticket 18)

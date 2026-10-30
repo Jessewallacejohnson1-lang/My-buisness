@@ -46,6 +46,9 @@ enum OnboardingStep: Int, CaseIterable {
 final class OnboardingStore {
     private(set) var step: OnboardingStep
     private(set) var finished: Bool
+    /// Finished through the flow in this launch, not from the server's stamp: the Done island and
+    /// the wait for the answers are for this one (onboarding 24). Never saved.
+    private(set) var finishedHere = false
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
     /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
@@ -214,15 +217,20 @@ final class OnboardingStore {
     func skipFriends() { finish() }
 
     func finish() {
-        finished = true
-        defaults.set(true, forKey: Self.finishedKey)
+        finishedHere = true
+        markFinished()
     }
 
     /// The server's `onboarded_at` says this account finished on another install. Taken only
     /// on the Welcome, so a slow read can't pull someone out halfway through.
     func serverSaysFinished() {
         guard step == .welcome else { return }
-        finish()
+        markFinished()
+    }
+
+    private func markFinished() {
+        finished = true
+        defaults.set(true, forKey: Self.finishedKey)
     }
 
     private func keep(_ value: Any?, _ key: String) {

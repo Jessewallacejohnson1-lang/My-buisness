@@ -179,10 +179,11 @@ struct RootView: View {
     /// The server already had `onboarded_at`: finishing from it must not re-stamp the date
     /// Profile shows as "since".
     @State private var stampedOnServer = false
-    /// Finished through the flow: the answers the Town feed sorts by are on their way to the account,
-    /// and the flow's last screen stays up under the Done island until they land or
-    /// `answersWait` passes, so the feed's first read has them (BP app onboarding 24).
-    @State private var answersLanding = false
+    /// Finished through the flow, the answers the Town feed sorts by are on the account, or
+    /// `answersWait` has passed: till then the flow's last screen stays up under the Done island, so
+    /// the feed's first read has them (BP app onboarding 24). Read in the same pass that finishes, so
+    /// the tabs never come up (and read the feed) before `onChange` has started the stamp.
+    @State private var answersLanded = false
     /// Each answer that landed after the Town feed's first read: the feed reads again.
     @State private var answersLate = 0
     /// The Done island's name, while it's up.
@@ -199,7 +200,7 @@ struct RootView: View {
             return false
         }
         #endif
-        return !onboarding.finished || answersLanding
+        return !onboarding.finished || (onboarding.finishedHere && !answersLanded)
     }
 
     private var gate: some View {
@@ -225,22 +226,23 @@ struct RootView: View {
         .onChange(of: onboarding.finished) { _, done in
             guard done else { return }
             if let name = onboarding.displayName { Interests.displayName = name }
-            guard !stampedOnServer else {
+            guard onboarding.finishedHere else {
                 Task { await saveOnboardingAnswers() }
                 return
             }
             // Here, before the tabs come up, so the hello pill doesn't say a second welcome.
             HelloDrop.saidWelcome()
             welcoming = onboarding.displayName ?? ""
-            answersLanding = true
             Task {
-                let wait = Task {
-                    try? await Task.sleep(for: Self.answersWait)
-                    answersLanding = false
+                if !stampedOnServer {
+                    let wait = Task {
+                        try? await Task.sleep(for: Self.answersWait)
+                        answersLanded = true
+                    }
+                    await stampOnboarded()
+                    wait.cancel()
                 }
-                await stampOnboarded()
-                wait.cancel()
-                answersLanding = false
+                answersLanded = true
                 await saveOnboardingAnswers()
             }
         }
@@ -254,7 +256,7 @@ struct RootView: View {
         guard (try? await ProfileAPI(auth: AuthStore.shared)
             .markOnboarded(birthday: onboarding.birthday, interests: onboarding.interests)) != nil else { return }
         onboarding.birthday = nil
-        if !answersLanding { answersLate += 1 }
+        if !onboardingUp { answersLate += 1 }
     }
 
     /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
