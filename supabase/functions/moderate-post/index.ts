@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
-// Supabase Edge Function: moderate a community post with Claude (text + image).
+// Supabase Edge Function: read a reported neighbour posting again with Claude (text + image).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
 //
@@ -46,36 +46,31 @@ Deno.serve(async (req) => {
   let body: any
   try { body = await req.json() } catch { return json({ ok: false, reason: 'Bad request.' }, 400) }
 
-  // A reported neighbour posting, read again (BP app town-feed 22). The posting is read here, never
-  // taken from the caller; claim_recheck lets each one through once, so a second report or a retry
-  // never pays again. A "breaks the rules" answer declines it as reported: it leaves every feed.
-  let admin: any = null
+  // A reported neighbour posting, read again (BP app town-feed 22), and nothing else: a caller's own
+  // text let any signed-in account spend credits without end (BP app loopholes 04). The posting is
+  // read here, never taken from the caller; claim_recheck lets each one through once, so a second
+  // report or a retry never pays again. A "breaks the rules" answer declines it as reported: it
+  // leaves every feed.
+  if (!body?.recheck) return json({ ok: false, reason: 'Bad request.' }, 400)
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   // A re-check the model never answered goes back unclaimed, so the next report tries again.
-  const unclaim = async () => {
-    if (admin) await admin.from('club_events').update({ rechecked_at: null }).eq('id', body.recheck)
-  }
-  if (body.recheck) {
-    admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const { data: claimed, error } = await admin.rpc('claim_recheck', { p_event: body.recheck })
-    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
-    if (!claimed) return json({ ok: true, reason: '' })
-    const { data: e } = await admin.from('club_events')
-      .select('id, kind, title, location, description, image_url').eq('id', body.recheck).single()
-    if (!e) return json({ ok: true, reason: '' })
-    body = { recheck: e.id, kind: e.kind, title: e.title, location: e.location, description: e.description,
-             image_url: e.image_url }
-  }
+  const unclaim = () => admin.from('club_events').update({ rechecked_at: null }).eq('id', body.recheck)
+  const { data: claimed, error } = await admin.rpc('claim_recheck', { p_event: body.recheck })
+  if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+  if (!claimed) return json({ ok: true, reason: '' })
+  const { data: e } = await admin.from('club_events')
+    .select('id, kind, title, location, description, image_url').eq('id', body.recheck).single()
+  if (!e) return json({ ok: true, reason: '' })
 
   const facts = [
-    `Kind: ${body.kind}`,
-    `Title: ${body.title}`,
-    body.location ? `Location: ${body.location}` : null,
-    body.length ? `Length: ${body.length}` : null,
-    body.description ? `Description: ${body.description}` : null,
+    `Kind: ${e.kind}`,
+    `Title: ${e.title}`,
+    e.location ? `Location: ${e.location}` : null,
+    e.description ? `Description: ${e.description}` : null,
   ].filter(Boolean).join('\n')
 
   const content: any[] = [{ type: 'text', text: facts }]
-  if (body.image_url) content.push({ type: 'image', source: { type: 'url', url: body.image_url } })
+  if (e.image_url) content.push({ type: 'image', source: { type: 'url', url: e.image_url } })
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -94,7 +89,7 @@ Deno.serve(async (req) => {
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
     const parsed = JSON.parse(match[0])
-    if (admin && !parsed.ok) {
+    if (!parsed.ok) {
       await admin.from('club_events').update({ status: 'rejected', review_reason: 'reported' }).eq('id', body.recheck)
     }
     return json({ ok: !!parsed.ok, reason: parsed.reason ?? '' })

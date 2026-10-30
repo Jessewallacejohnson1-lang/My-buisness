@@ -16,12 +16,6 @@ struct BlockPartyApp: App {
     init() {
         registerBlockPartyFonts()
         MapboxOptions.accessToken = MAPBOX_ACCESS_TOKEN
-        // A PostgREST 401 (token rejected server-side) refreshes the session, or
-        // signs out and routes back to Login if the refresh token is dead too —
-        // instead of the user silently retrying a dead token forever.
-        SupabaseHTTP.onUnauthorized = {
-            Task { @MainActor in await AuthStore.shared.handleUnauthorized() }
-        }
     }
 
     var body: some Scene {

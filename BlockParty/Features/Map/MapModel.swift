@@ -28,7 +28,7 @@ final class MapModel: ObservableObject {
     @Published private(set) var spotsFailed = false
 
     private var auth: AuthStore?
-    private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
+    private var api: CommunityAPI? { auth.map { CommunityAPI(auth: $0) } }
 
     private weak var feed: TownFeed?
     /// Each of today's events' spot, once read; `asked` holds every id read, found or not.
