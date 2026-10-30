@@ -137,6 +137,11 @@ struct WhiteGameCard: View {
             .containerRelativeFrame(.horizontal)
         }
         .scrollBounceBehavior(.always, axes: .horizontal)
+        // One element, so the card's link reads it ("Football, Saint John's versus Gustavus, Sat, Oct 31 ·
+        // 1 PM, Clemens Stadium"): a scroll view hides what's inside it from the link.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([game.spoken, status(at: .now)?.text, place].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: ", "))
     }
 
     private func card(at date: Date) -> some View {
@@ -167,8 +172,6 @@ struct WhiteGameCard: View {
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, Metric.placeBottom)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([game.spoken, status?.text, place].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "))
     }
 
     /// Under VS or the score: "Final", "Live · Q3 4:12" (the red dot), "Now" (the green dot), else the
