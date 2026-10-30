@@ -49,27 +49,9 @@ private struct FriendRow: Decodable {
 }
 
 struct CommunityAPI {
-    let auth: any TokenProviding
+    let db: Supabase
 
-
-    // MARK: - Plumbing
-
-    private func token() async throws -> String { try await auth.validAccessToken() }
-
-    private func decode<T: Decodable>(_ data: Data) throws -> T {
-        let dec = JSONDecoder()
-        dec.keyDecodingStrategy = .convertFromSnakeCase
-        return try dec.decode(T.self, from: data)
-    }
-
-    private func body(_ dict: [String: Any]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: dict)
-    }
-
-    private func uidOrThrow() async throws -> String {
-        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
-        return uid
-    }
+    init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
 
     /// "Real events only" guard, appended to every event *display* query.
     /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail), and a
@@ -81,19 +63,12 @@ struct CommunityAPI {
     /// intentionally omit this (curated reference data). The Expo twin (@hygge/core)
     /// still filters on `submitted_by` alone, so it hides found events. A followers-only Event (a JV
     /// game, a banquet: BP app school-activities 03) reaches its followers through the Town feed alone.
-    private static let realOnly = "&or=(submitted_by.not.is.null,source_name.not.is.null)&followers_only=is.false"
-
-    /// A token for a read RLS opens to everyone. Sign-in is switched off, so most
-    /// neighbours have no session; they read with the app's public key, as
-    /// `getPlaces` does, instead of failing into an empty screen. Approved events are
-    /// readable by the anon role; RSVPs are not, so a signed-out read sees none.
-    private func readToken() async -> String {
-        (try? await token()) ?? SupabaseConfig.anonKey
-    }
+    private static let realOnly: Supabase.Query = [("or", "(submitted_by.not.is.null,source_name.not.is.null)"),
+                                                   ("followers_only", "is.false")]
 
     // MARK: - User / admin
 
-    func isAdmin() async -> Bool { Admin.isAdmin(auth.email) }
+    func isAdmin() async -> Bool { Admin.isAdmin(db.auth.email) }
 
     // MARK: - Places (permanent food/business POI markers)
 
@@ -102,9 +77,7 @@ struct CommunityAPI {
     /// the anon role too, so signed out (sign-in is switched off) they are read with the
     /// app's public key instead of failing into an empty map and an empty Search.
     func getPlaces() async throws -> [POI] {
-        let t = await readToken()
-        let (data, _) = try await SupabaseHTTP.rest("places", query: "select=*", accessToken: t)
-        return try decode(data)
+        try Supabase.decode(await db.rest("places", [("select", "*")], anon: true))
     }
 
     /// The photos Block Party keeps of each place (`public.place_photos`, live rows readable with
@@ -113,20 +86,16 @@ struct CommunityAPI {
     func getPlacePhotos() async throws -> [String: [PlacePicture]] {
         // ponytail: one read of every town's live photos (183 on 2026-10-17); Supabase answers at
         // most 1,000 rows, so past that read this town's entries' photos, or page through them.
-        let t = await readToken()
-        let (data, _) = try await SupabaseHTTP.rest(
-            "place_photos",
-            query: "select=entry_id,url,kind,credit,site:source_url&status=eq.live&kind=eq.photo&order=position.asc",
-            accessToken: t)
-        return try Self.placePhotos(from: data)
+        try Self.placePhotos(from: await db.rest("place_photos", [
+            ("select", "entry_id,url,kind,credit,site:source_url"), ("status", "eq.live"), ("kind", "eq.photo"),
+            ("order", "position.asc"),
+        ], anon: true))
     }
 
     /// Each place's name over its photo (`public.place_names`), by registry entry (BP app follows 02).
     func getPlaceNames() async throws -> [String: PlaceName] {
         struct Row: Decodable { let entryId: String; let url: String; let kind: String }
-        let (data, _) = try await SupabaseHTTP.rest("place_names", query: "select=entry_id,url,kind",
-                                                    accessToken: await readToken())
-        let rows: [Row] = try decode(data)
+        let rows: [Row] = try Supabase.decode(await db.rest("place_names", [("select", "entry_id,url,kind")], anon: true))
         return Dictionary(rows.compactMap { row in
             URL(string: row.url).map { (row.entryId, PlaceName(url: $0, emblem: row.kind == "emblem")) }
         }, uniquingKeysWith: { first, _ in first })
@@ -135,9 +104,8 @@ struct CommunityAPI {
     /// The name over an Event's photo: its place's, or nil.
     func eventPlaceName(_ eventID: String) async throws -> PlaceName? {
         struct Row: Decodable { let url: String; let kind: String }
-        let (data, _) = try await SupabaseHTTP.rest("rpc/event_place_name", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_event": eventID]))
-        guard let row = try? decode(data) as Row, let url = URL(string: row.url) else { return nil }
+        let data = try await db.rpc("event_place_name", ["p_event": eventID], anon: true)
+        guard let row = try? Supabase.decode(data, as: Row.self), let url = URL(string: row.url) else { return nil }
         return PlaceName(url: url, emblem: row.kind == "emblem")
     }
 
@@ -145,9 +113,8 @@ struct CommunityAPI {
     /// opened from a read that doesn't send it. Signed out, it reads with the public key.
     func eventSourceURL(_ eventID: String) async throws -> URL? {
         struct Row: Decodable { let sourceUrl: String? }
-        let (data, _) = try await SupabaseHTTP.rest("club_events", query: "select=source_url&id=eq.\(eventID)",
-                                                    accessToken: await readToken())
-        let rows: [Row] = try decode(data)
+        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [("select", "source_url"), ("id", "eq.\(eventID)")],
+                                                            anon: true))
         return rows.first?.sourceUrl.flatMap(URL.init(string:))
     }
 
@@ -162,10 +129,8 @@ struct CommunityAPI {
                 picture = try? PlacePicture(from: decoder)
             }
         }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         var photos: [String: [PlacePicture]] = [:]
-        for row in try decoder.decode([Row].self, from: data) {
+        for row in try Supabase.decode(data, as: [Row].self) {
             if let entry = row.entry, let picture = row.picture { photos[entry, default: []].append(picture) }
         }
         return photos
@@ -177,26 +142,21 @@ struct CommunityAPI {
     /// member count (`get_groups`, BP app rsvp-and-groups 05). Signed out, it reads with the
     /// public key and every group says not joined.
     func getGroups() async throws -> [TownGroup] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_groups", method: "POST",
-                                                    accessToken: await readToken(), body: Data("{}".utf8))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("get_groups", anon: true))
     }
 
     func joinClub(_ clubId: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
+        let uid = try db.userID
         // ignore-duplicates: membership is presence-only and club_members has no
         // UPDATE policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on rejoin.
-        _ = try await SupabaseHTTP.rest("club_members", method: "POST", query: "on_conflict=club_id,user_id",
-                                        accessToken: t, body: try body(["club_id": clubId, "user_id": uid]),
-                                        prefer: "resolution=ignore-duplicates,return=minimal")
+        try await db.rest("club_members", method: "POST", [("on_conflict", "club_id,user_id")],
+                          body: ["club_id": clubId, "user_id": uid],
+                          prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func leaveClub(_ clubId: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        _ = try await SupabaseHTTP.rest("club_members", method: "DELETE",
-                                        query: "club_id=eq.\(clubId)&user_id=eq.\(uid)", accessToken: t)
+        let uid = try db.userID
+        try await db.rest("club_members", method: "DELETE", [("club_id", "eq.\(clubId)"), ("user_id", "eq.\(uid)")])
     }
 
     // MARK: - Events (timeline)
@@ -206,17 +166,14 @@ struct CommunityAPI {
     }
 
     private func timelineEvents(forDate date: String) async throws -> [TimelineEvent] {
-        let t = await readToken()
-        let uid = auth.userId
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&cancelled_at=is.null&order=start_time.asc",
-            accessToken: t)
-        let events: [RawEvent] = try decode(data)
+        let uid = db.auth.userId
+        let events: [RawEvent] = try Supabase.decode(await db.rest("club_events", [
+            ("select", "*,clubs(name)"), ("status", "eq.approved"), ("kind", "eq.event"), ("event_date", "eq.\(date)"),
+        ] + Self.realOnly + [("cancelled_at", "is.null"), ("order", "start_time.asc")], anon: true))
         var joined = Set<String>()
         if let uid {
-            let (jd, _) = try await SupabaseHTTP.rest("club_members",
-                query: "select=club_id&user_id=eq.\(uid)", accessToken: t)
-            let mem: [MemberRow] = try decode(jd)
+            let mem: [MemberRow] = try Supabase.decode(await db.rest("club_members", [("select", "club_id"), ("user_id", "eq.\(uid)")],
+                                                                     anon: true))
             for m in mem { joined.insert(m.clubId) }
         }
         return events.map { e in
@@ -238,9 +195,7 @@ struct CommunityAPI {
     /// `getPlaces` does. It asks for town news too (town-feed 35); an app that doesn't
     /// gets the events alone.
     func getTownFeed() async throws -> [TownFeedLine] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_town_feed", method: "POST",
-                                                    accessToken: await readToken(),
-                                                    body: Data(#"{"p_news":true}"#.utf8))
+        let data = try await db.rpc("get_town_feed", ["p_news": true], anon: true)
         let lines = try Self.townFeedLines(from: data)
         TownFeedCache.save(data)
         return lines
@@ -252,10 +207,8 @@ struct CommunityAPI {
     /// Given a moment (Daily's week, daily-tab 16), it reads that moment's Town day instead:
     /// with no morning picks written ahead, the Town's top pick there. Only today's go on disk.
     func getEventOfTheDay(at moment: Date? = nil) async throws -> [TownFeedRow] {
-        let body = try moment.map { try JSONSerialization.data(withJSONObject: ["p_now": ISO8601DateFormatter().string(from: $0)]) }
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_event_of_the_day", method: "POST",
-                                                    accessToken: await readToken(),
-                                                    body: body ?? Data("{}".utf8))
+        let args = moment.map { ["p_now": ISO8601DateFormatter().string(from: $0)] } ?? [:]
+        let data = try await db.rpc("get_event_of_the_day", args, anon: true)
         let rows = try Self.townFeedRows(from: data)
         if moment == nil { TownFeedCache.save(data, .eventOfTheDay) }
         return rows
@@ -321,9 +274,7 @@ struct CommunityAPI {
             let value: FeedScore?
             init(from decoder: Decoder) { value = try? FeedScore(from: decoder) }
         }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Row].self, from: data).compactMap { row -> TownFeedLine? in
+        return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
             if row.kind == "news" {
                 guard let post = row.sourceUrl.flatMap(URL.init(string:)) else { return nil }
@@ -358,14 +309,13 @@ struct CommunityAPI {
     }
 
     func rsvpEvent(_ eventId: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
+        let uid = try db.userID
         // ignore-duplicates: an RSVP is presence-only and event_rsvps has no UPDATE
         // policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on re-RSVP —
         // which the feed's join button hits whenever its optimistic state drifts.
-        _ = try await SupabaseHTTP.rest("event_rsvps", method: "POST", query: "on_conflict=event_id,user_id",
-                                        accessToken: t, body: try body(["event_id": eventId, "user_id": uid]),
-                                        prefer: "resolution=ignore-duplicates,return=minimal")
+        try await db.rest("event_rsvps", method: "POST", [("on_conflict", "event_id,user_id")],
+                          body: ["event_id": eventId, "user_id": uid],
+                          prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     /// The Town feed's views and opens (ticket 20), in one insert. Who and when are set by
@@ -375,10 +325,7 @@ struct CommunityAPI {
         let rows = batch.filter { UUID(uuidString: $0.itemID) != nil }
             .map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
         guard !rows.isEmpty else { return }
-        let t = try await token()
-        _ = try await SupabaseHTTP.rest("feed_actions", method: "POST", accessToken: t,
-                                        body: try JSONSerialization.data(withJSONObject: rows),
-                                        prefer: "return=minimal")
+        try await db.rest("feed_actions", method: "POST", body: rows, prefer: "return=minimal")
     }
 
     /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet
@@ -395,74 +342,50 @@ struct CommunityAPI {
     /// keeps one row per person per Town day, so calling it on every return is harmless.
     func recordOpen() async throws {
         guard !Self.isSimulator else { return }
-        _ = try await SupabaseHTTP.rest("rpc/record_open", method: "POST", accessToken: try await token(),
-                                        body: Data("{}".utf8))
+        try await db.rpc("record_open")
     }
 
     /// Not interested, Mute and their undoing (town-feed 21), straight away. A Mute answers with
     /// the host it muted, which Unmute names. Ids that aren't Events (samples) send nothing.
     func feedChoice(_ choice: FeedChoice) async throws -> String? {
-        let t = try await token()
         switch choice {
         case .notInterested(let id), .undoNotInterested(let id):
             guard UUID(uuidString: id) != nil else { return nil }
-            let on = choice == .notInterested(id)
-            _ = try await SupabaseHTTP.rest("rpc/set_not_interested", method: "POST", accessToken: t,
-                                            body: try body(["p_item": id, "p_on": on]))
+            try await db.rpc("set_not_interested", ["p_item": id, "p_on": choice == .notInterested(id)])
             return nil
         case .mute(let id):
             guard UUID(uuidString: id) != nil else { return nil }
-            let (data, _) = try await SupabaseHTTP.rest("rpc/mute_host", method: "POST", accessToken: t,
-                                                        body: try body(["p_item": id]))
+            let data = try await db.rpc("mute_host", ["p_item": id])
             return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
         case .report(let id, let reason):
             guard UUID(uuidString: id) != nil else { return nil }
-            let (data, _) = try await SupabaseHTTP.rest("rpc/report_event", method: "POST", accessToken: t,
-                                                        body: try body(["p_event": id, "p_reason": reason.rawValue]))
-            // A neighbour's posting goes back through the AI check (town-feed 22). The function claims
-            // it once and lets go if the model doesn't answer, so a lost call is retried by the next
-            // report; the reporter never waits.
+            let data = try await db.rpc("report_event", ["p_event": id, "p_reason": reason.rawValue])
+            // A neighbour's posting goes back through the AI check (town-feed 22), moderate-post asked to
+            // read it again. The function claims it once and lets go if the model doesn't answer, so a
+            // lost call is retried by the next report; the reporter never waits.
             if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
-                Task.detached { try? await Self.recheck(id, token: t) }
+                let db = db
+                Task { try? await db.invoke("moderate-post", ["recheck": id]) }
             }
             return nil
         case .unmute(let host):
-            var allowed = CharacterSet.urlQueryAllowed
-            allowed.remove(charactersIn: "&=+,()")
-            let value = host.addingPercentEncoding(withAllowedCharacters: allowed) ?? host
-            _ = try await SupabaseHTTP.rest("feed_mutes", method: "DELETE", query: "host=eq.\(value)", accessToken: t)
+            try await db.rest("feed_mutes", method: "DELETE", [("host", "eq.\(host)")])
             return nil
         }
     }
 
-    /// moderate-post, asked to read a reported posting again.
-    private static func recheck(_ id: String, token: String) async throws {
-        var req = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/moderate-post"))
-        req.httpMethod = "POST"
-        req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["recheck": id])
-        _ = try await URLSession.shared.data(for: req)
-    }
-
     /// The hosts you muted, newest first: Profile's Muted list (town-feed 21).
     func mutedHosts() async throws -> [MutedHost] {
-        let (data, _) = try await SupabaseHTTP.rest("feed_mutes", query: "select=host,name&order=at.desc",
-                                                    accessToken: try await token())
-        return try decode(data)
+        try Supabase.decode(await db.rest("feed_mutes", [("select", "host,name"), ("order", "at.desc")]))
     }
 
     func unRsvpEvent(_ eventId: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        _ = try await SupabaseHTTP.rest("event_rsvps", method: "DELETE",
-                                        query: "event_id=eq.\(eventId)&user_id=eq.\(uid)", accessToken: t)
+        let uid = try db.userID
+        try await db.rest("event_rsvps", method: "DELETE", [("event_id", "eq.\(eventId)"), ("user_id", "eq.\(uid)")])
     }
 
     func addEvent(_ input: NewEventInput, clubId: String? = nil, status: ClubStatus = .pending) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
+        let uid = try db.userID
         var b: [String: Any] = [
             "title": input.title, "event_date": input.eventDate, "start_time": input.startTime,
             "location": input.location, "submitted_by": uid, "status": status.rawValue,
@@ -470,8 +393,7 @@ struct CommunityAPI {
         ]
         if let v = input.description { b["description"] = v }
         if let v = input.imageUrl { b["image_url"] = v }
-        _ = try await SupabaseHTTP.rest("club_events", method: "POST", accessToken: t,
-                                        body: try body(b), prefer: "return=minimal")
+        try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
     }
 
     /// Each upcoming Event's interests (its tags once tagged, else its one category), for the
@@ -484,11 +406,11 @@ struct CommunityAPI {
         }
         // Before the account exists (step 7 comes before phone sign-in lands), the public key reads.
         // ponytail: Supabase answers at most 1,000 rows (games are most of them); page through if counts matter.
-        let t = await readToken()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=interests,category,interests_tagged_at,place_entry_id,team_ids,activity_team,source_name&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(Town.day(Date()))\(Self.realOnly)",
-            accessToken: t)
-        let rows: [Row] = try decode(data)
+        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [
+            ("select", "interests,category,interests_tagged_at,place_entry_id,team_ids,activity_team,source_name"),
+            ("status", "eq.approved"), ("kind", "eq.event"), ("cancelled_at", "is.null"),
+            ("event_date", "gte.\(Town.day(Date()))"),
+        ] + Self.realOnly, anon: true))
         return rows.map {
             UpcomingTags(interests: $0.interestsTaggedAt == nil ? [$0.category].compactMap { $0 } : $0.interests ?? [],
                          place: $0.placeEntryId, teams: ($0.teamIds ?? []) + [$0.activityTeam].compactMap { $0 },
@@ -499,11 +421,10 @@ struct CommunityAPI {
     /// The Town's own schools (`teams.local`) and pages (`town_pages`), which Follow 3 suggests
     /// beside its Places (onboarding 22). Read with the public key, as there may be no account yet.
     func followableSchoolsAndPages() async throws -> (schools: [LocalSchool], pages: [TownPageRow]) {
-        let t = await readToken()
-        async let schools = SupabaseHTTP.rest("teams", query: "select=id,uuid,name,school_name,logo_url&local=eq.true", accessToken: t)
-        async let pages = SupabaseHTTP.rest("town_pages",
-            query: "select=id,slug,name,kind,source_name,picture,picture_kind&town=eq.\(Town.slug)", accessToken: t)
-        return (try decode((try await schools).0), try decode((try await pages).0))
+        async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true")], anon: true)
+        async let pages = db.rest("town_pages", [("select", "id,slug,name,kind,source_name,picture,picture_kind"),
+                                                 ("town", "eq.\(Town.slug)")], anon: true)
+        return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
     // MARK: - Your Day (the Today rail — one day, town time)
@@ -526,9 +447,8 @@ struct CommunityAPI {
     func knownEventIDs(_ ids: [String]) async throws -> Set<String> {
         guard !ids.isEmpty else { return [] }
         struct Row: Decodable { let id: String }
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=id&id=in.(\(ids.joined(separator: ",")))", accessToken: await readToken())
-        let rows: [Row] = try decode(data)
+        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [("select", "id"), ("id", "in.(\(ids.joined(separator: ",")))")],
+                                                            anon: true))
         return Set(rows.map(\.id))
     }
 
@@ -536,75 +456,60 @@ struct CommunityAPI {
 
     /// One neighbour by id, as search answers them: `get_neighbor`. nil for nobody you can find.
     func getNeighbor(_ userId: String) async throws -> Neighbor? {
-        let body = try JSONSerialization.data(withJSONObject: ["p_user": userId])
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_neighbor", method: "POST",
-                                                    accessToken: try await token(), body: body)
-        let rows: [Neighbor] = try decode(data)
+        let rows: [Neighbor] = try Supabase.decode(await db.rpc("get_neighbor", ["p_user": userId]))
         return rows.first
     }
 
     /// Neighbours whose name, or a later word of it, starts with `words`: `search_neighbors`,
     /// which answers a real account only and never returns Anonymous or nameless accounts.
     func searchNeighbors(_ words: String) async throws -> [Neighbor] {
-        let body = try JSONSerialization.data(withJSONObject: ["p_words": words])
-        let (data, _) = try await SupabaseHTTP.rest("rpc/search_neighbors", method: "POST",
-                                                    accessToken: try await token(), body: body)
-        return try decode(data)
+        try Supabase.decode(await db.rpc("search_neighbors", ["p_words": words]))
     }
 
     /// The Friends page (`get_friends`): accepted lines, requests newest first, friends A to
     /// Z, each as `kind` and the neighbour (ticket 03).
     func getFriends() async throws -> [(kind: String, neighbor: Neighbor)] {
         struct Kind: Decodable { let kind: String }
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_friends", method: "POST",
-                                                    accessToken: try await token(), body: try body([:]))
-        let kinds: [Kind] = try decode(data)
-        let people: [Neighbor] = try decode(data)
+        let data = try await db.rpc("get_friends")
+        let kinds: [Kind] = try Supabase.decode(data)
+        let people: [Neighbor] = try Supabase.decode(data)
         return zip(kinds, people).map { ($0.kind, $1) }
     }
 
     /// The people you blocked, newest first: Profile's Blocked list (ticket 04).
     func getBlocked() async throws -> [Neighbor] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_blocked", method: "POST",
-                                                    accessToken: try await token(), body: try body([:]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("get_blocked"))
     }
 
     /// Which of your contacts are on Block Party (`match_contacts`, friends 06): the scrambled
     /// emails and phone numbers go, each neighbour comes back with the code that found them.
     func matchContacts(emails: [String], phones: [String]) async throws -> [(code: String, neighbor: Neighbor)] {
         struct Code: Decodable { let code: String }
-        let (data, _) = try await SupabaseHTTP.rest("rpc/match_contacts", method: "POST", accessToken: try await token(),
-                                                    body: try body(["p_emails": emails, "p_phones": phones]))
-        let codes: [Code] = try decode(data)
-        let people: [Neighbor] = try decode(data)
+        let data = try await db.rpc("match_contacts", ["p_emails": emails, "p_phones": phones])
+        let codes: [Code] = try Supabase.decode(data)
+        let people: [Neighbor] = try Supabase.decode(data)
         return zip(codes, people).map { ($0.code, $1) }
     }
 
     /// People you may know, strongest first, at most 20 (daily-tab 22).
     func peopleYouMayKnow() async throws -> [Neighbor] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_people_you_may_know", method: "POST",
-                                                    accessToken: try await token(), body: try body([:]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("get_people_you_may_know"))
     }
 
     /// The X on a suggestion: that person never comes back on your list.
     func hideSuggestion(_ userID: String) async throws {
-        try await SupabaseHTTP.rest("rpc/hide_suggestion", method: "POST",
-                                    accessToken: try await token(), body: try body(["p_user": userID]))
+        try await db.rpc("hide_suggestion", ["p_user": userID])
     }
 
     /// A request newer than your last visit to Friends: the dot on the friends mark.
     func friendsDot() async throws -> Bool {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/friends_dot", method: "POST",
-                                                    accessToken: try await token(), body: try body([:]))
+        let data = try await db.rpc("friends_dot")
         return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool ?? false
     }
 
     /// The Friends page has drawn what it read: the dot clears and accepted lines go.
     func markFriendsSeen() async throws {
-        try await SupabaseHTTP.rest("rpc/mark_friends_seen", method: "POST",
-                                    accessToken: try await token(), body: try body([:]))
+        try await db.rpc("mark_friends_seen")
     }
 
     /// Add friend, Cancel, Confirm, Delete, Unfriend, Block or Unblock with one person; answers
@@ -619,8 +524,7 @@ struct CommunityAPI {
         case .block: ("block_neighbor", "p_user")
         case .unblock: ("unblock_neighbor", "p_user")
         }
-        let (data, _) = try await SupabaseHTTP.rest("rpc/\(function)", method: "POST",
-                                                    accessToken: try await token(), body: try body([key: userID]))
+        let data = try await db.rpc(function, [key: userID])
         let raw = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
         guard let relation = raw.flatMap(Neighbor.Relation.init(rawValue:)) else {
             throw SupabaseError(message: "Unexpected answer", status: nil)
@@ -633,17 +537,14 @@ struct CommunityAPI {
     /// Follow or unfollow a Place or person: `follow_target` and `unfollow_target`, for a real
     /// account only. Following twice, or unfollowing twice, is fine.
     func followWrite(_ target: FollowTarget, _ on: Bool) async throws {
-        try await SupabaseHTTP.rest("rpc/\(on ? "follow_target" : "unfollow_target")", method: "POST",
-                                    accessToken: try await token(),
-                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+        try await db.rpc(on ? "follow_target" : "unfollow_target", ["p_type": target.type.rawValue, "p_id": target.id])
     }
 
     /// What a page shows of it: the count, your friends who follow it, and whether you do.
     /// Signed out too: then the count alone.
     func followCard(_ target: FollowTarget) async throws -> FollowCard {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/follow_card", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
-        let rows: [FollowCard] = try decode(data)
+        let rows: [FollowCard] = try Supabase.decode(await db.rpc("follow_card", ["p_type": target.type.rawValue,
+                                                                                  "p_id": target.id], anon: true))
         guard let card = rows.first else { throw SupabaseError(message: "Unexpected answer", status: nil) }
         return card
     }
@@ -651,61 +552,47 @@ struct CommunityAPI {
     /// A local team's page: who it is and its next games (hello-drop 03). nil for a team that
     /// isn't local.
     func teamPage(_ id: String) async throws -> TeamProfile? {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/team_page", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_team": id]))
-        return try? decode(data)
+        let data = try await db.rpc("team_page", ["p_team": id], anon: true)
+        return try? Supabase.decode(data)
     }
 
     /// One activity's coming events, soonest first: its row's arrow (school-activities 02).
     func activityEvents(_ id: String) async throws -> [TeamProfile.ActivityEvent] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/activity_events", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_activity": id]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("activity_events", ["p_activity": id], anon: true))
     }
 
     /// The Town's own page or its City's (follows 04), or another by its id (a campus calendar's,
     /// follows 08): who it is, its coming Events and, for the City, its boards. nil when there is no
     /// such page.
     func townPage(_ kind: TownPageKind) async throws -> TownPageInfo? {
-        let (data, _) = switch kind {
+        let data = switch kind {
         case .town, .city:
-            try await SupabaseHTTP.rest("rpc/town_page", method: "POST", accessToken: await readToken(),
-                                        body: try body(["p_town": Town.slug, "p_slug": kind == .town ? "town" : "city"]))
+            try await db.rpc("town_page", ["p_town": Town.slug, "p_slug": kind == .town ? "town" : "city"], anon: true)
         case .page(let id, _):
-            try await SupabaseHTTP.rest("rpc/town_page_by_id", method: "POST", accessToken: await readToken(),
-                                        body: try body(["p_id": id]))
+            try await db.rpc("town_page_by_id", ["p_id": id], anon: true)
         }
-        return try? decode(data)
+        return try? Supabase.decode(data)
     }
 
     /// One board's coming meetings, soonest first: its row on the City's page.
     func boardMeetings(_ id: String) async throws -> [TownPageInfo.Event] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/board_meetings", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_board": id]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("board_meetings", ["p_board": id], anon: true))
     }
 
     /// Finals your followed teams played, read since `since`, newest first: the hello pill's
     /// "Johnnies beat Gustavus 33–23".
     func myTeamFinals(since: Date) async throws -> [TeamFinal] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/my_team_finals", method: "POST",
-                                                    accessToken: try await token(),
-                                                    body: try body(["p_since": ISO8601DateFormatter().string(from: since)]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("my_team_finals", ["p_since": ISO8601DateFormatter().string(from: since)]))
     }
 
     /// Everyone and everything you follow, A to Z: Profile's Following list.
     func myFollows() async throws -> [FollowRow] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/my_follows", method: "POST",
-                                                    accessToken: try await token(), body: try body([:]))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("my_follows"))
     }
 
     /// Who hosts an Event, for its page's host line: nil for a Group's Event or one at no known Place.
     func eventHost(_ eventID: String) async throws -> FollowRow? {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/event_host", method: "POST", accessToken: await readToken(),
-                                                    body: try body(["p_event": eventID]))
-        let rows: [FollowRow] = try decode(data)
+        let rows: [FollowRow] = try Supabase.decode(await db.rpc("event_host", ["p_event": eventID], anon: true))
         return rows.first
     }
 
@@ -715,28 +602,20 @@ struct CommunityAPI {
     /// included, past days too: `get_my_going`, the one function iOS and Android call
     /// (BP app docs/plans/you-tab). Ordered by day; the You page orders a day by start.
     func getMyGoing(from: String, to: String) async throws -> [UpcomingEvent] {
-        let body = try JSONSerialization.data(withJSONObject: ["p_from": from, "p_to": to])
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_going", method: "POST",
-                                                    accessToken: try await token(), body: body)
-        return try Self.myGoingRows(from: data)
+        try Self.myGoingRows(from: await db.rpc("get_my_going", ["p_from": from, "p_to": to]))
     }
 
     /// The neighbour's saved Events from `from` on, a Town day as "yyyy-MM-dd", and any
     /// from before it still running: `get_my_saves`, Profile's Saved list (BP app
     /// docs/plans/you-tab, ticket 04). Each comes back saved, saying whether they're Going.
     func getMySaves(from: String) async throws -> [UpcomingEvent] {
-        let body = try JSONSerialization.data(withJSONObject: ["p_from": from])
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_saves", method: "POST",
-                                                    accessToken: try await token(), body: body)
-        return try Self.myGoingRows(from: data, saved: true)
+        try Self.myGoingRows(from: await db.rpc("get_my_saves", ["p_from": from]), saved: true)
     }
 
     /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,
     /// what the bell's Notifications page lists (BP app docs/plans/school-activities, ticket 04).
     func getMyChanges() async throws -> [Notice] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_changes", method: "POST",
-                                                    accessToken: try await token(), body: Data("{}".utf8))
-        return try Self.changeRows(from: data)
+        try Self.changeRows(from: await db.rpc("get_my_changes"))
     }
 
     /// `get_my_changes`' rows: each an Event as `get_my_going` sends one, with what changed.
@@ -748,9 +627,7 @@ struct CommunityAPI {
             let followedLogo: String?
             let game: Game.LenientItem<Game>?
         }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let rows = try decoder.decode([Row].self, from: data)
+        let rows = try Supabase.decode(data, as: [Row].self)
         return zip(try myGoingRows(from: data), rows).compactMap { event, row in
             guard let changedAt = DateHelpers.timestamp(row.changedAt) else { return nil }
             var event = event
@@ -784,9 +661,7 @@ struct CommunityAPI {
             /// Optional: a read before you-tab 07 (Going) or friends-on-event-page (saves, changes) sent none.
             let friendsGoing: [FriendRow]?
         }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Row].self, from: data).map { row in
+        return try Supabase.decode(data, as: [Row].self).map { row in
             var event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
                           startTime: row.startTime, location: row.location,
                           goingCount: row.goingCount, createdAt: row.createdAt,
@@ -806,8 +681,7 @@ struct CommunityAPI {
     // MARK: - Trails
 
     func addTrail(_ input: NewTrailInput, status: ClubStatus = .approved) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
+        let uid = try db.userID
         let b: [String: Any] = [
             "kind": "trail", "title": input.title, "location": input.location,
             "length": input.length ?? NSNull(), "difficulty": input.difficulty ?? NSNull(),
@@ -815,8 +689,7 @@ struct CommunityAPI {
             "event_date": NSNull(), "start_time": NSNull(),
             "submitted_by": uid, "status": status.rawValue, "club_id": NSNull(),
         ]
-        _ = try await SupabaseHTTP.rest("club_events", method: "POST", accessToken: t,
-                                        body: try body(b), prefer: "return=minimal")
+        try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
     }
 
     private func mapTrail(_ e: RawEvent) -> Trail {
@@ -827,49 +700,39 @@ struct CommunityAPI {
     // MARK: - Moderation (admin)
 
     func getPendingPosts() async throws -> [PendingPost] {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.pending&order=event_date.asc.nullslast,created_at.desc", accessToken: t)
-        let rows: [RawEvent] = try decode(data)
+        let rows: [RawEvent] = try Supabase.decode(await db.rest("club_events", [
+            ("select", "*"), ("status", "eq.pending"), ("order", "event_date.asc.nullslast,created_at.desc"),
+        ]))
         return rows.map { PendingPost(trail: mapTrail($0), kind: PostKind(rawValue: $0.kind ?? "event") ?? .event,
                                       eventDate: $0.eventDate, startTime: $0.startTime, allDay: $0.allDay ?? false,
                                       sourceName: $0.sourceName, sourceURL: ReviewRow.webURL($0.sourceUrl)) }
     }
 
     func getPendingClubs() async throws -> [ClubRow] {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("clubs",
-            query: "select=*&status=eq.pending&order=created_at.desc", accessToken: t)
-        return try decode(data)
+        try Supabase.decode(await db.rest("clubs", [("select", "*"), ("status", "eq.pending"), ("order", "created_at.desc")]))
     }
 
     /// Reported Events still up, newest report first (town-feed 22). Admin only; anyone else gets none.
     func reportedEvents() async throws -> [ReportedEvent] {
-        let (data, _) = try await SupabaseHTTP.rest("rpc/list_reports", method: "POST", accessToken: try await token(),
-                                                    body: Data("{}".utf8))
-        return try decode(data)
+        try Supabase.decode(await db.rpc("list_reports"))
     }
 
     /// Keep a reported Event (its reports go) or take it down for everyone.
     func resolveReports(_ id: String, takeDown: Bool) async throws {
-        _ = try await SupabaseHTTP.rest("rpc/resolve_reports", method: "POST", accessToken: try await token(),
-                                        body: try body(["p_event": id, "p_take_down": takeDown]))
+        try await db.rpc("resolve_reports", ["p_event": id, "p_take_down": takeDown])
     }
 
     func approvePost(_ id: String) async throws { try await patchStatus("club_events", id: id, status: .approved) }
     /// Decline with what was wrong. Approving never clears the reason (see the migration).
     func declinePost(_ id: String, reason: DeclineReason) async throws {
-        let t = try await token()
-        _ = try await SupabaseHTTP.rest("club_events", method: "PATCH", query: "id=eq.\(id)", accessToken: t,
-                                        body: try body(["status": ClubStatus.rejected.rawValue,
-                                                        "review_reason": reason.rawValue]),
-                                        prefer: "return=minimal")
+        try await db.rest("club_events", method: "PATCH", [("id", "eq.\(id)")],
+                          body: ["status": ClubStatus.rejected.rawValue, "review_reason": reason.rawValue],
+                          prefer: "return=minimal")
     }
     func setClubStatus(_ id: String, status: ClubStatus) async throws { try await patchStatus("clubs", id: id, status: status) }
 
     private func patchStatus(_ table: String, id: String, status: ClubStatus) async throws {
-        let t = try await token()
-        _ = try await SupabaseHTTP.rest(table, method: "PATCH", query: "id=eq.\(id)", accessToken: t,
-                                        body: try body(["status": status.rawValue]), prefer: "return=minimal")
+        try await db.rest(table, method: "PATCH", [("id", "eq.\(id)")], body: ["status": status.rawValue],
+                          prefer: "return=minimal")
     }
 }

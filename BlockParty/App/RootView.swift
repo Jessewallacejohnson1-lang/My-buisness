@@ -219,7 +219,7 @@ struct RootView: View {
     /// The onboarded stamp, with the birthday (onboarding 19). Once it's on the account the birthday
     /// leaves the device, so another account signing in here later can't take it.
     private func stampOnboarded() async {
-        guard (try? await ProfileAPI(auth: .shared).markOnboarded(birthday: onboarding.birthday)) != nil else { return }
+        guard (try? await ProfileAPI(auth: AuthStore.shared).markOnboarded(birthday: onboarding.birthday)) != nil else { return }
         onboarding.birthday = nil
     }
 
@@ -229,15 +229,11 @@ struct RootView: View {
     private func saveOnboardingAnswers() async {
         guard onboarding.finished else { return }
         await onboarding.saveAnswers { name, photo in
-            let auth = AuthStore.shared
-            guard let uid = auth.userId else { throw SupabaseError(message: "No account yet.", status: 401) }
+            let profiles = ProfileAPI(auth: AuthStore.shared)
             var url: String?
-            if let photo {
-                url = await Storage(auth: auth).uploadAvatar(photo, userId: uid)
-                if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
-            }
+            if let photo { url = try await profiles.uploadPhoto(photo) }
             let picks = onboarding.interests
-            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
+            try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
             if let name { Interests.displayName = name }
             if !picks.isEmpty { Interests.set(picks) }
         }
@@ -257,7 +253,7 @@ struct RootView: View {
         hydratedUserId = uid
 
         let fetched: TownProfile?
-        do { fetched = try await ProfileAPI(auth: .shared).getMyProfile() } catch { return }
+        do { fetched = try await ProfileAPI(auth: AuthStore.shared).getMyProfile() } catch { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
         if fetched?.onboardedAt == nil, onboarding.finished {
             await stampOnboarded()

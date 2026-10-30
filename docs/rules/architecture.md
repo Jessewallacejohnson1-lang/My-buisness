@@ -172,8 +172,13 @@ Town bar's leading control became a friends mark — and **You** mounts
 The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is
 **no `supabase-swift` dependency**. `[prose]`
 
-- **`SupabaseHTTP`** — the low-level client: `auth(...)` hits GoTrue (`/auth/v1`), `rest(...)`
-  hits PostgREST (`/rest/v1`).
+- **`Supabase`** (in `SupabaseHTTP.swift`) — the one client for PostgREST (`rest`, `rpc`),
+  Storage (`upload`) and edge functions (`invoke`) (BP app codebase-health 16). It holds the
+  token, the signed-in check (`userID`), the decoder, the percent-encoding of every query value,
+  and the 401 hook (`TokenProviding.handleUnauthorized`). It sends through `Send`: `.live`, the
+  test's `FakeServer` (`BlockPartyTests/FakeTokenProvider.swift`), or `.offline`. **Never build a
+  Supabase request anywhere else.** `[prose]` `SupabaseHTTP.auth(...)` still hits GoTrue
+  (`/auth/v1`) for `AuthStore`.
 - **`AuthStore`** (`@MainActor`, singleton `.shared`) — the single auth source: email +
   password, **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates
   the refresh token, so concurrent refreshes funnel through one in-flight task). **Always get
@@ -192,7 +197,7 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
   back passes its own days to the same rule.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
-- Supporting: `Session`, `Storage`, `Reminders`, `Interests`, `TrailServices`,
+- Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,
   `KnownVenues`, `DateHelpers`, `Models`, `LocationPermission` + `UserLocation`.
 
 ## Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
