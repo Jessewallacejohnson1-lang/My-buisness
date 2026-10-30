@@ -241,11 +241,7 @@ struct HouseGlyph: View {
     var filled = false
 
     var body: some View {
-        let stroke = StrokeStyle(
-            lineWidth: TabBarMetric.searchGlyphSize * MagnifierShape.strokeFraction,
-            lineCap: .round,
-            lineJoin: .round
-        )
+        let stroke = StrokeStyle(lineWidth: HouseShape.stroke, lineCap: .round, lineJoin: .round)
         Group {
             if filled {
                 HouseShape(door: false).fill()
@@ -268,8 +264,10 @@ nonisolated struct HouseShape: Shape {
     private static let width: CGFloat = 22.5
     private static let height: CGFloat = 20
     static let aspect = height / width
-    /// Half the magnifier's stroke, so the ink reaches the box's edges and no further.
-    private static let inset: CGFloat = 0.775
+    /// The Search magnifier's weight in the bar, ~1.55 pt.
+    static let stroke = TabBarMetric.searchGlyphSize * MagnifierShape.strokeFraction
+    /// Half the stroke, so the ink reaches the box's edges and no further.
+    private static let inset = stroke / 2
     /// Roof pitch. Instagram's is 45°; 40° keeps the walls tall in the squatter box.
     private static let roofPitch: CGFloat = 40
     /// Corner radii on the centreline: the mock's 100%, rounder than Instagram's.

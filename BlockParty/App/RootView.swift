@@ -933,8 +933,6 @@ nonisolated enum TabBarMetric {
     /// Search's traced magnifier fills its own box: Instagram's search mark, 22pt
     /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
     static let searchGlyphSize: CGFloat = 22
-    /// Town's drawn house (`HouseGlyph`), 22.5 × 20: the footprint SF's house had here.
-    static let houseWidth: CGFloat = 22.5
     /// Daily's Bp!: letters at the size Jesse picked at Check-in 1 (38pt for Bp.,
     /// 2026-10-29), 22pt tall, about Instagram's 22pt glyph box. `DailyMark.svg`'s own width.
     static let dailyMarkWidth: CGFloat = 39.15
@@ -1297,7 +1295,7 @@ struct BlockPartyTabBar: View {
                 if tab == .search {
                     MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected)
                 } else if tab == .town {
-                    HouseGlyph(width: TabBarMetric.houseWidth, filled: selected)
+                    HouseGlyph(filled: selected)
                 } else if tab == .daily {
                     Image(tab.symbol)
                         .resizable()
