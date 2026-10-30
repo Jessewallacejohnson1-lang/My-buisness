@@ -223,7 +223,7 @@ struct FeedEventDetailDestination: View {
             }
             .frame(minHeight: PhotoChip.height)
             .padding(.leading, Metric.bandInset)
-            GameMatchup(game: game, rowTop: Metric.bandRowGap, swipes: false)
+            GameMatchup(game: game, rowTop: Metric.bandRowGap)
                 .frame(height: Metric.bandMatchup)
                 // The matchup hides itself (the card's title says it); here it says the score.
                 .accessibilityElement()

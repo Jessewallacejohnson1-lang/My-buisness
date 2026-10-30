@@ -1,0 +1,85 @@
+name: Claude
+
+# "@claude <request>" in an issue or PR comment runs Claude Code on one of GitHub's Macs,
+# so Jesse can ask for a build, a test run or a screenshot from a phone while the
+# MacBook is closed. The action only answers people with write access to this repo.
+# Separate from CI on purpose: CI gates merges and stays free of third-party actions;
+# this workflow gates nothing, and the action is pinned to a commit.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    # Without this filter every comment would start a Mac.
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write # the screenshot step pushes to the claude-shots branch
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Same two setup steps as ci.yml: newest Xcode, placeholder map and Places keys.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          latest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+
+      - name: Generate placeholder config
+        run: |
+          set -euo pipefail
+          mkdir -p BlockParty/Config
+          echo 'let MAPBOX_ACCESS_TOKEN = "pk.ci-placeholder-not-a-real-token"' > BlockParty/Config/MapboxConfig.swift
+          echo 'let GOOGLE_PLACES_API_KEY = "ci-placeholder-not-a-real-key"' > BlockParty/Config/GooglePlacesConfig.swift
+          mkdir -p "$RUNNER_TEMP/shots"
+
+      - uses: anthropics/claude-code-action@6d5ae526d25ce88daa2200be073e1a373167f064 # v1.0.265
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --allowedTools Bash,Edit,Write,Read,Glob,Grep,WebFetch
+            --append-system-prompt "You are running on a GitHub-hosted Mac (macos-latest), not on Jesse's MacBook. Jesse is not a developer and judges work by what is on screen. There is no BP Build simulator, no xc.sh, no build lock and no iPhone here: call xcodebuild directly with CODE_SIGNING_ALLOWED=NO and pick an iPhone simulator the way .github/workflows/ci.yml's 'Resolve a simulator' step does. The map shows nothing (placeholder Mapbox key). Whenever you change UI or are asked to show something, boot the simulator, install and launch the app, and save PNGs with 'xcrun simctl io booted screenshot' into ${{ runner.temp }}/shots/ (lowercase names, no spaces). A later step publishes them; in your reply embed each one as ![name](https://raw.githubusercontent.com/${{ github.repository }}/claude-shots/${{ github.run_id }}/<file>.png). Never commit screenshots to the working branch."
+
+      # Screenshots live on their own branch so they never ride into main.
+      - name: Publish screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls "$RUNNER_TEMP"/shots/*.png >/dev/null 2>&1 || { echo "no screenshots"; exit 0; }
+          url="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}"
+          dir="$RUNNER_TEMP/shots-branch"
+          if ! git clone -q --depth 1 --branch claude-shots "$url" "$dir" 2>/dev/null; then
+            git init -q -b claude-shots "$dir"
+            git -C "$dir" remote add origin "$url"
+          fi
+          mkdir -p "$dir/${{ github.run_id }}"
+          cp "$RUNNER_TEMP"/shots/*.png "$dir/${{ github.run_id }}/"
+          git -C "$dir" add -- "${{ github.run_id }}"
+          git -C "$dir" -c user.name="github-actions[bot]" -c user.email="41898283+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Screenshots for run ${{ github.run_id }}"
+          git -C "$dir" push -q origin claude-shots

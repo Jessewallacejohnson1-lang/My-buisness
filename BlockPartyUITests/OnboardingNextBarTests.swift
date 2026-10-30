@@ -38,9 +38,10 @@ final class OnboardingNextBarTests: XCTestCase {
         let allow = NSPredicate(format: "label == 'Continue' OR label BEGINSWITH 'Share All' OR label == 'Allow Full Access'")
         let deadline = Date().addingTimeInterval(20)
         while !bar(app, 9).exists, Date() < deadline {
+            // One tap a round: the sheet's button tapped while SpringBoard's alert still leaves goes stale.
             for owner in [springboard, sheet] {
                 let button = owner.buttons.matching(allow).firstMatch
-                if button.exists { button.tap() }
+                if button.exists, button.isHittable { button.tap(); break }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
         }
@@ -51,10 +52,11 @@ final class OnboardingNextBarTests: XCTestCase {
         let app = XCUIApplication()
         // A refusal kept from an earlier run would end the flow at step 8.
         app.resetAuthorizationStatus(for: .contacts)
+        // Follow 3's picks stay saved between runs too: `<5b5d>` is "[]", so it starts on none.
         app.launchArguments = ["-ui-tests", "-onboarding",
                                "-onboarding.step", "0", "-onboarding.finished", "NO",
                                "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24",
-                               "-bp.interests", "()"]
+                               "-bp.interests", "()", "-onboarding.follows", "<5b5d>"]
         app.launch()
 
         let phone = app.buttons["Continue with phone"]
