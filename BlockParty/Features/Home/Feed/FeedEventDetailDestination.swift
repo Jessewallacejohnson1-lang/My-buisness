@@ -50,8 +50,10 @@ struct FeedEventDetailDestination: View {
     /// A found Event's page, read here when the screen that opened it didn't send it: only the
     /// Town feed does (You, Saved, Daily's Event of the day and Notifications don't).
     @State private var foundURL: URL?
-    /// Apple's add-to-Calendar sheet, from the day row.
+    /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
+    /// called off or ending while the sheet is up keeps its sheet, and Cancel.
     @State private var calendarShown = false
+    @State private var adding: CalendarEntry?
     @Environment(\.openURL) private var openURL
 
     init(item: FeedCardItem, inSheet: Bool = false) {
@@ -180,7 +182,7 @@ struct FeedEventDetailDestination: View {
         .animation(Motion.smooth, value: photos.count)
         .signInSheet(isPresented: $signInShown)
         .sheet(isPresented: $calendarShown) {
-            if let entry = Self.calendarEntry(current) { AddToCalendar(entry: entry) }
+            if let adding { AddToCalendar(entry: adding) }
         }
         // A failed Join or Save shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
@@ -506,8 +508,12 @@ struct FeedEventDetailDestination: View {
         if day != nil || place != nil {
             VStack(alignment: .leading, spacing: 0) {
                 if let day {
-                    FactRow(glyph: "calendar", lines: day, end: Self.calendarEntry(current) == nil ? nil : .add,
-                            hint: "Adds it to your phone's calendar") { calendarShown = true }
+                    let entry = Self.calendarEntry(current)
+                    FactRow(glyph: "calendar", lines: day, end: entry == nil ? nil : .add,
+                            hint: "Adds it to your phone's calendar") {
+                        adding = entry
+                        calendarShown = true
+                    }
                 }
                 if day != nil, place != nil {
                     Hue.hairline
@@ -736,11 +742,7 @@ private struct AddToCalendar: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> EKEventEditViewController {
         let event = EKEvent(eventStore: EventKitCalendar.store)
-        event.title = entry.title
-        event.startDate = entry.starts
-        event.endDate = entry.ends
-        event.isAllDay = entry.allDay
-        event.location = entry.place
+        EventKitCalendar.write(entry, into: event)
         let controller = EKEventEditViewController()
         controller.eventStore = EventKitCalendar.store
         controller.event = event
