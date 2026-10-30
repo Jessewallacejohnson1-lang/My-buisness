@@ -2,7 +2,8 @@
 //  BarGlyphs.swift
 //  Block Party — two traced marks: the search magnifier (the tab bar's Search tab
 //  since 2026-09-29; the Today bar's leading control before that) and the Today
-//  bar's notifications bell.
+//  bar's notifications bell. Plus the Town tab's house, drawn rather than traced
+//  (2026-10-30, at the end of this file).
 //
 //  Both are drawn rather than taken from SF Symbols, for the same reason `MapPinGlyph`
 //  next door is: the reference's marks and Apple's are different SILHOUETTES, not the
@@ -224,10 +225,109 @@ nonisolated struct BellShape: Shape {
     }
 }
 
+// MARK: - House
+
+/// The Town tab's mark: Instagram's house outline, door and all, with rounder corners;
+/// picked, it is one solid black piece with no door (Jesse, 2026-10-30: "less detailed
+/// and more round edge … when tapped on its one black piece", then "pick instas").
+/// SF's `house` carries a chimney, overhanging eaves and a separate door, and
+/// `house.fill` cuts the door out, so no symbol weight gets there.
+///
+/// Drawn at the Search magnifier's stroke so the two outlines sit side by side at one
+/// weight. Picked, the doorless outline is filled AND stroked, so the solid house keeps
+/// the outline's outer edge instead of shrinking by half a stroke.
+struct HouseGlyph: View {
+    var width: CGFloat = 22.5
+    var filled = false
+
+    var body: some View {
+        let stroke = StrokeStyle(
+            lineWidth: TabBarMetric.searchGlyphSize * MagnifierShape.strokeFraction,
+            lineCap: .round,
+            lineJoin: .round
+        )
+        Group {
+            if filled {
+                HouseShape(door: false).fill()
+                    .overlay(HouseShape(door: false).stroke(style: stroke))
+            } else {
+                HouseShape(door: true).stroke(style: stroke)
+            }
+        }
+        .frame(width: width, height: width * HouseShape.aspect)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The house's centreline, every corner rounded with a tangent arc. Unit: points of a
+/// 22.5 × 20 box, the footprint SF's house drew in the bar (22.7 × 20 measured on the
+/// eyes sim), scaled to the rect.
+nonisolated struct HouseShape: Shape {
+    var door: Bool
+
+    private static let width: CGFloat = 22.5
+    private static let height: CGFloat = 20
+    static let aspect = height / width
+    /// Half the magnifier's stroke, so the ink reaches the box's edges and no further.
+    private static let inset: CGFloat = 0.775
+    /// Roof pitch. Instagram's is 45°; 40° keeps the walls tall in the squatter box.
+    private static let roofPitch: CGFloat = 40
+    /// Corner radii on the centreline: the mock's 100%, rounder than Instagram's.
+    private static let apexRadius: CGFloat = 2.4
+    private static let eaveRadius: CGFloat = 1.8
+    private static let baseRadius: CGFloat = 2.6
+    /// The door: Instagram's arch, 5.5 wide on the centreline with a semicircular top
+    /// whose corners sit at y 11, and a small round where it meets the floor.
+    private static let doorHalf: CGFloat = 2.75
+    private static let doorTop: CGFloat = 11
+    private static let doorFootRadius: CGFloat = 0.9
+
+    func path(in rect: CGRect) -> Path {
+        let k = min(rect.width / Self.width, rect.height / Self.height)
+        let origin = CGPoint(x: rect.midX - Self.width * k / 2, y: rect.midY - Self.height * k / 2)
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: origin.x + x * k, y: origin.y + y * k)
+        }
+
+        let left = Self.inset, right = Self.width - Self.inset
+        let top = Self.inset, floor = Self.height - Self.inset, mid = Self.width / 2
+        let eave = top + (right - mid) * tan(Self.roofPitch * .pi / 180)
+
+        // Clockwise from the left eave, each corner as (point, radius).
+        var corners: [(CGPoint, CGFloat)] = [
+            (point(left, eave), Self.eaveRadius),
+            (point(mid, top), Self.apexRadius),
+            (point(right, eave), Self.eaveRadius),
+            (point(right, floor), Self.baseRadius),
+        ]
+        if door {
+            corners += [
+                (point(mid + Self.doorHalf, floor), Self.doorFootRadius),
+                (point(mid + Self.doorHalf, Self.doorTop), Self.doorHalf),
+                (point(mid - Self.doorHalf, Self.doorTop), Self.doorHalf),
+                (point(mid - Self.doorHalf, floor), Self.doorFootRadius),
+            ]
+        }
+        corners.append((point(left, floor), Self.baseRadius))
+
+        var path = Path()
+        // Start mid-way up the left wall, a straight run, so every corner is an arc.
+        path.move(to: point(left, (eave + floor) / 2))
+        for (i, corner) in corners.enumerated() {
+            let next = i + 1 < corners.count ? corners[i + 1].0 : point(left, (eave + floor) / 2)
+            path.addArc(tangent1End: corner.0, tangent2End: next, radius: corner.1 * k)
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
 #Preview {
     ZStack {
         Hue.paper.ignoresSafeArea()
         HStack(spacing: 28) {
+            HouseGlyph()
+            HouseGlyph(filled: true)
             MagnifierGlyph(size: 20)
             BellGlyph(size: 21)
             MapPinGlyph(size: 24)

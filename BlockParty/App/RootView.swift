@@ -32,8 +32,9 @@ enum Tab: Int, CaseIterable, Identifiable {
 
     /// The resting glyph, drawn as an ink outline. The selected tab shows the filled
     /// `selectedSymbol` in the same ink, as Instagram's bar does. Search draws BP's own
-    /// traced magnifier instead (`MagnifierGlyph`); this name is only its large-content
-    /// stand-in. Daily's is not an SF Symbol: it names the `DailyMark` asset, the app
+    /// traced magnifier instead (`MagnifierGlyph`), and Town BP's own rounder house
+    /// (`HouseGlyph`, 2026-10-30); their names are only large-content stand-ins.
+    /// Daily's is not an SF Symbol: it names the `DailyMark` asset, the app
     /// icon's own Bp! letters (Jesse, 2026-10-29).
     var symbol: String {
         switch self {
@@ -932,6 +933,8 @@ nonisolated enum TabBarMetric {
     /// Search's traced magnifier fills its own box: Instagram's search mark, 22pt
     /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
     static let searchGlyphSize: CGFloat = 22
+    /// Town's drawn house (`HouseGlyph`), 22.5 × 20: the footprint SF's house had here.
+    static let houseWidth: CGFloat = 22.5
     /// Daily's Bp!: letters at the size Jesse picked at Check-in 1 (38pt for Bp.,
     /// 2026-10-29), 22pt tall, about Instagram's 22pt glyph box. `DailyMark.svg`'s own width.
     static let dailyMarkWidth: CGFloat = 39.15
@@ -1293,6 +1296,8 @@ struct BlockPartyTabBar: View {
             Group {
                 if tab == .search {
                     MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected)
+                } else if tab == .town {
+                    HouseGlyph(width: TabBarMetric.houseWidth, filled: selected)
                 } else if tab == .daily {
                     Image(tab.symbol)
                         .resizable()
