@@ -2,7 +2,8 @@
 //  FriendsHomePage.swift
 //  Block Party — the Friends page and a neighbour's page (BP app docs/plans/friends, tickets
 //  02, 03 and 04). The Town bar's friends mark pushes the Friends page: a large title and Search's
-//  field, under the sample inbox's own top, then the accepted lines, Requests and Your friends.
+//  field, under the sample inbox's own top, then the accepted lines, Requests, Your friends and
+//  Suggested for you (town-feed 28).
 //  Typing finds neighbours by name; a name opens their page; one button on every row and
 //  page follows where the two of you stand (`FriendsBook`).
 //
@@ -50,6 +51,10 @@ extension FriendsMetric {
     static let moreTrail: CGFloat = 7
     /// The check before "Friends" on its button. (picked)
     static let iconGap: CGFloat = 6
+    /// A suggestion's Add friend, at the row's end as Instagram's Follow (96 wide there, measured
+    /// in BP app references/friend-suggestions/ig-94d60aee.jpg): this page's 15 pt label and 14 pt
+    /// sides make "Add friend" 104. (picked)
+    static let suggestButton: CGFloat = 104
 }
 
 struct FriendsHomePage: View {
@@ -106,19 +111,21 @@ struct FriendsHomePage: View {
         .onChange(of: auth.accountKey) {
             search.search(words)
             Task { await book.refresh() }
+            Task { await book.refreshSuggestions() }
         }
         // Read on every visit; once drawn, the dot clears and accepted lines count as seen.
         .task {
             await book.refresh()
             await book.seen()
         }
+        .task { await book.refreshSuggestions() }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)
     }
 
-    /// Nothing typed: the accepted lines, Requests and Your friends, in one list keyed by
-    /// person, so a confirmed request slides down into Your friends.
+    /// Nothing typed: the accepted lines, Requests, Your friends and Suggested for you, in one
+    /// list keyed by person, so a confirmed request slides down into Your friends.
     @ViewBuilder private var home: some View {
         if search.state == .needsAccount {
             LogInToFindRow { signingIn = true }
@@ -136,6 +143,7 @@ struct FriendsHomePage: View {
                 case .accepted(let person): AcceptedLine(person: person)
                 case .title(let title): FriendsSectionTitle(text: title)
                 case .person(let person, let waiting): PersonRow(person: person, waiting: waiting) { signingIn = true }
+                case .suggestion(let person): SuggestionRow(person: person) { signingIn = true }
                 }
             }
         }
@@ -144,13 +152,14 @@ struct FriendsHomePage: View {
     private enum Row: Identifiable {
         /// A request (`waiting`) or a friend: one case, so a confirmed request is the same view
         /// with the same id in its new place, and SwiftUI moves it rather than swapping it.
-        case accepted(Neighbor), title(String), person(Neighbor, waiting: Bool)
+        case accepted(Neighbor), title(String), person(Neighbor, waiting: Bool), suggestion(Neighbor)
 
         var id: String {
             switch self {
             case .accepted(let person): "accepted:" + person.id
             case .title(let title): "title:" + title
             case .person(let person, _): person.id
+            case .suggestion(let person): "suggestion:" + person.id
             }
         }
     }
@@ -161,6 +170,9 @@ struct FriendsHomePage: View {
         let requests = book.requests, friends = book.friends
         if !requests.isEmpty { rows += [.title("Requests")] + requests.map { .person($0, waiting: true) } }
         if !friends.isEmpty { rows += [.title("Your friends")] + friends.map { .person($0, waiting: false) } }
+        // `suggest-header`: last, as Instagram's under a list of people (town-feed 28).
+        let suggested = book.suggested
+        if !suggested.isEmpty { rows += [.title("Suggested for you")] + suggested.map(Row.suggestion) }
         return rows
     }
 
@@ -300,6 +312,34 @@ private struct PersonRow: View {
     }
 }
 
+/// A suggestion (town-feed 28), Instagram's "Suggested for you" row (BP app
+/// references/friend-suggestions/ig-94d60aee.jpg): the face and name open their page, then the
+/// reason line, Add friend at the row's end, and the ✕ where a friend's ••• sits.
+private struct SuggestionRow: View {
+    let person: Neighbor
+    let logIn: () -> Void
+
+    var body: some View {
+        HStack(spacing: FriendsMetric.avatarGap) {
+            NavigationLink(value: person) {
+                Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true)
+            }
+            .buttonStyle(DimStyle())
+            .accessibilityHidden(true)
+            NavigationLink(value: person) { NameAndMutual(person: person, suggested: true) }
+                .buttonStyle(DimStyle())
+            HStack(spacing: 0) {
+                RelationButtons(person: person, logIn: logIn)
+                    .frame(width: FriendsMetric.suggestButton)
+                RemoveSuggestionButton(person: person, ink: Hue.ink)
+            }
+        }
+        .padding(.leading, FriendsMetric.side)
+        .padding(.trailing, FriendsMetric.moreTrail)
+        .frame(minHeight: FriendsMetric.row)
+    }
+}
+
 /// Facebook's ••• on a friend: opens the friend sheet (ticket 04).
 struct MoreButton: View {
     let person: Neighbor
@@ -344,11 +384,12 @@ struct ResultRow: View {
     }
 }
 
-/// The name, and under it the friends you share, or "Request sent" in that place once you
-/// asked (Facebook's), so the row doesn't grow a line.
+/// The name, and under it the friends you share (a suggestion's reason line), or "Request sent"
+/// in that place once you asked (Facebook's), so the row doesn't grow a line.
 private struct NameAndMutual: View {
     let person: Neighbor
     var nameFont: Font = .sansSemibold(17)
+    var suggested = false
     @Environment(FriendsBook.self) private var book
 
     var body: some View {
@@ -358,7 +399,8 @@ private struct NameAndMutual: View {
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
             // `friend-request-sent`
-            if let mutual = book.relation(person) == .sent ? "Request sent" : person.mutualLine {
+            if let mutual = book.relation(person) == .sent ? "Request sent"
+                : suggested ? person.suggestLine : person.mutualLine {
                 Text(mutual)
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)

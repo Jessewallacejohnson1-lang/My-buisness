@@ -53,7 +53,6 @@ struct PeopleYouMayKnowSection: View {
 /// One suggestion: face, name, why, Add friend, and the X in its corner.
 private struct SuggestionCard: View {
     let person: Neighbor
-    @Environment(FriendsBook.self) private var book
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: DailyPeopleMetric.radius, style: .continuous)
@@ -92,18 +91,30 @@ private struct SuggestionCard: View {
         .overlay(shape.strokeBorder(Hue.hairline, lineWidth: DailyPeopleMetric.ring))
         .modifier(CardShadow())
         .overlay(alignment: .topTrailing) {
-            Button { book.hide(person) } label: {
-                Image(systemName: "xmark")
-                    .font(.glyph(DailyPeopleMetric.x, weight: .semibold))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(width: DailyPeopleMetric.xTarget, height: DailyPeopleMetric.xTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
-            // `suggest-remove-vo`; after the name and Add friend, though it sits at the top.
-            .accessibilityLabel("Remove suggestion, \(person.displayName)")
-            .accessibilitySortPriority(-1)
+            // After the name and Add friend for VoiceOver, though it sits at the top.
+            RemoveSuggestionButton(person: person).accessibilitySortPriority(-1)
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// The X on a suggestion: hides them for good, and they're never told. Grey on a Daily card;
+/// ink on the Friends page's row, as Instagram's list draws it (BP app references/friend-suggestions).
+struct RemoveSuggestionButton: View {
+    let person: Neighbor
+    var ink: Color = Hue.inkSecondary
+    @Environment(FriendsBook.self) private var book
+
+    var body: some View {
+        Button { book.hide(person) } label: {
+            Image(systemName: "xmark")
+                .font(.glyph(DailyPeopleMetric.x, weight: .semibold))
+                .foregroundStyle(ink)
+                .frame(width: DailyPeopleMetric.xTarget, height: DailyPeopleMetric.xTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        // `suggest-remove-vo`
+        .accessibilityLabel("Remove suggestion, \(person.displayName)")
     }
 }

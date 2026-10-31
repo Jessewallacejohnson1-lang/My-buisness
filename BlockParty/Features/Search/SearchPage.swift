@@ -62,7 +62,6 @@ nonisolated enum SearchMetric {
     static let faceGap: CGFloat = 26
     static let faceLabel: CGFloat = 96
     static let faceLabelTop: CGFloat = 6
-    static let faceRing: CGFloat = 0.5
 
     // The logo wall and the pushed pages.
     static let wallTop: CGFloat = 14
@@ -221,7 +220,11 @@ struct SearchPage: View {
         // only under the pills that show them.
         .onChange(of: model.words, initial: true) { searchPeople() }
         .onChange(of: model.chip) { searchPeople() }
-        .onChange(of: auth.accountKey) { searchPeople() }
+        .onChange(of: auth.accountKey) {
+            searchPeople()
+            Task { await book.refreshSuggestions() }
+        }
+        .task { await book.refreshSuggestions() }
         .signInSheet(isPresented: $signingIn)
         // People rows carry the friend button; a failed tap shakes only while Search is open.
         .onAppear { book.screenOpened() }
@@ -371,7 +374,9 @@ struct SearchPage: View {
     @ViewBuilder private var modeBody: some View {
         switch mode {
         case .shelves:
-            shelf(.person, "People")
+            // Friend suggestions (town-feed 28); hidden with nobody to suggest.
+            let people = book.suggested
+            if !people.isEmpty { PeopleShelf(people: people) }
             shelf(.business, "Businesses")
             shelf(.restaurant, "Restaurants")
             shelf(.coffee, "Coffee")
@@ -536,8 +541,6 @@ private struct Shelf: View {
             LazyHStack(alignment: .top, spacing: Shelf.gap(kind)) {
                 ForEach(items) { item in
                     switch kind {
-                    case .person:
-                        SearchFace(item: item)
                     case .business:
                         if let logo = item.logo { RowLogo(item: item, logo: logo) }
                     default:
@@ -590,18 +593,34 @@ private struct ShelfSkeleton: View {
     }
 }
 
-private struct SearchFace: View {
-    let item: SearchItem
-    @Environment(SearchModel.self) private var model
+/// The People row: the people Block Party suggests you add as a friend, as the mockup's round
+/// faces (town-feed 28). Its title opens the Friends page, where the whole list is, with Add
+/// friend and the ✕: Instagram's "See all". A face opens their page; never saved to Recent.
+private struct PeopleShelf: View {
+    let people: [Neighbor]
 
     var body: some View {
-        Button { model.remember(item.id) } label: {
+        NavigationLink(value: FriendsRoute.home) { ShelfTitle(title: "People", shelf: nil) }
+            .buttonStyle(DimStyle())
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: SearchMetric.faceGap) {
+                ForEach(people) { NeighborFace(person: $0) }
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+    }
+}
+
+private struct NeighborFace: View {
+    let person: Neighbor
+
+    var body: some View {
+        NavigationLink(value: person) {
             VStack(spacing: SearchMetric.faceLabelTop) {
-                SearchPhoto(item: item)
-                    .frame(width: SearchMetric.face, height: SearchMetric.face)
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: SearchMetric.faceRing))
-                Text(item.name.split(separator: " ").first.map(String.init) ?? item.name)
+                Avatar(avatarUrl: person.avatarUrl, size: SearchMetric.face, outlined: true)
+                Text(person.firstName)
                     .font(.sans(12))
                     .foregroundStyle(Hue.ink)
                     .lineLimit(1)
@@ -610,7 +629,7 @@ private struct SearchFace: View {
             .frame(width: SearchMetric.face)
         }
         .buttonStyle(SquishStyle())
-        .accessibilityLabel(item.name)
+        .accessibilityLabel("\(person.displayName), \(person.suggestLine)")
     }
 }
 
