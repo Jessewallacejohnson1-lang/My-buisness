@@ -261,6 +261,43 @@ enum HelloDrop {
     }
 }
 
+/// When the day's hello drops and how far back the finals read looks, apart from the pill so the
+/// rules can be tested. Its memory is the phone's, as the pill's is.
+struct HelloSchedule {
+    let store: UserDefaults
+    let inbox: HelloInbox
+    static let finalsKey = "helloDrop.finalsSince"
+
+    init(store: UserDefaults = .standard, inbox: HelloInbox) {
+        self.store = store
+        self.inbox = inbox
+    }
+
+    /// The day's first open, by the Town's midnight, while the pill may drop (3 a day, an hour
+    /// apart); `forced` (DEBUG `-hello-drop`) every time. A yes marks the day said and, unless
+    /// forced, the pill dropped.
+    func shouldShow(now: Date, forced: Bool = false) -> Bool {
+        let today = Town.day(now)
+        guard forced || (store.string(forKey: HelloDrop.dayKey) != today && inbox.mayDrop(now: now)) else { return false }
+        store.set(today, forKey: HelloDrop.dayKey)
+        if !forced { inbox.dropped(now: now) }
+        return true
+    }
+
+    /// Where the finals read starts: an hour back from when the last one began, since the finals
+    /// job stamps a final when its run starts and saves it minutes later, so a read in between
+    /// would step past it (the inbox stops repeats); 36 hours back before any.
+    func finalsSince(now: Date) -> Date {
+        let last = store.double(forKey: Self.finalsKey)
+        return last > 0 ? Date(timeIntervalSince1970: last - 3600) : now.addingTimeInterval(-36 * 3600)
+    }
+
+    /// A finals read that began at `start` came back.
+    func finalsRead(at start: Date) {
+        store.set(start.timeIntervalSince1970, forKey: Self.finalsKey)
+    }
+}
+
 /// The pill itself, over the whole shell. It drops on the day's first open, holds the hello
 /// 1.2 s, stretches to the message, stays 4 s and goes back up. A swipe up sends it away
 /// early and a tap opens what the message names. A later open drops it straight to something
@@ -298,7 +335,6 @@ struct HelloDropView: View {
     @State private var acceptedAt = Date.distantPast
     /// A final's confetti colours (empty: BP's).
     @State private var confettiColors: [UInt32] = []
-    @AppStorage("helloDrop.finalsSince") private var finalsSince: Double = 0
     /// The day's first open's reads are back: attended, finals, acceptances and contacts.
     @State private var readsIn = false
     /// Contacts joining after this are said: the first check's time, so nobody already here is.
@@ -307,7 +343,7 @@ struct HelloDropView: View {
     @State private var saying: String?
     private let moments = HelloMoments.shared
     private let inbox = HelloInbox.shared
-    @AppStorage(HelloDrop.dayKey) private var shownDay = ""
+    private let schedule = HelloSchedule(inbox: .shared)
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
     /// The day's line the last first open said, so a count isn't said two days running (hello-drop 08).
     @AppStorage("helloDrop.lastLine") private var lastLine = ""
@@ -362,7 +398,7 @@ struct HelloDropView: View {
                 return
             }
             if HelloDrop.later {
-                shownDay = Town.day(Date())
+                UserDefaults.standard.set(Town.day(Date()), forKey: HelloDrop.dayKey)
                 try? await Task.sleep(for: .seconds(8))
                 for item in HelloInbox.samples(now: Date()) where item.rank > 0 { inbox.add(item.what) }
                 return
@@ -491,12 +527,9 @@ struct HelloDropView: View {
     @discardableResult
     private func start() -> Bool {
         let now = Date()
-        let today = Town.day(now)
+        // The schedule last: its yes marks the day said.
         guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !HelloDrop.later,
-              step == .hidden, run == nil,
-              HelloDrop.forced || (shownDay != today && inbox.mayDrop(now: now)) else { return false }
-        shownDay = today
-        if !HelloDrop.forced { inbox.dropped(now: now) }
+              step == .hidden, run == nil, schedule.shouldShow(now: now, forced: HelloDrop.forced) else { return false }
         // DEBUG `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
         let seen = HelloDrop.debugSeen(now: now)
             ?? (lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil)
@@ -612,12 +645,10 @@ struct HelloDropView: View {
     /// New finals since the last read, into the pill's memory, newest first.
     private func checkFinals() async {
         guard HelloDrop.allowed else { return }
-        // An hour back from the last read: the finals job stamps a final when its run starts and
-        // saves it minutes later, so a read in between would step past it. The memory stops repeats.
-        let since = finalsSince > 0 ? Date(timeIntervalSince1970: finalsSince - 3600) : Date().addingTimeInterval(-36 * 3600)
+        let since = schedule.finalsSince(now: Date())
         let started = Date()
         guard let read = await finals(since) else { return }
-        finalsSince = started.timeIntervalSince1970
+        schedule.finalsRead(at: started)
         for final in read { if let said = HelloItem.Final(final) { inbox.add(.final(said)) } }
     }
 

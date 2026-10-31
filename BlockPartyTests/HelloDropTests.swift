@@ -173,6 +173,44 @@ final class HelloDropTests: XCTestCase {
         XCTAssertTrue(inbox.mayDrop(now: town("2026-10-23 00:50")))
     }
 
+    // MARK: Once a day (`HelloSchedule`)
+
+    private func schedule(_ name: String = #function) -> HelloSchedule {
+        let store = UserDefaults(suiteName: "HelloScheduleTests.\(name)")!
+        store.removePersistentDomain(forName: "HelloScheduleTests.\(name)")
+        return HelloSchedule(store: store, inbox: HelloInbox(keep: store))
+    }
+
+    /// The day's first open says hello; a second open the same day shows nothing, though the pill
+    /// may drop again by then, and the phone remembers. DEBUG `-hello-drop` shows it every time.
+    func testASecondOpenTheSameDayShowsNothing() {
+        let hello = schedule()
+        XCTAssertTrue(hello.shouldShow(now: town("2026-10-21 08:00")))
+        XCTAssertFalse(hello.shouldShow(now: town("2026-10-21 08:00")))
+        XCTAssertFalse(hello.shouldShow(now: town("2026-10-21 14:00")))
+        XCTAssertFalse(HelloSchedule(store: hello.store, inbox: HelloInbox(keep: hello.store))
+            .shouldShow(now: town("2026-10-21 20:00")), "kept on the phone")
+        XCTAssertTrue(hello.shouldShow(now: town("2026-10-21 21:00"), forced: true))
+    }
+
+    /// The Town's midnight starts a new day, not UTC's: 11:30 PM in St. Joseph is already tomorrow
+    /// in UTC.
+    func testTownMidnightResetsIt() {
+        let hello = schedule()
+        XCTAssertTrue(hello.shouldShow(now: town("2026-10-21 18:00")))
+        XCTAssertFalse(hello.shouldShow(now: town("2026-10-21 23:30")))
+        XCTAssertTrue(hello.shouldShow(now: town("2026-10-22 00:30")))
+    }
+
+    /// The finals read looks back an hour from when the last one began (the finals job saves a
+    /// final minutes after its run starts); before any, 36 hours.
+    func testFinalsLookBackAnHour() {
+        let hello = schedule()
+        XCTAssertEqual(hello.finalsSince(now: town("2026-10-21 08:00")), town("2026-10-19 20:00"))
+        hello.finalsRead(at: town("2026-10-21 08:00"))
+        XCTAssertEqual(hello.finalsSince(now: town("2026-10-21 15:00")), town("2026-10-21 07:00"))
+    }
+
     /// Firsts, then finals, then who joined; oldest first within each; one found twice is one.
     func testTheHigherOneFirstAndEachOnce() {
         let (inbox, _) = inbox()
