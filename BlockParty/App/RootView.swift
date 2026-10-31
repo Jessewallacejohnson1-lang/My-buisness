@@ -433,7 +433,7 @@ struct MainTabsView: View {
     @State private var tabBarCompact = false
     /// The You tab's photo. The narrow loader the Today header once used: one
     /// profile read, and a failed refresh keeps the last good photo.
-    @StateObject private var avatar = TodayHeaderProfileModel(auth: .shared)
+    private var avatar: TodayHeaderProfileModel { session.avatar }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// What a host row opens (follows 08): a person's page, a team's, a page, a board's meetings, or

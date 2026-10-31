@@ -35,6 +35,8 @@ final class AppSession {
     /// What the bell holds: Events you follow or are Going to that were canceled or moved (BP app
     /// docs/plans/school-activities, ticket 04).
     let notices: Notices
+    /// The You tab's photo, and the tab bar's.
+    let avatar: TodayHeaderProfileModel
     private let hello: HelloInbox
     /// Saves this phone kept before they moved to the server.
     private let saved: SavedStore
@@ -42,7 +44,8 @@ final class AppSession {
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
-         notices: Notices, hello: HelloInbox, saved: SavedStore, supabase: Supabase) {
+         notices: Notices, avatar: TodayHeaderProfileModel, hello: HelloInbox, saved: SavedStore,
+         supabase: Supabase) {
         self.actions = actions
         self.townFeed = townFeed
         self.searchModel = searchModel
@@ -52,6 +55,7 @@ final class AppSession {
         self.eventOfTheDay = eventOfTheDay
         self.dayPicks = dayPicks
         self.notices = notices
+        self.avatar = avatar
         self.hello = hello
         self.saved = saved
         self.supabase = supabase
@@ -63,7 +67,8 @@ final class AppSession {
         self.init(actions: actions, townFeed: TownFeed(actions: actions), searchModel: SearchModel(actions: actions),
                   friendsBook: FriendsBook(), you: YouModel(), saves: YouModel.saves(),
                   eventOfTheDay: EventOfTheDay(), dayPicks: DailyDayPicks(), notices: Notices(),
-                  hello: .shared, saved: .shared, supabase: Supabase(auth: AuthStore.shared))
+                  avatar: TodayHeaderProfileModel(auth: .shared), hello: .shared, saved: .shared,
+                  supabase: Supabase(auth: AuthStore.shared))
     }
 
     /// The account changed (`AuthStore.accountKey`): another one, none, or the same one logged in
@@ -85,6 +90,7 @@ final class AppSession {
             eventOfTheDay.accountChanged()
             dayPicks.accountChanged()
             notices.reset()
+            avatar.accountChanged()
             // A first launch makes its account after the shell appears: today's open.
             if old == nil, signedIn { recordOpen() }
             // The feed reads again for who's going as this account sees it.
@@ -97,6 +103,7 @@ final class AppSession {
             reads.append(Task { await eventOfTheDay.refresh() })
             reads.append(Task { await actions.moveUp(saved) })
             reads.append(Task { await notices.refresh() })
+            reads.append(Task { await avatar.refresh() })
         }
         // Friends are a real account's, so the same one logging in for real starts them over too.
         friendsBook.reset()
