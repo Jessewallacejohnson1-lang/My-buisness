@@ -61,6 +61,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ModerationView.swift:$link": .notYetAudited(reason: "Safari view on a found event's page — system UI, scales on its own."),
         "TownNewsCard.swift:$link": .notYetAudited(reason: "Safari view on a town news post (town-feed 35) — system UI, scales on its own."),
         "RootView.swift:$helloLink": .notYetAudited(reason: "Safari view on the hello pill's news post (hello-drop 03) — system UI, scales on its own."),
+        "FeedEventDetailDestination.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
     ]
 
     /// A new screen must be a deliberate decision, not a silent gap.

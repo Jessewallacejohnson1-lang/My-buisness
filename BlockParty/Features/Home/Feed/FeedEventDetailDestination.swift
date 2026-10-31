@@ -4,19 +4,22 @@
 //
 //  Laid out to the Fresha venue page Jesse picked (`references/fresha-venue-detail.png`,
 //  1180 px at 393 pt, 3.0 px a point): a photo carousel under three round buttons, a
-//  sheet over its bottom edge with the title, category, when and where, and an About that
-//  clamps at four lines. Every size in `Metric` is measured off that screen; the few it
-//  could not give are marked guessed. Over it floats Meetup's white capsule with the RSVP
-//  words and pill the Town card has (rsvp-and-groups 02, Figma "Meetup depth").
+//  sheet over its bottom edge with the title, and an About that clamps at four lines. Every
+//  size in `Metric` is measured off that screen; the few it could not give are marked guessed.
+//  Under the title, the facts as Meetup's Event page lays them out (event-page-formats 06): a
+//  day row, a place row and the host in a grey card, the Interest in grey words under About.
+//  Over it floats Meetup's white capsule with the RSVP words and pill the Town card has
+//  (rsvp-and-groups 02, Figma "Meetup depth").
 //
 //  Town pushes this onto the shell's stack; Your Day shows it as a sheet, where the
 //  back arrow becomes a close "x". The system bar stays hidden either way.
 //
 //  PRODUCT RULE: never render a zero count or a placeholder. Every row below is
 //  optional and simply absent when the data is: no description, no About; no
-//  category (or `.other`), no grey line; no place, no pill; no photo, no hero.
+//  category (or `.other`), no Interest; no place, no place row; no photo, no hero.
 //
 
+import EventKitUI
 import SwiftUI
 
 struct FeedEventDetailDestination: View {
@@ -47,6 +50,11 @@ struct FeedEventDetailDestination: View {
     /// A found Event's page, read here when the screen that opened it didn't send it: only the
     /// Town feed does (You, Saved, Daily's Event of the day and Notifications don't).
     @State private var foundURL: URL?
+    /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
+    /// called off or ending while the sheet is up keeps its sheet, and Cancel.
+    @State private var calendarShown = false
+    @State private var adding: CalendarEntry?
+    @Environment(\.openURL) private var openURL
 
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
@@ -107,8 +115,22 @@ struct FeedEventDetailDestination: View {
         static let whenTop: CGFloat = 14
         static let pillTop: CGFloat = 17.3
         static let aboutTop: CGFloat = 33
-        static let clockGap: CGFloat = 4.5
         static let pinGap: CGFloat = 8
+        /// The facts under the title (event-page-formats 06), off the approved mock's CSS (Meetup's
+        /// rows): 16 pt under the title, each row a 22 pt glyph 14 pt from its words, 13 pt above and
+        /// below them, the second line 3 pt under the first, a 20 pt glyph at its end; a 1 pt
+        /// hairline between rows, under the words only. The host card 20 pt under the rows, About
+        /// (and a game's score) 30 pt under the card, the Interest 12 pt under About.
+        static let rowsTop: CGFloat = 16
+        static let rowGlyph: CGFloat = 22
+        static let rowGap: CGFloat = 14
+        static let rowPad: CGFloat = 13
+        static let rowLineGap: CGFloat = 3
+        static let rowEnd: CGFloat = 20
+        static let hairline: CGFloat = 1
+        static let hostTop: CGFloat = 20
+        static let sectionTop: CGFloat = 30
+        static let interestTop: CGFloat = 12
         /// A game's band (game-card 05, the approved mock): the chip 8.5 pt under the round buttons
         /// and 16 pt in, the logos 10 pt under the chip, the band ending 26 pt under the names. Its
         /// colors run this far further up, under the status bar and a pull.
@@ -159,6 +181,9 @@ struct FeedEventDetailDestination: View {
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.smooth, value: photos.count)
         .signInSheet(isPresented: $signInShown)
+        .sheet(isPresented: $calendarShown) {
+            if let adding { AddToCalendar(entry: adding) }
+        }
         // A failed Join or Save shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear {
@@ -429,56 +454,34 @@ struct FeedEventDetailDestination: View {
                 .accessibilityValue(item.cancelled ? "Canceled" : "")
                 .padding(.top, Metric.titleTop)
 
-            if let category = Self.categoryText(item.category) {
-                Text(category)
-                    .font(.sans(17))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, Metric.categoryTop)
-            }
+            facts
 
-            if let when = current.whenLine {
-                HStack(spacing: Metric.clockGap) {
-                    Image(systemName: "clock")
-                        .font(.sans(13))
-                    Text(when.text)
-                        .font(.sans(17))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(Hue.inkSecondary)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(when.spoken)
-                .padding(.top, Metric.whenTop)
-            }
-
-            if let place = Self.placeText(item) {
-                // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
-                // With a link row under About, the Business page's wider box, so both rows' words line up.
-                // Every found Event the morning run writes has one: picked from that, not the link, the
-                // words never move when a link read on opening lands.
-                InfoPill(glyph: "mappin", text: place, url: Directions.url(forPlace: place),
-                         hint: "Opens in Maps",
-                         glyphBox: item.found ? SearchMetric.bizGlyphBox : Metric.pinBox)
-                    .padding(.top, Metric.pillTop)
-            }
-
-            // Who hosts it, with Follow (follows 02): Eventbrite's "Organized by".
-            EventHostRow(item: item, top: Metric.pillTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
+            // Who hosts it, with Follow (follows 02), in Meetup's grey card.
+            EventHostRow(item: item, top: Metric.hostTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
 
             if let game {
                 GameScoring(game: game)
-                    .padding(.top, Metric.aboutTop)
+                    .padding(.top, Metric.sectionTop)
             }
 
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
-                    .padding(.top, Metric.aboutTop)
+                    .padding(.top, Metric.sectionTop)
+            }
+
+            // Its Interest, in grey words that open nothing (event-page-formats 05).
+            if let interest = Self.categoryText(item.category) {
+                Text(interest)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, Self.aboutText(item.description) != nil ? Metric.interestTop : Metric.hostTop)
             }
 
             // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
             if let link {
                 InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
                          glyphBox: SearchMetric.bizGlyphBox, leaves: true)
-                    .padding(.top, Self.aboutText(item.description) != nil ? SearchMetric.bizLinksTop : Metric.pillTop)
+                    .padding(.top, SearchMetric.bizLinksTop)
             }
         }
         .padding(.horizontal, Metric.inset)
@@ -493,6 +496,38 @@ struct FeedEventDetailDestination: View {
             )
         )
         .padding(.top, hasHero || game != nil ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
+    }
+
+    // MARK: The facts (event-page-formats 06)
+
+    /// The day and the place under the title, each its own row with Apple's glyph, as Meetup's
+    /// Event page lays them out: the day adds it to the phone's calendar, the place opens Maps.
+    @ViewBuilder private var facts: some View {
+        let day = Self.dayLines(current)
+        let place = Self.placeText(item)
+        if day != nil || place != nil {
+            VStack(alignment: .leading, spacing: 0) {
+                if let day {
+                    let entry = Self.calendarEntry(current)
+                    FactRow(glyph: "calendar", lines: day, end: entry == nil ? nil : .add,
+                            hint: "Adds it to your phone's calendar") {
+                        adding = entry
+                        calendarShown = true
+                    }
+                }
+                if day != nil, place != nil {
+                    Hue.hairline
+                        .frame(height: Metric.hairline)
+                        .padding(.leading, Metric.rowGlyph + Metric.rowGap)
+                }
+                if let place {
+                    // The same search Your Day's "Directions" opens.
+                    FactRow(glyph: "mappin.and.ellipse", lines: Self.placeLines(place), end: .opens,
+                            hint: "Opens in Maps") { Directions.url(forPlace: place).map { openURL($0) } }
+                }
+            }
+            .padding(.top, Metric.rowsTop)
+        }
     }
 
     // MARK: The bar
@@ -570,6 +605,61 @@ struct FeedEventDetailDestination: View {
         return BusinessPage.rows([PlaceLink(kind: kind, url: url.absoluteString)]).first
     }
 
+    /// A fact's two lines, as its row prints them and as VoiceOver reads them.
+    struct FactLines: Equatable {
+        let first: String
+        var second: String? = nil
+
+        var spoken: String {
+            [first, second?.replacingOccurrences(of: " – ", with: " to ")].compactMap { $0 }.joined(separator: ", ")
+        }
+    }
+
+    /// The day row (event-page-formats 06): the day in full over its hours, "Monday, November 30" over
+    /// "4:30 – 6 PM", the start alone when the Event gives no end, "7 PM until Wednesday, December 2"
+    /// when it runs over days. Untimed: "Until" its last day when it runs over days, else the time as
+    /// written ("after dark"), else the day alone. The year past six months off, as the card's.
+    static func dayLines(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        guard let when = item.when else { return item.whenLine.map { FactLines(first: $0.text) } }
+        let withYear = abs(Town.days(from: now, to: when.start)) > 183
+        let day = { (date: Date) in Town.format(date, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd") }
+        // A game whose final is in shows its day alone, as its card (game-card 02).
+        if item.game?.final != nil { return FactLines(first: day(when.start)) }
+        guard when.timed else {
+            let last = when.end.addingTimeInterval(-1)
+            if Town.days(from: when.start, to: last) > 0 {
+                return FactLines(first: day(when.start), second: "Until \(day(last))")
+            }
+            let written = item.allDay ? nil : nonempty(item.startTime)
+            return FactLines(first: day(when.start), second: written)
+        }
+        guard item.endAt != nil else { return FactLines(first: day(when.start), second: Town.clock(when.start)) }
+        let start = Town.gregorian.component(.hour, from: when.start) * 60 + Town.gregorian.component(.minute, from: when.start)
+        let length = Int(when.end.timeIntervalSince(when.start) / 60)
+        guard length < PlaceHours.day else {
+            return FactLines(first: day(when.start), second: "\(Town.clock(when.start)) until \(day(when.end))")
+        }
+        return FactLines(first: day(when.start),
+                         second: length > 0 ? PlaceHours.line([start..<start + length]) : Town.clock(when.start))
+    }
+
+    /// What the day row adds to the phone's calendar: the hours the app keeps (`EventWhen`, two
+    /// hours when it gives no end). nil once it's called off or over, when the row adds nothing.
+    static func calendarEntry(_ item: FeedCardItem, now: Date = .now) -> CalendarEntry? {
+        guard !item.cancelled, item.game?.final == nil, let when = item.when, now < when.end else { return nil }
+        return CalendarEntry(title: item.title, starts: when.start, ends: when.end, allDay: !when.timed,
+                             place: placeText(item))
+    }
+
+    /// The place row: the name over the rest after its first comma ("Saint John's Abbey Arboretum"
+    /// over "Collegeville"); one line without one.
+    static func placeLines(_ place: String) -> FactLines {
+        guard let comma = place.firstIndex(of: ",") else { return FactLines(first: place) }
+        let name = place[..<comma].trimmingCharacters(in: .whitespaces)
+        let rest = place[place.index(after: comma)...].trimmingCharacters(in: .whitespaces)
+        return name.isEmpty || rest.isEmpty ? FactLines(first: place) : FactLines(first: name, second: rest)
+    }
+
     /// `.other` is the fallback for a missing category, not a category.
     static func categoryText(_ category: EventCategory?) -> String? {
         guard let category, category != .other else { return nil }
@@ -585,5 +675,92 @@ struct FeedEventDetailDestination: View {
               !trimmed.isEmpty
         else { return nil }
         return trimmed
+    }
+}
+
+/// One fact under an Event's title (event-page-formats 06): Apple's glyph, a line over a grey line,
+/// and at its end what a tap does, pressed as the link row is. A row that opens nothing has no end
+/// and doesn't press (05).
+private struct FactRow: View {
+    enum End { case add, opens }
+
+    let glyph: String
+    let lines: FeedEventDetailDestination.FactLines
+    let end: End?
+    let hint: String
+    let action: () -> Void
+
+    var body: some View {
+        if end != nil {
+            Button(action: action) { row }
+                .buttonStyle(FeedCardPressStyle())
+                .accessibilityLabel(lines.spoken)
+                .accessibilityHint(hint)
+        } else {
+            row
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(lines.spoken)
+        }
+    }
+
+    private var row: some View {
+        let m = FeedEventDetailDestination.Metric.self
+        return HStack(spacing: m.rowGap) {
+            Image(systemName: glyph)
+                .font(.sans(19))
+                .frame(width: m.rowGlyph, height: m.rowGlyph)
+            VStack(alignment: .leading, spacing: m.rowLineGap) {
+                Text(lines.first)
+                    .font(.sansMedium(17))
+                if let second = lines.second {
+                    Text(second)
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let end {
+                // The add glyph in ink, the chevron grey, as the mock.
+                Image(systemName: end == .add ? "calendar.badge.plus" : "chevron.right")
+                    .font(end == .add ? .sans(17) : .sansSemibold(15))
+                    .foregroundStyle(end == .add ? Hue.ink : Hue.inkSecondary)
+                    .frame(width: m.rowEnd, height: m.rowEnd)
+            }
+        }
+        .foregroundStyle(Hue.ink)
+        .padding(.vertical, m.rowPad)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Apple's own add-to-Calendar sheet, filled in (event-page-formats 05). From iOS 17 it runs outside
+/// the app with the calendars' own access, so it asks no permission (Apple, "Accessing the event
+/// store"); Add or Cancel comes back to the page.
+private struct AddToCalendar: UIViewControllerRepresentable {
+    let entry: CalendarEntry
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> EKEventEditViewController {
+        let event = EKEvent(eventStore: EventKitCalendar.store)
+        EventKitCalendar.write(entry, into: event)
+        let controller = EKEventEditViewController()
+        controller.eventStore = EventKitCalendar.store
+        controller.event = event
+        controller.editViewDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    final class Coordinator: NSObject, EKEventEditViewDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+
+        func eventEditViewController(_ controller: EKEventEditViewController,
+                                     didCompleteWith action: EKEventEditViewAction) {
+            dismiss()
+        }
     }
 }

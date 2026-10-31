@@ -235,7 +235,7 @@ final class CalendarSync {
 @MainActor
 final class EventKitCalendar: PhoneCalendar {
     /// One store for the app's life (Apple: release it last).
-    private static let store = EKEventStore()
+    static let store = EKEventStore()
     private var store: EKEventStore { Self.store }
     /// Shown in the entry's notes, so the person knows where it came from.
     static let note = "Added by Block Party"
@@ -278,7 +278,8 @@ final class EventKitCalendar: PhoneCalendar {
         try store.remove(event, span: .thisEvent)
     }
 
-    private static func write(_ entry: CalendarEntry, into event: EKEvent) {
+    /// Also fills the Event page's add-to-Calendar sheet (event-page-formats 06).
+    static func write(_ entry: CalendarEntry, into event: EKEvent) {
         event.title = entry.title
         event.location = entry.place
         event.notes = note

@@ -262,16 +262,19 @@ struct FollowedNeighborPage: View {
 
 /// A Place's or person's round picture: a person's photo (Instagram's blank picture without one), a
 /// Place's photo (its initial without one), or its logo inset on white, as the mock draws a Place with no photo. The Town's own page
-/// draws the app's Town logo (follows 04).
+/// draws the app's Town logo (follows 04). With `corner`, a rounded square instead (an Event's host card).
 struct FollowPicture: View {
     let row: FollowRow
     let size: CGFloat
+    var corner: CGFloat? = nil
 
     /// `picture_kind` for the Town's own logo, bundled in the app (`Town.logo`).
     static let townKind = "town"
 
     var body: some View {
         let url = row.picture.flatMap(URL.init)
+        // Round is a square with half its side for corners.
+        let shape = RoundedRectangle(cornerRadius: corner ?? size / 2, style: corner == nil ? .circular : .continuous)
         if row.pictureKind == Self.townKind {
             Image(Town.logo)
                 .resizable()
@@ -280,15 +283,29 @@ struct FollowPicture: View {
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
         } else if row.pictureKind == "logo", let url {
-            Circle()
+            shape
                 .fill(Hue.surface)
                 .overlay { FeedCardURLPhoto(url: url, loadingFill: Hue.surface).padding(size * 0.16) }
                 .frame(width: size, height: size)
-                .clipShape(Circle())
-                .overlay(Circle().strokeBorder(Hue.hairline, lineWidth: FriendsMetric.hairline))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Hue.hairline, lineWidth: FriendsMetric.hairline))
+                .accessibilityHidden(true)
+        } else if corner != nil, url == nil, row.targetType != .profile {
+            // On the host card's grey, a first letter sits on white, as a logo does: on the grey it
+            // had no edge.
+            shape
+                .fill(Hue.surface)
+                .overlay {
+                    Text(row.name.first.map { String($0).uppercased() } ?? "")
+                        .font(.sansSemibold(size * 0.4))
+                        .foregroundStyle(Hue.ink)
+                }
+                .frame(width: size, height: size)
+                .overlay(shape.strokeBorder(Hue.hairline, lineWidth: FriendsMetric.hairline))
                 .accessibilityHidden(true)
         } else {
-            Avatar(url, size: size, blank: row.targetType == .profile ? .figure : .initial(row.name, font: size * 0.4))
+            Avatar(url, size: size, blank: row.targetType == .profile ? .figure : .initial(row.name, font: size * 0.4),
+                   corner: corner)
         }
     }
 
@@ -335,9 +352,10 @@ extension EnvironmentValues {
     @Entry var hostOpener: HostOpener? = nil
 }
 
-/// An Event page's host line, under where it is. Reads who hosts it when the page opens; draws
-/// nothing until then, or for an Event with no host to follow. Its picture and name open the host's
-/// page, pressed with a list row's grey; Follow keeps its own tap.
+/// An Event page's host, in Meetup's grey card under the day and place (event-page-formats 06). Reads
+/// who hosts it when the page opens; draws nothing until then, or for an Event with no host to follow.
+/// The card opens the host's page, squishing as the page's other rows do, Follow and all; Follow keeps
+/// its own tap. A host with no page: the card stays still.
 struct EventHostRow: View {
     let item: FeedCardItem
     /// Paper above it once it shows; none while it doesn't.
@@ -346,14 +364,20 @@ struct EventHostRow: View {
     var placeNamed = false
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.hostOpener) private var opener
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var host: FollowRow?
     @State private var picture = FrameBox()
     /// The last open, so a quick second tap doesn't push the page twice.
     @State private var openedAt = Date.distantPast
+    /// The button under the card is down: the whole card squishes.
+    @State private var pressed = false
 
-    static let picture: CGFloat = 44
-    static let smallPicture: CGFloat = 32
-    static let gap: CGFloat = 12
+    /// The approved mock's card (Meetup's): 16 pt inside, a 52 pt picture with 14 pt corners (a
+    /// person's stays round, picked), 14 pt to the words.
+    static let picture: CGFloat = 52
+    static let pictureCorner: CGFloat = 14
+    static let inset: CGFloat = 16
+    static let gap: CGFloat = 14
 
     var body: some View {
         // Always something on screen, even before the read, so the read starts.
@@ -363,27 +387,29 @@ struct EventHostRow: View {
                 let opens = opener?.opens(host) == true
                 HStack(spacing: Self.gap) {
                     Group {
-                        // Smaller under a named photo: the name has already been said (Jesse's pick).
-                        FollowPicture(row: host, size: placeNamed && host.targetType == .place ? Self.smallPicture : Self.picture)
+                        FollowPicture(row: host, size: Self.picture,
+                                      corner: host.targetType == .profile ? nil : Self.pictureCorner)
                             .trackFrame(picture)
                         VStack(alignment: .leading, spacing: 2) {
                             if !(placeNamed && host.targetType == .place) {
+                                // Two lines at 17 pt, so a long name ("Saint Benedict's Monastery")
+                                // isn't cut beside Follow (picked).
                                 Text(host.name)
-                                    .font(.sansSemibold(15))
+                                    .font(.sansSemibold(17))
                                     .foregroundStyle(Hue.ink)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
                             }
                             // `host-line`: "Host · 128 followers"; a person shows no count. A City
                             // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
                             Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
                                 .compactMap { $0 }.joined(separator: " · "))
-                                .font(.sans(13))
+                                .font(.sans(15))
                                 .foregroundStyle(Hue.inkSecondary)
                                 .contentTransition(.numericText())
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityElement(children: .combine)
-                        // VoiceOver presses the row here; the button behind is for fingers.
+                        // VoiceOver presses the card here; the button behind is for fingers.
                         .accessibilityAddTraits(opens ? .isButton : [])
                         .accessibilityAction { if opens { open(host) } }
                     }
@@ -391,13 +417,21 @@ struct EventHostRow: View {
                     // A friend you follow reads Following; one you unfollowed can follow again here.
                     FollowButton(target: host.target, name: host.name, size: .row)
                 }
+                .padding(Self.inset)
                 .background {
-                    if opens {
-                        Button { open(host) } label: { Color.clear.contentShape(Rectangle()) }
-                            .buttonStyle(RowPressStyle())
-                            .accessibilityHidden(true)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Hue.fill)
+                        if opens {
+                            Button { open(host) } label: { Color.clear.contentShape(Rectangle()) }
+                                .buttonStyle(HostCardPress(pressed: $pressed))
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
+                // The link row's squish (`FeedCardPressStyle`) on the whole card.
+                .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
+                .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
+                .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
                 .animation(Motion.smooth, value: actions.follow(host.target).count)
                 .padding(.top, top)
                 .transition(.opacity)
@@ -432,5 +466,14 @@ struct EventHostRow: View {
             return FollowRow(targetType: .place, targetId: "sample-\(item.id)", name: place, kind: "restaurant",
                              picture: nil, pictureKind: nil)
         }
+    }
+}
+
+/// Tells the host card when the button under it is down, so the whole card squishes, Follow included.
+private struct HostCardPress: ButtonStyle {
+    @Binding var pressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.onChange(of: configuration.isPressed) { _, down in pressed = down }
     }
 }

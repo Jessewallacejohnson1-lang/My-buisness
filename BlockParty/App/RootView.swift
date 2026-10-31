@@ -617,10 +617,11 @@ struct MainTabsView: View {
             guard !actions.needsSignUp else { return }
             for target in OnboardingStore.takeFollows() { actions.followOn(target) }
         }
+        // Onboarding's answers landed after the tabs opened: the feed reads again, sorted to them.
+        .onChange(of: answersLate) { Task { await townFeed.reload() } }
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
-        .onChange(of: answersLate) { Task { await townFeed.reload() } }
         .onChange(of: auth.userId) { old, new in
             // Another account, not the launch's saved one coming in: the last one's acceptances
             // leave the hello pill and the bell (hello-drop 06).
@@ -677,40 +678,46 @@ struct MainTabsView: View {
         }
         .onAppear {
             recordOpen()
-            // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
-            // sample inbox's newest chat, the one way left into the sample chats.
-            if LaunchFlags.has(.openFriends) { openFriends() }
-            if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
-            if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
-                path.append(FriendsRoute.inbox)
-                path.append(FriendsRoute.chat(newest.id))
-            }
-            #if DEBUG
-            // `-open-team <uuid>` pushes that local school's page (school-activities 02).
-            if let id = LaunchFlags.value(.openTeam),
-               let team = try? JSONDecoder().decode(Game.Team.self, from: Data(
-                   #"{"name":"","id":"\#(id)","local":true}"#.utf8)) {
-                path.append(team)
-            }
-            // `-open-page town|city` pushes that Town page (follows 04).
-            if let kind = LaunchFlags.value(.openPage).flatMap({ TownPageKind(slug: $0) }) {
-                path.append(kind)
-            }
-            // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
-            // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
-            if let id = LaunchFlags.value(.openEvent) {
-                Task {
-                    for _ in 0..<120 {
-                        if let card = townFeed.entries?.lazy.compactMap(\.card).first(where: { $0.id == id }) {
-                            path.append(card)
-                            return
-                        }
-                        try? await Task.sleep(for: .milliseconds(250))
+            openLaunchPages()
+        }
+    }
+
+    /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own
+    /// function, out of `body`: Xcode 26.6 couldn't type-check the body with it inside in time.
+    private func openLaunchPages() {
+        // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
+        // sample inbox's newest chat, the one way left into the sample chats.
+        if LaunchFlags.has(.openFriends) { openFriends() }
+        if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
+        if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
+            path.append(FriendsRoute.inbox)
+            path.append(FriendsRoute.chat(newest.id))
+        }
+        #if DEBUG
+        // `-open-team <uuid>` pushes that local school's page (school-activities 02).
+        if let id = LaunchFlags.value(.openTeam),
+           let team = try? JSONDecoder().decode(Game.Team.self, from: Data(
+               #"{"name":"","id":"\#(id)","local":true}"#.utf8)) {
+            path.append(team)
+        }
+        // `-open-page town|city` pushes that Town page (follows 04).
+        if let kind = LaunchFlags.value(.openPage).flatMap({ TownPageKind(slug: $0) }) {
+            path.append(kind)
+        }
+        // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
+        // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
+        if let id = LaunchFlags.value(.openEvent) {
+            Task {
+                for _ in 0..<120 {
+                    if let card = townFeed.entries?.lazy.compactMap(\.card).first(where: { $0.id == id }) {
+                        path.append(card)
+                        return
                     }
+                    try? await Task.sleep(for: .milliseconds(250))
                 }
             }
-            #endif
         }
+        #endif
     }
 
     /// The friends going each day under Daily's week: the Town feed's, or under DEBUG

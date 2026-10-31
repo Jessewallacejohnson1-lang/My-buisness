@@ -7,8 +7,11 @@
 // writing each pushed Game through public.record_live_score. public.start_live_scores hands out the games at
 // most once in 50 seconds, so a second call, from anyone, listens to nothing: verify_jwt is off.
 //
-// Deploy: supabase functions deploy live-scores --no-verify-jwt. Any deploy (CLI or Composio's
-// SUPABASE_DEPLOY_FUNCTION) turns verify_jwt back on, and pg_cron's call then gets 401: set it off again after.
+// Deploy: supabase functions deploy live-scores --project-ref lxdgwhvqjqmqliobwjpi, which keeps verify_jwt off
+// from supabase/config.toml; or the Supabase MCP's deploy_edge_function with verify_jwt false. Composio's
+// SUPABASE_DEPLOY_FUNCTION has no such setting and turns it back on: follow it with SUPABASE_UPDATE_A_FUNCTION,
+// verify_jwt false. A missed one gets pg_cron's call refused (401), and each refusal shows as a failed
+// live-scores run in cron.job_run_details (loopholes 05).
 
 const HUB = "https://v2-realtime.sidearmsports.com/signalr"
 const HUB_DATA = encodeURIComponent(JSON.stringify([{ name: "sidearm" }]))

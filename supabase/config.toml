@@ -1,0 +1,7 @@
+# Read by `supabase functions deploy`. Only settings that differ from the CLI's defaults live here.
+project_id = "block-party"
+
+# pg_cron's every-minute call carries no login (functions/live-scores/index.ts). A deploy that turns
+# this back on gets that call refused, and live scores stop.
+[functions.live-scores]
+verify_jwt = false

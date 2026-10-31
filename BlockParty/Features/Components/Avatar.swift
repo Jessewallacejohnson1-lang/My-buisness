@@ -26,16 +26,20 @@ struct Avatar: View {
     let outlined: Bool
     /// A photo just picked on the phone, shown ahead of `url` (onboarding, Edit profile).
     let picked: UIImage?
+    /// A rounded square with these corners instead of a circle (an Event's host card).
+    let corner: CGFloat?
 
     /// The URL that failed to load, so a dead link shows the blank instead of the light fill.
     @State private var failed: URL?
 
-    init(_ url: URL?, size: CGFloat, blank: Blank = .figure, outlined: Bool = false, picked: UIImage? = nil) {
+    init(_ url: URL?, size: CGFloat, blank: Blank = .figure, outlined: Bool = false, picked: UIImage? = nil,
+         corner: CGFloat? = nil) {
         self.url = url
         self.size = size
         self.blank = blank
         self.outlined = outlined
         self.picked = picked
+        self.corner = corner
     }
 
     /// From a profile's `avatar_url`.
@@ -56,7 +60,7 @@ struct Avatar: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
+        .clipShape(corner.map { AnyShape(RoundedRectangle(cornerRadius: $0, style: .continuous)) } ?? AnyShape(Circle()))
         .overlay {
             if outlined { Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
         }
