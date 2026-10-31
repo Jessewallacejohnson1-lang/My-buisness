@@ -1345,12 +1345,19 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
   await record(first);
   assert.equal(await record([play('12', 'A. Moen 7 yd TD run (T. Lund kick)', 'VisitingTeam', 1, 175, 7, 7)]), 'live');
   assert.deepEqual((await plays()).map((p) => [p.id, p.side, p.score]), [['9', 0, [7, 0]], ['12', 1, [7, 7]]], 'once each, oldest first');
+  // SIDEARM corrects a play it already sent (2026-10-31: a field goal first sent with the score before it): the
+  // correction takes the play's place, and a push that changes nothing writes nothing.
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 7, 7)]), 'live');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'live');
+  assert.deepEqual((await plays()).map((p) => [p.id, p.score]), [['9', [7, 0]], ['12', [7, 7]], ['14', [10, 7]]],
+                   'the correction, in its place');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'ignored', 'nothing new');
   // The feed sends them inside the game.
   await db.exec('set role anon');
   const [row] = (await db.query(`select game from public.get_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
     where game is not null`)).rows;
   await db.exec('reset role');
-  assert.equal(row.game.plays.length, 2);
+  assert.equal(row.game.plays.length, 3);
   // Volleyball keeps none: every point carries a score; its sets show instead.
   assert.deepEqual((await db.query(`select private.sidearm_scoring($1::jsonb, true, 'csb/wvball') as s`,
                                    [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
