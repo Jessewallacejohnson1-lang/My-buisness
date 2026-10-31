@@ -1,58 +1,71 @@
 //
 //  TodayPlacesTests.swift
-//  BlockPartyTests — which pin each of today's events is at (`TodayPlaces`, codebase-health 12):
-//  an event lights exactly the pin its bubble, Today row and pin card go to.
+//  BlockPartyTests — where each of today's events sits on the map (`TodayPlaces`, BP app
+//  map-reset): one bubble per real spot, the one on now in front, events with no spot off the
+//  map, touching bubbles merged, and the day over only when every event is.
 //
 
+import CoreLocation
 import XCTest
 @testable import BlockParty
 
 @MainActor
 final class TodayPlacesTests: XCTestCase {
 
-    private let day = "2026-10-26"
+    private let day = "2026-10-30"
     private func at(_ hour: Double) -> Date { Town.midnight(day)!.addingTimeInterval(hour * 3600) }
-    private func spot(_ id: String) -> Spot { MapSpots.all.first { $0.id == id }! }
-    private func event(_ id: String, _ location: String?, _ time: String? = "7 PM") -> TimelineEvent {
-        TimelineEvent(id: id, title: id, startTime: time, location: location, clubName: nil, fromJoinedClub: false,
-                      when: EventWhen(date: day, time: time, endAt: nil))
+    private func event(_ id: String, _ time: String? = "7 PM", end: Double? = nil) -> FeedCardItem {
+        var card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+        card.eventDate = day
+        card.startTime = time
+        card.endAt = end.map(at)
+        return card
     }
+    private let obbink = CLLocationCoordinate2D(latitude: 45.568417, longitude: -94.317459)
+    private let sals = CLLocationCoordinate2D(latitude: 45.5644264, longitude: -94.320549)
 
-    /// "CSB" and "chapel" both hit: before, it lit Saint Ben's and the chapel while its bubble and
-    /// row went to Saint Ben's alone.
-    func testAnEventThatNamesTwoPlacesLightsOnlyThePinItGoesTo() {
-        let vespers = event("Vespers", "Sacred Heart Chapel, CSB")
-        let places = TodayPlaces(events: [vespers])
-        let pin = places.spot(for: vespers)
-        XCTAssertEqual(pin?.id, "saintbens", "the first spot in MapSpots order")
-        for spot in MapSpots.all {
-            XCTAssertEqual(places.events(at: spot).map(\.id), spot.id == pin?.id ? ["Vespers"] : [], spot.id)
-            XCTAssertEqual(places.isLive(spot, now: at(19.5)), spot.id == pin?.id, spot.id)
-        }
-        let bubbles = places.bubbles(now: at(18), picture: { _ in nil })
-        XCTAssertEqual(bubbles.map(\.spot?.id), ["saintbens"])
-    }
-
-    func testEachEventGoesToItsOwnPinAndOnlyOnIsLive() {
-        let mass = event("Mass", "Saint John's Abbey, Collegeville", "9 PM")
-        let concert = event("Concert", "Millstream Park", "6 PM")
-        let potluck = event("Potluck", "A backyard")
-        let places = TodayPlaces(events: [mass, concert, potluck])
-        XCTAssertEqual(places.spot(for: mass)?.id, "saintjohns")
-        XCTAssertEqual(places.spot(for: concert)?.id, "millstream")
-        XCTAssertNil(places.spot(for: potluck), "no pin for an unlisted venue")
-        XCTAssertEqual(places.events(at: spot("saintjohns")).map(\.id), ["Mass"])
-        XCTAssertTrue(places.isLive(spot("millstream"), now: at(18.5)))
-        XCTAssertFalse(places.isLive(spot("saintjohns"), now: at(18.5)), "not started")
-        XCTAssertFalse(places.isLive(spot("millstream"), now: at(20)), "two hours and over")
-    }
-
-    func testBubblesAreOnePerPlaceSoonestFirst() {
-        let late = event("Late", "Millstream Park", "8 PM")
-        let early = event("Early", "Millstream Park", "6 PM")
-        let mass = event("Mass", "Saint John's Abbey", "7 PM")
-        let bubbles = TodayPlaces(events: [late, mass, early]).bubbles(now: at(17), picture: { _ in nil })
-        XCTAssertEqual(bubbles.map(\.event.id), ["Early", "Mass"], "one per place, its lead, soonest first")
+    /// Friday Oct 30 at 6:20 PM: two events at Benedicta (one on, one at 7:30) share a bubble with
+    /// the one on now in front; Sal's raffle is on; the 11 AM jewelry party is over; the
+    /// volleyball game has no spot.
+    func testOneBubblePerSpotOnNowFirstEndedAndSpotlessOff() {
+        let bac = CLLocationCoordinate2D(latitude: 45.5612, longitude: -94.3183)
+        let places = TodayPlaces(
+            events: [event("workshop", "7:30 PM", end: 20.5), event("raffle", "5 PM", end: 19),
+                     event("reflection", "10 AM", end: 21), event("jewelry", "11 AM", end: 17),
+                     event("volleyball", "7 PM")],
+            spots: ["workshop": bac, "reflection": bac, "raffle": sals,
+                    "jewelry": CLLocationCoordinate2D(latitude: 45.5647, longitude: -94.3201)])
+        let bubbles = places.bubbles(now: at(18 + 20.0 / 60))
+        XCTAssertEqual(bubbles.map { $0.events.map(\.id) }, [["reflection", "workshop"], ["raffle"]],
+                       "soonest first, the one on now in front, the ended and the spotless off")
         XCTAssertEqual(bubbles.map(\.order), [0, 1])
+        XCTAssertEqual(bubbles[0].event.id, "reflection")
+    }
+
+    /// Bubbles closer on screen than a bead merge into the first; the rest stay apart.
+    func testTouchingBubblesMergeAndPageThroughAllTheirEvents() {
+        let places = TodayPlaces(events: [event("bingo", "6 PM"), event("raffle", "5 PM", end: 19), event("lecture", "8 PM")],
+                                 spots: ["bingo": obbink, "raffle": sals,
+                                         "lecture": CLLocationCoordinate2D(latitude: 45.58, longitude: -94.39)])
+        let now = at(18.5)
+        let bubbles = places.bubbles(now: now)
+        XCTAssertEqual(bubbles.map(\.event.id), ["raffle", "bingo", "lecture"])
+        let merged = TodayPlaces.merge(bubbles, at: [CGPoint(x: 100, y: 100), CGPoint(x: 130, y: 110), CGPoint(x: 300, y: 500)],
+                                       within: 46, now: now)
+        XCTAssertEqual(merged.map { $0.events.map(\.id) }, [["raffle", "bingo"], ["lecture"]])
+        XCTAssertEqual(merged[0].id, bubbles[0].id, "the merged bubble keeps the earliest one's spot")
+        XCTAssertEqual(TodayPlaces.merge(bubbles, at: [CGPoint(x: 100, y: 100), CGPoint(x: 150, y: 100), CGPoint(x: 300, y: 500)],
+                                         within: 46, now: now).count, 3, "46 pt apart still touches nothing")
+    }
+
+    /// "Nothing else today" waits for every event, spot or not: a day whose only event left has
+    /// no spot isn't over.
+    func testTheDayIsOverOnlyWhenEveryEventIs() {
+        let places = TodayPlaces(events: [event("raffle", "5 PM", end: 19), event("volleyball", "7 PM")],
+                                 spots: ["raffle": sals])
+        XCTAssertFalse(places.dayIsOver(now: at(20)), "the volleyball game has no spot but isn't over")
+        XCTAssertTrue(places.dayIsOver(now: at(21)))
+        XCTAssertTrue(TodayPlaces.none.dayIsOver(now: at(9)), "a day with nothing says so too")
     }
 }

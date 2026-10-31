@@ -7,6 +7,7 @@
 //  from_joined_club via the N+1 batch pattern. RLS is enforced server-side.
 //
 
+import CoreLocation
 import Foundation
 
 struct PendingPost: Identifiable, Hashable {
@@ -159,34 +160,21 @@ struct CommunityAPI {
         try await db.rest("club_members", method: "DELETE", [("club_id", "eq.\(clubId)"), ("user_id", "eq.\(uid)")])
     }
 
-    // MARK: - Events (timeline)
+    // MARK: - Events (the map)
 
-    func getTodayEvents() async throws -> [TimelineEvent] {
-        try await timelineEvents(forDate: Town.day(.now))
-    }
-
-    private func timelineEvents(forDate date: String) async throws -> [TimelineEvent] {
-        let uid = db.auth.userId
-        let events: [RawEvent] = try Supabase.decode(await db.rest("club_events", [
-            ("select", "*,clubs(name)"), ("status", "eq.approved"), ("kind", "eq.event"), ("event_date", "eq.\(date)"),
-        ] + Self.realOnly + [("cancelled_at", "is.null"), ("order", "start_time.asc")], anon: true))
-        var joined = Set<String>()
-        if let uid {
-            let mem: [MemberRow] = try Supabase.decode(await db.rest("club_members", [("select", "club_id"), ("user_id", "eq.\(uid)")],
-                                                                     anon: true))
-            for m in mem { joined.insert(m.clubId) }
-        }
-        return events.map { e in
-            TimelineEvent(id: e.id, title: e.title, startTime: e.startTime, location: e.location,
-                          clubName: e.clubs?.name,
-                          fromJoinedClub: e.clubId != nil ? joined.contains(e.clubId!) : false,
-                          details: e.description,
-                          category: EventCategory.from(e.category),
-                          imageURL: e.imageUrl.flatMap(URL.init(string:)),
-                          placeEntryId: e.placeEntryId,
-                          when: EventWhen(date: date, time: e.startTime,
-                                          endAt: DateHelpers.timestamp(e.endAt), allDay: e.allDay ?? false))
-        }
+    /// Where each of these Events really is (`club_events.lat,lng`, set by the morning job
+    /// from the source registry), by id. One with no spot is left out. Signed out, it reads
+    /// with the public key, as the Town feed does.
+    func eventSpots(_ ids: [String]) async throws -> [String: CLLocationCoordinate2D] {
+        guard !ids.isEmpty else { return [:] }
+        struct Row: Decodable { let id: String; let lat: Double?; let lng: Double? }
+        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [
+            ("select", "id,lat,lng"), ("lat", "not.is.null"), ("id", "in.(\(ids.joined(separator: ",")))"),
+        ], anon: true))
+        return Dictionary(rows.compactMap { r in
+            guard let lat = r.lat, let lng = r.lng else { return nil }
+            return (r.id, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        }, uniquingKeysWith: { a, _ in a })
     }
 
     /// The Town feed, in its order: what's in it, when each event leaves, and a series

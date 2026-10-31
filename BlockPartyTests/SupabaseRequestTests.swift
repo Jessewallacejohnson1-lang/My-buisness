@@ -40,26 +40,23 @@ final class SupabaseRequestTests: XCTestCase {
 
     // MARK: - Reads
 
-    func testTodaySignedOutReadsRealEventsOnlyWithThePublicKey() async throws {
+    func testMapSpotsSignedOutReadWithThePublicKey() async throws {
         auth.throwOnToken = true
         auth.userId = nil
-        _ = try await community.getTodayEvents()
-        XCTAssertEqual(server.requests.count, 1, "signed out: no groups read")
+        _ = try await community.eventSpots(["a1", "b2"])
+        XCTAssertEqual(server.requests.count, 1)
         XCTAssertEqual(last.httpMethod, "GET")
-        XCTAssertEqual(last.url!.absoluteString,
-                       "\(rest)/club_events?select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(Town.day(.now))&or=(submitted_by.not.is.null,source_name.not.is.null)&followers_only=is.false&cancelled_at=is.null&order=start_time.asc")
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_events?select=id,lat,lng&lat=not.is.null&id=in.(a1,b2)")
         XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer \(SupabaseConfig.anonKey)")
         XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.anonKey)
     }
 
-    func testTodaySignedInReadsWithTheTokenAndAsksYourGroups() async throws {
-        _ = try await community.getTodayEvents()
-        XCTAssertEqual(server.requests.count, 2)
-        XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_members?select=club_id&user_id=eq.test-user")
-        for request in server.requests {
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-access-token")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "apikey"), SupabaseConfig.anonKey)
-        }
+    func testMapSpotsSignedInReadWithTheTokenAndNoneAskNothing() async throws {
+        _ = try await community.eventSpots([])
+        XCTAssertEqual(server.requests.count, 0, "no events today: no read")
+        _ = try await community.eventSpots(["a1"])
+        XCTAssertEqual(server.requests.count, 1)
+        XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer test-access-token")
     }
 
     func testUpcomingTagsAndKnownEventsAskExactly() async throws {
@@ -124,6 +121,24 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertNil(body["bio"])
         XCTAssertNil(body["cover_url"])
         XCTAssertNil(body["onboarded_at"])
+    }
+
+    func testTheOnboardedStampCarriesWhatTheFeedSortsBy() async throws {
+        // Onboarding 24: the birthday and the interests travel with the stamp, in one write before
+        // the Town feed's first read; a name or photo already on the row is left alone.
+        let birthday = try OnboardingAge.day.parse("2001-10-24")
+        try await profiles.markOnboarded(birthday: birthday, interests: ["live_music", "coffee"])
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/town_profiles?on_conflict=user_id")
+        let body = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(body["birthday"] as? String, "2001-10-24")
+        XCTAssertEqual(body["interests"] as? [String], ["live_music", "coffee"])
+        XCTAssertNotNil(body["onboarded_at"])
+        XCTAssertNil(body["display_name"])
+        XCTAssertNil(body["avatar_url"])
+
+        try await profiles.markOnboarded()
+        let bare = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(Set(bare.keys), ["user_id", "onboarded_at"], "no picks: the row's own stay")
     }
 
     func testASwitchPatchesOnlyThatColumnOfYourRow() async throws {

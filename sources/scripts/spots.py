@@ -1,0 +1,180 @@
+"""Where each upcoming Event really is, for the map's bubbles (BP app references/map-reset, 2026-10-30).
+
+    python3 sources/scripts/spots.py               # dry run: what it would set, and what has no spot
+    python3 sources/scripts/spots.py --write       # sets club_events.lat, lng (service key in the environment)
+    python3 sources/scripts/spots.py --selftest
+
+The map puts each of today's Events at `club_events.lat, lng`. The spots are hand-checked coordinates in
+the source registry: each entry's `at: [lat, lng]` (its main door) and `venue_at:`, a map from a venue's
+name, as event location lines write it, to its own [lat, lng] (Sexton Arena is not SJU's main door). An
+Event goes to:
+  1. the venue its location line names: the line whole, else the longest venue name inside it, from its
+     own Place's venues or, for a name long enough to be one building only (16 letters and up, "South
+     Junior High School"), anyone's: a short name like "City Hall" or "Great Hall" inside a line from
+     another town's host must not land here; else
+  2. the `at:` of the registry Place the line names (registry.place_for: name, other names, venues or
+     address), or of its own Place when the line is empty.
+Nothing else: never the host's own grounds as a guess, since most unknown places are away games
+(write_judged.py's ponytail on spots). An Event with no spot is listed, so its venue can be added.
+
+The morning job's finish runs this over every upcoming Event, writing only the spots that changed, so a
+new Event gets its spot the morning it arrives and a moved one follows it; the first run filled the ones
+already listed. Events posted in the app (posting is paused) wait for the next morning.
+"""
+import argparse
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from urllib.parse import quote
+from zoneinfo import ZoneInfo
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import registry  # noqa: E402
+
+LOCAL = ZoneInfo("America/Chicago")
+
+
+def spots_index(entries):
+    """(venue key -> (its entry, [lat, lng]), entry id -> [lat, lng]) from the registry's `venue_at` and `at`."""
+    venues, ats = {}, {}
+    for e in entries:
+        extra = e.get("_extra") or e
+        if extra.get("at"):
+            ats[e["id"]] = list(extra["at"])
+        for name, at in (extra.get("venue_at") or {}).items():
+            key = registry.place_key(name)
+            if key and key not in registry.TOWN_KEYS:
+                venues[key] = (e["id"], list(at))
+    return venues, ats
+
+
+# A venue name this long names one building wherever it's written; shorter ones match only their own Place's lines.
+ANYONE_S = 16
+
+
+def spot_for(location, entry_id, venues, ats, names):
+    """[lat, lng] for an Event at `location` posted for Place `entry_id`, or None (rules in the docstring)."""
+    key = registry.place_key(location)
+    if key in venues:
+        return venues[key][1]
+    inside = [k for k, (owner, _) in venues.items()
+              if len(k) >= 8 and k in key and (owner == entry_id or len(k) >= ANYONE_S)]
+    if inside:
+        return venues[max(inside, key=len)][1]
+    if not key:
+        return ats.get(entry_id)
+    ids, found = registry.place_for(location, None, names)
+    return next((ats[i] for i in ids or [] if i in ats), None) if found else None
+
+
+def fill(db, today, write, entries=None):
+    """Give every Event from `today` on the spot the rules give it now, writing only the ones that
+    differ (a new Event, a moved one, a corrected spot; one no longer known is emptied), and return
+    the report's lines."""
+    entries = entries if entries is not None else registry.load(registry.find_root(Path(__file__).parent))[0]
+    venues, ats = spots_index(entries)
+    names = registry.names_index(entries)
+    rows, page = [], 1000  # PostgREST answers at most 1,000 rows a read
+    while True:
+        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id,lat,lng"
+                             f"&event_date=gte.{today}&status=eq.approved&order=event_date,id"
+                             f"&limit={page}&offset={len(rows)}") or []
+        rows += got
+        if len(got) < page:
+            break
+    changed, missing = 0, []
+    for r in rows:
+        at = spot_for(r["location"], r["place_entry_id"], venues, ats, names)
+        if not at:
+            missing.append(r)
+        if (at or [None, None]) == [r.get("lat"), r.get("lng")]:
+            continue
+        changed += 1
+        if write:
+            db.rest("PATCH", f"club_events?id=eq.{quote(r['id'])}",
+                    {"lat": at[0] if at else None, "lng": at[1] if at else None}, prefer="return=minimal")
+    verb = "set" if write else "would set"
+    lines = [f"- Map spots: {verb} {changed}, {len(rows) - len(missing)} placed, {len(missing)} with no spot"]
+    lines += [f"  - {r['event_date']} {r['title']} · {r['location'] or '(no place line)'} ({r['place_entry_id']})"
+              for r in missing[:25]]
+    lines += [f"  - and {len(missing) - 25} more"] * (len(missing) > 25)
+    return lines
+
+
+# --- self-test -----------------------------------------------------------------------------------------
+
+def selftest():
+    entries = [
+        {"id": "sju", "_name": "Saint John's University", "aka": ["SJU"], "address": "2850 Abbey Plaza",
+         "_extra": {"at": [45.5810, -94.3926], "venue_at": {"Sexton Arena": [45.5798, -94.3962],
+                                                            "Great Hall": [45.5809, -94.3920]}}},
+        {"id": "bar-grill-sals", "_name": "Sal's Bar & Grill", "_extra": {"at": [45.56443, -94.32055]}},
+        {"id": "activities-athletic-csb", "_name": "CSB Athletics", "_extra": {"at": [45.5600, -94.3200]}},
+        {"id": "municipal-athletic-complex", "_name": "Municipal Athletic Complex",
+         "_extra": {"venue_at": {"Municipal Athletic Center": [45.5731, -94.2276]}}},
+        {"id": "st-cloud-area-school-district-742", "_name": "St. Cloud Area School District 742",
+         "_extra": {"venue_at": {"South Junior High School": [45.54686, -94.16724]}}},
+    ]
+    venues, ats = spots_index(entries)
+    names = registry.names_index(entries)
+    cases = [
+        ("Sexton Arena, Collegeville", "sju", [45.5798, -94.3962], "a named venue wins over its Place's door"),
+        ("The Great Hall", "sju", [45.5809, -94.3920], "a venue with 'the' in front"),
+        ("SJU, Collegeville", "sju", [45.5810, -94.3926], "the Place's own name: its door"),
+        ("", "bar-grill-sals", [45.56443, -94.32055], "no place line: the Place itself"),
+        (None, "bar-grill-sals", [45.56443, -94.32055], "no place line at all"),
+        ("Municipal Athletic Center, St. Cloud", "activities-athletic-csb", [45.5731, -94.2276],
+         "an away game goes where it's played"),
+        ("Rush City High School", "activities-athletic-csb", None, "an unknown place is never the host's grounds"),
+        ("Online", "sju", None, "online has no spot"),
+        ("Collegeville", "sju", None, "a bare town is no place"),
+        ("Great Hall, SJU", "csbsju-events", [45.5809, -94.3920], "anyone's line that is the venue's name whole"),
+        ("Sartell Great Hall", "sartell-high-school", None, "a short venue name inside another host's line is not it"),
+        ("South Junior High School Gym, East", "kennedy-community-school", [45.54686, -94.16724],
+         "a long venue name inside anyone's line"),
+        ("SJU", "csbsju-events", [45.5810, -94.3926], "a line naming a Place goes to that Place, whoever posted it"),
+    ]
+    failed = 0
+    for location, entry, want, why in cases:
+        got = spot_for(location, entry, venues, ats, names)
+        if got != want:
+            failed += 1
+            print(f"FAIL {why}: {location!r} -> {got}, want {want}")
+
+    class FakeDb:
+        def __init__(self): self.patched = []
+        def rest(self, method, path, body=None, prefer=None):
+            if method == "GET":
+                return [{"id": "e1", "title": "Hockey", "event_date": "2026-10-30", "place_entry_id": "activities-athletic-csb",
+                         "location": "Municipal Athletic Center, St. Cloud", "lat": None, "lng": None},
+                        {"id": "e2", "title": "Volleyball", "event_date": "2026-10-30", "place_entry_id": "activities-athletic-csb",
+                         "location": "Rush City High School", "lat": None, "lng": None},
+                        {"id": "e3", "title": "Raffle", "event_date": "2026-10-30", "place_entry_id": "bar-grill-sals",
+                         "location": None, "lat": 45.56443, "lng": -94.32055},
+                        {"id": "e4", "title": "Moved game", "event_date": "2026-10-30", "place_entry_id": "sju",
+                         "location": "Great Hall", "lat": 45.5798, "lng": -94.3962}]
+            self.patched.append((path, body))
+    db = FakeDb()
+    lines = fill(db, date(2026, 10, 30), write=True, entries=entries)
+    if db.patched != [("club_events?id=eq.e1", {"lat": 45.5731, "lng": -94.2276}),
+                      ("club_events?id=eq.e4", {"lat": 45.5809, "lng": -94.3920})] \
+            or "set 2, 3 placed, 1 with no spot" not in lines[0] or "Volleyball" not in lines[1]:
+        failed += 1
+        print(f"FAIL fill writes only what changed (a new spot, a moved one) and lists the rest: {db.patched} {lines}")
+    print(f"{len(cases) + 1 - failed} passed, {failed} failed")
+    sys.exit(1 if failed else 0)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write", action="store_true", help="set the spots (service role key in the environment)")
+    ap.add_argument("--selftest", action="store_true")
+    args = ap.parse_args()
+    if args.selftest:
+        return selftest()
+    from db import Db
+    print("\n".join(fill(Db(), datetime.now(LOCAL).date(), args.write)))
+
+
+if __name__ == "__main__":
+    main()
