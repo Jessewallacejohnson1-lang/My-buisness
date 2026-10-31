@@ -369,11 +369,11 @@ private struct TownPageBar: View {
 
     var body: some View {
         HStack {
-            FriendsBackButton(action: back)
+            BackButton(action: back)
             Spacer()
         }
-        .padding(.leading, SearchMetric.pageBackLead)
-        .frame(height: SearchMetric.pageBar)
+        .padding(.leading, PageMetric.backLead)
+        .frame(height: PageMetric.bar)
         .background(Hue.paper)
     }
 }

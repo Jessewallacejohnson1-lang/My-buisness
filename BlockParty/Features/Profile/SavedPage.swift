@@ -22,10 +22,6 @@ struct SavedPage: View {
     /// Event on its own page empties the list without closing the page.
     @State private var pushed: FeedCardItem?
 
-    /// The sheet's edge to the top bar: where Apple's own bar sat in this sheet, its
-    /// back button's centre 42pt down (measured on BP Build, 2026-10-13).
-    static let barTop: CGFloat = 20
-
     var body: some View {
         ScrollView(showsIndicators: false) {
             TimelineView(.everyMinute) { context in
@@ -37,7 +33,8 @@ struct SavedPage: View {
                     .padding(.bottom, YouMetric.emptyLine)
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { bar }
+        // "Saved" from the words page. The cards pass under it.
+        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Saved") { dismiss() } }
         .background(Hue.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
@@ -46,26 +43,6 @@ struct SavedPage: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, actions.canAct { Task { await model.refresh() } }
         }
-    }
-
-    private var bar: some View {
-        ZStack {
-            // "Saved" from the words page.
-            Text("Saved")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { dismiss() }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, Self.barTop)
-        .frame(maxWidth: .infinity)
-        // The cards pass under it.
-        .background(Hue.paper)
     }
 
     private func list(now: Date) -> some View {

@@ -87,7 +87,7 @@ struct FollowButton: View {
                 .frame(minWidth: minWidth ?? width, minHeight: height)
                 .background(ink ? Hue.ink : Hue.fill, in: shape)
                 // Drawn 32 or 36 pt, 44 pt to the finger.
-                .contentShape(Rectangle().inset(by: (height - SearchMetric.tapMin) / 2))
+                .contentShape(Rectangle().inset(by: (height - PageMetric.tapMin) / 2))
         }
         .buttonStyle(PressableStyle())
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)

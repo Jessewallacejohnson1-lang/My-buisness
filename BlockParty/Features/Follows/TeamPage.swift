@@ -81,7 +81,7 @@ struct TeamPage: View {
                 Image(systemName: "chevron.left")
                     .font(.glyph(20, weight: .semibold))
                     .foregroundStyle(Hue.nameOnDark)
-                    .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                    .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                     .background(Circle().fill(Hue.nameOnDark.opacity(0.12)))
                     .overlay(Circle().strokeBorder(Hue.nameOnDark.opacity(0.28), lineWidth: 1.5))
             }
@@ -145,7 +145,7 @@ struct TeamPage: View {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Hue.nameOnDark.opacity(0.55))
-                        .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                        .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
                 .padding(.trailing, -10)
@@ -339,7 +339,7 @@ private struct SchoolFollow: View {
                 .frame(minWidth: FollowMetric.pageWidth, minHeight: FollowMetric.pageHeight)
                 .background(following ? Hue.nameOnDark.opacity(0.18) : Hue.nameOnDark,
                             in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .contentShape(Rectangle().inset(by: (FollowMetric.pageHeight - SearchMetric.tapMin) / 2))
+                .contentShape(Rectangle().inset(by: (FollowMetric.pageHeight - PageMetric.tapMin) / 2))
         }
         .buttonStyle(PressableStyle())
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
@@ -377,11 +377,11 @@ private struct ActivityStar: View {
                 .foregroundStyle(following ? Hue.onBrandDisc : Hue.nameOnDark)
                 .frame(width: TeamPage.star, height: TeamPage.star)
                 .background(Circle().fill(following ? fill : Hue.nameOnDark.opacity(0.16)))
-                .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
-        .padding(.horizontal, -(SearchMetric.tapMin - TeamPage.star) / 2)
+        .padding(.horizontal, -(PageMetric.tapMin - TeamPage.star) / 2)
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel("Follow \(name)")
         .accessibilityAddTraits(following ? .isSelected : [])

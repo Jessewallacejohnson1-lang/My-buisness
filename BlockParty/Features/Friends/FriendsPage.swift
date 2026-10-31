@@ -89,7 +89,7 @@ struct FriendsPage: View {
                     }
                     if rows.isEmpty { NothingFound() }
                 }
-                .padding(.top, SearchMetric.pageBar)
+                .padding(.top, PageMetric.bar)
             }
             .scrollDismissesKeyboard(.immediately)
             .onScrollGeometryChange(for: Bool.self) { geo in
@@ -125,7 +125,7 @@ struct FriendsPage: View {
                                 Capsule().strokeBorder(Hue.searchChipEdge, lineWidth: 1)
                             }
                         }
-                        .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - SearchMetric.tapMin) / 2))
+                        .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - PageMetric.tapMin) / 2))
                 }
                 .buttonStyle(SquishStyle())
                 .accessibilityAddTraits(on ? .isSelected : [])
@@ -155,13 +155,13 @@ struct FriendsTitleBar<Trailing: View>: View {
                 .opacity(titleUnder ? 1 : 0)
                 .accessibilityHidden(true)
             HStack {
-                FriendsBackButton { dismiss() }
+                BackButton { dismiss() }
                 Spacer()
                 trailing
             }
-            .padding(.horizontal, SearchMetric.pageBackLead)
+            .padding(.horizontal, PageMetric.backLead)
         }
-        .frame(height: SearchMetric.pageBar)
+        .frame(height: PageMetric.bar)
         .frame(maxWidth: .infinity)
         .background(Hue.paper.ignoresSafeArea(edges: .top))
         .overlay(alignment: .bottom) {
@@ -208,7 +208,7 @@ struct FriendsSearchField: View {
                         .foregroundStyle(Hue.surface, Hue.searchClear)
                         .font(.glyph(17))
                         .frame(width: SearchMetric.clearSide, height: SearchMetric.clearSide)
-                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - SearchMetric.tapMin) / 2))
+                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - PageMetric.tapMin) / 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear")
@@ -276,22 +276,5 @@ struct FriendFace: View {
 
     var body: some View {
         Avatar(Bundle.main.url(forResource: photo, withExtension: "jpg"), size: size, outlined: true)
-    }
-}
-
-/// Search's back chevron: 44pt, fades while pressed.
-struct FriendsBackButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "chevron.left")
-                .font(.glyph(20, weight: .semibold))
-                .foregroundStyle(Hue.ink)
-                .frame(width: SearchMetric.pageBar, height: SearchMetric.pageBar)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(DimStyle())
-        .accessibilityLabel("Back")
     }
 }

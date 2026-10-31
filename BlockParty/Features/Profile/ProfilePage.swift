@@ -200,11 +200,11 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                     Label("Add bio", systemImage: "plus")
                         .font(.apple(15, weight: .semibold))
                         .foregroundStyle(Hue.inkSecondary)
-                        .frame(minHeight: SearchMetric.tapMin)
+                        .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
-                .padding(.top, Sizes.sectionTop - (SearchMetric.tapMin - ProfileMetric.addBioLine) / 2)
+                .padding(.top, Sizes.sectionTop - (PageMetric.tapMin - ProfileMetric.addBioLine) / 2)
             }
 
             if let going = face.going, !going.isEmpty {
@@ -360,12 +360,12 @@ private struct ProfilePhotoView: View {
                 Image(systemName: "xmark")
                     .font(.glyph(17, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                    .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Close")
-            .padding(.trailing, FeedEventDetailDestination.Metric.inset - (SearchMetric.tapMin - FeedEventDetailDestination.Metric.button) / 2)
+            .padding(.trailing, FeedEventDetailDestination.Metric.inset - (PageMetric.tapMin - FeedEventDetailDestination.Metric.button) / 2)
         }
     }
 }

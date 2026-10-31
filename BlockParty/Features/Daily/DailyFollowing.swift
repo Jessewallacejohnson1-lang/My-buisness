@@ -232,17 +232,9 @@ struct DailyPostPage: View {
         }
         .background(Hue.paper.ignoresSafeArea())
         .safeAreaInset(edge: .top, spacing: 0) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.glyph(20, weight: .semibold))
-                    .foregroundStyle(Hue.ink)
-                    .frame(width: SearchMetric.pageBar, height: SearchMetric.pageBar)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(DimStyle())
-            .accessibilityLabel("Back")
+            BackButton { dismiss() }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, SearchMetric.pageBackLead)
+            .padding(.leading, PageMetric.backLead)
             .background(Hue.paper)
         }
         .toolbar(.hidden, for: .navigationBar)

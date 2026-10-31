@@ -164,21 +164,7 @@ struct ProfileView: View {
 
     /// Saved's top: a back chevron and the title in the middle.
     private var settingsBar: some View {
-        ZStack {
-            Text("Settings")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { settings = false }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, SavedPage.barTop)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper)
+        PageBar(title: "Settings") { settings = false }
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the
