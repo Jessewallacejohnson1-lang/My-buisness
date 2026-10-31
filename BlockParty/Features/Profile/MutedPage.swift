@@ -15,9 +15,6 @@ struct MutedPage: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Saved's sheet edge to its top bar (`SavedPage`).
-    private static let barTop: CGFloat = 20
-
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -51,7 +48,8 @@ struct MutedPage: View {
         }
         // A read that failed is tried again by pulling down.
         .refreshable { await feed.refreshMuted() }
-        .safeAreaInset(edge: .top, spacing: 0) { bar }
+        // `muted-row`
+        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Muted") { dismiss() } }
         .overlay {
             if feed.muted?.isEmpty == true {
                 ContentUnavailableView("You haven't muted anyone", systemImage: "speaker.slash")
@@ -63,51 +61,15 @@ struct MutedPage: View {
         .task { await feed.refreshMuted() }
     }
 
-    private var bar: some View {
-        ZStack {
-            // `muted-row`
-            Text("Muted")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { dismiss() }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, Self.barTop)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper)
-    }
-
     /// Blocked's row: the host's mark, its name, Unmute at the right. A failed Unmute comes back
     /// and shakes.
     private func row(_ host: MutedHost) -> some View {
-        HStack(spacing: FriendsMetric.avatarGap) {
-            Avatar(nil, size: FriendsMetric.neighborFace, blank: .initial(host.name, font: 20))
-            Text(host.name)
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button { Task { await feed.unmute(host) } } label: {
-                // `muted-undo`
-                Text("Unmute")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.horizontal, FriendsMetric.buttonPad)
-                    .frame(minHeight: FriendsMetric.button)
-                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    // 36pt drawn, 44pt to the finger.
-                    .contentShape(Rectangle().inset(by: (FriendsMetric.button - SearchMetric.tapMin) / 2))
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Unmute, \(host.name)")
+        ListRow(leading: { Avatar(nil, size: FriendsMetric.neighborFace, blank: .initial(host.name, font: 20)) },
+                title: host.name) {
+            // `muted-undo`
+            RowButton("Unmute") { Task { await feed.unmute(host) } }
+                .accessibilityLabel("Unmute, \(host.name)")
         }
-        .padding(.horizontal, FriendsMetric.side)
-        .frame(height: FriendsMetric.row)
         .turnBackShake(failures: feed.unmuteFailures[host.host] ?? 0, shakes: !reduceMotion)
         .transition(.opacity)
     }

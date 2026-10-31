@@ -77,7 +77,7 @@ struct NotificationsPage: View {
                         }
                     }
                 }
-                .padding(.top, SearchMetric.pageBar)
+                .padding(.top, PageMetric.bar)
             }
             // Pull to read again, as Instagram's list does; also the way to retry a failed read.
             .refreshable { await notices.refresh() }

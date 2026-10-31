@@ -142,7 +142,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
             }
-            .safeAreaInset(edge: .top, spacing: 0) { settingsBar }
+            .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Settings") { settings = false } }
             .onAppear {
                 revealed = true
                 debugScrollBottom(proxy)
@@ -160,25 +160,6 @@ struct ProfileView: View {
             Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
             Button("Cancel", role: .cancel) {}
         }
-    }
-
-    /// Saved's top: a back chevron and the title in the middle.
-    private var settingsBar: some View {
-        ZStack {
-            Text("Settings")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { settings = false }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, SavedPage.barTop)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper)
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the

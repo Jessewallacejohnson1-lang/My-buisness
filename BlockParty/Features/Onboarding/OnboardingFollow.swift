@@ -317,7 +317,7 @@ struct OnboardingListPill: View {
                 .frame(minWidth: FollowMetric.listWidth, minHeight: FollowMetric.rowHeight)
                 .background(on ? Hue.fill : Hue.ink, in: Capsule())
                 // Drawn 32 pt, 44 pt to the finger.
-                .contentShape(Rectangle().inset(by: (FollowMetric.rowHeight - SearchMetric.tapMin) / 2))
+                .contentShape(Rectangle().inset(by: (FollowMetric.rowHeight - PageMetric.tapMin) / 2))
         }
         .buttonStyle(OnboardingPress(scale: 0.94))
         // It turns at once, as Instagram's does, and the pop carries the motion: a fade left one

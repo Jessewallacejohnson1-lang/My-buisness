@@ -17,9 +17,6 @@ struct BlockedPage: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Saved's sheet edge to its top bar (`SavedPage`).
-    private static let barTop: CGFloat = 20
-
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -54,7 +51,8 @@ struct BlockedPage: View {
         }
         // A read that failed is tried again by pulling down.
         .refreshable { await book.refreshBlocked() }
-        .safeAreaInset(edge: .top, spacing: 0) { bar }
+        // `blocked-row`
+        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Blocked") { dismiss() } }
         // `blocked-empty`: Apple's empty page, in the middle, once a read has said so.
         .overlay {
             if book.blockedLoaded, book.blocked.isEmpty {
@@ -69,51 +67,15 @@ struct BlockedPage: View {
         .onDisappear { book.screenClosed() }
     }
 
-    private var bar: some View {
-        ZStack {
-            // `blocked-row`
-            Text("Blocked")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { dismiss() }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, Self.barTop)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper)
-    }
-
     /// Instagram's row: the face, the name, Unblock at the right. A failed Unblock comes back
     /// and shakes.
     private func row(_ person: Neighbor) -> some View {
-        HStack(spacing: FriendsMetric.avatarGap) {
-            Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true)
-            Text(person.displayName)
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button { book.act(.unblock, person) } label: {
-                // `blocked-unblock`
-                Text("Unblock")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.horizontal, FriendsMetric.buttonPad)
-                    .frame(minHeight: FriendsMetric.button)
-                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    // 36pt drawn, 44pt to the finger.
-                    .contentShape(Rectangle().inset(by: (FriendsMetric.button - SearchMetric.tapMin) / 2))
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Unblock, \(person.displayName)")
+        ListRow(leading: { Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true) },
+                title: person.displayName) {
+            // `blocked-unblock`
+            RowButton("Unblock") { book.act(.unblock, person) }
+                .accessibilityLabel("Unblock, \(person.displayName)")
         }
-        .padding(.horizontal, FriendsMetric.side)
-        .frame(height: FriendsMetric.row)
         .turnBackShake(failures: book.failures[person.id] ?? 0, shakes: !reduceMotion)
         // Fades where it is while the rows below close up, as a friend's row does on Unfriend.
         .transition(.opacity)

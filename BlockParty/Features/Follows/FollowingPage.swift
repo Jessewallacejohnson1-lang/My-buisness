@@ -33,9 +33,6 @@ struct FollowingPage: View {
     @State private var page: TownPageKind?
     @State private var board: TownBoardRoute?
 
-    /// Saved's sheet edge to its top bar (`SavedPage`, as `BlockedPage`).
-    private static let barTop: CGFloat = 20
-
     var body: some View {
         ZStack {
             list
@@ -86,7 +83,8 @@ struct FollowingPage: View {
             .padding(.top, FriendsMetric.resultsTop)
         }
         .refreshable { await load() }
-        .safeAreaInset(edge: .top, spacing: 0) { bar }
+        // `following-row`
+        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Following") { dismiss() } }
         // `following-empty`: Apple's empty page, in the middle, once a read has said so.
         .overlay {
             if rows?.isEmpty == true {
@@ -130,25 +128,6 @@ struct FollowingPage: View {
                  FollowRow(targetType: .board, targetId: "sample-board-1", name: "City Council", kind: nil,
                            picture: nil, pictureKind: nil)]
         }
-    }
-
-    private var bar: some View {
-        ZStack {
-            // `following-row`
-            Text("Following")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                FriendsBackButton { dismiss() }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .padding(.top, Self.barTop)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper)
     }
 
     /// A Place's page as Search has it; nil for anyone else, or a Place Search can't open.

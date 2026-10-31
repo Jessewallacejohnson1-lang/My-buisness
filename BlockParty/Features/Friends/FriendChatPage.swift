@@ -35,7 +35,7 @@ struct FriendChatPage: View {
 
     private func bar(_ chat: FriendChat) -> some View {
         HStack(spacing: 0) {
-            FriendsBackButton { dismiss() }
+            BackButton { dismiss() }
             FriendFace(photo: chat.photo, size: FriendsMetric.barFace)
                 .padding(.trailing, FriendsMetric.barFaceGap)
             Text(chat.name)
@@ -45,7 +45,7 @@ struct FriendChatPage: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
         }
-        .padding(.leading, SearchMetric.pageBackLead)
+        .padding(.leading, PageMetric.backLead)
         .frame(height: FriendsMetric.chatBar)
         .frame(maxWidth: .infinity)
         .background(Hue.paper.ignoresSafeArea(edges: .top))
@@ -125,11 +125,11 @@ struct FriendChatPage: View {
                         .foregroundStyle(Hue.paper)
                         .frame(width: FriendsMetric.send, height: FriendsMetric.send)
                         .background(Hue.ink, in: Circle())
-                        .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                        .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(SquishStyle())
-                .padding(.trailing, FriendsMetric.sendInset - (SearchMetric.tapMin - FriendsMetric.send) / 2)
+                .padding(.trailing, FriendsMetric.sendInset - (PageMetric.tapMin - FriendsMetric.send) / 2)
                 .accessibilityLabel("Send")
                 .transition(.scale(scale: 0.6).combined(with: .opacity))
             }

@@ -83,7 +83,7 @@ struct FriendsHomePage: View {
                         .padding(.bottom, FriendsMetric.resultsTop)
                     if typing { results } else { home }
                 }
-                .padding(.top, SearchMetric.pageBar)
+                .padding(.top, PageMetric.bar)
             }
             .scrollDismissesKeyboard(.immediately)
             .onScrollGeometryChange(for: Bool.self) { geo in
@@ -347,7 +347,7 @@ struct MoreButton: View {
             Image(systemName: "ellipsis")
                 .font(.glyph(17, weight: .bold))
                 .foregroundStyle(Hue.ink)
-                .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
         .buttonStyle(DimStyle())
@@ -486,7 +486,7 @@ struct RelationButtons: View {
                 .background(ink ? Hue.ink : Hue.fill,
                             in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 // 36pt drawn, 44pt to the finger.
-                .contentShape(Rectangle().inset(by: (FriendsMetric.button - SearchMetric.tapMin) / 2))
+                .contentShape(Rectangle().inset(by: (FriendsMetric.button - PageMetric.tapMin) / 2))
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("\(spoken ?? title), \(person.displayName)")

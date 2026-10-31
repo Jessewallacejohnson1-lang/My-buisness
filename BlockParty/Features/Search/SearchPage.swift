@@ -68,7 +68,6 @@ nonisolated enum SearchMetric {
     static let wallGapX: CGFloat = 8
     static let wallGapY: CGFloat = 6
     static let logoOnWall: CGFloat = 96
-    static let pageBar: CGFloat = 44
     static let gridTop: CGFloat = 12
     static let gridGapY: CGFloat = 20
 
@@ -81,9 +80,6 @@ nonisolated enum SearchMetric {
     /// around the same centre.
     static let removeSide: CGFloat = 44
     static let removeTrail: CGFloat = 2
-    /// The smallest tap area, Apple's 44: smaller marks get theirs grown to it.
-    static let tapMin: CGFloat = 44
-    static let pageBackLead: CGFloat = 6
     static let sectionTop: CGFloat = 14
     static let sectionBottom: CGFloat = 6
     static let peopleTop: CGFloat = 6
@@ -92,10 +88,7 @@ nonisolated enum SearchMetric {
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
-    // Touch and motion.
-    static let pressScale: CGFloat = 0.95
-    static let dimPressed: Double = 0.45
-    static let rowPressed: Double = 0.05
+    // Motion.
     /// A new view of the results fades in, rising this far.
     static let enterRise: CGFloat = 10
 
@@ -260,7 +253,7 @@ struct SearchPage: View {
                 Text("Cancel")
                     .font(.sans(16))
                     .foregroundStyle(Hue.ink)
-                    .frame(height: SearchMetric.tapMin)
+                    .frame(height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
                 .buttonStyle(DimStyle())
@@ -301,7 +294,7 @@ struct SearchPage: View {
                         .foregroundStyle(Hue.surface, Hue.searchClear)
                         .font(.glyph(17))
                         .frame(width: SearchMetric.clearSide, height: SearchMetric.clearSide)
-                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - SearchMetric.tapMin) / 2))
+                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - PageMetric.tapMin) / 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear")
@@ -344,7 +337,7 @@ struct SearchPage: View {
                         Capsule().strokeBorder(Hue.searchChipEdge, lineWidth: 1)
                     }
                 }
-                .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - SearchMetric.tapMin) / 2))
+                .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - PageMetric.tapMin) / 2))
         }
         .buttonStyle(SquishStyle())
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -1041,12 +1034,12 @@ struct SearchShelfPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView {
                 list
-                    .padding(.top, SearchMetric.pageBar)
+                    .padding(.top, PageMetric.bar)
                     .padding(.bottom, SearchMetric.tabBarClearance)
             }
             // Covered by an open business, the logos stop following the tilt.
             .environment(opener.isOpen ? nil : tilt)
-            bar
+            PageBar(title: shelf.title, top: 0) { dismiss() }
             BusinessPage()
         }
         .environment(opener)
@@ -1067,59 +1060,6 @@ struct SearchShelfPage: View {
             .padding(.horizontal, SearchMetric.side)
             .padding(.top, SearchMetric.gridTop)
         }
-    }
-
-    private var bar: some View {
-        ZStack {
-            Text(shelf.title)
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.glyph(20, weight: .semibold))
-                        .foregroundStyle(Hue.ink)
-                        .frame(width: SearchMetric.pageBar, height: SearchMetric.pageBar)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(DimStyle())
-                .accessibilityLabel("Back")
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper.ignoresSafeArea(edges: .top))
-    }
-}
-
-// MARK: - Touch
-
-/// Squishes while the finger is down, sprung like the mockup's (0.95; response 0.28,
-/// damping 0.68), and springs back the way it went.
-struct SquishStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? SearchMetric.pressScale : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.68), value: configuration.isPressed)
-    }
-}
-
-/// Fades while pressed: a row's title, Cancel, back.
-struct DimStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.opacity(configuration.isPressed ? SearchMetric.dimPressed : 1)
-    }
-}
-
-/// A list row darkens a touch under the finger.
-struct RowPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.background(Hue.ink.opacity(configuration.isPressed ? SearchMetric.rowPressed : 0))
     }
 }
 

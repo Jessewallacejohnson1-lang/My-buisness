@@ -189,7 +189,7 @@ struct FriendsContactsPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) { content }
-                    .padding(.top, SearchMetric.pageBar)
+                    .padding(.top, PageMetric.bar)
             }
             FriendsTitleBar(title: "Contacts", titleUnder: true).accessibilitySortPriority(1)
         }
