@@ -36,7 +36,8 @@ struct EditProfileView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            // Over the scroll, so Cancel's 44 pt tap reaches its 2 pt past the header.
+            header.zIndex(1)
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 26) {
                     if model.canDescribe {
