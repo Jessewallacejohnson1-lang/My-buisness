@@ -118,6 +118,33 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   screen 13's "200+ events a month in {town}" is checked against each town's real Events.
 - **Re-run if:** the public estimate changes, or seeded content is regenerated.
 
+### Every tappable is at least 44×44 pt
+
+- **What it proves:** no button, link or row on a main screen takes a tap on less than Apple's
+  44 × 44 pt. A drawn mark can be smaller; its tap area grows around it (`PageMetric.tapMin`,
+  `.contentShape(TapArea())`), so nothing on screen moves. AXe reports a control's tap area as
+  its frame (a glass circle with no `contentShape` read 13 pt: only its glyph took a tap).
+- **Command:** on a non-primary simulator with the app installed:
+
+  ```bash
+  S=<simulator udid>; AXE=~/.npm-global/lib/node_modules/xcodebuildmcp/bundled/axe
+  for args in "-open-tab town -town-samples" "-open-tab town -town-samples -open-event e1" \
+      "-open-tab daily -daily-samples" "-open-tab search" "-open-map" "-open-tab you -town-samples" \
+      "-open-tab you -town-samples -open-profile" "-open-tab town -town-samples -open-friends"; do
+    xcrun simctl terminate $S Jesse.BlockParty; xcrun simctl launch $S Jesse.BlockParty $args -skip-onboarding
+    sleep 8; echo "== $args"
+    $AXE describe-ui --udid $S | jq -r '.. | objects | select((.type=="Button" or .type=="Link")
+      and .frame and (.frame.width < 43.5 or .frame.height < 43.5))
+      | "\(.AXLabel) \(.frame.width|round)x\(.frame.height|round)"'
+  done
+  ```
+
+- **Pass looks like:** only the known exceptions print: Apple's Sheet Grabber; the Event page's
+  host words (VoiceOver's; a finger presses the whole host card); `Point north` at 38 (the
+  hidden compass, 44 once the map turns); a friend request's name (Confirm sits 4 pt under it,
+  so it isn't grown). Last clean 2026-10-31 (BP app hit-targets).
+- **Re-run if:** a screen gains a button, or a button's drawn size changes.
+
 ### Dark mode pass
 
 - **What it proves:** every screen reads in dark mode. That means no ink-on-charcoal text,
