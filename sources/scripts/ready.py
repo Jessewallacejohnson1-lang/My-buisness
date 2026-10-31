@@ -2,10 +2,10 @@
 """
 ready.py: the first step of every routine (BP app smooth-mornings 01). It installs each library on
 ci-packages.txt that a fresh python3 can't import, with `python3 -m pip` (in the cloud sandbox plain
-`pip` belongs to another Python), checks by name that the routine's keys are set, never printing a
-value, and ends with one line: ready, or what is missing. Each routine readied its own tools in its
-own words until 2026-10-28, and a library added for one job broke another (social.py's Pillow
-took the morning report's spend line on Oct 27 and 28).
+`pip` belongs to another Python), checks that the database takes the routine's key with one read
+only that key may make, never printing a value, and ends with one line: ready, or what is missing.
+Each routine readied its own tools in its own words until 2026-10-28, and a library added for one
+job broke another (social.py's Pillow took the morning report's spend line on Oct 27 and 28).
 
 A library is judged by importing the module the scripts use (the list's fourth column, else its
 import name): the cloud's Debian Pillow imports as PIL but fails at PIL.Image ("cannot import name
@@ -19,7 +19,8 @@ script while this step still said ready. `scripts/ci_checks.sh registry` parses 
 The cloud environment's own setup script stays unused: each routine's copy starts on
 integration/block-party, which has no sources/, so it would find nothing to install from. Apify's
 key is the environment's network secret, never seen by the session: the social routines check it
-with `social.py spend`.
+with `social.py spend`. So is the database's Watch key (BP app loopholes 12): the session holds only
+the public key, so a key's name proves nothing and the read does.
 
   python3 sources/scripts/ready.py morning|social|photos|accounts
   python3 sources/scripts/ready.py --selftest
@@ -28,9 +29,10 @@ with `social.py spend`.
 import contextlib, io, os, subprocess, sys, tempfile
 from pathlib import Path
 
+from db import Db, DbError, key_headers
+
 HERE = Path(__file__).resolve().parent
 ROUTINES = ("morning", "social", "photos", "accounts")
-KEYS = ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")  # every routine reads or writes the database
 WARN = {"morning": {"FIRECRAWL_API_KEY": "pages that refuse the cloud's address or are built by JavaScript fail or read empty"}}
 
 
@@ -57,7 +59,19 @@ def unparsable(folder=HERE):
     return bad
 
 
-def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip, probe=broken, scripts=HERE):
+def reach():
+    """'' when the database takes the routine's key, else why not. The app's own key may not read the
+    morning reports, so one read proves the Watch key came along (or a Mac's service key)."""
+    try:
+        Db().rest("GET", "morning_reports?select=day&limit=1")
+        return ""
+    except DbError as e:
+        return (f"the database refused the key (HTTP {e.status}): is the Watch key this environment's network "
+                "secret for the Supabase host?" if e.status in (401, 403) else f"the database didn't answer: {e}")
+
+
+def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip, probe=broken, scripts=HERE,
+          reach=reach):
     """The routine's one line, and whether it may go on."""
     libs = {}  # pip name: the module that must import
     for line in listing.read_text().splitlines():
@@ -69,10 +83,13 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
     failed = install(["install", "--quiet", "--ignore-installed", *lacking]) if lacking else ""
     if lacking and not failed and probe([libs[n] for n in lacking]):
         failed = "installed, still won't import"
-    unset = [k for k in KEYS if not env.get(k)]
+    # every routine reads or writes the database
+    unset = ["SUPABASE_URL"] * (not env.get("SUPABASE_URL")) + (
+        [] if key_headers(env) else ["SUPABASE_PUBLISHABLE_KEY (the cloud) or SUPABASE_SERVICE_ROLE_KEY (a Mac)"])
+    refused = "" if unset else reach()
     wont_run = unparsable(scripts)
     missing = ([f"libraries {', '.join(lacking)} (pip: {failed})"] if failed else []) + (
-        [f"keys {', '.join(unset)} not set"] if unset else []) + (
+        [f"keys {', '.join(unset)} not set"] if unset else []) + ([refused] if refused else []) + (
         [f"Python {sys.version.split()[0]} can't parse {'; '.join(wont_run)}"] if wont_run else [])
     if missing:
         return "[ready] not ready: " + "; ".join(missing), False
@@ -89,7 +106,8 @@ def selftest():
             sys.exit(f"selftest failed: {what}")
         ok += 1
     secret = "https://not-to-be-printed.supabase.co"
-    env = {"SUPABASE_URL": secret, "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_x"}
+    env = {"SUPABASE_URL": secret, "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_x"}  # the cloud's: no key that writes
+    takes = lambda: ""
     asked, fixed = [], set()
     def fake_pip(error="", fixes=True):
         def run(args):
@@ -112,20 +130,32 @@ def selftest():
               "a broken library and a missing one go to pip by their pip names, past the system's own copies")
         check(secret not in line + out.getvalue() and "SUPABASE_URL" not in line, "a set key is neither named nor printed")
         asked.clear()
-        line, go = ready("morning", env, fake, fake_pip(), probe)
+        line, go = ready("morning", env, fake, fake_pip(), probe, reach=takes)
         check(go and line.startswith("[ready] ready (installed fakepil, bp_nothing), but FIRECRAWL_API_KEY is not set")
-              and secret not in line and "sb_secret_x" not in line and asked[0][2] == "--ignore-installed",
+              and secret not in line and "sb_publishable_x" not in line and asked[0][2] == "--ignore-installed",
               f"a found library that fails its probe is installed with --ignore-installed, Firecrawl only warned: {line}")
         fixed.clear()
-        line, go = ready("social", env, fake, fake_pip(fixes=False), probe)
+        line, go = ready("social", env, fake, fake_pip(fixes=False), probe, reach=takes)
         check(not go and "still won't import" in line, f"pip saying yes is not enough: the probe runs again: {line}")
         fixed.update(["fakepil", "bp_nothing"])
-        check(ready("social", env, fake, fake_pip(), probe) == ("[ready] ready", True), "Firecrawl is the morning job's alone")
+        check(ready("social", env, fake, fake_pip(), probe, reach=takes) == ("[ready] ready", True),
+              "Firecrawl is the morning job's alone")
+        # The public key is set but the network secret didn't come along: the database says so, by the read.
+        line, go = ready("photos", env, fake, fake_pip(), probe, reach=lambda: "the database refused the key (HTTP 401)")
+        check(not go and line == "[ready] not ready: the database refused the key (HTTP 401)",
+              f"a key the database refuses stops the routine at Ready: {line}")
+        line, go = ready("photos", {**env, "SUPABASE_PUBLISHABLE_KEY": ""}, fake, fake_pip(), probe,
+                         reach=lambda: check(False, "no key: nothing to ask the database"))
+        check(not go and "SUPABASE_PUBLISHABLE_KEY (the cloud) or SUPABASE_SERVICE_ROLE_KEY (a Mac) not set" in line,
+              f"no key at all is named, and the database isn't asked: {line}")
         (Path(tmp) / "fine.py").write_text("x = 1\n")
         (Path(tmp) / "newer.py").write_text("x = 1\ndef (:\n")
-        line, go = ready("social", env, fake, fake_pip(), probe, scripts=Path(tmp))
+        line, go = ready("social", env, fake, fake_pip(), probe, scripts=Path(tmp), reach=takes)
         check(not go and "can't parse newer.py line 2" in line and "fine.py" not in line,
               f"a script this python3 can't parse stops the routine at Ready, named with its line: {line}")
+    check(key_headers(env) == {"apikey": "sb_publishable_x"}, "in the cloud the network secret sends the Watch key")
+    check(key_headers({**env, "SUPABASE_SERVICE_ROLE_KEY": "s"}) == {"apikey": "s", "Authorization": "Bearer s"},
+          "on a Mac the service key goes as both headers")
     check(unparsable() == [], f"every script here parses on this python3: {unparsable()}")
     check(broken(["json", "bp_nothing_here.Image"]) == ["bp_nothing_here.Image"], "the probe imports in a fresh python3")
     rows = [l.split() for l in (HERE / "ci-packages.txt").read_text().splitlines() if l.strip() and not l.startswith("#")]

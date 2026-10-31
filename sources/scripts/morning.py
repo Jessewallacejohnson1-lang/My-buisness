@@ -54,7 +54,7 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/. Every command needs SUPABASE_URL and
-SUPABASE_SERVICE_ROLE_KEY in the environment; `save --dry-run`, then `finish --dry-run`, write nothing.
+a key in the environment (db.py); `save --dry-run`, then `finish --dry-run`, write nothing.
 
   python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD]
   python3 sources/scripts/morning.py titles
@@ -1819,8 +1819,9 @@ def whole_morning():
             own_page = lambda url: (200, f"<p>Harvest Supper, a church supper open to all, at {url}</p>")
             write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = save_items, (lambda: []), (lambda: ["dining", "faith", "markets"])
             write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
-            env = {"SUPABASE_URL": "u", "SUPABASE_SERVICE_ROLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
-            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [])[0]
+            env = {"SUPABASE_URL": "u", "SUPABASE_PUBLISHABLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
+            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [],
+                                                                  reach=lambda: "")[0]
             prepared = parts("prepare")
             out.mkdir(parents=True, exist_ok=True)  # prepare made it, unless its command is gone
             (out / "flags.jsonl").write_text("")  # the cheap model's flags, then the judge's items

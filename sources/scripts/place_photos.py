@@ -15,7 +15,7 @@ place-photos skill imports its picture-finding from here, so there is one copy.
                                                                   first photo); the app shows none until Jesse's yes
     python3 sources/scripts/place_photos.py --selftest
 
-`check` reads and `propose` writes with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (the morning job's
+`check` reads and `propose` writes with SUPABASE_URL and a key (db.py: the morning job's
 keys); pages and pictures are read with run.py's polite fetch (robots.txt, crawl-delay, one request
 per server). A photo is matched by its fingerprint (a difference hash), so the check works however the
 photo was added. Jesse's own walk photos have no page, and a Facebook or Instagram page is read only
@@ -289,7 +289,7 @@ def db():
     """The shared client (db.py), made on first use so a run that never writes needs no key."""
     global _db
     if _db is None:
-        _db = Db('needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (never in the repo)', timeout=60)
+        _db = Db(timeout=60)
     return _db
 
 

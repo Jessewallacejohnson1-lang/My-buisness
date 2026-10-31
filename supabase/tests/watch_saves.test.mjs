@@ -1,9 +1,10 @@
-// The morning job's saves, as the account it really runs as (BP app smooth-mornings 02). Its
-// scripts write over the service role key, so each call runs as `service_role` with only the
-// grants Supabase and the migrations give it. The other stories run as the database owner: on
-// 2026-10-25 interests_21's trigger, in schema private, refused every save for a day while they
-// passed. This one loads every migration, oldest first, and makes each of the job's writes as
-// service_role, so a trigger or function it can't run fails the push and names itself.
+// The cloud routines' saves, as the account they really run as: the Watch key's role, `watch` (BP app
+// loopholes 12). Its grants are only the scripts' own calls, so each save here runs as `watch` with
+// nothing but what Supabase and the migrations give it, and the break-ins it must never manage are
+// tried at the end. The other stories run as the database owner: on 2026-10-25 interests_21's
+// trigger, in schema private, refused every save for a day while they passed (BP app smooth-mornings
+// 02). This one loads every migration, oldest first, so a grant, trigger or function the job can't
+// use fails the push and names itself.
 // Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const db = await PGlite.create();
 // What a Supabase project has before any migration: the API roles (service_role skips row
 // security), their grants and the owner's default grants, and stand-ins for the platform's auth,
-// storage and cron.
+// storage (row security on, as live) and cron. No other role may use schema auth, as live.
 await db.exec(`
   create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
   create schema extensions; create schema auth; create schema storage; create schema cron;
@@ -30,11 +31,15 @@ await db.exec(`
     raw_user_meta_data jsonb, created_at timestamptz default now());
   create function auth.jwt() returns jsonb language sql stable as
     $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create function auth.role() returns text language sql stable as $$ select auth.jwt() ->> 'role' $$;
+  -- As live, uid and role read the claims themselves: a body naming auth.jwt() needs schema auth.
+  create function auth.uid() returns uuid language sql stable as
+    $$ select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid $$;
+  create function auth.role() returns text language sql stable as
+    $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role' $$;
   create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint,
     allowed_mime_types text[]);
   create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
   create function storage.foldername(name text) returns text[] language sql immutable as
     $$ select string_to_array(name, '/') $$;
   create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
@@ -53,11 +58,11 @@ for (const f of readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()
 }
 await db.exec('reset session_replication_role');
 
-// One call as PostgREST makes it with the service key, on plans made fresh: a plan the owner made
+// One call as PostgREST makes it with the Watch key, on plans made fresh: a plan the owner made
 // keeps working for any role without its schema rights checked again. A refusal names the triggers
 // in its context on the table the statement writes, or else the function it stopped in.
 async function asJob(what, sql, params = []) {
-  await db.exec(`discard plans; set role service_role; set request.jwt.claims = '{"role": "service_role"}'`);
+  await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
   try {
     return (await db.query(sql, params)).rows;
   } catch (e) {
@@ -70,7 +75,7 @@ async function asJob(what, sql, params = []) {
          and $1 like '%' || n.nspname || '.' || c.relname || ' %'`,
       [context])).rows.map((r) => r.t);
     const stopped = (e.where ?? '').split('\n')[0];
-    assert.fail(`${what}, as service_role: ${e.message}${triggers.length ? `\n  in ${triggers.join('\n  in ')}`
+    assert.fail(`${what}, as watch: ${e.message}${triggers.length ? `\n  in ${triggers.join('\n  in ')}`
                                                                           : stopped ? `\n  at ${stopped}` : ''}`);
   } finally {
     await db.exec('reset role; reset request.jwt.claims');
@@ -167,4 +172,52 @@ test('finish: the morning report is one row a morning, the last finish kept, and
     await assert.rejects(db.query('select report from public.morning_reports'), /permission denied/, role);
     await db.exec('reset role');
   }
+});
+
+test('photos, map spots and hours: the photo, social and accounts routines and the finish', async () => {
+  await db.query(`insert into public.places (entry_id, name, lat, lon, family) values ('hayloft', 'Hayloft Farm', 45.56, -94.32, 'food')`);
+  const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, location,
+    source_name, source_uid, place_entry_id) values ('approved', 'Corn Maze Night', $1, 'Hayloft Farm', 'Hayloft Farm',
+    'm1', 'hayloft') returning id`, [day(9)]);
+  await asJob('reads: Events with their club, and Going and likes counts', `select e.id, c.name,
+    (select count(*) from public.event_rsvps r where r.event_id = e.id) as going,
+    (select count(*) from public.event_likes l where l.event_id = e.id) as likes
+    from public.club_events e left join public.clubs c on c.id = e.club_id`);
+  await asJob('reads: News', 'select title, source_name, place_entry_id from public.board_items');
+  await asJob('reads: teams', 'select id, name, short_name, aliases from public.teams');
+  await asJob('event_picture', 'select public.event_picture($1)', [id]);
+  await asJob('photos: what each place has', 'select id, entry_id, position, url, source_url, credit, added_at, kind, status from public.place_photos');
+  // Storage writes the file as the caller first (then as itself), so the row rule decides.
+  await asJob('photos: the file', `insert into storage.objects (bucket_id, name) values ('places', 'st-joseph-mn/events/abc.webp')`);
+  await asJob('photos: the row', `insert into public.place_photos (entry_id, town, url, source_url, kind, event_id, status,
+    width, height, description, credit, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/abc.webp',
+    'https://hayloft.example/', 'event', $1, 'live', 1080, 1350, 'A corn maze at dusk', null, 'event photos')`, [id]);
+  await asJob('photos: looked at', 'update public.club_events set photo_checked_at = now() where id = $1', [id]);
+  await asJob('map spots', 'update public.club_events set lat = $2, lng = $3 where id = $1', [id, 45.561, -94.321]);
+  await asJob('accounts: places', 'select entry_id, name, address, links, hours from public.places where entry_id is not null');
+  await asJob('accounts: Google hours', `update public.places set hours = $2 where entry_id = $1`, ['hayloft', { mon: '9-5' }]);
+  assert.deepEqual(await asJob('read back', `select e.lat, p.status, (select hours from public.places) as hours
+    from public.club_events e join public.place_photos p on p.event_id = e.id`),
+    [{ lat: 45.561, status: 'live', hours: { mon: '9-5' } }]);
+});
+
+// Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
+test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
+  const refused = async (what, sql) => {
+    await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
+    try {
+      await assert.rejects(db.query(sql), /permission denied|row-level security/, what);
+    } finally {
+      await db.exec('reset role; reset request.jwt.claims');
+    }
+  };
+  await refused('delete an Event', 'delete from public.club_events');
+  await refused('read waitlist emails', 'select email from public.waitlist');
+  await refused('list sign-in accounts', 'select email from auth.users');
+  await refused('delete a stored photo', 'delete from storage.objects');
+  await refused("change a neighbour's comment", `update public.event_comments set body = 'x'`);
+  await refused('see who is Going', 'select user_id from public.event_rsvps');
+  await refused('rename a Place', `update public.places set name = 'x'`);
+  await refused("put a file in another bucket (someone's photo)", `insert into storage.objects (bucket_id, name) values ('avatars', 'u1/a.jpg')`);
+  await refused("read a neighbour's profile", 'select * from public.town_profiles');
 });
