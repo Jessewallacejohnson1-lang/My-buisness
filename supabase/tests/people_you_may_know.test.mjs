@@ -1,6 +1,6 @@
 // Fixed stories for People you may know (supabase/migrations/*_people_you_may_know.sql): who is
 // on your list and in what order, everyone who never is, and a reason that only says what both
-// could already see (BP app docs/plans/daily-tab, ticket 22; town-feed ticket 15). Run in PGlite
+// could already see (BP app docs/plans/daily-tab, ticket 22; town-feed tickets 15 and 28). Run in PGlite
 // like the others: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,7 +42,8 @@ await db.exec(`
 `);
 await db.exec(realAccount);
 for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
-                   ...read('_unfriend_and_block.sql'), ...read('_people_you_may_know.sql')]) {
+                   ...read('_unfriend_and_block.sql'), ...read('_people_you_may_know.sql'),
+                   ...read('_suggestions_not_after_delete.sql')]) {
   await db.exec(sql);
 }
 
@@ -132,6 +133,20 @@ test('never your friends, anyone you asked or who asked you, or yourself', async
   await join_(ANA, RUNNERS);
   await join_(BEN, RUNNERS);
   assert.deepEqual(await list(ANA), []);
+});
+
+test('never someone whose request you deleted: to them it is still waiting (town-feed 28)', async () => {
+  await reset();
+  await makeFriends(ANA, BEN);
+  await makeFriends(BEN, CAL);
+  await makeFriends(BEN, DEE);
+  await one(CAL, 'send_friend_request', ANA);
+  await one(ANA, 'delete_friend_request', CAL);
+  assert.deepEqual(await list(ANA), ['Dee Moss: 1 mutual']);
+  // A request they took back is gone: they can be suggested again.
+  await one(DEE, 'send_friend_request', ANA);
+  await one(DEE, 'cancel_friend_request', ANA);
+  assert.deepEqual(await list(ANA), ['Dee Moss: 1 mutual']);
 });
 
 test('never anyone blocked, either way, and a friend who blocked you counts for nothing', async () => {
