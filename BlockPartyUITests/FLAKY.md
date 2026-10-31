@@ -10,6 +10,10 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-10-30 · `town_feed.test.mjs` "the feed is read in under 100 ms with 5,000 people" · red on
+  fix/rootview-typecheck (run 41157284060, a Swift-only change): median 250.2 ms against CI's 250 ms
+  budget · a slow GitHub runner; green on main at fbd23337 and 4d97358e · no fix yet
+
 ## Fixed
 
 - 2026-10-30 · `RealLifeActionsTests.testTheLastHeartTapWins` (red at 30e6168, 2026-10-25),
