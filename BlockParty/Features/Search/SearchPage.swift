@@ -558,7 +558,6 @@ private struct Shelf: View {
 
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {
         switch kind {
-        case .person: SearchMetric.faceGap
         case .business: SearchMetric.logoGap
         default: SearchMetric.cardGap
         }
@@ -1058,8 +1057,6 @@ struct SearchShelfPage: View {
 
     @ViewBuilder private var list: some View {
         switch shelf.kind {
-        case .person:
-            LazyVStack(spacing: 0) { ForEach(shelf.items) { ItemRow(item: $0) } }
         case .business:
             LogoWall(items: shelf.items)
         default:
