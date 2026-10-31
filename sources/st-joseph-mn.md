@@ -100,6 +100,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56557, -94.31863]
+venue_at:
+  "bad habit": [45.56557, -94.31863]
 ```
 Notes: Taproom on E Minnesota St with a real events calendar page — trivia, live music,
 rentals. **Quirk: the URL is `http`, not `https`, and that is deliberate.** The https
@@ -118,6 +121,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56048, -94.35205]
+venue_at:
+  "milk & honey": [45.56048, -94.35205]
 ```
 Notes: Orchard and cidery on County Road 51, outside the downtown core. Hosts its own
 event series, so the events page is the right source rather than the homepage.
@@ -153,6 +159,9 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56555, -94.31766]
+venue_at:
+  "flour & flower": [45.56555, -94.31766]
 ```
 Notes: Partner bakery. **`url: TODO` on purpose** — no URL was confirmed on 2026-09-22,
 and a guessed one would point the runner at a stranger's site under the bakery's name
@@ -188,6 +197,15 @@ sources:
     method: fetch
     trust: official
     reader: finalsite-news
+at: [45.5421, -94.30472]
+venue_at:
+  "kennedy community school": [45.5421, -94.30472]
+  "Stride Academy": [45.51647, -94.20378]
+  "stride academy": [45.51647, -94.20378]
+  "Atonement Lutheran Church": [45.57254, -94.19237]
+  "atonement lutheran": [45.57254, -94.19237]
+  "King's Academy": [45.54178, -94.22492]
+  "kings academy": [45.54178, -94.22492]
 ```
 Notes: PK-8, part of St. Cloud Area School District 742, and the only K-12 school in
 town — so this is the whole "School" category for St. Joe. Calendar and news are split
@@ -217,6 +235,18 @@ sources:
     kind: website
     method: search_snippet
     trust: official
+at: [45.56281, -94.31817]
+venue_at:
+  "Claire Lynch Hall": [45.5589, -94.31824]
+  "claire lynch": [45.5589, -94.31824]
+  "Gorecki Center": [45.5604, -94.32176]
+  "gorecki": [45.5604, -94.32176]
+  "Haehn Campus Center": [45.55866, -94.31885]
+  "o'connell's": [45.55866, -94.31885]
+  "haehn campus center": [45.55866, -94.31885]
+  "clemens fieldhouse": [45.55866, -94.31885]
+  "CSB Stadium": [45.55779, -94.31508]
+  "csb stadium": [45.55779, -94.31508]
 ```
 Notes: CSB is IN St. Joseph — it is the largest thing in town and a lot of public
 events (Benedicta Arts Center shows, lectures, athletics) are open to neighbours.
@@ -253,6 +283,12 @@ sources:
     method: api
     trust: official
     reader: rec1
+at: [45.56179, -94.31603]
+venue_at:
+  "Fire Hall": [45.56621, -94.3109]
+  "fire hall": [45.56621, -94.3109]
+  "Compost site": [45.56469, -94.26668]
+  "compost site": [45.56469, -94.26668]
 ```
 Notes: Council meetings, public notices, city-run events like Rocktoberfest.
 
@@ -297,6 +333,33 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.57967, -94.39362]
+venue_at:
+  "Alcuin Library": [45.58129, -94.39178]
+  "alcuin librar": [45.58129, -94.39178]
+  "learning commons": [45.58129, -94.39178]
+  "Sexton Arena": [45.58373, -94.39257]
+  "sexton arena": [45.58373, -94.39257]
+  "New Science Center (Outdoor U)": [45.58147, -94.38988]
+  "new science center": [45.58147, -94.38988]
+  "outdoor u": [45.58147, -94.38988]
+  "abbey arboretum": [45.58147, -94.38988]
+  "Great Hall": [45.58008, -94.39325]
+  "great hall": [45.58008, -94.39325]
+  "Alice R. Rogers and Target Galleries": [45.58085, -94.3968]
+  "alice r. rogers": [45.58085, -94.3968]
+  "Stephen B. Humphrey Theater": [45.5808, -94.39328]
+  "stephen b. humphrey": [45.5808, -94.39328]
+  "sbh auditorium": [45.5808, -94.39328]
+  "Clemens Stadium": [45.58279, -94.39174]
+  "clemens stadium": [45.58279, -94.39174]
+  "Haws Field": [45.58497, -94.39017]
+  "haws field": [45.58497, -94.39017]
+  "saint john's campus": [45.57967, -94.39362]
+  "sju, collegeville": [45.57967, -94.39362]
+  "Donald McNeely Spectrum": [45.58419, -94.39164]
+  "mcneely spectrum": [45.58419, -94.39164]
+  "Clemens and Alcuin": [45.58129, -94.39178]
 ```
 Notes: Proposed 2026-10-16 so events at SJU's buildings show a Saint John's picture (`venues`).
 Its events already arrive through `csbsju-events` and `activities-athletic-sju`; this entry
@@ -317,6 +380,11 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.58003, -94.39229]
+venue_at:
+  "saint john's abbey, collegeville": [45.58003, -94.39229]
+  "Liturgical Press": [45.57925, -94.39548]
+  "liturgical press": [45.57925, -94.39548]
 ```
 Notes: Proposed 2026-10-16 so events at the Abbey show its picture (`venues`). Publishes nothing.
 
@@ -458,6 +526,9 @@ sources:
     reader: mshsl
     league_id: 542
     team: St. John's Prep
+at: [45.57972, -94.38854]
+venue_at:
+  "john's prep": [45.57972, -94.38854]
 ```
 Notes: Collegeville, 3.6 miles from St. Joseph. "St. John's Prep" is how the league names the team.
 
@@ -482,6 +553,9 @@ sources:
     reader: mshsl
     league_id: 635
     team: St. Cloud Apollo
+at: [45.57013, -94.21069]
+venue_at:
+  "apollo high school": [45.57013, -94.21069]
 ```
 Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
@@ -506,6 +580,9 @@ sources:
     reader: mshsl
     league_id: 537
     team: St. Cloud Tech
+at: [45.51045, -94.21169]
+venue_at:
+  "st. cloud tech high school": [45.51045, -94.21169]
 ```
 Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
@@ -529,6 +606,9 @@ sources:
     reader: mshsl
     league_id: 535
     team: St. Cloud Cathedral
+at: [45.56343, -94.1626]
+venue_at:
+  "cathedral high school": [45.56343, -94.1626]
 ```
 Notes: St. Cloud, 7.5 miles from St. Joseph. "St. Cloud Cathedral" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
@@ -552,6 +632,15 @@ sources:
     reader: mshsl
     league_id: 504
     team: Sartell
+at: [45.6609, -94.2254]
+venue_at:
+  "sartell high school": [45.6609, -94.2254]
+  "Sartell Middle School": [45.62844, -94.219]
+  "sartell middle school": [45.62844, -94.219]
+  "Pine Meadow Primary School": [45.62764, -94.2256]
+  "pmps": [45.62764, -94.2256]
+  "Oak Ridge Early Learning Center": [45.65666, -94.22864]
+  "oak ridge early learning center": [45.65666, -94.22864]
 ```
 Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
@@ -576,6 +665,10 @@ sources:
     reader: mshsl
     league_id: 491
     team: ROCORI
+venue_at:
+  "River Lakes Civic Arena": [45.44993, -94.52822]
+  "river lakes": [45.44993, -94.52822]
+at: [45.46426, -94.4285]
 ```
 Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan"). 2026-10-29: its hockey plays as the River Lakes co-op, at home in Richmond and at Koronis Civic Arena in Paynesville (Jesse); those rinks are its `venues` (BP app event-photos 10).
 
@@ -600,6 +693,9 @@ sources:
     reader: mshsl
     league_id: 506
     team: Sauk Rapids-Rice
+at: [45.60967, -94.12642]
+venue_at:
+  "sauk rapids-rice high school": [45.60967, -94.12642]
 ```
 Notes: Sauk Rapids, 9.8 miles from St. Joseph. "Sauk Rapids-Rice" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
@@ -619,6 +715,9 @@ sources:
     reader: mshsl
     league_id: 8
     team: Albany
+at: [45.63152, -94.56017]
+venue_at:
+  "albany high school": [45.63152, -94.56017]
 ```
 Notes: Albany, 12.6 miles from St. Joseph. "Albany" is how the league names the team.
 
@@ -655,6 +754,9 @@ sources:
     reader: mshsl
     league_id: 284
     team: Kimball Area
+at: [45.314, -94.30359]
+venue_at:
+  "kimball area high school": [45.314, -94.30359]
 ```
 Notes: Kimball, 17.4 miles from St. Joseph. "Kimball Area" is how the league names the team.
 
@@ -692,6 +794,9 @@ sources:
     reader: mshsl
     league_id: 152
     team: Eden Valley-Watkins
+at: [45.3251, -94.54466]
+venue_at:
+  "eden valley-watkins high school": [45.3251, -94.54466]
 ```
 Notes: Eden Valley, 19.8 miles from St. Joseph. "Eden Valley-Watkins" is how the league names the team.
 
@@ -821,6 +926,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56355, -94.32078]
+venue_at:
+  "american legion": [45.56355, -94.32078]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjoelegion.weebly.com no longer opens; https://johnkuebelbeckpost328.org/ is its site now (place-photos 07, Jesse's yes).
 
@@ -882,6 +990,11 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.55921, -94.32159]
+venue_at:
+  "benedicta arts center": [45.55921, -94.32159]
+  "colman theater": [45.55921, -94.32159]
+  "escher auditorium": [45.55921, -94.32159]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55921, -94.32159. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -1064,6 +1177,9 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56036, -94.32088]
+venue_at:
+  "clemens library": [45.56036, -94.32088]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.32088. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -1364,6 +1480,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_at:
+  "KPower Yoga Sartell": [45.63172, -94.22407]
+  "kpower yoga, sartell": [45.63172, -94.22407]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -1379,6 +1498,9 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56791, -94.31921]
+venue_at:
+  "kay's kitchen": [45.56791, -94.31921]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56795, -94.31925. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -1668,6 +1790,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56842, -94.31746]
+venue_at:
+  "obbink": [45.56842, -94.31746]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -1816,6 +1941,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_at:
+  "St. Catherine University (Butler Center)": [44.92484, -93.1818]
+  "st. catherine university": [44.92484, -93.1818]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -1876,6 +2004,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56518, -94.31989]
+venue_at:
+  "st. joseph meat market": [45.56518, -94.31989]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56529, -94.31973. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -1942,6 +2073,9 @@ sources:
     kind: rss
     method: fetch
     trust: official
+at: [45.56443, -94.32055]
+venue_at:
+  "sal's bar": [45.56443, -94.32055]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm, stjosephchamber.com, www.joetown.org. Mapped at 45.56454, -94.32060. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -1963,6 +2097,11 @@ sources:
     kind: rss
     method: fetch
     trust: official
+at: [45.56306, -94.31861]
+venue_at:
+  "saint benedict's monastery": [45.56306, -94.31861]
+  "Saint Scholastica Convent": [45.5385, -94.12902]
+  "scholastica convent": [45.5385, -94.12902]
 ```
 Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -2127,6 +2266,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.64415, -94.29044]
+venue_at:
+  "sunny mary meadow": [45.64415, -94.29044]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). The Bloom Room is its event room (its page is sunnymarymeadow.com/bloomroom), so an event there is at Sunny Mary Meadow (smooth-mornings 08).
 
@@ -2251,6 +2393,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.55476, -94.4319]
+venue_at:
+  "thomsens garden center": [45.55476, -94.4319]
 ```
 Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Watched since 2026-10-26 for its season and workshops: Jesse's yes to flagging seasonal places' new dates (BP app business-hours).
 
@@ -2340,6 +2485,9 @@ sources:
     kind: rss
     method: fetch
     trust: official
+at: [45.56554, -94.3221]
+venue_at:
+  "well & company": [45.56554, -94.3221]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -2356,6 +2504,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56469, -94.32014]
+venue_at:
+  "white peony": [45.56469, -94.32014]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: White Peony is Suite 200 and W|R Home Suite 100 of one building, so an event at "25 First Ave NW" is at both (smooth-mornings 08).
 
@@ -2402,6 +2553,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56486, -94.32]
+venue_at:
+  "wr home & clothing": [45.56486, -94.32]
 ```
 Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Address from its places row (bp_research), 2026-10-29: Suite 100 of White Peony's building (smooth-mornings 08).
 
@@ -4641,6 +4795,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.57262, -94.28895]
+venue_at:
+  "goodin company": [45.57262, -94.28895]
 ```
 Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://www.goodinco.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -4916,6 +5073,9 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56805, -94.31388]
+venue_at:
+  "heim-kins": [45.56805, -94.31388]
 ```
 Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -5002,6 +5162,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_at:
+  "Northern Hollow Winery": [45.65718, -93.94624]
+  "northern hollow winery": [45.65718, -93.94624]
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-05: Own website is live with a current events page (Mondays at the St. Cloud VA farmers market) and names the Nettle Rd farm.. Named by holisticflowerfarm.com (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -7825,6 +7988,7 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56554, -94.3221]
 ```
 Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://truefreedomphysicaltherapy.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -8210,6 +8374,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_at:
+  "Just Peachy Collective": [45.75509, -94.22207]
+  "just peachy collective": [45.75509, -94.22207]
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 5 PM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -8319,6 +8486,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.57133, -94.31736]
+venue_at:
+  "610 county rd 2": [45.57133, -94.31736]
 ```
 Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 1.0). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -8441,6 +8611,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_at:
+  "The Park Event Center": [45.55219, -94.22243]
+  "park event center": [45.55219, -94.22243]
 ```
 Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.96). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-10-14: the old address, stjosephparish.org, now forwards to a parish in Seattle; the school's page is on Catholic Community Schools' site. Its events are at ccsprek12.org/events, shared by every Catholic Community School, so that page is not added here.
 
@@ -8475,6 +8648,10 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56179, -94.31603]
+venue_at:
+  "city hall": [45.56179, -94.31603]
+  "75 callaway st": [45.56179, -94.31603]
 ```
 Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.stjosephmn.gov/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -8769,6 +8946,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.58516, -94.40087]
+venue_at:
+  "14215 fruit farm": [45.58516, -94.40087]
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Campus calendar events name only its address, "14215 Fruit Farm Road, Collegeville". Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -8787,6 +8967,13 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.55019, -94.23178]
+venue_at:
+  "district administration office": [45.55019, -94.23178]
+  "South Junior High School": [45.54686, -94.16724]
+  "south junior high school": [45.54686, -94.16724]
+  "North Junior High School": [45.57383, -94.19159]
+  "north junior high school": [45.57383, -94.19159]
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Kennedy Community School's school board meetings are held at its District Administration Office in Waite Park. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -8805,6 +8992,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.6178, -94.23039]
+venue_at:
+  "scheels athletic complex": [45.6178, -94.23039]
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-10-29: its two rinks, Bernick's Arena and RDR Arena, are its `venues` (BP app event-photos 10).
 
@@ -8822,6 +9012,10 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.57017, -94.22059]
+venue_at:
+  "municipal athletic center": [45.57017, -94.22059]
+  "municipal athletic complex": [45.57017, -94.22059]
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In St. Cloud; campus athletics events are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 

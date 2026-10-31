@@ -33,22 +33,11 @@ nonisolated enum LaunchFlags {
         case helloMoment = "-hello-moment"
         case helloSeenDays = "-hello-seen-days"
         case helloWelcome = "-hello-welcome"
-        case mapAutozoom = "-map-autozoom"
         case mapBearing = "-map-bearing"
         case mapCenter = "-map-center"
-        case mapDetailExpanded = "-map-detail-expanded"
-        case mapDetent = "-map-detent"
-        case mapFilter = "-map-filter"
-        case mapForceLive = "-map-force-live"
         case mapNow = "-map-now"
-        case mapOpen = "-map-open"
-        case mapOpenPoi = "-map-open-poi"
+        case mapOpenBubble = "-map-open-bubble"
         case mapPitch = "-map-pitch"
-        case mapSave = "-map-save"
-        case mapSearch = "-map-search"
-        case mapSearchCommitted = "-map-search-committed"
-        case mapSearchOpen = "-map-search-open"
-        case mapSheet = "-map-sheet"
         case mapZoom = "-map-zoom"
         case noticeSamples = "-notice-samples"
         case onboarding = "-onboarding"
@@ -80,7 +69,6 @@ nonisolated enum LaunchFlags {
         case seedPlaces = "-seed-places"
         case shareDemo = "-share-demo"
         case showHome = "-show-home"
-        case showMapIntro = "-show-map-intro"
         case showSkeletons = "-show-skeletons"
         case skipOnboarding = "-skip-onboarding"
         case tabCycle = "-tab-cycle"
@@ -92,8 +80,6 @@ nonisolated enum LaunchFlags {
         case townMenuOpen = "-town-menu-open"
         case townNews = "-town-news"
         case townOffline = "-town-offline"
-        case townRain = "-town-rain"
-        case townRainPreview = "-town-rain-preview"
         case townRefuse = "-town-refuse"
         case townSamples = "-town-samples"
         case uiTests = "-ui-tests"
@@ -106,7 +92,7 @@ nonisolated enum LaunchFlags {
     /// The argument after the flag (`-open-tab you` gives "you"), or nil without it.
     static func value(_ flag: Flag) -> String? { values(flag).first }
 
-    /// The argument after each time the flag is passed, for the repeatable ones (`-map-save`).
+    /// The argument after each time the flag is passed, for a repeatable one.
     static func values(_ flag: Flag) -> [String] { values(flag, in: arguments) }
 
     static func values(_ flag: Flag, in arguments: [String]) -> [String] {
