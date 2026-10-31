@@ -337,8 +337,8 @@ struct DailyMarkGlyph: View {
 
     /// Where the line's foot and the dot's base sit on the mark's canvas, from
     /// `DailyMark.svg`'s paths. The squashes pivot there, so neither foot slides.
-    private static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
-    private static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+    nonisolated private static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
+    nonisolated private static let dotBase = UnitPoint(x: 0.859, y: 0.787)
 
     struct Hop {
         var y: CGFloat = 0
