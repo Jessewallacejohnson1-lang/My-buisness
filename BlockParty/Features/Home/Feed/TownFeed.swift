@@ -129,14 +129,16 @@ final class TownFeed {
     /// When the list was last read or checked. Events that have left by then are hidden.
     private(set) var clock = Date()
 
-    /// How far down the screen is scrolled. Written by the screen as it scrolls; not
-    /// observed, so scrolling re-renders nothing but the step on or off the top.
-    @ObservationIgnored var scrollY: CGFloat = 0 {
-        didSet {
-            guard atTop == holding else { return }
-            if !atTop { heldClock = clock; heldAt = Date() }
-            holding = !atTop
-        }
+    /// How far down the screen is scrolled (`scrolled(to:at:)`). Not observed, so scrolling
+    /// re-renders nothing but the step on or off the top.
+    @ObservationIgnored private(set) var scrollY: CGFloat = 0
+
+    /// The screen scrolled to `y` at `now`: leaving the top holds the list and the poster there.
+    func scrolled(to y: CGFloat, at now: Date = Date()) {
+        scrollY = y
+        guard atTop == holding else { return }
+        if !atTop { heldClock = clock; heldAt = now }
+        holding = !atTop
     }
     /// When the screen left the top: the Event of the day poster holds at what it showed then, as
     /// the list under it holds (event-card 03), and moves on back at the top.
@@ -268,6 +270,19 @@ final class TownFeed {
             case .news(let news): return !isHidden(id: news.id, host: news.place)
             }
         }
+    }
+
+    /// The clock the Event of the day poster goes by: `now` at the top; scrolled down, when the
+    /// feed left the top, so it holds as the list under it does (event-card 03).
+    func posterClock(at now: Date) -> Date {
+        DailyClock.now(holding ? heldAt : now)
+    }
+
+    /// The Town feed's column at `now`: your Event of the day on top, the first of `picks` still
+    /// on or to come, never one you hid or whose host you muted (ticket 21); then the list.
+    func column(eventOfTheDay picks: [DailyEvent], now: Date) -> [DailyFeedItem] {
+        let top = DailyEvent.showing(picks.filter { !isHidden($0.item) }, now: posterClock(at: now), limit: 1).first
+        return DailyFeedItem.town(shown, eventOfTheDay: top)
     }
 
     /// The events still on, in the database's order. The admin's Score names each card's

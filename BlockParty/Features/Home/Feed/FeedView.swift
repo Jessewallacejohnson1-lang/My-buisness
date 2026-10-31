@@ -138,17 +138,18 @@ struct FeedView: View {
                         // the next takes its place within the minute, and with none left it goes.
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let now = DailyClock.now(townFeed.holding ? townFeed.heldAt : context.date)
-                            // Not one you hid or whose host you muted (ticket 21).
-                            let top = DailyEvent.showing((eventOfTheDay.events ?? []).filter { !townFeed.isHidden($0.item) },
-                                                         now: now, limit: 1).first
-                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.shown, eventOfTheDay: top),
+                            let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date)
+                            let top = items.first.flatMap { item -> String? in
+                                if case .eventOfTheDay(let event) = item { return event.id }
+                                return nil
+                            }
+                            DailyFeedColumn(items: items,
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
-                                            now: now)
+                                            now: townFeed.posterClock(at: context.date))
                                 // The poster comes, changes and goes, and the cards make room,
                                 // rather than popping.
-                                .animation(Motion.smooth, value: top?.id)
+                                .animation(Motion.smooth, value: top)
                         }
                         // A card whose time is up goes, and a series' next date
                         // comes in, rather than popping.
@@ -217,7 +218,7 @@ struct FeedView: View {
                 if floating != chromeFloating { chromeFloating = floating }
             }
             barTravel.points = TodayHeader.homeTravel(offset: offset)
-            townFeed.scrollY = offset
+            townFeed.scrolled(to: offset)
             #if DEBUG
             if LaunchFlags.has(.scrollLog) {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")

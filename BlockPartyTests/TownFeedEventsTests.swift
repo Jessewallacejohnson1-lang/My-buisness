@@ -257,18 +257,53 @@ final class TownFeedEventsTests: XCTestCase {
     /// Scrolled down, the Event of the day poster holds at when the feed left the top (event-card
     /// 03): scrolling further doesn't move that moment, and back at the top it lets go.
     @MainActor
-    func testThePosterHoldsFromWhenTheFeedLeftTheTop() async {
+    func testThePosterHoldsFromWhenTheFeedLeftTheTop() {
         let town = feed([row("a")])
-        town.scrollY = 120
+        town.scrolled(to: 120, at: now)
         XCTAssertTrue(town.holding)
-        let left = town.heldAt
-        try? await Task.sleep(for: .milliseconds(20))
-        town.scrollY = 640
-        XCTAssertEqual(town.heldAt, left, "scrolling further keeps the moment it left the top")
-        town.scrollY = 0
+        town.scrolled(to: 640, at: now.addingTimeInterval(60))
+        XCTAssertEqual(town.heldAt, now, "scrolling further keeps the moment it left the top")
+        town.scrolled(to: 0, at: now.addingTimeInterval(120))
         XCTAssertFalse(town.holding)
-        town.scrollY = 50
-        XCTAssertGreaterThan(town.heldAt, left, "leaving the top again holds from then")
+        town.scrolled(to: 50, at: now.addingTimeInterval(180))
+        XCTAssertEqual(town.heldAt, now.addingTimeInterval(180), "leaving the top again holds from then")
+    }
+
+    /// An Event of the day pick from Parks, on from `start` to `end` hours after noon.
+    private func pick(_ id: String, from start: Double, to end: Double) throws -> DailyEvent {
+        let card = try XCTUnwrap(TownFeed.entry(row(id, source: "Parks")).card)
+        return DailyEvent(item: card, starts: now.addingTimeInterval(start * 3600),
+                          ends: now.addingTimeInterval(end * 3600))
+    }
+
+    /// The column's poster is never a pick you said Not interested to, nor one whose host you
+    /// muted (ticket 21): the next pick takes the top, and with none left the cards open it.
+    func testAHiddenPickNeverTopsTheFeed() async throws {
+        let town = await choosingFeed(Chooser())
+        let picks = [try pick("x", from: 1, to: 2), try pick("y", from: 3, to: 4)]
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:x")
+        await town.hide(id: "x", host: "Parks", mute: false)
+        town.undoEnded("x")
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:y")
+        await town.hide(id: "y", host: "Parks", mute: true)
+        town.undoEnded("y")
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c"],
+                       "Parks' pick and cards all go")
+    }
+
+    /// Scrolled down, the poster holds at what it showed when the feed left the top, a pick that
+    /// has since ended included; back at the top the next pick takes it (event-card 03).
+    func testThePosterHoldsWhileScrolled() async throws {
+        let town = feed([row("a")])
+        await town.reload(at: now)
+        let picks = [try pick("x", from: -1, to: 0.5), try pick("y", from: 2, to: 3)]
+        let later = now.addingTimeInterval(3600)
+        town.scrolled(to: 300, at: now)
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: later).first?.id, "event-of-the-day:x")
+        XCTAssertEqual(town.posterClock(at: later), now, "the poster's \"Now\" holds too")
+        town.scrolled(to: 0, at: later)
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: later).first?.id, "event-of-the-day:y")
+        XCTAssertEqual(town.posterClock(at: later), later)
     }
 
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
@@ -622,11 +657,11 @@ final class TownFeedEventsTests: XCTestCase {
         let town = feed(answers: [[TownFeed.entry(row("short", leavesIn: 1)), TownFeed.entry(row("long", leavesIn: 5))],
                                   [TownFeed.entry(row("long", leavesIn: 5))]])
         await town.reload(at: now)
-        town.scrollY = 300
+        town.scrolled(to: 300)
         await town.refresh(at: now.addingTimeInterval(2 * 3600))
         XCTAssertEqual(town.cards.map(\.id), ["short", "long"])
         XCTAssertEqual(town.nextLeave, now.addingTimeInterval(5 * 3600), "the leave timer still moves on")
-        town.scrollY = 0
+        town.scrolled(to: 0)
         XCTAssertEqual(town.cards.map(\.id), ["long"])
     }
 
@@ -635,10 +670,10 @@ final class TownFeedEventsTests: XCTestCase {
     func testACardTheReadDropsWaitsForTheTopToo() async {
         let town = feed(answers: [entries(["a", "b"]), entries(["a"])])
         await town.reload(at: now)
-        town.scrollY = 300
+        town.scrolled(to: 300)
         await town.refresh(at: now.addingTimeInterval(60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
-        town.scrollY = 0
+        town.scrolled(to: 0)
         XCTAssertEqual(town.cards.map(\.id), ["a"])
     }
 
@@ -702,9 +737,9 @@ final class TownFeedEventsTests: XCTestCase {
                                   entries(["new", "c", "a"], going: 5)])
         town.cameBack(at: now)
         await town.reload(at: now)
-        town.scrollY = 300
+        town.scrolled(to: 300)
         town.left(at: now)
-        town.scrollY = 0  // another tab: the rebuilt screen starts at the top
+        town.scrolled(to: 0)  // another tab: the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(29 * 60))
         await town.refresh(at: now.addingTimeInterval(29 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
@@ -726,9 +761,9 @@ final class TownFeedEventsTests: XCTestCase {
         let town = feed(answers: [scored(["a", "b", "c"]), scored(["new", "c", "a"])])
         town.cameBack(at: now)
         await town.reload(at: now)
-        town.scrollY = 300
+        town.scrolled(to: 300)
         town.left(at: now)
-        town.scrollY = 0  // another tab: the rebuilt screen starts at the top
+        town.scrolled(to: 0)  // another tab: the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(29 * 60))
         await town.refresh(at: now.addingTimeInterval(29 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
@@ -756,7 +791,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         town.left(at: now)
         town.cameBack(at: now.addingTimeInterval(60 * 60))
-        town.scrollY = 300
+        town.scrolled(to: 300)
         await town.refresh(at: now.addingTimeInterval(60 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
 
@@ -798,13 +833,13 @@ final class TownFeedEventsTests: XCTestCase {
     func testComingBackLandsWhereItWasUnlessLongAway() {
         let town = feed(answers: [])
         town.cameBack(at: now)
-        town.scrollY = 900
+        town.scrolled(to: 900)
         town.left(at: now)
-        town.scrollY = 0    // the rebuilt screen starts at the top
+        town.scrolled(to: 0)    // the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(10 * 60))
         XCTAssertEqual(town.returnY, 900)
 
-        town.scrollY = 900
+        town.scrolled(to: 900)
         town.left(at: now)
         town.cameBack(at: now.addingTimeInterval(45 * 60))
         XCTAssertEqual(town.returnY, 0)
