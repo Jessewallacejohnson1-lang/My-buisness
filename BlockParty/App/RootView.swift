@@ -68,9 +68,6 @@ struct RootView: View {
     /// second account on the same device gets its own profile pulled (not the first
     /// account's leftover mirror).
     @State private var hydratedUserId: String?
-    #if DEBUG
-    @State private var debugIntroDismissed = false
-    #endif
 
     /// The neighbour's System / Light / Dark choice (its switch went with the town
     /// menu on 2026-10-25; a saved choice still applies). Held
@@ -91,11 +88,6 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
-            } else if LaunchFlags.has(.townRainPreview) {
-                // Preview the map's town-rain drop full-screen (bypassing the auth
-                // gate) so its physics can be recorded and measured headlessly — the
-                // real trigger is a touch on the town pill, which can't be automated.
-                TownRainPreview()
             } else if LaunchFlags.has(.dailyFeedPreview) {
                 // The Daily social feed over fixtures, without auth or network, so
                 // both card shapes and the ranked order can be screenshotted.
@@ -109,12 +101,6 @@ struct RootView: View {
             } else if LaunchFlags.has(.showSkeletons) {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()
-            } else if LaunchFlags.has(.showMapIntro),
-                      !debugIntroDismissed {
-                // `-show-map-intro` forces the map's first-run explainer on stage so it
-                // can be verified headlessly in the simulator. No effect in release or
-                // without the flag.
-                MapIntroView { debugIntroDismissed = true }
             } else {
                 gate
             }
@@ -827,14 +813,14 @@ struct MainTabsView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
-        // The map is a destination now, not a tab. Full-screen cover rather than a
-        // sheet: the map owns its own bottom sheet, and two stacked drag surfaces
-        // fight each other for the same gesture.
+        // The map is a destination, not a tab: full screen, with its own close, and its card
+        // opens the Event page on the map's own stack (BP app references/map-reset).
         .fullScreenCover(isPresented: $showMap) {
             SJMapView(onClose: { showMap = false })
                 .environment(\.hostOpener, nil)
                 .environment(actions)
                 .environment(friendsBook)
+                .environment(townFeed)
         }
         #if DEBUG
         .onAppear {

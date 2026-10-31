@@ -26,8 +26,8 @@ final class LaunchFlagsTests: XCTestCase {
     /// A flag's value is the argument after it, once per time it's passed; a flag last in
     /// the list has none.
     func testValuesAreTheArgumentAfterTheFlag() {
-        let arguments = ["BlockParty", "-map-save", "downtown", "-open-tab", "you", "-map-save", "chapel", "-tilt"]
-        XCTAssertEqual(LaunchFlags.values(.mapSave, in: arguments), ["downtown", "chapel"])
+        let arguments = ["BlockParty", "-map-zoom", "14", "-open-tab", "you", "-map-zoom", "16", "-tilt"]
+        XCTAssertEqual(LaunchFlags.values(.mapZoom, in: arguments), ["14", "16"])
         XCTAssertEqual(LaunchFlags.values(.openTab, in: arguments), ["you"])
         XCTAssertEqual(LaunchFlags.values(.tilt, in: arguments), [])
         XCTAssertEqual(LaunchFlags.values(.dailyHour, in: arguments), [])

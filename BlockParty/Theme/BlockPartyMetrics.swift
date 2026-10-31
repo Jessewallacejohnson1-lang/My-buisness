@@ -85,20 +85,4 @@ extension View {
             x: 0, y: 2
         )
     }
-
-    /// Map marker elevation — a TIGHTER, closer shadow than a floating button, and it
-    /// lifts on selection (spec §8): awake = 0.12 / blur 4 / y 1 → selected = 0.20 /
-    /// blur 10 / y 3. The y-shift (1→3) is what reads as "the pin rose toward you".
-    func mapMarkerShadow(selected: Bool = false) -> some View {
-        self.shadow(
-            color: .black.opacity(selected ? 0.20 : 0.12),
-            radius: selected ? 10 : 4,
-            x: 0, y: selected ? 3 : 1
-        )
-    }
-
-    /// Bottom sheet: y=−2 (upward), blur=16, 8% opacity.
-    func mapSheetShadow() -> some View {
-        self.shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: -2)
-    }
 }

@@ -96,29 +96,6 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     }
 }
 
-/// A timeline row: a club event, for the map's Today list and search.
-struct TimelineEvent: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let startTime: String?
-    let location: String?
-    let clubName: String?
-    let fromJoinedClub: Bool
-    /// The organizer's blurb (club_events.description) — surfaced when a calendar
-    /// day row is tapped. Defaulted so the two existing constructors need not change.
-    var details: String? = nil
-    /// The event's category → its calendar icon (tint + glyph). Defaults to `.other`
-    /// so existing constructors compile unchanged and null/legacy rows read cleanly.
-    var category: EventCategory = .other
-    /// The event's own photo (club_events.image_url) and its place's registry entry
-    /// (club_events.place_entry_id), which the map's bubbles read for a picture.
-    var imageURL: URL? = nil
-    var placeEntryId: String? = nil
-    /// When it starts and ends, read once from its day, time, `end_at` and `all_day`, so the
-    /// map's every-second bubbles compare dates instead of re-reading text.
-    var when: EventWhen? = nil
-}
-
 /// nonisolated: a plain value the pure `nonisolated` rules build and compare
 /// (`EventWhen`, `FeedCardItem`). Without this its synthesized Hashable is
 /// MainActor-isolated and every nonisolated comparison trips the 0-warning bar.
@@ -845,7 +822,6 @@ struct RawEvent: Decodable {
 }
 
 /// club_members row (subset).
-struct MemberRow: Decodable { let clubId: String; let userId: String? }
 
 /// The authed user, from GET /auth/v1/user.
 struct CurrentUser: Decodable { let id: String; let email: String? }

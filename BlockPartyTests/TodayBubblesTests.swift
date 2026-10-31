@@ -3,12 +3,16 @@ import XCTest
 
 /// The rules behind the map's today bubbles (TodayBubbles.swift): when an event counts
 /// down, is on, or has ended; how the countdown reads; how much ring is left; which event
-/// a place's bubble shows; and how far the squishy drag can pull.
+/// a spot's bubble shows first; how big the zoom draws it; and how far the squishy drag can pull.
 @MainActor
 final class TodayBubblesTests: XCTestCase {
-    private func ev(_ id: String, _ start: String?, endAt: Date? = nil) -> TimelineEvent {
-        TimelineEvent(id: id, title: id, startTime: start, location: nil, clubName: nil, fromJoinedClub: false,
-                      when: EventWhen(date: "2026-10-25", time: start, endAt: endAt))
+    private func ev(_ id: String, _ start: String?, endAt: Date? = nil) -> FeedCardItem {
+        var card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+        card.eventDate = "2026-10-25"
+        card.startTime = start
+        card.endAt = endAt
+        return card
     }
     private let sevenPM = Town.midnight("2026-10-25")!.addingTimeInterval(19 * 3600)
 
@@ -47,12 +51,24 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.ringLeft(0), 0)
     }
 
-    func testLeadPrefersOnNowThenNextToStartAndDropsEnded() {
+    func testOrderPutsOnNowThenNextToStartThenUntimedAndDropsEnded() {
         let morning = ev("morning", "9 AM"), on = ev("on", "6 PM"), next = ev("next", "8 PM"), later = ev("later", "9 PM")
-        XCTAssertEqual(TodayBubbleRules.lead([later, next, on, morning], now: sevenPM)?.id, "on")
-        XCTAssertEqual(TodayBubbleRules.lead([later, next, morning], now: sevenPM)?.id, "next")
-        XCTAssertNil(TodayBubbleRules.lead([morning], now: sevenPM))
-        XCTAssertEqual(TodayBubbleRules.lead([morning, ev("allday", nil)], now: sevenPM)?.id, "allday")
+        XCTAssertEqual(TodayBubbleRules.order([later, next, on, morning, ev("allday", nil)], now: sevenPM).map(\.id),
+                       ["on", "next", "later", "allday"])
+        XCTAssertEqual(TodayBubbleRules.order([morning], now: sevenPM).map(\.id), [])
+        var off = ev("off", "8 PM"); off.cancelled = true
+        XCTAssertEqual(TodayBubbleRules.phase(off, now: sevenPM), .ended, "called off is over")
+    }
+
+    /// Jesse's sizes: 36 pt zoomed out, 46 at the opening zoom, 72 two steps in, held past either end.
+    func testTheBeadGrowsWithTheZoomFrom36To72() {
+        let open = SJMapView.openZoom
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: open), 46)
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: open + 1), 59)
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: open + 2), 72)
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: open + 4), 72)
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: open - 1.6), 36, accuracy: 0.001)
+        XCTAssertEqual(TodayBubbleRules.bead(zoom: 10), 36)
     }
 
     func testDragFollowsThenResistsAndStretchIsCapped() {
@@ -74,10 +90,5 @@ final class TodayBubblesTests: XCTestCase {
         let diag = TodayEventBubble.stretchMatrix(angle: .pi / 4, along: 1.2, across: 1, size: 64)
         let p = CGPoint(x: 42, y: 42).applying(diag)                   // along the 45° pull
         XCTAssertEqual(p.x, 44, accuracy: 0.001); XCTAssertEqual(p.y, 44, accuracy: 0.001)
-    }
-
-    func testClemensLibraryEventsLandAtSaintBens() {
-        XCTAssertNotNil(KnownVenues.coordinate(for: "Clemens Library"))
-        XCTAssertTrue(MapSpots.all.first { $0.id == "saintbens" }!.keywords.contains("clemens"))
     }
 }

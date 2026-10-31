@@ -1,43 +1,76 @@
 # The map
 
-The map is presented, not tabbed. Read this before touching `Features/Map/`, a pin, the
+The map is presented, not tabbed. Read this before touching `Features/Map/`, a bubble, the
 basemap, or the realtime pipeline behind it.
 
 ## Anatomy
 
-**The Map (`Features/Map/`)** — the most involved feature, and where the realtime pipeline lives. `[prose]` **Presented, not tabbed** since 2026-09-17: `SJMapView(onClose: (() -> Void)? = nil, bottomBarInset: CGFloat = 0)` is raised as a `.fullScreenCover` from Today's top-right map button, so it carries its own exit and its own selected-pin state. `MapSheet.tabBarReserve` (74) is **no longer the default** — nothing sits under the map now — but it is kept as the documented value a host passes as `bottomBarInset` if the map is ever seated over a bottom bar again.
-- **`SJMapView`** `[prose]` — the Mapbox map on one **static basemap** (`BasemapPalette` — no time/season/weather modulation; the old "Living Basemap" was retired, see `docs/archive/MAP_BUILD_LOG.md`), live pulse, and Life360-style chrome: town pill + search at the top (`MapSearch` — the pure client-side matcher over spots + POIs + today's events, its results panel, and the `MapDistance` "350 ft / 1.2 mi" formatter) with the `MapFilterChips` chip row beneath (All · Food · Parks · Events · Saved — `MapFilter` replaced the old `SpotFilter` menu, spans both catalogs, and feeds `recomputeClusters` so the bubbles recount to what's visible), the close "X" and the help "?" top-left (the X leads; both mirror the search circle), recenter bottom-right, soft paper edge fades off the top and bottom screen edges (non-interactive, not chrome — labels may pass under them), and the persistent `MapSheet`. **There is NO compose entry on the map** (round 2, 2026-08-14 — the "+" and `QuickAddSheet` are retired; posting is paused. There is no compose entry anywhere), and the Mapbox wordmark is hidden while the ⓘ attribution stays (Jesse accepted the ToS risk — see the ornament notes in `SJMapView`). **Pins**: every curated spot always shows a small `Hue.ink` badge with a white category glyph and halo'd name label. `PinDisplay` resolves precedence selected > live > saved > rest; live layers the meaning-scoped plum `Hue.accent` fill/static ring/pulse, saved adds the bookmark corner, and selected lifts/scales without swapping visual languages. All civic and POI markers are SwiftUI `MapViewAnnotation`s; POIs cluster client-side. The town pill reverse-geocodes the camera center. The camera supports two-finger rotate + tilt (0–70°, ProMotion 120 Hz); custom `MapCompass` returns bearing and pitch to zero.
-- **`MapSheet`** `[prose]` — the always-visible, draggable bottom surface with peek/medium/full detents. Peek is one live-now line (plum accent dot + breathing ring when active, calm gray when quiet); it cross-fades into Today/Places lists as the sheet rises. Snap is momentum-aware, inner-scroll/pan arbitration is custom, and VoiceOver drives the grabber through `accessibilityAdjustableAction`. Selecting a civic or POI place opens **`PinDetailSheet`** — the Flighty-anatomy card over a dimmed map (metadata pills, status card, floating action bar; "View full details" presents the full-height rich content). It superseded the tab-shell glass morph, which is retired; the tab bar hides while the card is up.
-- **`MapModel`** (`@MainActor`) `[prose]` — owns the `RealtimeClient` subscription + today's events. A `club_events` change touching **today** triggers a 300 ms-debounced re-sync (`getTodayEvents()`), so a new happening lights its pin and a deleted/ended one goes quiet **with no refresh**. Handles teardown, background socket-drop + foreground resubscribe, and the **midnight rollover**.
-- **`MapSpots` / `KnownVenues`** — the **curated venue coordinates** (mirrors the Expo `lib/geo.ts`). `[prose]` Never trust a runtime geocoder for a known St. Joe venue — resolve here first; geocoding is only the fallback for unknowns.
+Since the map reset (BP app `references/map-reset/`, 2026-10-30) the map shows today's events and
+nothing else.
+
+- **`SJMapView`** — raised as a `.fullScreenCover` from the Town bar's yellow disc, with its own
+  close X. The Mapbox map on one static basemap (`BasemapPalette`, Uber's colours), today's bubbles,
+  and two glass circles: close top left, recenter top right, with `MapCompass` under recenter once
+  the map is turned. One pill between them says "Nothing else today" once every one of today's
+  events is over, or "You're offline" / "Couldn't load" (tap to try again). The Mapbox wordmark is
+  hidden and its ⓘ attribution kept, top left under close, clear of the card (Jesse accepted the ToS
+  risk, 2026-08-14). Its own
+  `NavigationStack` pushes the Event page, so Back returns to the map.
+- **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
+  before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
+  hides and mutes, and makes no second `get_town_feed` read (8 s for a new account, 2026-10-30).
+  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Owns the
+  `RealtimeClient` on `club_events`: a change touching today asks the Town feed to read again after
+  300 ms. Handles teardown, background socket-drop and foreground resubscribe, and the midnight
+  rollover.
+- **`TodayPlaces`** — one bubble per exact spot, its events ordered on-now first
+  (`TodayBubbleRules.order`); events without a spot stay off. `merge` folds bubbles that touch on
+  screen into one, run when the camera settles (`onMapIdle`).
+- **`TodayBubbles`** — the shipped liquid-glass photo bubble (2026-10-23), drawn at 46 pt and scaled
+  by the zoom: 36 pt zoomed out, 46 at the opening zoom (14.6), 72 two steps in. `MapZoom` carries
+  the zoom so a pinch redraws only the bubbles; the time tag keeps its size.
+- **`MapEventCard`** — Airbnb's map card, measured off Mobbin: photo, then title (with Now), place,
+  time, and the going count. Heart and close on the photo; it pages through a bubble's events.
+- **Where an event is** — the morning job writes `club_events.lat,lng` from the source registry's
+  hand-checked coordinates (`at:` per entry, `venue_at:` per named venue): the venue the event's
+  location names, or its Place's own spot when the location is empty or names that Place. No real
+  match stays empty and is listed in the morning report; the map leaves it off. Each morning
+  re-checks every upcoming event and writes only what changed, so a moved event follows. An event
+  posted in the app (posting is paused) gets its spot the next morning.
+
+`MapSpots`, `KnownVenues`, `POI` and `POILogoCache` stay for Search, onboarding and the seeder; the
+map no longer reads them for pins.
 
 ## Rules
 
-- **Live-glow is for *now*, not "today".** `[prose]` A pin pulses only while an event is happening (`start ≤ now ≤ start + 2h`, `DateHelpers.isLiveNow`). Live uses the meaning-scoped plum accent for its fill/static ring/pulse; the static ring is what survives Reduce Motion and selection when the pulse is suppressed. Never spend the accent on merely upcoming or decorative content.
-- **Realtime DELETE carries only the primary key.** `[prose]` A DELETE's `old_record` contains just `id` — match deletes by `id` (a full refetch is idempotent). The table is set to `REPLICA IDENTITY FULL` and `club_events` is in the `supabase_realtime` publication (both already applied to the live project; see `docs/archive/MAP_BUILD_LOG.md`).
-- **Mapbox v11 `updateGeoJSONSource` does NOT throw — don't wrap it in `try?`.** `[prose]` Some MapboxMaps v11 style calls are non-throwing (`updateGeoJSONSource(withId:geoJSON:)` among them); a `try?`/`try` around a non-throwing call emits a *"no calls to throwing functions occur within 'try'"* **warning** that fails the 0-warning bar. `addSource` / `addLayer` / `addImage` **do** throw (keep `try` + a logged `do/catch`, not a silent `try?`). Check the signature before reaching for `try`.
-- **The map is the SwiftUI `Map`, NOT the UIKit `MapView` — reach camera/gestures/frame-rate through modifiers, not a view object.** `[prose]` `SJMapView` renders `Map(viewport: $viewport)` inside a `MapReader { proxy in }` (`proxy.map` is the `MapboxMap`). So the UIKit recipes (`mapView.gestures.options`, `camera.ease(...)`, `mapView.preferredFrameRateRange`, a `UIRotationGestureRecognizer` wrapper) do NOT apply — translate them: gestures are `.gestureOptions(GestureOptions(rotateEnabled:pitchEnabled:simultaneousRotateAndPinchZoomEnabled:panDecelerationFactor:focalPoint:))`; the camera is the `@State var viewport: Viewport` binding animated with `withViewportAnimation(.easeOut/.fly/.easeInOut(duration:))`; ProMotion is `.frameRate(range: 80...120, preferred: 120)`; the pitch clamp is `proxy.map.setCameraBounds(CameraBoundsOptions(maxPitch:minPitch:))` (throws — `do/catch`) applied in `.onStyleLoaded`. There is **no public access to the underlying `UIGestureRecognizer`s**, so a per-degree rotation threshold isn't exposed — rely on the SDK's built-in rotate arbitration (`simultaneousRotateAndPinchZoomEnabled`). And because every pin/cluster/label is a `MapViewAnnotation`, they stay **screen-upright under rotation for free**, and the label de-confliction pass re-runs on camera-settle off the LIVE projection (`map.point(for:)`), so it tolerates any bearing/pitch — the "keep north-up" caution was defensive, not a hard dependency.
-- **Don't re-enable the built-in Mapbox compass — it's off-brand and not configurable.** `[prose]` Its needle's colour isn't ours, its fade is hard-coded, and its tap resets bearing only. It is suppressed in `OrnamentOptions`; **`MapCompass`** is the replacement and resets bearing plus pitch. Its per-frame `CompassHeading` is held by `SJMapView` as `@State`, not `@StateObject`, so only the observing compass rerenders at camera frequency.
-- **`docs/archive/MAP_BUILD_LOG.md`** `[prose]` is the archived record of map work up to 2026-09-27 (fixes, the realtime pipeline, the anti-slop pass, applied SQL). Read it for history; don't append to it. Commit messages are the record now.
+- **Live is for *now*, not "today".** A bubble breathes only while its event is on (`EventWhen`:
+  `end_at`, else two hours after the start). Called off, or a game whose final is in, it's over.
+- **Realtime DELETE carries only the primary key.** A DELETE's `old_record` holds just `id`; match
+  deletes by `id` (a full refetch is idempotent). `club_events` is `REPLICA IDENTITY FULL` and in the
+  `supabase_realtime` publication.
+- **Mapbox v11 `updateGeoJSONSource` does NOT throw — don't wrap it in `try?`.** A `try` around a
+  non-throwing call is a warning, and the bar is 0 warnings. `addSource` / `addLayer` / `addImage`
+  and `setCameraBounds` do throw: keep `try` with a logged `do/catch`.
+- **The map is the SwiftUI `Map`, NOT the UIKit `MapView`.** `SJMapView` renders
+  `Map(viewport: $viewport)` inside `MapReader { proxy in }` (`proxy.map` is the `MapboxMap`).
+  Gestures are `.gestureOptions(...)`, the camera is the `viewport` binding animated with
+  `withViewportAnimation`, 120 Hz is `.frameRate(range:preferred:)`, the pitch clamp is
+  `setCameraBounds` in `.onStyleLoaded`. Map-specific modifiers must come before the standard ones
+  (`.onChange` erases the `Map` type).
+- **Per-frame camera values never go in the map view's `@State`.** `onCameraChanged` fires every
+  frame: the bearing goes to `CompassHeading`, the zoom to `MapZoom`, each observed only by what
+  draws it.
+- **Don't re-enable Mapbox's built-in compass.** Its needle isn't ours and its tap levels the bearing
+  only; `MapCompass` replaces it.
+- **`docs/archive/MAP_BUILD_LOG.md`** is the archived record of map work up to 2026-09-27. Read it
+  for history; commit messages are the record now.
 
 ## Direction — Jesse's calls
 
-These are product direction rather than built behaviour; the sections above are what
-currently renders. Where they disagree, the code wins and the mismatch is worth raising.
-
-- Keep the existing light Mapbox style. **Do not switch to satellite imagery.** `[prose]`
-- Pins have exactly two visual states: **rest** (6pt low-contrast dot, no label) and **awake**
-  (full marker plus label) for live, selected, or saved pins. Labels render only past a zoom
-  threshold.
-- Categories come from Google Places (`primaryType` / `types`), mapped to a family and stored
-  in Supabase next to `place_id`. One shared colour per category group (the business group is
-  blue); glyphs differ per place.
-- **Cluster merge and split must feel Apple-level smooth.** Cluster bubbles are black, not
-  grey.
-- 2026-09-17 — a pin tap opens **`PinDetailSheet`**, the Flighty-anatomy card over a dimmed
-  map. **Supersedes** "the bottom sheet is an extension of the four-icon glass tab bar, pulled
-  up", and the tab-shell glass morph with it — the map is no longer a tab, so it has no tab bar
-  to extend. The draggable `MapSheet` is still the surface the card rises from; what died is
-  the morph, not the sheet.
-- References: Snapchat Map and Life360 for interaction, Apple Maps for glyph markers, gestures
-  and green tone, Flighty's airport detail sheet for the overlay and its plain-language text.
+- 2026-10-30 — The map shows only today's events, one bubble per real spot, Airbnb's card on a tap,
+  and only close and recenter for buttons; business pins, chips, search, help, the town pill and the
+  bottom sheet are gone (map reset). **Supersedes** the pin states, Google categories, black cluster
+  bubbles and the Flighty pin card below the line in the archive.
+- Keep the light Mapbox style in Uber's colours. **Do not switch to satellite imagery.**
+- References: Airbnb's map card (map reset), and the map-today bubble mock
+  (`references/map-today/pulse.html`).
