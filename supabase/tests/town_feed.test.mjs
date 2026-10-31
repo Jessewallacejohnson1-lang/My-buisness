@@ -1300,6 +1300,13 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   const at = live.at;
   await record(sjuLive);
   assert.equal((await row()).live_score.at, at, 'a push that changed nothing writes nothing, so realtime stays quiet');
+  // A clock standing still (2026-10-31: football's, between plays): once 'at' is a minute old, the same push writes
+  // it again, so the app doesn't hide a clock SIDEARM still shows as stale.
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await row()).live_score.at;
+  await record(sjuLive);
+  assert.ok(new Date((await row()).live_score.at) > new Date(old), 'a minute-old score SIDEARM confirms is written again');
   // The feed sends it in the game and keeps a game being played two more hours: still there at 5:30.
   await db.exec('set role anon');
   const feed = async (t) => (await db.query(`select game from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))
