@@ -1,7 +1,7 @@
 //
 //  OnboardingFlow.swift
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
-//  Welcome (Nextdoor's layout, ticket 25 mock), then nine question steps on one fixed frame:
+//  Welcome (Nextdoor's layout, ticket 25 mock), then seven question steps on one fixed frame:
 //  the faint yellow backdrop, back and the progress bar on top, the wordmark, and the one
 //  Next bar 84 pt from the bottom with its slot under it. Only the question moves between
 //  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
@@ -10,17 +10,16 @@
 import Contacts
 import SwiftUI
 
-/// The flow's steps in order. The bar counts the nine after the Welcome.
+/// The flow's steps in order. The bar counts the seven after the Welcome. Phone and its texted code
+/// (SPEC steps 2 and 3) come back with phone sign-in (onboarding 17): empty, they stay out (Jesse, 24).
 enum OnboardingStep: Int, CaseIterable {
-    case welcome, phone, code, name, photo, birthday, interests, follow, friends, contacts
+    case welcome, name, photo, birthday, interests, follow, friends, contacts
 
     static let barTotal = allCases.count - 1
 
     var question: String {
         switch self {
         case .welcome:   "Love where\nyou live."
-        case .phone:     "What's your phone number?"
-        case .code:      "Enter the code we texted you"
         case .name:      "What's your name?"
         case .photo:     "Add a profile picture"
         case .birthday:  "When's your birthday?"
@@ -47,6 +46,11 @@ enum OnboardingStep: Int, CaseIterable {
 final class OnboardingStore {
     private(set) var step: OnboardingStep
     private(set) var finished: Bool
+    /// Finished through the flow in this launch, not from the server's stamp: the Done island and
+    /// the wait for the answers are for this one (onboarding 24). Never saved.
+    private(set) var finishedHere = false
+    /// Had the app before onboarding was switched on: in without it, so nothing to stamp (24).
+    private(set) var arrivedBefore = false
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
     /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
@@ -104,7 +108,11 @@ final class OnboardingStore {
         // Saved by name, so a step added or moved later still resumes on the right one.
         let saved = defaults.string(forKey: Self.stepKey)
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
-        finished = defaults.bool(forKey: Self.finishedKey)
+        // An install that opened the tabs before onboarding was switched on (the hello pill's last
+        // look) is already in: it never gets the flow (onboarding 24). DEBUG `-onboarding` shows it anyway.
+        let before = !defaults.bool(forKey: Self.finishedKey)
+            && defaults.double(forKey: HelloDrop.lastSeenKey) > 0 && !LaunchFlags.has(.onboarding)
+        finished = defaults.bool(forKey: Self.finishedKey) || before
         firstName = defaults.string(forKey: Self.firstKey) ?? ""
         lastName = defaults.string(forKey: Self.lastKey) ?? ""
         photo = defaults.data(forKey: Self.photoKey)
@@ -113,6 +121,7 @@ final class OnboardingStore {
         interests = Interests.get()
         follows = Self.savedFollows(defaults)
         requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
+        arrivedBefore = before
     }
 
     /// Follow or unfollow on Follow 3, on the phone only.
@@ -149,7 +158,7 @@ final class OnboardingStore {
         defaults.data(forKey: followsKey).flatMap { try? JSONDecoder().decode([FollowTarget].self, from: $0) } ?? []
     }
 
-    /// 1 to 9 on the question steps, 0 on the Welcome.
+    /// 1 to 7 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
 
     /// "Avery Lund", or "Avery" alone; nil before a first name is typed.
@@ -212,15 +221,20 @@ final class OnboardingStore {
     func skipFriends() { finish() }
 
     func finish() {
-        finished = true
-        defaults.set(true, forKey: Self.finishedKey)
+        finishedHere = true
+        markFinished()
     }
 
     /// The server's `onboarded_at` says this account finished on another install. Taken only
     /// on the Welcome, so a slow read can't pull someone out halfway through.
     func serverSaysFinished() {
         guard step == .welcome else { return }
-        finish()
+        markFinished()
+    }
+
+    private func markFinished() {
+        finished = true
+        defaults.set(true, forKey: Self.finishedKey)
     }
 
     private func keep(_ value: Any?, _ key: String) {

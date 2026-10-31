@@ -213,6 +213,8 @@ nonisolated enum Hue {
     static let welcomePillDown = Color(hex: 0xECECEA)
     /// The Welcome's scrims over its photo, black at the mock's strengths.
     static let welcomeScrim  = Color(hex: 0x000000)
+    /// The Done island's black (onboarding 24): the Dynamic Island's own, so the pill grows out of it unseen.
+    static let island        = Color(hex: 0x000000)
     /// Onboarding's empty photo, Instagram's blank profile picture measured from its sign-up
     /// (BP app references/onboarding-name-photo): a blue-grey circle and a near-white figure.
     static let blankAvatar   = Color(hex: 0xCBD2DA)

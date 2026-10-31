@@ -20,7 +20,19 @@ final class OnboardingNextBarTests: XCTestCase {
 
     /// The progress bar, by what VoiceOver reads on it.
     private func bar(_ app: XCUIApplication, _ step: Int) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Step \(step) of 9")).firstMatch
+        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Step \(step) of 7")).firstMatch
+    }
+
+    /// The bar's frame once it has held still for 0.3 s (the keyboard leaving carries it down).
+    private func resting(_ next: XCUIElement) -> CGRect {
+        let deadline = Date().addingTimeInterval(3)
+        var last = next.frame
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            if next.frame == last { break }
+            last = next.frame
+        }
+        return last
     }
 
     /// The bar's frame once it has come to rest (the keyboard leaving carries it down).
@@ -30,14 +42,14 @@ final class OnboardingNextBarTests: XCTestCase {
         return next.frame
     }
 
-    /// Taps iPhone's contacts prompt through to allowed until the bar reads step 9: SpringBoard's
+    /// Taps iPhone's contacts prompt through to allowed until the bar reads step 7: SpringBoard's
     /// Continue, then the Contacts sheet's "Share All 7 Contacts" (iOS 26), whichever comes up.
     private func allowContacts(_ app: XCUIApplication) {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let sheet = XCUIApplication(bundleIdentifier: "com.apple.ContactsUI.LimitedAccessPromptView")
         let allow = NSPredicate(format: "label == 'Continue' OR label BEGINSWITH 'Share All' OR label == 'Allow Full Access'")
         let deadline = Date().addingTimeInterval(20)
-        while !bar(app, 9).exists, Date() < deadline {
+        while !bar(app, 7).exists, Date() < deadline {
             // One tap a round: the sheet's button tapped while SpringBoard's alert still leaves goes stale.
             for owner in [springboard, sheet] {
                 let button = owner.buttons.matching(allow).firstMatch
@@ -65,20 +77,26 @@ final class OnboardingNextBarTests: XCTestCase {
 
         let next = app.buttons["onboarding-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 5), "no Next bar")
-        let home = next.frame
+        // Name (step 1) opens the keyboard and the bar rides above it (Phone and Code wait for phone
+        // sign-in, onboarding 24), so the bar's own place is read on Photo, once the keyboard has gone.
+        let first = app.textFields["First name"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "no Name step")
+        first.tap()
+        first.typeText("Avery")
+        let riding = next.frame
+        next.tap()
+        XCTAssertTrue(bar(app, 2).waitForExistence(timeout: 3), "never reached step 2")
+        let home = resting(next)
         XCTAssertEqual(home.height, 52, accuracy: 0.5)
+        XCTAssertEqual(riding.width, home.width, "Next bar changed width over the keyboard")
+        XCTAssertLessThanOrEqual(riding.minY, home.minY, "Next bar dropped under the keyboard")
 
-        // Phone (step 1) to Contacts (step 9): eight moves, the frame read after each.
-        for step in 2...9 {
+        // Photo (step 2) to Contacts (step 7): five moves, the frame read after each.
+        for step in 3...7 {
             switch step {
-            case 4:
-                let first = app.textFields["First name"]
-                first.tap()
-                first.typeText("Avery")
-                next.tap()
-            case 5:
+            case 3:
                 app.buttons["Skip"].tap()
-            case 7:
+            case 5:
                 // Interests asks for 3 before it lets you on (ticket 20).
                 XCTAssertEqual(next.label, "Pick 3 more")
                 // Popular in St. Joseph slides in when its counts land; let it, so no chip moves mid-tap.
@@ -93,7 +111,7 @@ final class OnboardingNextBarTests: XCTestCase {
                 }
                 XCTAssertEqual(next.label, "Next")
                 next.tap()
-            case 8:
+            case 6:
                 // Follow 3 asks for 3 once its places are read (ticket 22); a failed read lets Next on.
                 if app.staticTexts["Suggested for you"].waitForExistence(timeout: 10) {
                     XCTAssertEqual(next.label, "Follow 3 more")
@@ -107,16 +125,15 @@ final class OnboardingNextBarTests: XCTestCase {
                 }
                 XCTAssertEqual(next.label, "Next")
                 next.tap()
-            case 9:
+            case 7:
                 next.tap()
                 allowContacts(app)
             default:
                 next.tap()
             }
             XCTAssertTrue(bar(app, step).waitForExistence(timeout: 3), "never reached step \(step)")
-            if step == 3 || step == 5 {
-                // Name opens the keyboard and Birthday its wheel (ticket 19): the bar rides above
-                // it, or stays put on a simulator with a hardware keyboard.
+            if step == 3 {
+                // Birthday opens its wheel (ticket 19): the bar rides above it.
                 XCTAssertEqual(next.frame.width, home.width, "Next bar changed width on step \(step)")
                 XCTAssertLessThanOrEqual(next.frame.minY, home.minY, "Next bar dropped on step \(step)")
             } else {
@@ -125,7 +142,7 @@ final class OnboardingNextBarTests: XCTestCase {
         }
 
         app.buttons["Back"].tap()
-        XCTAssertTrue(bar(app, 8).waitForExistence(timeout: 3))
+        XCTAssertTrue(bar(app, 6).waitForExistence(timeout: 3))
         XCTAssertEqual(next.frame, home, "Next bar moved going back")
     }
 }

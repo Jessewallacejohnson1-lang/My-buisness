@@ -199,6 +199,18 @@ enum HelloDrop {
         return formatter.string(from: date)
     }
 
+    /// Where the pill keeps the day it last dropped, and when the app last left the screen.
+    static let dayKey = "helloDrop.day"
+    static let lastSeenKey = "helloDrop.lastSeen"
+
+    /// Onboarding's Done island said the welcome (BP app onboarding 24): no pill today, none within
+    /// the hour, and tomorrow's open is an ordinary one, not a first.
+    static func saidWelcome(now: Date = Date()) {
+        UserDefaults.standard.set(Town.day(now), forKey: dayKey)
+        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: lastSeenKey)
+        HelloInbox.shared.dropped(now: now)
+    }
+
     /// Whether this launch shows it at all: on a phone, the day's first open; under DEBUG,
     /// `-hello-drop` shows it on every launch, and any other launch flag (screenshots, UI
     /// tests) never does, so other runs' frames stay as they were.
@@ -295,12 +307,12 @@ struct HelloDropView: View {
     @State private var saying: String?
     private let moments = HelloMoments.shared
     private let inbox = HelloInbox.shared
-    @AppStorage("helloDrop.day") private var shownDay = ""
+    @AppStorage(HelloDrop.dayKey) private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
     /// The day's line the last first open said, so a count isn't said two days running (hello-drop 08).
     @AppStorage("helloDrop.lastLine") private var lastLine = ""
     /// When the app last left the screen; 0 before the very first open.
-    @AppStorage("helloDrop.lastSeen") private var lastSeen: Double = 0
+    @AppStorage(HelloDrop.lastSeenKey) private var lastSeen: Double = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -379,9 +391,11 @@ struct HelloDropView: View {
 
     /// Under a Dynamic Island (a safe area top over 50 pt) it rides 6 pt into the safe area's
     /// top; on a phone with a notch or a home button, where that is the status bar, 8 pt under it.
-    private var topGap: CGFloat {
-        let top = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.top ?? 62
-        return top > 50 ? -Self.aboveSafeTop : 8
+    private var topGap: CGFloat { Self.safeTop > 50 ? -Self.aboveSafeTop : 8 }
+
+    /// The phone's safe area top: over 50 pt under a Dynamic Island, the status bar's otherwise.
+    static var safeTop: CGFloat {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.top ?? 62
     }
 
     private var pill: some View {

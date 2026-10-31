@@ -199,10 +199,14 @@ struct HelloConfetti: UIViewRepresentable {
     let burst: Int
     /// A team's colours, in equal shares; empty for BP's yellow and black.
     var colors: [UInt32] = []
+    /// One point the pieces fly out of, in this view's points: onboarding's Done island (24).
+    /// nil: a line across the top of the screen.
+    var from: CGPoint? = nil
 
     func makeUIView(context: Context) -> ConfettiView { ConfettiView() }
 
     func updateUIView(_ view: ConfettiView, context: Context) {
+        view.from = from
         guard burst != view.fired else { return }
         view.fired = burst
         if burst > 0 { view.fire(colors.map { UIColor(Color(hex: $0)) }) }
@@ -210,6 +214,7 @@ struct HelloConfetti: UIViewRepresentable {
 
     final class ConfettiView: UIView {
         var fired = 0
+        var from: CGPoint? { didSet { setNeedsLayout() } }
         private let emitter = CAEmitterLayer()
 
         override init(frame: CGRect) {
@@ -224,9 +229,15 @@ struct HelloConfetti: UIViewRepresentable {
         override func layoutSubviews() {
             super.layoutSubviews()
             emitter.frame = bounds
-            emitter.emitterShape = .line
-            emitter.emitterPosition = CGPoint(x: bounds.midX, y: -20)
-            emitter.emitterSize = CGSize(width: bounds.width, height: 1)
+            if let from {
+                emitter.emitterShape = .point
+                emitter.emitterPosition = from
+                emitter.emitterSize = .zero
+            } else {
+                emitter.emitterShape = .line
+                emitter.emitterPosition = CGPoint(x: bounds.midX, y: -20)
+                emitter.emitterSize = CGSize(width: bounds.width, height: 1)
+            }
         }
 
         func fire(_ team: [UIColor] = []) {
@@ -245,8 +256,10 @@ struct HelloConfetti: UIViewRepresentable {
                     cell.lifetime = 5
                     cell.velocity = 170
                     cell.velocityRange = 90
-                    cell.emissionLongitude = .pi
-                    cell.emissionRange = .pi / 5
+                    // From a point, out both sides and down (the half turn under it); from the top
+                    // line, a narrow fan.
+                    cell.emissionLongitude = from == nil ? .pi : .pi / 2
+                    cell.emissionRange = from == nil ? .pi / 5 : .pi / 2
                     cell.yAcceleration = 260
                     cell.spin = 3.5
                     cell.spinRange = 5

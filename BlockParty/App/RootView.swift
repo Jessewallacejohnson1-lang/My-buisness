@@ -161,23 +161,32 @@ struct RootView: View {
     /// a session.
     private static let requiresSignIn = false
 
-    /// Whether a first launch shows onboarding (BP app docs/plans/onboarding). Off until its
-    /// steps are real (ticket 24 turns it on): every screenshot run reinstalls the app, so
-    /// with it on, every other screen's proof and every UI test would land on placeholder
-    /// steps. DEBUG `-onboarding` shows it now, as a first launch would.
-    private static let showsOnboarding = false
-
     @State private var onboarding = OnboardingStore()
     /// The server already had `onboarded_at`: finishing from it must not re-stamp the date
     /// Profile shows as "since".
     @State private var stampedOnServer = false
+    /// Finished through the flow, the answers the Town feed sorts by are on the account, or
+    /// `answersWait` has passed: till then the flow's last screen stays up under the Done island, so
+    /// the feed's first read has them (BP app onboarding 24). Read in the same pass that finishes, so
+    /// the tabs never come up (and read the feed) before `onChange` has started the stamp.
+    @State private var answersLanded = false
+    /// Each answer that landed after the Town feed's first read: the feed reads again.
+    @State private var answersLate = 0
+    /// The Done island's name, while it's up.
+    @State private var welcoming: String?
+    /// ponytail: a fixed wait; a slower signal gets the feed's second read instead.
+    private static let answersWait: Duration = .seconds(2.5)
 
+    /// A first launch shows onboarding (BP app docs/plans/onboarding, on since ticket 24). Every
+    /// screenshot run reinstalls the app, so DEBUG `-skip-onboarding` skips it for other screens'
+    /// proofs (eyes.py adds it), and so does `-ui-tests` without `-onboarding`.
     private var onboardingUp: Bool {
-        guard !onboarding.finished else { return false }
         #if DEBUG
-        if LaunchFlags.has(.onboarding) { return true }
+        if LaunchFlags.has(.skipOnboarding) || (LaunchFlags.has(.uiTests) && !LaunchFlags.has(.onboarding)) {
+            return false
+        }
         #endif
-        return Self.showsOnboarding
+        return !onboarding.finished || (onboarding.finishedHere && !answersLanded)
     }
 
     private var gate: some View {
@@ -185,29 +194,58 @@ struct RootView: View {
         Group {
             if auth.isSignedIn || !Self.requiresSignIn {
                 if onboardingUp {
-                    OnboardingFlow(store: onboarding).transition(.opacity)
+                    // Finished, the last screen waits under the island for the answers: nothing on it answers.
+                    OnboardingFlow(store: onboarding)
+                        .allowsHitTesting(!onboarding.finished)
+                        .transition(.opacity)
                 } else {
-                    MainTabsView().transition(.opacity)
+                    MainTabsView(answersLate: answersLate).transition(.opacity)
                 }
             } else {
                 LoginView()
             }
         }
         .animation(.smooth(duration: 0.35), value: onboardingUp)
+        .overlay {
+            if let welcoming {
+                OnboardingDone(name: welcoming) { self.welcoming = nil }
+            }
+        }
         .task(id: auth.userId) { await hydrateIfNeeded() }
         .onChange(of: onboarding.finished) { _, done in
             guard done else { return }
             if let name = onboarding.displayName { Interests.displayName = name }
-            if !stampedOnServer { Task { await stampOnboarded() } }
-            Task { await saveOnboardingAnswers() }
+            guard onboarding.finishedHere else {
+                Task { await saveOnboardingAnswers() }
+                return
+            }
+            // Here, before the tabs come up, so the hello pill doesn't say a second welcome.
+            HelloDrop.saidWelcome()
+            welcoming = onboarding.displayName ?? ""
+            Task {
+                if !stampedOnServer {
+                    let wait = Task {
+                        try? await Task.sleep(for: Self.answersWait)
+                        answersLanded = true
+                    }
+                    await stampOnboarded()
+                    wait.cancel()
+                }
+                answersLanded = true
+                await saveOnboardingAnswers()
+            }
         }
     }
 
-    /// The onboarded stamp, with the birthday (onboarding 19). Once it's on the account the birthday
-    /// leaves the device, so another account signing in here later can't take it.
+    /// The onboarded stamp, with the birthday (onboarding 19) and the interests (24). Once it's on
+    /// the account the birthday leaves the device, so another account signing in here later can't
+    /// take it. Landing after the tabs came up (a slow signal, or the account came later), the Town
+    /// feed reads again with them.
     private func stampOnboarded() async {
-        guard (try? await ProfileAPI(auth: AuthStore.shared).markOnboarded(birthday: onboarding.birthday)) != nil else { return }
+        guard (try? await ProfileAPI(auth: AuthStore.shared)
+            .markOnboarded(birthday: onboarding.birthday, interests: onboarding.interests)) != nil else { return }
         onboarding.birthday = nil
+        if !onboardingUp { answersLate += 1 }
     }
 
     /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
@@ -242,7 +280,7 @@ struct RootView: View {
         let fetched: TownProfile?
         do { fetched = try await ProfileAPI(auth: AuthStore.shared).getMyProfile() } catch { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
-        if fetched?.onboardedAt == nil, onboarding.finished {
+        if fetched?.onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
             await stampOnboarded()
         }
         if let profile = fetched {
@@ -312,6 +350,9 @@ struct MainTabsView: View {
     /// A one-shot starting tab. nil → the usual default (Town, or a DEBUG `-open-tab`
     /// override).
     let startTab: Tab?
+    /// Counts onboarding's answers that reached the account after the Town feed's first read
+    /// (BP app onboarding 24): each new count reads the feed again, sorted by them.
+    let answersLate: Int
     @State private var tab: Tab
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
@@ -322,8 +363,9 @@ struct MainTabsView: View {
         Task { try? await CommunityAPI(auth: AuthStore.shared).recordOpen() }
     }
 
-    init(startTab: Tab? = nil) {
+    init(startTab: Tab? = nil, answersLate: Int = 0) {
         self.startTab = startTab
+        self.answersLate = answersLate
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
         // `-open-map` and `-open-profile` raise the map and the profile sheet on launch, for
@@ -578,6 +620,7 @@ struct MainTabsView: View {
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
+        .onChange(of: answersLate) { Task { await townFeed.reload() } }
         .onChange(of: auth.userId) { old, new in
             // Another account, not the launch's saved one coming in: the last one's acceptances
             // leave the hello pill and the bell (hello-drop 06).
