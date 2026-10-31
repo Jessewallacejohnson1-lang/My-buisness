@@ -87,14 +87,18 @@ async function listen(games: Game[], rpc: (name: string, body: unknown) => Promi
 async function gameOf(data: unknown): Promise<unknown | null> {
   if (typeof data !== "string") return data ?? null
   if (!data.startsWith("GET:")) return parse(data)
-  // Only SIDEARM's own hosts: a push never sends this function anywhere else.
+  // Only SIDEARM's own hosts: a push never sends this function anywhere else. The game's file itself is on
+  // sidearmdev.com (api-realtime-stats.prod.sidearmdev.com, SJU football 2026-10-31): without it every push
+  // was dropped and the game never went live.
   let url: URL
   try {
     url = new URL(data.slice(4))
   } catch {
     return null
   }
-  if (url.protocol !== "https:" || !/(^|\.)(sidearmstats|sidearmsports)\.com$/.test(url.hostname)) return null
+  if (url.protocol !== "https:" || !/(^|\.)(sidearmstats|sidearmsports|sidearmdev)\.com$/.test(url.hostname)) {
+    return null
+  }
   const res = await fetch(url, { headers: UA })
   return res.ok ? parse(await res.text()) : null
 }
