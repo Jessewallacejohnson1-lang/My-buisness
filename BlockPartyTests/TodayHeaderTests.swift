@@ -411,6 +411,24 @@ final class TodayHeaderTests: XCTestCase {
 
         XCTAssertEqual(model.avatarUrl, savedAvatar)
     }
+
+    /// A photo read the account changed under never lands (BP app codebase-health 22): signed out,
+    /// the last account's photo stays gone.
+    func testHeaderProfileDropsAReadTheAccountChangeOvertook() async {
+        var answer: CheckedContinuation<Void, Never>?
+        let model = TodayHeaderProfileModel {
+            await withCheckedContinuation { answer = $0 }
+            return TownProfile(userId: "a", displayName: "A", avatarUrl: "photo-a", interests: [], onboardedAt: nil)
+        }
+        let read = Task { await model.refresh() }
+        while answer == nil { await Task.yield() }
+
+        model.accountChanged()
+        answer?.resume()
+        await read.value
+
+        XCTAssertNil(model.avatarUrl)
+    }
 }
 
 private struct HeaderBitmap {

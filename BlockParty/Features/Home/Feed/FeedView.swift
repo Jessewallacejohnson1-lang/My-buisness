@@ -14,6 +14,8 @@ final class TodayHeaderProfileModel {
     private(set) var avatarUrl: String?
 
     private let loadProfile: () async throws -> TownProfile?
+    /// Numbers each read, so one an account change overtook never lands.
+    @ObservationIgnored private var latestRead = 0
 
     init(loadProfile: @escaping () async throws -> TownProfile?) {
         self.loadProfile = loadProfile
@@ -26,12 +28,15 @@ final class TodayHeaderProfileModel {
     /// A failed refresh keeps the last good photo instead of making the header flash
     /// back to its placeholder during a transient network outage.
     func refresh() async {
-        guard let profile = try? await loadProfile() else { return }
+        latestRead += 1
+        let mine = latestRead
+        guard let profile = try? await loadProfile(), mine == latestRead else { return }
         avatarUrl = profile.avatarUrl
     }
 
     /// Another account, or none: the last one's photo goes until this one's is read.
     func accountChanged() {
+        latestRead += 1
         avatarUrl = nil
     }
 }
