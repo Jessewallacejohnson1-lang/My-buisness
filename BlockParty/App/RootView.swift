@@ -357,12 +357,6 @@ struct MainTabsView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.
-    private func recordOpen() {
-        guard auth.isSignedIn else { return }
-        Task { try? await CommunityAPI(auth: AuthStore.shared).recordOpen() }
-    }
-
     init(startTab: Tab? = nil, answersLate: Int = 0) {
         self.startTab = startTab
         self.answersLate = answersLate
@@ -372,10 +366,7 @@ struct MainTabsView: View {
         // screenshots: their real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
         _showProfileSheet = State(initialValue: LaunchFlags.has(.openProfile))
-        let actions = RealLifeActions()
-        _actions = State(initialValue: actions)
-        _townFeed = State(initialValue: TownFeed(actions: actions))
-        _searchModel = State(initialValue: SearchModel(actions: actions))
+        _session = State(initialValue: AppSession())
     }
 
     /// DEBUG-only: `-open-tab town|daily|search|you` launch argument selects
@@ -396,36 +387,24 @@ struct MainTabsView: View {
         return .town
     }
 
-    /// Search's places and recents, kept across tab switches so the tab doesn't fetch
-    /// the Town's places again each time it comes back. Its groups reads tell `actions`.
-    @State private var searchModel: SearchModel
-    /// The Town feed's events, kept here for the same reason: coming back to Town shows
-    /// the list it left while it reads again behind it.
-    @State private var townFeed: TownFeed
-    /// Each Event's Going for the session, which the Town feed's reads set and every
-    /// card and event page reads, so they agree (BP app docs/plans/real-life-actions).
-    @State private var actions: RealLifeActions
-    /// Friend requests, friends and the dot on the friends mark, kept here like `actions` so
-    /// a row and a person's page agree (BP app docs/plans/friends, ticket 03).
-    @State private var friendsBook = FriendsBook()
-    /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
-    /// to You shows the Calendar it left while it reads again behind it.
-    @State private var you = YouModel()
-    /// Profile's Saved list (ticket 04), kept here the same way.
-    @State private var saves = YouModel.saves()
-    /// Daily's Event of the day, kept here the same way (BP app daily-tab 14), and the Town
-    /// feed's top (event-card 03).
-    @State private var eventOfTheDay = EventOfTheDay()
+    /// The models every tab shares, and what an account change, coming back and going away do
+    /// to them (BP app codebase-health 22).
+    @State private var session: AppSession
+    private var searchModel: SearchModel { session.searchModel }
+    private var townFeed: TownFeed { session.townFeed }
+    private var actions: RealLifeActions { session.actions }
+    private var friendsBook: FriendsBook { session.friendsBook }
+    private var you: YouModel { session.you }
+    private var saves: YouModel { session.saves }
+    private var eventOfTheDay: EventOfTheDay { session.eventOfTheDay }
+    private var dayPicks: DailyDayPicks { session.dayPicks }
+    private var notices: Notices { session.notices }
     /// The day picked in Daily's week (daily-tab 16), nil for today: kept here so it stays while
-    /// you switch tabs, and a new launch opens on today. The other days' picks are kept with it.
+    /// you switch tabs, and a new launch opens on today.
     @State private var dailyDay: String?
-    @State private var dayPicks = DailyDayPicks()
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// What the bell holds: Events you follow or are Going to that were canceled or moved (BP app
-    /// docs/plans/school-activities, ticket 04). Nothing pops up; the bell gets a dot.
-    @State private var notices = Notices()
     /// The sample friends inbox and its chats, unreached until messaging (BP app
     /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -607,9 +586,13 @@ struct MainTabsView: View {
         .onChange(of: townFeed.entries?.map(\.id)) {
             HelloInbox.shared.look(at: townFeed.entries?.compactMap(\.card) ?? [])
         }
-        .onChange(of: auth.accountKey) {
-            friendsBook.reset()
-            Task { await friendsBook.refreshDot() }
+        // Another account, none, or the same one logged in for real: the session resets every
+        // model, then reads for this one, so Join comes up at once even on an event page already
+        // open. Here, not on the stack's root, which a pushed page covers. The key's first part
+        // is the account's id, "" for none.
+        .onChange(of: auth.accountKey) { old, _ in
+            session.accountChanged(from: old[0].isEmpty ? nil : old[0], to: auth.userId,
+                                   signedIn: auth.isSignedIn)
         }
         // Onboarding's Follow 3 picks wait on the phone until a signed-up account can take them
         // (BP app onboarding 22): at launch, and when one arrives.
@@ -619,33 +602,6 @@ struct MainTabsView: View {
         }
         // Onboarding's answers landed after the tabs opened: the feed reads again, sorted to them.
         .onChange(of: answersLate) { Task { await townFeed.reload() } }
-        // The quiet account arrives after the first read: Join comes up at once, even on
-        // an event page already open, and the feed reads again for who's going as this
-        // account sees it. Here, not on the stack's root, which a pushed page covers.
-        .onChange(of: auth.userId) { old, new in
-            // Another account, not the launch's saved one coming in: the last one's acceptances
-            // leave the hello pill and the bell (hello-drop 06).
-            if let old, old != new { HelloInbox.shared.forgetAccount() }
-            // Animated, so the heart and the going line come in rather than pop.
-            withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
-            // Views made before the first quiet account go up under it; another
-            // account's never do.
-            if old != nil { townFeed.accountChanged() }
-            you.accountChanged()
-            saves.accountChanged()
-            eventOfTheDay.accountChanged()
-            dayPicks.accountChanged()
-            Task { await townFeed.reload() }
-            // Whether you're in each group is this account's, once Search has read them.
-            if searchModel.groupsLoaded { Task { await searchModel.readGroupsAgain() } }
-            Task { await you.refresh() }
-            // The You row's groups, this account's.
-            Task { if let groups = await you.refreshGroups() { actions.read(groups) } }
-            Task { await eventOfTheDay.refresh() }
-            Task { await actions.moveUp(.shared) }
-            notices.reset()
-            Task { await notices.refresh() }
-        }
         // Event saves this phone kept before they moved to the server go up once, at
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }
@@ -660,24 +616,12 @@ struct MainTabsView: View {
                 await townFeed.send()
             }
         }
-        // A first launch makes its account after this screen appears.
-        .onChange(of: auth.isSignedIn) { _, signedIn in
-            if signedIn { recordOpen() }
-        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background {
-                Task { await townFeed.send(always: true) }
-            }
-            if phase == .active {
-                recordOpen()
-                Task { await friendsBook.refreshDot() }
-                Task { await notices.refresh() }
-                // Back the next morning on Daily: today's picks, not yesterday's.
-                if tab == .daily { Task { await eventOfTheDay.refresh() } }
-            }
+            if phase == .background { session.wentAway() }
+            if phase == .active { session.cameForward(on: tab) }
         }
         .onAppear {
-            recordOpen()
+            session.recordOpen()
             openLaunchPages()
         }
     }
