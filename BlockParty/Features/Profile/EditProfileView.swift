@@ -97,6 +97,7 @@ struct EditProfileView: View {
             HStack {
                 Button { Haptics.light(); dismiss() } label: {
                     Text("Cancel").font(.sans(16)).foregroundStyle(Hue.inkSecondary)
+                        .contentShape(TapArea())
                 }
                 .buttonStyle(.plain)
                 Spacer()

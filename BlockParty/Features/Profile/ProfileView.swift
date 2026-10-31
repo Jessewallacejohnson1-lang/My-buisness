@@ -367,6 +367,7 @@ struct AboutBlockPartySheet: View {
                     Image(systemName: "xmark")
                         .font(.sansSemibold(14)).foregroundStyle(Hue.ink)
                         .frame(width: 34, height: 34).background(Hue.fill, in: Circle())
+                        .contentShape(TapArea())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close About Block Party")

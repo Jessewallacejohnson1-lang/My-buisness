@@ -241,6 +241,8 @@ struct SJMapView: View {
             .foregroundStyle(Hue.ink)
             .frame(width: 44, height: 44)
             .glassEffect(.regular, in: Circle())
+            // The glass isn't hit-tested: without this only the glyph took a tap.
+            .contentShape(Circle())
     }
 
     // MARK: Actions

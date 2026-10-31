@@ -19,6 +19,17 @@ final class PageChromeTests: XCTestCase {
         XCTAssertEqual(fit(BackButton {}), CGSize(width: 44, height: 44))
     }
 
+    /// A small mark's tap area grows to 44 each way around its centre (BP app hit-targets); a big
+    /// one, or side 0, keeps its own.
+    func testTapAreaGrowsASmallMarkTo44AroundItsCentre() {
+        let line = TapArea().path(in: CGRect(x: 20, y: 96, width: 49, height: 20)).boundingRect
+        XCTAssertEqual(line, CGRect(x: 20, y: 84, width: 49, height: 44))
+        let row = CGRect(x: 0, y: 0, width: 284, height: 60)
+        XCTAssertEqual(TapArea().path(in: row).boundingRect, row)
+        XCTAssertEqual(TapArea(side: 0).path(in: CGRect(x: 0, y: 0, width: 30, height: 20)).boundingRect,
+                       CGRect(x: 0, y: 0, width: 30, height: 20))
+    }
+
     private func fit(_ view: some View) -> CGSize {
         UIHostingController(rootView: view).sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
     }

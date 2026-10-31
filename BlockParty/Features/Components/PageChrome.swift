@@ -25,6 +25,16 @@ nonisolated enum PageMetric {
     static let rowPressed: Double = 0.05
 }
 
+/// A tap area at least `side` each way, centred on what's drawn, for a mark whose size isn't fixed
+/// (words that follow the text size): `.contentShape(TapArea())`. Nothing drawn or laid out moves.
+nonisolated struct TapArea: Shape {
+    var side: CGFloat = PageMetric.tapMin
+
+    func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: min(0, (rect.width - side) / 2), dy: min(0, (rect.height - side) / 2)))
+    }
+}
+
 /// A pushed page's top: the back chevron at the left, the title in the middle, on paper the list
 /// passes under. `top` is how far down its sheet it sits; a page on the tab's own stack passes 0.
 struct PageBar: View {

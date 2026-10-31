@@ -287,7 +287,7 @@ private struct PersonRow: View {
             .buttonStyle(DimStyle())
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
-                NavigationLink(value: person) { NameAndMutual(person: person) }
+                NavigationLink(value: person) { NameAndMutual(person: person, grows: !waiting) }
                     .buttonStyle(DimStyle())
                 if waiting {
                     RelationButtons(person: person, logIn: logIn)
@@ -322,7 +322,7 @@ private struct SuggestionRow: View {
             }
             .buttonStyle(DimStyle())
             .accessibilityHidden(true)
-            NavigationLink(value: person) { NameAndMutual(person: person, suggested: true) }
+            NavigationLink(value: person) { NameAndMutual(person: person, suggested: true, grows: true) }
                 .buttonStyle(DimStyle())
             HStack(spacing: 0) {
                 // As wide as its words, with this page's 14 pt sides (Instagram's Follow is 96).
@@ -387,6 +387,8 @@ private struct NameAndMutual: View {
     let person: Neighbor
     var nameFont: Font = .sansSemibold(17)
     var suggested = false
+    /// Its tap area grows to 44 pt; not where buttons sit 4 pt under it (a request, a result).
+    var grows = false
     @Environment(FriendsBook.self) private var book
 
     var body: some View {
@@ -405,7 +407,7 @@ private struct NameAndMutual: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
+        .contentShape(TapArea(side: grows ? PageMetric.tapMin : 0))
     }
 }
 
