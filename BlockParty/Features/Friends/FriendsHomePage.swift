@@ -51,10 +51,6 @@ extension FriendsMetric {
     static let moreTrail: CGFloat = 7
     /// The check before "Friends" on its button. (picked)
     static let iconGap: CGFloat = 6
-    /// A suggestion's Add friend, at the row's end as Instagram's Follow (96 wide there, measured
-    /// in BP app references/friend-suggestions/ig-94d60aee.jpg): this page's 15 pt label and 14 pt
-    /// sides make "Add friend" 104. (picked)
-    static let suggestButton: CGFloat = 104
 }
 
 struct FriendsHomePage: View {
@@ -329,8 +325,9 @@ private struct SuggestionRow: View {
             NavigationLink(value: person) { NameAndMutual(person: person, suggested: true) }
                 .buttonStyle(DimStyle())
             HStack(spacing: 0) {
+                // As wide as its words, with this page's 14 pt sides (Instagram's Follow is 96).
                 RelationButtons(person: person, logIn: logIn)
-                    .frame(width: FriendsMetric.suggestButton)
+                    .fixedSize()
                 RemoveSuggestionButton(person: person, ink: Hue.ink)
             }
         }
