@@ -434,4 +434,67 @@ final class DailyPageTests: XCTestCase {
         let friday = DailyEvent.friendsGoing(from: cards, days: ["2026-10-23"], now: dayStart, without: [])
         XCTAssertEqual(friday.map(\.item.title), ["Three, Friday"])
     }
+
+    // MARK: The page's sections (`DailyLists.make`)
+
+    /// Thursday's cards: Latte art is from a place you follow, and Live jazz, Latte art and Trivia
+    /// night have friends going.
+    private func thursday() -> [FeedCardItem] {
+        var latte = dayCard("Latte art", day: "2026-10-22", at: "9 AM", friends: ["Kim"])
+        latte.followed = "Local Blend"
+        return [dayCard("Live jazz", day: "2026-10-22", at: "7 PM", friends: ["Kim"]), latte,
+                dayCard("Trivia night", day: "2026-10-22", at: "6 PM", friends: ["Ana", "Ben"]),
+                dayCard("Live band", day: "2026-10-22", at: "8 PM"),
+                dayCard("Book club", day: "2026-10-22", at: "6 PM")]
+    }
+
+    /// The page for the week's `day` (0 today), `picks` its Event of the day, for live music and coffee.
+    @MainActor
+    private func page(_ cards: [FeedCardItem], at now: Date, day: Int = 0, picks: [String],
+                      topic: String? = nil) -> DailyLists {
+        let week = DailyWeek.days(from: now)
+        return DailyLists.make(day: week[day], week: week, now: now,
+                               picks: cards.filter { picks.contains($0.id) }.compactMap { YouCalendar.event(from: $0) },
+                               cards: cards, interests: ["live_music", "coffee"], topic: topic,
+                               isGoing: { _ in false }, isSaved: { _ in false })
+    }
+
+    /// Each section leaves out what one above it shows, and what you follow is Following's alone,
+    /// so nothing is on the page twice (SPEC.md, school-activities 03).
+    @MainActor
+    func testNothingShowsTwiceOnOnePage() {
+        let lists = page(thursday(), at: dayStart.addingTimeInterval(8 * 3600), picks: ["Live jazz"])
+        XCTAssertEqual(lists.events.map(\.id), ["Live jazz"])
+        XCTAssertEqual(lists.following.compactMap(\.event?.id), ["Latte art"])
+        XCTAssertEqual(lists.friendsGoing.map(\.id), ["Trivia night"])
+        XCTAssertEqual(lists.suggestions.map(\.id), ["Live band"])
+        XCTAssertEqual(Set(lists.items.map(\.id)).count, lists.items.count)
+    }
+
+    /// A topic keeps only its own, in every section (daily-tab 19).
+    @MainActor
+    func testATopicKeepsOnlyItsOwn() {
+        let now = dayStart.addingTimeInterval(8 * 3600)
+        XCTAssertTrue(page(thursday(), at: now, picks: ["Live jazz"]).items.contains { !DailyTopic.matches($0, "live_music") })
+        let music = page(thursday(), at: now, picks: ["Live jazz"], topic: "live_music")
+        XCTAssertEqual(music.items.map(\.id), ["Live jazz", "Live band"])
+        XCTAssertTrue(music.following.isEmpty)
+    }
+
+    /// A day picked in the week reads from its midnight: at 3 PM Thursday, Saturday's 9 AM is still to
+    /// come in every section, and only Saturday's friends are going (daily-tab 21).
+    @MainActor
+    func testPickingSaturdayHidesNothingOfSaturday() {
+        var club = dayCard("Run club", day: "2026-10-24", at: "9 AM")
+        club.followed = "Run club"
+        let cards = [dayCard("Market", day: "2026-10-24", at: "9 AM", friends: ["Kim"]),
+                     dayCard("Jazz brunch", day: "2026-10-24", at: "10 AM"),
+                     dayCard("Coffee tasting", day: "2026-10-24", at: "9 AM"), club,
+                     dayCard("Trivia night", day: "2026-10-22", at: "6 PM", friends: ["Ana"])]
+        let saturday = page(cards, at: dayStart.addingTimeInterval(15 * 3600), day: 2, picks: ["Jazz brunch"])
+        XCTAssertEqual(saturday.events.map(\.id), ["Jazz brunch"])
+        XCTAssertEqual(saturday.following.compactMap(\.event?.id), ["Run club"])
+        XCTAssertEqual(saturday.friendsGoing.map(\.id), ["Market"])
+        XCTAssertEqual(saturday.suggestions.map(\.id), ["Coffee tasting"])
+    }
 }

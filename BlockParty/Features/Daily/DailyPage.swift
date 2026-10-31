@@ -214,6 +214,40 @@ struct DailyLists {
     var items: [FeedCardItem] {
         (events + friendsGoing + suggestions).map(\.item) + following.compactMap { $0.event?.item }
     }
+
+    /// `day`'s sections, `week` being today and the six days after it. Each leaves out what one
+    /// above it shows (SPEC.md); a topic keeps only its own. `picks` are the day's Event of the day
+    /// picks, `cards` the Town feed's.
+    static func make(day: DailyWeekDay, week: [DailyWeekDay], now: Date, picks: [DailyEvent],
+                     cards: [FeedCardItem], interests: [String], topic: String?,
+                     isGoing: (FeedCardItem) -> Bool, isSaved: (FeedCardItem) -> Bool) -> DailyLists {
+        let isToday = day == week.first
+        // Another day's sections read from its midnight, so all of that day is still to come.
+        let clock = isToday ? now : day.start
+        let fits = { (item: FeedCardItem) in topic.map { DailyTopic.matches(item, $0) } ?? true }
+        let events = DailyEvent.showing(picks.filter { fits($0.item) }, now: clock, limit: 3)
+        // Today looks a week ahead; a day picked in the week, that day (Jesse, daily-tab 21).
+        let friendDays = Set(isToday ? week.map(\.id) : [day.id])
+        // What you follow is Following's: what that section shows, no section above takes
+        // (school-activities 03).
+        let following = DailyFollowing.showing(
+            DailyFollowing.today(from: cards, day: day.id, now: clock)
+                .filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
+            now: clock, without: events, limit: 10)
+        let followed = Set(following.compactMap(\.event?.id))
+        let cards = cards.filter { !followed.contains($0.id) }
+        let friendsGoing = (DailyEvent.sampleFriendsGoing(now: clock)
+            ?? DailyEvent.friendsGoing(from: cards, days: friendDays, now: clock, without: events))
+            .filter { fits($0.item) }
+        // Suggestions never offer what you're Going to or saved (SPEC.md).
+        func left(_ item: FeedCardItem) -> Bool { fits(item) && !isGoing(item) && !isSaved(item) }
+        let suggestions = DailyEvent.sampleSuggestions(now: clock).map {
+            DailyEvent.showing($0.filter { left($0.item) }, now: clock, without: events + friendsGoing,
+                               limit: DailyRowMetric.limit)
+        } ?? DailyEvent.suggestions(from: cards, day: day.id, interests: interests, now: clock,
+                                    without: events + friendsGoing, left: left)
+        return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following)
+    }
 }
 
 struct DailyPage: View {
@@ -259,35 +293,11 @@ struct DailyPage: View {
     private func page(now: Date, days: [DailyWeekDay], shown: String) -> some View {
         let day = days.first { $0.id == shown } ?? days[0]
         let isToday = day == days[0]
-        // Another day's sections read from its midnight, so all of that day is still to come.
-        let clock = isToday ? now : day.start
         let interests = Interests.get()
-        // Each section leaves out what one above it shows (SPEC.md); a topic keeps only its own.
         func lists(_ topic: String?) -> DailyLists {
-            let fits = { (item: FeedCardItem) in topic.map { DailyTopic.matches(item, $0) } ?? true }
-            let events = DailyEvent.showing((isToday ? self.events : dayPicks.picks[day.id] ?? []).filter { fits($0.item) },
-                                            now: clock, limit: 3)
-            // Today looks a week ahead; a day picked in the week, that day (Jesse, daily-tab 21).
-            let friendDays = Set(isToday ? days.map(\.id) : [day.id])
-            // What you follow is Following's: what that section shows, no section above takes
-            // (school-activities 03).
-            let following = DailyFollowing.showing(
-                DailyFollowing.today(from: cards, day: day.id, now: clock)
-                    .filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
-                now: clock, without: events, limit: 10)
-            let followed = Set(following.compactMap(\.event?.id))
-            let cards = self.cards.filter { !followed.contains($0.id) }
-            let friendsGoing = (DailyEvent.sampleFriendsGoing(now: clock)
-                ?? DailyEvent.friendsGoing(from: cards, days: friendDays, now: clock, without: events))
-                .filter { fits($0.item) }
-            // Suggestions never offer what you're Going to or saved (SPEC.md).
-            let left = { (item: FeedCardItem) in fits(item) && !actions.going(item).isGoing && !actions.saved(item) }
-            let suggestions = DailyEvent.sampleSuggestions(now: clock).map {
-                DailyEvent.showing($0.filter { left($0.item) }, now: clock, without: events + friendsGoing,
-                                   limit: DailyRowMetric.limit)
-            } ?? DailyEvent.suggestions(from: cards, day: day.id, interests: interests, now: clock,
-                                        without: events + friendsGoing, left: left)
-            return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following)
+            DailyLists.make(day: day, week: days, now: now, picks: isToday ? events : dayPicks.picks[day.id] ?? [],
+                            cards: cards, interests: interests, topic: topic,
+                            isGoing: { actions.going($0).isGoing }, isSaved: { actions.saved($0) })
         }
         let all = lists(nil)
         // The day's topics come from all it has. A topic the day lacks reads as "Best of" there and
