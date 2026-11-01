@@ -22,10 +22,10 @@ struct DailyEvent: Identifiable {
 
     var id: String { item.id }
 
-    var photo: URL? {
-        if case .eventPhoto(let url) = item.image { return url }
-        return nil
-    }
+    /// Its square's photo: the Town card's pick (`FeedCardItem.image`, its own photo first, else
+    /// its place's), so an Event whose only photo is its place's never shows the grey square on
+    /// the Agenda or in Saved. nil for a logo and for none.
+    var photo: URL? { item.image.url }
 
     /// The card's time: "Now" while it's on (a run over days too, as the Town card), else when
     /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
