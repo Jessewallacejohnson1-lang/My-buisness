@@ -42,8 +42,11 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         var time: String? = nil
         /// Only when it isn't the group's usual place.
         var place: String? = nil
+        /// Read from the group's own calendar and outside St. Joseph (a St. Cloud club's other runs): it shows on
+        /// the Group page, but the hello leaves it out.
+        var away: Bool? = nil
 
-        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where" }
+        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where", away }
     }
 
     let id: String

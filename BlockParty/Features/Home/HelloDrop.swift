@@ -132,7 +132,7 @@ enum HelloDrop {
             return Message(text: "\(event.item.title) is today\(at)", target: .event(event.item))
         }
         let meetings = groups.filter(\.joined).compactMap { group in
-            group.meetings.first { $0.day == today }.map { (group, $0) }
+            group.meetings.first { $0.day == today && $0.away != true }.map { (group, $0) }
         }
         if let (group, meeting) = meetings.first {
             let minutes = EventWhen.minutes(meeting.time)
