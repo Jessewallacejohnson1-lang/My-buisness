@@ -75,7 +75,7 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// would make the gate cry wolf; move to them if this ever masks a real one.
     static let knownIssueCounts: [String: Int] = [
         "town@AX3": 4,            "town@AX5": 4,
-        "town-menu@AX3": 6,       "town-menu@AX5": 5,
+        "town-menu@AX3": 5,       "town-menu@AX5": 5,
         "town-scrolled@AX3": 2,   "town-scrolled@AX5": 1,
         "you@AX3": 3,             "you@AX5": 3,
         "you-profile@AX3": 3,     "you-profile@AX5": 3,
