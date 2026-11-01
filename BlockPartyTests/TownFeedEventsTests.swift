@@ -584,7 +584,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
-        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New since your last visit")
+        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New")
         XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")

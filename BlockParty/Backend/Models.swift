@@ -532,7 +532,7 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
     /// nil for your own plans, which are in neither (town-feed 31).
     var pool: String? = nil
-    /// Points for being new since your last visit (town-feed 36).
+    /// Points for being new: in the feed since your last visit or the last 24 hours, unseen (town-feed 36, 38).
     var new: Double? = nil
 }
 
