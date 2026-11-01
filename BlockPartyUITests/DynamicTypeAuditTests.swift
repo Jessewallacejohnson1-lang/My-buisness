@@ -61,14 +61,13 @@ final class DynamicTypeAuditTests: XCTestCase {
     ///    Event of the day, Agenda, Suggestions and Following are still to come.
     ///  • `search` — a `BlankTab` placeholder. A title and one promise line: there
     ///    is no layout here to hold or break yet.
-    ///  • `you` / `you-profile` — `ProfileView`. A real screen, but still moving,
+    ///  • `you` — `ProfileView`, your Profile since five-tabs 03. A real screen, but still moving,
     ///    and its unfinished states are what the auditor was reporting: "No plans
     ///    yet", "a neighbor", "Around town".
     static let notDevelopedYet: [Surface] = [
         Surface(id: "daily", arguments: ["-open-tab", "daily", "-daily-samples"]),
         Surface(id: "search", arguments: ["-open-tab", "search"]),
         Surface(id: "you", arguments: ["-open-tab", "you"]),
-        Surface(id: "you-profile", arguments: ["-open-tab", "you", "-open-profile"]),
     ]
 
     /// The two sizes Apple's App Store "Larger Text" criteria names by name. AX5 is

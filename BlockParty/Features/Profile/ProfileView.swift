@@ -1,10 +1,10 @@
 //
 //  ProfileView.swift
-//  Block Party — Profile, in Apple's standard sheet from your photo at the top left of the You
-//  tab (BP app docs/plans/you-tab): your own profile page (`ProfilePage`, BP app
-//  references/profile-remake), with Edit profile and Settings in white circles on the cover. Your
-//  settings, Saved among them, push from ☰ inside the sheet's own stack (`RootView`), as Saved
-//  did, so nothing stacks a sheet on the sheet.
+//  Block Party — the You tab: your Profile (five-tabs 03), the profile page (`ProfilePage`, BP app
+//  references/profile-remake) with your full Calendar and Agenda under "Going" (`YouPage`), where a
+//  neighbour's page has its Going rows; only you see them. Edit profile and Settings sit in white
+//  circles on the cover; your settings, Saved among them, push from ☰ on the shell's stack, over
+//  the tab bar, as an Event page does.
 //
 //  Motion: the house SpringReveal cascade on Settings; press-scale on every control.
 //
@@ -12,16 +12,22 @@
 import SwiftUI
 
 struct ProfileView: View {
+    /// Your name, photo, cover and switches, kept in the shell (`AppSession`) so coming back to You
+    /// shows them at once while they read again.
+    @ObservedObject var model: ProfileModel
     /// Profile's Saved list, kept in the shell so a second visit shows the last list at once.
     let saves: YouModel
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var auth: AuthStore
     @Environment(CalendarSync.self) private var calendarSync
+    /// For Muted and Following: a page pushed on the shell's stack reads the stack's environment,
+    /// not this page's, so each link hands these on (`RootView` gives them to the You tab).
+    @Environment(TownFeed.self) private var townFeed
+    @Environment(SearchModel.self) private var searchModel
     @Environment(FriendsBook.self) private var friendsBook
     @Environment(RealLifeActions.self) private var actions
     /// Your three weeks of Going and the Town's groups, the You tab's (`RootView`).
     @Environment(YouModel.self) private var you
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var model = ProfileModel()
 
     @State private var revealed = false
     @State private var editing = ProfileView.debugEdit()
@@ -48,7 +54,7 @@ struct ProfileView: View {
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            ProfilePage(face: face(now: context.date)) {
+            ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 })) {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
                     FeedEventDetailDestination.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile",
@@ -63,26 +69,23 @@ struct ProfileView: View {
                     }
                 }
             } bar: {
-                EmptyView()
+                // Room for the tab bar under your Groups, as every tab leaves.
+                Color.clear.frame(height: DailyMetric.tabBarClearance - FeedEventDetailDestination.Metric.contentBottom)
             } addBio: {
                 Haptics.selection()
                 editing = true
             } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
-        .onAppear { debugAutoClose() }
-        .task { await model.load() }
-        .task {
-            if you.going == nil { await you.refresh() }
-            if you.groups == nil { await you.refreshGroups() }
-        }
+        // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
+        .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage }
         .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
     }
 
-    /// Your page: your next three plans and how many in the three weeks, the groups you're in
-    /// (this session's joins laid over the read, as You's row), your bio or "+ Add bio".
+    /// Your page: how many plans in the three weeks (the Calendar shows them, `YouPage`), the groups
+    /// you're in (this session's joins laid over the read), your bio or "+ Add bio".
     private func face(now: Date) -> ProfileFace {
         let first = YouCalendar.firstDay(of: now)
         let going = you.going.map {
@@ -99,20 +102,10 @@ struct ProfileView: View {
             line: subLine,
             friends: model.extras?.friends,
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
-            going: plans?.rows,
             goingCount: plans?.count,
             addsBio: bio.isEmpty && model.canDescribe,
             coverKnown: model.loaded,
             now: now)
-    }
-
-    /// DEBUG-only: `-profile-autoclose` dismisses the sheet ~1.6s after open so the
-    /// close motion can be recorded headlessly (no tap driving).
-    private func debugAutoClose() {
-        #if DEBUG
-        guard LaunchFlags.has(.profileAutoclose) else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { dismiss() }
-        #endif
     }
 
     private var subLine: String {
@@ -123,7 +116,7 @@ struct ProfileView: View {
 
     // MARK: - Settings
 
-    /// Today's rows, pushed from ☰ under Saved's top (`SavedPage`): the sheet's own stack.
+    /// Today's rows, pushed from ☰ under Saved's top (`SavedPage`), on the shell's stack.
     private var settingsPage: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
@@ -136,7 +129,7 @@ struct ProfileView: View {
                     if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
                         signOutButton.springReveal(2, revealed: revealed).id("bottom")
                     }
-                    // A sheet has no tab bar under it and only needs breathing room.
+                    // Pushed over the tab bar, so it only needs breathing room.
                     Color.clear.frame(height: 40)
                 }
                 .padding(.horizontal, 18)
@@ -157,13 +150,14 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
         .confirmationDialog("Sign out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
+            // Back to You, which starts over for the account that follows (`AppSession`).
+            Button("Sign out", role: .destructive) { Task { await model.signOut(); settings = false } }
             Button("Cancel", role: .cancel) {}
         }
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the
-    /// bottom of the sheet can be screenshotted headlessly. No effect in release.
+    /// bottom of Settings can be screenshotted headlessly. No effect in release.
     private func debugScrollBottom(_ proxy: ScrollViewProxy) {
         #if DEBUG
         guard LaunchFlags.has(.profileBottom) else { return }
@@ -223,7 +217,7 @@ struct ProfileView: View {
                 // have blocked anyone.
                 if !friendsBook.isAnonymous() {
                     // `following-row` (follows 02), beside Blocked.
-                    NavigationLink { FollowingPage() } label: {
+                    NavigationLink { FollowingPage().environment(searchModel) } label: {
                         ProfileRow(icon: "person.2", title: "Following")
                     }
                     .buttonStyle(PressableStyle())
@@ -234,7 +228,7 @@ struct ProfileView: View {
                     .buttonStyle(PressableStyle())
                     ProfileRowDivider()
                     // `muted-row` (town-feed 21): the hosts you muted from a Town card.
-                    NavigationLink { MutedPage() } label: {
+                    NavigationLink { MutedPage().environment(townFeed) } label: {
                         ProfileRow(icon: "speaker.slash", title: "Muted")
                     }
                     .buttonStyle(PressableStyle())
