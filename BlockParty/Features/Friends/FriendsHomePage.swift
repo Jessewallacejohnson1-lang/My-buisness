@@ -235,8 +235,9 @@ struct FriendsHomePage: View {
     }
 
     /// Events in the next three weeks your friends are going to, soonest first (Daily's own
-    /// filter: a friend's "Show my plans to friends" off already keeps them off a card).
-    private var going: [DailyEvent] { Self.going(cards, now: Date()) }
+    /// filter: a friend's "Show my plans to friends" off already keeps them off a card). Under
+    /// DEBUG `-daily-samples`, Daily's sample ones, since the Town samples carry no days.
+    private var going: [DailyEvent] { DailyEvent.sampleFriendsGoing(now: Date()) ?? Self.going(cards, now: Date()) }
 
     static func going(_ cards: [FeedCardItem], now: Date) -> [DailyEvent] {
         let days = Set((0..<FriendsMetric.goingDays).compactMap {
