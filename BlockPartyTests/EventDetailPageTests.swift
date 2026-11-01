@@ -7,6 +7,7 @@
 //  `RealLifeActions`', tested in RealLifeActionsTests.
 //
 
+import SwiftUI
 import UIKit
 import XCTest
 @testable import BlockParty
