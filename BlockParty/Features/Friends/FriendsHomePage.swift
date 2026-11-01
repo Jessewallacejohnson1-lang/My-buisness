@@ -57,6 +57,9 @@ extension FriendsMetric {
     static let groupTile: CGFloat = 56
     static let groupTileRadius: CGFloat = 12
     static let joinPill: CGFloat = 32
+    /// A Group just joined holds its Joined this long before it moves up into your row:
+    /// Attend's hold (taste buttons-and-pills 2026-10-19).
+    static let joinedHold: Duration = .milliseconds(750)
     /// Join's words in from each end: the pill's Club size (`MeetupPillStyle.sidePadding`).
     static let joinSide: CGFloat = 16
     /// "Groups to join" under your own Groups: 13pt grey, 6pt over the rows.
@@ -90,12 +93,16 @@ struct FriendsHomePage: View {
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
     @State private var signingIn = false
+    /// Groups just joined, still in Groups to join showing Joined until `joinedHold` is up.
+    @State private var holding: Set<String> = []
 
     private var typing: Bool { !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     /// What the search found, less anyone you just blocked.
     private var found: NeighborSearch.State { book.visible(search.state) }
 
     var body: some View {
+        // Worked out once a draw: the rows, the empty check and the animation all read them.
+        let groups = self.groups, going = self.going
         ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
@@ -110,12 +117,13 @@ struct FriendsHomePage: View {
                         .padding(.horizontal, FriendsMetric.side)
                         .padding(.top, FriendsMetric.titleToField)
                         .padding(.bottom, FriendsMetric.resultsTop)
-                    if typing { results } else { home }
+                    if typing { results } else { home(groups: groups, going: going) }
                     if tab { Color.clear.frame(height: DailyMetric.tabBarClearance) }
                 }
                 .padding(.top, PageMetric.bar)
                 // A Group joined leaves Groups to join for your own row.
-                .animation(reduceMotion ? nil : Motion.smooth, value: groupIDs)
+                .animation(reduceMotion ? nil : Motion.smooth,
+                           value: groups.mine.map(\.id) + ["|"] + groups.open.map(\.id))
             }
             .scrollDismissesKeyboard(.immediately)
             .onScrollGeometryChange(for: Bool.self) { geo in
@@ -140,6 +148,8 @@ struct FriendsHomePage: View {
             search.search(words)
             Task { await book.refresh() }
             Task { await book.refreshSuggestions() }
+            // An account change lets go of the last one's groups (AppSession): read them again.
+            Task { await refreshGroups() }
         }
         // Read on every visit; once drawn, the dot clears and accepted lines count as seen.
         .task {
@@ -147,7 +157,7 @@ struct FriendsHomePage: View {
             await book.seen()
         }
         .task { await book.refreshSuggestions() }
-        .task { if let groups = await you.refreshGroups() { actions.read(groups) } }
+        .task { await refreshGroups() }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)
@@ -156,21 +166,26 @@ struct FriendsHomePage: View {
     /// Nothing typed: the accepted lines, Requests, Friends are going, Groups, Suggested for you
     /// and Your friends, in one list keyed by person, so a confirmed request slides down into
     /// Your friends.
-    @ViewBuilder private var home: some View {
+    @ViewBuilder private func home(groups: (mine: [TownGroup], open: [TownGroup]), going: [DailyEvent]) -> some View {
         if search.state == .needsAccount {
             LogInToFindRow { signingIn = true }
+            // Groups read with no account too, and Join asks for one: never an empty tab.
+            if !groups.open.isEmpty {
+                FriendsSectionTitle(text: "Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil)
+                groupsBlock(groups)
+            }
         } else {
             // Ways in under the search, for a real account (friends 05).
             FriendsWaysCard()
             if !book.loaded {
                 if book.failed { FailedLine() } else { LoadingRows() }
-            } else if book.isEmpty, groups.mine.isEmpty, groups.open.isEmpty, book.suggested.isEmpty {
-                // Nothing at all to show (a read of the groups failed too): the page that invites,
-                // in place of Apple's empty page. A new neighbour otherwise gets Groups to join and
+            } else if book.isEmpty, you.groups != nil, groups.mine.isEmpty, groups.open.isEmpty, book.suggested.isEmpty {
+                // Nothing at all to show once the groups have been read: the page that invites, in
+                // place of Apple's empty page. A new neighbour otherwise gets Groups to join and
                 // Suggested for you (Jesse, five-tabs mock round 1).
                 FriendsEmptyInvite()
             }
-            ForEach(book.loaded ? rows : []) { row in
+            ForEach(book.loaded ? rows(groups: groups, going: going) : []) { row in
                 switch row {
                 case .accepted(let person): AcceptedLine(person: person)
                 case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
@@ -179,9 +194,7 @@ struct FriendsHomePage: View {
                     DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
                                  titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: Date(),
                                  side: FriendsMetric.side)
-                case .groups: FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown))) {
-                    signingIn = true
-                }
+                case .groups: groupsBlock(groups)
                 case .suggested: PeopleYouMayKnowSection(people: book.suggested, title: nil, side: FriendsMetric.side)
                 }
             }
@@ -208,13 +221,31 @@ struct FriendsHomePage: View {
         }
     }
 
-    private var rows: [Row] {
+    /// Your groups' row and the first Groups to join, a join holding its Joined first.
+    private func groupsBlock(_ groups: (mine: [TownGroup], open: [TownGroup])) -> some View {
+        FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown)),
+                      logIn: { signingIn = true }, joined: hold)
+    }
+
+    /// Joined shows on its row, then the group moves up into yours.
+    private func hold(_ group: TownGroup) {
+        holding.insert(group.id)
+        Task {
+            try? await Task.sleep(for: FriendsMetric.joinedHold)
+            _ = holding.remove(group.id)
+        }
+    }
+
+    private func refreshGroups() async {
+        if let groups = await you.refreshGroups() { actions.read(groups) }
+    }
+
+    private func rows(groups: (mine: [TownGroup], open: [TownGroup]), going: [DailyEvent]) -> [Row] {
         // `friends-sections`, in the mock's order (five-tabs 02).
         var rows = book.accepted.map(Row.accepted)
         let requests = book.requests, friends = book.friends
         if !requests.isEmpty { rows += [.title("Requests", more: nil)] + requests.map { .person($0, waiting: true) } }
         if !going.isEmpty { rows += [.title("Friends are going", more: nil), .going] }
-        let groups = self.groups
         if !groups.mine.isEmpty || !groups.open.isEmpty {
             rows += [.title("Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil), .groups]
         }
@@ -246,17 +277,18 @@ struct FriendsHomePage: View {
         return DailyEvent.friendsGoing(from: cards, days: days, now: now, without: [], soonestFirst: true)
     }
 
-    /// Your groups, in Search's order, and the rest, soonest get-together first.
+    /// Your groups, in Search's order, and the rest, soonest get-together first; one just joined
+    /// stays with the rest while it shows Joined.
     private var groups: (mine: [TownGroup], open: [TownGroup]) {
-        Self.groups(you.groups ?? [], member: { actions.member($0).isMember })
+        Self.groups(you.groups ?? [], member: { actions.member($0).isMember && !holding.contains($0.id) }, now: Date())
     }
 
-    private var groupIDs: [String] { groups.mine.map(\.id) + ["|"] + groups.open.map(\.id) }
-
-    static func groups(_ all: [TownGroup], member: (TownGroup) -> Bool) -> (mine: [TownGroup], open: [TownGroup]) {
-        // "2026-11-03 18:00"; "~" sorts after every digit, so a group with no get-together worked
-        // out (or no time) comes after those that have one; ties keep Search's order.
-        func next(_ group: TownGroup) -> String { group.meetings.first.map { $0.day + " " + ($0.time ?? "~") } ?? "~" }
+    static func groups(_ all: [TownGroup], member: (TownGroup) -> Bool, now: Date) -> (mine: [TownGroup], open: [TownGroup]) {
+        // "2026-11-03 18:00"; "~" sorts after every digit, so a group with no get-together still
+        // to come (or no time) comes after those that have one; ties keep Search's order.
+        func next(_ group: TownGroup) -> String {
+            GroupJoinRow.next(group, now: now).map { $0.day + " " + ($0.time ?? "~") } ?? "~"
+        }
         let open = all.filter { !member($0) }.enumerated().sorted { a, b in
             next(a.element) != next(b.element) ? next(a.element) < next(b.element) : a.offset < b.offset
         }.map(\.element)

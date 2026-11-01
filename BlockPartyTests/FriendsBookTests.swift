@@ -194,16 +194,34 @@ final class FriendsBookTests: XCTestCase {
     func testGroupsToJoinGoSoonestFirstAndYoursKeepTheirOrder() {
         let all = [Self.group("Quilts", "2026-11-04", "09:00"), Self.group("Lions", "2026-11-03", "18:00"),
                    Self.group("Legion", "2026-11-03", "13:30"), Self.group("Walkers"), Self.group("Books", "2026-11-02")]
-        let split = FriendsHomePage.groups(all, member: { ["Quilts", "Books"].contains($0.id) })
+        let sunday = Self.townDate(2026, 11, 1, hour: 12)
+        let split = FriendsHomePage.groups(all, member: { ["Quilts", "Books"].contains($0.id) }, now: sunday)
         XCTAssertEqual(split.mine.map(\.id), ["Quilts", "Books"])
         XCTAssertEqual(split.open.map(\.id), ["Legion", "Lions", "Walkers"])
     }
 
-    /// "Meets tonight 6 PM", the bell's short words after "Meets", then the members once there are any.
-    func testAGroupToJoinSaysWhenItMeetsNext() {
+    /// A get-together from earlier today is over: the next one counts, and with none the group goes last.
+    func testAGetTogetherThatHasStartedIsPassedOver() {
+        let monday = Self.townDate(2026, 11, 2, hour: 12)
+        var knights = Self.group("Knights", "2026-11-02", "08:30")
+        knights.meetings.append(.init(what: "Breakfast", day: "2026-11-09", time: "08:30"))
+        let early = Self.group("Early", "2026-11-02", "09:00")
+        let tonight = Self.group("Tonight", "2026-11-02", "18:00")
+        XCTAssertEqual(GroupJoinRow.line(knights, members: 0, now: monday), "Meets Nov 9")
+        XCTAssertNil(GroupJoinRow.line(early, members: 0, now: monday))
+        XCTAssertEqual(FriendsHomePage.groups([early, knights, tonight], member: { _ in false }, now: monday).open.map(\.id),
+                       ["Tonight", "Knights", "Early"])
+    }
+
+    private static func townDate(_ year: Int, _ month: Int, _ day: Int, hour: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
-        let monday = calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 12))!
+        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+
+    /// "Meets tonight 6 PM", the bell's short words after "Meets", then the members once there are any.
+    func testAGroupToJoinSaysWhenItMeetsNext() {
+        let monday = Self.townDate(2026, 11, 2, hour: 12)
         func line(_ day: String?, _ time: String?, members: Int = 0) -> String? {
             GroupJoinRow.line(Self.group("G", day, time), members: members, now: monday)
         }

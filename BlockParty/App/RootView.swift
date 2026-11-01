@@ -931,8 +931,9 @@ nonisolated enum TabBarMetric {
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25
     /// How far the Friends icon's frame runs past its ink on the right and top, so its dot
-    /// sits on the ink's corner: the Town bar's measure for the same symbol at 19pt
-    /// (2026-10-13), carried over at 19.5 (GUESSED until the after frames measure it).
+    /// sits on the ink's corner: the Town bar's measure for the same symbol at 19pt (2026-10-13).
+    /// MEASURED at 19.5 on BP Build (2026-11-01): the dot's centre lands at 220.5, 853.8 against
+    /// the rule's 220.7, 853.7 (the ink's top right, 2pt in).
     static let friendsInkRight: CGFloat = 3.3
     static let friendsInkTop: CGFloat = 1.5
     /// How far past the first and last centres the Lens may travel. MEASURED at the

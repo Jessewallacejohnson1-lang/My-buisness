@@ -14,6 +14,8 @@ struct FriendsGroups: View {
     let mine: [TownGroup]
     let open: [TownGroup]
     let logIn: () -> Void
+    /// A Join that took: the page holds the row's Joined before moving it up.
+    var joined: (TownGroup) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -27,7 +29,7 @@ struct FriendsGroups: View {
                     .padding(.bottom, FriendsMetric.subBottom)
                     .accessibilityAddTraits(.isHeader)
             }
-            ForEach(open) { GroupJoinRow(group: $0, logIn: logIn) }
+            ForEach(open) { GroupJoinRow(group: $0, logIn: logIn, joined: joined) }
         }
     }
 }
@@ -59,6 +61,7 @@ struct GroupCircles: View {
 struct GroupJoinRow: View {
     let group: TownGroup
     let logIn: () -> Void
+    var joined: (TownGroup) -> Void = { _ in }
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -105,15 +108,26 @@ struct GroupJoinRow: View {
     }
 
     private func toggle() {
-        guard actions.member(group).isMember || !actions.needsSignUp else { logIn(); return }
+        let joining = !actions.member(group).isMember
+        guard !joining || !actions.needsSignUp else { logIn(); return }
         actions.toggleMember(group)
+        if joining { joined(group) }
+    }
+
+    /// Its next get-together still to come: a timed one before it starts, an untimed one through
+    /// its day. `get_groups` can still list one from earlier today.
+    static func next(_ group: TownGroup, now: Date) -> TownGroup.Meeting? {
+        group.meetings.first { meeting in
+            guard let when = EventWhen(date: meeting.day, time: meeting.time, endAt: nil) else { return false }
+            return when.timed ? when.start > now : when.end > now
+        }
     }
 
     /// "Meets tomorrow 6 PM · 12 members": its next get-together in the bell's short words
     /// (`EventWhen.short`), then the members once someone has joined (the Group page's rule:
     /// never a zero count). nil with neither.
     static func line(_ group: TownGroup, members: Int, now: Date) -> String? {
-        let meets = group.meetings.first
+        let meets = next(group, now: now)
             .flatMap { EventWhen.short(date: $0.day, time: $0.time, now: now) }
             .map { when in
                 // "Tonight 6 PM" reads "tonight 6 PM" after "Meets"; a weekday or a date keeps its capital.
@@ -140,7 +154,7 @@ struct FriendsAllPage: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if groups {
-                        ForEach(FriendsHomePage.groups(you.groups ?? [], member: { _ in false }).open) {
+                        ForEach(FriendsHomePage.groups(you.groups ?? [], member: { _ in false }, now: Date()).open) {
                             GroupJoinRow(group: $0) { signingIn = true }
                         }
                     } else {
