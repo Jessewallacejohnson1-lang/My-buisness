@@ -118,8 +118,30 @@ final class ProfileModel: ObservableObject {
     /// local mirror + published state are committed only on success, so the editor
     /// can surface a real failure instead of falsely reporting "saved" and then
     /// silently reverting on the next load.
+    /// Why a save didn't go through, as the line Edit profile shows and VoiceOver reads.
+    nonisolated enum SaveProblem: Equatable {
+        /// No session, or the server refused the token (a 401): only logging in fixes it.
+        case signedOut
+        /// Anything else: no signal, the server down, or its no.
+        case other
+
+        /// The save's own error, sorted. A 401 is the session, whoever said it: the app's own
+        /// "Your session ended" before anything is sent, or the server's.
+        static func of(_ error: Error) -> SaveProblem {
+            (error as? SupabaseError)?.status == 401 ? .signedOut : .other
+        }
+
+        var line: String {
+            switch self {
+            case .signedOut: "Couldn't save. Log in and try again."
+            case .other: "Couldn't save your profile. Check your connection and try again."
+            }
+        }
+    }
+
+    /// Saves the edit; nil when the server took it, else why it didn't.
     func save(name: String, image: UIImage?, interests: [String],
-              bio: String? = nil, cover: UIImage? = nil) async -> Bool {
+              bio: String? = nil, cover: UIImage? = nil) async -> SaveProblem? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         var newUrl = avatarUrl
@@ -137,7 +159,7 @@ final class ProfileModel: ObservableObject {
                                       bio: canDescribe ? newBio : nil, coverUrl: canDescribe ? newCover : nil)
         } catch {
             Log.network("Profile.save: \(error)")
-            return false
+            return SaveProblem.of(error)
         }
 
         // Commit only after the server accepted the write.
@@ -148,7 +170,7 @@ final class ProfileModel: ObservableObject {
         interestIds = interests
         if canDescribe, let newBio { self.bio = newBio }
         if let newCover { coverUrl = newCover }
-        return true
+        return nil
     }
 
     /// Nextdoor's 150 letters; the database holds the same line.
