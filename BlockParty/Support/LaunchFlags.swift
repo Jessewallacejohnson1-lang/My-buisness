@@ -82,6 +82,7 @@ nonisolated enum LaunchFlags {
         case townOffline = "-town-offline"
         case townRefuse = "-town-refuse"
         case townSamples = "-town-samples"
+        case townVolleyball = "-town-volleyball"
         case uiTests = "-ui-tests"
         case youFreeToday = "-you-free-today"
     }

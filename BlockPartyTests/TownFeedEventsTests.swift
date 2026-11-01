@@ -460,6 +460,28 @@ final class TownFeedEventsTests: XCTestCase {
         }
     }
 
+    /// Volleyball's sets (game-card 09): one chip per set from SIDEARM's periods, the newest one being
+    /// played while the match is on and none once it's complete; any other sport has no sets.
+    func testVolleyballsSetsAreItsPeriodsWithTheNewestBeingPlayed() throws {
+        func game(_ more: String, sport: String = "Volleyball") throws -> Game {
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint Benedict"},{"name":"Carleton"}]"# + more + "}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let on = try game(#","live":{"score":[2,1],"period":"Set 4","complete":false,"periods":[[25,23,25,18],[21,25,19,14]]}"#)
+        XCTAssertEqual(on.sets, [[25, 21], [23, 25], [25, 19], [18, 14]])
+        XCTAssertEqual(on.setPlaying, 3, "the newest set is the one being played")
+        let final = try game(#","final":[3,1],"live":{"score":[3,1],"period":"Set 4","complete":true,"periods":[[25,23,25,25],[21,25,19,22]]}"#)
+        XCTAssertEqual(final.sets.count, 4, "every set stays past the final")
+        XCTAssertNil(final.setPlaying)
+        let complete = try game(#","live":{"score":[3,0],"period":"Set 3","complete":true,"periods":[[25,25,25],[17,21,21]]}"#)
+        XCTAssertNil(complete.setPlaying, "complete, its final on the way: no set is being played")
+        XCTAssertEqual(try game("").sets, [], "before the first serve")
+        XCTAssertEqual(try game(#","live":{"score":[7,0],"period":"Q1","complete":false,"periods":[[7],[0]]}"#, sport: "Football").sets,
+                       [], "football's quarters are no sets")
+        XCTAssertEqual(try game(#","live":{"score":[0,0],"period":"Set 1","complete":false,"periods":[[3,1],[2]]}"#).sets,
+                       [], "uneven columns read as none")
+    }
+
     /// A game's live score (game-card 03) reads in its teams' order with the period and clock; the
     /// clock goes once it's two minutes old and Live after ten; only the server's final ends it; a bad one is none.
     func testAGamesLiveScoreReadsAndCompleteCountsAsTheFinal() throws {

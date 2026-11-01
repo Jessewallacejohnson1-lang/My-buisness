@@ -1,15 +1,15 @@
 //
 //  GameMatchup.swift
 //  Block Party — a game's Event page: the two teams' colors across the whole screen, the score, the logos
-//  and football's field bar; its scoring plays; and its white Town card (`WhiteGameCard`).
+//  and each sport's own touch; its scoring plays; and its white Town card (`WhiteGameCard`).
 //
 //  The page (BP app docs/plans/game-card, ticket 08; Jesse, 2026-10-31: "like Apple, how the whole entire
 //  screen is those two colors blended together... really simple and smooth UI", then "I love that" to the
 //  Figma drafts beside Apple Sports' live game screen, `references/game-page-blend/`): each team's color
 //  deepened to Apple's depth, the left one's to 36% of the width and the right one's from 66%, fading to
 //  near-black from halfway down; the big score on the outside over each logo on its white disc, Live and
-//  the clock between them; for a live football game the down, distance and spot over a field bar.
-//  The Town card went white on 2026-10-29 (ticket 06).
+//  the clock between them; for a live football game the down, distance and spot over a field bar; for
+//  volleyball its sets in chips over a faint net (ticket 09). The Town card went white on 2026-10-29 (ticket 06).
 //
 
 import SwiftUI
@@ -38,7 +38,7 @@ struct GameMatchup: View {
         static let middleGap: CGFloat = 10
         /// The loser's side once the final is in, and the trailing number while it's on.
         static let faded: Double = 0.55
-        /// Football's line 28 pt under the names, its bar 12 pt under the line.
+        /// Football's line and volleyball's sets 28 pt under the names, football's bar 12 pt under its line.
         static let driveTop: CGFloat = 28
         static let barTop: CGFloat = 12
     }
@@ -63,6 +63,11 @@ struct GameMatchup: View {
                 .accessibilityAddTraits(.isHeader)
                 if fresh, let drive = live?.drive {
                     FieldBar(game: game, drive: drive)
+                        .padding(.top, Metric.driveTop)
+                        .transition(.opacity)
+                }
+                if !game.sets.isEmpty {
+                    SetChips(game: game)
                         .padding(.top, Metric.driveTop)
                         .transition(.opacity)
                 }
@@ -145,7 +150,8 @@ struct GameMatchup: View {
     // MARK: The page's colors
 
     /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
-    /// that takes them to near-black by halfway down (Apple Sports' live game, measured).
+    /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
+    /// faint net sits under the wash.
     static func backdrop(_ game: Game) -> some View {
         ZStack {
             LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
@@ -153,6 +159,9 @@ struct GameMatchup: View {
                                    .init(color: shade(game.teams[1]), location: 0.66),
                                    .init(color: shade(game.teams[1]), location: 1)],
                            startPoint: .leading, endPoint: .trailing)
+            if game.sport.localizedCaseInsensitiveContains("volleyball") {
+                VolleyballNet()
+            }
             LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
                                    .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
                                    .init(color: Hue.gameNight.opacity(0.72), location: 0.42),
@@ -267,6 +276,116 @@ private struct FieldBar: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(drive.spoken(teams: game.teams))
+    }
+}
+
+/// Volleyball's sets under the logos (game-card 09; Jesse, 2026-11-01: "i agree" to the mock beside the
+/// Figma draft, `references/volleyball-sets/`): each played set's points in a chip, the winner's white and
+/// a thin bar of its color under them; the set being played bigger and brighter, its points rolling in.
+/// A set that ends shrinks into the row as the next one grows in.
+private struct SetChips: View {
+    let game: Game
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The draft's chips, measured in its CSS.
+    enum Metric {
+        static let gap: CGFloat = 8
+        static let size = CGSize(width: 62, height: 52)
+        static let playingSize = CGSize(width: 96, height: 64)
+        static let corner: CGFloat = 14
+        static let pointsGap: CGFloat = 6
+        /// The set's name under the points being played, lifting them 12 pt.
+        static let playingLift: CGFloat = 12
+        static let bar = CGSize(width: 22, height: 3)
+        static let bottom: CGFloat = 7
+        static let fill: Double = 0.08
+        static let playingFill: Double = 0.16
+        /// The losing side's points, and the trailing side's in the set being played.
+        static let behind: Double = 0.45
+        static let label: Double = 0.6
+    }
+
+    var body: some View {
+        let sets = game.sets, playing = game.setPlaying
+        HStack(alignment: .bottom, spacing: Metric.gap) {
+            ForEach(sets.indices, id: \.self) { set in
+                chip(sets[set], set: set, playing: set == playing)
+                    // The one being played gets its full width first; the played ones narrow for a fifth set.
+                    .layoutPriority(set == playing ? 1 : 0)
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .animation(reduceMotion ? nil : Motion.smooth, value: sets)
+        .animation(reduceMotion ? nil : Motion.smooth, value: playing)
+        // "Set 1, Saint Ben's 25, Carleton 21. Set 2, … Set 4, being played, Saint Ben's 18, Carleton 14".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(sets.indices.map { set in
+            (["Set \(set + 1)", set == playing ? "being played" : nil] + game.teams.indices.map { "\(game.teams[$0].short) \(sets[set][$0])" })
+                .compactMap { $0 }.joined(separator: ", ")
+        }.joined(separator: ". "))
+    }
+
+    private func chip(_ points: [Int], set: Int, playing: Bool) -> some View {
+        let ahead: Int? = points[0] == points[1] ? nil : (points[0] > points[1] ? 0 : 1)
+        let size = playing ? Metric.playingSize : Metric.size
+        return ZStack(alignment: .bottom) {
+            HStack(spacing: Metric.pointsGap) {
+                ForEach(0..<2, id: \.self) { side in
+                    Text("\(points[side])")
+                        .foregroundStyle(.white.opacity(ahead == 1 - side ? Metric.behind : 1))
+                        .contentTransition(.numericText(countsDown: false))
+                }
+            }
+            .font(playing ? .sansBold(22) : .sansMedium(15))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxHeight: .infinity)
+            .padding(.bottom, playing ? Metric.playingLift : 0)
+            if playing {
+                Text("Set \(set + 1)")
+                    .font(.sansMedium(11))
+                    .foregroundStyle(.white.opacity(Metric.label))
+                    .padding(.bottom, Metric.bottom)
+                    .transition(.opacity)
+            } else if let ahead, game.teams.indices.contains(ahead) {
+                Capsule()
+                    .fill(GameMatchup.mark(game.teams[ahead]))
+                    .frame(width: Metric.bar.width, height: Metric.bar.height)
+                    .padding(.bottom, Metric.bottom)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: size.width)
+        .frame(height: size.height)
+        .background(.white.opacity(playing ? Metric.playingFill : Metric.fill),
+                    in: RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
+    }
+}
+
+/// Volleyball's faint net behind the score (game-card 09's draft): thin white lines crossing every 18 pt
+/// over the top of the page, which the wash darkens with everything else.
+private struct VolleyballNet: View {
+    static let mesh: CGFloat = 18
+    static let depth: CGFloat = 430
+    static let line: Double = 0.045
+
+    var body: some View {
+        Canvas { context, size in
+            var net = Path()
+            for x in stride(from: -Self.depth, to: size.width, by: Self.mesh) {
+                net.move(to: CGPoint(x: x, y: 0))
+                net.addLine(to: CGPoint(x: x + Self.depth, y: Self.depth))
+                net.move(to: CGPoint(x: x + Self.depth, y: 0))
+                net.addLine(to: CGPoint(x: x, y: Self.depth))
+            }
+            context.stroke(net, with: .color(.white.opacity(Self.line)), lineWidth: 1)
+        }
+        .frame(height: Self.depth)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .accessibilityHidden(true)
     }
 }
 
@@ -439,7 +558,8 @@ struct WhiteGameCard: View {
 /// A game's scoring plays on its Event page, newest first (BP app game-card 05; Jesse, 2026-10-25: "copy
 /// sidearm"): SIDEARM's own words, the time under each, the score after it with the scoring side in ink,
 /// and a thin bar of the scoring school's color on its side, as Apple Sports' Key Plays draw them
-/// (`references/live-plays/`). Volleyball shows its sets instead: every point would be a play.
+/// (`references/live-plays/`). Volleyball has none: every point would be a play, and its sets are the
+/// chips under its logos (game-card 09).
 struct GameScoring: View {
     let game: Game
     /// Above its heading, when it has anything to show.
@@ -454,20 +574,11 @@ struct GameScoring: View {
         if !game.plays.isEmpty {
             section("Scoring plays") {
                 ForEach(game.plays.reversed()) { play in
-                    row(text: play.text, when: play.when, score: play.score, side: play.side)
+                    row(play)
                         .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
-            .padding(.top, top)
-        } else if game.sport.localizedCaseInsensitiveContains("volleyball"), game.periods.count == 2 {
-            section("Sets") {
-                ForEach(game.periods[0].indices, id: \.self) { set in
-                    let score = [game.periods[0][set], game.periods[1][set]]
-                    row(text: "Set \(set + 1)", when: nil, score: score,
-                        side: score[0] == score[1] ? nil : (score[0] > score[1] ? 0 : 1))
-                }
-            }
             .padding(.top, top)
         }
     }
@@ -482,15 +593,16 @@ struct GameScoring: View {
         }
     }
 
-    private func row(text: String, when: String?, score: [Int], side: Int?) -> some View {
+    private func row(_ play: Game.Play) -> some View {
+        let score = play.score, side = play.side
         let home = Text("\(score[0])"), away = Text("\(score[1])")
         return VStack(alignment: .leading, spacing: 6) {
-            Text(text)
+            Text(play.text)
                 .font(.sans(15))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                if let when { Text(when).monospacedDigit() }
+                Text(play.when).monospacedDigit()
                 Spacer(minLength: 8)
                 Text("\(side == 0 ? home.foregroundStyle(Hue.ink).bold() : home) – \(side == 1 ? away.foregroundStyle(Hue.ink).bold() : away)")
                     .monospacedDigit()
@@ -505,7 +617,7 @@ struct GameScoring: View {
         .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         // The scoring school's color, on its side of the row.
         .overlay(alignment: side == 1 ? .trailing : .leading) {
-            if let side, game.teams.indices.contains(side) {
+            if game.teams.indices.contains(side) {
                 Capsule()
                     .fill(GameMatchup.mark(game.teams[side]))
                     .frame(width: Self.bar)
@@ -514,8 +626,8 @@ struct GameScoring: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([text, when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
-            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([play.text, play.when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
+            .joined(separator: ", "))
     }
 }
 
