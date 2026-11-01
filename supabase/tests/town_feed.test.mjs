@@ -598,10 +598,13 @@ test('one tapped game lifts nothing, and two rows of one day are one game day', 
   const varsity = await game('SJU Soccer vs Augsburg', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
   const jv = await game('SJU Soccer vs Augsburg (JV)', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
   await game('SJU Soccer vs St. Olaf', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  const olafJv = await game('SJU Soccer vs St. Olaf (JV)', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
   await tap('event_likes', varsity, YOU, '2026-10-04 18:00');
   assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'one game');
   await tap('event_likes', jv, YOU, '2026-10-04 18:00');
   assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'varsity and JV the same day');
+  await tap('event_likes', olafJv, YOU, '2026-10-08 09:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, "its own day's JV game is not another day");
 });
 
 test("a school's games and its other Events stop lifting each other", async () => {

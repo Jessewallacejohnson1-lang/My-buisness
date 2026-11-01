@@ -73,7 +73,7 @@ as $$
   -- Event once, read straight from club_events so an older or called-off Event still counts. Only
   -- a club's or a source's Events, never a neighbour's own posting (the card doesn't show who
   -- posted it), and never routine business (draw 1): a heart on a council meeting lifts nothing.
-  my_taps as materialized (
+  my_taps as (
     select e.id, e.event_date, coalesce(e.club_id::text, e.source_name) as host, e.team_ids, e.sport
     from (select r.event_id from public.event_rsvps r
           where r.user_id = auth.uid() and r.created_at > p_now - interval '90 days'
@@ -94,12 +94,12 @@ as $$
     group by 1
   ),
   -- A game's host is its team (town-feed 39): each team in a game you tapped, by its sport ("Girls Swim"
-  -- and "Girls Swimming and Diving" are one), and on how many days. Days, not games: a school lists its
-  -- varsity, JV and C games of a day as a row each, and a game between two schools can be on both
+  -- and "Girls Swimming and Diving" are one), and the days of those games. Days, not games: a school lists
+  -- its varsity, JV and C games of a day as a row each, and a game between two schools can be on both
   -- their calendars.
   team_taps as materialized (
     select k.team, coalesce(private.sport_gender(t.sport), '') || ' ' || private.sport_base(t.sport) as sport,
-           count(distinct t.event_date) as days, array_agg(t.id) as ids
+           array_agg(distinct t.event_date) as days
     from my_taps t
     cross join unnest(t.team_ids) as k(team)
     where t.sport is not null
@@ -336,7 +336,7 @@ as $$
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
     -- The game's team you've tapped on the most other days, its host team first on a tie (town-feed 39).
     left join lateral (
-      select x.days - case when s.id = any(x.ids) then 1 else 0 end as days, tm.short_name || ' ' || s.sport as name
+      select cardinality(array_remove(x.days, s.event_date)) as days, tm.short_name || ' ' || s.sport as name
       from team_taps x
       left join public.teams tm on tm.id = x.team
       where x.team = any(s.team_ids)
