@@ -378,9 +378,34 @@ struct CommunityAPI {
             "location": input.location, "submitted_by": uid, "status": status.rawValue,
             "club_id": clubId ?? NSNull(), "category": input.category,
         ]
+        if let v = input.id { b["id"] = v }
         if let v = input.description { b["description"] = v }
         if let v = input.imageUrl { b["image_url"] = v }
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
+    }
+
+    /// A new Event's photo, in your own folder of `event-images` (BP app town-plus): where it can
+    /// be read.
+    func uploadEventPhoto(_ jpeg: Data, id: String) async throws -> URL {
+        let uid = try db.userID.lowercased()
+        return try await db.upload(bucket: "event-images", path: "\(uid)/\(id).jpg", jpeg, type: "image/jpeg")
+    }
+
+    /// The instant check on your own pending Event (`moderate-post` `submit`, BP app town-plus): live,
+    /// or no with the reason. Anything else, the day's 10 used or no answer, leaves it waiting
+    /// for Review.
+    func checkNewEvent(_ id: String) async -> NewEventCheck {
+        struct Answer: Decodable { let ok: Bool; let reason: String? }
+        guard let data = try? await db.invoke("moderate-post", ["submit": id]),
+              let answer = try? JSONDecoder().decode(Answer.self, from: data) else { return .waiting }
+        return Self.check(ok: answer.ok, reason: answer.reason)
+    }
+
+    /// A no without words still says something the poster can act on.
+    nonisolated static func check(ok: Bool, reason: String?) -> NewEventCheck {
+        if ok { return .live }
+        let words = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return .declined(words.isEmpty ? "This can't be shared as it is. Try saying what happens and when." : words)
     }
 
     /// Each upcoming Event's interests (its tags once tagged, else its one category), for the

@@ -148,12 +148,13 @@ struct Supabase {
         return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/\(bucket)/\(path)")
     }
 
-    /// An edge function (`functions/v1/<function>`) given `body`.
-    func invoke(_ function: String, _ body: [String: Any]) async throws {
+    /// An edge function (`functions/v1/<function>`) given `body`, and its answer.
+    @discardableResult
+    func invoke(_ function: String, _ body: [String: Any]) async throws -> Data {
         var request = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/\(function)"))
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        try await perform(request, type: "application/json")
+        return try await perform(request, type: "application/json")
     }
 
     /// Every call's one way out. A 401 (a token the server refused though the phone still

@@ -609,7 +609,7 @@ struct HelloDropView: View {
         let now = Date()
         guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
               scenePhase != .background, step == .hidden, run == nil, let item = inbox.next else { return }
-        let yours = if case .moment(let moment) = item.what { moment.yours } else { false }
+        let yours = item.yours
         guard yours || inbox.mayDrop(now: now) else { return }
         if !yours { inbox.dropped(now: now) }
         run = Task { await say(item, fromHello: false) }

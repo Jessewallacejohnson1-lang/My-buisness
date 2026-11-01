@@ -195,7 +195,7 @@ private struct HelloItemRow: View {
             } else {
                 padded(words).accessibilityElement(children: .combine)
             }
-        case .moment:
+        case .moment, .posted:
             padded(words).accessibilityElement(children: .combine)
         case .added:
             if let card {

@@ -26,6 +26,18 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case moment(HelloMoment)
         /// New Events from something you follow, one item a day for each (hello-drop 07).
         case added(Added)
+        /// Your own Event, shared from New event (BP app town-plus): live, or waiting for its check.
+        case posted(Posted)
+    }
+
+    /// "Your event is live": what New event shared, as the pill and the bell say it.
+    struct Posted: Codable, Hashable {
+        let eventId: String
+        let title: String
+        /// Its photo, round at the pill's left; nil without one.
+        let photo: URL?
+        /// Through the instant check; false while it waits for Review.
+        let live: Bool
     }
 
     /// "Clemens Library added an event": the newest of the day's, and how many.
@@ -107,6 +119,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case .final(let final): "final:\(final.eventId)"
         case .moment(let moment): "moment:\(moment.rawValue)"
         case .added(let added): "added:\(added.name):\(added.day)"
+        case .posted(let posted): "posted:\(posted.eventId)"
         }
     }
 
@@ -114,7 +127,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
     /// who joined, then what you follow added.
     var rank: Int {
         switch what {
-        case .moment: 0
+        case .moment, .posted: 0
         case .final: 1
         case .accepted: 2
         case .joined: 3
@@ -127,7 +140,17 @@ struct HelloItem: Codable, Hashable, Identifiable {
     var waitsForYourDay: Bool {
         switch what {
         case .joined, .added: true
-        case .moment, .final, .accepted: false
+        case .moment, .final, .accepted, .posted: false
+        }
+    }
+
+    /// What you made with a tap: the pill says it at once, as the tap's answer, outside the 3 a
+    /// day (hello-drop 05).
+    var yours: Bool {
+        switch what {
+        case .moment(let moment): moment.yours
+        case .posted: true
+        case .joined, .accepted, .final, .added: false
         }
     }
 
@@ -135,7 +158,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
     var person: Neighbor? {
         switch what {
         case .joined(let person), .accepted(let person): person
-        case .final, .moment, .added: nil
+        case .final, .moment, .added, .posted: nil
         }
     }
 
@@ -151,6 +174,9 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case .added(let added):
             HelloDrop.Message(text: "\(added.name) added \(added.count == 1 ? "an event" : "\(added.count) events")",
                               target: .eventID(added.eventId), logo: added.picture, photo: added.pictureIsPhoto)
+        case .posted(let posted):
+            HelloDrop.Message(text: posted.live ? NewEventCopy.live : NewEventCopy.waiting,
+                              target: posted.live ? .eventID(posted.eventId) : .town, logo: posted.photo, photo: true)
         }
     }
 
@@ -171,6 +197,9 @@ struct HelloItem: Codable, Hashable, Identifiable {
                 ? "added an event: \(added.title)" + (added.when(now: now).map { ", \($0)" } ?? "") + "."
                 : "added \(added.count) events.",
              added.pictureIsPhoto ? .place(added.picture) : .logo(added.picture))
+        case .posted(let posted):
+            ("You", "shared \(posted.title)." + (posted.live ? "" : " It goes up once it's checked."),
+             posted.photo.map { Picture.place($0) } ?? Picture.tick)
         }
     }
 }
@@ -309,7 +338,7 @@ final class HelloInbox {
     func forgetAccount() {
         items.removeAll {
             switch $0.what {
-            case .accepted, .added: true
+            case .accepted, .added, .posted: true
             case .joined, .final, .moment: false
             }
         }

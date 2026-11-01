@@ -316,6 +316,19 @@ final class TodayHeaderTests: XCTestCase {
         )
     }
 
+    /// Instagram's + holds the leading corner (BP app references/town-plus): two 19.7 pt strokes of
+    /// 2 pt ink, about 300 pixels at 2x. Gone, or swapped for something heavier, fails here.
+    func testTheLeadingEdgeCarriesInstagramsPlus() throws {
+        let bitmap = try renderedHeaderBitmap()
+        let inkPixelCount = bitmap.countPixels(
+            xFraction: 0.00..<0.18,
+            yFraction: 0.10..<1.00,
+            where: isInk
+        )
+        XCTAssertGreaterThan(inkPixelCount, 150, "The + must render at the bar's leading edge")
+        XCTAssertLessThan(inkPixelCount, 600, "The + is two thin strokes, not a filled mark")
+    }
+
     /// INVERTED on 2026-09-19. This used to assert the centre was empty, from the
     /// round where the Joetown lockup had just been torn out. The header now carries
     /// the real brand mark there on purpose (Jesse: "the actual logo, not just a

@@ -14,6 +14,8 @@ struct HomeView: View {
     var onOpenMap: () -> Void = {}
     /// The bar's bell, added 2026-09-20 alongside the map (friends left for the tab bar 2026-11-01).
     var onOpenNotifications: () -> Void = {}
+    /// The bar's + → New event (BP app references/town-plus).
+    var onCreate: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// The shell's Town feed, kept across tab switches.
@@ -25,6 +27,7 @@ struct HomeView: View {
         FeedView(
             onOpenMap: onOpenMap,
             onOpenNotifications: onOpenNotifications,
+            onCreate: onCreate,
             onOpenPage: onOpenPage,
             townFeed: townFeed,
             eventOfTheDay: eventOfTheDay
