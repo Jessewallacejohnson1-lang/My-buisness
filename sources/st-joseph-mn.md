@@ -5625,7 +5625,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ```yaml
 id: kostreba-appliance-services-center
 status: active
-tier: watched
+tier: listed
 category: "home_service"
 place_type: "Business"
 address: "545 8th Ave NE"
@@ -5633,12 +5633,12 @@ phone: "17633906267"
 aka: ["Kostreba Appliance Services Center"]
 added_by: agent:town-verify
 sources:
-  - url: https://omegaforceappliancerepair.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-11-01: back to `listed`, website TODO. Overture's website, omegaforceappliancerepair.com, is a different Twin Cities company (its vans and staff say Omega Force), so its photos and pages were never this place's; a web search finds no site for Kostreba (Jesse: "yes").
 
 ## Kraft Mechanical St Cloud
 ```yaml
