@@ -189,6 +189,20 @@ struct CommunityAPI {
         return lines
     }
 
+    /// Past the ranked feed (town-feed 23): the 20 soonest Events past their show-from day, in the
+    /// feed's own rows, under the same rules. Never kept on disk.
+    func getTownFeedLater() async throws -> [TownFeedRow] {
+        let data = try await db.rpc("get_town_feed", ["p_news": false, "p_later": true], anon: true)
+        return try Self.townFeedRows(from: data)
+    }
+
+    /// One round past the later Events (town-feed 23): places to try and repeats, as kinds and ids
+    /// in `get_town_more`'s order. `opened`: the places whose page this phone opened, which go last.
+    func getTownMore(round: Int, opened: [String]) async throws -> [TownMoreRow] {
+        let data = try await db.rpc("get_town_more", ["p_round": round, "p_opened": opened], anon: true)
+        return try JSONDecoder().decode([TownMoreRow].self, from: data)
+    }
+
     /// Your Event of the day: today's standouts for you, one for each part of the day, worked
     /// out by `get_event_of_the_day` (BP app daily-tab 14) from the morning's picks, in the
     /// Town feed's own rows. Signed out, it reads with the public key, as the feed does.

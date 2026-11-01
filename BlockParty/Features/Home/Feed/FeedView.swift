@@ -54,6 +54,9 @@ struct FeedView: View {
     /// Your Event of the day, Daily's own (BP app event-card 03): the feed's top.
     var eventOfTheDay: EventOfTheDay
 
+    /// A place as Search holds it, by `places.id`: the feed's places to try (town-feed 23).
+    var places: (String) -> SearchItem?
+
     @Environment(\.scenePhase) private var scenePhase
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
     /// setup, so without it the scrolled state — where the top glass fade actually
@@ -77,7 +80,8 @@ struct FeedView: View {
         onOpenNotifications: @escaping () -> Void = {},
         onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
-        eventOfTheDay: EventOfTheDay
+        eventOfTheDay: EventOfTheDay,
+        places: @escaping (String) -> SearchItem? = { _ in nil }
     ) {
         self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
@@ -85,6 +89,7 @@ struct FeedView: View {
         self.onOpenPage = onOpenPage
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
+        self.places = places
         _entrance = State(initialValue: townFeed.returnY == 0)
     }
 
@@ -147,7 +152,8 @@ struct FeedView: View {
                         // the next takes its place within the minute, and with none left it goes.
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date)
+                            let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date,
+                                                        places: places)
                             let top = items.first.flatMap { item -> String? in
                                 if case .eventOfTheDay(let event) = item { return event.id }
                                 return nil
@@ -155,7 +161,9 @@ struct FeedView: View {
                             DailyFeedColumn(items: items,
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
-                                            now: townFeed.posterClock(at: context.date))
+                                            now: townFeed.posterClock(at: context.date),
+                                            onNearEnd: { Task { await townFeed.loadMore() } },
+                                            loadingMore: townFeed.loadingMore)
                                 // The poster comes, changes and goes, and the cards make room,
                                 // rather than popping.
                                 .animation(Motion.smooth, value: top)

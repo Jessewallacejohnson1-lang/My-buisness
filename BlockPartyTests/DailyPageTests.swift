@@ -332,7 +332,7 @@ final class DailyPageTests: XCTestCase {
             switch item {
             case .eventOfTheDay(let event): return "\(event.item.score?.spot ?? 0)/\(event.item.score?.of ?? 0)"
             case .event(let card): return "\(card.score?.spot ?? 0)/\(card.score?.of ?? 0)"
-            case .posting, .news: return "-"
+            case .posting, .news, .caughtUp, .place, .again: return "-"
             }
         }
         XCTAssertEqual(places, ["1/4", "2/4", "-", "4/4"])

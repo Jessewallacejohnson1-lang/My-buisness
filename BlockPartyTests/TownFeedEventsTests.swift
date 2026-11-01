@@ -1284,10 +1284,118 @@ final class TownFeedEventsTests: XCTestCase {
         let newer = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"notInterested":0.3,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
         XCTAssertEqual(try JSONDecoder().decode(FeedScore.self, from: Data(newer.utf8)).notInterested, 0.3)
     }
+
+    // MARK: After the best (town-feed 23)
+
+    private func place(_ id: String) -> SearchItem {
+        let logo = SearchLogo(placeId: id, row: .init(url: URL(string: "https://x/\(id).webp")!, hue: 0, chroma: false))
+        return SearchItem(id: "p:\(id)", kind: .business, name: "Place \(id)", logo: logo, placeID: id)
+    }
+
+    func testNearTheEndTheFirstRoundBringsTheLineLaterEventsAndPlaces() async {
+        let asked = Box<[Int]>([])
+        let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
+                            readLater: { [self] in [row("x"), row("b")].map(TownFeed.entry) },
+                            readMore: { round, opened in
+                                asked.value.append(round)
+                                XCTAssertEqual(opened, ["p2"])
+                                return [.init(kind: .place, id: "p1"), .init(kind: .place, id: "gone"),
+                                        .init(kind: .place, id: "p2"), .init(kind: .unknown, id: "?")]
+                            },
+                            opened: { ["p2"] })
+        await town.reload(at: now)
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "event:b"],
+                       "nothing past the list until its end comes near")
+        await town.loadMore()
+        let items = town.column(eventOfTheDay: [], now: now) { ["p1", "p2"].contains($0) ? self.place($0) : nil }
+        XCTAssertEqual(items.map(\.id), ["event:a", "event:b", "caught-up", "event:x", "place:0:p:p1", "place:0:p:p2"],
+                       "b is already above; a place Search can't open, and an unknown kind, are left out")
+        XCTAssertEqual(asked.value, [0])
+    }
+
+    func testEachRoundAppendsBelowWithRepeatsOfOnlyWhatsStillAbove() async {
+        let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
+                            readMore: { round, _ in
+                                round == 0 ? [.init(kind: .place, id: "p1")]
+                                    : [.init(kind: .place, id: "p1"), .init(kind: .again, id: "a"),
+                                       .init(kind: .again, id: "hidden-or-gone")]
+                            })
+        await town.reload(at: now)
+        await town.loadMore()
+        await town.loadMore()
+        let items = town.column(eventOfTheDay: [], now: now) { $0 == "p1" ? self.place($0) : nil }
+        XCTAssertEqual(items.map(\.id), ["event:a", "event:b", "caught-up", "place:0:p:p1", "place:1:p:p1",
+                                         "again:1:a"])
+        XCTAssertEqual(items.last?.hideID, "a", "Not interested on a repeat folds it in place")
+        XCTAssertNil(items.last?.eventID, "a repeat's view is counted where it first showed")
+    }
+
+    func testAFreshOrderClearsWhatsPastTheListAndARoundItOvertookNeverLands() async {
+        let feedBox = Box<TownFeed?>(nil)
+        let reorder = Box(false)
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            readMore: { _, _ in
+                                if reorder.value { await feedBox.value?.reload() }
+                                return [.init(kind: .place, id: "p1")]
+                            })
+        feedBox.value = town
+        await town.reload(at: now)
+        await town.loadMore()
+        XCTAssertEqual(town.rounds.count, 1)
+        await town.reload(at: now)
+        XCTAssertTrue(town.rounds.isEmpty, "a fresh order starts past the list again")
+        reorder.value = true
+        await town.loadMore()
+        XCTAssertTrue(town.rounds.isEmpty, "the round a fresh order overtook is dropped")
+        XCTAssertFalse(town.loadingMore)
+        town.accountChanged()
+        XCTAssertTrue(town.later.isEmpty && town.rounds.isEmpty)
+    }
+
+    func testNothingPastAnEmptyListAndAFailedRoundIsAskedAgain() async {
+        let asked = Box(0)
+        let fail = Box(true)
+        let empty = TownFeed(read: { [] }, readMore: { _, _ in asked.value += 1; return [] })
+        await empty.reload(at: now)
+        await empty.loadMore()
+        XCTAssertEqual(asked.value, 0, "an empty list keeps its own quiet screen")
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            readMore: { _, _ in
+                                if fail.value { throw Offline() }
+                                return [.init(kind: .place, id: "p1")]
+                            })
+        await town.reload(at: now)
+        await town.loadMore()
+        XCTAssertTrue(town.rounds.isEmpty)
+        XCTAssertFalse(town.loadingMore, "a failed round leaves no spinner")
+        fail.value = false
+        await town.loadMore()
+        XCTAssertEqual(town.rounds.count, 1)
+    }
+
+    func testALaterEventSaidNotInterestedToStaysOut() async {
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            choose: { _ in nil },
+                            readLater: { [self] in [row("x"), row("y")].map(TownFeed.entry) },
+                            readMore: { _, _ in [] })
+        await town.reload(at: now)
+        await town.loadMore()
+        await town.hide(id: "x", host: "City of St. Joseph", mute: false)
+        town.undoEnded("x")
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "caught-up", "event:y"])
+    }
 }
 
 
 private extension TownFeed {
     /// A card's own hide, as its ••• sheet sends it.
     func hide(_ card: FeedCardItem, mute: Bool) async { await hide(id: card.id, host: card.hostName, mute: mute) }
+
 }
+
+/// A value the test and a feed's closures share.
+private final class Box<Value> {
+    var value: Value
+    init(_ value: Value) { self.value = value }
+}
+
