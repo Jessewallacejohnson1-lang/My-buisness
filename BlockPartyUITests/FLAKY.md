@@ -10,12 +10,29 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
+  database-only commit (run 41256785507, attempt 1; the rerun passed), after its 2026-10-25 fix
+  below · cause not found · no fix yet
 - 2026-10-30 · `town_feed.test.mjs` "the feed is read in under 100 ms with 5,000 people" · red on
   fix/rootview-typecheck (run 41157284060, a Swift-only change): median 250.2 ms against CI's 250 ms
-  budget · a slow GitHub runner; green on main at fbd23337 and 4d97358e · no fix yet
+  budget · a slow GitHub runner; green on main at fbd23337 and 4d97358e · no fix yet on GitHub (the
+  Mac's half is under Fixed)
+- 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
+  passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
+  state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
 
 ## Fixed
 
+- 2026-11-01 · `town_feed.test.mjs` "an event card shows its place's photo of what the event is, in
+  season, taking turns (event-photos 07)" · red on 94738acd, a Swift-only change (run 41114834248) ·
+  its 8 Events had random ids, which hash (`md5(e.id || s.id)`) onto 2 any-season photos, so about 1
+  run in 128 all picked one · fixed Event and photo ids that pick both, 20 runs of 20 green · fix
+  d82e178c
+- 2026-11-01 · `town_feed.test.mjs` "the feed is read in under 100 ms with 5,000 people", on the Mac
+  only · red while the Mac was building, against the busy Mac's 250 ms budget: twice in the pre-push
+  quick checks (489 ms at load 90; once at load 11) and 782 ms at load 68 · a busy Mac (load over 8)
+  now logs the reading without timing it, since GitHub times every push: 254.8 ms at load 15 passed
+  · fix in this commit
 - 2026-10-30 · `RealLifeActionsTests.testTheLastHeartTapWins` (red at 30e6168, 2026-10-25),
   `RealLifeActionsTests.testAClosedPageCountsNoShake` (red at 54a27ac, 2026-10-21, and fb5cedb) and
   `YouCalendarTests.testRealLifeActionsDriveWhatShows` (red at b2331ba) · each slept a fixed time
