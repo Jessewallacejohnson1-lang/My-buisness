@@ -485,7 +485,7 @@ final class TownFeed {
         let steps = volleyball ? sets : football
         let live = { (score: String, complete: Bool) in
             try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
-                + ISO8601DateFormatter().string(from: .now) + #""}"#).utf8))
+                + DateHelpers.timestampString(.now) + #""}"#).utf8))
         }
         Task { @MainActor [weak self] in
             var plays: [Game.Play] = []

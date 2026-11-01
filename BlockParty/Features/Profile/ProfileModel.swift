@@ -253,9 +253,7 @@ final class ProfileModel: ObservableObject {
     /// "July 2026" from an ISO onboarded_at (with or without fractional seconds).
     static func since(from iso: String?) -> String? {
         guard let iso, !iso.isEmpty else { return nil }
-        let plain = ISO8601DateFormatter(); plain.formatOptions = [.withInternetDateTime]
-        let frac  = ISO8601DateFormatter(); frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = plain.date(from: iso) ?? frac.date(from: iso) else { return nil }
+        guard let date = DateHelpers.timestamp(iso) else { return nil }
         let out = DateFormatter()
         out.locale = Locale(identifier: "en_US")
         out.dateFormat = "MMMM yyyy"

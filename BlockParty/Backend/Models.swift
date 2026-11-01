@@ -301,18 +301,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
             let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
             self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
-            at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
+            at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap { DateHelpers.timestamp($0) }
             // One that doesn't read is none: it never costs the score.
             drive = (try? c.decodeIfPresent(Drive.self, forKey: .drive)) ?? nil
-        }
-
-        /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".
-        private static func parse(_ text: String) -> Date? {
-            let f = ISO8601DateFormatter()
-            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let d = f.date(from: text) { return d }
-            f.formatOptions = [.withInternetDateTime]
-            return f.date(from: text)
         }
     }
 
