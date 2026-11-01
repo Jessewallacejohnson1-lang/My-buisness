@@ -138,7 +138,8 @@ enum DailyFixtures {
     /// Gustavus to come, the ticket's real finals SJU 33-23 Concordia and Sartell 6-0 Sauk
     /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors
     /// (`Resources/Fixtures/town-games.json`: their colors are data, as the feed's are). With
-    /// `-town-volleyball`, CSB vs Carleton's volleyball takes SJU vs Gustavus's place (game-card 09).
+    /// `-town-volleyball`, CSB vs Carleton's volleyball takes SJU vs Gustavus's place, and with `-town-soccer`
+    /// SJU vs Augsburg's soccer (game-card 09).
     private static func gameSamples(now: Date) -> [TownFeedEntry] {
         struct Sample: Decodable {
             let id, title, host, place, day: String
@@ -150,7 +151,8 @@ enum DailyFixtures {
         guard let url = Bundle.main.url(forResource: "town-games", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let all = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
-        let samples = all.filter { $0.id != (LaunchFlags.has(.townVolleyball) ? "g1" : "v1") }
+        let first = LaunchFlags.has(.townVolleyball) ? "v1" : LaunchFlags.has(.townSoccer) ? "s1" : "g1"
+        let samples = all.filter { !["v1", "s1", "g1"].contains($0.id) || $0.id == first }
         // `-town-live`: the first game started an hour ago today; TownFeed plays its score (game-card 03).
         let live = LaunchFlags.has(.townLive)
         let today = Self.townClock("yyyy-MM-dd", now)

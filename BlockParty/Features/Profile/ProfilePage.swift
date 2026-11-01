@@ -1,14 +1,15 @@
 //
 //  ProfilePage.swift
-//  Block Party — a profile's page, yours (Profile, behind your photo on You) and a neighbour's,
+//  Block Party — a profile's page, yours (the You tab, five-tabs 03) and a neighbour's,
 //  built from the Group page's parts (BP app references/profile-remake, mock round 4; taste/you.md
 //  2026-10-25): the cover photo under the paper sheet, the round photo over the sheet's edge, the
 //  name in the event title face, "St. Joseph · Neighbor since …", one counts line, About, Going as
 //  the Group page's "Coming up" date tiles, and Groups. The text under the name is SF Pro
 //  (`Font.apple`), the one screen off BP Body (Jesse: "use same font as group page").
 //
-//  Going is per Event, never a person's agenda (friends spec, 2026-10-13): your own next three,
-//  a friend's only where you're both Going, a stranger's not at all.
+//  Going is per Event, never a person's agenda (friends spec, 2026-10-13): your own is your full
+//  Calendar and Agenda, which only you see; a friend's only the Events you're both Going to, a
+//  stranger's not at all.
 //
 //  PRODUCT RULE, as the Group page's: never a zero count or a placeholder. Every row is absent
 //  when its data is.
@@ -90,6 +91,9 @@ enum ProfileMetric {
 
 struct ProfilePage<Buttons: View, Bar: View>: View {
     let face: ProfileFace
+    /// Your own page: your full Calendar and Agenda under "Going", where a neighbour's page has
+    /// its Going rows (five-tabs 03). Nil on a neighbour's.
+    var calendar: YouPage?
     /// The round buttons on the cover: your pencil and ☰, or a neighbour's back and •••.
     @ViewBuilder let buttons: () -> Buttons
     /// A neighbour's one pill at the bottom; nothing on your own page.
@@ -205,6 +209,13 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 }
                 .buttonStyle(PressableStyle())
                 .padding(.top, Sizes.sectionTop - (PageMetric.tapMin - ProfileMetric.addBioLine) / 2)
+            }
+
+            if let calendar {
+                section("Going")
+                // Edge to edge: the Calendar keeps Lapse's 18.5 pt sides, and the Agenda swipes
+                // across the whole width.
+                calendar.padding(.horizontal, -Event.inset)
             }
 
             if let going = face.going, !going.isEmpty {

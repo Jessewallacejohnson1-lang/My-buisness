@@ -41,7 +41,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // "Around town" — were what the auditor kept reporting. It goes back to
         // `.audited` the day the page is finished; the surface is parked in
         // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
-        "RootView.swift:$showProfileSheet": .notYetAudited(reason: "The You tab's profile. Not a developed page yet — see DynamicTypeAuditTests.notDevelopedYet. High priority the day it settles: a profile is user-generated text of any length."),
 
         "OnboardingNamePhoto.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
