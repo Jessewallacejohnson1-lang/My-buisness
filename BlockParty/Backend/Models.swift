@@ -273,19 +273,32 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         func isLive(at now: Date) -> Bool { at.map { now.timeIntervalSince($0) < Self.quietAfter } ?? false }
 
         /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none. Soccer's
-        /// clock never stops, so its minute runs on from the last push ("2nd half · 67'"), holding
-        /// at 45' and 90' through stoppage time and the break; football's and basketball's stop
-        /// on every whistle, so theirs shows as the scorer last sent it.
+        /// minute runs on from the last push ("2nd half · 67'", `minute(at:)`); football's and
+        /// basketball's clocks stop on every whistle, so theirs shows as the scorer last sent it.
         func line(at now: Date) -> String {
             guard let clock, let at else { return period }
-            let since = now.timeIntervalSince(at)
-            if clock.hasSuffix("'"), let seconds {
-                let minute = (seconds + Int(max(0, since))) / 60 + 1
-                let end: Int? = switch period { case "1st half": 45; case "2nd half": 90; default: nil }
-                return "\(period) · \(end.map { min(minute, $0) } ?? minute)'"
-            }
-            return since < Self.staleAfter ? "\(period) · \(clock)" : period
+            if let minute = minute(at: now) { return "\(period) · \(minute)'" }
+            return now.timeIntervalSince(at) < Self.staleAfter ? "\(period) · \(clock)" : period
         }
+
+        /// Soccer's minute: it runs on from the last push, held at the end of the period that push was in
+        /// through the break (45, 90, then each 10-minute overtime's end). Nil for a clock that isn't soccer's.
+        func minute(at now: Date) -> Int? {
+            guard clock?.hasSuffix("'") == true, let seconds, let at else { return nil }
+            let minute = (seconds + Int(max(0, now.timeIntervalSince(at)))) / 60 + 1
+            let end: Int? = switch period {
+            case "1st half": 45
+            case "2nd half": 90
+            // SIDEARM's clock runs on from 90:00 through every overtime (guessed: no overtime seen yet).
+            case "OT": 90 + 10 * max(1, (seconds - 5400 + 599) / 600)
+            default: nil
+            }
+            return end.map { min(minute, $0) } ?? minute
+        }
+
+        /// The half is over: SIDEARM's clock stops at 45:00 and stays there until the second half starts
+        /// (the NCAA's has no stoppage time: CSB's and SJU's files of 2026-10-24 ended halves at 45:00 and 90:00).
+        var isHalftime: Bool { period == "1st half" && (seconds ?? 0) >= 2700 }
 
         private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, periods, at, drive }
 
@@ -357,6 +370,28 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     /// Volleyball keeps sets, not quarters or halves: its page draws them, and a set won is a moment.
     var isVolleyball: Bool { sport.localizedCaseInsensitiveContains("volleyball") }
+
+    /// Soccer's page draws the minute in a ring and the scorers under the teams (game-card 09).
+    var isSoccer: Bool { sport.localizedCaseInsensitiveContains("soccer") }
+
+    /// Soccer's scorers under each team, in `teams` order (game-card 09): one line per player, in the order
+    /// they first scored, their minutes after the name ("Hanson 23', 71'"); a goal SIDEARM names no one
+    /// for is "Goal 23'". Kept after the final, as the plays are. None for any other sport.
+    var scorers: [[String]] {
+        guard isSoccer else { return [] }
+        return [0, 1].map { side in
+            var lines: [(name: String, minutes: [String])] = []
+            for play in plays where play.side == side {
+                let name = GameMoment.scorer(in: play.text) ?? "Goal"
+                if let i = lines.firstIndex(where: { $0.name == name }) {
+                    lines[i].minutes += [play.clock].compactMap { $0 }
+                } else {
+                    lines.append((name, [play.clock].compactMap { $0 }))
+                }
+            }
+            return lines.map { ([$0.name] + [$0.minutes.joined(separator: ", ")].filter { !$0.isEmpty }).joined(separator: " ") }
+        }
+    }
 
     /// Volleyball's sets, each one's points in `teams` order (game-card 09): the chips under its logos.
     /// None for any other sport, whose periods are quarters and halves.
@@ -567,6 +602,24 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
 nonisolated enum TownFeedLine: Hashable {
     case event(TownFeedRow)
     case news(TownNews)
+}
+
+/// One line of a round past the Town feed's later Events (`get_town_more`, town-feed 23): a place to
+/// try, or an Event or News item from the ranked list, again. An unknown kind is never drawn.
+nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
+    enum Kind: String, Decodable, Sendable { case place, again, unknown }
+    let kind: Kind
+    let id: String
+}
+
+nonisolated extension TownMoreRow {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown
+        id = try c.decode(String.self, forKey: .id)
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, id }
 }
 
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when

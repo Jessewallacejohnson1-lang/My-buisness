@@ -29,6 +29,12 @@ enum DailyFeedItem: Identifiable {
     case eventOfTheDay(DailyEvent)
     /// Town news, below the events (town-feed 35).
     case news(TownNews)
+    /// Where the ranked Town feed ends (town-feed 23).
+    case caughtUp
+    /// A place to try past the later Events, in the round that brought it (town-feed 23).
+    case place(SearchItem, round: Int)
+    /// An Event or News item from the ranked list above, again in a later round (town-feed 23).
+    case again(TownFeedEntry.Item, round: Int)
 
     var id: String {
         switch self {
@@ -36,13 +42,17 @@ enum DailyFeedItem: Identifiable {
         case .event(let item):          return "event:" + item.id
         case .eventOfTheDay(let event): return "event-of-the-day:" + event.id
         case .news(let news):           return "news:" + news.id
+        case .caughtUp:                 return "caught-up"
+        case .place(let place, let round): return "place:\(round):" + place.id
+        case .again(let item, let round):  return "again:\(round):" + TownFeedEntry(item: item, leavesAt: .distantFuture).id
         }
     }
 
     /// The Event's id, for the views the Town feed counts (ticket 20); nil for a posting or news.
+    /// A repeat is counted where it first showed, so its two rows never cross each other's timing.
     var eventID: String? {
         switch self {
-        case .posting, .news: return nil
+        case .posting, .news, .caughtUp, .place, .again: return nil
         case .event(let item): return item.id
         case .eventOfTheDay(let event): return event.id
         }
@@ -51,8 +61,12 @@ enum DailyFeedItem: Identifiable {
     /// The id Not interested and Mute fold it by: the Event's, or the news item's (news-menu). Not
     /// `eventID`, whose ids go to the views table, which takes Events only.
     var hideID: String? {
-        if case .news(let news) = self { return news.id }
-        return eventID
+        switch self {
+        case .news(let news): return news.id
+        case .again(.news(let news), _): return news.id
+        case .again(.event(let card), _): return card.id
+        default: return eventID
+        }
     }
 
     /// The Town feed's column: your Event of the day on top, then the events and news in the feed's

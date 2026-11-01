@@ -39,6 +39,10 @@ struct DailyFeedColumn: View {
     var onCardOnScreen: ((String, Bool) -> Void)? = nil
     /// The clock the Event of the day poster reads ("Now"); the Town feed ticks it each minute.
     var now = Date()
+    /// One of the last few cards came on screen: the Town feed asks for its next round (town-feed 23).
+    var onNearEnd: (() -> Void)? = nil
+    /// A round on its way: a card's skeleton under the last card.
+    var loadingMore = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The Town feed, for a hidden card's Undo line (ticket 21); nil elsewhere.
@@ -48,6 +52,8 @@ struct DailyFeedColumn: View {
     /// How many cards get the entrance cascade. Past this the delay would outlast
     /// the scroll that reveals them, so the rest simply appear.
     private static let entranceCardCount = 6
+    /// How many cards from the end the next round is asked for.
+    private static let nearEnd = 5
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 28) {
@@ -67,6 +73,15 @@ struct DailyFeedColumn: View {
                         .onScrollVisibilityChange(threshold: 0.5) { visible in
                             if let id = item.eventID { onCardOnScreen?(id, visible) }
                         }
+                        // Five from the end, so the next round is in before the last card.
+                        .onAppear { if index >= items.count - Self.nearEnd { onNearEnd?() } }
+                }
+                if loadingMore {
+                    // The next card's shape, as the feed's own skeleton draws one (never a spinner).
+                    SkeletonBlock(cornerRadius: Radius.card)
+                        .aspectRatio(3.0 / 2.0, contentMode: .fit)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                        .accessibilityLabel("Loading more")
                 }
             }
         }
@@ -92,7 +107,7 @@ struct DailyFeedColumn: View {
                 posting: posting,
                 onShare: { Self.share(posting) }
             )
-        case .event(let event):
+        case .event(let event), .again(.event(let event), _):
             FeedEventCard(
                 item: event,
                 onShare: { ShareCenter.shared.present(.event(event)) },
@@ -101,8 +116,12 @@ struct DailyFeedColumn: View {
         case .eventOfTheDay(let event):
             EventOfTheDayPoster(event: event, now: now)
                 .padding(.horizontal, DailyFeedMetric.contentInset)
-        case .news(let news):
+        case .news(let news), .again(.news(let news), _):
             TownNewsCard(news: news)
+        case .caughtUp:
+            CaughtUpLine()
+        case .place(let place, _):
+            PlaceCard(place: place)
         }
     }
 

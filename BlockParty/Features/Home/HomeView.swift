@@ -20,6 +20,8 @@ struct HomeView: View {
     var townFeed: TownFeed
     /// The shell's Event of the day, Daily's, on top of the feed (BP app event-card 03).
     var eventOfTheDay: EventOfTheDay
+    /// Search's places, for the feed's places to try (town-feed 23).
+    var places: (String) -> SearchItem? = { _ in nil }
 
     var body: some View {
         FeedView(
@@ -27,7 +29,8 @@ struct HomeView: View {
             onOpenNotifications: onOpenNotifications,
             onOpenPage: onOpenPage,
             townFeed: townFeed,
-            eventOfTheDay: eventOfTheDay
+            eventOfTheDay: eventOfTheDay,
+            places: places
         )
     }
 }
