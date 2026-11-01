@@ -574,7 +574,7 @@ nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
     let id: String
 }
 
-extension TownMoreRow {
+nonisolated extension TownMoreRow {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown
