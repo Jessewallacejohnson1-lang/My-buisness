@@ -168,6 +168,22 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 32, scale: 3), 96, "an avatar is unchanged")
     }
 
+    /// A photo fills its frame around where the eye goes (photo-focus): a face near a tall photo's
+    /// top moves the photo down as far as its edge allows; the centre, and a photo already the
+    /// frame's shape, move nothing.
+    func testAPhotoFillsItsFrameAroundItsFocus() {
+        // A 1000 × 2000 photo fills the 393 × 303 hero at 0.393: 393 × 786, 241.5 pt spare above and below.
+        let tall = CGSize(width: 1000, height: 2000), hero = CGSize(width: 393, height: 303)
+        XCTAssertEqual(FeedCardURLPhoto.offset(image: tall, box: hero, focus: .center), .zero)
+        XCTAssertEqual(FeedCardURLPhoto.offset(image: tall, box: hero, focus: UnitPoint(x: 0.5, y: 0.3)).height,
+                       157.2, accuracy: 0.001)
+        XCTAssertEqual(FeedCardURLPhoto.offset(image: tall, box: hero, focus: .top).height, 241.5, accuracy: 0.001,
+                       "never past the photo's top edge")
+        XCTAssertEqual(FeedCardURLPhoto.offset(image: tall, box: hero, focus: UnitPoint(x: 0.9, y: 0.5)).width, 0,
+                       "no room sideways")
+        XCTAssertEqual(FeedCardURLPhoto.offset(image: hero, box: hero, focus: .topLeading), .zero)
+    }
+
     /// Faces keep their own room in the photo cache (codebase-health 18): 13 photos and 50 faces,
     /// oldest first, drop the oldest photo and the two oldest faces, and nothing else.
     func testFacesAndPhotosEachKeepTheirNewest() {

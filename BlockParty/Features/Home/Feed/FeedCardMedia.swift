@@ -7,6 +7,7 @@ import Foundation
 import ImageIO
 import SwiftUI
 import UIKit
+import Vision
 
 struct FeedCardURLPhoto: View {
     let url: URL
@@ -30,6 +31,7 @@ struct FeedCardURLPhoto: View {
                     url: url,
                     maxPixelSize: Self.pixelWidth(points: proxy.size.width, scale: displayScale)
                 ),
+                box: proxy.size,
                 onReady: onReady,
                 onFailure: onFailure,
                 loadingFill: loadingFill
@@ -44,10 +46,25 @@ struct FeedCardURLPhoto: View {
     static func pixelWidth(points: CGFloat, scale: CGFloat) -> Int {
         max(1, Int(points.rounded() * scale))
     }
+
+    /// How far to move a photo filling `box` so its focus sits as near the middle as the photo's
+    /// edges allow: a face near a tall photo's top stays in a wide frame (Jesse, 2026-10-31: "the
+    /// heads are so high up you cant see them"). The centre moves nothing, as `scaledToFill` draws it.
+    nonisolated static func offset(image: CGSize, box: CGSize, focus: UnitPoint) -> CGSize {
+        guard image.width > 0, image.height > 0 else { return .zero }
+        let scale = max(box.width / image.width, box.height / image.height)
+        func shift(_ length: CGFloat, _ boxLength: CGFloat, _ at: CGFloat) -> CGFloat {
+            let spare = max(length - boxLength, 0) / 2
+            return min(max(length * (0.5 - at), -spare), spare)
+        }
+        return CGSize(width: shift(image.width * scale, box.width, focus.x),
+                      height: shift(image.height * scale, box.height, focus.y))
+    }
 }
 
 private struct FeedCardDownsampledPhoto: View {
     let request: FeedCardImageRequest
+    let box: CGSize
     var onReady: (() -> Void)? = nil
     var onFailure: (() -> Void)? = nil
     var loadingFill: Color = Hue.ink
@@ -69,6 +86,8 @@ private struct FeedCardDownsampledPhoto: View {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .scaledToFill()
+                    .offset(FeedCardURLPhoto.offset(image: CGSize(width: image.width, height: image.height), box: box,
+                                                    focus: FeedCardImageLoader.shared.focus(for: request.url)))
                     .transition(.opacity)
             } else {
                 // Ink, not a light fill: the card's title is white and already sits on
@@ -111,6 +130,8 @@ final class FeedCardImageLoader {
     private static let smallPixels = 300
     private var cache: [FeedCardImageRequest: CGImage] = [:]
     private var cacheOrder: [FeedCardImageRequest] = []
+    /// Where the eye goes in each photo, found once per URL and kept when its bitmap is dropped.
+    private var focuses: [URL: UnitPoint] = [:]
 
     private init() {
         _ = NotificationCenter.default.addObserver(
@@ -129,14 +150,38 @@ final class FeedCardImageLoader {
         cache.filter { $0.key.url == url }.values.max { $0.width < $1.width }
     }
 
+    /// Where to centre this photo in a frame of another shape; the middle until it has been looked at.
+    func focus(for url: URL) -> UnitPoint {
+        focuses[url] ?? .center
+    }
+
     fileprivate func image(for request: FeedCardImageRequest) async -> CGImage? {
         if let cached = cache[request] {
             touch(request)
             return cached
         }
         guard let thumbnail = await Self.decode(request) else { return nil }
+        // Before it shows, so it never jumps. Round faces (small) skip it: many, and square already.
+        if request.maxPixelSize > Self.smallPixels, focuses[request.url] == nil {
+            focuses[request.url] = await Self.focus(of: thumbnail)
+        }
         insert(thumbnail, for: request)
         return thumbnail
+    }
+
+    /// Where the eye goes, from the top left (0...1): the middle of the photo's faces, else of
+    /// what Vision's attention saliency picks, else the middle. The place-photos skill's
+    /// `focus.swift` draws the approval sheet with the same rule; change both together.
+    @concurrent
+    nonisolated static func focus(of image: CGImage) async -> UnitPoint {
+        var boxes = ((try? await DetectFaceRectanglesRequest().perform(on: image)) ?? []).map(\.boundingBox.cgRect)
+        if boxes.isEmpty {
+            boxes = (try? await GenerateAttentionBasedSaliencyImageRequest().perform(on: image))?
+                .salientObjects.map(\.boundingBox.cgRect) ?? []
+        }
+        guard let first = boxes.first else { return .center }
+        let box = boxes.dropFirst().reduce(first) { $0.union($1) }
+        return UnitPoint(x: box.midX, y: 1 - box.midY)  // Vision measures from the bottom left
     }
 
     @concurrent
