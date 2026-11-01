@@ -241,8 +241,9 @@ private struct NewEventDetails: View {
                     DatePicker(NewEventCopy.when, selection: $model.draft.when, in: Date()...,
                                displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
-                        // Picking a day puts the keyboard away; it doesn't come back when the calendar closes.
-                        .onChange(of: model.draft.when) { naming = false }
+                        // Opening the calendar puts the keyboard away first, so it doesn't come back
+                        // when the calendar closes (recorded 2026-11-01).
+                        .simultaneousGesture(TapGesture().onEnded { naming = false })
                 }
                 Button { naming = false; choosePlace() } label: {
                     row(label: NewEventCopy.place, icon: { MapPinGlyph(size: NewEventMetric.icon) }) {
