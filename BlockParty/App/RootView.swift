@@ -1040,6 +1040,8 @@ struct BlockPartyTabBar: View {
     @State private var landingTask: Task<Void, Never>?
     /// Taps on Daily, each one a hop of its ! (`DailyMarkGlyph`).
     @State private var dailyHops = 0
+    /// Taps on Search, each one a swoop of the magnifier's shine (`MagnifierGlyph`).
+    @State private var searchSwoops = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     struct Touch: Equatable {
@@ -1079,7 +1081,8 @@ struct BlockPartyTabBar: View {
                     .position(x: bubbleX, y: TabBarMetric.height / 2)
                     .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
-                      avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops)
+                      avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops,
+                      searchSwoops: searchSwoops)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -1098,8 +1101,10 @@ struct BlockPartyTabBar: View {
                              ? TabBarMetric.collapseAfterDrag : TabBarMetric.landingAfterTap)
                         let tab = TabBarMetric.tab(atX: pressedX(value.location.x, capsule: capsule),
                                                    capsuleWidth: width)
-                        // Every tap on Daily hops its !, already-picked included.
+                        // Every tap on Daily hops its !, and every tap on Search swoops
+                        // its shine, already-picked included.
                         if tab == .daily && !reduceMotion { dailyHops += 1 }
+                        if tab == .search && !reduceMotion { searchSwoops += 1 }
                         onSelect(tab)
                     }
             )
@@ -1222,6 +1227,8 @@ struct BlockPartyTabBar: View {
         var lensX: CGFloat? = nil
         /// Taps on Daily so far; each one hops the Bp!'s !.
         var dailyHops = 0
+        /// Taps on Search so far; each one swoops the magnifier's shine.
+        var searchSwoops = 0
 
         var body: some View {
             ZStack(alignment: .topLeading) {
@@ -1280,7 +1287,7 @@ struct BlockPartyTabBar: View {
         private func symbol(_ tab: Tab, selected: Bool) -> some View {
             Group {
                 if tab == .search {
-                    MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected)
+                    MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected, swoops: searchSwoops)
                 } else if tab == .town {
                     HouseGlyph(filled: selected)
                 } else if tab == .daily {
