@@ -363,7 +363,8 @@ struct AttendPill: View {
                 Text("Attend")
             }
         }
-        .font(.sansSemibold(size.top))
+        // Apple's font, not BP Body (Jesse at attend-font's Check-in 1, 2026-10-31).
+        .font(.apple(size.top, weight: .semibold))
     }
 
     /// Attend: Going, and the calendar's check shows before Invite comes up. A write the server

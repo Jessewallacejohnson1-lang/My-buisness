@@ -166,6 +166,12 @@ and `DECISIONS.md` win wherever they disagree.
   `places.entry_id`, the cover on a food card with its credit chip, every photo on a business's
   page, and a park's by its `CityParks` id before its bundled photo. A place with none shows its
   logo on its backdrop, else its kind's glyph; Search asks Google for nothing.
+- **A photo fills its frame around where the eye goes, not its middle.** `[prose]` (Jesse,
+  2026-10-31: "the heads are so high up you cant see them".) `FeedCardURLPhoto` centres each
+  photo on its faces, else on what Vision's attention saliency picks
+  (`FeedCardImageLoader.focus(of:)`), found on the phone as it loads, so every photo gets it,
+  the cloud's new Event photos included; nothing is saved. BP app's place-photos `focus.swift`
+  draws the approval sheet with the same rule: change both together.
 - **The Google Places Photo API is still the map's** (`VenueInfoView`, until place-photos
   ticket 02), through
   `GooglePlacesService.confidentPhoto(name:coordinate:)`, loaded through `FeedCardURLPhoto`,
