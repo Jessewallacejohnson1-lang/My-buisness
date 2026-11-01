@@ -29,6 +29,35 @@
   }
  },
  {
+  "id": "s1",
+  "title": "SJU Soccer vs Augsburg",
+  "host": "SJU Athletics",
+  "place": "Haws Field",
+  "day": "2026-11-03",
+  "time": "2 PM",
+  "hoursUntil": 49,
+  "went": 46,
+  "game": {
+   "sport": "Soccer",
+   "teams": [
+    {
+     "name": "Saint John's",
+     "short": "Saint John's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
+     "color": "#C20430",
+     "colors": ["#BC0E33", "#02A2E2"]
+    },
+    {
+     "name": "Augsburg",
+     "short": "Augsburg",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/augsburg/logo-810830adac.png",
+     "color": "#702038",
+     "colors": ["#74243D", "#A9AAAB"]
+    }
+   ]
+  }
+ },
+ {
   "id": "g1",
   "title": "SJU Football vs Gustavus Adolphus",
   "host": "SJU Athletics",

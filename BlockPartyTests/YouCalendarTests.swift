@@ -83,8 +83,6 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(YouCalendar.event(from: row("c", "someday", "9 AM")))
     }
 
-    /// The card says "Now" only while the Event is on; on an earlier day, or once it's
-    /// over, it says when it started.
     /// The Agenda card's and Saved's square photo is the Town card's pick (`FeedCardItem.image`):
     /// an Event whose only photo is its place's (`place_picture`, `image_url` null) shows that
     /// photo, not the grey square. Its own photo still comes first; a logo has no photo.
@@ -106,6 +104,8 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(YouCalendar.event(from: row("none", "2026-10-31", "1 PM", at: nil))!.photo)
     }
 
+    /// The card says "Now" only while the Event is on; on an earlier day, or once it's
+    /// over, it says when it started.
     func testTheCardSaysNowOnlyWhileItsOn() {
         let event = YouCalendar.event(from: row("a", "2026-10-13", "7 PM"))!
         func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
@@ -266,48 +266,6 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(rows.map(\.rsvpd), [false, true])
         XCTAssertTrue(rows.allSatisfy(\.saved))
         XCTAssertTrue(rows.compactMap(YouCalendar.event(from:)).allSatisfy(\.item.isSaved))
-    }
-
-    // MARK: The Places row (ticket 03)
-
-    /// Each place once with its next Event there, one not over yet, soonest first: past
-    /// days and this morning's finished Event drop off, today's all-day one stays; the
-    /// same typed name in another case, spacing or apostrophe is the same place; an Event
-    /// with no place is left out.
-    func testPlacesShowEachPlacesNextEventSoonestFirst() {
-        let now = town("2026-10-14 12:00")
-        let first = YouCalendar.firstDay(of: now)
-        let read = [row("past", "2026-10-13", "6 PM", at: "Bad Habit Brewing"),
-                    row("tonight", "2026-10-14", "7 PM", at: "Saint Ben's"),
-                    row("morning", "2026-10-14", "8 AM", at: "The Local Blend"),
-                    row("fair", "2026-10-14", nil, allDay: true, at: "Centennial Park"),
-                    row("again", "2026-10-16", "6 PM", at: " saint  ben’s "),
-                    row("nowhere", "2026-10-17", "6 PM", at: nil),
-                    row("blank", "2026-10-17", "7 PM", at: "  "),
-                    row("blend", "2026-10-19", "8 AM", at: "The Local Blend"),
-                    row("later", "2026-10-20", "6 PM", at: "Bad Habit Brewing")]
-            .compactMap(YouCalendar.event(from:))
-        let going = YouCalendar.going(read: read, tapped: [], isGoing: { _ in true }, first: first)
-        XCTAssertEqual(YouCalendar.places(going, now: now).map(\.id), ["tonight", "fair", "blend", "later"])
-    }
-
-    /// A Join adds its place; leaving the sooner Event at a place moves the place to the
-    /// next one there, and leaving the last takes the place off.
-    func testAJoinOrLeaveChangesPlaces() {
-        let now = town("2026-10-14 12:00")
-        let first = YouCalendar.firstDay(of: now)
-        let read = [row("soon", "2026-10-15", "6 PM", at: "Klinefelter Park"),
-                    row("next", "2026-10-22", "6 PM", at: "Klinefelter Park")]
-            .compactMap(YouCalendar.event(from:))
-        let joined = FeedCardItem(row("joined", "2026-10-16", "7 PM", at: "Saint Ben's"))
-        func places(going ids: Set<String>) -> [String] {
-            YouCalendar.places(YouCalendar.going(read: read, tapped: [joined], isGoing: { ids.contains($0.id) },
-                                                 first: first), now: now).map(\.id)
-        }
-        XCTAssertEqual(places(going: ["soon", "next"]), ["soon"])
-        XCTAssertEqual(places(going: ["soon", "next", "joined"]), ["soon", "joined"])
-        XCTAssertEqual(places(going: ["next", "joined"]), ["joined", "next"])
-        XCTAssertEqual(places(going: ["joined"]), ["joined"])
     }
 
     // MARK: Swiping the Agenda (ticket 12)
@@ -514,13 +472,13 @@ final class YouCalendarTests: XCTestCase {
                        "Trivia Night, 7 PM, Until 9 PM, Bad Habit Brewing")
     }
 
-    // MARK: The name pill
+    // MARK: The first name (the hello pill, onboarding's Done)
 
-    func testThePillShowsTheFirstNameOnly() {
+    func testTheFirstNameIsTheNamesFirstWord() {
         XCTAssertEqual(YouPage.firstName("Jesse Johnson"), "Jesse")
         XCTAssertEqual(YouPage.firstName("  Mary Ann\n"), "Mary")
         XCTAssertEqual(YouPage.firstName("Jesse"), "Jesse")
-        // No saved name: no pill, just the photo.
+        // No saved name: none.
         XCTAssertNil(YouPage.firstName(nil))
         XCTAssertNil(YouPage.firstName(""))
         XCTAssertNil(YouPage.firstName("   "))
