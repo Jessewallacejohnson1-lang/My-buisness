@@ -46,26 +46,28 @@ struct GameMatchup: View {
     var body: some View {
         // Each second while it's on, so a stale clock goes and a quiet game stops saying Live.
         TimelineView(.periodic(from: .now, by: game.live == nil ? 60 : 1)) { context in
-            let live = game.live.flatMap { $0.isLive(at: context.date) ? $0 : nil }
+            // The score stays through a quiet spell (halftime: the server writes only a change); Live, the
+            // clock and the field bar wait for a fresh one, so a feed gone quiet never leaves a frozen ball.
+            let fresh = game.live?.isLive(at: context.date) == true
+            let live = game.live
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 0) {
-                    side(0, live: live)
-                    middle(live: live, at: context.date).frame(width: Metric.middle)
-                    side(1, live: live)
+                    side(0, live: live, fresh: fresh)
+                    middle(live: live, fresh: fresh, at: context.date).frame(width: Metric.middle)
+                    side(1, live: live, fresh: fresh)
                 }
-                // The page's heading, in the title's place: "Football, Saint John's 14, Gustavus 3, Q3, 4:12".
+                // The page's heading, in the title's place: "Live, Football, Saint John's 14, Gustavus 3, Q3, 4:12".
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(game.spoken + (live.map { ", " + $0.line(at: context.date).replacingOccurrences(of: " · ", with: ", ") } ?? ""))
+                .accessibilityLabel((fresh ? "Live, " : "") + game.spoken + (fresh ? live?.clock.map { ", \($0)" } ?? "" : ""))
                 .accessibilityValue(cancelled ? "Canceled" : "")
                 .accessibilityAddTraits(.isHeader)
-                // Down and distance, only while it's on and fresh: a feed gone quiet never leaves a frozen ball.
-                if let live, let drive = live.drive {
+                if fresh, let drive = live?.drive {
                     FieldBar(game: game, drive: drive)
                         .padding(.top, Metric.driveTop)
                         .transition(.opacity)
                 }
             }
-            .animation(reduceMotion ? nil : Motion.smooth, value: live?.drive)
+            .animation(reduceMotion ? nil : Motion.smooth, value: fresh ? live?.drive : nil)
         }
         // A refresh that brings the live score or the final cross-fades into it.
         .animation(Motion.smooth, value: game.final)
@@ -74,15 +76,15 @@ struct GameMatchup: View {
         .playsMoments(of: game)
     }
 
-    /// Who's ahead now: the final's winner, or the live leader.
+    /// Behind while it's on (the final fades the loser's whole side instead).
     private func trailing(_ side: Int, live: Game.Live?) -> Bool {
-        guard let score = game.final ?? live?.score, score[0] != score[1] else { return false }
+        guard game.final == nil, let score = live?.score, score[0] != score[1] else { return false }
         return score[side] < score[1 - side]
     }
 
     /// One team: its number (live and final), its logo on a white disc, its short name, and a yellow dot
     /// after the name while it has the ball.
-    private func side(_ side: Int, live: Game.Live?) -> some View {
+    private func side(_ side: Int, live: Game.Live?, fresh: Bool) -> some View {
         let team = game.teams[side]
         let score = game.final ?? live?.score
         return VStack(spacing: 0) {
@@ -110,7 +112,7 @@ struct GameMatchup: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                if live?.drive?.side == side {
+                if fresh, live?.drive?.side == side {
                     Circle().fill(Hue.brandDisc).frame(width: 7, height: 7).transition(.scale.combined(with: .opacity))
                 }
             }
@@ -120,14 +122,15 @@ struct GameMatchup: View {
         .opacity(game.winner == 1 - side ? Metric.faded : 1)
     }
 
-    /// Between the teams: Live and the clock while it's on, Final after, the day and VS before.
+    /// Between the teams: Live and the clock while it's on (the period alone through a quiet spell), Final
+    /// after, the day and VS before.
     @ViewBuilder
-    private func middle(live: Game.Live?, at now: Date) -> some View {
+    private func middle(live: Game.Live?, fresh: Bool, at now: Date) -> some View {
         VStack(spacing: Metric.middleGap) {
             if game.final != nil {
                 NightChip(text: "Final")
             } else if let live {
-                NightChip(text: "Live", dot: Hue.live)
+                if fresh { NightChip(text: "Live", dot: Hue.live) }
                 MomentLine(style: .onNight) { Text(live.line(at: now)).monospacedDigit() }
             } else {
                 if let when { NightChip(text: when) }
@@ -439,11 +442,8 @@ struct WhiteGameCard: View {
 /// (`references/live-plays/`). Volleyball shows its sets instead: every point would be a play.
 struct GameScoring: View {
     let game: Game
-
-    /// Whether it has anything to show: plays, or volleyball's sets.
-    static func shows(_ game: Game) -> Bool {
-        !game.plays.isEmpty || (game.sport.localizedCaseInsensitiveContains("volleyball") && game.periods.count == 2)
-    }
+    /// Above its heading, when it has anything to show.
+    var top: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -459,6 +459,7 @@ struct GameScoring: View {
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
+            .padding(.top, top)
         } else if game.sport.localizedCaseInsensitiveContains("volleyball"), game.periods.count == 2 {
             section("Sets") {
                 ForEach(game.periods[0].indices, id: \.self) { set in
@@ -467,6 +468,7 @@ struct GameScoring: View {
                         side: score[0] == score[1] ? nil : (score[0] > score[1] ? 0 : 1))
                 }
             }
+            .padding(.top, top)
         }
     }
 

@@ -55,6 +55,9 @@ struct FeedEventDetailDestination: View {
     /// called off or ending while the sheet is up keeps its sheet, and Cancel.
     @State private var calendarShown = false
     @State private var adding: CalendarEntry?
+    /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
+    /// fade of its dark comes in behind them (game-card 08).
+    @State private var scrolled = false
     @Environment(\.openURL) private var openURL
 
     init(item: FeedCardItem, inSheet: Bool = false) {
@@ -132,6 +135,10 @@ struct FeedEventDetailDestination: View {
         static let hostTop: CGFloat = 20
         static let sectionTop: CGFloat = 30
         static let interestTop: CGFloat = 12
+        /// A game's page counts as scrolled this far down, and its top fade runs this far under the
+        /// buttons (picked).
+        static let scrolledAfter: CGFloat = 8
+        static let fadeBelowButtons: CGFloat = 28
         /// Paper under the last row, above the RSVP bar (guessed): with the bar's 57 + 1 pt
         /// inset, the last line rests just above the fade.
         static let contentBottom: CGFloat = 24
@@ -150,6 +157,9 @@ struct FeedEventDetailDestination: View {
                 sheet
             }
         }
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
+            scrolled = now
+        }
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
         .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
@@ -165,6 +175,18 @@ struct FeedEventDetailDestination: View {
             topButtons
                 .accessibilityElement(children: .contain)
                 .accessibilitySortPriority(1)
+                // A game's dark fading in under the clock and the buttons once the page scrolls, the
+                // bottom bar's fade turned over.
+                .background(alignment: .top) {
+                    if game != nil {
+                        LinearGradient(colors: [Hue.gameNight, Hue.gameNight.opacity(0)], startPoint: .top, endPoint: .bottom)
+                            .padding(.bottom, -Metric.fadeBelowButtons)
+                            .ignoresSafeArea(edges: .top)
+                            .opacity(scrolled ? 1 : 0)
+                            .animation(reduceMotion ? nil : Motion.smooth, value: scrolled)
+                            .allowsHitTesting(false)
+                    }
+                }
         }
         .accessibilityElement(children: .contain)
         // Whether the person may act is the module's, not the card's the page was opened
@@ -193,11 +215,7 @@ struct FeedEventDetailDestination: View {
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear {
             actions.pageOpened(item.id)
-            if game != nil {
-                feed?.holdScores(true)
-                // The clock goes white over the dark, as on a school's page.
-                AppearanceStore.shared.holdsClock = false
-            }
+            if game != nil { feed?.holdScores(true) }
         }
         .onDisappear {
             actions.pageClosed(item.id)
@@ -383,6 +401,18 @@ struct FeedEventDetailDestination: View {
                 .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
                 .accessibilityAddTraits(saved ? .isSelected : [])
         }
+        // A game's sport between the buttons, as Apple Sports names its league (the Football draft); the
+        // score below says it to VoiceOver.
+        .overlay {
+            if let game {
+                Text(game.sport)
+                    .font(.sansMedium(15))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .padding(.horizontal, 2 * Metric.tapBox + Metric.inset)
+                    .accessibilityHidden(true)
+            }
+        }
         .padding(.horizontal, Metric.inset - (Metric.tapBox - Metric.button) / 2)
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
     }
@@ -436,10 +466,7 @@ struct FeedEventDetailDestination: View {
         VStack(alignment: .leading, spacing: 0) {
             // A game's score says its title (game-card 08): its plays lead, the facts follow.
             if let game {
-                if GameScoring.shows(game) {
-                    GameScoring(game: game)
-                        .padding(.top, Metric.sectionTop)
-                }
+                GameScoring(game: game, top: Metric.sectionTop)
             } else {
                 Text(item.title)
                     .font(.eventDisplay(28))

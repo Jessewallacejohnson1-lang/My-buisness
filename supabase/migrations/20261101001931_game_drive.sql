@@ -8,8 +8,9 @@ language sql
 immutable
 set search_path = ''
 as $$
-  -- No such play (before the kickoff, an old read): no row, so null.
-  select case when p.spot is not null and p.team in ('HomeTeam', 'VisitingTeam') then
+  -- No play yet: no row, so null. A newest play with no down (a kickoff, an extra point) is none too, never
+  -- the snap before it: after a touchdown that would give the ball to the team that just scored.
+  select case when p.down between 1 and 4 and p.spot is not null and p.team in ('HomeTeam', 'VisitingTeam') then
     jsonb_build_object(
       'down', p.down,
       'togo', p.togo,
@@ -23,13 +24,13 @@ as $$
         end)
   end
   from (select coalesce(p_game->'Game', p_game) as g) f,
-       lateral (select (x->>'Down')::int as down,
+       lateral (select case when x->>'Down' ~ '^\d$' then (x->>'Down')::int end as down,
                        nullif(x->>'ToGo', '') as togo,
                        nullif(upper(replace(x->>'Spot', ' ', '')), '') as spot,
                        x->>'Team' as team
                 -- The newest real play: "End of game." and the quarter breaks (Type "#") name a team that hasn't the ball.
                 from (select x from jsonb_array_elements(coalesce(g->'LastPlays', '[]')) with ordinality as l(x, o)
-                      where coalesce(x->>'Type', '') <> '#' and x->>'Down' ~ '^[1-4]$' order by o limit 1) l) p,
+                      where coalesce(x->>'Type', '') <> '#' order by o limit 1) l) p,
        lateral (select coalesce(substring(p.spot from '^([A-Z]*)'), '') as side,
                        case when substring(p.spot from '(\d+)$') is not null then substring(p.spot from '(\d+)$')::int end as yard) s
 $$;

@@ -1290,7 +1290,11 @@ test("a live football score carries the down, distance and spot of SIDEARM's new
                    { down: 2, togo: '7', spot: 'SJU34', side: 1, ball: 34 }, "Gustavus's ball in Saint John's half");
   assert.equal((await drive(play({ Spot: '50' }))).ball, 50, 'midfield names neither side');
   assert.equal((await drive(play({ Spot: 'XYZ20' }))).ball, null, "a spot naming neither team: the words, no ball");
-  assert.equal(await drive(play({ Down: null })), null, 'a kickoff or extra point has no down');
+  // After a touchdown the newest plays are the extra point and the kickoff, with no down: no bar, never the
+  // scorer's last snap before them.
+  const snap = { ...sjuFootball.Game.LastPlays[2], Down: 1, ToGo: 'Goal', Spot: 'GAC3', Team: 'HomeTeam' };
+  const kick = { ...sjuFootball.Game.LastPlays[2], Type: 'Kickoff', Down: null, ToGo: null, Spot: 'SJU35' };
+  assert.equal(await drive({ Game: { ...sjuFootball.Game, LastPlays: [kick, snap] } }), null, 'a kickoff has no down');
   assert.equal(await drive({ Game: { ...sjuFootball.Game, LastPlays: [] } }), null, 'no plays yet');
   const away = { Game: { ...sjuFootball.Game, HomeTeam: sjuFootball.Game.VisitingTeam, VisitingTeam: sjuFootball.Game.HomeTeam,
                          LastPlays: [{ ...sjuFootball.Game.LastPlays[2], Team: 'VisitingTeam' }] } };
