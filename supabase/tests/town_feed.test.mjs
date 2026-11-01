@@ -19,7 +19,8 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit']);
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit',
+  'public.get_town_more']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -79,7 +80,7 @@ await db.exec(`
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
-    logo_url text, search_logo jsonb);
+    logo_url text, search_logo jsonb, primary_type text);
   -- Town news (town-feed 35), as schema.sql makes it; the migration adds interests and its place.
   create table public.board_items (id uuid primary key default gen_random_uuid(), title text not null,
     blurb text, category text not null, source_name text not null, source_url text,
@@ -561,6 +562,107 @@ test('a host you\'ve been into counts once however much you tapped, 90 days back
   assert.equal(await tapped(), 3, 'a second Event of its host adds nothing');
 });
 
+// A game's host is its team (town-feed 39): games are made by `game` below, their teams by `teams`.
+const [SJU, ROCORI] = ['SJU Athletics', 'ROCORI High School'];
+async function teams(...rows) {
+  await db.exec('reset role');
+  for (const [id, short] of rows)
+    await db.query(`insert into public.teams (id, name, short_name) values ($1, $2, $2)`, [id, short]);
+}
+async function byTitle(at = '2026-10-08 12:00') {
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  return Object.fromEntries((await feed(at)).map((r) => [r.title, r]));
+}
+
+test("a team's games on two days lift its next game in that sport and name it; not its school's other sports", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel'],
+              ['st-olaf', 'St. Olaf'], ['concordia', 'Concordia']);
+  const a = await game('SJU Soccer vs Augsburg', '2026-10-01', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const b = await game('Bethel vs SJU Soccer', '2026-10-04', 'Soccer', ['bethel', 'saint-johns'], { source_name: SJU });
+  await game('SJU Soccer vs St. Olaf', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await game('SJU Football vs Concordia', '2026-10-10', 'Football', ['saint-johns', 'concordia'], { source_name: SJU });
+  await game('Augsburg Soccer vs Bethel', '2026-10-10', 'Soccer', ['augsburg', 'bethel'], { source_name: 'Augsburg Athletics' });
+  await tap('event_likes', a, YOU, '2026-10-01 18:00');
+  await tap('event_saves', b, YOU, '2026-10-04 18:00');
+  const rows = await byTitle();
+  const olaf = rows['SJU Soccer vs St. Olaf'];
+  assert.deepEqual([olaf.reason, olaf.reason_name, olaf.score.tapped], ['tapped', "Saint John's Soccer", 3]);
+  assert.equal(rows['SJU Football vs Concordia'].score.tapped, 0, "the school's other sport doesn't rise");
+  assert.equal(rows['Augsburg Soccer vs Bethel'].score.tapped, 0, 'Augsburg and Bethel were in one tapped game each');
+});
+
+test('one tapped game lifts nothing, and two rows of one day are one game day', async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['st-olaf', 'St. Olaf']);
+  const varsity = await game('SJU Soccer vs Augsburg', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const jv = await game('SJU Soccer vs Augsburg (JV)', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  await game('SJU Soccer vs St. Olaf', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  const olafJv = await game('SJU Soccer vs St. Olaf (JV)', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await tap('event_likes', varsity, YOU, '2026-10-04 18:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'one game');
+  await tap('event_likes', jv, YOU, '2026-10-04 18:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'varsity and JV the same day');
+  await tap('event_likes', olafJv, YOU, '2026-10-08 09:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, "its own day's JV game is not another day");
+});
+
+test("a school's games and its other Events stop lifting each other", async () => {
+  await reset();
+  await teams(['rocori', 'ROCORI'], ['st-peter', 'St. Peter'], ['albany', 'Albany'], ['sartell', 'Sartell']);
+  const g1 = await game('ROCORI Football vs St. Peter', '2026-10-02', 'Football', ['rocori', 'st-peter'], { source_name: ROCORI });
+  const g2 = await game('Albany vs ROCORI Football', '2026-10-05', 'Football', ['albany', 'rocori'], { source_name: ROCORI });
+  const concert = await add('Band concert', '2026-10-03', { start_time: '7 PM', source_name: ROCORI });
+  await add('Fall play', '2026-10-09', { start_time: '7 PM', source_name: ROCORI });
+  await game('ROCORI Football vs Sartell', '2026-10-09', 'Football', ['rocori', 'sartell'], { source_name: ROCORI });
+  await game('ROCORI Volleyball vs Sartell', '2026-10-10', 'Volleyball', ['rocori', 'sartell'], { source_name: ROCORI });
+  await tap('event_rsvps', g1, YOU, '2026-10-02 12:00');
+  await tap('event_likes', g2, YOU, '2026-10-05 21:00');
+  let rows = await byTitle();
+  assert.deepEqual([rows['ROCORI Football vs Sartell'].score.tapped, rows['ROCORI Football vs Sartell'].reason_name],
+                   [3, 'ROCORI Football']);
+  assert.equal(rows['Fall play'].score.tapped, 0, "the school's games don't lift its play");
+  await tap('event_likes', concert, YOU, '2026-10-03 21:00');
+  rows = await byTitle();
+  assert.deepEqual([rows['Fall play'].score.tapped, rows['Fall play'].reason_name], [3, ROCORI]);
+  assert.equal(rows['ROCORI Volleyball vs Sartell'].score.tapped, 0, "the school's concert doesn't lift its games");
+});
+
+test("a team's lift is spaced by school, sits under your own Going, and Not interested on the school beats it", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel'],
+              ['st-olaf', 'St. Olaf'], ['gustavus', 'Gustavus']);
+  const a = await game('SJU Soccer vs Augsburg', '2026-10-01', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const b = await game('SJU Soccer vs Bethel', '2026-10-04', 'Soccer', ['saint-johns', 'bethel'], { source_name: SJU });
+  const olaf = await game('SJU Soccer vs St. Olaf', '2026-10-09', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await game('SJU Soccer vs Gustavus', '2026-10-11', 'Soccer', ['saint-johns', 'gustavus'], { source_name: SJU });
+  await tap('event_likes', a, YOU, '2026-10-01 18:00');
+  await tap('event_likes', b, YOU, '2026-10-04 18:00');
+  let rows = await byTitle();
+  assert.deepEqual(['SJU Soccer vs St. Olaf', 'SJU Soccer vs Gustavus'].map((t) => [rows[t].score.tapped, rows[t].score.spacing]),
+                   [[3, 1], [3, 0.5]], 'the second from the school counts half');
+  await tap('event_rsvps', olaf, YOU, '2026-10-08 09:00');
+  rows = await byTitle();
+  assert.deepEqual([rows['SJU Soccer vs St. Olaf'].score.tapped, rows['SJU Soccer vs St. Olaf'].score.acted], [3, 0.4],
+                   'its own Going is a third day, and the two before still lift it');
+  await notInterested(b, YOU, '2026-10-08 10:00');
+  rows = await byTitle();
+  const gustavus = rows['SJU Soccer vs Gustavus'];
+  assert.deepEqual([gustavus.score.tapped, gustavus.score.notInterested], [3, 0.3]);
+});
+
+test("a sport spelled two ways is one team's, and a team with no row is named by its calendar", async () => {
+  await reset();
+  const a = await game('ROCORI Girls Swim vs Sartell', '2026-10-01', 'Girls Swim', ['rocori', 'sartell'], { source_name: ROCORI });
+  const b = await game('Sartell vs ROCORI', '2026-10-06', 'Girls Swimming and Diving', ['sartell', 'rocori'], { source_name: 'Sartell High School' });
+  await game('ROCORI Girls Swim vs Tech', '2026-10-09', 'Girls Swim', ['rocori', 'tech'], { source_name: ROCORI });
+  await tap('event_likes', a, YOU, '2026-10-01 20:00');
+  await tap('event_likes', b, YOU, '2026-10-06 20:00');
+  const tech = (await byTitle())['ROCORI Girls Swim vs Tech'];
+  assert.deepEqual([tech.score.tapped, tech.reason, tech.reason_name], [3, 'tapped', ROCORI]);
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = townDay;
@@ -946,14 +1048,24 @@ test('the feed is read in under 10 yardsticks with 5,000 people', async () => {
     update public.club_events e set club_id = c.id
     from (select id, row_number() over (order by id) n from public.clubs where name like 'Group %') c
     where split_part(e.title, ' ', 2)::int % 7 = 0 and split_part(e.title, ' ', 2)::int / 7 % 3 + 1 = c.n;
+    -- And games (town-feed 39): a third of the Events are four pairs of teams' soccer, and the reader
+    -- hearted 12 of them.
+    insert into public.teams (id, name, short_name) select 'team-' || g, 'Team ' || g, 'Team ' || g from generate_series(1, 8) g;
+    update public.club_events set sport = 'Soccer', team_ids = array['team-' || (split_part(title, ' ', 2)::int % 4 + 1),
+                                                                     'team-' || (split_part(title, ' ', 2)::int % 4 + 5)]
+    where split_part(title, ' ', 2)::int % 3 = 1;
+    insert into public.event_likes (event_id, user_id)
+    select id, '00000000-0000-0000-0001-000000000042' from public.club_events where team_ids is not null order by title limit 12
+    on conflict do nothing;
     analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
   await db.query(YARDSTICK);
   // The time is judged against a yardstick read on the same machine in the same seconds: a fixed
   // query that touches none of the feed's tables or functions, so only the machine's speed moves
-  // it. A slow or busy runner slows both alike (run 41157284060 read 250.2 ms on a Swift-only
-  // change); a slower feed moves only the feed. Each pair is read back to back, and the median of
+  // it. A slow or busy machine slows both alike (run 41157284060 read 250.2 ms on a Swift-only
+  // change; a building Mac read 489 ms at a load of 90 and 782 at 68, 2026-11-01), so a busy Mac is
+  // timed too; a slower feed moves only the feed. Each pair is read back to back, and the median of
   // nine pairs is kept.
   const pairs = [];
   for (let i = 0; i < 9; i++) {
@@ -1017,14 +1129,17 @@ test("each event carries its place's picture: a photo before a logo, else the pl
 
 test("an event card shows its place's photo of what the event is, in season, taking turns (event-photos 07)", async () => {
   await reset();
+  // Fixed photo ids here and fixed Event ids below: an Event's turn is md5(Event id || photo id),
+  // and with random ids all 8 fall Events picked one photo about 1 run in 128 (CI run 41114834248).
   await db.exec(`delete from public.place_photos; delete from public.places;
-    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description) values
-      ('arena', 'https://x/cover.webp', 'https://arena.org/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
-      ('arena', 'https://x/hockey-a.webp', 'https://arena.org/g', 1, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Hockey game in play'),
-      ('arena', 'https://x/hockey-b.webp', 'https://arena.org/g', 2, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Fans cheering a goal'),
-      ('arena', 'https://x/hockey-snow.webp', 'https://arena.org/g', 3, 'scene', 'live', 1600, 1067, '{hockey}', '{winter}', 'Pond hockey in the snow'),
-      ('arena', 'https://x/hoops-fall.webp', 'https://arena.org/g', 4, 'scene', 'live', 1600, 1067, '{basketball}', '{fall}', 'Game in the fall'),
-      ('arena', 'https://x/hockey-gone.webp', 'https://arena.org/g', 0, 'scene', 'retired', 1600, 1067, '{hockey}', '{}', 'Taken down');`);
+    insert into public.place_photos (id, entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description)
+    overriding system value values
+      (701, 'arena', 'https://x/cover.webp', 'https://arena.org/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
+      (702, 'arena', 'https://x/hockey-a.webp', 'https://arena.org/g', 1, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Hockey game in play'),
+      (703, 'arena', 'https://x/hockey-b.webp', 'https://arena.org/g', 2, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Fans cheering a goal'),
+      (704, 'arena', 'https://x/hockey-snow.webp', 'https://arena.org/g', 3, 'scene', 'live', 1600, 1067, '{hockey}', '{winter}', 'Pond hockey in the snow'),
+      (705, 'arena', 'https://x/hoops-fall.webp', 'https://arena.org/g', 4, 'scene', 'live', 1600, 1067, '{basketball}', '{fall}', 'Game in the fall'),
+      (706, 'arena', 'https://x/hockey-gone.webp', 'https://arena.org/g', 0, 'scene', 'retired', 1600, 1067, '{hockey}', '{}', 'Taken down');`);
   const subject = async (t, s, c) => (await db.query('select private.event_subject($1, $2, $3) as s', [t, s, c])).rows[0].s;
   assert.equal(await subject('Sauna, Yoga, Ice Bath, Cider', null, 'health'), 'sauna', 'the same list as scenes.py');
   assert.equal(await subject('Cathedral vs Foley · JV', 'Boys Basketball', 'watch_sports'), 'basketball');
@@ -1036,9 +1151,10 @@ test("an event card shows its place's photo of what the event is, in season, tak
   const season = async (d) => (await db.query('select private.season_of($1::date) as s', [d])).rows[0].s;
   assert.deepEqual([await season('2026-11-30'), await season('2026-12-01'), await season('2027-02-28')], ['fall', 'winter', 'winter']);
 
-  const add = async (title, date, sport = null) => (await db.query(
-    `insert into public.club_events (title, event_date, sport, category, source_name, place_entry_id)
-     values ($1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`, [title, date, sport])).rows[0].id;
+  const add = async (title, date, sport = null, id = null) => (await db.query(
+    `insert into public.club_events (id, title, event_date, sport, category, source_name, place_entry_id)
+     values (coalesce($4::uuid, gen_random_uuid()), $1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`,
+    [title, date, sport, id])).rows[0].id;
   const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
   const winter = await pic(await add('Hockey vs Foley', '2026-12-10', 'Boys Hockey'));
   assert.equal(winter.url, 'https://x/hockey-snow.webp', "a photo made for the event's season before one for any");
@@ -1046,8 +1162,8 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.equal(winter.site, 'https://arena.org/g', 'credited to its page like a place photo');
   assert.deepEqual(winter.more.map((m) => m.url), ['https://x/cover.webp'], "the Event page's more: the place's photos, no scenes");
   const fall = [];
-  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09'])
-    fall.push((await pic(await add(`Hockey vs ${d}`, d))).url);
+  for (const [i, d] of ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09'].entries())
+    fall.push((await pic(await add(`Hockey vs ${d}`, d, null, `00000000-0000-0000-0007-00000000000${i + 1}`))).url);
   assert.deepEqual([...new Set(fall)].sort(), ['https://x/hockey-a.webp', 'https://x/hockey-b.webp'],
                    'out of season the any-season photos take turns, never the snow one nor a retired one');
   assert.equal((await pic(await add('Hoops vs Albany', '2026-12-12', 'Girls Basketball'))).url, 'https://x/cover.webp',
@@ -2443,5 +2559,117 @@ test("the City's and Joetown's other Events lift for their followers; a Place yo
                          'Fall Fest': ['follow', PEONY], Bingo: ['tomorrow', null] });
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall Fest', 'Pilates class', 'Bingo', 'Winterwalk'],
                    "Joetown's second Event counts half, as any host's");
+  await noPlaces();
+});
+
+// After the best, and the loop (town-feed 23): the 20 soonest Events past their show-from day, and each round's
+// places and repeats past them.
+async function later(at) {
+  const { rows } = await db.query(
+    `select title from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), false, true)`, [at]);
+  return rows.map((r) => r.title);
+}
+async function more(round, opened = [], shown = [], at = '2026-10-08 12:00') {
+  const { rows } = await db.query(
+    `select m.kind, coalesce(p.name, e.title, b.title) as name
+     from public.get_town_more(p_round => $1, p_opened => $2::uuid[], p_shown => $4::uuid[],
+                               p_now => ($3::timestamp at time zone 'America/Chicago')) with ordinality m(kind, id, n)
+     left join public.places p on p.id = m.id
+     left join public.club_events e on e.id = m.id
+     left join public.board_items b on b.id = m.id
+     order by m.n`, [round, opened, at, shown]);
+  return rows.map((r) => `${r.kind}:${r.name}`);
+}
+async function place(name, type = 'cafe', logo = true) {
+  await db.exec('reset role');
+  const { rows: [{ id }] } = await db.query(
+    `insert into public.places (name, entry_id, primary_type, search_logo) values ($1, $2, $3, $4) returning id`,
+    [name, name.toLowerCase().replace(/\W+/g, '-'), type, logo ? JSON.stringify({ url: `https://x/${name}.webp` }) : null]);
+  return id;
+}
+
+test('later Events: past their show-from day, soonest first, 20 at a time, under the ranked list\'s rules', async () => {
+  await reset();
+  await add('Next week', '2026-10-12', { start_time: '6 PM' });
+  await add('Craft fair', '2026-12-05', { start_time: '10 AM' });
+  await add('Concert', '2026-12-01', { start_time: '7 PM', source_name: 'Choir' });
+  await add('Muted bingo', '2026-11-30', { start_time: '6 PM', source_name: "Sal's" });
+  const hidden = await add('Hidden trivia', '2026-11-29', { start_time: '6 PM', source_name: 'Taproom' });
+  for (let n = 1; n <= 25; n += 1) await add(`Far ${String(n).padStart(2, '0')}`, `2027-01-${String(n).padStart(2, '0')}`, { source_name: `Host ${n}` });
+  await signIn(ME);
+  await db.query('select public.set_not_interested($1)', [hidden]);
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, $2, $2)`, [ME, "Sal's"]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Next week'], 'the ranked list keeps its own window');
+  const rows = await later('2026-10-08 12:00');
+  assert.equal(rows.length, 20);
+  assert.deepEqual(rows.slice(0, 4), ['Concert', 'Craft fair', 'Far 01', 'Far 02'],
+                   'soonest first; Not interested and Mute keep theirs out; nothing already in the ranked list');
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.deepEqual((await later('2026-10-08 12:00')).slice(0, 2), ['Hidden trivia', 'Muted bingo'],
+                   'signed out: the same, with nothing hidden');
+  await db.exec('reset role');
+});
+
+test('places to try: those Search opens, no services, what you follow first, then the most followed', async () => {
+  await reset();
+  await noPlaces();
+  const cafe = await place('Cafe');
+  const bakery = await place('Bakery', 'bakery');
+  const shop = await place('Shop', 'clothing_store');
+  await place('Bank', 'bank');
+  await place('No logo', 'bar', false);
+  await place('Muted bar', 'bar');
+  await place('Quiet deli', 'sandwich_shop');
+  await signIn(ME);
+  await db.exec('reset role');
+  for (const [who, id] of [['c1', cafe], ['c2', cafe], ['c3', cafe], ['c4', bakery], ['c5', bakery]])
+    await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`,
+      [`00000000-0000-0000-0000-0000000000${who}`, id]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [ME, shop]);
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Muted bar', 'Muted bar')`, [ME]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await more(0), ['place:Shop', 'place:Cafe', 'place:Bakery', 'place:Quiet deli'],
+                   'round 0 has no repeats');
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  const out = await more(0);
+  assert.deepEqual(out.slice(0, 3), ['place:Cafe', 'place:Bakery', 'place:Shop'],
+                   'signed out: the most followed first, your own follow counted as any neighbour\'s');
+  assert.deepEqual(out.slice(3).sort(), ['place:Muted bar', 'place:Quiet deli'],
+                   'nothing muted; never a service or a place Search can\'t open');
+  await db.exec('reset role');
+  await noPlaces();
+});
+
+test('a later round: unopened places first, a new order each round, one repeat under 7 days old after every 3', async () => {
+  await reset();
+  await noPlaces();
+  const ids = [];
+  for (const n of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) ids.push(await place(`Place ${n}`));
+  const shown = [
+    await add('Fresh fest', '2026-10-20', { created_at: '2026-10-05 12:00-05' }),
+    await add('Fresh run', '2026-10-21', { created_at: '2026-10-07 12:00-05' }),
+    await add('Old gala', '2026-10-22', { created_at: '2026-09-25 12:00-05' })];
+  // Put out this week but not on the phone's list (past its show-from day, say): never a repeat.
+  await add('Fresh but far', '2026-12-20', { created_at: '2026-10-07 12:00-05' });
+  await news('Fresh special', '2026-10-06 12:00');
+  await news('Old special', '2026-09-20 12:00');
+  shown.push(...(await db.query(`select id from public.board_items`)).rows.map((r) => r.id));
+  await signIn(ME);
+  assert.ok(!(await more(1, [ids[0], ids[1]])).some((r) => r.startsWith('again:')), 'no list sent: no repeats');
+  const one = await more(1, [ids[0], ids[1]], shown);
+  assert.deepEqual(one.map((r) => r.split(':')[0]),
+    ['place', 'place', 'place', 'again', 'place', 'place', 'place', 'again', 'place', 'again']);
+  const places = one.filter((r) => r.startsWith('place:'));
+  assert.deepEqual(places.slice(-2).sort(), ['place:Place A', 'place:Place B'], 'the ones you opened go last');
+  assert.deepEqual(one.filter((r) => r.startsWith('again:')).sort(), ['again:Fresh fest', 'again:Fresh run', 'again:Fresh special'],
+                   'nothing older than 7 days comes back');
+  const orders = [];
+  for (const round of [2, 3, 4]) orders.push((await more(round, [ids[0], ids[1]], shown)).filter((r) => r.startsWith('place:')));
+  assert.ok(orders.some((o) => o.slice(0, 5).join() !== places.slice(0, 5).join()), 'each round its own order');
+  assert.deepEqual(await more(1, [ids[0], ids[1]], shown), one, 'and the same round asked again, the same');
+  for (const o of orders) assert.deepEqual(o.slice(-2).sort(), ['place:Place A', 'place:Place B']);
+  await db.exec('reset role');
   await noPlaces();
 });

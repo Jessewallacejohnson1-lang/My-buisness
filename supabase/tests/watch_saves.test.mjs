@@ -194,6 +194,15 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     width, height, description, credit, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/abc.webp',
     'https://hayloft.example/', 'event', $1, 'live', 1080, 1350, 'A corn maze at dusk', null, 'event photos')`, [id]);
   await asJob('photos: looked at', 'update public.club_events set photo_checked_at = now() where id = $1', [id]);
+  // The refresh's take-down pick (BP app agent-guardrails 09): `takedown` reads the live row, then adds
+  // the pick the way PostgREST's ignore-duplicates does, so a photo asked about before stays as Jesse left it.
+  const { rows: [{ id: photo }] } = await db.query(`insert into public.place_photos (entry_id, url, source_url)
+    values ('hayloft', 'https://x/stock.webp', 'https://hayloft.example/') returning id`);
+  await asJob('photos: the live row', 'select entry_id from public.place_photos where status = $1 and id = $2', ['live', photo]);
+  const pick = `insert into public.photo_takedowns (photo_id, reason, proposed_by) values ($1, 'A stock photo', 'the monthly refresh')
+    on conflict (photo_id) do nothing returning photo_id`;
+  assert.equal((await asJob('photos: a take-down pick', pick, [photo])).length, 1);
+  assert.equal((await asJob('photos: the same pick again', pick, [photo])).length, 0);
   await asJob('map spots', 'update public.club_events set lat = $2, lng = $3 where id = $1', [id, 45.561, -94.321]);
   await asJob('accounts: places', 'select entry_id, name, address, links, hours from public.places where entry_id is not null');
   await asJob('accounts: Google hours', `update public.places set hours = $2 where entry_id = $1`, ['hayloft', { mon: '9-5' }]);
@@ -219,6 +228,8 @@ test('the Watch key is refused: deleting an Event, the waitlist, sign-in account
   await refused("change a neighbour's comment", `update public.event_comments set body = 'x'`);
   await refused('see who is Going', 'select user_id from public.event_rsvps');
   await refused('rename a Place', `update public.places set name = 'x'`);
+  await refused('take a place photo down', `update public.place_photos set status = 'retired'`);
+  await refused("decide a take-down (Jesse's Keep)", 'update public.photo_takedowns set kept_at = now()');
   await refused("put a file in another bucket (someone's photo)", `insert into storage.objects (bucket_id, name) values ('avatars', 'u1/a.jpg')`);
   await refused("read a neighbour's profile", 'select * from public.town_profiles');
 });

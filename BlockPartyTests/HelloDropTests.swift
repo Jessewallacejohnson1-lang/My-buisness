@@ -505,6 +505,20 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(message("2026-10-21 09:00", groups: [lions]), "Lions Club meets tonight at 7")
     }
 
+    /// A St. Cloud club's run in St. Cloud is on its Group page, never the St. Joseph hello.
+    func testAGroupsRunOutOfTownIsNoHello() {
+        var runners = TownGroup(id: "r", name: "St. Cloud River Runners", meetings: [
+            TownGroup.Meeting(what: "Old Timers Run/Walk", day: "2026-10-21", time: "10:00", away: true)])
+        runners.joined = true
+        XCTAssertNil(message("2026-10-21 09:00", groups: [runners]))
+        runners.meetings[0].away = false
+        XCTAssertEqual(message("2026-10-21 09:00", groups: [runners]), "St. Cloud River Runners meets today at 10",
+                       "the same run in town is one")
+        let decoded = try? JSONDecoder().decode(TownGroup.Meeting.self, from: Data(
+            #"{"what": "Coffee Run", "day": "2026-10-25", "time": "07:30", "where": "The Local Blend", "away": false}"#.utf8))
+        XCTAssertEqual(decoded?.away, false, "a calendar's meeting decodes with its away")
+    }
+
     func testFriendsGoingToday() {
         let town = [event("Trivia", "2026-10-21", "7 PM", friends: ["Sam", "Ana", "Kim"])]
         XCTAssertEqual(message("2026-10-21 09:00", town: town), "Sam and 2 friends are going tonight")
