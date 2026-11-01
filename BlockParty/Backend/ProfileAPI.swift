@@ -12,6 +12,8 @@ struct ProfileAPI {
     let db: Supabase
 
     init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
+    /// Through a client already made: the session's one (`AppSession`).
+    init(_ db: Supabase) { self.db = db }
 
     /// The signed-in user's row, or nil if they have none yet. RLS scopes the
     /// select to the caller, so no explicit user_id filter is needed.

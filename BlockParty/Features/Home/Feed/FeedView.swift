@@ -21,8 +21,9 @@ final class TodayHeaderProfileModel {
         self.loadProfile = loadProfile
     }
 
-    convenience init(auth: AuthStore) {
-        self.init { try await ProfileAPI(auth: auth).getMyProfile() }
+    /// Through `supabase`, the session's one client (`AppSession`).
+    convenience init(supabase: Supabase) {
+        self.init { try await ProfileAPI(supabase).getMyProfile() }
     }
 
     /// A failed refresh keeps the last good photo instead of making the header flash

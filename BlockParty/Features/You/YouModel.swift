@@ -38,9 +38,11 @@ final class YouModel {
     /// The live read, or under DEBUG `-town-samples` sample Going, so design work has
     /// photos on the Calendar and never reads the live database; `-town-offline` fails
     /// every read. The groups are the Town's real ones under `-town-samples` too, as in
-    /// Search, where Join group then writes nowhere.
-    convenience init() {
-        let groups = { try await CommunityAPI(auth: AuthStore.shared).getGroups() }
+    /// Search, where Join group then writes nowhere. Live, through `supabase`, the session's one
+    /// client (`AppSession`).
+    convenience init(supabase: Supabase) {
+        let api = CommunityAPI(supabase)
+        let groups = { try await api.getGroups() }
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
@@ -55,7 +57,7 @@ final class YouModel {
         }
         #endif
         self.init(read: { from, to in
-            try await CommunityAPI(auth: AuthStore.shared).getMyGoing(from: from, to: to)
+            try await api.getMyGoing(from: from, to: to)
         }, groups: groups)
     }
 
@@ -63,7 +65,7 @@ final class YouModel {
     /// Sunday on (`to` is unused; saves run as far ahead as they go), and `going` holds the
     /// saves. The page leaves out what's over (`YouCalendar.saved`). Under DEBUG
     /// `-town-samples` the You samples come back saved, and `-town-offline` fails.
-    static func saves() -> YouModel {
+    static func saves(supabase: Supabase) -> YouModel {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
@@ -77,7 +79,7 @@ final class YouModel {
         }
         #endif
         return YouModel(read: { from, _ in
-            try await CommunityAPI(auth: AuthStore.shared).getMySaves(from: from)
+            try await CommunityAPI(supabase).getMySaves(from: from)
         })
     }
 

@@ -166,8 +166,9 @@ final class EventOfTheDay {
         self.kept = kept
     }
 
-    /// The live read, or under DEBUG `-daily-samples` the three samples.
-    convenience init() {
+    /// The live read through `supabase`, the session's one client (`AppSession`), or under DEBUG
+    /// `-daily-samples` the three samples.
+    convenience init(supabase: Supabase) {
         #if DEBUG
         if DailySamples.on {
             self.init(read: { DailyEvent.samples(on: DailyClock.now(Date())) })
@@ -175,7 +176,7 @@ final class EventOfTheDay {
         }
         #endif
         self.init(read: {
-            try await CommunityAPI(auth: AuthStore.shared).getEventOfTheDay().compactMap(DailyEvent.init(row:))
+            try await CommunityAPI(supabase).getEventOfTheDay().compactMap(DailyEvent.init(row:))
         }, kept: {
             guard let data = TownFeedCache.load(.eventOfTheDay),
                   let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }

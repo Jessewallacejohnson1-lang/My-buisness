@@ -3,7 +3,8 @@
 //  BlockPartyTests — an account switch lets go of the last account in every model the shell
 //  shares, in the same turn, before anything is read for the next one; then every read goes as
 //  the next one (BP app codebase-health 22). Reads go through ticket 16's client to its fake
-//  server, so nothing leaves the phone.
+//  server, so nothing leaves the phone; the shell's real models are handed that client too, and
+//  every read of theirs arrives there as the new account.
 //
 
 import XCTest
@@ -17,6 +18,7 @@ final class AppSessionTests: XCTestCase {
     private lazy var phoneName: String = {
         let name = "AppSessionTests.\(UUID().uuidString)"
         addTeardownBlock {
+            UserDefaults.standard.removeObject(forKey: name)
             UserDefaults.standard.removeObject(forKey: name + ".movedUp")
             UserDefaults(suiteName: name)?.removePersistentDomain(forName: name)
         }
@@ -163,5 +165,47 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.actions.saved(card))
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
         XCTAssertEqual(functions(from: sent), ["friends_dot"])
+    }
+
+    /// The shell's real models, not stand-ins, handed the session's one client: after a switch
+    /// every one's reads arrive at the fake server as the new account, so none goes around the
+    /// session to the live network or the last account's token.
+    func testEveryModelReadsThroughTheSessionsClient() async {
+        signIn("a")
+        // A save from before saves moved to the server, so the switch asks which are Events.
+        let saved = SavedStore(key: phoneName)
+        saved.toggle(UUID().uuidString)
+        let session = AppSession(supabase: Supabase(auth: auth, send: server.send), phone: phone, saved: saved)
+        addTeardownBlock { TownFeedCache.clear() }
+        // Search has read its groups, so it reads them again for the next account.
+        session.searchModel.show([TownGroup]())
+
+        signIn("b")
+        await session.accountChanged(from: "a", to: "b", signedIn: true).value
+        // The reads a switch doesn't start: the Saved list, a day in Daily's week, a hide.
+        await session.saves.refresh()
+        await session.dayPicks.refresh(DailyWeek.days(from: Date())[1])
+        await session.townFeed.hide(id: "e2", host: "Library", mute: false)
+
+        let reached = Set(functions(from: 0))
+        let every: Set = ["get_town_feed", "club_events", "get_groups", "get_my_going", "get_my_saves",
+                          "get_event_of_the_day", "get_my_changes", "friends_dot", "town_profiles",
+                          "set_not_interested"]
+        XCTAssertTrue(every.isSubset(of: reached), "never reached the session's client: \(every.subtracting(reached))")
+        XCTAssertEqual(Set(server.requests.map { $0.value(forHTTPHeaderField: "Authorization") }), ["Bearer token-b"])
+    }
+
+    /// Profile reads through the client it is handed, as the account on it, and its sign-out is
+    /// the one it is handed.
+    func testProfileGoesThroughTheClientItIsHanded() async {
+        signIn("b")
+        var signedOut = false
+        let model = ProfileModel(supabase: Supabase(auth: auth, send: server.send), signOut: { signedOut = true })
+        await model.load()
+        await model.signOut()
+
+        XCTAssertEqual(functions(from: 0), ["town_profiles", "get_profile"])
+        XCTAssertEqual(Set(server.requests.map { $0.value(forHTTPHeaderField: "Authorization") }), ["Bearer token-b"])
+        XCTAssertTrue(signedOut)
     }
 }

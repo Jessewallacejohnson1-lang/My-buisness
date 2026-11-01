@@ -128,10 +128,11 @@ final class FriendsBook {
     /// Supabase; under DEBUG `-town-samples` the sample neighbours, every tap succeeding and
     /// going nowhere, and under `-town-offline` every read and tap failing
     /// (`RealLifeActions.backend`).
-    convenience init() {
+    /// Live, through `supabase`, the session's one client (`AppSession`).
+    convenience init(supabase: Supabase) {
         switch LaunchFlags.backend {
         case .live:
-            let api = { CommunityAPI(auth: AuthStore.shared) }
+            let api = { CommunityAPI(supabase) }
             self.init(read: { try await api().getFriends() },
                       readBlocked: { try await api().getBlocked() },
                       readDot: { try await api().friendsDot() },
@@ -139,7 +140,7 @@ final class FriendsBook {
                       write: { try await api().friendWrite($0, $1) },
                       readSuggestions: { try await api().peopleYouMayKnow() },
                       writeHide: { try await api().hideSuggestion($0) },
-                      isAnonymous: { !AuthStore.shared.isSignedIn || AuthStore.shared.isAnonymous })
+                      isAnonymous: { !supabase.auth.isSignedIn || supabase.auth.isAnonymous })
         case .samples:
             // DEBUG `-friends-fail` makes every tap fail, `-friends-limit` every Add friend hit
             // the daily limit, so the flip back, the shake and the alert can be recorded.

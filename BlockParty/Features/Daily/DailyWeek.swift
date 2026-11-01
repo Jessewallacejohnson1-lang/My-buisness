@@ -86,8 +86,9 @@ final class DailyDayPicks {
         self.read = read
     }
 
-    /// The live read, or under DEBUG `-daily-samples` that day's three samples.
-    convenience init() {
+    /// The live read through `supabase`, the session's one client (`AppSession`), or under DEBUG
+    /// `-daily-samples` that day's three samples.
+    convenience init(supabase: Supabase) {
         #if DEBUG
         if DailySamples.on {
             self.init(read: { DailyEvent.samples(on: $0.start) })
@@ -95,7 +96,7 @@ final class DailyDayPicks {
         }
         #endif
         self.init(read: {
-            try await CommunityAPI(auth: AuthStore.shared).getEventOfTheDay(at: $0.start).compactMap(DailyEvent.init(row:))
+            try await CommunityAPI(supabase).getEventOfTheDay(at: $0.start).compactMap(DailyEvent.init(row:))
         })
     }
 
