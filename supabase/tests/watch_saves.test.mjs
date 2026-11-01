@@ -44,6 +44,9 @@ await db.exec(`
     $$ select string_to_array(name, '/') $$;
   create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
   create function cron.unschedule(name text) returns boolean language sql as $$ select true $$;
+  create function cron.alter_job(job_id bigint, schedule text default null, command text default null,
+    database text default null, username text default null, active boolean default null)
+    returns void language sql as $$ select $$;
   create publication supabase_realtime;
 `);
 // The live rows aren't here, so a migration's own rows that point at them (team_activities'

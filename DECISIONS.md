@@ -876,6 +876,22 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   deleted at 3:30 am Central. Free plan: 18 MB of 500 MB on 2026-10-13; views reach about
   1 GB kept at 3,000 daily people, so Pro comes before then (Jesse's spending yes).
 
+## Proposed 2026-11-01 — Anonymous accounts unused 90 days are deleted (town-feed ticket 25)
+
+Written in `supabase/migrations/20261101193441_anonymous_clean_up.sql`; **not applied, and its job
+is created switched off** until Jesse's yes.
+
+- **Who goes:** an account with `auth.users.is_anonymous = true` whose newest sign of life is over
+  **90 days** old (`p_idle`). Sign of life = created, last sign-in, any session's created / updated /
+  refreshed time, or any timestamp on an app row tied to it. A real account is never touched.
+- **What goes with it:** every row in `public` or `private` whose foreign key to `auth.users` is ON
+  DELETE CASCADE — read from the database at run time, so a later table is covered by itself — plus
+  two ties with no key: follows of its profile and `content_decisions` about it. SET NULL keys (an
+  Event's `submitted_by`) keep their row. Its Going counts drop by one each.
+- **Job:** `anonymous-clean-up`, pg_cron `0 9 * * *` UTC (3 AM Chicago in winter, 4 AM in summer).
+  `private.clean_up_anonymous_accounts(p_dry_run => true)` counts without deleting.
+- **Not covered:** anonymous accounts can't upload photos, so no Storage files are tied to them.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the
