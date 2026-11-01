@@ -49,7 +49,7 @@ final class AppSessionTests: XCTestCase {
                 let who = try await self.read("get_town_feed")
                 return [TownFeedEntry(card: FeedCardItem(self.event("e1", going: who == "a")), leavesAt: .distantFuture)]
             }, actions: actions),
-            searchModel: SearchModel(defaults: phone, actions: actions),
+            searchModel: SearchModel(supabase: Supabase(auth: auth, send: server.send), defaults: phone, actions: actions),
             friendsBook: FriendsBook(read: { [] }, readDot: { _ = try await self.read("friends_dot"); return true },
                                      markSeen: {}, write: { _, _ in .stranger }, isAnonymous: { false }),
             you: YouModel(read: { _, _ in
