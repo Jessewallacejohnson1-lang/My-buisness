@@ -66,7 +66,6 @@ enum NewEventCopy {
     static let place = "Place"
     static let addPlace = "Add"
     static let share = "Share"
-    static let search = "Search"
     static let offline = "Couldn't share. Check your connection and try again."
     static let live = "Your event is live"
     static let waiting = "Shared. It goes up once it's checked."
@@ -184,6 +183,10 @@ struct NewEventSheet: View {
             }
         }
         .interactiveDismissDisabled(model.sharing)
+        #if DEBUG
+        // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
+        .onAppear { if let name = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: name)) } }
+        #endif
     }
 
     private func share() {
@@ -232,13 +235,17 @@ private struct NewEventDetails: View {
                     }
                     .padding(.top, NewEventMetric.nameTop)
                     .padding(.bottom, NewEventMetric.nameBottom)
-                row(icon: "calendar", label: NewEventCopy.when) {
+                row(label: NewEventCopy.when, icon: {
+                    Image(systemName: "calendar").font(.glyph(NewEventMetric.symbol))
+                }) {
                     DatePicker(NewEventCopy.when, selection: $model.draft.when, in: Date()...,
                                displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
+                        // Picking a day puts the keyboard away; it doesn't come back when the calendar closes.
+                        .onChange(of: model.draft.when) { naming = false }
                 }
-                Button(action: choosePlace) {
-                    row(icon: "mappin.and.ellipse", label: NewEventCopy.place) {
+                Button { naming = false; choosePlace() } label: {
+                    row(label: NewEventCopy.place, icon: { MapPinGlyph(size: NewEventMetric.icon) }) {
                         HStack(spacing: 8) {
                             Text(model.draft.location.isEmpty ? NewEventCopy.addPlace : model.draft.location)
                                 .font(.apple(17))
@@ -300,11 +307,11 @@ private struct NewEventDetails: View {
     }
 
     /// Instagram's row: a 24 pt outline icon, the label, what it's set to at the right.
-    private func row<Trailing: View>(icon: String, label: String, @ViewBuilder trailing: () -> Trailing) -> some View {
+    private func row<Icon: View, Trailing: View>(label: String, @ViewBuilder icon: () -> Icon,
+                                                 @ViewBuilder trailing: () -> Trailing) -> some View {
         HStack(spacing: NewEventMetric.iconGap) {
-            Image(systemName: icon)
-                .font(.glyph(NewEventMetric.icon))
-                .frame(width: NewEventMetric.icon)
+            icon()
+                .frame(width: NewEventMetric.icon, height: NewEventMetric.icon)
                 .accessibilityHidden(true)
             Text(label).font(.apple(17))
             Spacer(minLength: 8)
@@ -315,8 +322,9 @@ private struct NewEventDetails: View {
     }
 }
 
-/// Facebook's Add location: Apple's search field over the town's places; a name not among them
-/// is used as typed.
+/// Facebook's Add location: Search's field over the town's places; a name not among them is used
+/// as typed. Not `.searchable`: chosen while its field was still active, the search stayed up as a
+/// bar over Share on the page underneath (recorded 2026-11-01).
 private struct NewEventPlace: View {
     let places: [SearchItem]
     @Binding var place: String
@@ -331,11 +339,26 @@ private struct NewEventPlace: View {
     }
 
     var body: some View {
+        // The list is the page's scroll, under the bar; the field rides on top of it. As a plain
+        // view above the list, the bar lost its title and its back button went dark (recorded).
+        list
+            .safeAreaInset(edge: .top, spacing: 0) {
+                FriendsSearchField(words: $words)
+                    .padding(.horizontal, NewEventMetric.side)
+                    .padding(.vertical, NewEventMetric.searchPad)
+                    .background(Hue.surface)
+            }
+            .navigationTitle(NewEventCopy.place)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var list: some View {
         List {
             if !typed.isEmpty, !places.contains(where: { $0.name.localizedCaseInsensitiveCompare(typed) == .orderedSame }) {
                 Button { choose(typed) } label: {
                     placeRow(name: typed, sub: "Use this name") { tile(glyph: "plus") }
                 }
+                .listRowInsets(NewEventMetric.placeInsets)
             }
             ForEach(matches) { item in
                 Button { choose(item.name) } label: {
@@ -343,12 +366,11 @@ private struct NewEventPlace: View {
                         if let logo = item.logo { CastLogo(logo: logo, side: NewEventMetric.placeMark) } else { tile(glyph: item.glyph) }
                     }
                 }
+                .listRowInsets(NewEventMetric.placeInsets)
             }
         }
         .listStyle(.plain)
-        .searchable(text: $words, placement: .navigationBarDrawer(displayMode: .always), prompt: NewEventCopy.search)
-        .navigationTitle(NewEventCopy.place)
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.immediately)
     }
 
     private func choose(_ name: String) {
@@ -392,10 +414,15 @@ private nonisolated enum NewEventMetric {
     static let nameBottom: CGFloat = 28
     static let row: CGFloat = 48
     static let icon: CGFloat = 24
+    /// SF's calendar at 21 fills the same 24 pt box the pin does.
+    static let symbol: CGFloat = 21
     static let iconGap: CGFloat = 12
     static let shareHeight: CGFloat = 43
     static let shareBottom: CGFloat = 8
     static let problemGap: CGFloat = 12
     static let placeMark: CGFloat = 40
     static let placeRow: CGFloat = 56
+    static let searchPad: CGFloat = 8
+    /// Facebook's Add location rows: 16 pt in, the list's own dividers between.
+    static let placeInsets = EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
 }

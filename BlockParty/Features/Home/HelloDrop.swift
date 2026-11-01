@@ -216,8 +216,9 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
+        // A New event proof (`-new-event-photo`) records the pill its Share drops.
         forced || later || debugMoment != nil || debugFinal != nil
-            || !LaunchFlags.any
+            || !LaunchFlags.any || LaunchFlags.has(.newEventPhoto)
         #else
         return true
         #endif
