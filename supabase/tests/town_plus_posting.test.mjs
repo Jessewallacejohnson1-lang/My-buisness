@@ -11,7 +11,8 @@ import { PGlite } from '@electric-sql/pglite';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const files = readdirSync(migrations).filter((f) => f.endsWith('_town_plus_posting.sql')).sort();
+const files = readdirSync(migrations)
+  .filter((f) => f.endsWith('_town_plus_posting.sql') || f.endsWith('_town_plus_empty_interests.sql')).sort();
 
 const db = await PGlite.create();
 await db.exec(`
@@ -32,8 +33,8 @@ await db.exec(`
     kind text not null default 'event', category text, review_reason text, rechecked_at timestamptz,
     source_name text, source_uid text, source_url text, place_entry_id text, team_ids text[],
     activity_team text, activity_name text, sport text, occasion text, what text, draw smallint,
-    shows_from date, interests text[], interests_tagged_at timestamptz, lat double precision,
-    lng double precision, followers_only boolean, cancelled_at timestamptz, moved_at timestamptz,
+    shows_from date, interests text[] default '{}', interests_tagged_at timestamptz, lat double precision,
+    lng double precision, followers_only boolean default false, cancelled_at timestamptz, moved_at timestamptz,
     moved_from jsonb, live_score jsonb, final_score jsonb, scoring_plays jsonb);
   create table storage.buckets (id text primary key, name text, public boolean,
     file_size_limit bigint, allowed_mime_types text[]);
@@ -95,7 +96,7 @@ test('nobody claims another neighbour\'s Event', async () => {
 test('an Event dressed as a found one, a Group\'s, a team\'s or a business\'s is never claimed', async () => {
   for (const extra of [{ source_name: 'Bad Habit Brewing' }, { club_id: '00000000-0000-0000-0000-0000000000d4' },
     { place_entry_id: 'bad-habit-brewing' }, { team_ids: ['sju'] }, { draw: 3 }, { shows_from: '2026-11-02' },
-    { kind: 'trail' }, { category: 'music' }, { followers_only: true }, { lat: 45.56 }]) {
+    { kind: 'trail' }, { category: 'music' }, { followers_only: true }, { lat: 45.56 }, { interests: ['college'] }]) {
     assert.equal(await claim(await posted(ME, extra), ME), false, JSON.stringify(extra));
   }
 });
