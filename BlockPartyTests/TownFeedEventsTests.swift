@@ -470,6 +470,8 @@ final class TownFeedEventsTests: XCTestCase {
         let on = try game(#","live":{"score":[2,1],"period":"Set 4","complete":false,"periods":[[25,23,25,18],[21,25,19,14]]}"#)
         XCTAssertEqual(on.sets, [[25, 21], [23, 25], [25, 19], [18, 14]])
         XCTAssertEqual(on.setPlaying, 3, "the newest set is the one being played")
+        let between = try game(#","live":{"score":[2,1],"period":"Set 3","complete":false,"periods":[[25,23,25],[21,25,19]]}"#)
+        XCTAssertNil(between.setPlaying, "set 3 just won, set 4 not begun: every set listed is over")
         let final = try game(#","final":[3,1],"live":{"score":[3,1],"period":"Set 4","complete":true,"periods":[[25,23,25,25],[21,25,19,22]]}"#)
         XCTAssertEqual(final.sets.count, 4, "every set stays past the final")
         XCTAssertNil(final.setPlaying)

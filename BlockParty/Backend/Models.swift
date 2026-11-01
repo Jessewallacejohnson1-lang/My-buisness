@@ -352,17 +352,21 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return final[0] > final[1] ? 0 : 1
     }
 
+    /// Volleyball keeps sets, not quarters or halves: its page draws them, and a set won is a moment.
+    var isVolleyball: Bool { sport.localizedCaseInsensitiveContains("volleyball") }
+
     /// Volleyball's sets, each one's points in `teams` order (game-card 09): the chips under its logos.
     /// None for any other sport, whose periods are quarters and halves.
     var sets: [[Int]] {
-        guard sport.localizedCaseInsensitiveContains("volleyball"), periods.count == 2 else { return [] }
+        guard isVolleyball, periods.count == 2 else { return [] }
         return zip(periods[0], periods[1]).map { [$0, $1] }
     }
 
     /// The set being played, by its place in `sets`: the newest while the match is on; none before, once
-    /// SIDEARM says it's complete, and after the final.
+    /// SIDEARM says it's complete, after the final, and between sets, when the sets won (volleyball's
+    /// score) count every set listed.
     var setPlaying: Int? {
-        guard let live, !live.complete, !sets.isEmpty else { return nil }
+        guard let live, !live.complete, live.score.reduce(0, +) < sets.count else { return nil }
         return sets.count - 1
     }
 

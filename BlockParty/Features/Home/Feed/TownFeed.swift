@@ -469,12 +469,15 @@ final class TownFeed {
             (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
             (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
         ]
-        // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts.
+        // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts, so a set
+        // won shows on its own before the next begins.
         let sets: [(String, String?)] = [
             (#"[1,1],"period":"Set 3","periods":[[25,23,18],[21,25,14]]"#, nil),
             (#"[1,1],"period":"Set 3","periods":[[25,23,24],[21,25,19]]"#, nil),
+            (#"[2,1],"period":"Set 3","periods":[[25,23,25],[21,25,19]]"#, nil),
             (#"[2,1],"period":"Set 4","periods":[[25,23,25,0],[21,25,19,0]]"#, nil),
             (#"[2,1],"period":"Set 4","periods":[[25,23,25,16],[21,25,19,20]]"#, nil),
+            (#"[2,2],"period":"Set 4","periods":[[25,23,25,22],[21,25,19,25]]"#, nil),
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,0],[21,25,19,25,0]]"#, nil),
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),

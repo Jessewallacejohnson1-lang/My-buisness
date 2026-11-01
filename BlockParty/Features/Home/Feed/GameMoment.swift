@@ -33,7 +33,7 @@ nonisolated struct GameMoment: Equatable, Sendable {
             return of(play, sport: new.sport)
         }
         // SIDEARM keeps each period's score for every sport; only volleyball's are sets.
-        guard new.sport.localizedCaseInsensitiveContains("volleyball") else { return nil }
+        guard new.isVolleyball else { return nil }
         return setWon(old.periods, new.periods, teams: new.teams)
     }
 

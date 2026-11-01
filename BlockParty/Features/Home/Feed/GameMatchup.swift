@@ -73,6 +73,8 @@ struct GameMatchup: View {
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: fresh ? live?.drive : nil)
+            // The first set's chip fades in, even when the live score came before any set.
+            .animation(reduceMotion ? nil : Motion.smooth, value: game.sets.isEmpty)
         }
         // A refresh that brings the live score or the final cross-fades into it.
         .animation(Motion.smooth, value: game.final)
@@ -159,7 +161,7 @@ struct GameMatchup: View {
                                    .init(color: shade(game.teams[1]), location: 0.66),
                                    .init(color: shade(game.teams[1]), location: 1)],
                            startPoint: .leading, endPoint: .trailing)
-            if game.sport.localizedCaseInsensitiveContains("volleyball") {
+            if game.isVolleyball {
                 VolleyballNet()
             }
             LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
@@ -304,6 +306,8 @@ private struct SetChips: View {
         /// The losing side's points, and the trailing side's in the set being played.
         static let behind: Double = 0.45
         static let label: Double = 0.6
+        /// The set's name leaving, in seconds (picked).
+        static let labelOut: Double = 0.1
     }
 
     var body: some View {
@@ -344,12 +348,16 @@ private struct SetChips: View {
             .minimumScaleFactor(0.8)
             .frame(maxHeight: .infinity)
             .padding(.bottom, playing ? Metric.playingLift : 0)
+            // A set that ends cross-fades its points into the small chip's, rather than rolling them while
+            // they change size.
+            .id(playing)
             if playing {
                 Text("Set \(set + 1)")
                     .font(.sansMedium(11))
                     .foregroundStyle(.white.opacity(Metric.label))
                     .padding(.bottom, Metric.bottom)
-                    .transition(.opacity)
+                    // Gone before the chip has shrunk, so it never crosses the winner's bar coming in.
+                    .transition(.asymmetric(insertion: .opacity, removal: .opacity.animation(.easeOut(duration: Metric.labelOut))))
             } else if let ahead, game.teams.indices.contains(ahead) {
                 Capsule()
                     .fill(GameMatchup.mark(game.teams[ahead]))
@@ -360,8 +368,9 @@ private struct SetChips: View {
         }
         .frame(maxWidth: size.width)
         .frame(height: size.height)
-        .background(.white.opacity(playing ? Metric.playingFill : Metric.fill),
-                    in: RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
+        .background(.white.opacity(playing ? Metric.playingFill : Metric.fill))
+        // Nothing hangs out of a chip while it shrinks.
+        .clipShape(RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
     }
 }
 
