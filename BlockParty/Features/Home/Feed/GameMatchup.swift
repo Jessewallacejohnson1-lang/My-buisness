@@ -168,26 +168,30 @@ struct GameMatchup: View {
 
     /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
     /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
-    /// faint net and soccer's center circle sit under the wash.
+    /// faint net and soccer's center circle sit under the wash. It reaches every edge of the screen itself: read
+    /// inside the safe area, it knows where that starts, which soccer's circle lines up with.
     static func backdrop(_ game: Game) -> some View {
-        ZStack {
-            LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
-                                   .init(color: shade(game.teams[0]), location: 0.36),
-                                   .init(color: shade(game.teams[1]), location: 0.66),
-                                   .init(color: shade(game.teams[1]), location: 1)],
-                           startPoint: .leading, endPoint: .trailing)
-            if game.isVolleyball {
-                VolleyballNet()
+        GeometryReader { proxy in
+            ZStack {
+                LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
+                                       .init(color: shade(game.teams[0]), location: 0.36),
+                                       .init(color: shade(game.teams[1]), location: 0.66),
+                                       .init(color: shade(game.teams[1]), location: 1)],
+                               startPoint: .leading, endPoint: .trailing)
+                if game.isVolleyball {
+                    VolleyballNet()
+                }
+                if game.isSoccer {
+                    SoccerPitch(safeTop: proxy.safeAreaInsets.top + proxy.frame(in: .global).minY)
+                }
+                LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
+                                       .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
+                                       .init(color: Hue.gameNight.opacity(0.72), location: 0.42),
+                                       .init(color: Hue.gameNight.opacity(0.93), location: 0.58),
+                                       .init(color: Hue.gameNight.opacity(0.95), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
             }
-            if game.isSoccer {
-                SoccerPitch()
-            }
-            LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
-                                   .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
-                                   .init(color: Hue.gameNight.opacity(0.72), location: 0.42),
-                                   .init(color: Hue.gameNight.opacity(0.93), location: 0.58),
-                                   .init(color: Hue.gameNight.opacity(0.95), location: 1)],
-                           startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea()
         }
     }
 
@@ -448,11 +452,13 @@ private struct MinuteRing: View {
         .frame(width: Metric.diameter, height: Metric.diameter)
         .frame(width: Metric.size, height: Metric.size)
         .overlay {
-            // The ring never changes size, so the minute rolls in place.
+            // The ring never changes size, so the minute rolls in place; HT and the minute cross-fade instead,
+            // their letters being no count.
             MomentLine(style: .inRing) {
                 Text(halftime ? "HT" : "\(minute)'")
                     .monospacedDigit()
                     .contentTransition(.numericText())
+                    .id(halftime)
                     .animation(reduceMotion ? nil : Motion.smooth, value: halftime ? 0 : minute)
             }
         }
@@ -510,19 +516,19 @@ private struct SoccerPitch: View {
     /// matchup starts 57.5 pt down, the ring's center 74 pt into it).
     static let center: CGFloat = 113.5
 
+    /// Where the safe area starts, from the top of the screen.
+    let safeTop: CGFloat
+
     var body: some View {
-        GeometryReader { proxy in
-            let top = proxy.safeAreaInsets.top
-            Canvas { context, size in
-                let mid = CGPoint(x: size.width / 2, y: top + Self.center)
-                var lines = Path()
-                lines.move(to: CGPoint(x: mid.x, y: 0))
-                lines.addLine(to: CGPoint(x: mid.x, y: Self.depth))
-                lines.addEllipse(in: CGRect(x: mid.x - Self.radius, y: mid.y - Self.radius, width: 2 * Self.radius, height: 2 * Self.radius))
-                context.stroke(lines, with: .color(.white.opacity(Self.line)), lineWidth: Self.width)
-                context.fill(Path(ellipseIn: CGRect(x: mid.x - Self.spot, y: mid.y - Self.spot, width: 2 * Self.spot, height: 2 * Self.spot)),
-                             with: .color(.white.opacity(Self.spotFill)))
-            }
+        Canvas { context, size in
+            let mid = CGPoint(x: size.width / 2, y: safeTop + Self.center)
+            var lines = Path()
+            lines.move(to: CGPoint(x: mid.x, y: 0))
+            lines.addLine(to: CGPoint(x: mid.x, y: Self.depth))
+            lines.addEllipse(in: CGRect(x: mid.x - Self.radius, y: mid.y - Self.radius, width: 2 * Self.radius, height: 2 * Self.radius))
+            context.stroke(lines, with: .color(.white.opacity(Self.line)), lineWidth: Self.width)
+            context.fill(Path(ellipseIn: CGRect(x: mid.x - Self.spot, y: mid.y - Self.spot, width: 2 * Self.spot, height: 2 * Self.spot)),
+                         with: .color(.white.opacity(Self.spotFill)))
         }
         .accessibilityHidden(true)
     }
