@@ -5,12 +5,13 @@
 -- in the 24 hours to 2026-11-01 happened then.
 --
 -- What goes live:
---   private.town_feed(p_now, p_news, p_only)  the Town feed's body, moved here from
---     20261101180305_road_news.sql line for line, but for one filter: given p_only, it works out only
+--   private.town_feed(p_now, p_news, p_only, p_later)  the Town feed's body, moved here from
+--     20261101195802_game_team_host.sql line for line (after-the-best's p_later and town-feed 39's
+--     team hosts included), but for one filter: given p_only, it works out only
 --     those Events and every other Event of their hosts (an Event's points, series and spacing read
 --     nothing else, so they come out exactly as in the whole feed). Null works out everything. Also the
 --     last_visit comment now says what town-feed 38 made it: none yet means the last 24 hours.
---   get_town_feed  the same columns and rows: private.town_feed with no p_only. Replace the body in
+--   get_town_feed  the same arguments, columns and rows: private.town_feed with no p_only. Replace the body in
 --     private.town_feed from now on; a story checks get_town_feed still reads it.
 --   get_event_of_the_day  20261026132204_activity_follow_lift.sql's, reading private.town_feed for the
 --     morning's picks (else, none written, that day's Events) instead of the whole feed. The same picks,
@@ -23,11 +24,12 @@
 -- after 10 minutes from 2 to 1, and opening Daily's week from 6 more to 6 small slices. Old apps get it
 -- at once: nothing they send changes.
 --
--- Roll back: re-run 20261101180305_road_news.sql (get_town_feed with its own body) and
+-- Roll back: re-run get_town_feed from 20261101195802_game_team_host.sql (its own body) and
 -- get_event_of_the_day from 20261026132204_activity_follow_lift.sql, then
--- `drop function private.town_feed(timestamptz, boolean, uuid[]);`.
+-- `drop function private.town_feed(timestamptz, boolean, uuid[], boolean);`.
 
-create or replace function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null)
+create or replace function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
+                                             p_later boolean default false)
 returns table (
   id uuid,
   title text,
@@ -99,8 +101,8 @@ as $$
   -- Event once, read straight from club_events so an older or called-off Event still counts. Only
   -- a club's or a source's Events, never a neighbour's own posting (the card doesn't show who
   -- posted it), and never routine business (draw 1): a heart on a council meeting lifts nothing.
-  taps as (
-    select coalesce(e.club_id::text, e.source_name) as host, count(*) as n, array_agg(e.id) as ids
+  my_taps as (
+    select e.id, e.event_date, coalesce(e.club_id::text, e.source_name) as host, e.team_ids, e.sport
     from (select r.event_id from public.event_rsvps r
           where r.user_id = auth.uid() and r.created_at > p_now - interval '90 days'
           union
@@ -111,7 +113,25 @@ as $$
           where s.user_id = auth.uid() and s.created_at > p_now - interval '90 days') t
     join public.club_events e on e.id = t.event_id
     where coalesce(e.club_id::text, e.source_name) is not null and coalesce(e.draw, 2) > 1
+  ),
+  -- A school's or a club's own Events: a game you tapped isn't one of them (town-feed 39).
+  taps as (
+    select t.host, count(*) as n, array_agg(t.id) as ids
+    from my_taps t
+    where t.team_ids is null or t.sport is null
     group by 1
+  ),
+  -- A game's host is its team (town-feed 39): each team in a game you tapped, by its sport ("Girls Swim"
+  -- and "Girls Swimming and Diving" are one), and the days of those games. Days, not games: a school lists
+  -- its varsity, JV and C games of a day as a row each, and a game between two schools can be on both
+  -- their calendars.
+  team_taps as materialized (
+    select k.team, coalesce(private.sport_gender(t.sport), '') || ' ' || private.sport_base(t.sport) as sport,
+           array_agg(distinct t.event_date) as days
+    from my_taps t
+    cross join unnest(t.team_ids) as k(team)
+    where t.sport is not null
+    group by 1, 2
   ),
   -- What the caller said Not interested to (ticket 21): its series and host as real_events keys them.
   hidden as (
@@ -310,12 +330,16 @@ as $$
          lateral (select case when e.interests_tagged_at is not null then e.interests
                               else array[e.category] end as tags) tg
     where e.nth = 1
-      and town.today >= coalesce(e.shows_from, e.event_date - 14)
+      -- After the best (town-feed 23): p_later asks for the Events not yet in, past their show-from day.
+      and (town.today >= coalesce(e.shows_from, e.event_date - 14)) <> p_later
       -- Not interested keeps out the item and every week of its series; Mute its host (ticket 21).
       and not exists (select 1 from muted m where m.host = e.host)
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
+    -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
+    order by case when p_later then 1 end, sort_at
+    limit case when p_later then 20 end
   ),
   counted as (
     -- Going counted once (every account's, from the private helper), and the caller's friends Going.
@@ -331,14 +355,29 @@ as $$
                     and not exists (select 1 from my_views v where v.item_id = s.id), false) as is_new,
            coalesce(fg.friends, 0) as friends_n,
            coalesce(fg.people, '[]'::jsonb) as friends_people,
-           -- How many of the host's other Events the caller tapped (ticket 30).
-           coalesce(tp.n - case when s.id = any(tp.ids) then 1 else 0 end, 0) as tapped_n,
+           -- How many of the host's other Events the caller tapped (ticket 30). A game counts the other
+           -- days the caller tapped a game of one of its teams in its sport, and only from two: one
+           -- game can't say which side you're on, your own team is in each one you tap (town-feed 39).
+           coalesce(case when s.team_ids is null or s.sport is null
+                         then tp.n - case when s.id = any(tp.ids) then 1 else 0 end
+                         when tt.days >= 2 then tt.days end, 0) as tapped_n,
+           -- The team, as "Saint John's Soccer"; no teams row leaves the host's name.
+           tt.name as tapped_team,
            -- What the caller follows that this Event is of, by name: an activity or school first, then
            -- a meeting's board, the neighbour who posted it, the Place it's at, a page (the City,
            -- Joetown), a Group they're in (town-feed 37, 27).
            coalesce(s.school_followed, fw.name) as followed
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
+    -- The game's team you've tapped on the most other days, its host team first on a tie (town-feed 39).
+    left join lateral (
+      select cardinality(array_remove(x.days, s.event_date)) as days, tm.short_name || ' ' || s.sport as name
+      from team_taps x
+      left join public.teams tm on tm.id = x.team
+      where x.team = any(s.team_ids)
+        and x.sport = coalesce(private.sport_gender(s.sport), '') || ' ' || private.sport_base(s.sport)
+      order by 1 desc, array_position(s.team_ids, x.team)
+      limit 1) tt on s.sport is not null
     left join lateral (
       select x.name from (
         -- A meeting's board first (town-feed 27).
@@ -416,7 +455,7 @@ as $$
              as leaves_at,
            (select array_agg(x order by x) from unnest(b.interests) x where x = any(me.interests)) as matched
     from public.board_items b, town, me
-    where p_news
+    where p_news and not p_later
       and b.status = 'published'
       and b.category in ('business', 'announcement', 'campus', 'school', 'road')
       and nullif(btrim(b.source_url), '') is not null
@@ -462,7 +501,10 @@ as $$
     from pool p
   ),
   spots as (
-    select s.id, s.spacing, row_number() over (order by s.part, s.base * s.spacing desc, s.sort_at, s.title, s.id)::int as spot
+    select s.id, s.spacing,
+           -- Later Events (town-feed 23) by their start, not their points.
+           row_number() over (order by case when p_later then s.sort_at end, s.part, s.base * s.spacing desc, s.sort_at,
+                                       s.title, s.id)::int as spot
     from spaced s
   ),
   feed_rows (id, title, event_date, start_time, location, image_url, category, club_name, source_name, end_at, all_day, created_at, going_count, rsvpd, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, cancelled, friends_going, place_picture, description, club_id, in_club, game, what, kind, source_url, host_picture, spot) as (
@@ -482,7 +524,7 @@ as $$
               when e.lift = 'follow' then e.followed
               when e.lift = 'interest' then e.matched[1]
               when e.lift = 'friend' then e.friends_people->0->>'name'
-              when e.lift = 'tapped' then coalesce(c.name, e.source_name) end,
+              when e.lift = 'tapped' then coalesce(e.tapped_team, c.name, e.source_name) end,
          -- The Score line (ticket 18): the keys the shipped app reads stay, the dropped parts at 0.
          case when public.is_admin() then jsonb_build_object(
            'interest', e.interest_pts, 'yours', e.yours_pts, 'new', e.new_pts,
@@ -550,11 +592,12 @@ as $$
   from feed_rows r
   order by r.spot;
 $$;
-revoke execute on function private.town_feed(timestamptz, boolean, uuid[]) from public;
-grant execute on function private.town_feed(timestamptz, boolean, uuid[]) to anon, authenticated;
+revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) from public;
+grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) to anon, authenticated;
 
 -- The Town feed, as every app reads it: the body is private.town_feed's.
-create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false)
+create or replace function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false,
+                                      p_later boolean default false)
 returns table (
   id uuid,
   title text,
@@ -595,7 +638,7 @@ stable
 security invoker
 set search_path = public
 as $$
-  select * from private.town_feed(p_now, p_news, null);
+  select * from private.town_feed(p_now, p_news, null, p_later);
 $$;
 
 -- Event of the day reads only the slice of the feed it needs (above).

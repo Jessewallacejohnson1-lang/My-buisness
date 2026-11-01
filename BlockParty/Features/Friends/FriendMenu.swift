@@ -171,13 +171,11 @@ struct FriendMenu: View {
 }
 
 /// The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04), and
-/// `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert. On
-/// the app's root, and again inside the Profile sheet, where the root's can't open (follows 05):
-/// `active` keeps only one of the two listening.
+/// `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert, on
+/// the app's root (follows 05).
 private struct FriendSurfaces: ViewModifier {
     let book: FriendsBook
     let actions: RealLifeActions
-    let active: Bool
     /// Edit profile, from a friend request refused for want of a name.
     @State private var addingName = false
     /// The last refusal said, kept while its alert fades so its words don't change.
@@ -186,8 +184,8 @@ private struct FriendSurfaces: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert((book.problem ?? said).title,
-                   isPresented: Binding(get: { active && book.problem != nil },
-                                        set: { if !$0 && active { book.problem = nil } }),
+                   isPresented: Binding(get: { book.problem != nil },
+                                        set: { if !$0 { book.problem = nil } }),
                    presenting: book.problem) { problem in
                 if problem == .nameNeeded {
                     Button("Cancel", role: .cancel) {}
@@ -198,7 +196,7 @@ private struct FriendSurfaces: ViewModifier {
             } message: { problem in
                 if let message = problem.message { Text(message) }
             }
-            .sheet(item: Binding(get: { active ? book.menu : nil }, set: { book.menu = $0 })) { person in
+            .sheet(item: Binding(get: { book.menu }, set: { book.menu = $0 })) { person in
                 FriendMenu(person: person, relation: book.relation(person))
                     .environment(book)
                     .environment(actions)
@@ -209,7 +207,7 @@ private struct FriendSurfaces: ViewModifier {
 }
 
 extension View {
-    func friendSurfaces(_ book: FriendsBook, actions: RealLifeActions, active: Bool = true) -> some View {
-        modifier(FriendSurfaces(book: book, actions: actions, active: active))
+    func friendSurfaces(_ book: FriendsBook, actions: RealLifeActions) -> some View {
+        modifier(FriendSurfaces(book: book, actions: actions))
     }
 }

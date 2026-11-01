@@ -788,6 +788,8 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 
 ## Decided 2026-10-12 — You's photo arrives as a first-name pill
 
+- **Retired 2026-11-01** (BP app five-tabs 03): You became your Profile, whose own big photo
+  is on screen, so the pill and `YouBadge` are gone. Kept below as the record.
 - **A second capsule, on purpose.** `Radius.button` says a button is never a pill, and the
   photo at the top left of You is a button. Each time the neighbour switches to You it shows
   as a white capsule holding their first name, then folds into the photo's circle after 2

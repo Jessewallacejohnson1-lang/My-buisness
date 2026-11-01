@@ -272,4 +272,8 @@ struct MomentLineStyle {
                                          filled: (.white.opacity(0.97), 10, 28, Hue.ink.onLightCanvas,
                                                   Hue.inkSecondary.onLightCanvas),
                                          font: .sansMedium(16), detailFont: .sans(16), longest: 16)
+    /// Inside soccer's minute ring (game-card 09): the minute in the draft's bold white; a goal is the same
+    /// white capsule, over the ring.
+    static let inRing = MomentLineStyle(plain: (.clear, 0, nil, .white), filled: onNight.filled,
+                                        font: .sansBold(17), detailFont: .sans(17), longest: 16)
 }
