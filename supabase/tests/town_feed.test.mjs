@@ -949,11 +949,16 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   times.sort((a, b) => a - b);
   console.log(`  get_town_feed with 5,000 people: median ${times[2].toFixed(1)} ms`);
   // GitHub's shared runner reads it about 2.5x slower than the Mac (102 ms against 40 ms,
-  // 2026-10-16), so its budget is 2.5x too. So does a busy Mac: at a load of 70 the pre-push
-  // check read 159 ms and refused a push that touched no SQL (2026-10-18).
-  const busy = loadavg()[0] > 8;
-  const budget = process.env.CI || busy ? 250 : 100;
-  assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
+  // 2026-10-16), so its budget is 2.5x too. A busy Mac reads anything: 159 ms at a load of 70
+  // (2026-10-18), 489 at 90 and 782 at 68 (2026-11-01), each refusing a push that touched no SQL.
+  // So a busy Mac only logs the reading; GitHub times every push.
+  const load = loadavg()[0];
+  if (!process.env.CI && load > 8) {
+    console.log(`  not timed: the Mac is busy (load ${load.toFixed(0)}); GitHub times it on every push`);
+  } else {
+    const budget = process.env.CI ? 250 : 100;
+    assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
+  }
   const reasons = (await feed('2026-10-08 12:00')).filter((r) => r.reason === 'follow').length;
   assert.ok(reasons > 20, `${reasons} Events lifted by a follow`);
   await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
