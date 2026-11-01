@@ -7,11 +7,10 @@
 -- PeriodsRegulation: 4 quarters for CSB's women, 2 halves for SJU's men) and its length in seconds (Rules'
 -- PeriodMinutes, OTMinutes past regulation), so the bar never reads the period's words.
 --
--- public.record_live_score is copied from the live project (pg_get_functiondef, 2026-11-01): the live version is
--- PR 13's 20261031190500_live_plays_take_corrections.sql (applied live as 20261031195727, not on main yet), which
--- replaces a kept play with SIDEARM's latest reading of it. Copying main's older one would undo that. The fouls
--- are added. PR 13's 20261031201500_live_clock_kept_fresh.sql (not applied) re-creates record_live_score too: it
--- must be rebuilt on this one before it is applied, or the fouls go.
+-- public.record_live_score is copied from 20261031190500_live_plays_take_corrections.sql (PR 13's, applied live as
+-- 20261031195727 and brought to main beside this one), the newest that makes it and the version live:
+-- a kept play takes SIDEARM's latest reading of it. The fouls are added. PR 13's 20261031201500_live_clock_kept_fresh.sql
+-- (not applied) re-creates record_live_score too: it must be rebuilt on this one before it is applied, or the fouls go.
 --
 -- The bonus: SIDEARM's game file has no foul count, but each foul is a play (Type FOUL), and a quarter's FOUL plays
 -- per team matched SIDEARM's own per-quarter Personal Fouls 8 of 8 on CSB 79-57 Augsburg (2026-02-21). Pushes
