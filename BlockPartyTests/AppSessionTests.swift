@@ -67,6 +67,8 @@ final class AppSessionTests: XCTestCase {
                 let who = try await self.read("town_profiles")
                 return TownProfile(userId: who, displayName: who, avatarUrl: "photo-\(who)", interests: [], onboardedAt: nil)
             },
+            // Never loaded here (a switch only clears it), but on the session's client like the rest.
+            profile: ProfileModel(supabase: Supabase(auth: auth, send: server.send)),
             hello: HelloInbox(keep: phone), saved: SavedStore(key: phoneName),
             supabase: Supabase(auth: auth, send: server.send))
     }
@@ -133,6 +135,33 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))
+    }
+
+    /// Your Profile stays between visits to You (`AppSession` keeps it), and another account never
+    /// opens on the last one's name, photo, cover, bio or switches (five-tabs 03).
+    func testAnotherAccountOpensOnAnEmptyProfile() {
+        signIn("a")
+        let session = session()
+        let profile = session.profile
+        profile.displayName = "Account A"
+        profile.avatarUrl = "photo-a"
+        profile.coverUrl = "cover-a"
+        profile.bio = "a's bio"
+        profile.sinceLabel = "October 2025"
+        profile.plansToFriends = false
+        profile.loaded = true
+
+        signIn("b")
+        session.accountChanged(from: "a", to: "b", signedIn: true)
+
+        XCTAssertTrue(session.profile === profile, "one Profile for the session, kept between visits")
+        XCTAssertEqual(profile.displayName, Interests.displayName ?? "")
+        XCTAssertNil(profile.avatarUrl, "a's photo")
+        XCTAssertNil(profile.coverUrl, "a's cover")
+        XCTAssertEqual(profile.bio, "", "a's bio")
+        XCTAssertNil(profile.sinceLabel)
+        XCTAssertNil(profile.plansToFriends, "a's switch waits for b's row")
+        XCTAssertFalse(profile.loaded, "b's cover shows only once b's row is read")
     }
 
     /// The first quiet account arriving after the first read is not another account: the views

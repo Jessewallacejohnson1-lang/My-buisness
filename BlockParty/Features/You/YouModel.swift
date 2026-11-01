@@ -242,19 +242,6 @@ enum YouCalendar {
         Dictionary(grouping: going) { calendar.startOfDay(for: $0.starts) }
     }
 
-    /// The Places row (ticket 03): the next Event at each place, one not over by `now`,
-    /// in the order they came. A place is the organizer's typed name, the same whatever
-    /// its case, spacing or apostrophe; an Event with none is left out.
-    static func places(_ going: [DailyEvent], now: Date) -> [DailyEvent] {
-        var seen = Set<String>()
-        return going.filter { event in
-            guard event.ends > now, let place = place(of: event) else { return false }
-            let key = place.lowercased().replacingOccurrences(of: "’", with: "'")
-                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
-            return seen.insert(key).inserted
-        }
-    }
-
     /// The short month over the 1st of a month the three weeks run into ("NOV"), so Nov 1 never
     /// reads as Oct 32 (ticket 10); nil on any other day, and on the first day shown.
     static func month(on date: Date, first: Date?) -> String? {

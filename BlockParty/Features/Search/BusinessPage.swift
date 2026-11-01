@@ -129,6 +129,8 @@ final class BusinessOpener {
     func open(_ item: SearchItem, from source: Source) {
         self.item = item
         self.source = source
+        // Opened from anywhere: the Town feed's next round of places puts it last (town-feed 23).
+        OpenedPlaces.add(item.placeID)
         isOpen = true
         progress.animate(to: 1, response: SearchMetric.openResponse, damping: SearchMetric.openDamping, instant: reduceMotion)
     }

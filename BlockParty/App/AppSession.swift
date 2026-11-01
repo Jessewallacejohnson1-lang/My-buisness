@@ -37,6 +37,8 @@ final class AppSession {
     let notices: Notices
     /// The You tab's photo, and the tab bar's.
     let avatar: TodayHeaderProfileModel
+    /// Your Profile, the You tab (five-tabs 03): kept, so coming back to You shows it at once.
+    let profile: ProfileModel
     private let hello: HelloInbox
     /// Saves this phone kept before they moved to the server.
     private let saved: SavedStore
@@ -44,8 +46,8 @@ final class AppSession {
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
-         notices: Notices, avatar: TodayHeaderProfileModel, hello: HelloInbox, saved: SavedStore,
-         supabase: Supabase) {
+         notices: Notices, avatar: TodayHeaderProfileModel, profile: ProfileModel, hello: HelloInbox,
+         saved: SavedStore, supabase: Supabase) {
         self.actions = actions
         self.townFeed = townFeed
         self.searchModel = searchModel
@@ -56,6 +58,7 @@ final class AppSession {
         self.dayPicks = dayPicks
         self.notices = notices
         self.avatar = avatar
+        self.profile = profile
         self.hello = hello
         self.saved = saved
         self.supabase = supabase
@@ -74,7 +77,7 @@ final class AppSession {
                   saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
-                  avatar: TodayHeaderProfileModel(supabase: supabase),
+                  avatar: TodayHeaderProfileModel(supabase: supabase), profile: ProfileModel(supabase: supabase),
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
                   supabase: supabase)
     }
@@ -99,6 +102,7 @@ final class AppSession {
             dayPicks.accountChanged()
             notices.reset()
             avatar.accountChanged()
+            profile.accountChanged()
             // A first launch makes its account after the shell appears: today's open.
             if old == nil, signedIn { recordOpen() }
             // The feed reads again for who's going as this account sees it.

@@ -313,6 +313,12 @@ final class SearchModel {
         }
     }
 
+    /// A place by its `places.id`, as its page opens; nil for one Search can't open (no logo) or hasn't
+    /// read yet. The Town feed's places to try are drawn from here (town-feed 23).
+    func place(_ id: String) -> SearchItem? {
+        places.first { $0.placeID == id && $0.opens }
+    }
+
     func remember(_ id: String) {
         recentIDs = Array(([id] + recentIDs.filter { $0 != id }).prefix(Self.recentsMax))
         defaults.set(recentIDs, forKey: Self.recentsKey)

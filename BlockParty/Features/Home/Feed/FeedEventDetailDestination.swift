@@ -207,6 +207,9 @@ struct FeedEventDetailDestination: View {
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.smooth, value: photos.count)
+        // A goal's scorer under the score and its play in the list move the rest of the page down together
+        // (game-card 09), rather than the page jumping.
+        .animation(reduceMotion ? nil : Motion.smooth, value: game?.plays.count)
         .signInSheet(isPresented: $signInShown)
         .sheet(isPresented: $calendarShown) {
             if let adding { AddToCalendar(entry: adding) }

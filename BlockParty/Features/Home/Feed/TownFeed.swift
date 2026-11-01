@@ -215,6 +215,11 @@ final class TownFeed {
     private let readMuted: () async throws -> [MutedHost]
     /// The live scores' sign-in: the session's account, or the public key with none.
     private let token: () async -> String?
+    /// Past the ranked list (town-feed 23): the later Events, each round's order (given the places this
+    /// phone opened, which go last, and the list's ids, the only repeats), and those opened places.
+    private let readLater: () async throws -> [TownFeedEntry]
+    private let readMore: (Int, [String], [String]) async throws -> [TownMoreRow]
+    private let opened: () -> [String]
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
     /// first read, so it is built with the account that read sees.
@@ -224,7 +229,10 @@ final class TownFeed {
          send: @escaping ([FeedAction]) async throws -> Void = { _ in },
          choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
          readMuted: @escaping () async throws -> [MutedHost] = { [] },
-         token: @escaping () async -> String? = { nil }) {
+         token: @escaping () async -> String? = { nil },
+         readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
+         readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
+         opened: @escaping () -> [String] = { [] }) {
         self.read = read
         self.kept = kept
         self.actions = actions
@@ -232,6 +240,9 @@ final class TownFeed {
         self.choose = choose
         self.readMuted = readMuted
         self.token = token
+        self.readLater = readLater
+        self.readMore = readMore
+        self.opened = opened
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
@@ -264,7 +275,10 @@ final class TownFeed {
                   send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
                   choose: { try await api.feedChoice($0) },
                   readMuted: { try await api.mutedHosts() },
-                  token: { try? await supabase.auth.validAccessToken() })
+                  token: { try? await supabase.auth.validAccessToken() },
+                  readLater: { try await api.getTownFeedLater().map(TownFeed.entry) },
+                  readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
+                  opened: { OpenedPlaces.ids })
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -287,9 +301,78 @@ final class TownFeed {
 
     /// The Town feed's column at `now`: your Event of the day on top, the first of `picks` still
     /// on or to come, never one you hid or whose host you muted (ticket 21); then the list.
-    func column(eventOfTheDay picks: [DailyEvent], now: Date) -> [DailyFeedItem] {
+    /// Past the ranked list, its places as Search holds them (`places`, by `places.id`), town-feed 23.
+    func column(eventOfTheDay picks: [DailyEvent], now: Date,
+                places: (String) -> SearchItem? = { _ in nil }) -> [DailyFeedItem] {
         let top = DailyEvent.showing(picks.filter { !isHidden($0.item) }, now: posterClock(at: now), limit: 1).first
-        return DailyFeedItem.town(shown, eventOfTheDay: top)
+        let ranked = shown
+        return DailyFeedItem.town(ranked, eventOfTheDay: top) + past(ranked, places: places)
+    }
+
+    // MARK: After the best (town-feed 23)
+
+    /// The 20 soonest Events past their show-from day, read once the ranked list's end comes near.
+    private(set) var later: [TownFeedEntry] = []
+    /// Each round past them, in `get_town_more`'s order: places to try and repeats.
+    private(set) var rounds: [[TownMoreRow]] = []
+    /// A round on its way: the column ends in a card's skeleton.
+    private(set) var loadingMore = false
+    /// Numbers the rounds' reads, so one that a fresh order or a new account overtook never lands.
+    @ObservationIgnored private var moreRead = 0
+
+    /// What shows past the ranked list: "You're all caught up", at once, so offline or between rounds the
+    /// list still ends on it and it asks again when it comes back on screen; then the later Events not
+    /// already above and not hidden, then each round's places Search can open and repeats of what the
+    /// list above still shows, so a hidden or muted one never comes back. Nothing past an empty list,
+    /// which keeps its own quiet screen.
+    func past(_ ranked: [TownFeedEntry], places: (String) -> SearchItem?) -> [DailyFeedItem] {
+        guard !ranked.isEmpty else { return [] }
+        let above = Dictionary(ranked.map { ($0.id, $0.item) }, uniquingKeysWith: { first, _ in first })
+        let at = holding ? heldClock : clock
+        var items: [DailyFeedItem] = [.caughtUp]
+        items += later.filter { $0.leavesAt > at && above[$0.id] == nil }
+            .compactMap(\.card).filter { !isHidden($0) }.map(DailyFeedItem.event)
+        for (round, rows) in rounds.enumerated() {
+            for row in rows {
+                switch row.kind {
+                case .place: if let place = places(row.id) { items.append(.place(place, round: round)) }
+                case .again: if let item = above[row.id] { items.append(.again(item, round: round)) }
+                case .unknown: break
+                }
+            }
+        }
+        return items
+    }
+
+    /// Near the end of the column: the next round. The first brings the later Events with its places.
+    /// One at a time; a failed one is asked again when the end comes near again.
+    func loadMore() async {
+        guard !loadingMore, let entries, !entries.isEmpty else { return }
+        loadingMore = true
+        let mine = moreRead, round = rounds.count
+        do {
+            let newLater = round == 0 ? try await readLater() : later
+            let rows = try await readMore(round, opened(), shown.map(\.id))
+            guard mine == moreRead else { return }
+            if round == 0 {
+                actions?.read(newLater.compactMap(\.card))
+                later = newLater
+            }
+            rounds.append(rows)
+        } catch {
+            guard mine == moreRead else { return }
+            Log.network("TownFeed: round \(round) past the list: \(error)")
+        }
+        loadingMore = false
+    }
+
+    /// A fresh order or another account: what was past the old list goes, and a round still on its
+    /// way is dropped when it lands.
+    private func clearMore() {
+        moreRead &+= 1
+        later = []
+        rounds = []
+        loadingMore = false
     }
 
     /// The events still on, in the database's order. The admin's Score names each card's
@@ -383,6 +466,7 @@ final class TownFeed {
             if entries == nil || freshOrder || (freshDue && atTop) {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
+                clearMore()
             } else {
                 let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 // Scrolled down, a card the read no longer has (called off, say) keeps its place,
@@ -461,12 +545,13 @@ final class TownFeed {
     /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
     /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
     /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
-    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it (game-card 09).
+    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
+    /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final (game-card 09).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
-        let volleyball = LaunchFlags.has(.townVolleyball)
-        let id = volleyball ? "v1" : "g1"
+        let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
+        let id = volleyball ? "v1" : soccer ? "s1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
@@ -489,7 +574,17 @@ final class TownFeed {
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),
         ]
-        let steps = volleyball ? sets : football
+        // The minute as SIDEARM pushes it: the clock in seconds, stopped at 45:00 through halftime.
+        let halves: [(String, String?)] = [
+            (#"[0,0],"period":"1st half","clock":"38'","clock_s":2230"#, nil),
+            (#"[1,0],"period":"1st half","clock":"41'","clock_s":2410"#, #"{"id":"1","text":"Goal by SJU Hanson,Ben, top left","period":"1st half","clock":"41'","side":0,"score":[1,0]}"#),
+            (#"[1,0],"period":"1st half","clock":"46'","clock_s":2700"#, nil),
+            (#"[1,0],"period":"2nd half","clock":"46'","clock_s":2700"#, nil),
+            (#"[1,1],"period":"2nd half","clock":"58'","clock_s":3430"#, #"{"id":"2","text":"Goal by AUG Larkin,Sam","period":"2nd half","clock":"58'","side":1,"score":[1,1]}"#),
+            (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Goal by SJU Hanson,Ben, low right","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
+            (#"[2,1],"period":"2nd half","clock":"90'","clock_s":5350"#, nil),
+        ]
+        let steps = volleyball ? sets : soccer ? halves : football
         let live = { (score: String, complete: Bool) in
             try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
                 + ISO8601DateFormatter().string(from: .now) + #""}"#).utf8))
@@ -505,7 +600,7 @@ final class TownFeed {
             if volleyball {
                 self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
             } else {
-                self?.score(id, final: [21, 10], live: nil)
+                self?.score(id, final: soccer ? [2, 1] : [21, 10], live: nil)
             }
         }
     }
@@ -548,6 +643,7 @@ final class TownFeed {
 
     /// A new account: the last one's waiting views and hidden cards are not this one's.
     func accountChanged() {
+        clearMore()
         unsent = []
         viewed = []
         hiddenIDs = []
@@ -677,7 +773,8 @@ final class TownFeed {
 
     /// Once per card per feed load, and only for a card still in the list.
     private func counted(_ id: String) {
-        guard !viewed.contains(id), cards.contains(where: { $0.id == id }) else { return }
+        guard !viewed.contains(id), cards.contains(where: { $0.id == id }) || later.contains(where: { $0.id == id })
+        else { return }
         viewed.insert(id)
         unsent.append(FeedAction(itemID: id, kind: .view))
     }
