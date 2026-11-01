@@ -166,7 +166,7 @@ struct FeedEventDetailDestination: View {
         // A game's page is its teams' colors from edge to edge, fixed while the page scrolls over them
         // (game-card 08); the rest are paper.
         .background {
-            if let game { GameMatchup.backdrop(game) } else { Hue.paper.ignoresSafeArea() }
+            if let game { GameMatchup.backdrop(game).ignoresSafeArea() } else { Hue.paper.ignoresSafeArea() }
         }
         // Outside the scroll, so the buttons stay put while the page moves under them.
         // The sort priority asks VoiceOver to read them first, as they sit, not after the
