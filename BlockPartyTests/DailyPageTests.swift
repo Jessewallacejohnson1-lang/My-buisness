@@ -397,6 +397,19 @@ final class DailyPageTests: XCTestCase {
         return calendar.date(from: DateComponents(year: 2026, month: 10, day: 22))!
     }
 
+    /// The Friends tab's Friends are going (five-tabs 02): the next three weeks, soonest first
+    /// whatever the friend count, nothing from day 21 on, nobody's card left out.
+    @MainActor
+    func testTheFriendsTabsGoingIsThreeWeeksSoonestFirst() {
+        let cards = [dayCard("Three, Friday", day: "2026-10-23", at: "8 AM", friends: ["Ana", "Ben", "Sam"]),
+                     dayCard("One, Thursday", day: "2026-10-22", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Day 20", day: "2026-11-11", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Day 21", day: "2026-11-12", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Nobody", day: "2026-10-22", at: "8 AM")]
+        XCTAssertEqual(FriendsHomePage.going(cards, now: dayStart).map(\.item.title),
+                       ["One, Thursday", "Three, Friday", "Day 20"])
+    }
+
     /// The day's events that match your interests, in the feed's order; with none, the day's all.
     @MainActor
     func testSuggestionsAreTheDaysEventsForYourInterestsInFeedOrder() {

@@ -139,10 +139,11 @@ struct FriendsPage: View {
 /// A pushed Friends page's own top: Search's back chevron, and the small title once the large
 /// one has gone under it, and whatever the page puts at the top right (a person's •••).
 /// Drawn, not Apple's bar, which drops a page pushed from a stack that hides it (Saved,
-/// 2026-10-13).
+/// 2026-10-13). The Friends tab is a tab's root, so it has no chevron (`back: false`).
 struct FriendsTitleBar<Trailing: View>: View {
     let title: String
     let titleUnder: Bool
+    var back = true
     @ViewBuilder var trailing: Trailing
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -155,7 +156,7 @@ struct FriendsTitleBar<Trailing: View>: View {
                 .opacity(titleUnder ? 1 : 0)
                 .accessibilityHidden(true)
             HStack {
-                BackButton { dismiss() }
+                if back { BackButton { dismiss() } }
                 Spacer()
                 trailing
             }
@@ -172,8 +173,8 @@ struct FriendsTitleBar<Trailing: View>: View {
 }
 
 extension FriendsTitleBar where Trailing == EmptyView {
-    init(title: String, titleUnder: Bool) {
-        self.init(title: title, titleUnder: titleUnder) { EmptyView() }
+    init(title: String, titleUnder: Bool, back: Bool = true) {
+        self.init(title: title, titleUnder: titleUnder, back: back) { EmptyView() }
     }
 }
 

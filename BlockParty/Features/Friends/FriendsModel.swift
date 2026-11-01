@@ -61,6 +61,8 @@ enum FriendsRoute: Hashable {
     case home
     /// Your phone's contacts on Block Party, and the rest to invite (friends 06).
     case contacts
+    /// See all on the Friends tab (five-tabs 02): every friend, or every Group with its Join.
+    case allFriends, groups
     case inbox
     case chat(String)
 }

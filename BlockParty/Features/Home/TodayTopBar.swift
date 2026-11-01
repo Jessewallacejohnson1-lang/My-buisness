@@ -1,7 +1,7 @@
 //
 //  TodayTopBar.swift
-//  Block Party — Today's fixed top bar: a friends mark leading, the wordmark centred,
-//  the map disc and a notifications bell trailing.
+//  Block Party — Today's fixed top bar: the wordmark centred, the map disc and a
+//  notifications bell trailing.
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
@@ -20,9 +20,11 @@
 //  bar reports every tap; the shell owns every presentation.
 //
 //  On 2026-09-29 search moved down to the tab bar, into Business's slot, and a
-//  friends mark (Apple's `person.2.fill`) took the leading edge (Jesse).
+//  friends mark (Apple's `person.2.fill`) took the leading edge (Jesse). On 2026-11-01
+//  it went down too, as the Friends tab in the bar's middle, its dot with it (BP app
+//  docs/plans/five-tabs, ticket 02); the leading edge is empty, the wordmark still centred.
 //
-//  The two new marks are BARE INK, not discs. That is what the reference does, and
+//  The marks are BARE INK, not discs. That is what the reference does, and
 //  it is also the only thing the width budget allows — see `controls`.
 //
 
@@ -155,21 +157,6 @@ private nonisolated enum TodayBarMetric {
     /// A side button's touch box, and the frosted circle drawn in it while the bar
     /// floats: Instagram's circle, 44pt (MEASURED, as above).
     static let glyphTap: CGFloat = 44
-    /// The friends mark's point size: 25pt wide and 17pt tall in ink. Its Reference
-    /// (`BP app/references/friends-icon/jesse.png`, SF's `person.2.fill`) is a crop
-    /// with no scale, so the size is eyeballed against the bell (Jesse, 2026-09-29).
-    static let friendsGlyphSize: CGFloat = 19
-    /// A new friend request's dot: Instagram's unread dot on its heart, measured at 7.5pt
-    /// (±0.5) with a 1.5pt ring, centred 2pt inside the icon's top right; exact BP yellow,
-    /// not red (Jesse, 2026-10-13: an ink dot read as a third head; BP app
-    /// references/friends/ig-heart-dot.jpg, docs/plans/friends ticket 03).
-    static let friendsDot: CGFloat = 7.5
-    static let friendsDotRing: CGFloat = 1.5
-    static let friendsDotInset: CGFloat = 2
-    /// How far the symbol's frame runs past its ink on the right and top, so the dot sits on
-    /// the ink's corner, not the frame's (measured on BP Build, 2026-10-13, ±0.5).
-    static let friendsInkRight: CGFloat = 3.3
-    static let friendsInkTop: CGFloat = 1.5
     /// The bell, at its measured reference size (20.69pt tall — see
     /// `refs/chrome/REFERENCE-SPEC.md`).
     static let bellGlyphSize: CGFloat = 21
@@ -260,12 +247,6 @@ final class BarTravel {
 }
 
 struct TodayTopBar: View {
-    /// The leading friends mark (search until 2026-09-29, when it moved to the tab
-    /// bar). Like every control here, the bar only reports the tap — the shell owns
-    /// what opens.
-    var onOpenFriends: () -> Void = {}
-    /// The friend requests' dot; absent in previews and demo screens.
-    @Environment(FriendsBook.self) private var friendsBook: FriendsBook?
     /// The bell's dot; absent in previews and demo screens.
     @Environment(Notices.self) private var notices: Notices?
     /// The map button → the town map. No longer the trailing control: it slid left
@@ -280,7 +261,7 @@ struct TodayTopBar: View {
     /// `TodayHeader.chromeHidden` owns the rule.
     var chromeHidden: Bool = false
     /// True while the bar floats over the feed rather than sitting at home on the
-    /// paper: friends and the bell sit in frosted circles, as Instagram's buttons do.
+    /// paper: the bell sits in a frosted circle, as Instagram's buttons do.
     /// `TodayHeader.chromeFloating` owns the rule.
     var chromeFloating: Bool = false
     /// How far the feed has carried the bar off the top (`TodayHeader.homeTravel`).
@@ -384,10 +365,10 @@ struct TodayTopBar: View {
     /// claims 75.4pt either side of the midline. The trailing side consumes
     /// `rowInset 16 + glyphTap 44 + controlGap 4 + mapSide 44` = 108pt, which leaves
     /// `W/2 − 183.4`: **+4.1pt at 375, +13.1 at 393, +36.6 at 440**. Break-even is
-    /// 366.8pt, below every iPhone that runs this OS. The leading side takes 60pt
-    /// and is never the binding constraint.
+    /// 366.8pt, below every iPhone that runs this OS. The leading side is empty
+    /// since the friends mark became the Friends tab (2026-11-01).
     ///
-    /// Friends and the bell are bare marks at home and only sit in frosted circles
+    /// The bell is a bare mark at home and only sits in a frosted circle
     /// while the bar floats (`chromeFloating`), as Instagram's do. The map disc is
     /// the one control that is always an object. (A disc LEADING would trip
     /// `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
@@ -395,7 +376,6 @@ struct TodayTopBar: View {
     /// roughly 7,800 a yellow disc puts there.)
     private var controls: some View {
         HStack(spacing: 0) {
-            friendsButton
             Spacer(minLength: 0)
             mapButton
             Spacer(minLength: 0).frame(width: TodayBarMetric.controlGap)
@@ -419,9 +399,8 @@ struct TodayTopBar: View {
     }
 
     /// A bar mark in a 44pt touch box: bare at home, in a frosted circle while
-    /// the bar floats. Shared by the friends glyph and the bell, because the only
-    /// thing that differs between them is the glyph and the label — and two
-    /// near-identical button bodies is how the two drift apart.
+    /// the bar floats. One body for every bare mark the bar carries (the friends
+    /// glyph shared it until 2026-11-01; the bell now), so marks can't drift apart.
     @ViewBuilder
     private func glyphButton<Glyph: View>(
         label: String,
@@ -452,23 +431,7 @@ struct TodayTopBar: View {
         .accessibilityShowsLargeContentViewer { Text(label) }
     }
 
-    /// Apple's own two-person mark: laid over the Reference it differs by ~1px of
-    /// antialiasing, so nothing here is traced. A new friend request puts a quiet dot on
-    /// it: no number, no push (`FriendsBook.dot`).
-    private var friendsButton: some View {
-        let dot = friendsBook?.dot == true
-        // `friends-dot-vo`
-        return glyphButton(label: dot ? "Friends, new friend request" : "Friends", action: onOpenFriends) {
-            Image(systemName: "person.2.fill")
-                .font(.glyph(TodayBarMetric.friendsGlyphSize))
-                .overlay(alignment: .topTrailing) {
-                    if dot { unreadDot(inkRight: TodayBarMetric.friendsInkRight, inkTop: TodayBarMetric.friendsInkTop) }
-                }
-                .accessibilityHidden(true)
-        }
-    }
-
-    /// A canceled or moved Event you follow or are Going to puts the friends mark's dot on the
+    /// A canceled or moved Event you follow or are Going to puts the quiet dot (`UnreadDot`) on the
     /// bell (BP app docs/plans/school-activities, ticket 04), and so does something new the hello
     /// pill hasn't said yet (hello-drop 05): no number, gone once its page opens.
     private var bellButton: some View {
@@ -477,23 +440,14 @@ struct TodayTopBar: View {
                            action: onOpenNotifications) {
             BellGlyph(size: TodayBarMetric.bellGlyphSize)
                 .overlay(alignment: .topTrailing) {
-                    if dot { unreadDot(inkRight: TodayBarMetric.bellInkRight, inkTop: TodayBarMetric.bellInkTop) }
+                    if dot {
+                        UnreadDot(ring: chromeFloating ? Hue.surface : Hue.paper,
+                                  inkRight: TodayBarMetric.bellInkRight, inkTop: TodayBarMetric.bellInkTop)
+                    }
                 }
         }
     }
 
-    /// The quiet dot on a mark, centred `friendsDotInset` inside its ink's top right corner.
-    private func unreadDot(inkRight: CGFloat, inkTop: CGFloat) -> some View {
-        let reach = TodayBarMetric.friendsDot / 2 + TodayBarMetric.friendsDotRing
-        return Circle()
-            .fill(Hue.brandDisc)
-            .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
-            .padding(TodayBarMetric.friendsDotRing)
-            .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
-            .offset(x: reach - TodayBarMetric.friendsDotInset - inkRight,
-                    y: TodayBarMetric.friendsDotInset - reach + inkTop)
-            .transition(.scale.combined(with: .opacity))
-    }
 
     /// The wordmark with a chevron after it opens Apple's menu of the Town's two pages, as
     /// Instagram's logo opens its feeds (Jesse, 2026-10-26).
@@ -752,7 +706,7 @@ private final class GradientMaskView: UIView {
     var gradient: CAGradientLayer { layer as! CAGradientLayer }
 }
 
-/// The frosted circle behind friends and the bell while the bar floats over the
+/// The frosted circle behind the bell while the bar floats over the
 /// feed — Instagram's button circle, which reads mostly white with a tint of the
 /// photo behind it (MEASURED 2026-09-27). A material, not Liquid Glass: glass
 /// composites outside its view's layer, so in this bar it arrives and leaves out

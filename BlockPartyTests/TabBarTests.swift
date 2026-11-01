@@ -1,11 +1,12 @@
 //
 //  TabBarTests.swift
-//  Block Party — pins the tab bar: four destinations, Instagram's measured
-//  geometry, and the one ink it draws.
+//  Block Party — pins the tab bar: five destinations, Instagram's measured
+//  geometry, and the one ink it draws, with BP yellow only in the Friends dot.
 //
-//  The first two tests keep the bar at four: `Tab` names the four destinations in
+//  The first two tests keep the bar at five: `Tab` names the five destinations in
 //  order, and the bar draws one slot per `Tab` case and nothing else. (It carried a
-//  fifth, non-tab Create slot from 2026-09-21 until posting was paused 2026-09-24.)
+//  fifth, non-tab Create slot from 2026-09-21 until posting was paused 2026-09-24;
+//  Friends took the middle on 2026-11-01, BP app docs/plans/five-tabs.)
 //
 //  The geometry tests pin `TabBarMetric` to Instagram's bar (2026-09-27,
 //  `references/instagram-tab-bar/MEASURED.md`): equal slots inside a 9pt side
@@ -30,8 +31,8 @@ private typealias Tab = BlockParty.Tab
 @MainActor
 final class TabBarTests: XCTestCase {
 
-    func testTheBarHasExactlyFourDestinationsInOrder() {
-        XCTAssertEqual(Tab.allCases, [.town, .daily, .search, .you])
+    func testTheBarHasExactlyFiveDestinationsInOrder() {
+        XCTAssertEqual(Tab.allCases, [.town, .daily, .friends, .search, .you])
     }
 
     func testTheBarDrawsOneSlotPerTab() throws {
@@ -156,14 +157,36 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(yellow, 0, "yellow drawn in the tab bar")
     }
 
+    /// A new friend request's dot is the bar's one yellow (Jesse at five-tabs 02's Check-in 1),
+    /// on the Friends icon's top right and nowhere else.
+    func testTheFriendsDotIsTheOnlyYellowAndSitsOnFriends() throws {
+        let bitmap = try renderedItems(selected: .town, friendsDot: true)
+        func yellow(in box: CGRect?) -> Int {
+            var count = 0
+            for y in 0..<bitmap.height {
+                for x in 0..<bitmap.width where box.map({ $0.contains(CGPoint(x: x, y: y)) }) ?? true {
+                    let (r, g, b, a) = bitmap.pixel(x: x, y: y)
+                    if a > 200, Int(r) - Int(b) > 40, Int(g) - Int(b) > 40 { count += 1 }
+                }
+            }
+            return count
+        }
+        let friends = iconBox(.friends)
+        XCTAssertGreaterThan(yellow(in: friends), 0, "no dot on Friends")
+        XCTAssertEqual(yellow(in: nil), yellow(in: friends), "yellow outside the Friends icon")
+        let topRight = CGRect(x: friends.midX, y: friends.minY, width: friends.width / 2, height: friends.height / 2)
+        XCTAssertEqual(yellow(in: topRight), yellow(in: friends), "the dot isn't at the icon's top right")
+    }
+
     // MARK: - Rendering
 
     private let scale: CGFloat = 3
     private let width: CGFloat = 351
 
-    private func renderedItems(selected: Tab) throws -> TabBarBitmap {
+    private func renderedItems(selected: Tab, friendsDot: Bool = false) throws -> TabBarBitmap {
         let renderer = ImageRenderer(
-            content: BlockPartyTabBar.Items(selection: selected, capsuleWidth: width, onSelect: { _ in })
+            content: BlockPartyTabBar.Items(selection: selected, capsuleWidth: width, onSelect: { _ in },
+                                            friendsDot: friendsDot)
                 .frame(width: width, height: TabBarMetric.height)
                 .background(Hue.paper)
         )

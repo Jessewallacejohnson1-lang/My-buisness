@@ -62,7 +62,7 @@ enum YouMetric {
     static let emptyLine: CGFloat = 18
     /// Cards the Agenda's skeleton draws while the first read is out.
     static let skeletonCards = 2
-    /// The Groups and Places rows, Instagram's highlights as the mock draws them: a 62pt
+    /// The Places row (and the Friends tab's own groups), Instagram's highlights as the mock draws them: a 62pt
     /// photo in a 70pt ring (2pt line, 2pt gap), the name 6pt under it in a 72pt column, 14pt apart.
     static let highlightPhoto: CGFloat = 62
     static let highlightRing: CGFloat = 70
@@ -75,8 +75,6 @@ enum YouMetric {
     static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
     static let groupGlyph: CGFloat = 24
-    /// The Groups row fades in this long after Places starts moving down for it (picked).
-    static let groupsIn: Double = 0.15
 }
 
 struct YouPage: View {
@@ -114,7 +112,7 @@ struct YouPage: View {
                 // On every visit and each new week: the list on screen stays meanwhile.
                 .task(id: first) { await model.refresh(now: now) }
         }
-        // On every visit: the row on screen stays meanwhile.
+        // On every visit, for Profile's groups and a neighbour's page (the row is on Friends now).
         .task { await refreshGroups() }
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
         // An event page opened mid-peek: back on You, the photo is already there.
@@ -125,10 +123,7 @@ struct YouPage: View {
     }
 
     private func page(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
-        // The ones they're in, in the read's order, Search's shelf's (Jesse, ticket 09 Check-in 1),
-        // with this session's Join group and leave laid over it.
-        let groups = (model.groups ?? []).filter { actions.member($0).isMember }
-        return ScrollView(showsIndicators: false) {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 bar
                 calendar(days: days, today: today, day: day, going: going ?? [])
@@ -140,18 +135,7 @@ struct YouPage: View {
                 // so two days' cards never show over each other mid-fade.
                 agenda(going: going, days: days, today: today, day: day, now: now)
                     .padding(.top, YouMetric.labelToCards)
-                // Left out until they join one, as Places is.
-                if !groups.isEmpty {
-                    VStack(spacing: 0) {
-                        DailySectionLabel(title: "Groups", ink: Hue.ink)
-                            .padding(.top, YouMetric.calendarToLabel)
-                        YouGroups(groups: groups)
-                            .padding(.top, YouMetric.labelToCards)
-                    }
-                    // In once Places has made room, so the two never show over each other.
-                    .transition(.asymmetric(insertion: .opacity.animation(Motion.smooth.delay(YouMetric.groupsIn)),
-                                            removal: .opacity))
-                }
+                // Your groups' row moved to the Friends tab (five-tabs 02).
                 // Left out while there's nowhere to go, as on Daily.
                 let places = YouCalendar.places(going ?? [], now: now)
                 if !places.isEmpty {
@@ -163,9 +147,6 @@ struct YouPage: View {
                 }
                 Color.clear.frame(height: DailyMetric.tabBarClearance)
             }
-            // The first groups read of a visit lands after the page is up: the row comes in
-            // and Places moves down for it, rather than jumping.
-            .animation(reduceMotion ? nil : Motion.smooth, value: groups.map(\.id))
         }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
@@ -338,30 +319,9 @@ private struct YouPlaces: View {
     }
 }
 
-/// The groups the neighbour is in, as the same highlights, in Search's order. A tap opens
-/// the Group page, as Search's Groups shelf does.
-private struct YouGroups: View {
-    let groups: [TownGroup]
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: YouMetric.highlightGap) {
-                ForEach(groups) { group in
-                    NavigationLink(value: group) {
-                        YouHighlight(name: group.name) { YouGroupPicture(group: group) }
-                    }
-                    .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel(group.name)
-                }
-            }
-        }
-        .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
-    }
-}
-
 /// One of Instagram's highlights: the picture in a ring with the name under it, cut at the
 /// column's width, never reworded. Places and Groups share it.
-private struct YouHighlight<Picture: View>: View {
+struct YouHighlight<Picture: View>: View {
     let name: String
     @ViewBuilder let picture: () -> Picture
 

@@ -47,10 +47,13 @@ await db.exec(`
     start_time text, team_ids text[], final_score int[], live_score jsonb, cancelled_at timestamptz,
     status text default 'approved', source_name text, sport text, submitted_by uuid,
     created_at timestamptz default now());
+  create table public.clubs (name text, status text default 'approved', calendar_id text, calendar_read_at timestamptz,
+    calendar jsonb, meets jsonb, schedule text, location text);
 `);
 await db.exec(read(readdirSync(migrations).find((f) => f.endsWith('_morning_reports.sql'))));
 await db.exec(fn('private.sidearm_file'));
 await db.exec(fn('private.live_games'));
+await db.exec(fn('public.group_meetings'));
 // Every file that makes the check, oldest first: the first also makes its schedule.
 for (const f of creating(migrations, ['private.morning_problems', 'private.morning_check'])) await db.exec(read(f));
 
@@ -167,6 +170,48 @@ test('a game listened to with no score saved is named, final in or not; a scored
   const listened = await db.query(`select e.title from private.live_games('2026-11-01 19:30+00') g
     join public.club_events e on e.id = g.id`);
   assert.deepEqual(listened.rows.map((r) => r.title), ['SJU Football vs Gustavus Adolphus']);
+});
+
+test("a group's calendar not read in over a day is named; one read this morning is not", async () => {
+  await story();
+  await db.exec(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar) values
+    ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-01 10:30+00', null),
+    ('Quiet club', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-03"}]'),
+    ('New club', 'n@group.calendar.google.com', null, null),
+    ('Lions', null, null, null)`);
+  assert.deepEqual(await problems(), [
+    "The New club calendar hasn't been read since it was added.",
+    "The St. Cloud River Runners calendar hasn't been read since Nov 1."]);
+  await db.exec('delete from public.clubs');
+});
+
+test('a calendar read this morning with nothing for 2 weeks is named; one with a run next week is not', async () => {
+  await story();
+  await db.exec(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar) values
+    ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-02 10:30+00',
+     '[{"what": "Run", "day": "2026-11-01"}, {"what": "Banquet", "day": "2026-11-16"}]'),
+    ('Quiet club', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-15"}]')`);
+  assert.deepEqual(await problems(), ['The St. Cloud River Runners calendar has nothing on it for the next 2 weeks.']);
+  await db.exec('delete from public.clubs');
+});
+
+test("a meeting the page promises that the calendar moved or dropped is named once, with the page's top line", async () => {
+  await story();
+  const club = (calendar) => db.query(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar, meets, schedule, location)
+    values ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-02 10:30+00', $1,
+            '[{"what": "Coffee Run", "days": ["sun"], "time": "07:30"}]', 'Sundays at 7:30 AM', 'The Local Blend')`,
+    [JSON.stringify(calendar)]);
+  const run = (day, time, where) => ({ what: 'Coffee Run', day, time, where });
+  await club([run('2026-11-08', '08:00', 'The Local Blend'), run('2026-11-15', '08:00', 'The Local Blend')]);
+  assert.deepEqual(await problems(), ['St. Cloud River Runners: the page says Sundays at 7:30 AM · The Local Blend, '
+    + 'but its calendar has no Coffee Run on Sun Nov 8 at 7:30 AM. Check the page\'s top line.']);
+  await db.exec('delete from public.clubs');
+  await club([run('2026-11-08', '07:30', 'Kitchenette, St. Cloud area')]);
+  assert.equal((await problems()).length, 1, 'the right time at another place');
+  await db.exec('delete from public.clubs');
+  await club([run('2026-11-08', '07:30', 'The Local Blend')]);
+  assert.deepEqual(await problems(), [], 'as the page says');
+  await db.exec('delete from public.clubs');
 });
 
 test('only 8:00 in Chicago reads, summer or winter time', async () => {

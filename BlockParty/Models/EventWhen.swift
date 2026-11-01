@@ -80,3 +80,16 @@ extension EventWhen {
         return nil
     }
 }
+
+extension EventWhen {
+    /// The bell's short when (Jesse, 2026-10-28: "i want shorter"): "Tonight 7 PM", "Tomorrow 6 PM",
+    /// "Fri 6 PM" within the week, else the date alone, "Nov 20". nil when `date` isn't a day. The
+    /// bell's rows and the Friends tab's Groups to join read it.
+    static func short(date: String?, time: String?, now: Date) -> String? {
+        guard let when = EventWhen(date: date, time: time, endAt: nil) else { return nil }
+        let days = Town.days(from: now, to: when.start)
+        guard days < 7 else { return Town.format(when.start, "MMMd") }
+        let day = when.dayWord(now) ?? Town.format(when.start, "EEE")
+        return minutes(time).map { "\(day) \(Town.clock(minutes: $0))" } ?? day
+    }
+}

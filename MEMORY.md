@@ -45,6 +45,13 @@ all live there now. This file carries what is newer than that, or narrower than 
 - 2026-09-29 — **Search** took Business's tab slot: Town, Daily, Search, You (Jesse).
   The Town top bar leads with a friends mark instead. Business has no slot for now.
   **Supersedes** Business in the line above.
+- 2026-11-01 — **Five tabs: Town, Daily, Friends, Search, You**, Friends in the middle (Jesse,
+  BP app `docs/plans/five-tabs/SPEC.md`). Friends holds neighbours and Groups: requests, Friends
+  are going, your Groups and Groups to join, suggestions, your friends. The Town top bar's
+  friends mark is gone (its dot is on the Friends tab); You's Groups row moved to Friends.
+  Coming: You becomes your Profile with the full Calendar (five-tabs 03); Daily is renamed the
+  Block Party tab and Search drops Groups and people (five-tabs 04). **Supersedes** the tab list
+  in the 2026-09-29 line and "the Town top bar leads with a friends mark".
 - 2026-10-08 — **Town** and **Daily** are both personal (Jesse). The Town feed is everything
   coming up in the Town, today included, in an order worked out for each person; Daily is
   your today. Ordered per person: the Town feed, friend suggestions, and Daily's Event of
