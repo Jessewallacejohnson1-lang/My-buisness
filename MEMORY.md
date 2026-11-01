@@ -67,8 +67,10 @@ all live there now. This file carries what is newer than that, or narrower than 
   Waite Park. Nothing in the shared UI, copy, or icon may be St. Joe–specific.
 - App Store target is spring 2027. The months before that are networking and local
   partnerships, not features.
-- Main features are free for everyone. A paid tier is still being shaped, priced around
-  a Costco food court item ($2–5).
+- 2026-11-01 — **Users never pay** (Jesse). Block Party is a passion project, not a
+  money-maker: every feature is free for everyone, with no paid tier. Revenue ideas are
+  welcome as long as users never pay. **Supersedes** the paid tier priced around a Costco
+  food court item ($2–5).
 
 ## Numbers and copy that keep going stale
 
