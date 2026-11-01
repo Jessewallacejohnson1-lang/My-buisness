@@ -4,6 +4,12 @@
 # discover.py's TOWNS dict on 2026-10-28.
 
 label: St. Joseph MN
+# The town's name in words: the cheap model's batches ("The town is St. Joseph,
+# Minnesota") and the social watch's post pages ("A St. Joseph place").
+display: St. Joseph
+# The town's folder in the photo store and its place_photos.town (place_photos.py,
+# event_photos.py). Live data names it: never change it.
+photo_slug: st-joseph
 # ADR-019: a town is its ZIP codes. Every place whose address carries one belongs
 # here, the 56374 countryside included; anything else belongs to another town.
 zips: ['56374']
@@ -351,3 +357,8 @@ directories:
 # (ADR-012) and its /9/Business page holds permits and zoning, not a business
 # list; the chamber permits robots (ADR-014) and is read from a saved list.
 agent_only: []
+# Meetings whose listing names no room, and where the host's agendas say they always meet
+# (read 2026-10-20; moved here from write_judged.py's MEETS_AT on 2026-10-31). `titles` is
+# a regular expression. The Park Board moves between City Hall and the parks, so it stays blank.
+meets_at:
+  - {host: City of St. Joseph, titles: '\b(City Council|Economic Development Authority)\b', place: City Hall}

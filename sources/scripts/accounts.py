@@ -23,7 +23,7 @@ counts when the place's own website or its Google listing gives it, and is the o
 handle names the place when several do.
 
   python3 sources/scripts/accounts.py setup     make or update the task and schedule
-  python3 sources/scripts/accounts.py report    the latest month's run, matched (.runs/accounts/)
+  python3 sources/scripts/accounts.py report [--town T]   the latest month's run, matched (.runs/accounts/)
   python3 sources/scripts/accounts.py --selftest
 """
 
@@ -34,7 +34,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from db import key_headers
 from registry import find_root, load
-from social import TOWN, api, by_name, items
+from social import api, by_name, items
+from towns import DEFAULT, lookup
 
 TASK, ACTOR, CAP = "bp-monthly-places", "compass~crawler-google-places", 3.00
 CRON = "0 5 1 * *"
@@ -95,7 +96,15 @@ def website(entry):
 
 
 def search_of(entry):
-    return f"{entry['_name']}, {entry['address']}, St. Joseph, MN"
+    """Google's search for a place: its name and address in its own town ("St. Joseph MN" reads "St. Joseph, MN")."""
+    return f"{entry['_name']}, {entry['address']}, {', '.join(lookup(entry.get('_town', DEFAULT))['label'].rsplit(' ', 1))}"
+
+
+def town_words(town):
+    """The town's name as an address writes it: "St. Joseph", "St Joseph" or "Saint Joseph"."""
+    name = lookup(town)["display"]
+    rest = re.sub(r"^(?:St\.?|Saint)\s+", "", name)
+    return (r"(St\.?|Saint) " if rest != name else "") + re.escape(rest)
 
 
 def places(root, app=None):
@@ -104,7 +113,7 @@ def places(root, app=None):
     place (`app`: entry id to `places.address`), so every place in the app is checked."""
     out = []
     for e in load(root)[0]:
-        address = e.get("address") or re.sub(r",\s*(St\.?|Saint) Joseph\b.*$", "", (app or {}).get(e["id"], ""))
+        address = e.get("address") or re.sub(r",\s*" + town_words(e.get("_town", DEFAULT)) + r"\b.*$", "", (app or {}).get(e["id"], ""))
         if e["status"] in ("active", "proposed") and address:
             out.append({**e, "address": address})
     return out
@@ -286,15 +295,16 @@ def setup():
     print(f"[accounts] {TASK}: {len(body['input']['searchStringsArray'])} places, the 1st of each month at 5am Chicago, cap ${CAP:.0f}")
 
 
-def report():
+def report(town=DEFAULT):
+    """The latest run matched to `town`'s places and its social page list."""
     root = find_root()
     task = by_name("/actor-tasks").get(TASK)
     runs = api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=5")["data"]["items"] if task else []
     run = next((r for r in runs if r["status"] in ("SUCCEEDED", "TIMED-OUT", "ABORTED")), None)
     if not run:
         return print("[accounts] no finished monthly run yet")
-    pages = json.loads((root / "sources" / "social" / f"{TOWN}.json").read_text())
-    out = match(places(root, app_addresses()), items(run["defaultDatasetId"]), pages)
+    pages = json.loads((root / "sources" / "social" / f"{town}.json").read_text())
+    out = match([e for e in places(root, app_addresses()) if e["_town"] == town], items(run["defaultDatasetId"]), pages)
     out["run"] = {k: run.get(k) for k in ("id", "status", "finishedAt", "usageTotalUsd")}
     dest = root / ".runs" / "accounts"
     dest.mkdir(parents=True, exist_ok=True)
@@ -353,13 +363,16 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("step", nargs="?", choices=["setup", "report"])
+    ap.add_argument("--town", default=DEFAULT, help="report: the town whose places and page list to match "
+                                                     "(setup searches every town's places, each in its own town)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
     if not args.step:
         ap.error("setup or report")
-    setup() if args.step == "setup" else report()
+    lookup(args.town)
+    setup() if args.step == "setup" else report(args.town)
 
 
 if __name__ == "__main__":

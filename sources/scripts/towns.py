@@ -6,9 +6,9 @@ discover.py, verify.py, read_events.py and write_judged.py read a town's ZIP cod
 boxes, same-place names and the rest from TOWNS, keyed by file name: sources/towns/
 st-joseph-mn.yaml is TOWNS["st-joseph-mn"], the same id as the town's registry file
 (sources/st-joseph-mn.md). The YAML has lists where the old dict in discover.py had
-tuples; nothing that reads them minds.
+tuples; nothing that reads them minds. A command's --town names one; with none it is DEFAULT.
 
-  python3 sources/scripts/towns.py --check [ROOT]   every registry town has a town file
+  python3 sources/scripts/towns.py --check [ROOT]   every registry town has a town file, with REQUIRED
   python3 sources/scripts/towns.py --selftest
 """
 
@@ -29,6 +29,21 @@ def load_towns(folder):
 
 
 TOWNS = load_towns(HERE.parent / "towns")
+DEFAULT = "st-joseph-mn"  # the town a command runs for with no --town
+REQUIRED = ("label", "zips", "display", "photo_slug")
+
+
+def lookup(town):
+    """TOWNS[town], or exit naming the town files there are."""
+    if town not in TOWNS:
+        sys.exit(f"no town file for {town!r}: sources/towns/ has {', '.join(f'{t}.yaml' for t in TOWNS) or 'none'}")
+    return TOWNS[town]
+
+
+def lacking(root):
+    """(town, its REQUIRED keys missing) for each sources/towns/<town>.yaml short of one."""
+    have = load_towns(root / "sources" / "towns")
+    return [(t, [k for k in REQUIRED if k not in v]) for t, v in have.items() if any(k not in v for k in REQUIRED)]
 
 
 def missing(root):
@@ -40,12 +55,14 @@ def missing(root):
 
 def check(root):
     root = registry.find_root(root)
-    gone = missing(root)
+    gone, short = missing(root), lacking(root)
     for town in gone:
         print(f"ERROR towns: {town} is in the registry but has no sources/towns/{town}.yaml")
-    if not gone:
+    for town, keys in short:
+        print(f"ERROR towns: sources/towns/{town}.yaml has no {', '.join(keys)}")
+    if not gone and not short:
         print(f"towns: every registry town has its file in sources/towns/ ({len(load_towns(root / 'sources' / 'towns'))})")
-    sys.exit(1 if gone else 0)
+    sys.exit(1 if gone or short else 0)
 
 
 # discover.py's TOWNS dict as it stood on main before it moved into sources/towns/.
@@ -81,15 +98,24 @@ def selftest():
             "---\nschema: 1\ntown: waite-park-mn\n---\n## A Place\n```yaml\nid: a-place\n```\n")
         unfiled = missing(fake)
         (fake / "sources" / "towns" / "waite-park-mn.yaml").write_text("label: Waite Park MN\n")
-        filed = missing(fake)
+        filed, short = missing(fake), lacking(fake)
+        (fake / "sources" / "towns" / "waite-park-mn.yaml").write_text(
+            "label: Waite Park MN\nzips: ['56387']\ndisplay: Waite Park\nphoto_slug: waite-park\n")
+        whole = lacking(fake)
+    sj = TOWNS.get(DEFAULT, {})
     checks = [
         (set(TOWNS) == {p.stem for p in (HERE.parent / "towns").glob("*.yaml")}
          and all(isinstance(t, dict) for t in TOWNS.values()),
          "every sources/towns/*.yaml loads, keyed by its file name"),
-        (old is not None and as_lists(old) == TOWNS and list(old["st-joseph-mn"]) == list(TOWNS["st-joseph-mn"]),
-         f"TOWNS equals discover.py's old dict at {OLD_COMMIT}, value for value (tuples read as lists)"),
+        (old is not None and set(old) == set(TOWNS)
+         and all(as_lists(old[t]) == {k: v for k, v in TOWNS[t].items() if k in old[t]} for t in old)
+         and list(old[DEFAULT]) == [k for k in sj if k in old[DEFAULT]],
+         f"TOWNS holds discover.py's old dict at {OLD_COMMIT}, value for value (tuples read as lists)"),
         (missing(root) == [], "every town in this registry has a town file"),
         (unfiled == ["waite-park-mn"] and filed == [], "a registry town without a town file is named, and passes once it has one"),
+        (short == [("waite-park-mn", ["zips", "display", "photo_slug"])] and whole == [] and lacking(root) == []
+         and sj.get("display") == "St. Joseph" and sj.get("photo_slug") == "st-joseph",
+         "a town file missing a required key is named, and passes once it has them all"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:

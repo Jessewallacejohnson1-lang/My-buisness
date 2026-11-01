@@ -15,6 +15,8 @@ place-photos skill imports its picture-finding from here, so there is one copy.
                                                                   first photo); the app shows none until Jesse's yes
     python3 sources/scripts/place_photos.py --selftest
 
+Any of them takes --town T (a sources/towns/ file's name): a proposal goes in that town's photo folder.
+
 `check` reads and `propose` writes with SUPABASE_URL and a key (db.py: the morning job's
 keys); pages and pictures are read with run.py's polite fetch (robots.txt, crawl-delay, one request
 per server). A photo is matched by its fingerprint (a difference hash), so the check works however the
@@ -43,8 +45,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run  # noqa: E402  (the polite fetch)
 from db import Db, DbError  # noqa: E402
+from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
-TOWN = 'st-joseph'
+TOWN = TOWNS[DEFAULT]['photo_slug']  # the photo store's folder and place_photos.town; --town sets it
 OUT = Path(__file__).resolve().parents[2] / '.runs' / 'photos'
 LONG_SIDE = 1600  # the feed hero asks for 1200 px; a little more for the 3x detail view
 MIN_PHOTO = 200  # short side
@@ -673,6 +676,10 @@ def selftest():
 
 if __name__ == '__main__':
     a = sys.argv[1:]
+    if '--town' in a:
+        i = a.index('--town')
+        TOWN = lookup(a[i + 1] if i + 1 < len(a) else '')['photo_slug']
+        a = a[:i] + a[i + 2:]
     if a == ['--selftest']:
         selftest()
     elif a[:1] == ['check']:

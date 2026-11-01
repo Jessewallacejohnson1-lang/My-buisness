@@ -34,6 +34,7 @@ from read_events import LOCAL  # noqa: E402
 from run import Supabase, fetch  # noqa: E402
 from morning import read_items  # noqa: E402
 from db import DbError  # noqa: E402
+from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
 LOOKBACK = timedelta(days=8)   # the weekly read is Thursday's: a Friday morning still finds its posts
 NEW = timedelta(days=3)        # an Event found longer ago than this was there before this step
@@ -41,7 +42,7 @@ PLACE_MORE = 6                 # the same page's other photos offered beside a p
 MIN_WIDTH = 1000               # as scenes.py: the card is width-bound and asks for 1200 px
 PER_SHEET = 4                  # Events on one sheet, so a helper sees each picture big enough
 TILE = 300
-TOWN = "st-joseph"
+TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos.town; --town sets it
 CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
@@ -457,10 +458,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("step", nargs="?", choices=["prepare", "keep"])
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--town", default=DEFAULT, help="the town whose photo folder the photos go in")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         sys.exit(0 if selftest() else 1)
+    global TOWN
+    TOWN = lookup(a.town)["photo_slug"]
     if a.step == "prepare":
         prepare(out_dir())
     elif a.step == "keep":

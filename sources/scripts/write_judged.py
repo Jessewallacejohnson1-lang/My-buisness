@@ -145,7 +145,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
 from run import Supabase
-from towns import TOWNS
+from towns import TOWNS, DEFAULT, lookup
 import registry
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}
@@ -164,9 +164,11 @@ TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women me
 PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states usa county road rd street "
                         "ave avenue east west north south suite park shelter hall center centre building "
                         "room gym lot parking map theater theatre high middle intermediate elementary school".split())
-# Meetings whose listing names no room, and where the host's agendas say they always meet
-# (read 2026-10-20). The Park Board moves between City Hall and the parks, so it stays blank.
-MEETS_AT = [("City of St. Joseph", re.compile(r"\b(City Council|Economic Development Authority)\b"), "City Hall")]
+# Meetings whose listing names no room, and where the host's agendas say they always meet: each
+# town file's meets_at, keyed by the town's label (the `home` the writer passes around).
+MEETS_AT = {t["label"]: [(m["host"], re.compile(m["titles"]), m["place"]) for m in t.get("meets_at") or []]
+            for t in TOWNS.values()}
+HOME = TOWNS[DEFAULT]["label"]
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
 
@@ -487,7 +489,7 @@ def long_titles(items, existing=()):
     return out
 
 
-def tidy_place(place, home="St. Joseph MN"):
+def tidy_place(place, home=HOME):
     """The place line's venue: a named place before its street, no state or ZIP, and no town
     inside the home town (place_line adds any other town)."""
     p = ", ".join(caps(s.strip()) for s in (place or "").split(","))
@@ -512,11 +514,11 @@ def tidy_place(place, home="St. Joseph MN"):
     return trailing.sub("", p) or p
 
 
-def meets_at(place, host, title):
+def meets_at(place, host, title, home=HOME):
     """A meeting its host lists with no room is where it always meets (MEETS_AT)."""
     if words(place, PLACE_STOP):
         return place
-    return next((p for h, what, p in MEETS_AT if host.strip() == h and what.search(title)), place)
+    return next((p for h, what, p in MEETS_AT.get(home, []) if host.strip() == h and what.search(title)), place)
 
 
 def place_line(place, town, home):
@@ -541,11 +543,11 @@ def where(place, poster):
     return entry if found or not words(place, PLACE_STOP) else None
 
 
-def listed_facts(row, home="St. Joseph MN"):
+def listed_facts(row, home=HOME):
     day = date.fromisoformat(str(row["event_date"])[:10])
     t = None if row.get("all_day") else parse_clock(row.get("start_time"))
     poster = row.get("source_name") or ""
-    place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster))
+    place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster), home)
     return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
             "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
             "own_id": real_uid(row.get("source_uid")), "game": is_game(row)}
@@ -653,7 +655,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None):
         interest = None
     title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
     title = (titles or {}).get(title, title)
-    place = meets_at(place, it["source_name"], title)
+    place = meets_at(place, it["source_name"], title, home)
     # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
     # keeps its day (apply_judged keeps a day already set); the event-lead-time skill's pass
     # takes it out. Make a kept-out day win in apply_judged if that pass keeps finding them.
@@ -818,12 +820,12 @@ def joined(title, other):
     return title
 
 
-def group(old=None, facts=None, home="St. Joseph MN"):
+def group(old=None, facts=None, home=HOME):
     return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old, home), "items": [],
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
-def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=None, teams=None, recent_news=()):
+def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, teams=None, recent_news=()):
     """Judged items + the events already listed -> what to write, and each item's outcome.
     `recent_news`: this week's News already in the app (news_in_db), so a repeat isn't added.
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles).
@@ -1947,7 +1949,7 @@ def main():
     ap.add_argument("--existing", help="'db', or a JSON file of the events already in the list")
     ap.add_argument("--news", help="'db', or a JSON file of this week's News already in the app")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
-    ap.add_argument("--town", default="st-joseph-mn")
+    ap.add_argument("--town", default=DEFAULT)
     ap.add_argument("--sql", help="write the live write as SQL to this file")
     ap.add_argument("--apply", action="store_true", help="write to the database (service role key in the environment)")
     ap.add_argument("--selftest", action="store_true")
@@ -1956,6 +1958,7 @@ def main():
         return selftest()
     if not args.items or not args.existing:
         ap.error("needs the judged items and --existing (the merge rule checks the list)")
+    town = lookup(args.town)
     items = []
     for ln in Path(args.items).read_text().splitlines():
         try:
@@ -1968,7 +1971,7 @@ def main():
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     news = [] if not args.news else news_in_db() if args.news == "db" else json.loads(Path(args.news).read_text())
-    r = plan(items, existing, today, interests, TOWNS[args.town], teams=known_teams() if args.apply else None,
+    r = plan(items, existing, today, interests, town, teams=known_teams() if args.apply else None,
              recent_news=news)
     report(items, r)
     if args.sql:
