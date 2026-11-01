@@ -198,6 +198,12 @@ final class FriendsBook {
             .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
+    /// Requests confirmed since the last read: the Friends tab leads Your friends with them, so
+    /// a Confirm is seen landing (five-tabs 02).
+    var justConfirmed: Set<String> {
+        Set(page.requests.filter { relation($0) == .friends }.map(\.id))
+    }
+
     /// Nothing to show: no accepted line, no request, no friend.
     var isEmpty: Bool { accepted.isEmpty && requests.isEmpty && friends.isEmpty }
 

@@ -42,9 +42,8 @@ final class TodayHeaderProfileModel {
 }
 
 struct FeedView: View {
-    /// The top bar's three controls. The shell owns every presentation; the feed
+    /// The top bar's controls. The shell owns every presentation; the feed
     /// only forwards the taps.
-    var onOpenFriends: () -> Void = {}
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
@@ -72,14 +71,12 @@ struct FeedView: View {
     }
 
     init(
-        onOpenFriends: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
         onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
         eventOfTheDay: EventOfTheDay
     ) {
-        self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
         self.onOpenPage = onOpenPage
@@ -241,8 +238,7 @@ struct FeedView: View {
         // the bar brings its own soft edge instead (`StatusEdge`, `BarEdge`), which
         // also covers the status band when the bar is away. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
-            TodayTopBar(onOpenFriends: onOpenFriends,
-                        onOpenMap: onOpenMap,
+            TodayTopBar(onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         onOpenPage: onOpenPage,
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),

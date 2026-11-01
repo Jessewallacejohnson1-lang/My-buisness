@@ -12,8 +12,7 @@ struct HomeView: View {
     /// The Town top bar's map button — passed straight through to the shell, which
     /// owns the map presentation.
     var onOpenMap: () -> Void = {}
-    /// The bar's other two controls, added 2026-09-20 alongside the map.
-    var onOpenFriends: () -> Void = {}
+    /// The bar's bell, added 2026-09-20 alongside the map (friends left for the tab bar 2026-11-01).
     var onOpenNotifications: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
@@ -24,7 +23,6 @@ struct HomeView: View {
 
     var body: some View {
         FeedView(
-            onOpenFriends: onOpenFriends,
             onOpenMap: onOpenMap,
             onOpenNotifications: onOpenNotifications,
             onOpenPage: onOpenPage,

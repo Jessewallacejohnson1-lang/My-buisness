@@ -167,6 +167,54 @@ final class FriendsBookTests: XCTestCase {
         XCTAssertEqual(b.friends.map(\.displayName), ["Marlene", "Sam", "Tess"])
     }
 
+    /// The Friends tab (five-tabs 02) leads Your friends with a request just confirmed, so its
+    /// row is seen landing, then A to Z, five before See all.
+    func testTheTabLeadsYourFriendsWithAJustConfirmedRequest() async {
+        let server = Server()
+        server.rows = [("request", Self.person("Zed", .received))]
+            + ["Ann", "Bea", "Cal", "Dee", "Eve"].map { ("friend", Self.person($0, .friends)) }
+        let b = book(server)
+        await b.refresh()
+        XCTAssertEqual(b.justConfirmed, [])
+        XCTAssertEqual(FriendsHomePage.shown(b.friends, first: b.justConfirmed, limit: 5).map(\.id),
+                       ["Ann", "Bea", "Cal", "Dee", "Eve"])
+        b.act(.confirm, Self.person("Zed", .received))
+        XCTAssertEqual(b.justConfirmed, ["Zed"])
+        XCTAssertEqual(FriendsHomePage.shown(b.friends, first: b.justConfirmed, limit: 5).map(\.id),
+                       ["Zed", "Ann", "Bea", "Cal", "Dee"])
+    }
+
+    // MARK: The Friends tab's Groups (five-tabs 02)
+
+    private static func group(_ name: String, _ day: String? = nil, _ time: String? = nil) -> TownGroup {
+        TownGroup(id: name, name: name, meetings: day.map { [.init(what: "Meeting", day: $0, time: time)] } ?? [])
+    }
+
+    /// Yours stay in the read's order; the rest go soonest get-together first, a group with none last.
+    func testGroupsToJoinGoSoonestFirstAndYoursKeepTheirOrder() {
+        let all = [Self.group("Quilts", "2026-11-04", "09:00"), Self.group("Lions", "2026-11-03", "18:00"),
+                   Self.group("Legion", "2026-11-03", "13:30"), Self.group("Walkers"), Self.group("Books", "2026-11-02")]
+        let split = FriendsHomePage.groups(all, member: { ["Quilts", "Books"].contains($0.id) })
+        XCTAssertEqual(split.mine.map(\.id), ["Quilts", "Books"])
+        XCTAssertEqual(split.open.map(\.id), ["Legion", "Lions", "Walkers"])
+    }
+
+    /// "Meets tonight 6 PM", the bell's short words after "Meets", then the members once there are any.
+    func testAGroupToJoinSaysWhenItMeetsNext() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 12))!
+        func line(_ day: String?, _ time: String?, members: Int = 0) -> String? {
+            GroupJoinRow.line(Self.group("G", day, time), members: members, now: monday)
+        }
+        XCTAssertEqual(line("2026-11-02", "18:00"), "Meets tonight 6 PM")
+        XCTAssertEqual(line("2026-11-03", "09:30", members: 1), "Meets tomorrow 9:30 AM · 1 member")
+        XCTAssertEqual(line("2026-11-05", "13:00", members: 12), "Meets Thu 1 PM · 12 members")
+        XCTAssertEqual(line("2026-11-19", "18:00"), "Meets Nov 19")
+        XCTAssertNil(line(nil, nil))
+        XCTAssertEqual(line(nil, nil, members: 3), "3 members")
+    }
+
     func testAFailedConfirmSlidesTheRowBackIntoRequests() async {
         let server = Server()
         server.rows = [("request", Self.person("Sam", .received))]

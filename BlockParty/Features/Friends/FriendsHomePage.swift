@@ -1,9 +1,11 @@
 //
 //  FriendsHomePage.swift
 //  Block Party — the Friends page and a neighbour's page (BP app docs/plans/friends, tickets
-//  02, 03 and 04). The Town bar's friends mark pushes the Friends page: a large title and Search's
-//  field, under the sample inbox's own top, then the accepted lines, Requests, Your friends and
-//  Suggested for you (town-feed 28).
+//  02, 03 and 04). Since 2026-11-01 the Friends page is the middle tab (BP app
+//  docs/plans/five-tabs, ticket 02; mock https://claude.ai/artifact/29BVrCrrQ3WeWhS3egMozR): a
+//  large title and Search's field, the ways-in card, then the accepted lines, Requests, Friends
+//  are going (Daily's cards), Groups (yours as You's highlights, then Groups to join with their
+//  next get-together and Join), Suggested for you (Daily's cards) and Your friends.
 //  Typing finds neighbours by name; a name opens their page; one button on every row and
 //  page follows where the two of you stand (`FriendsBook`).
 //
@@ -42,6 +44,23 @@ extension FriendsMetric {
     static let sectionBottom: CGFloat = 8
     static let acceptedFace: CGFloat = 28
     static let acceptedPad: CGFloat = 12
+
+    // Five-tabs 02, from the mock Jesse said yes to (rounds 1 to 3) and the parts it reuses.
+    /// Friends are going looks this many days ahead, today included: You's three weeks.
+    static let goingDays = 21
+    /// Your friends and Groups to join show this many before See all (Facebook's lists). PICKED.
+    static let friendsShown = 5
+    static let groupsShown = 5
+    /// A Group to join: its picture in a 56pt square with 12pt corners (the Group page's date
+    /// tile's corner), the row as tall as a friend's, Join a 32pt pill (Follow's list size,
+    /// taste buttons-and-pills 2026-10-19) in the charcoal of Join group.
+    static let groupTile: CGFloat = 56
+    static let groupTileRadius: CGFloat = 12
+    static let joinPill: CGFloat = 32
+    static let joinSide: CGFloat = 18
+    /// "Groups to join" under your own Groups: 13pt grey, 6pt over the rows.
+    static let subTop: CGFloat = 10
+    static let subBottom: CGFloat = 6
     /// A person's page: its button sits where Edit profile sits on your own Profile, at
     /// least the mock's 132pt wide.
     static let pageButtonTop: CGFloat = 14
@@ -54,8 +73,17 @@ extension FriendsMetric {
 }
 
 struct FriendsHomePage: View {
+    /// The Friends tab, the root of its tab: no back chevron, room under it for the tab bar.
+    /// False on the page Search's People title still pushes (until five-tabs 04).
+    var tab = false
+    /// The Town feed's cards, for Friends are going.
+    var cards: [FeedCardItem] = []
     @EnvironmentObject private var auth: AuthStore
     @Environment(FriendsBook.self) private var book
+    /// The Town's groups, each saying whether you're in it (`get_groups`), read here and on You.
+    @Environment(YouModel.self) private var you
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var search = NeighborSearch()
     @State private var words = Self.debugWords
     /// The large title has gone under the bar: the bar shows the small one.
@@ -82,8 +110,11 @@ struct FriendsHomePage: View {
                         .padding(.top, FriendsMetric.titleToField)
                         .padding(.bottom, FriendsMetric.resultsTop)
                     if typing { results } else { home }
+                    if tab { Color.clear.frame(height: DailyMetric.tabBarClearance) }
                 }
                 .padding(.top, PageMetric.bar)
+                // A Group joined leaves Groups to join for your own row.
+                .animation(reduceMotion ? nil : Motion.smooth, value: groupIDs)
             }
             .scrollDismissesKeyboard(.immediately)
             .onScrollGeometryChange(for: Bool.self) { geo in
@@ -92,7 +123,7 @@ struct FriendsHomePage: View {
                 titleUnder = under
             }
             // Drawn last so it sits over the rows, read first so Back comes first.
-            FriendsTitleBar(title: "Friends", titleUnder: titleUnder).accessibilitySortPriority(1)
+            FriendsTitleBar(title: "Friends", titleUnder: titleUnder, back: !tab).accessibilitySortPriority(1)
         }
         // Nobody found: Apple's empty page, in the middle of the screen.
         .overlay {
@@ -115,13 +146,15 @@ struct FriendsHomePage: View {
             await book.seen()
         }
         .task { await book.refreshSuggestions() }
+        .task { if let groups = await you.refreshGroups() { actions.read(groups) } }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)
     }
 
-    /// Nothing typed: the accepted lines, Requests, Your friends and Suggested for you, in one
-    /// list keyed by person, so a confirmed request slides down into Your friends.
+    /// Nothing typed: the accepted lines, Requests, Friends are going, Groups, Suggested for you
+    /// and Your friends, in one list keyed by person, so a confirmed request slides down into
+    /// Your friends.
     @ViewBuilder private var home: some View {
         if search.state == .needsAccount {
             LogInToFindRow { signingIn = true }
@@ -130,16 +163,25 @@ struct FriendsHomePage: View {
             FriendsWaysCard()
             if !book.loaded {
                 if book.failed { FailedLine() } else { LoadingRows() }
-            } else if book.isEmpty {
-                // No friends and no requests: the page that invites, in place of Apple's empty page.
+            } else if book.isEmpty, groups.mine.isEmpty, groups.open.isEmpty, book.suggested.isEmpty {
+                // Nothing at all to show (a read of the groups failed too): the page that invites,
+                // in place of Apple's empty page. A new neighbour otherwise gets Groups to join and
+                // Suggested for you (Jesse, five-tabs mock round 1).
                 FriendsEmptyInvite()
             }
             ForEach(book.loaded ? rows : []) { row in
                 switch row {
                 case .accepted(let person): AcceptedLine(person: person)
-                case .title(let title): FriendsSectionTitle(text: title)
+                case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
                 case .person(let person, let waiting): PersonRow(person: person, waiting: waiting) { signingIn = true }
-                case .suggestion(let person): SuggestionRow(person: person) { signingIn = true }
+                case .going:
+                    DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
+                                 titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: Date(),
+                                 side: FriendsMetric.side)
+                case .groups: FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown))) {
+                    signingIn = true
+                }
+                case .suggested: PeopleYouMayKnowSection(people: book.suggested, title: nil, side: FriendsMetric.side)
                 }
             }
         }
@@ -148,28 +190,75 @@ struct FriendsHomePage: View {
     private enum Row: Identifiable {
         /// A request (`waiting`) or a friend: one case, so a confirmed request is the same view
         /// with the same id in its new place, and SwiftUI moves it rather than swapping it.
-        case accepted(Neighbor), title(String), person(Neighbor, waiting: Bool), suggestion(Neighbor)
+        /// A title's `more` is its See all.
+        case accepted(Neighbor), title(String, more: FriendsRoute?), person(Neighbor, waiting: Bool)
+        /// The sideways rows and the Groups block, one row each.
+        case going, groups, suggested
 
         var id: String {
             switch self {
             case .accepted(let person): "accepted:" + person.id
-            case .title(let title): "title:" + title
+            case .title(let title, _): "title:" + title
             case .person(let person, _): person.id
-            case .suggestion(let person): "suggestion:" + person.id
+            case .going: "going"
+            case .groups: "groups"
+            case .suggested: "suggested"
             }
         }
     }
 
     private var rows: [Row] {
-        // `friends-sections`
+        // `friends-sections`, in the mock's order (five-tabs 02).
         var rows = book.accepted.map(Row.accepted)
         let requests = book.requests, friends = book.friends
-        if !requests.isEmpty { rows += [.title("Requests")] + requests.map { .person($0, waiting: true) } }
-        if !friends.isEmpty { rows += [.title("Your friends")] + friends.map { .person($0, waiting: false) } }
-        // `suggest-header`: last, as Instagram's under a list of people (town-feed 28).
-        let suggested = book.suggested
-        if !suggested.isEmpty { rows += [.title("Suggested for you")] + suggested.map(Row.suggestion) }
+        if !requests.isEmpty { rows += [.title("Requests", more: nil)] + requests.map { .person($0, waiting: true) } }
+        if !going.isEmpty { rows += [.title("Friends are going", more: nil), .going] }
+        let groups = self.groups
+        if !groups.mine.isEmpty || !groups.open.isEmpty {
+            rows += [.title("Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil), .groups]
+        }
+        // `suggest-header`
+        if !book.suggested.isEmpty { rows += [.title("Suggested for you", more: nil), .suggested] }
+        if !friends.isEmpty {
+            let shown = Self.shown(friends, first: book.justConfirmed, limit: FriendsMetric.friendsShown)
+            rows += [.title("Your friends", more: shown.count < friends.count ? .allFriends : nil)]
+                + shown.map { .person($0, waiting: false) }
+        }
         return rows
+    }
+
+    /// Your friends as the tab shows them: a request just confirmed first, so its row is seen
+    /// landing, then A to Z; `limit` of them, the rest behind See all.
+    static func shown(_ friends: [Neighbor], first: Set<String>, limit: Int) -> [Neighbor] {
+        Array((friends.filter { first.contains($0.id) } + friends.filter { !first.contains($0.id) }).prefix(limit))
+    }
+
+    /// Events in the next three weeks your friends are going to, soonest first (Daily's own
+    /// filter: a friend's "Show my plans to friends" off already keeps them off a card).
+    private var going: [DailyEvent] { Self.going(cards, now: Date()) }
+
+    static func going(_ cards: [FeedCardItem], now: Date) -> [DailyEvent] {
+        let days = Set((0..<FriendsMetric.goingDays).compactMap {
+            Town.gregorian.date(byAdding: .day, value: $0, to: now).map(Town.day)
+        })
+        return DailyEvent.friendsGoing(from: cards, days: days, now: now, without: [], soonestFirst: true)
+    }
+
+    /// Your groups, in Search's order, and the rest, soonest get-together first.
+    private var groups: (mine: [TownGroup], open: [TownGroup]) {
+        Self.groups(you.groups ?? [], member: { actions.member($0).isMember })
+    }
+
+    private var groupIDs: [String] { groups.mine.map(\.id) + ["|"] + groups.open.map(\.id) }
+
+    static func groups(_ all: [TownGroup], member: (TownGroup) -> Bool) -> (mine: [TownGroup], open: [TownGroup]) {
+        // "2026-11-03 18:00"; "~" sorts after every digit, so a group with no get-together worked
+        // out (or no time) comes after those that have one; ties keep Search's order.
+        func next(_ group: TownGroup) -> String { group.meetings.first.map { $0.day + " " + ($0.time ?? "~") } ?? "~" }
+        let open = all.filter { !member($0) }.enumerated().sorted { a, b in
+            next(a.element) != next(b.element) ? next(a.element) < next(b.element) : a.offset < b.offset
+        }.map(\.element)
+        return (all.filter(member), open)
     }
 
     @ViewBuilder private var results: some View {
@@ -226,18 +315,33 @@ private struct LoadingRows: View {
     }
 }
 
-/// Facebook's section title on its Friends page: 20pt bold.
+/// Facebook's section title on its Friends page: 20pt bold, with its See all at the right when
+/// the section shows only some (Facebook's "See all" on its Friends tab, 15pt grey).
 private struct FriendsSectionTitle: View {
     let text: String
+    var more: FriendsRoute? = nil
 
     var body: some View {
-        Text(text)
-            .font(.sansBold(20))
-            .foregroundStyle(Hue.ink)
-            .padding(.horizontal, FriendsMetric.side)
-            .padding(.top, FriendsMetric.sectionTop)
-            .padding(.bottom, FriendsMetric.sectionBottom)
-            .accessibilityAddTraits(.isHeader)
+        HStack(alignment: .firstTextBaseline) {
+            Text(text)
+                .font(.sansBold(20))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            if let more {
+                NavigationLink(value: more) {
+                    Text("See all")
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .contentShape(TapArea())
+                }
+                .buttonStyle(DimStyle())
+                .accessibilityLabel("See all, \(text)")
+            }
+        }
+        .padding(.horizontal, FriendsMetric.side)
+        .padding(.top, FriendsMetric.sectionTop)
+        .padding(.bottom, FriendsMetric.sectionBottom)
     }
 }
 
@@ -272,7 +376,7 @@ private struct AcceptedLine: View {
 /// and shrinks it from Facebook's 92pt request photo to the friends list's 60pt, rather than
 /// fading one row out and another in. Waiting, it carries Confirm and Delete. The face and
 /// the name open their page; the buttons sit beside those links, not in them.
-private struct PersonRow: View {
+struct PersonRow: View {
     let person: Neighbor
     let waiting: Bool
     let logIn: () -> Void
@@ -305,35 +409,6 @@ private struct PersonRow: View {
         .frame(minHeight: waiting ? nil : FriendsMetric.row)
         // An Unfriend that turns back shakes the row it came back to.
         .turnBackShake(failures: waiting ? 0 : book.failures[person.id] ?? 0, shakes: !reduceMotion)
-    }
-}
-
-/// A suggestion (town-feed 28), Instagram's "Suggested for you" row (BP app
-/// references/friend-suggestions/ig-94d60aee.jpg): the face and name open their page, then the
-/// reason line, Add friend at the row's end, and the ✕ where a friend's ••• sits.
-private struct SuggestionRow: View {
-    let person: Neighbor
-    let logIn: () -> Void
-
-    var body: some View {
-        HStack(spacing: FriendsMetric.avatarGap) {
-            NavigationLink(value: person) {
-                Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true)
-            }
-            .buttonStyle(DimStyle())
-            .accessibilityHidden(true)
-            NavigationLink(value: person) { NameAndMutual(person: person, suggested: true, grows: true) }
-                .buttonStyle(DimStyle())
-            HStack(spacing: 0) {
-                // As wide as its words, with this page's 14 pt sides (Instagram's Follow is 96).
-                RelationButtons(person: person, logIn: logIn)
-                    .fixedSize()
-                RemoveSuggestionButton(person: person, ink: Hue.ink)
-            }
-        }
-        .padding(.leading, FriendsMetric.side)
-        .padding(.trailing, FriendsMetric.moreTrail)
-        .frame(minHeight: FriendsMetric.row)
     }
 }
 
