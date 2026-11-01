@@ -168,8 +168,8 @@ struct GameMatchup: View {
 
     /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
     /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
-    /// faint net and soccer's center circle sit under the wash. It reaches every edge of the screen itself: read
-    /// inside the safe area, it knows where that starts, which soccer's circle lines up with.
+    /// faint net and soccer's center circle sit under the wash. It reaches every edge of the screen itself, so it
+    /// knows how far down the page starts: soccer's circle lines up with the ring there.
     static func backdrop(_ game: Game) -> some View {
         GeometryReader { proxy in
             ZStack {
@@ -182,7 +182,9 @@ struct GameMatchup: View {
                     VolleyballNet()
                 }
                 if game.isSoccer {
-                    SoccerPitch(safeTop: proxy.safeAreaInsets.top + proxy.frame(in: .global).minY)
+                    // The page starts at the safe area, as this reader does; reaching every edge, the backdrop grows
+                    // up by the inset (on a 402 pt phone: the reader 62 pt down, its inset 62 pt).
+                    SoccerPitch(safeTop: proxy.safeAreaInsets.top)
                 }
                 LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
                                        .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
