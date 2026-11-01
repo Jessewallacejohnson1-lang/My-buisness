@@ -536,12 +536,15 @@ final class TownFeed {
 
     /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
     /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
-    /// realtime update takes, to its final. The plays' names are made up.
+    /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
+    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it (game-card 09).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
+        let volleyball = LaunchFlags.has(.townVolleyball)
+        let id = volleyball ? "v1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
-        let steps: [(String, String?)] = [
+        let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
             (#"[7,0],"period":"Q1","clock":"9:18","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
             (#"[7,3],"period":"Q2","clock":"0:03","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
@@ -549,16 +552,37 @@ final class TownFeed {
             (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
             (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
         ]
+        // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts, so a set
+        // won shows on its own before the next begins.
+        let sets: [(String, String?)] = [
+            (#"[1,1],"period":"Set 3","periods":[[25,23,18],[21,25,14]]"#, nil),
+            (#"[1,1],"period":"Set 3","periods":[[25,23,24],[21,25,19]]"#, nil),
+            (#"[2,1],"period":"Set 3","periods":[[25,23,25],[21,25,19]]"#, nil),
+            (#"[2,1],"period":"Set 4","periods":[[25,23,25,0],[21,25,19,0]]"#, nil),
+            (#"[2,1],"period":"Set 4","periods":[[25,23,25,16],[21,25,19,20]]"#, nil),
+            (#"[2,2],"period":"Set 4","periods":[[25,23,25,22],[21,25,19,25]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,0],[21,25,19,25,0]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),
+        ]
+        let steps = volleyball ? sets : football
+        let live = { (score: String, complete: Bool) in
+            try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
+                + ISO8601DateFormatter().string(from: .now) + #""}"#).utf8))
+        }
         Task { @MainActor [weak self] in
             var plays: [Game.Play] = []
             for (score, play) in steps {
-                let json = #"{"score":"# + score + #","complete":false,"at":""#
-                    + ISO8601DateFormatter().string(from: .now) + #""}"#
                 if let play, let decoded = try? JSONDecoder().decode(Game.Play.self, from: Data(play.utf8)) { plays.append(decoded) }
-                self?.score("g1", final: nil, live: try? JSONDecoder().decode(Game.Live.self, from: Data(json.utf8)), plays: plays)
+                self?.score(id, final: nil, live: live(score, false), plays: plays)
                 try? await Task.sleep(for: .seconds(4))
             }
-            self?.score("g1", final: [21, 10], live: nil)
+            // The server keeps the last live score beside a final: volleyball's sets stay.
+            if volleyball {
+                self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
+            } else {
+                self?.score(id, final: [21, 10], live: nil)
+            }
         }
     }
     #endif

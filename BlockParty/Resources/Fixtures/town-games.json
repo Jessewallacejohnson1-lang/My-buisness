@@ -1,5 +1,34 @@
 [
  {
+  "id": "v1",
+  "title": "CSB Volleyball vs Carleton",
+  "host": "CSB Athletics",
+  "place": "Claire Lynch Hall",
+  "day": "2026-11-07",
+  "time": "7 PM",
+  "hoursUntil": 150,
+  "went": 31,
+  "game": {
+   "sport": "Volleyball",
+   "teams": [
+    {
+     "name": "Saint Benedict",
+     "short": "Saint Ben's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/activities-athletic-csb/logo-e99d0312e8.webp",
+     "color": "#BD0F34",
+     "colors": ["#BB2037", "#0F9CD7"]
+    },
+    {
+     "name": "Carleton",
+     "short": "Carleton",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/carleton/logo-cc7891c12b.png",
+     "color": "#0B3960",
+     "colors": ["#003D7C", "#FED34F", "#F0B311"]
+    }
+   ]
+  }
+ },
+ {
   "id": "g1",
   "title": "SJU Football vs Gustavus Adolphus",
   "host": "SJU Athletics",
