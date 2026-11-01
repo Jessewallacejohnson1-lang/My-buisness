@@ -199,25 +199,30 @@ const runners = async () => (await db.query(
   "select calendar, calendar_read_at::text as read_at from public.clubs where name = 'Runners'")).rows[0];
 
 test("calendar: the morning read keeps each run, with its place, through Google's API and the key", async () => {
-  await db.query(`insert into public.clubs (name, status, meets, calendar_id)
-    values ('Runners', 'approved', '[{"what": "Sunday run", "days": ["sun"], "time": "07:30"}]', $1)`, [CAL]);
+  await db.query(`insert into public.clubs (name, status, meets, calendar_id, calendar_area)
+    values ('Runners', 'approved', '[{"what": "Sunday run", "days": ["sun"], "time": "07:30"}]', $1, 'St. Cloud area')`, [CAL]);
   await google(200, [
     { summary: 'Breakfast Run @ TBD', start: { dateTime: '2026-11-07T06:00:00-06:00' } },
     { summary: 'Coffee Run', location: 'The Local Blend, 19 W Minnesota St, St Joseph, MN 56374, USA',
       start: { dateTime: '2026-11-08T07:30:00-06:00' } },
     { summary: 'Track Workout', location: 'Check Facebook and Strava groups weekly', start: { dateTime: '2026-11-12T17:30:00-06:00' } },
     { summary: 'Breakfast Run @ Kitchenette', start: { dateTime: '2026-11-14T06:00:00-06:00' } },
+    { summary: 'Breakfast Run @ Home of Jess and Mark', location: 'TBA', start: { dateTime: '2026-11-21T06:00:00-06:00' } },
+    { summary: 'Old Timers Run/Walk', location: "Coborn's Grocery Store", start: { dateTime: '2026-11-24T10:00:00-06:00' } },
     { summary: 'Coffee Run', status: 'cancelled', start: { dateTime: '2026-11-15T07:30:00-06:00' } },
     { summary: 'SCRR Banquet and Awards Ceremony', location: 'TBA', start: { date: '2027-01-23' } }]);
   await db.exec("delete from public.calls; select private.read_group_calendars('2026-11-02 10:30+00')");
   const { calendar, read_at } = await runners();
   assert.deepEqual(calendar, [
-    { what: 'Breakfast Run', day: '2026-11-07', time: '06:00', where: null },
-    { what: 'Coffee Run', day: '2026-11-08', time: '07:30', where: 'The Local Blend' },
-    { what: 'Track Workout', day: '2026-11-12', time: '17:30', where: null },
-    { what: 'Breakfast Run', day: '2026-11-14', time: '06:00', where: 'Kitchenette' },
-    { what: 'SCRR Banquet and Awards Ceremony', day: '2027-01-23', time: null, where: null }],
-    'a called-off run left out; TBD, TBA and "Check Facebook" name no place');
+    { what: 'Breakfast Run', day: '2026-11-07', time: '06:00', where: 'St. Cloud area', away: true },
+    { what: 'Coffee Run', day: '2026-11-08', time: '07:30', where: 'The Local Blend', away: false },
+    { what: 'Track Workout', day: '2026-11-12', time: '17:30', where: 'St. Cloud area', away: true },
+    { what: 'Breakfast Run', day: '2026-11-14', time: '06:00', where: 'Kitchenette, St. Cloud area', away: true },
+    { what: 'Breakfast Run', day: '2026-11-21', time: '06:00', where: 'St. Cloud area', away: true },
+    { what: 'Old Timers Run/Walk', day: '2026-11-24', time: '10:00', where: "Coborn's Grocery Store, St. Cloud area", away: true },
+    { what: 'SCRR Banquet and Awards Ceremony', day: '2027-01-23', time: null, where: 'St. Cloud area', away: true }],
+    'a called-off run left out; TBD, TBA, "Check Facebook" and a member\'s home name no place; only a location '
+    + 'naming St. Joseph is in town (that Coborn\'s is Sauk Rapids\')');
   assert.equal(read_at, '2026-11-02 10:30:00+00');
   const [call] = (await db.query('select uri, headers from public.calls')).rows;
   assert.equal(call.uri, 'https://www.googleapis.com/calendar/v3/calendars/abc123%40group.calendar.google.com/events'
@@ -233,23 +238,33 @@ test('calendar: a failed read keeps the last good copy', async () => {
   assert.deepEqual(await runners(), before);
 });
 
-test('calendar: Coming up is its next 3, or every one in the coming week; an empty calendar shows none', async () => {
-  // Days from today in Chicago, as get_groups counts them.
+test('Coming up: from now on, the next 3 or every one through this weekday next week; an empty calendar shows none', async () => {
+  // Days from today in Chicago, as get_groups counts them. 00:00 today has started; untimed today hasn't ended.
   await db.exec(`update public.clubs set calendar = (
       select jsonb_agg(jsonb_build_object('what', 'Run', 'day', to_char((now() at time zone 'America/Chicago')::date + n, 'YYYY-MM-DD'),
-                                          'time', '07:30', 'where', null) order by n)
-      from unnest(array[-1, 1, 2, 3, 5, 6, 9, 12]) n)
+                                          'time', t, 'where', null) order by n, t)
+      from (values (-1, '07:30'), (0, '00:00'), (0, null), (1, '07:30'), (2, '07:30'), (3, '07:30'), (5, '07:30'),
+                   (6, '07:30'), (7, '07:30'), (9, '07:30'), (12, '07:30')) v (n, t))
     where name = 'Runners';
     insert into public.clubs (name, status, calendar_id, calendar) values
       ('Quiet club', 'approved', 'q@group.calendar.google.com', (
         select jsonb_agg(jsonb_build_object('what', 'Meeting', 'day', to_char((now() at time zone 'America/Chicago')::date + n, 'YYYY-MM-DD'),
                                             'time', null, 'where', null) order by n)
         from unnest(array[10, 20, 30, 40]) n)),
-      ('Empty club', 'approved', 'e@group.calendar.google.com', '[]');`);
+      ('Empty club', 'approved', 'e@group.calendar.google.com', '[]'),
+      ('Broken club', 'approved', 'b@group.calendar.google.com', '[{"what": "Bad", "day": "2026-13-45"}, {"what": "No day"},
+        {"what": "Bad time", "day": "2099-01-01", "time": "99:99"}, 7, {"what": "Good", "day": "2099-01-02", "time": "09:00"}]');
+    insert into public.clubs (name, status, meets) values
+      ('Weekly club', 'approved', jsonb_build_array(jsonb_build_object('what', 'Meeting',
+        'days', jsonb_build_array(to_char((now() at time zone 'America/Chicago')::date, 'dy')), 'time', '00:00')));`);
   const rows = Object.fromEntries((await groups(null)).map((g) => [g.name, g]));
   const ahead = (g) => rows[g].meetings.map((m) => Math.round((Date.parse(m.day) - Date.parse(rows['Quiet club'].meetings[0].day)) / 864e5) + 10);
-  assert.deepEqual(ahead('Runners'), [1, 2, 3, 5, 6], 'five this week: all five, and not yesterday\'s');
+  assert.deepEqual(ahead('Runners'), [0, 1, 2, 3, 5, 6, 7],
+    'seven this week: all of them, next Sunday too; not yesterday\'s, nor today\'s that has started');
   assert.deepEqual(ahead('Quiet club'), [10, 20, 30], 'one a week or less: the next 3');
+  assert.deepEqual(ahead('Weekly club'), [7, 14, 21], 'a rule\'s meeting today that has started is gone too');
   assert.deepEqual(rows['Empty club'].meetings, [], 'read, and nothing on it: no rule stands in');
-  await db.exec("delete from public.clubs where name in ('Runners', 'Quiet club', 'Empty club')");
+  assert.deepEqual(rows['Broken club'].meetings.map((m) => m.what), ['Bad time', 'Good'],
+    'a broken day costs only itself, never the list; a broken time reads as no time');
+  await db.exec("delete from public.clubs where name in ('Runners', 'Quiet club', 'Empty club', 'Broken club', 'Weekly club')");
 });

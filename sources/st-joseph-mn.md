@@ -3537,7 +3537,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.aveda.com no longer opens; https://cedarstreetsalonandspa.squarespace.com/ is its site now (the old link was aveda.com's homepage, not the salon's) (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.aveda.com no longer opens; https://cedarstreetsalonandspa.squarespace.com/ is its site now (the old link was aveda.com's homepage, not the salon's) (place-photos 07, Jesse's yes). 2026-11-01: Google now lists facebook.com/MEKAR99 and instagram.com/MEKAR99 for it, an Indonesian online-gambling account, so the social watch follows neither; turn them down when the monthly accounts check proposes them again (Jesse: "yes to all").
 
 ## Cedar Trails Apartments
 ```yaml
@@ -5344,7 +5344,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Jet-Black's current national locations page lists Jet-Black of St. Cloud MN with the same phone 320-529-0697 (street address not shown).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Jet-Black's current national locations page lists Jet-Black of St. Cloud MN with the same phone 320-529-0697 (street address not shown).. Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-01: facebook.com/MyJetBlack and instagram.com/myjetblack are the national franchise's pages, not the St. Cloud shop's, so the social watch follows neither (Jesse: "yes to all").
 
 ## JK Monuments LLC*
 ```yaml
