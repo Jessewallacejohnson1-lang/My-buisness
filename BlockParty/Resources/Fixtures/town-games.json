@@ -21,7 +21,8 @@
      "name": "Gustavus Adolphus",
      "short": "Gustavus",
      "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/gustavus-adolphus/logo-11419c050d.png",
-     "color": "#000000"
+     "color": "#000000",
+     "colors": ["#221E20", "#FDCE07"]
     }
    ]
   }

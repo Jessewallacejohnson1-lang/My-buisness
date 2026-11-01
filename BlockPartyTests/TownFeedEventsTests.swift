@@ -521,6 +521,51 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(updated.with(final: [21, 7], live: nil).live)
     }
 
+    /// A live football game's down, distance and spot (game-card 08), as `private.sidearm_drive` writes them:
+    /// the line over the field bar, the first-down marker toward the goal its team is going for, and one that
+    /// doesn't read leaving the score as it was.
+    func testALiveFootballGamesDriveReadsAndABadOneCostsNothing() throws {
+        func live(_ drive: String) throws -> Game.Live {
+            try JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":[14,3],"period":"Q3","clock":"4:12","drive":"# + drive + "}").utf8))
+        }
+        let ours = try XCTUnwrap(try live(#"{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#).drive)
+        XCTAssertEqual(ours.line, "2nd & 7 · GAC 34")
+        XCTAssertEqual(ours.firstDown, 73, "the host goes right, toward 100")
+        XCTAssertEqual(ours.spoken(teams: try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(
+            #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus Adolphus","short":"Gustavus"}]}"#.utf8)).value).teams),
+                       "2nd and 7 on the GAC 34, Saint John's ball")
+        let theirs = try XCTUnwrap(try live(#"{"down":3,"togo":"4","spot":"SJU12","side":1,"ball":12}"#).drive)
+        XCTAssertEqual(theirs.firstDown, 8, "the other team goes left, toward 0")
+        let goal = try XCTUnwrap(try live(#"{"down":1,"togo":"Goal","spot":"GAC3","side":0,"ball":97}"#).drive)
+        XCTAssertEqual(goal.line, "1st & Goal · GAC 3")
+        XCTAssertNil(goal.firstDown, "at the goal line the goal is the marker")
+        XCTAssertEqual(try XCTUnwrap(try live(#"{"down":4,"togo":"1","spot":"50","side":0,"ball":50}"#).drive).line, "4th & 1 · 50")
+        XCTAssertNil(try XCTUnwrap(try live(#"{"down":1,"togo":"10","spot":"XYZ20","side":0,"ball":null}"#).drive).firstDown,
+                     "a spot naming neither team: the words, no marker")
+        for bad in [#"{"down":5,"togo":"1","spot":"50","side":0}"#, #"{"down":1,"togo":"10","spot":"50","side":2}"#, #""2nd & 7""#] {
+            let read = try live(bad)
+            XCTAssertNil(read.drive, bad)
+            XCTAssertEqual(read.score, [14, 3], "the score still reads")
+        }
+        XCTAssertNil(try JSONDecoder().decode(Game.Live.self, from: Data(#"{"score":[0,0],"period":"Set 1"}"#.utf8)).drive, "other sports have none")
+    }
+
+    /// The page's colors (game-card 08): each team's color at Apple Sports' depth, hue kept; a black or grey
+    /// one (Gustavus, St. Olaf) takes its logo's first real color; none at all is none.
+    func testAGamesColorsDeepenAndABlackTeamTakesItsLogosColor() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        let sju = try team(#"{"name":"Saint John's","color":"#C20430"}"#)
+        XCTAssertEqual(GameMatchup.vivid(sju), 0xC20430)
+        let deep = GameMatchup.tone(0xC20430, lightness: 0.21)
+        let (r, g, b) = (deep >> 16, (deep >> 8) & 0xFF, deep & 0xFF)
+        XCTAssertTrue(r > 80 && r < 110 && g < 20 && b < 40, String(deep, radix: 16))
+        XCTAssertEqual(GameMatchup.tone(0x000000, lightness: 0.21), 0x363636, "grey stays grey")
+        let gustavus = try team(#"{"name":"Gustavus Adolphus","color":"#000000","colors":["#000000","#F2C80F","#8A8A8A"]}"#)
+        XCTAssertEqual(GameMatchup.vivid(gustavus), 0xF2C80F, "black takes the logo's gold")
+        XCTAssertNil(GameMatchup.vivid(try team(#"{"name":"Somebody"}"#)), "no color known")
+        XCTAssertNil(GameMatchup.vivid(try team(#"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"#)))
+    }
+
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
     /// field goal and safety and a goal, each with its scorer when SIDEARM's words name one, in its
     /// summary's words or its live ones; an extra point, a basket, the first read and the final are quiet.

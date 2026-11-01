@@ -29,6 +29,7 @@ struct FeedEventDetailDestination: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
     /// The Town feed, for a game's score as it comes in (game-card 05); nil off the feed.
@@ -131,14 +132,6 @@ struct FeedEventDetailDestination: View {
         static let hostTop: CGFloat = 20
         static let sectionTop: CGFloat = 30
         static let interestTop: CGFloat = 12
-        /// A game's band (game-card 05, the approved mock): the chip 8.5 pt under the round buttons
-        /// and 16 pt in, the logos 10 pt under the chip, the band ending 26 pt under the names. Its
-        /// colors run this far further up, under the status bar and a pull.
-        static let bandInset: CGFloat = 16
-        static let bandChipGap: CGFloat = 8.5
-        static let bandRowGap: CGFloat = 10
-        static let bandMatchup: CGFloat = 144
-        static let bandOverscroll: CGFloat = 400
         /// Paper under the last row, above the RSVP bar (guessed): with the bar's 57 + 1 pt
         /// inset, the last line rests just above the fade.
         static let contentBottom: CGFloat = 24
@@ -147,14 +140,24 @@ struct FeedEventDetailDestination: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                if let game { band(game) } else { hero }
+                if let game {
+                    GameMatchup(game: game, when: current.whenLine?.text, cancelled: item.cancelled)
+                        .padding(.horizontal, Metric.inset)
+                        .padding(.top, Metric.buttonTop + Metric.tapBox)
+                } else {
+                    hero
+                }
                 sheet
             }
         }
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
         .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
-        .background(Hue.paper.ignoresSafeArea())
+        // A game's page is its teams' colors from edge to edge, fixed while the page scrolls over them
+        // (game-card 08); the rest are paper.
+        .background {
+            if let game { GameMatchup.backdrop(game).ignoresSafeArea() } else { Hue.paper.ignoresSafeArea() }
+        }
         // Outside the scroll, so the buttons stay put while the page moves under them.
         // The sort priority asks VoiceOver to read them first, as they sit, not after the
         // About. AXe's element tree does not show sort priority, so the sim can't prove it.
@@ -176,6 +179,8 @@ struct FeedEventDetailDestination: View {
             }
         }
         .animation(Motion.smooth, value: actions.canAct)
+        // Light words on a game's dark, its rows, buttons and bar with them, as a school's page (TeamPage).
+        .environment(\.colorScheme, game != nil ? .dark : colorScheme)
         // Hidden, never `navigationBarBackButtonHidden`. Hidden here, UIKit also turns
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)
@@ -188,7 +193,11 @@ struct FeedEventDetailDestination: View {
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear {
             actions.pageOpened(item.id)
-            if game != nil { feed?.holdScores(true) }
+            if game != nil {
+                feed?.holdScores(true)
+                // The clock goes white over the dark, as on a school's page.
+                AppearanceStore.shared.holdsClock = false
+            }
         }
         .onDisappear {
             actions.pageClosed(item.id)
@@ -231,34 +240,6 @@ struct FeedEventDetailDestination: View {
         var card = item
         card.game = game
         return card
-    }
-
-    /// A game opens on its schools' colors, edge to edge from the top of the screen, with the card's
-    /// chip, logos and score, ending just under the names: no photo, no blank space (Jesse, 2026-10-25:
-    /// "make the whole top of the screen that like color, not just a cutout"). In the safe area: the
-    /// colors run on up under the status bar and any pull.
-    private func band(_ game: Game) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            TimelineView(.everyMinute) { context in
-                if game.live?.isLive(at: context.date) == true {
-                    PhotoChip(text: "Live", spoken: "Live", dot: Hue.live)
-                } else if let when = current.whenLine {
-                    PhotoChip(text: when.text, spoken: when.spoken)
-                }
-            }
-            .frame(minHeight: PhotoChip.height)
-            .padding(.leading, Metric.bandInset)
-            GameMatchup(game: game, rowTop: Metric.bandRowGap)
-                .frame(height: Metric.bandMatchup)
-                // The matchup hides itself (the card's title says it); here it says the score.
-                .accessibilityElement()
-                .accessibilityLabel(game.spoken + (game.live?.clock.map { ", \($0)" } ?? ""))
-        }
-        .padding(.top, Metric.buttonTop + Metric.tapBox + Metric.bandChipGap)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(alignment: .bottom) {
-            GameMatchup.backdrop(game).padding(.top, -Metric.bandOverscroll)
-        }
     }
 
     // MARK: Photos
@@ -380,7 +361,8 @@ struct FeedEventDetailDestination: View {
             Self.circleButton(
                 glyph: Image(systemName: inSheet ? "xmark" : "arrow.left"),
                 label: inSheet ? "Close" : "Back",
-                reduceMotion: reduceMotion
+                reduceMotion: reduceMotion,
+                onColor: game != nil
             ) { dismiss() }
 
             Spacer(minLength: 0)
@@ -388,7 +370,7 @@ struct FeedEventDetailDestination: View {
             // The card's share reveal. 15, not the row's 17: the Reference's share
             // mark is 14 x 17 pt.
             Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                              reduceMotion: reduceMotion) {
+                              reduceMotion: reduceMotion, onColor: game != nil) {
                 ShareCenter.shared.present(.event(item))
             }
 
@@ -397,7 +379,7 @@ struct FeedEventDetailDestination: View {
             let saved = actions.saved(item)
             let failures = actions.saveFailureCount(item.id)
             Self.circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save",
-                              reduceMotion: reduceMotion, action: toggleSave)
+                              reduceMotion: reduceMotion, onColor: game != nil, action: toggleSave)
                 .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
                 .accessibilityAddTraits(saved ? .isSelected : [])
         }
@@ -423,16 +405,24 @@ struct FeedEventDetailDestination: View {
         glyph: some View,
         label: String,
         reduceMotion: Bool,
+        onColor: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             glyph
                 .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
+                .foregroundStyle(onColor ? .white : Hue.ink)
                 .frame(width: Metric.button, height: Metric.button)
                 // The shadow on the circle alone: on the whole button it also lands
-                // under each glyph and dulled the saved yellow to #F8E404.
-                .background { Circle().fill(Hue.surface).mapFloatShadow() }
+                // under each glyph and dulled the saved yellow to #F8E404. On a game's colors
+                // (`onColor`, game-card 08) the circle is see-through white, as Apple Sports' are.
+                .background {
+                    if onColor {
+                        Circle().fill(.white.opacity(0.14)).overlay(Circle().strokeBorder(.white.opacity(0.14)))
+                    } else {
+                        Circle().fill(Hue.surface).mapFloatShadow()
+                    }
+                }
                 .frame(width: Metric.tapBox, height: Metric.tapBox)
                 .contentShape(Rectangle())
         }
@@ -444,25 +434,29 @@ struct FeedEventDetailDestination: View {
 
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(item.title)
-                .font(.eventDisplay(28))
-                .lineSpacing(Metric.titleLineSpacing)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                // Called off, VoiceOver says so with the title: the bar's red pill comes last.
-                .accessibilityValue(item.cancelled ? "Canceled" : "")
-                .padding(.top, Metric.titleTop)
+            // A game's score says its title (game-card 08): its plays lead, the facts follow.
+            if let game {
+                if GameScoring.shows(game) {
+                    GameScoring(game: game)
+                        .padding(.top, Metric.sectionTop)
+                }
+            } else {
+                Text(item.title)
+                    .font(.eventDisplay(28))
+                    .lineSpacing(Metric.titleLineSpacing)
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    // Called off, VoiceOver says so with the title: the bar's red pill comes last.
+                    .accessibilityValue(item.cancelled ? "Canceled" : "")
+                    .padding(.top, Metric.titleTop)
+            }
 
             facts
+                .padding(.top, game == nil ? 0 : Metric.sectionTop - Metric.rowsTop)
 
             // Who hosts it, with Follow (follows 02), in Meetup's grey card.
             EventHostRow(item: item, top: Metric.hostTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
-
-            if let game {
-                GameScoring(game: game)
-                    .padding(.top, Metric.sectionTop)
-            }
 
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
@@ -488,7 +482,7 @@ struct FeedEventDetailDestination: View {
         .padding(.bottom, Metric.contentBottom)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            Hue.paper,
+            game == nil ? Hue.paper : .clear,
             in: UnevenRoundedRectangle(
                 topLeadingRadius: Metric.sheetCorner,
                 topTrailingRadius: Metric.sheetCorner,
@@ -536,7 +530,7 @@ struct FeedEventDetailDestination: View {
     /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
     /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
-        RSVPArea(item: current, words: words, size: .page) { ShareCenter.shared.present(.event(item)) }
+        RSVPArea(item: current, words: words, size: .page, yellow: game != nil) { ShareCenter.shared.present(.event(item)) }
             .padding(.leading, Metric.barWordsInset)
             .padding(.trailing, Metric.barPillInset)
             // 57 pt at the default text size; larger text grows it rather than spilling out.
@@ -557,7 +551,9 @@ struct FeedEventDetailDestination: View {
             .padding(.horizontal, Metric.inset)
             .padding(.bottom, Metric.barBottom)
             .background {
-                LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .bottom)
+                // A game's page fades to its own near-black (game-card 08).
+                let ground = game == nil ? Hue.paper : Hue.gameNight
+                LinearGradient(colors: [ground.opacity(0), ground], startPoint: .top, endPoint: .bottom)
                     .padding(.top, -Metric.fadeAboveBar)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(false)
