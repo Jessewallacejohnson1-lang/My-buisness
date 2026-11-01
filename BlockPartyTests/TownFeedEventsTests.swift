@@ -287,8 +287,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:y")
         await town.hide(id: "y", host: "Parks", mute: true)
         town.undoEnded("y")
-        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c"],
-                       "Parks' pick and cards all go")
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c", "caught-up"],
+                       "Parks' pick and cards all go; the list still ends on its line (town-feed 23)")
     }
 
     /// Scrolled down, the poster holds at what it showed when the feed left the top, a pick that
@@ -1320,16 +1320,17 @@ final class TownFeedEventsTests: XCTestCase {
         let asked = Box<[Int]>([])
         let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
                             readLater: { [self] in [row("x"), row("b")].map(TownFeed.entry) },
-                            readMore: { round, opened in
+                            readMore: { round, opened, shown in
                                 asked.value.append(round)
                                 XCTAssertEqual(opened, ["p2"])
+                                XCTAssertEqual(shown, ["a", "b"], "the list on screen: the only repeats")
                                 return [.init(kind: .place, id: "p1"), .init(kind: .place, id: "gone"),
                                         .init(kind: .place, id: "p2"), .init(kind: .unknown, id: "?")]
                             },
                             opened: { ["p2"] })
         await town.reload(at: now)
-        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "event:b"],
-                       "nothing past the list until its end comes near")
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "event:b", "caught-up"],
+                       "the list ends on the line at once; nothing past it until its end comes near")
         await town.loadMore()
         let items = town.column(eventOfTheDay: [], now: now) { ["p1", "p2"].contains($0) ? self.place($0) : nil }
         XCTAssertEqual(items.map(\.id), ["event:a", "event:b", "caught-up", "event:x", "place:0:p:p1", "place:0:p:p2"],
@@ -1339,7 +1340,7 @@ final class TownFeedEventsTests: XCTestCase {
 
     func testEachRoundAppendsBelowWithRepeatsOfOnlyWhatsStillAbove() async {
         let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
-                            readMore: { round, _ in
+                            readMore: { round, _, _ in
                                 round == 0 ? [.init(kind: .place, id: "p1")]
                                     : [.init(kind: .place, id: "p1"), .init(kind: .again, id: "a"),
                                        .init(kind: .again, id: "hidden-or-gone")]
@@ -1358,7 +1359,7 @@ final class TownFeedEventsTests: XCTestCase {
         let feedBox = Box<TownFeed?>(nil)
         let reorder = Box(false)
         let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
-                            readMore: { _, _ in
+                            readMore: { _, _, _ in
                                 if reorder.value { await feedBox.value?.reload() }
                                 return [.init(kind: .place, id: "p1")]
                             })
@@ -1379,12 +1380,13 @@ final class TownFeedEventsTests: XCTestCase {
     func testNothingPastAnEmptyListAndAFailedRoundIsAskedAgain() async {
         let asked = Box(0)
         let fail = Box(true)
-        let empty = TownFeed(read: { [] }, readMore: { _, _ in asked.value += 1; return [] })
+        let empty = TownFeed(read: { [] }, readMore: { _, _, _ in asked.value += 1; return [] })
         await empty.reload(at: now)
         await empty.loadMore()
         XCTAssertEqual(asked.value, 0, "an empty list keeps its own quiet screen")
+        XCTAssertTrue(empty.column(eventOfTheDay: [], now: now).isEmpty)
         let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
-                            readMore: { _, _ in
+                            readMore: { _, _, _ in
                                 if fail.value { throw Offline() }
                                 return [.init(kind: .place, id: "p1")]
                             })
@@ -1392,6 +1394,8 @@ final class TownFeedEventsTests: XCTestCase {
         await town.loadMore()
         XCTAssertTrue(town.rounds.isEmpty)
         XCTAssertFalse(town.loadingMore, "a failed round leaves no skeleton")
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "caught-up"],
+                       "offline the list still ends on the line, which asks again when it comes back on screen")
         fail.value = false
         await town.loadMore()
         XCTAssertEqual(town.rounds.count, 1)
@@ -1401,7 +1405,7 @@ final class TownFeedEventsTests: XCTestCase {
         let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
                             choose: { _ in nil },
                             readLater: { [self] in [row("x"), row("y")].map(TownFeed.entry) },
-                            readMore: { _, _ in [] })
+                            readMore: { _, _, _ in [] })
         await town.reload(at: now)
         await town.loadMore()
         await town.hide(id: "x", host: "City of St. Joseph", mute: false)

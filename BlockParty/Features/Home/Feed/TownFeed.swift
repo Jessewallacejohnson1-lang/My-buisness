@@ -213,10 +213,10 @@ final class TownFeed {
     /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
     private let choose: (FeedChoice) async throws -> String?
     private let readMuted: () async throws -> [MutedHost]
-    /// Past the ranked list (town-feed 23): the later Events, each round's order, and the places
-    /// this phone opened, which a round puts last.
+    /// Past the ranked list (town-feed 23): the later Events, each round's order (given the places this
+    /// phone opened, which go last, and the list's ids, the only repeats), and those opened places.
     private let readLater: () async throws -> [TownFeedEntry]
-    private let readMore: (Int, [String]) async throws -> [TownMoreRow]
+    private let readMore: (Int, [String], [String]) async throws -> [TownMoreRow]
     private let opened: () -> [String]
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
@@ -228,7 +228,7 @@ final class TownFeed {
          choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
          readMuted: @escaping () async throws -> [MutedHost] = { [] },
          readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
-         readMore: @escaping (Int, [String]) async throws -> [TownMoreRow] = { _, _ in [] },
+         readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
          opened: @escaping () -> [String] = { [] }) {
         self.read = read
         self.kept = kept
@@ -270,7 +270,7 @@ final class TownFeed {
                   choose: { try await CommunityAPI(auth: AuthStore.shared).feedChoice($0) },
                   readMuted: { try await CommunityAPI(auth: AuthStore.shared).mutedHosts() },
                   readLater: { try await CommunityAPI(auth: AuthStore.shared).getTownFeedLater().map(Self.entry) },
-                  readMore: { try await CommunityAPI(auth: AuthStore.shared).getTownMore(round: $0, opened: $1) },
+                  readMore: { try await CommunityAPI(auth: AuthStore.shared).getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids })
     }
 
@@ -313,12 +313,13 @@ final class TownFeed {
     /// Numbers the rounds' reads, so one that a fresh order or a new account overtook never lands.
     @ObservationIgnored private var moreRead = 0
 
-    /// What shows past the ranked list once its first round is in: "You're all caught up", the later
-    /// Events not already above and not hidden, then each round's places Search can open and repeats
-    /// of what the list above still shows, so a hidden or muted one never comes back. Nothing past an
-    /// empty list, which keeps its own quiet screen.
+    /// What shows past the ranked list: "You're all caught up", at once, so offline or between rounds the
+    /// list still ends on it and it asks again when it comes back on screen; then the later Events not
+    /// already above and not hidden, then each round's places Search can open and repeats of what the
+    /// list above still shows, so a hidden or muted one never comes back. Nothing past an empty list,
+    /// which keeps its own quiet screen.
     func past(_ ranked: [TownFeedEntry], places: (String) -> SearchItem?) -> [DailyFeedItem] {
-        guard !ranked.isEmpty, !rounds.isEmpty else { return [] }
+        guard !ranked.isEmpty else { return [] }
         let above = Dictionary(ranked.map { ($0.id, $0.item) }, uniquingKeysWith: { first, _ in first })
         let at = holding ? heldClock : clock
         var items: [DailyFeedItem] = [.caughtUp]
@@ -344,7 +345,7 @@ final class TownFeed {
         let mine = moreRead, round = rounds.count
         do {
             let newLater = round == 0 ? try await readLater() : later
-            let rows = try await readMore(round, opened())
+            let rows = try await readMore(round, opened(), shown.map(\.id))
             guard mine == moreRead else { return }
             if round == 0 {
                 actions?.read(newLater.compactMap(\.card))

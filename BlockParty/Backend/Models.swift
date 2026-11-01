@@ -572,12 +572,9 @@ nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
     enum Kind: String, Decodable, Sendable { case place, again, unknown }
     let kind: Kind
     let id: String
+}
 
-    init(kind: Kind, id: String) {
-        self.kind = kind
-        self.id = id
-    }
-
+extension TownMoreRow {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown

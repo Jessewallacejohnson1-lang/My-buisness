@@ -2432,14 +2432,15 @@ async function later(at) {
     `select title from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), false, true)`, [at]);
   return rows.map((r) => r.title);
 }
-async function more(round, opened = [], at = '2026-10-08 12:00') {
+async function more(round, opened = [], shown = [], at = '2026-10-08 12:00') {
   const { rows } = await db.query(
     `select m.kind, coalesce(p.name, e.title, b.title) as name
-     from public.get_town_more($1, $2::uuid[], ($3::timestamp at time zone 'America/Chicago')) with ordinality m(kind, id, n)
+     from public.get_town_more(p_round => $1, p_opened => $2::uuid[], p_shown => $4::uuid[],
+                               p_now => ($3::timestamp at time zone 'America/Chicago')) with ordinality m(kind, id, n)
      left join public.places p on p.id = m.id
      left join public.club_events e on e.id = m.id
      left join public.board_items b on b.id = m.id
-     order by m.n`, [round, opened, at]);
+     order by m.n`, [round, opened, at, shown]);
   return rows.map((r) => `${r.kind}:${r.name}`);
 }
 async function place(name, type = 'cafe', logo = true) {
@@ -2509,13 +2510,18 @@ test('a later round: unopened places first, a new order each round, one repeat u
   await noPlaces();
   const ids = [];
   for (const n of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) ids.push(await place(`Place ${n}`));
-  await add('Fresh fest', '2026-10-20', { created_at: '2026-10-05 12:00-05' });
-  await add('Fresh run', '2026-10-21', { created_at: '2026-10-07 12:00-05' });
-  await add('Old gala', '2026-10-22', { created_at: '2026-09-25 12:00-05' });
+  const shown = [
+    await add('Fresh fest', '2026-10-20', { created_at: '2026-10-05 12:00-05' }),
+    await add('Fresh run', '2026-10-21', { created_at: '2026-10-07 12:00-05' }),
+    await add('Old gala', '2026-10-22', { created_at: '2026-09-25 12:00-05' })];
+  // Put out this week but not on the phone's list (past its show-from day, say): never a repeat.
+  await add('Fresh but far', '2026-12-20', { created_at: '2026-10-07 12:00-05' });
   await news('Fresh special', '2026-10-06 12:00');
   await news('Old special', '2026-09-20 12:00');
+  shown.push(...(await db.query(`select id from public.board_items`)).rows.map((r) => r.id));
   await signIn(ME);
-  const one = await more(1, [ids[0], ids[1]]);
+  assert.ok(!(await more(1, [ids[0], ids[1]])).some((r) => r.startsWith('again:')), 'no list sent: no repeats');
+  const one = await more(1, [ids[0], ids[1]], shown);
   assert.deepEqual(one.map((r) => r.split(':')[0]),
     ['place', 'place', 'place', 'again', 'place', 'place', 'place', 'again', 'place', 'again']);
   const places = one.filter((r) => r.startsWith('place:'));
@@ -2523,9 +2529,9 @@ test('a later round: unopened places first, a new order each round, one repeat u
   assert.deepEqual(one.filter((r) => r.startsWith('again:')).sort(), ['again:Fresh fest', 'again:Fresh run', 'again:Fresh special'],
                    'nothing older than 7 days comes back');
   const orders = [];
-  for (const round of [2, 3, 4]) orders.push((await more(round, [ids[0], ids[1]])).filter((r) => r.startsWith('place:')));
+  for (const round of [2, 3, 4]) orders.push((await more(round, [ids[0], ids[1]], shown)).filter((r) => r.startsWith('place:')));
   assert.ok(orders.some((o) => o.slice(0, 5).join() !== places.slice(0, 5).join()), 'each round its own order');
-  assert.deepEqual(await more(1, [ids[0], ids[1]]), one, 'and the same round asked again, the same');
+  assert.deepEqual(await more(1, [ids[0], ids[1]], shown), one, 'and the same round asked again, the same');
   for (const o of orders) assert.deepEqual(o.slice(-2).sort(), ['place:Place A', 'place:Place B']);
   await db.exec('reset role');
   await noPlaces();

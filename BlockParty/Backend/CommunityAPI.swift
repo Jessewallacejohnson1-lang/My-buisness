@@ -197,9 +197,13 @@ struct CommunityAPI {
     }
 
     /// One round past the later Events (town-feed 23): places to try and repeats, as kinds and ids
-    /// in `get_town_more`'s order. `opened`: the places whose page this phone opened, which go last.
-    func getTownMore(round: Int, opened: [String]) async throws -> [TownMoreRow] {
-        let data = try await db.rpc("get_town_more", ["p_round": round, "p_opened": opened], anon: true)
+    /// in `get_town_more`'s order. `opened`: the places whose page this phone opened, which go last;
+    /// `shown`: the ids of the list on screen, the only ones a repeat can be. Ids that aren't the
+    /// database's (samples) are left out, as a list of them would be refused.
+    func getTownMore(round: Int, opened: [String], shown: [String]) async throws -> [TownMoreRow] {
+        let ids = { (ids: [String]) in ids.filter { UUID(uuidString: $0) != nil } }
+        let data = try await db.rpc("get_town_more", ["p_round": round, "p_opened": ids(opened), "p_shown": ids(shown)],
+                                    anon: true)
         return try JSONDecoder().decode([TownMoreRow].self, from: data)
     }
 
