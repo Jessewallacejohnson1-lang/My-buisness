@@ -87,7 +87,7 @@ enum PlaceSeeder {
                 "family": family.rawValue,
                 "types": place.types,
                 "source": "google_nearby",
-                "updated_at": Self.iso.string(from: Date()),
+                "updated_at": DateHelpers.timestampString(Date()),
             ]
             if let pt = place.primaryType { row["primary_type"] = pt }
             if let addr = place.address { row["address"] = addr }
@@ -121,6 +121,4 @@ enum PlaceSeeder {
         let n = name.lowercased()
         return excludedNameFragments.contains { n.contains($0) }
     }
-
-    private static let iso = ISO8601DateFormatter()
 }
