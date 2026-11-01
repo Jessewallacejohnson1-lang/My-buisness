@@ -79,7 +79,9 @@ await db.exec(one('_event_photos_christmas_fit.sql'));
 await db.exec(one('_event_photos_my_changes.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
-const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+// Days on the Town's calendar, as the functions count them: a UTC date runs a day ahead from 7 PM
+// Central (00:00 UTC), when a day of 0 or -1 would land on the wrong side of today.
+const soon = (days) => new Date(Date.now() + days * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
 const game = async (fields = {}) => {
   const f = { title: 'Apollo Volleyball vs Sartell', sport: 'Volleyball', team_ids: ['apollo', 'sartell'],
     event_date: soon(3), start_time: '7 PM', location: 'Apollo High School', ...fields };
