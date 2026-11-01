@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
-// Supabase Edge Function: read a reported neighbour posting again with Claude (text + image).
+// Supabase Edge Function: Claude's instant check (text + image) on a neighbour's new Event from
+// New event (`submit`, BP app references/town-plus), and on a reported posting read again
+// (`recheck`, BP app town-feed 22).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
 //
@@ -31,6 +33,7 @@ Deno.serve(async (req) => {
   const auth = req.headers.get('Authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   if (!token) return json({ ok: false, reason: 'Unauthorized.' }, 401)
+  let caller = ''
   try {
     const publishableKeys = JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') ?? '{}')
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, publishableKeys['default'])
@@ -39,6 +42,7 @@ Deno.serve(async (req) => {
     // An anonymous account (every install's quiet account, 2026-10-09) can't publish,
     // so it never needs a check and must not be able to spend credits on one.
     if (claimsData.claims.is_anonymous === true) return json({ ok: false, reason: 'Sign in to post.' }, 403)
+    caller = String(claimsData.claims.sub)
   } catch {
     return json({ ok: false, reason: 'Unauthorized.' }, 401)
   }
@@ -46,13 +50,73 @@ Deno.serve(async (req) => {
   let body: any
   try { body = await req.json() } catch { return json({ ok: false, reason: 'Bad request.' }, 400) }
 
-  // A reported neighbour posting, read again (BP app town-feed 22), and nothing else: a caller's own
-  // text let any signed-in account spend credits without end (BP app loopholes 04). The posting is
-  // read here, never taken from the caller; claim_recheck lets each one through once, so a second
-  // report or a retry never pays again. A "breaks the rules" answer declines it as reported: it
-  // leaves every feed.
-  if (!body?.recheck) return json({ ok: false, reason: 'Bad request.' }, 400)
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+  // The model's yes or no on one posting, read here and never taken from the caller; null when it
+  // gave no answer.
+  const verdict = async (e: any): Promise<{ ok: boolean, reason: string } | null> => {
+    const facts = [
+      `Kind: ${e.kind}`,
+      `Title: ${e.title}`,
+      e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
+      e.location ? `Location: ${e.location}` : null,
+      e.description ? `Description: ${e.description}` : null,
+    ].filter(Boolean).join('\n')
+    const content: any[] = [{ type: 'text', text: facts }]
+    if (e.image_url) content.push({ type: 'image', source: { type: 'url', url: e.image_url } })
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          system: SYSTEM,
+          messages: [{ role: 'user', content }],
+        }),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
+      const match = text.match(/\{[\s\S]*\}/)
+      if (!match) return null
+      const parsed = JSON.parse(match[0])
+      return { ok: !!parsed.ok, reason: String(parsed.reason ?? '') }
+    } catch {
+      return null
+    }
+  }
+
+  // A neighbour's own new Event (BP app references/town-plus). claim_submit lets it through once,
+  // only while it's the caller's, pending, plain (nothing set the check doesn't read) and one of
+  // their 10 that day. Yes puts it live; no declines it and takes its photo down; no answer leaves
+  // it pending and claimed, so it waits for Jesse's Review and never pays twice. Nothing claimed
+  // (sent twice, the day's 10 used) is a 429 the app reads as waiting.
+  if (body?.submit) {
+    const id = String(body.submit)
+    const { data: claimed, error } = await admin.rpc('claim_submit', { p_event: id, p_user: caller })
+    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
+    const { data: e } = await admin.from('club_events')
+      .select('id, kind, title, event_date, start_time, location, description, image_url').eq('id', id).single()
+    if (!e) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    const said = await verdict(e)
+    if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (said.ok) {
+      const { error: up } = await admin.from('club_events').update({ status: 'approved' }).eq('id', id).eq('status', 'pending')
+      return up ? json({ ok: false, reason: 'Could not auto-check.' }, 502) : json({ ok: true, reason: '' })
+    }
+    await admin.from('club_events').update({ status: 'rejected', review_reason: 'declined' }).eq('id', id)
+    const photo = typeof e.image_url === 'string' ? e.image_url.split('/event-images/')[1] : undefined
+    if (photo) await admin.storage.from('event-images').remove([photo])
+    return json({ ok: false, reason: said.reason })
+  }
+
+  // A reported neighbour posting, read again (BP app town-feed 22): a caller's own text let any
+  // signed-in account spend credits without end (BP app loopholes 04). claim_recheck lets each one
+  // through once, so a second report or a retry never pays again. A "breaks the rules" answer
+  // declines it as reported: it leaves every feed.
+  if (!body?.recheck) return json({ ok: false, reason: 'Bad request.' }, 400)
   // A re-check the model never answered goes back unclaimed, so the next report tries again.
   const unclaim = () => admin.from('club_events').update({ rechecked_at: null }).eq('id', body.recheck)
   const { data: claimed, error } = await admin.rpc('claim_recheck', { p_event: body.recheck })
@@ -61,40 +125,10 @@ Deno.serve(async (req) => {
   const { data: e } = await admin.from('club_events')
     .select('id, kind, title, location, description, image_url').eq('id', body.recheck).single()
   if (!e) return json({ ok: true, reason: '' })
-
-  const facts = [
-    `Kind: ${e.kind}`,
-    `Title: ${e.title}`,
-    e.location ? `Location: ${e.location}` : null,
-    e.description ? `Description: ${e.description}` : null,
-  ].filter(Boolean).join('\n')
-
-  const content: any[] = [{ type: 'text', text: facts }]
-  if (e.image_url) content.push({ type: 'image', source: { type: 'url', url: e.image_url } })
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: SYSTEM,
-        messages: [{ role: 'user', content }],
-      }),
-    })
-    if (!res.ok) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
-    const data = await res.json()
-    const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
-    const match = text.match(/\{[\s\S]*\}/)
-    if (!match) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
-    const parsed = JSON.parse(match[0])
-    if (!parsed.ok) {
-      await admin.from('club_events').update({ status: 'rejected', review_reason: 'reported' }).eq('id', body.recheck)
-    }
-    return json({ ok: !!parsed.ok, reason: parsed.reason ?? '' })
-  } catch {
-    await unclaim()
-    return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+  const said = await verdict(e)
+  if (!said) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
+  if (!said.ok) {
+    await admin.from('club_events').update({ status: 'rejected', review_reason: 'reported' }).eq('id', body.recheck)
   }
+  return json(said)
 })
