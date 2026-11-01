@@ -42,8 +42,11 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         var time: String? = nil
         /// Only when it isn't the group's usual place.
         var place: String? = nil
+        /// Read from the group's own calendar and outside St. Joseph (a St. Cloud club's other runs): it shows on
+        /// the Group page, but the hello leaves it out.
+        var away: Bool? = nil
 
-        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where" }
+        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where", away }
     }
 
     let id: String
@@ -599,6 +602,24 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
 nonisolated enum TownFeedLine: Hashable {
     case event(TownFeedRow)
     case news(TownNews)
+}
+
+/// One line of a round past the Town feed's later Events (`get_town_more`, town-feed 23): a place to
+/// try, or an Event or News item from the ranked list, again. An unknown kind is never drawn.
+nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
+    enum Kind: String, Decodable, Sendable { case place, again, unknown }
+    let kind: Kind
+    let id: String
+}
+
+nonisolated extension TownMoreRow {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown
+        id = try c.decode(String.self, forKey: .id)
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, id }
 }
 
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when

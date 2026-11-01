@@ -26,14 +26,17 @@ nonisolated enum DailyPeopleMetric {
     static let ring: CGFloat = 0.5
 }
 
-/// "People you may know": today only, and only with someone on it.
+/// "People you may know": today only, and only with someone on it. The Friends tab shows the
+/// same cards under its own "Suggested for you" title (`title: nil`, its own margin).
 struct PeopleYouMayKnowSection: View {
     let people: [Neighbor]
+    var title: String? = "People you may know"
+    var side: CGFloat = DailyRowMetric.side
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: DailyRowMetric.titleToCards) {
-            DailyRowTitle(title: "People you may know")
+            if let title { DailyRowTitle(title: title) }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: DailyPeopleMetric.gap) {
                     ForEach(people) { person in
@@ -43,7 +46,7 @@ struct PeopleYouMayKnowSection: View {
                 }
                 .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, DailyRowMetric.side, for: .scrollContent)
+            .contentMargins(.horizontal, side, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollClipDisabled()
         }

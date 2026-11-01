@@ -5,8 +5,9 @@
 
 import SwiftUI
 
-/// The four destinations, in bar order (2026-09-18; Search took Business's slot on
-/// 2026-09-29, Jesse). `Int`-backed because the page
+/// The five destinations, in bar order (2026-09-18; Search took Business's slot on
+/// 2026-09-29, Jesse; Friends came into the middle on 2026-11-01, BP app docs/plans/five-tabs).
+/// `Int`-backed because the page
 /// slide derives its direction from the order: moving right through the bar slides
 /// the content the way a thumb expects.
 enum Tab: Int, CaseIterable, Identifiable {
@@ -14,6 +15,9 @@ enum Tab: Int, CaseIterable, Identifiable {
     case town
     /// The neighbour's own paper: the town feed crossed with what they follow.
     case daily
+    /// Friends, in the middle: neighbours, requests, what friends are going to, and Groups.
+    /// It was a page pushed from the Town bar's friends mark until 2026-11-01.
+    case friends
     /// Search: the magnifier that sat at the Town bar's leading edge until 2026-09-29.
     case search
     /// Their own profile.
@@ -25,6 +29,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         switch self {
         case .town:     return "Town"
         case .daily:    return "Daily"
+        case .friends:  return "Friends"
         case .search:   return "Search"
         case .you:      return "You"
         }
@@ -35,11 +40,13 @@ enum Tab: Int, CaseIterable, Identifiable {
     /// traced magnifier instead (`MagnifierGlyph`), and Town BP's own rounder house
     /// (`HouseGlyph`, 2026-10-30); their names are only large-content stand-ins.
     /// Daily's is not an SF Symbol: it names the `DailyMark` asset, the app
-    /// icon's own Bp! letters (Jesse, 2026-10-29).
+    /// icon's own Bp! letters (Jesse, 2026-10-29). Friends is Apple's two people, the mark that
+    /// led the Town bar, as Facebook's Friends tab draws them.
     var symbol: String {
         switch self {
         case .town:     return "house"
         case .daily:    return "DailyMark"
+        case .friends:  return "person.2"
         case .search:   return "magnifyingglass"
         case .you:      return "person"
         }
@@ -56,6 +63,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         switch self {
         case .town:     return "Everything happening on the block."
         case .daily:    return "Your paper — the town, filtered to what you follow."
+        case .friends:  return "Your neighbors, and what they're going to."
         case .search:   return "Find a place, a happening, or someone on the block."
         case .you:      return "Your three weeks, and your profile."
         }
@@ -369,7 +377,7 @@ struct MainTabsView: View {
         _session = State(initialValue: AppSession())
     }
 
-    /// DEBUG-only: `-open-tab town|daily|search|you` launch argument selects
+    /// DEBUG-only: `-open-tab town|daily|friends|search|you` launch argument selects
     /// the starting tab, so simulator verification can screenshot any tab
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
@@ -378,6 +386,7 @@ struct MainTabsView: View {
             switch tab {
             case "town":     return .town
             case "daily":    return .daily
+            case "friends":  return .friends
             case "search":   return .search
             case "you":      return .you
             default:         break
@@ -499,6 +508,8 @@ struct MainTabsView: View {
                         switch route {
                         case .home: FriendsHomePage()
                         case .contacts: FriendsContactsPage()
+                        case .allFriends: FriendsAllPage(groups: false)
+                        case .groups: FriendsAllPage(groups: true)
                         case .inbox: FriendsPage()
                         case .chat(let id): FriendChatPage(id: id)
                         }
@@ -629,9 +640,9 @@ struct MainTabsView: View {
     /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own
     /// function, out of `body`: Xcode 26.6 couldn't type-check the body with it inside in time.
     private func openLaunchPages() {
-        // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
+        // DEBUG: `-open-friends` lands on the Friends tab; `-open-friends-chat` on the
         // sample inbox's newest chat, the one way left into the sample chats.
-        if LaunchFlags.has(.openFriends) { openFriends() }
+        if LaunchFlags.has(.openFriends) { tab = .friends }
         if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
         if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
             path.append(FriendsRoute.inbox)
@@ -687,11 +698,6 @@ struct MainTabsView: View {
         Task { if let neighbor = try? await Neighbor.read(id) { path.append(neighbor) } }
     }
 
-    /// The friends mark pushes the Friends page, covering the tab bar like an event page.
-    private func openFriends() {
-        path.append(FriendsRoute.home)
-    }
-
     private var shell: some View {
         ZStack(alignment: .bottom) {
             Hue.paper.ignoresSafeArea()
@@ -710,11 +716,11 @@ struct MainTabsView: View {
                         case .town:
                             HomeView(
                                 onOpenMap: { showMap = true },
-                                onOpenFriends: openFriends,
                                 onOpenNotifications: { path.append(NotificationsRoute()) },
                                 onOpenPage: { path.append($0) },
                                 townFeed: townFeed,
-                                eventOfTheDay: eventOfTheDay
+                                eventOfTheDay: eventOfTheDay,
+                                places: searchModel.place
                             )
                         // Daily shows paper while its first read is out, then its page: the week
                         // on top, and under it the picked day, or the named, reserved slot on a
@@ -730,6 +736,12 @@ struct MainTabsView: View {
                                 }
                             }
                             .task { await eventOfTheDay.refresh() }
+                        // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
+                        // Town feed's cards for what friends are going to.
+                        case .friends:
+                            FriendsHomePage(tab: true, cards: townFeed.cards)
+                                // The Town tab reads the feed; a launch straight onto Friends reads it here.
+                                .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         case .search:   SearchPage(model: searchModel)
                         // Your three weeks; your photo at its top left opens Profile.
                         case .you:
@@ -754,7 +766,7 @@ struct MainTabsView: View {
             .onPreferenceChange(TabBarCompactKey.self) { tabBarCompact = $0 }
 
             BlockPartyTabBar(selection: tab, onSelect: select,
-                             avatarURL: avatar.avatarUrl, compact: tabBarCompact)
+                             avatarURL: avatar.avatarUrl, compact: tabBarCompact, friendsDot: friendsBook.dot)
                 // Re-read on every tab change, so a photo changed on You (or missed
                 // by an offline launch) shows as soon as the neighbour moves on.
                 .task(id: tab) { await avatar.refresh() }
@@ -919,6 +931,12 @@ nonisolated enum TabBarMetric {
     static let iconCentreY: CGFloat = height / 2
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25
+    /// How far the Friends icon's frame runs past its ink on the right and top, so its dot
+    /// sits on the ink's corner: the Town bar's measure for the same symbol at 19pt (2026-10-13).
+    /// MEASURED at 19.5 on BP Build (2026-11-01): the dot's centre lands at 220.5, 853.8 against
+    /// the rule's 220.7, 853.7 (the ink's top right, 2pt in).
+    static let friendsInkRight: CGFloat = 3.3
+    static let friendsInkTop: CGFloat = 1.5
     /// How far past the first and last centres the Lens may travel. MEASURED at the
     /// right end on Apple's bar (§3.5); the left end mirrors it, GUESSED.
     static let lensOvershoot: CGFloat = 9
@@ -1030,6 +1048,9 @@ struct BlockPartyTabBar: View {
     /// The feed is reading down (its top bar is away): the bar rests small. A touch
     /// brings it back to full size while the finger is down.
     var compact = false
+    /// A new friend request: the quiet yellow dot on the Friends tab (`FriendsBook.dot`), as
+    /// it sat on the Town bar's friends mark until 2026-11-01.
+    var friendsDot = false
 
     /// The finger while it is down, capsule-local. `@GestureState` resets itself
     /// when the system cancels the touch, so the Lens can never stay stuck up.
@@ -1082,7 +1103,7 @@ struct BlockPartyTabBar: View {
                     .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
                       avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops,
-                      searchSwoops: searchSwoops)
+                      searchSwoops: searchSwoops, friendsDot: friendsDot)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -1215,7 +1236,7 @@ struct BlockPartyTabBar: View {
         }
     }
 
-    /// The four items, placed from `TabBarMetric`. No glass, so a test can render
+    /// The five items, placed from `TabBarMetric`. No glass, so a test can render
     /// them alone.
     struct Items: View {
         let selection: Tab
@@ -1229,6 +1250,9 @@ struct BlockPartyTabBar: View {
         var dailyHops = 0
         /// Taps on Search so far; each one swoops the magnifier's shine.
         var searchSwoops = 0
+        /// A new friend request's dot on the Friends icon.
+        var friendsDot = false
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
             ZStack(alignment: .topLeading) {
@@ -1261,7 +1285,7 @@ struct BlockPartyTabBar: View {
                 }
             }
             .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
-            // VoiceOver sees exactly four tabs, named, not the drawing: the tab
+            // VoiceOver sees exactly five tabs, named, not the drawing: the tab
             // elements are synthetic children laid over the slots.
             .accessibilityChildren {
                 ZStack(alignment: .topLeading) {
@@ -1281,6 +1305,14 @@ struct BlockPartyTabBar: View {
                 TabAvatar(url: avatarURL, selected: selected)
             } else {
                 symbol(tab, selected: selected)
+                    // Outside the symbol's no-animation transaction, so the dot grows in.
+                    .overlay(alignment: .topTrailing) {
+                        if tab == .friends, friendsDot {
+                            UnreadDot(ring: Hue.surface.onLightCanvas,
+                                      inkRight: TabBarMetric.friendsInkRight, inkTop: TabBarMetric.friendsInkTop)
+                        }
+                    }
+                    .animation(reduceMotion ? nil : Motion.smooth, value: friendsDot)
             }
         }
 
@@ -1312,7 +1344,7 @@ struct BlockPartyTabBar: View {
                 .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
                 .position(x: centreX(tab), y: TabBarMetric.height / 2)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(tab.title)
+                .accessibilityLabel(tab == .friends && friendsDot ? "Friends, new friend request" : tab.title)
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
                 .accessibilityAction { onSelect(tab) }
         }

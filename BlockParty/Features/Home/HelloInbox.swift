@@ -176,14 +176,9 @@ struct HelloItem: Codable, Hashable, Identifiable {
 }
 
 extension HelloItem.Added {
-    /// The bell's short when (Jesse, 2026-10-28: "i want shorter"): "Tonight 7 PM", "Tomorrow 6 PM",
-    /// "Fri 6 PM" within the week, else the date alone, "Nov 20".
+    /// The bell's short when (`EventWhen.short`): "Tonight 7 PM", "Tomorrow 6 PM", "Fri 6 PM", "Nov 20".
     func when(now: Date) -> String? {
-        guard let when = EventWhen(date: eventDate, time: startTime, endAt: nil) else { return nil }
-        let days = Town.days(from: now, to: when.start)
-        guard days < 7 else { return Town.format(when.start, "MMMd") }
-        let day = when.dayWord(now) ?? Town.format(when.start, "EEE")
-        return EventWhen.minutes(startTime).map { "\(day) \(Town.clock(minutes: $0))" } ?? day
+        EventWhen.short(date: eventDate, time: startTime, now: now)
     }
 
     /// New cards on the Town feed: each of something you follow, grouped by what it's of, the

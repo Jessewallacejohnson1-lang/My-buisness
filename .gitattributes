@@ -1,0 +1,2 @@
+# Two branches that each add a launch flag line keep both (BP app agent-guardrails 06).
+docs/debug-flags.md merge=union

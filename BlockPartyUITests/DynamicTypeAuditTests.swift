@@ -250,13 +250,13 @@ final class DynamicTypeAuditTests: XCTestCase {
     private func isFrozenByDesign(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
         guard let label = issue.element?.label else { return false }
 
-        // The tab bar. Four fixed destinations in a bar with a fixed height; a grown
+        // The tab bar. Five fixed destinations in a bar with a fixed height; a grown
         // tab bar eats the screen the content needs. Every one of these labels
         // carries a large-content viewer, so a long press still enlarges it.
         //
         // NOTE this matches by LABEL, app-wide, not by position in the bar, so any
         // other element labelled exactly one of these words is suppressed too.
-        if ["Town", "Daily", "Search", "You"].contains(label) { return true }
+        if ["Town", "Daily", "Friends", "Friends, new friend request", "Search", "You"].contains(label) { return true }
 
         // The wordmark. A logo is a mark, not text — it holds its proportions
         // against the artwork beside it at every content size.

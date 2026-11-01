@@ -42,9 +42,8 @@ final class TodayHeaderProfileModel {
 }
 
 struct FeedView: View {
-    /// The top bar's three controls. The shell owns every presentation; the feed
+    /// The top bar's controls. The shell owns every presentation; the feed
     /// only forwards the taps.
-    var onOpenFriends: () -> Void = {}
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
@@ -53,6 +52,9 @@ struct FeedView: View {
     var townFeed: TownFeed
     /// Your Event of the day, Daily's own (BP app event-card 03): the feed's top.
     var eventOfTheDay: EventOfTheDay
+
+    /// A place as Search holds it, by `places.id`: the feed's places to try (town-feed 23).
+    var places: (String) -> SearchItem?
 
     @Environment(\.scenePhase) private var scenePhase
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
@@ -72,19 +74,19 @@ struct FeedView: View {
     }
 
     init(
-        onOpenFriends: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
         onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
-        eventOfTheDay: EventOfTheDay
+        eventOfTheDay: EventOfTheDay,
+        places: @escaping (String) -> SearchItem? = { _ in nil }
     ) {
-        self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
         self.onOpenPage = onOpenPage
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
+        self.places = places
         _entrance = State(initialValue: townFeed.returnY == 0)
     }
 
@@ -147,7 +149,8 @@ struct FeedView: View {
                         // the next takes its place within the minute, and with none left it goes.
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date)
+                            let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date,
+                                                        places: places)
                             let top = items.first.flatMap { item -> String? in
                                 if case .eventOfTheDay(let event) = item { return event.id }
                                 return nil
@@ -155,7 +158,9 @@ struct FeedView: View {
                             DailyFeedColumn(items: items,
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
-                                            now: townFeed.posterClock(at: context.date))
+                                            now: townFeed.posterClock(at: context.date),
+                                            onNearEnd: { Task { await townFeed.loadMore() } },
+                                            loadingMore: townFeed.loadingMore)
                                 // The poster comes, changes and goes, and the cards make room,
                                 // rather than popping.
                                 .animation(Motion.smooth, value: top)
@@ -241,8 +246,7 @@ struct FeedView: View {
         // the bar brings its own soft edge instead (`StatusEdge`, `BarEdge`), which
         // also covers the status band when the bar is away. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
-            TodayTopBar(onOpenFriends: onOpenFriends,
-                        onOpenMap: onOpenMap,
+            TodayTopBar(onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         onOpenPage: onOpenPage,
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
@@ -313,6 +317,10 @@ struct FeedView: View {
         // Someone partway down the list never reaches the pill, so it is read out once.
         .onChange(of: offline) { _, offline in
             if offline { AccessibilityNotification.Announcement(FeedStateCopy.offline).post() }
+        }
+        // And again once the live list is in: on a first launch the jump landed on the skeleton.
+        .onChange(of: townFeedPhase) { _, phase in
+            if forcedScroll, phase == 2 { feedPosition.scrollTo(y: Self.forcedScrollY) }
         }
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
