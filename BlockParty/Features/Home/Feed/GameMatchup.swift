@@ -9,7 +9,8 @@
 //  deepened to Apple's depth, the left one's to 36% of the width and the right one's from 66%, fading to
 //  near-black from halfway down; the big score on the outside over each logo on its white disc, Live and
 //  the clock between them; for a live football game the down, distance and spot over a field bar; for
-//  volleyball its sets in chips over a faint net (ticket 09). The Town card went white on 2026-10-29 (ticket 06).
+//  volleyball its sets in chips over a faint net, for soccer the minute in a ring over a faint center circle and
+//  its scorers under the teams (ticket 09). The Town card went white on 2026-10-29 (ticket 06).
 //
 
 import SwiftUI
@@ -38,7 +39,8 @@ struct GameMatchup: View {
         static let middleGap: CGFloat = 10
         /// The loser's side once the final is in, and the trailing number while it's on.
         static let faded: Double = 0.55
-        /// Football's line and volleyball's sets 28 pt under the names, football's bar 12 pt under its line.
+        /// Football's line, volleyball's sets and soccer's scorers 28 pt under the names, football's bar 12 pt
+        /// under its line.
         static let driveTop: CGFloat = 28
         static let barTop: CGFloat = 12
     }
@@ -71,10 +73,17 @@ struct GameMatchup: View {
                         .padding(.top, Metric.driveTop)
                         .transition(.opacity)
                 }
+                if game.scorers.contains(where: { !$0.isEmpty }) {
+                    Scorers(game: game)
+                        .padding(.top, Metric.driveTop)
+                        .transition(.opacity)
+                }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: fresh ? live?.drive : nil)
             // The first set's chip fades in, even when the live score came before any set.
             .animation(reduceMotion ? nil : Motion.smooth, value: game.sets.isEmpty)
+            // A goal's scorer fades in under its team; a player's second goal cross-fades into their line.
+            .animation(reduceMotion ? nil : Motion.smooth, value: game.scorers)
         }
         // A refresh that brings the live score or the final cross-fades into it.
         .animation(Motion.smooth, value: game.final)
@@ -136,6 +145,12 @@ struct GameMatchup: View {
         VStack(spacing: Metric.middleGap) {
             if game.final != nil {
                 NightChip(text: "Final")
+            } else if let live, game.isSoccer, let minute = live.minute(at: now) {
+                // The chip keeps its place through a quiet spell, so the ring stays on the center circle.
+                NightChip(text: "Live", dot: Hue.live)
+                    .opacity(fresh ? 1 : 0)
+                    .animation(Motion.smooth, value: fresh)
+                MinuteRing(minute: minute, halftime: live.isHalftime)
             } else if let live {
                 if fresh { NightChip(text: "Live", dot: Hue.live) }
                 MomentLine(style: .onNight) { Text(live.line(at: now)).monospacedDigit() }
@@ -153,7 +168,7 @@ struct GameMatchup: View {
 
     /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
     /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
-    /// faint net sits under the wash.
+    /// faint net and soccer's center circle sit under the wash.
     static func backdrop(_ game: Game) -> some View {
         ZStack {
             LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
@@ -163,6 +178,9 @@ struct GameMatchup: View {
                            startPoint: .leading, endPoint: .trailing)
             if game.isVolleyball {
                 VolleyballNet()
+            }
+            if game.isSoccer {
+                SoccerPitch()
             }
             LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
                                    .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
@@ -394,6 +412,118 @@ private struct VolleyballNet: View {
         }
         .frame(height: Self.depth)
         .frame(maxHeight: .infinity, alignment: .top)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Soccer's minute in a ring that fills to 90 (game-card 09; Jesse, 2026-11-01: "yes to all" to the mock beside
+/// the Figma draft, `references/soccer-ring/`): the minute, HT through halftime, white on a faint track. It runs
+/// on between pushes and holds at each period's end (`Game.Live.minute(at:)`); full past 90, in overtime. A goal
+/// grows its moment over the ring, as the clock line does for the other sports.
+private struct MinuteRing: View {
+    let minute: Int
+    let halftime: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The draft's ring, measured in its SVG: 72 pt across, its line on a 30 pt radius, 3 pt wide.
+    enum Metric {
+        static let size: CGFloat = 72
+        static let diameter: CGFloat = 60
+        static let line: CGFloat = 3
+        static let track: Double = 0.16
+        static let full = 90
+    }
+
+    var body: some View {
+        let filled = CGFloat(min(minute, Metric.full)) / CGFloat(Metric.full)
+        ZStack {
+            Circle().stroke(.white.opacity(Metric.track), lineWidth: Metric.line)
+            Circle()
+                .trim(from: 0, to: filled)
+                .stroke(.white, style: StrokeStyle(lineWidth: Metric.line, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(reduceMotion ? nil : Motion.smooth, value: filled)
+        }
+        .frame(width: Metric.diameter, height: Metric.diameter)
+        .frame(width: Metric.size, height: Metric.size)
+        .overlay {
+            // The ring never changes size, so the minute rolls in place.
+            MomentLine(style: .inRing) {
+                Text(halftime ? "HT" : "\(minute)'")
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(reduceMotion ? nil : Motion.smooth, value: halftime ? 0 : minute)
+            }
+        }
+    }
+}
+
+/// Soccer's scorers under each team (game-card 09's draft): one line per player ("Hanson 23', 71'"), 13 pt at
+/// 70% white, under its team's name.
+private struct Scorers: View {
+    let game: Game
+
+    static let words: Double = 0.7
+    static let lineGap: CGFloat = 4
+
+    var body: some View {
+        let scorers = game.scorers
+        HStack(alignment: .top, spacing: 0) {
+            column(scorers[0])
+            Color.clear.frame(width: GameMatchup.Metric.middle, height: 0)
+            column(scorers[1])
+        }
+        // "Saint John's goals: Hanson 23, 71. Augsburg goals: Larkin 58".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(game.teams.indices.filter { !scorers[$0].isEmpty }.map { side in
+            "\(game.teams[side].short) goals: " + scorers[side].joined(separator: "; ").replacingOccurrences(of: "'", with: "")
+        }.joined(separator: ". "))
+    }
+
+    /// A line keeps its place when it changes, so a player's second goal cross-fades into it.
+    private func column(_ lines: [String]) -> some View {
+        VStack(spacing: Self.lineGap) {
+            ForEach(lines.indices, id: \.self) { line in
+                Text(lines[line]).transition(.opacity)
+            }
+        }
+        .font(.sans(13))
+        .foregroundStyle(.white.opacity(Self.words))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Soccer's faint center circle and halfway line behind the score (game-card 09's draft): white at 9%, which the
+/// wash darkens with everything else, and the center spot.
+private struct SoccerPitch: View {
+    static let line: Double = 0.09
+    static let width: CGFloat = 2
+    static let radius: CGFloat = 78
+    static let spot: CGFloat = 4
+    static let spotFill: Double = 0.12
+    /// How far down the halfway line runs, as the net does.
+    static let depth: CGFloat = 430
+    /// The circle's center below the safe area's top: 18 pt above the minute ring's center, as in the draft (the
+    /// matchup starts 57.5 pt down, the ring's center 74 pt into it).
+    static let center: CGFloat = 113.5
+
+    var body: some View {
+        GeometryReader { proxy in
+            let top = proxy.safeAreaInsets.top
+            Canvas { context, size in
+                let mid = CGPoint(x: size.width / 2, y: top + Self.center)
+                var lines = Path()
+                lines.move(to: CGPoint(x: mid.x, y: 0))
+                lines.addLine(to: CGPoint(x: mid.x, y: Self.depth))
+                lines.addEllipse(in: CGRect(x: mid.x - Self.radius, y: mid.y - Self.radius, width: 2 * Self.radius, height: 2 * Self.radius))
+                context.stroke(lines, with: .color(.white.opacity(Self.line)), lineWidth: Self.width)
+                context.fill(Path(ellipseIn: CGRect(x: mid.x - Self.spot, y: mid.y - Self.spot, width: 2 * Self.spot, height: 2 * Self.spot)),
+                             with: .color(.white.opacity(Self.spotFill)))
+            }
+        }
         .accessibilityHidden(true)
     }
 }

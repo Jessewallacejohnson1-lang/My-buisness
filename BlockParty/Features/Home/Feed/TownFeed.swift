@@ -454,12 +454,13 @@ final class TownFeed {
     /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
     /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
     /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
-    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it (game-card 09).
+    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
+    /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final (game-card 09).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
-        let volleyball = LaunchFlags.has(.townVolleyball)
-        let id = volleyball ? "v1" : "g1"
+        let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
+        let id = volleyball ? "v1" : soccer ? "s1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
@@ -482,7 +483,17 @@ final class TownFeed {
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
             (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),
         ]
-        let steps = volleyball ? sets : football
+        // The minute as SIDEARM pushes it: the clock in seconds, stopped at 45:00 through halftime.
+        let halves: [(String, String?)] = [
+            (#"[0,0],"period":"1st half","clock":"38'","clock_s":2230"#, nil),
+            (#"[1,0],"period":"1st half","clock":"41'","clock_s":2410"#, #"{"id":"1","text":"Goal by SJU Hanson,Ben, top left","period":"1st half","clock":"41'","side":0,"score":[1,0]}"#),
+            (#"[1,0],"period":"1st half","clock":"46'","clock_s":2700"#, nil),
+            (#"[1,0],"period":"2nd half","clock":"46'","clock_s":2700"#, nil),
+            (#"[1,1],"period":"2nd half","clock":"58'","clock_s":3430"#, #"{"id":"2","text":"Goal by AUG Larkin,Sam","period":"2nd half","clock":"58'","side":1,"score":[1,1]}"#),
+            (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Goal by SJU Hanson,Ben, low right","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
+            (#"[2,1],"period":"2nd half","clock":"90'","clock_s":5350"#, nil),
+        ]
+        let steps = volleyball ? sets : soccer ? halves : football
         let live = { (score: String, complete: Bool) in
             try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
                 + ISO8601DateFormatter().string(from: .now) + #""}"#).utf8))
@@ -498,7 +509,7 @@ final class TownFeed {
             if volleyball {
                 self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
             } else {
-                self?.score(id, final: [21, 10], live: nil)
+                self?.score(id, final: soccer ? [2, 1] : [21, 10], live: nil)
             }
         }
     }
