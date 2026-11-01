@@ -561,6 +561,104 @@ test('a host you\'ve been into counts once however much you tapped, 90 days back
   assert.equal(await tapped(), 3, 'a second Event of its host adds nothing');
 });
 
+// A game's host is its team (town-feed 39): games are made by `game` below, their teams by `teams`.
+const [SJU, ROCORI] = ['SJU Athletics', 'ROCORI High School'];
+async function teams(...rows) {
+  await db.exec('reset role');
+  for (const [id, short] of rows)
+    await db.query(`insert into public.teams (id, name, short_name) values ($1, $2, $2)`, [id, short]);
+}
+async function byTitle(at = '2026-10-08 12:00') {
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  return Object.fromEntries((await feed(at)).map((r) => [r.title, r]));
+}
+
+test("a team's games on two days lift its next game in that sport and name it; not its school's other sports", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel'],
+              ['st-olaf', 'St. Olaf'], ['concordia', 'Concordia']);
+  const a = await game('SJU Soccer vs Augsburg', '2026-10-01', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const b = await game('Bethel vs SJU Soccer', '2026-10-04', 'Soccer', ['bethel', 'saint-johns'], { source_name: SJU });
+  await game('SJU Soccer vs St. Olaf', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await game('SJU Football vs Concordia', '2026-10-10', 'Football', ['saint-johns', 'concordia'], { source_name: SJU });
+  await game('Augsburg Soccer vs Bethel', '2026-10-10', 'Soccer', ['augsburg', 'bethel'], { source_name: 'Augsburg Athletics' });
+  await tap('event_likes', a, YOU, '2026-10-01 18:00');
+  await tap('event_saves', b, YOU, '2026-10-04 18:00');
+  const rows = await byTitle();
+  const olaf = rows['SJU Soccer vs St. Olaf'];
+  assert.deepEqual([olaf.reason, olaf.reason_name, olaf.score.tapped], ['tapped', "Saint John's Soccer", 3]);
+  assert.equal(rows['SJU Football vs Concordia'].score.tapped, 0, "the school's other sport doesn't rise");
+  assert.equal(rows['Augsburg Soccer vs Bethel'].score.tapped, 0, 'Augsburg and Bethel were in one tapped game each');
+});
+
+test('one tapped game lifts nothing, and two rows of one day are one game day', async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['st-olaf', 'St. Olaf']);
+  const varsity = await game('SJU Soccer vs Augsburg', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const jv = await game('SJU Soccer vs Augsburg (JV)', '2026-10-04', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  await game('SJU Soccer vs St. Olaf', '2026-10-10', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await tap('event_likes', varsity, YOU, '2026-10-04 18:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'one game');
+  await tap('event_likes', jv, YOU, '2026-10-04 18:00');
+  assert.equal((await byTitle())['SJU Soccer vs St. Olaf'].score.tapped, 0, 'varsity and JV the same day');
+});
+
+test("a school's games and its other Events stop lifting each other", async () => {
+  await reset();
+  await teams(['rocori', 'ROCORI'], ['st-peter', 'St. Peter'], ['albany', 'Albany'], ['sartell', 'Sartell']);
+  const g1 = await game('ROCORI Football vs St. Peter', '2026-10-02', 'Football', ['rocori', 'st-peter'], { source_name: ROCORI });
+  const g2 = await game('Albany vs ROCORI Football', '2026-10-05', 'Football', ['albany', 'rocori'], { source_name: ROCORI });
+  const concert = await add('Band concert', '2026-10-03', { start_time: '7 PM', source_name: ROCORI });
+  await add('Fall play', '2026-10-09', { start_time: '7 PM', source_name: ROCORI });
+  await game('ROCORI Football vs Sartell', '2026-10-09', 'Football', ['rocori', 'sartell'], { source_name: ROCORI });
+  await game('ROCORI Volleyball vs Sartell', '2026-10-10', 'Volleyball', ['rocori', 'sartell'], { source_name: ROCORI });
+  await tap('event_rsvps', g1, YOU, '2026-10-02 12:00');
+  await tap('event_likes', g2, YOU, '2026-10-05 21:00');
+  let rows = await byTitle();
+  assert.deepEqual([rows['ROCORI Football vs Sartell'].score.tapped, rows['ROCORI Football vs Sartell'].reason_name],
+                   [3, 'ROCORI Football']);
+  assert.equal(rows['Fall play'].score.tapped, 0, "the school's games don't lift its play");
+  await tap('event_likes', concert, YOU, '2026-10-03 21:00');
+  rows = await byTitle();
+  assert.deepEqual([rows['Fall play'].score.tapped, rows['Fall play'].reason_name], [3, ROCORI]);
+  assert.equal(rows['ROCORI Volleyball vs Sartell'].score.tapped, 0, "the school's concert doesn't lift its games");
+});
+
+test("a team's lift is spaced by school, sits under your own Going, and Not interested on the school beats it", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel'],
+              ['st-olaf', 'St. Olaf'], ['gustavus', 'Gustavus']);
+  const a = await game('SJU Soccer vs Augsburg', '2026-10-01', 'Soccer', ['saint-johns', 'augsburg'], { source_name: SJU });
+  const b = await game('SJU Soccer vs Bethel', '2026-10-04', 'Soccer', ['saint-johns', 'bethel'], { source_name: SJU });
+  const olaf = await game('SJU Soccer vs St. Olaf', '2026-10-09', 'Soccer', ['saint-johns', 'st-olaf'], { source_name: SJU });
+  await game('SJU Soccer vs Gustavus', '2026-10-11', 'Soccer', ['saint-johns', 'gustavus'], { source_name: SJU });
+  await tap('event_likes', a, YOU, '2026-10-01 18:00');
+  await tap('event_likes', b, YOU, '2026-10-04 18:00');
+  let rows = await byTitle();
+  assert.deepEqual(['SJU Soccer vs St. Olaf', 'SJU Soccer vs Gustavus'].map((t) => [rows[t].score.tapped, rows[t].score.spacing]),
+                   [[3, 1], [3, 0.5]], 'the second from the school counts half');
+  await tap('event_rsvps', olaf, YOU, '2026-10-08 09:00');
+  rows = await byTitle();
+  assert.deepEqual([rows['SJU Soccer vs St. Olaf'].score.tapped, rows['SJU Soccer vs St. Olaf'].score.acted], [3, 0.4],
+                   'its own Going is a third day, and the two before still lift it');
+  await notInterested(b, YOU, '2026-10-08 10:00');
+  rows = await byTitle();
+  const gustavus = rows['SJU Soccer vs Gustavus'];
+  assert.deepEqual([gustavus.score.tapped, gustavus.score.notInterested], [3, 0.3]);
+});
+
+test("a sport spelled two ways is one team's, and a team with no row is named by its calendar", async () => {
+  await reset();
+  const a = await game('ROCORI Girls Swim vs Sartell', '2026-10-01', 'Girls Swim', ['rocori', 'sartell'], { source_name: ROCORI });
+  const b = await game('Sartell vs ROCORI', '2026-10-06', 'Girls Swimming and Diving', ['sartell', 'rocori'], { source_name: 'Sartell High School' });
+  await game('ROCORI Girls Swim vs Tech', '2026-10-09', 'Girls Swim', ['rocori', 'tech'], { source_name: ROCORI });
+  await tap('event_likes', a, YOU, '2026-10-01 20:00');
+  await tap('event_likes', b, YOU, '2026-10-06 20:00');
+  const tech = (await byTitle())['ROCORI Girls Swim vs Tech'];
+  assert.deepEqual([tech.score.tapped, tech.reason, tech.reason_name], [3, 'tapped', ROCORI]);
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -937,6 +1035,15 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     update public.club_events e set club_id = c.id
     from (select id, row_number() over (order by id) n from public.clubs where name like 'Group %') c
     where split_part(e.title, ' ', 2)::int % 7 = 0 and split_part(e.title, ' ', 2)::int / 7 % 3 + 1 = c.n;
+    -- And games (town-feed 39): a third of the Events are four pairs of teams' soccer, and the reader
+    -- hearted 12 of them.
+    insert into public.teams (id, name, short_name) select 'team-' || g, 'Team ' || g, 'Team ' || g from generate_series(1, 8) g;
+    update public.club_events set sport = 'Soccer', team_ids = array['team-' || (split_part(title, ' ', 2)::int % 4 + 1),
+                                                                     'team-' || (split_part(title, ' ', 2)::int % 4 + 5)]
+    where split_part(title, ' ', 2)::int % 3 = 1;
+    insert into public.event_likes (event_id, user_id)
+    select id, '00000000-0000-0000-0001-000000000042' from public.club_events where team_ids is not null order by title limit 12
+    on conflict do nothing;
     analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
