@@ -22,6 +22,27 @@ await db.exec(`
   create role anon; create role authenticated;
   create schema auth; create schema private;
   grant usage on schema auth, private to anon, authenticated;
+  -- Stand-ins for pgsql-http, Vault and pg_cron, for the morning read of a group's calendar. Google's answer is
+  -- set by each story.
+  create schema extensions; create schema vault; create schema cron;
+  create type extensions.http_header as (field varchar, value varchar);
+  create type extensions.http_request as (method text, uri varchar, headers extensions.http_header[],
+    content_type varchar, content varchar);
+  create type extensions.http_response as (status int, content_type varchar, headers extensions.http_header[],
+    content varchar);
+  create function extensions.http_header(varchar, varchar) returns extensions.http_header language sql
+    as $$ select ($1, $2)::extensions.http_header $$;
+  create function extensions.http_set_curlopt(varchar, varchar) returns boolean language sql as $$ select true $$;
+  create table calls (uri text, headers text);
+  create table answer (status int, content text);
+  create function extensions.http(r extensions.http_request) returns extensions.http_response language plpgsql as $$
+  begin
+    insert into public.calls values (r.uri, r.headers::text);
+    return (select (a.status, 'application/json', null, a.content)::extensions.http_response from public.answer a);
+  end $$;
+  create table vault.decrypted_secrets (name text, decrypted_secret text);
+  insert into vault.decrypted_secrets values ('google_calendar_key', 'test-key');
+  create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create function public.is_admin() returns boolean language sql stable as $$ select false $$;
@@ -166,4 +187,69 @@ test('a mistyped rule costs only itself, never the shelf', async () => {
     'days not a list and weeks not numbers give nothing; a month not a number is skipped; a time not text is no time');
   await db.query("update public.clubs set meets = '[{\"days\": \"tue\"}]' where name = 'Laundry Love'");
   assert.equal((await groups(null)).length, 14, 'one bad rule, every group still reads');
+});
+
+// A group's calendar (*_group_calendars.sql): read each morning, it stands in for the rule.
+const CAL = 'abc123@group.calendar.google.com';
+const google = async (status, items) => {
+  await db.exec('delete from public.answer');
+  await db.query('insert into public.answer values ($1, $2)', [status, JSON.stringify({ summary: 'St. Cloud River Runners', items })]);
+};
+const runners = async () => (await db.query(
+  "select calendar, calendar_read_at::text as read_at from public.clubs where name = 'Runners'")).rows[0];
+
+test("calendar: the morning read keeps each run, with its place, through Google's API and the key", async () => {
+  await db.query(`insert into public.clubs (name, status, meets, calendar_id)
+    values ('Runners', 'approved', '[{"what": "Sunday run", "days": ["sun"], "time": "07:30"}]', $1)`, [CAL]);
+  await google(200, [
+    { summary: 'Breakfast Run @ TBD', start: { dateTime: '2026-11-07T06:00:00-06:00' } },
+    { summary: 'Coffee Run', location: 'The Local Blend, 19 W Minnesota St, St Joseph, MN 56374, USA',
+      start: { dateTime: '2026-11-08T07:30:00-06:00' } },
+    { summary: 'Track Workout', location: 'Check Facebook and Strava groups weekly', start: { dateTime: '2026-11-12T17:30:00-06:00' } },
+    { summary: 'Breakfast Run @ Kitchenette', start: { dateTime: '2026-11-14T06:00:00-06:00' } },
+    { summary: 'Coffee Run', status: 'cancelled', start: { dateTime: '2026-11-15T07:30:00-06:00' } },
+    { summary: 'SCRR Banquet and Awards Ceremony', location: 'TBA', start: { date: '2027-01-23' } }]);
+  await db.exec("delete from public.calls; select private.read_group_calendars('2026-11-02 10:30+00')");
+  const { calendar, read_at } = await runners();
+  assert.deepEqual(calendar, [
+    { what: 'Breakfast Run', day: '2026-11-07', time: '06:00', where: null },
+    { what: 'Coffee Run', day: '2026-11-08', time: '07:30', where: 'The Local Blend' },
+    { what: 'Track Workout', day: '2026-11-12', time: '17:30', where: null },
+    { what: 'Breakfast Run', day: '2026-11-14', time: '06:00', where: 'Kitchenette' },
+    { what: 'SCRR Banquet and Awards Ceremony', day: '2027-01-23', time: null, where: null }],
+    'a called-off run left out; TBD, TBA and "Check Facebook" name no place');
+  assert.equal(read_at, '2026-11-02 10:30:00+00');
+  const [call] = (await db.query('select uri, headers from public.calls')).rows;
+  assert.equal(call.uri, 'https://www.googleapis.com/calendar/v3/calendars/abc123%40group.calendar.google.com/events'
+    + '?singleEvents=true&orderBy=startTime&maxResults=250&timeZone=America%2FChicago'
+    + '&timeMin=2026-11-02T10:30:00Z&timeMax=2027-03-02T10:30:00Z');
+  assert.equal(call.headers, '{"(X-goog-api-key,test-key)"}');
+});
+
+test('calendar: a failed read keeps the last good copy', async () => {
+  const before = await runners();
+  await google(403, []);
+  await db.exec("select private.read_group_calendars('2026-11-03 10:30+00')");
+  assert.deepEqual(await runners(), before);
+});
+
+test('calendar: Coming up is its next 3, or every one in the coming week; an empty calendar shows none', async () => {
+  // Days from today in Chicago, as get_groups counts them.
+  await db.exec(`update public.clubs set calendar = (
+      select jsonb_agg(jsonb_build_object('what', 'Run', 'day', to_char((now() at time zone 'America/Chicago')::date + n, 'YYYY-MM-DD'),
+                                          'time', '07:30', 'where', null) order by n)
+      from unnest(array[-1, 1, 2, 3, 5, 6, 9, 12]) n)
+    where name = 'Runners';
+    insert into public.clubs (name, status, calendar_id, calendar) values
+      ('Quiet club', 'approved', 'q@group.calendar.google.com', (
+        select jsonb_agg(jsonb_build_object('what', 'Meeting', 'day', to_char((now() at time zone 'America/Chicago')::date + n, 'YYYY-MM-DD'),
+                                            'time', null, 'where', null) order by n)
+        from unnest(array[10, 20, 30, 40]) n)),
+      ('Empty club', 'approved', 'e@group.calendar.google.com', '[]');`);
+  const rows = Object.fromEntries((await groups(null)).map((g) => [g.name, g]));
+  const ahead = (g) => rows[g].meetings.map((m) => Math.round((Date.parse(m.day) - Date.parse(rows['Quiet club'].meetings[0].day)) / 864e5) + 10);
+  assert.deepEqual(ahead('Runners'), [1, 2, 3, 5, 6], 'five this week: all five, and not yesterday\'s');
+  assert.deepEqual(ahead('Quiet club'), [10, 20, 30], 'one a week or less: the next 3');
+  assert.deepEqual(rows['Empty club'].meetings, [], 'read, and nothing on it: no rule stands in');
+  await db.exec("delete from public.clubs where name in ('Runners', 'Quiet club', 'Empty club')");
 });

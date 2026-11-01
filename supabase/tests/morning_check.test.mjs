@@ -47,6 +47,7 @@ await db.exec(`
     start_time text, team_ids text[], final_score int[], live_score jsonb, cancelled_at timestamptz,
     status text default 'approved', source_name text, sport text, submitted_by uuid,
     created_at timestamptz default now());
+  create table public.clubs (name text, status text default 'approved', calendar_id text, calendar_read_at timestamptz);
 `);
 await db.exec(read(readdirSync(migrations).find((f) => f.endsWith('_morning_reports.sql'))));
 await db.exec(fn('private.sidearm_file'));
@@ -167,6 +168,19 @@ test('a game listened to with no score saved is named, final in or not; a scored
   const listened = await db.query(`select e.title from private.live_games('2026-11-01 19:30+00') g
     join public.club_events e on e.id = g.id`);
   assert.deepEqual(listened.rows.map((r) => r.title), ['SJU Football vs Gustavus Adolphus']);
+});
+
+test("a group's calendar not read in over a day is named; one read this morning is not", async () => {
+  await story();
+  await db.exec(`insert into public.clubs (name, calendar_id, calendar_read_at) values
+    ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-01 10:30+00'),
+    ('Quiet club', 'q@group.calendar.google.com', '2026-11-02 10:30+00'),
+    ('New club', 'n@group.calendar.google.com', null),
+    ('Lions', null, null)`);
+  assert.deepEqual(await problems(), [
+    "The New club calendar hasn't been read since it was added.",
+    "The St. Cloud River Runners calendar hasn't been read since Nov 1."]);
+  await db.exec('delete from public.clubs');
 });
 
 test('only 8:00 in Chicago reads, summer or winter time', async () => {
