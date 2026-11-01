@@ -53,9 +53,9 @@ network secret for api.apify.com adds it on the way out, so the token never ente
 APIFY_TOKEN in the environment is used when set; on a Mac with neither, the calls go through
 Composio. Only Apify's schedules start paid runs; each task has its own spending cap.
 
-  python3 sources/scripts/social.py setup
-  python3 sources/scripts/social.py prepare busy|weekly [--today YYYY-MM-DD]
-  python3 sources/scripts/social.py done
+  python3 sources/scripts/social.py setup [--town T]
+  python3 sources/scripts/social.py prepare busy|weekly [--today YYYY-MM-DD] [--town T]
+  python3 sources/scripts/social.py done [--town T]
   python3 sources/scripts/social.py spend
   python3 sources/scripts/social.py --selftest
 """
@@ -70,9 +70,10 @@ from registry import find_root, load
 from read_events import LOCAL
 from run import deadline, late, only_one
 from batch import layout
+from towns import TOWNS, DEFAULT, lookup
 import composio
 
-TOWN = "st-joseph-mn"
+TOWN = DEFAULT  # the town whose page list is read: --town sets it
 API = "https://api.apify.com/v2"
 POSTS = 20  # most posts read per page per check; a busy page posts a few a day at most
 ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
@@ -476,6 +477,7 @@ def post_pages(kind, rows, by_url):
     for r in rows:
         src = src_of(r)
         page = page_of(src, by_url)
+        who = page["name"] if page else f"A {TOWNS[TOWN]['display']} place"
         if r.get("error"):
             # "no_results" is a page's events tab listing none: each of Oct 29's 20 read fine as posts.
             if r["error"] not in ("no_items", "no_results"):
@@ -484,7 +486,7 @@ def post_pages(kind, rows, by_url):
         if kind == "events":
             text = r.get("description") or ""
             where = r.get("location", {}).get("name") if isinstance(r.get("location"), dict) else r.get("location")
-            body = (f"{page['name'] if page else 'A St. Joseph place'} lists this event on its Facebook page.\n"
+            body = (f"{who} lists this event on its Facebook page.\n"
                     f"Event: {r.get('name') or r.get('title') or ''}\nWhen: {r.get('dateTimeSentence') or r.get('utcStartDate') or r.get('startDate') or ''}\n"
                     f"Where: {where or ''}\n\n{text}")
             pid, url, pics = r.get("id") or r.get("eventId") or r.get("url"), r.get("url"), []
@@ -494,7 +496,7 @@ def post_pages(kind, rows, by_url):
             if not text.strip() and not pics:
                 continue
             stamp = r.get("time") or r.get("timestamp")
-            body = (f"{page['name'] if page else 'A St. Joseph place'} posted this on {kind.title()} "
+            body = (f"{who} posted this on {kind.title()} "
                     f"on {when_text(stamp)}:\n\n{text.strip() or '(no caption)'}")
             pid, url = r.get("postId") or r.get("id") or r.get("shortCode"), r.get("url")
         if not page or not pid:
@@ -585,7 +587,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
     failed = failed + [f"picture not downloaded: {f}" for f in pics["failed"]]
     cost, runs = part["cost"], part["runs"]
     until = part["until"] and datetime.fromisoformat(part["until"])
-    for i, text in enumerate(layout(posts, today), 1):
+    for i, text in enumerate(layout(posts, today, TOWNS[TOWN]["display"]), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
     (out / "feeds.jsonl").write_text("")
@@ -923,10 +925,14 @@ def main():
     ap.add_argument("step", nargs="?", choices=["setup", "prepare", "done", "spend"])
     ap.add_argument("run", nargs="?", choices=["busy", "weekly"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
+    ap.add_argument("--town", default=DEFAULT, help="the town whose page list (sources/social/<town>.json) is read")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
+    global TOWN
+    lookup(args.town)
+    TOWN = args.town
     if args.step == "spend":
         return print(spend())
     if args.step == "setup":
