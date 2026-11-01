@@ -999,14 +999,17 @@ test("each event carries its place's picture: a photo before a logo, else the pl
 
 test("an event card shows its place's photo of what the event is, in season, taking turns (event-photos 07)", async () => {
   await reset();
+  // Fixed photo ids here and fixed Event ids below: an Event's turn is md5(Event id || photo id),
+  // and with random ids all 8 fall Events picked one photo about 1 run in 128 (CI run 41114834248).
   await db.exec(`delete from public.place_photos; delete from public.places;
-    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description) values
-      ('arena', 'https://x/cover.webp', 'https://arena.org/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
-      ('arena', 'https://x/hockey-a.webp', 'https://arena.org/g', 1, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Hockey game in play'),
-      ('arena', 'https://x/hockey-b.webp', 'https://arena.org/g', 2, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Fans cheering a goal'),
-      ('arena', 'https://x/hockey-snow.webp', 'https://arena.org/g', 3, 'scene', 'live', 1600, 1067, '{hockey}', '{winter}', 'Pond hockey in the snow'),
-      ('arena', 'https://x/hoops-fall.webp', 'https://arena.org/g', 4, 'scene', 'live', 1600, 1067, '{basketball}', '{fall}', 'Game in the fall'),
-      ('arena', 'https://x/hockey-gone.webp', 'https://arena.org/g', 0, 'scene', 'retired', 1600, 1067, '{hockey}', '{}', 'Taken down');`);
+    insert into public.place_photos (id, entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description)
+    overriding system value values
+      (701, 'arena', 'https://x/cover.webp', 'https://arena.org/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
+      (702, 'arena', 'https://x/hockey-a.webp', 'https://arena.org/g', 1, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Hockey game in play'),
+      (703, 'arena', 'https://x/hockey-b.webp', 'https://arena.org/g', 2, 'scene', 'live', 1600, 1067, '{hockey}', '{}', 'Fans cheering a goal'),
+      (704, 'arena', 'https://x/hockey-snow.webp', 'https://arena.org/g', 3, 'scene', 'live', 1600, 1067, '{hockey}', '{winter}', 'Pond hockey in the snow'),
+      (705, 'arena', 'https://x/hoops-fall.webp', 'https://arena.org/g', 4, 'scene', 'live', 1600, 1067, '{basketball}', '{fall}', 'Game in the fall'),
+      (706, 'arena', 'https://x/hockey-gone.webp', 'https://arena.org/g', 0, 'scene', 'retired', 1600, 1067, '{hockey}', '{}', 'Taken down');`);
   const subject = async (t, s, c) => (await db.query('select private.event_subject($1, $2, $3) as s', [t, s, c])).rows[0].s;
   assert.equal(await subject('Sauna, Yoga, Ice Bath, Cider', null, 'health'), 'sauna', 'the same list as scenes.py');
   assert.equal(await subject('Cathedral vs Foley · JV', 'Boys Basketball', 'watch_sports'), 'basketball');
@@ -1018,9 +1021,10 @@ test("an event card shows its place's photo of what the event is, in season, tak
   const season = async (d) => (await db.query('select private.season_of($1::date) as s', [d])).rows[0].s;
   assert.deepEqual([await season('2026-11-30'), await season('2026-12-01'), await season('2027-02-28')], ['fall', 'winter', 'winter']);
 
-  const add = async (title, date, sport = null) => (await db.query(
-    `insert into public.club_events (title, event_date, sport, category, source_name, place_entry_id)
-     values ($1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`, [title, date, sport])).rows[0].id;
+  const add = async (title, date, sport = null, id = null) => (await db.query(
+    `insert into public.club_events (id, title, event_date, sport, category, source_name, place_entry_id)
+     values (coalesce($4::uuid, gen_random_uuid()), $1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`,
+    [title, date, sport, id])).rows[0].id;
   const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
   const winter = await pic(await add('Hockey vs Foley', '2026-12-10', 'Boys Hockey'));
   assert.equal(winter.url, 'https://x/hockey-snow.webp', "a photo made for the event's season before one for any");
@@ -1028,8 +1032,8 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.equal(winter.site, 'https://arena.org/g', 'credited to its page like a place photo');
   assert.deepEqual(winter.more.map((m) => m.url), ['https://x/cover.webp'], "the Event page's more: the place's photos, no scenes");
   const fall = [];
-  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09'])
-    fall.push((await pic(await add(`Hockey vs ${d}`, d))).url);
+  for (const [i, d] of ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09'].entries())
+    fall.push((await pic(await add(`Hockey vs ${d}`, d, null, `00000000-0000-0000-0007-00000000000${i + 1}`))).url);
   assert.deepEqual([...new Set(fall)].sort(), ['https://x/hockey-a.webp', 'https://x/hockey-b.webp'],
                    'out of season the any-season photos take turns, never the snow one nor a retired one');
   assert.equal((await pic(await add('Hoops vs Albany', '2026-12-12', 'Girls Basketball'))).url, 'https://x/cover.webp',

@@ -59,7 +59,8 @@ A change is not done until all four are true. Say which ones you ran.
    0-warning bar; nothing enforces it but you.
 2. **Tests pass** `[ci]` — `BlockPartyTests`, on a **non-primary** simulator `[hook]`. A new
    test file joins its target by itself; confirm by hand that the **executed count rose**.
-   Commands: `docs/rules/build.md`.
+   Commands: `docs/rules/build.md`. A test that goes red with no change touching it goes in
+   `BlockPartyUITests/FLAKY.md` (unit and database tests too); `ci_wait.sh` reads it. `[prose]`
 3. **You screenshotted it** `[prose]` — launch on the sim with the right debug flag,
    capture, and show Jesse the actual screen. For a visual change, count pixels in the
    region you touched.
