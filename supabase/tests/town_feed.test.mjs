@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -562,7 +563,7 @@ test('a host you\'ve been into counts once however much you tapped, 90 days back
 
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
-const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const day = townDay;
 const nowTown = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Chicago' }).slice(0, 16);
 const [ANNA, BEN, CAL, DEE] = ['c1', 'c2', 'c3', 'c4'].map((x) => `00000000-0000-0000-0000-0000000000${x}`);
 const PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${ANNA}/me.jpg`;

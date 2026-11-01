@@ -12,6 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -82,9 +83,7 @@ async function asJob(what, sql, params = []) {
   }
 }
 
-// Days on the Town's calendar, as the functions count them: a UTC date runs a day ahead from 7 PM
-// Central (00:00 UTC), when a day of 0 or -1 would land on the wrong side of today.
-const day = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const day = townDay;
 const uid = 'mshsl:153:rocori|sartell:1';
 const game = (date, more = {}) => ({ status: 'approved', title: 'Sartell Volleyball vs ROCORI', event_date: date,
   start_time: '7 PM', end_at: null, all_day: false, location: 'ROCORI High School, Cold Spring', description: null,
