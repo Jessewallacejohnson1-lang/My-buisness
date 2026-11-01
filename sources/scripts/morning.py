@@ -246,6 +246,7 @@ def prepare(today, out, minutes=PART_MINUTES, town=DEFAULT):
                "first_seen": sum(1 for c in report["changed"] if c.get("first_seen")),
                "to_read": len(pages), "batches": len(list((out / "batches").iterdir())),
                "aside": aside_lines(report, today),  # a failing page is named only when set aside or back (smooth-mornings 04)
+               "unrecorded": report["unrecorded"],
                "readers": readers, "interests": write_judged.interest_ids()}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
     say_prepared(summary, out)
@@ -258,7 +259,16 @@ def say_prepared(s, out):
         print(ln)
     for a in s["aside"]:
         print(f"[morning] {a}")
+    for ln in not_recorded_lines(s):
+        print(ln)
     print(f"[morning] interests: {', '.join(s['interests'])}")
+
+
+def not_recorded_lines(prep):
+    """A page whose check the database refused (run.fetch_watched carries on past it), worded as a
+    failed step so the 8 AM check (private.morning_problems) emails it."""
+    return [f"[morning] recording {u['entry_id']} {u['url']} failed: {' '.join(u['error'].split())[:300]}"
+            for u in prep.get("unrecorded", [])]
 
 
 def read_items(path):
@@ -293,6 +303,7 @@ def summary_lines(prep, result, written):
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
     lines += [f"- Source failed: {f}" for f in prep.get("failed", [])]
     lines += [f"- {a}" for a in prep.get("aside", [])]
+    lines += not_recorded_lines(prep)
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
     lines += [f"- Still over {write_judged.TITLE_MAX} characters: {g['row']['title']}" for g in result["events"]
@@ -918,6 +929,15 @@ def selftest():
                    "the summary names what its schedules called off or brought back, and the writer's notes"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    refused = {"entry_id": "b", "url": "https://b/",
+               "error": 'Supabase PATCH sources?entry_id=eq.b failed 500: {"message":"canceling statement\n due to statement timeout"}'}
+    report_ = "\n".join(summary_lines({**prep, "unrecorded": [refused]}, result, None))
+    # The 8 AM check's own pattern (private.morning_problems), one line per refused row.
+    alerts = re.findall(r"^\[morning\] (.+ failed: .*)$", report_, re.M)
+    checks.append((alerts == ['recording b https://b/ failed: Supabase PATCH sources?entry_id=eq.b failed 500: '
+                              '{"message":"canceling statement due to statement timeout"}']
+                   and not re.findall(r"^\[morning\]", "\n".join(lines), re.M),
+                   "a page the database refused to record is one line in the saved report, and the 8 AM check reads it"))
     run_ = {"event_date": "2026-10-26", "end_at": "2026-10-31T00:00:00-05:00", "all_day": True, "start_time": None,
             "title": "Bootique Week", "location": "White Peony Boutique", "source_name": "White Peony Boutique"}
     night = {"event_date": "2026-10-24", "end_at": "2026-10-25T01:00:00-05:00", "all_day": False, "start_time": "9 PM",
@@ -1680,7 +1700,7 @@ def one_town():
                             "snapshot": f"{e['id']}.txt"})
         fetched.append([e["id"] for e in picked])
         return {"results": [], "left": 0, "fetched": len(changed), "changed": changed, "run_dir": str(run_dir),
-                "failed": [], "uncounted": False, "set_aside": [], "back": [], "still": []}
+                "failed": [], "uncounted": False, "set_aside": [], "back": [], "still": [], "unrecorded": []}
 
     def fake_popen(cmd, **kw):
         readers.append(cmd)
