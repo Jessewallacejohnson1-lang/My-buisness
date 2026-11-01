@@ -10,8 +10,8 @@ that fails is a line in the answer, and you carry on with the rest.
 ## Steps
 
 **Ready.** Run `python3 sources/scripts/ready.py photos`, and install nothing
-   any other way. It installs the libraries the scripts need and checks the keys by name; their
-   values stay out of every command's output and your answer. When its line says `not ready`,
+   any other way. It installs the libraries the scripts need and checks the database takes the
+   routine's key; their values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so.
 
 **Check.** Run `python3 sources/scripts/place_photos.py check` in the foreground with a 600000 ms

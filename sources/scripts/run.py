@@ -11,7 +11,7 @@ Usage:
   python3 run.py --town st-joseph-mn  # one town
   python3 run.py --tier watched       # only watched entries (the morning job)
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
-  python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+  python3 run.py --write              # prod: needs SUPABASE_URL and a key (db.py)
   python3 run.py --selftest           # when a page goes through Firecrawl, with fake sites
 """
 import argparse, hashlib, html, json, os, re, shutil, socket, sys, threading, time, zlib
@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).parent))
 from registry import find_root, load, validate, is_todo
-from db import Db, DbError
+from db import Db, DbError, KEYS
 import composio
 
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
@@ -555,7 +555,7 @@ class Supabase(Db):
     """The `sources` table's runtime state, over the shared client (db.py)."""
 
     def __init__(self):
-        super().__init__("--write needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env. Never put the key in the repo.")
+        super().__init__(f"--write needs SUPABASE_URL and a key in env: {KEYS}")
 
     def upsert_registry(self, rows):
         self.rest("POST", "sources?on_conflict=entry_id,url", rows,

@@ -1,6 +1,6 @@
 #!/bin/sh
 # The daily routine: validate, fetch every `method: fetch` source, hash, snapshot what
-# changed, report. Dry-run by default; --write needs SUPABASE_URL and the service key
+# changed, report. Dry-run by default; --write needs SUPABASE_URL and a key (db.py)
 # in the environment (ADR-009).
 #
 # run.py finds the repo root by walking up from the working directory rather than

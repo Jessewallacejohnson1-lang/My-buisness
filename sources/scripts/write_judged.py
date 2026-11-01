@@ -8,7 +8,7 @@ The part of the morning job that needs no model: saved pages in, Events and News
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
 becomes. How the writes land lives in the database, in public.apply_judged (the newest
 supabase/migrations/*.sql that makes it): `--apply` calls it with this morning's writes over the
-service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment), `--sql FILE`
+routine's key (SUPABASE_URL and a key in the environment: db.py), `--sql FILE`
 writes the same call as SQL to run by hand. Besides its counts, it answers which items it added
 (`added`: their places in the Events and News sent; every other Event was merged into one already
 listed, every other News a repeat; BP app smooth-mornings 05), and morning.py save counts from that.

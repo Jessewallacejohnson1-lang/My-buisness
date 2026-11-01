@@ -13,7 +13,7 @@ yet stays with town-discovery.
 The same results carry each place's Google hours, and those go live on their own (Jesse,
 2026-10-25: hours are a fact; BP app business-hours): `report` writes every place whose hours
 changed or that has hours for the first time to `places.hours`, the business page's open-till
-row, and lists them. It needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; without them it only
+row, and lists them. It needs SUPABASE_URL and a key (db.py); without them it only
 lists. A place Google gives no hours keeps the ones it has, and so does one whose registry entry says
 `hours_from: website` (its own site is newer than Google's: Jesse, 2026-10-26).
 
@@ -32,6 +32,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db import key_headers
 from registry import find_root, load
 from social import api, by_name, items
 from towns import DEFAULT, lookup
@@ -243,11 +244,11 @@ def match(entries, results, pages):
 
 
 def db(method, path, body=None):
-    """The project's REST API with the service key; None when the keys aren't here."""
-    url, key = os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not url or not key:
+    """The project's REST API with the routine's key (db.py); None when the keys aren't here."""
+    url, keys = os.environ.get("SUPABASE_URL", "").rstrip("/"), key_headers()
+    if not url or not keys:
         return None
-    h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    h = {**keys, "Content-Type": "application/json"}
     req = urllib.request.Request(url + path, json.dumps(body).encode() if body is not None else None, h, method=method)
     with urllib.request.urlopen(req, timeout=60) as r:
         text = r.read()
@@ -320,7 +321,7 @@ def report(town=DEFAULT):
         print(f"  x {r['name']}: Google says permanently closed")
     changes, written = write_hours(out["hours"])
     print(f"[accounts] hours: {len(changes)} " + ("places updated on their pages" if written else
-          "places with Google hours (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY not set: nothing written)"))
+          "places with Google hours (SUPABASE_URL or a key not set: nothing written)"))
     if written:
         for c in changes:
             print(f"  h {c['name']}: " + ("hours added" if c["was"] is None else "hours changed"))
