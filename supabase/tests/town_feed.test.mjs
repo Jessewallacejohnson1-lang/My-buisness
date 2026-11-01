@@ -1282,13 +1282,15 @@ test("a college final is read from SIDEARM's file: complete, that day, the host 
 const sjuLive = JSON.parse(readFileSync(join(here, 'sidearm-live-sju-msoc.json'), 'utf8'));
 const sjuFinal = JSON.parse(readFileSync(join(here, 'sidearm-final-sju-msoc.json'), 'utf8'));
 const csbOld = JSON.parse(readFileSync(join(here, 'sidearm-old-csb-wvball.json'), 'utf8'));
+// SJU 27-3 Gustavus, 2026-10-31, as SIDEARM's file held it once the game was over (game-card 08).
+const sjuFootball = JSON.parse(readFileSync(join(here, 'sidearm-final-sju-football.json'), 'utf8'));
 const sidearmLiveAll = async (game, day, host, file) => (await db.query(
   'select private.sidearm_live($1::jsonb, $2::date, $3, $4) as l', [JSON.stringify(game), day, host, file])).rows[0].l;
 // The score, period and clock; the period scores and the host's side have their own checks (game-card 05).
 const sidearmLive = async (...args) => {
   const l = await sidearmLiveAll(...args);
   if (!l) return l;
-  const { periods, host_home, ...rest } = l;
+  const { periods, host_home, drive, ...rest } = l;
   return rest;
 };
 
@@ -1317,6 +1319,29 @@ test("a live score is read from SIDEARM's Game: host first, the sport's period a
   assert.deepEqual([sets.periods[0], sets.periods[1].length, sets.host_home], [[25, 25, 25], 3, true],
                    "volleyball's sets, the host's first");
   assert.equal((await sidearmLiveAll(away, '2026-10-24', 'john', 'csbsju/football')).host_home, false, 'the host away');
+});
+
+test("a live football score carries the down, distance and spot of SIDEARM's newest play, and who has the ball", async () => {
+  const drive = async (game, host = 'john') => (await sidearmLiveAll(game, '2026-10-31', host, 'csbsju/football')).drive;
+  // The file's newest rows are "End of game." and "End of 4th quarter." (Type #), which name Gustavus; Saint
+  // John's ran the last real play, 1st and 10 on the Gustavus 49: 51 yards from its own goal line.
+  assert.deepEqual(await drive(sjuFootball), { down: 1, togo: '10', spot: 'GAC49', side: 0, ball: 51 });
+  const play = (p) => ({ Game: { ...sjuFootball.Game, LastPlays: [{ ...sjuFootball.Game.LastPlays[2], ...p }] } });
+  assert.deepEqual(await drive(play({ Down: 2, ToGo: '7', Spot: 'SJU34', Team: 'VisitingTeam' })),
+                   { down: 2, togo: '7', spot: 'SJU34', side: 1, ball: 34 }, "Gustavus's ball in Saint John's half");
+  assert.equal((await drive(play({ Spot: '50' }))).ball, 50, 'midfield names neither side');
+  assert.equal((await drive(play({ Spot: 'XYZ20' }))).ball, null, "a spot naming neither team: the words, no ball");
+  // After a touchdown the newest plays are the extra point and the kickoff, with no down: no bar, never the
+  // scorer's last snap before them.
+  const snap = { ...sjuFootball.Game.LastPlays[2], Down: 1, ToGo: 'Goal', Spot: 'GAC3', Team: 'HomeTeam' };
+  const kick = { ...sjuFootball.Game.LastPlays[2], Type: 'Kickoff', Down: null, ToGo: null, Spot: 'SJU35' };
+  assert.equal(await drive({ Game: { ...sjuFootball.Game, LastPlays: [kick, snap] } }), null, 'a kickoff has no down');
+  assert.equal(await drive({ Game: { ...sjuFootball.Game, LastPlays: [] } }), null, 'no plays yet');
+  const away = { Game: { ...sjuFootball.Game, HomeTeam: sjuFootball.Game.VisitingTeam, VisitingTeam: sjuFootball.Game.HomeTeam,
+                         LastPlays: [{ ...sjuFootball.Game.LastPlays[2], Team: 'VisitingTeam' }] } };
+  assert.deepEqual(await drive(away), { down: 1, togo: '10', spot: 'GAC49', side: 0, ball: 51 },
+                   'the host away: still side 0, and the yards still from its own goal');
+  assert.equal((await sidearmLiveAll(sjuFootball, '2026-10-31', 'john', 'csbsju/msoc')).drive, null, 'only football');
 });
 
 test('a pushed score lands on its game; two complete reads in a row make the final, and a final clears it', async () => {

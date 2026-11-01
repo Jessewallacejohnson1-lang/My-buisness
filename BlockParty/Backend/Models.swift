@@ -211,6 +211,58 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen, and a
         /// score older than `quietAfter` no longer says Live (a weather delay, a feed gone quiet).
         let at: Date?
+        /// Football's down, distance and spot (game-card 08); nil for every other sport and between plays
+        /// SIDEARM doesn't give one (a kickoff, an extra point).
+        let drive: Drive?
+
+        /// A live football game's situation as SIDEARM's newest play gives it (`private.sidearm_drive`): the
+        /// down and distance, where the ball is, and who has it. Like SIDEARM's own scoreboard, it is the
+        /// spot the newest play started from.
+        nonisolated struct Drive: Decodable, Hashable, Sendable {
+            let down: Int
+            /// "7", or "Goal" inside the 10.
+            let togo: String
+            /// "GAC34": the side's letters and the yard line; "50" at midfield.
+            let spot: String
+            /// Who has the ball: 0 for the first team (the host), 1 for the other.
+            let side: Int
+            /// Yards from the host's goal line, 0 to 100; nil when the spot names neither team.
+            let ball: Int?
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                down = try c.decode(Int.self, forKey: .down)
+                togo = try c.decode(String.self, forKey: .togo)
+                spot = try c.decode(String.self, forKey: .spot)
+                side = try c.decode(Int.self, forKey: .side)
+                guard (1...4).contains(down), (0...1).contains(side), !togo.isEmpty, !spot.isEmpty else {
+                    throw DecodingError.dataCorruptedError(forKey: .down, in: c, debugDescription: "a down")
+                }
+                ball = ((try? c.decodeIfPresent(Int.self, forKey: .ball)) ?? nil).flatMap { (0...100).contains($0) ? $0 : nil }
+            }
+
+            private enum CodingKeys: String, CodingKey { case down, togo, spot, side, ball }
+
+            /// "2nd & 7 · GAC 34", "1st & Goal · SJU 3", "4th & 1 · 50".
+            var line: String {
+                let nth = ["1st", "2nd", "3rd", "4th"][down - 1]
+                let letters = spot.prefix { $0.isLetter }, yard = spot.drop { $0.isLetter }
+                return "\(nth) & \(togo) · \(letters.isEmpty ? String(yard) : "\(letters) \(yard)")"
+            }
+
+            /// Where the first down is, in yards from the host's goal line: the ball plus the distance toward
+            /// the goal its team is going for. None at "& Goal", or without a ball.
+            var firstDown: Int? {
+                guard let ball, let yards = Int(togo) else { return nil }
+                return min(100, max(0, side == 0 ? ball + yards : ball - yards))
+            }
+
+            /// "2nd and 7 on the GAC 34, Saint John's ball".
+            func spoken(teams: [Team]) -> String {
+                let words = line.replacingOccurrences(of: " & ", with: " and ").replacingOccurrences(of: " · ", with: " on the ")
+                return teams.indices.contains(side) ? "\(words), \(teams[side].short) ball" : words
+            }
+        }
 
         static let staleAfter: TimeInterval = 120
         static let quietAfter: TimeInterval = 600
@@ -232,7 +284,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             return since < Self.staleAfter ? "\(period) · \(clock)" : period
         }
 
-        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, periods, at }
+        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, periods, at, drive }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -247,6 +299,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
             self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
             at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
+            // One that doesn't read is none: it never costs the score.
+            drive = (try? c.decodeIfPresent(Drive.self, forKey: .drive)) ?? nil
         }
 
         /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".

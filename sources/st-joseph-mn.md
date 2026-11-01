@@ -3050,7 +3050,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Auto Color & Industrial Supply
 ```yaml
 id: auto-color-industrial-supply
-status: proposed
+status: retired
 tier: listed
 category: "vehicle_parts_store"
 place_type: "Business"
@@ -3064,7 +3064,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Avon Ag-Lime
 ```yaml
@@ -3820,12 +3820,12 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Concrete Plus, Inc. active in MN SOS, annual renewal filed 9/28/2026; principal office 15 E Minnesota St.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Concrete Plus, Inc. active in MN SOS, annual renewal filed 9/28/2026; principal office 15 E Minnesota St.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Kept 2026-11-01: Google Maps says permanently closed, but the MN SOS renewal above is newer; left for town-verify.
 
 ## Cone Castle
 ```yaml
 id: cone-castle
-status: proposed
+status: retired
 tier: listed
 category: "casual_eatery"
 place_type: "Business"
@@ -3838,7 +3838,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Contardo Laser Dentistry
 ```yaml
@@ -4657,7 +4657,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## A and G Corn Maze
 ```yaml
 id: g-corn-maze
-status: proposed
+status: retired
 tier: listed
 category: "food_and_beverage_store"
 place_type: "Business"
@@ -4670,7 +4670,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.aandgcornmaze.com/ no longer exists (no DNS record); aandgcornmaze.co is gone too. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.aandgcornmaze.com/ no longer exists (no DNS record); aandgcornmaze.co is gone too. The place stays (place-photos 07, Jesse's yes). Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Donabauer Taxidermy
 ```yaml
@@ -4926,7 +4926,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Grilled Cravings & Quality Ice Cream
 ```yaml
 id: grilled-cravings-quality-ice-cream
-status: proposed
+status: retired
 tier: listed
 category: "casual_eatery"
 place_type: "Business"
@@ -4939,7 +4939,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Gutter Shutter of St. Cloud
 ```yaml
@@ -5240,7 +5240,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Innovative Concrete construction
 ```yaml
 id: innovative-concrete-construction
-status: proposed
+status: retired
 tier: listed
 category: "home_service"
 place_type: "Business"
@@ -5253,7 +5253,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Insurance Advisors: St. Joseph
 ```yaml
@@ -6433,7 +6433,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Opus Motorcar Company
 ```yaml
 id: opus-motorcar
-status: proposed
+status: retired
 tier: listed
 category: "vehicle_dealer"
 place_type: "Business"
@@ -6446,7 +6446,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Outlet Bait & Tackle
 ```yaml

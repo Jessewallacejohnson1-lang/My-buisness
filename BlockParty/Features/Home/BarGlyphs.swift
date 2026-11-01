@@ -37,24 +37,62 @@ import SwiftUI
 /// The arc is the detail that rules SF out, and it is genuinely part of the mark —
 /// it appears at identical geometry in two independent reference frames, so it is not
 /// a transient "searching" state.
+///
+/// Each tap on Search swoops the arc once round the lens: both ends travel a full lap
+/// clockwise, the leading end a little ahead so the line stretches as it goes, and it
+/// lands back in its spot with a small overshoot (Jesse, 2026-10-31: "the line in the
+/// middle swoops around like a cool simple shine effect", Swoop picked from three).
+/// Every value is GUESSED: there was no recording to copy. Mock:
+/// https://claude.ai/artifact/Pdes43fDx8XRxMxme3mJp3
 struct MagnifierGlyph: View {
     var size: CGFloat = 20
     var bold = false
+    /// Bumped on every tap on Search; each change plays the swoop.
+    var swoops = 0
 
     /// Instagram's selected search stroke over its resting one: 8.82 / 5.79px at 3x
     /// (MEASURED on Mobbin's Instagram tab bar, 2026-09-29). The ring keeps its
     /// centreline, so the extra weight spills ~0.4pt past the box on each side.
     static let boldStroke: CGFloat = 1.52
 
+    /// The mock's two curves: a swoop that eases out of the start and glides into the
+    /// end, and a gentle settle back from the overshoot.
+    nonisolated private static let swoop = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.45, y: 0), endControlPoint: UnitPoint(x: 0.2, y: 1))
+    nonisolated private static let settle = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.4, y: 0), endControlPoint: UnitPoint(x: 0.6, y: 1))
+
+    /// The arc's two ends, as clock angles.
+    struct Shine {
+        var tail = MagnifierShape.restStart
+        var head = MagnifierShape.restEnd
+    }
+
     var body: some View {
-        MagnifierShape()
-            .stroke(style: StrokeStyle(
-                lineWidth: size * MagnifierShape.strokeFraction * (bold ? Self.boldStroke : 1),
-                lineCap: .round,
-                lineJoin: .round
-            ))
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        KeyframeAnimator(initialValue: Shine(), trigger: swoops) { shine in
+            MagnifierShape(arcStart: shine.tail, arcEnd: shine.head)
+                .stroke(style: StrokeStyle(
+                    lineWidth: size * MagnifierShape.strokeFraction * (bold ? Self.boldStroke : 1),
+                    lineCap: .round,
+                    lineJoin: .round
+                ))
+        } keyframes: { shine in
+            // One lap on from wherever the line is, so a tap mid-swoop carries it on
+            // rather than snapping it back to its spot first.
+            let lap = 360 * ((shine.tail - MagnifierShape.restStart) / 360).rounded()
+            // Head: round by 400 ms, 16° past its spot, back by 600.
+            KeyframeTrack(\.head) {
+                LinearKeyframe(lap + MagnifierShape.restEnd + 376, duration: 0.40, timingCurve: Self.swoop)
+                LinearKeyframe(lap + MagnifierShape.restEnd + 360, duration: 0.20, timingCurve: Self.settle)
+            }
+            // Tail: a beat slower, so the line stretches; 10° past, back by 640.
+            KeyframeTrack(\.tail) {
+                LinearKeyframe(lap + MagnifierShape.restStart + 370, duration: 0.46, timingCurve: Self.swoop)
+                LinearKeyframe(lap + MagnifierShape.restStart + 360, duration: 0.18, timingCurve: Self.settle)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -71,9 +109,12 @@ nonisolated struct MagnifierShape: Shape {
     private static let stroke: CGFloat = 0.176
     /// The reflection arc's radius, in lens radii.
     private static let arcRadius: CGFloat = 0.600
-    /// The arc's sweep, as CLOCK angles — 0° is 12 o'clock, increasing clockwise.
-    private static let arcStart: CGFloat = 5
-    private static let arcEnd: CGFloat = 95
+    /// The arc's sweep at rest, as CLOCK angles — 0° is 12 o'clock, increasing
+    /// clockwise. `MagnifierGlyph`'s swoop moves the two ends.
+    static let restStart: CGFloat = 5
+    static let restEnd: CGFloat = 95
+    var arcStart = Self.restStart
+    var arcEnd = Self.restEnd
     /// How far the handle's far cap sits from the lens centre, in lens radii, and the
     /// angle it leaves on. 44.80° measured; 45° is what was meant.
     private static let handleReach: CGFloat = 1.874
@@ -112,11 +153,11 @@ nonisolated struct MagnifierShape: Shape {
         path.addEllipse(in: CGRect(x: centre.x - r, y: centre.y - r, width: r * 2, height: r * 2))
 
         // The reflection arc, concentric inside it.
-        path.move(to: point(Self.arcStart, Self.arcRadius))
+        path.move(to: point(arcStart, Self.arcRadius))
         path.addArc(center: centre,
                     radius: Self.arcRadius * r,
-                    startAngle: clock(Self.arcStart),
-                    endAngle: clock(Self.arcEnd),
+                    startAngle: clock(arcStart),
+                    endAngle: clock(arcEnd),
                     clockwise: false)
 
         // The handle. It starts ON the ring's centreline rather than at its outer

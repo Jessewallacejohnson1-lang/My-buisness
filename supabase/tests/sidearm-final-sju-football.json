@@ -1,0 +1,110 @@
+{
+ "Game": {
+  "Type": "FootballGame",
+  "HasStarted": true,
+  "IsComplete": true,
+  "Date": "10/31/2026",
+  "Period": 4,
+  "ClockSeconds": 0,
+  "Context": "1st and 10 on the GAC49",
+  "GlobalSportShortname": "football",
+  "HomeTeam": {
+   "Id": "SJU",
+   "Name": "Saint John's",
+   "Score": 27,
+   "CurrentRecord": "7-0",
+   "Color": "#C20430",
+   "PeriodScores": [
+    7,
+    10,
+    7,
+    3
+   ]
+  },
+  "VisitingTeam": {
+   "Id": "GAC",
+   "Name": "Gustavus Adolphus",
+   "Score": 3,
+   "CurrentRecord": "5-2",
+   "Color": "#FFCF00",
+   "PeriodScores": [
+    3,
+    0,
+    0,
+    0
+   ]
+  },
+  "LastPlays": [
+   {
+    "Team": "VisitingTeam",
+    "Narrative": "End of game.",
+    "Context": "1st and 10 on the GAC49",
+    "Down": 1,
+    "ToGo": "10",
+    "Spot": "GAC49",
+    "Gained": 0,
+    "Id": "205+933FF608",
+    "Type": "#",
+    "Period": 4,
+    "ClockSeconds": 0,
+    "Score": null
+   },
+   {
+    "Team": "VisitingTeam",
+    "Narrative": "End of 4th quarter.",
+    "Context": "1st and 10 on the GAC49",
+    "Down": 1,
+    "ToGo": "10",
+    "Spot": "GAC49",
+    "Gained": 0,
+    "Id": "204+3CE3D49F",
+    "Type": "#",
+    "Period": 4,
+    "ClockSeconds": 0,
+    "Score": null
+   },
+   {
+    "Team": "HomeTeam",
+    "Narrative": "Feeney,Trey rush middle for loss of 2 yards to the SJU49.",
+    "Context": "1st and 10 on the GAC49",
+    "Down": 1,
+    "ToGo": "10",
+    "Spot": "GAC49",
+    "Gained": -2,
+    "Id": "203+14C32FC1",
+    "Type": "Rush",
+    "Period": 4,
+    "ClockSeconds": -1,
+    "Score": null
+   },
+   {
+    "Team": "HomeTeam",
+    "Narrative": "Feeney,Trey right pass complete to Murray,Griffin for 6 yards to the GAC49, 1ST DOWN SJU (Swansson,Chance).",
+    "Context": "3rd and 3 on the SJU45",
+    "Down": 3,
+    "ToGo": "3",
+    "Spot": "SJU45",
+    "Gained": 6,
+    "Id": "202+478AA1AB",
+    "Type": "Pass",
+    "Period": 4,
+    "ClockSeconds": -1,
+    "Score": null
+   },
+   {
+    "Team": "HomeTeam",
+    "Narrative": "Bohmert,Corey rush left for 4 yards to the SJU45 (Kretlow,Drew).",
+    "Context": "2nd and 7 on the SJU41",
+    "Down": 2,
+    "ToGo": "7",
+    "Spot": "SJU41",
+    "Gained": 4,
+    "Id": "201+D71B0F35",
+    "Type": "Rush",
+    "Period": 4,
+    "ClockSeconds": -1,
+    "Score": null
+   }
+  ]
+ }
+}

@@ -1,88 +1,272 @@
 //
 //  GameMatchup.swift
-//  Block Party — a game's band on its Event page: the two teams' colors, logos and VS; and its
-//  white Town card (`WhiteGameCard`).
+//  Block Party — a game's Event page: the two teams' colors across the whole screen, the score, the logos
+//  and football's field bar; its scoring plays; and its white Town card (`WhiteGameCard`).
 //
-//  Drawn instead of a photo for a game between two teams (BP app docs/plans/game-card,
-//  ticket 01; Jesse, 2026-10-20: "I want idea E", "keep names"; taste.md). X's and Apple
-//  Sports' game headers: the left team's color to 40% of the width, the right team's from
-//  60%, each logo on a white disc with the school's short name under it, VS between them;
-//  while it's being played, the live score in VS's place over the period and clock (ticket 03);
-//  once the final is in, the score in VS's place and the loser's side faded (ticket 02).
+//  The page (BP app docs/plans/game-card, ticket 08; Jesse, 2026-10-31: "like Apple, how the whole entire
+//  screen is those two colors blended together... really simple and smooth UI", then "I love that" to the
+//  Figma drafts beside Apple Sports' live game screen, `references/game-page-blend/`): each team's color
+//  deepened to Apple's depth, the left one's to 36% of the width and the right one's from 66%, fading to
+//  near-black from halfway down; the big score on the outside over each logo on its white disc, Live and
+//  the clock between them; for a live football game the down, distance and spot over a field bar.
 //  The Town card went white on 2026-10-29 (ticket 06).
 //
 
 import SwiftUI
 
+/// A game's scoreboard at the top of its Event page (ticket 08's Football draft, 402 pt phone).
 struct GameMatchup: View {
     let game: Game
-    /// The row of logos this far below the art's top: the card's 62 pt, or the Event page band's (ticket 05).
-    var rowTop: CGFloat = Metric.rowTop
+    /// The day and time before it starts ("Sat · 1 PM"), in the chip between the logos.
+    let when: String?
+    /// Called off: VoiceOver says so with the score, which is the page's heading.
+    var cancelled = false
 
-    /// The mock's Picked row, on its 370 pt card (BP app references/game-card/mock.html).
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     enum Metric {
-        static let rowTop: CGFloat = 62
-        static let disc: CGFloat = 84
-        static let logo: CGFloat = 58
-        static let column: CGFloat = 112
-        static let gap: CGFloat = 22
-        static let vsWidth: CGFloat = 50
-        static let nameGap: CGFloat = 8
-        /// Once the final is in (ticket 02): the score takes a column of its own, 4 pt from the
-        /// teams, and the loser's side is at 55%.
-        static let scoreGap: CGFloat = 4
+        static let number: CGFloat = 64
+        /// The number's line, and the logo 12 pt under it.
+        static let numberLine: CGFloat = 76
+        static let numberGap: CGFloat = 12
+        static let disc: CGFloat = 60
+        static let logo: CGFloat = 44
+        static let nameGap: CGFloat = 10
+        static let middle: CGFloat = 112
+        /// The chip and the clock line 4 pt into the number's line, 10 pt apart.
+        static let middleTop: CGFloat = 4
+        static let middleGap: CGFloat = 10
+        /// The loser's side once the final is in, and the trailing number while it's on.
         static let faded: Double = 0.55
+        /// Football's line 28 pt under the names, its bar 12 pt under the line.
+        static let driveTop: CGFloat = 28
+        static let barTop: CGFloat = 12
     }
 
     var body: some View {
-        // The page's title says the matchup.
-        art.accessibilityHidden(true)
-    }
-
-    /// The two schools' colors, the left one's to 40% of the width, the right one's from 60%.
-    static func backdrop(_ game: Game) -> LinearGradient {
-        LinearGradient(stops: [.init(color: fill(game.teams[0]), location: 0),
-                               .init(color: fill(game.teams[0]), location: 0.4),
-                               .init(color: fill(game.teams[1]), location: 0.6),
-                               .init(color: fill(game.teams[1]), location: 1)],
-                       startPoint: .leading, endPoint: .trailing)
-    }
-
-    private var art: some View {
-        Self.backdrop(game)
-            .overlay(alignment: .top) {
-                HStack(alignment: .top, spacing: game.final == nil && game.live == nil ? Metric.gap : Metric.scoreGap) {
-                    TeamColumn(team: game.teams[0], side: 0)
-                        .opacity(game.winner == 1 ? Metric.faded : 1)
-                    if let final = game.final {
-                        FinalScore(final: final, winner: game.winner)
-                            .transition(.opacity)
-                    } else if let live = game.live {
-                        LiveScore(live: live)
-                            .transition(.opacity)
-                    } else {
-                        Text("VS")
-                            .font(.eventDisplay(26))
-                            .foregroundStyle(.white)
-                            .frame(width: Metric.vsWidth, height: Metric.disc)
-                            .transition(.opacity)
-                    }
-                    TeamColumn(team: game.teams[1], side: 1)
-                        .opacity(game.winner == 0 ? Metric.faded : 1)
+        // Each second while it's on, so a stale clock goes and a quiet game stops saying Live.
+        TimelineView(.periodic(from: .now, by: game.live == nil ? 60 : 1)) { context in
+            // The score stays through a quiet spell (halftime: the server writes only a change); Live, the
+            // clock and the field bar wait for a fresh one, so a feed gone quiet never leaves a frozen ball.
+            let fresh = game.live?.isLive(at: context.date) == true
+            let live = game.live
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
+                    side(0, live: live, fresh: fresh)
+                    middle(live: live, fresh: fresh, at: context.date).frame(width: Metric.middle)
+                    side(1, live: live, fresh: fresh)
                 }
-                .padding(.top, rowTop)
-                // A refresh that brings the live score or the final cross-fades VS into it.
-                .animation(Motion.smooth, value: game.final)
-                .animation(Motion.smooth, value: game.live == nil)
+                // The page's heading, in the title's place: "Live, Football, Saint John's 14, Gustavus 3, Q3, 4:12".
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel((fresh ? "Live, " : "") + game.spoken + (fresh ? live?.clock.map { ", \($0)" } ?? "" : ""))
+                .accessibilityValue(cancelled ? "Canceled" : "")
+                .accessibilityAddTraits(.isHeader)
+                if fresh, let drive = live?.drive {
+                    FieldBar(game: game, drive: drive)
+                        .padding(.top, Metric.driveTop)
+                        .transition(.opacity)
+                }
             }
-            // A scoring play while it's on screen: the pill says it, that logo pops (ticket 07).
-            .playsMoments(of: game)
+            .animation(reduceMotion ? nil : Motion.smooth, value: fresh ? live?.drive : nil)
+        }
+        // A refresh that brings the live score or the final cross-fades into it.
+        .animation(Motion.smooth, value: game.final)
+        .animation(Motion.smooth, value: game.live == nil)
+        // A scoring play while it's on screen: the clock line says it, that logo pops (ticket 07).
+        .playsMoments(of: game)
     }
 
-    /// The school's color; one not known yet is ink, so two of them make Apple Sports' dark
-    /// header. Ink as it is on paper: the card is the same in dark mode.
-    static func fill(_ team: Game.Team) -> Color {
-        team.rgb.map { Color(hex: $0) } ?? Hue.ink.onLightCanvas
+    /// Behind while it's on (the final fades the loser's whole side instead).
+    private func trailing(_ side: Int, live: Game.Live?) -> Bool {
+        guard game.final == nil, let score = live?.score, score[0] != score[1] else { return false }
+        return score[side] < score[1 - side]
+    }
+
+    /// One team: its number (live and final), its logo on a white disc, its short name, and a yellow dot
+    /// after the name while it has the ball.
+    private func side(_ side: Int, live: Game.Live?, fresh: Bool) -> some View {
+        let team = game.teams[side]
+        let score = game.final ?? live?.score
+        return VStack(spacing: 0) {
+            if let score {
+                Text("\(score[side])")
+                    .font(.eventDisplay(Metric.number))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    // "102" still fits beside the clock on a 375 pt phone.
+                    .minimumScaleFactor(0.6)
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(reduceMotion ? nil : Motion.smooth, value: score[side])
+                    .frame(height: Metric.numberLine)
+                    .opacity(trailing(side, live: live) ? Metric.faded : 1)
+                    .padding(.bottom, Metric.numberGap)
+                    .transition(.opacity)
+            }
+            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(28))
+                .frame(width: Metric.disc, height: Metric.disc)
+                .shadow(color: .black.opacity(0.28), radius: 9, y: 6)
+                .momentPop(side)
+            HStack(spacing: 6) {
+                Text(team.short)
+                    .font(.sansMedium(15))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if fresh, live?.drive?.side == side {
+                    Circle().fill(Hue.brandDisc).frame(width: 7, height: 7).transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(.top, Metric.nameGap)
+        }
+        .frame(maxWidth: .infinity)
+        .opacity(game.winner == 1 - side ? Metric.faded : 1)
+    }
+
+    /// Between the teams: Live and the clock while it's on (the period alone through a quiet spell), Final
+    /// after, the day and VS before.
+    @ViewBuilder
+    private func middle(live: Game.Live?, fresh: Bool, at now: Date) -> some View {
+        VStack(spacing: Metric.middleGap) {
+            if game.final != nil {
+                NightChip(text: "Final")
+            } else if let live {
+                if fresh { NightChip(text: "Live", dot: Hue.live) }
+                MomentLine(style: .onNight) { Text(live.line(at: now)).monospacedDigit() }
+            } else {
+                if let when { NightChip(text: when) }
+                Text("VS")
+                    .font(.eventDisplay(26))
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(.top, game.final != nil || live != nil ? Metric.middleTop : 0)
+    }
+
+    // MARK: The page's colors
+
+    /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
+    /// that takes them to near-black by halfway down (Apple Sports' live game, measured).
+    static func backdrop(_ game: Game) -> some View {
+        ZStack {
+            LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
+                                   .init(color: shade(game.teams[0]), location: 0.36),
+                                   .init(color: shade(game.teams[1]), location: 0.66),
+                                   .init(color: shade(game.teams[1]), location: 1)],
+                           startPoint: .leading, endPoint: .trailing)
+            LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
+                                   .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
+                                   .init(color: Hue.gameNight.opacity(0.72), location: 0.42),
+                                   .init(color: Hue.gameNight.opacity(0.93), location: 0.58),
+                                   .init(color: Hue.gameNight.opacity(0.95), location: 1)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    /// A team's color at the page's depth (Burnley's claret and Chelsea's blue sit near 21% lightness in
+    /// Apple's); none known is the poster's dark.
+    static func shade(_ team: Game.Team) -> Color {
+        vivid(team).map { Color(hex: tone($0, lightness: 0.21, saturationCap: 0.82)) } ?? Hue.poster
+    }
+
+    /// The same hue bright enough for thin marks on the dark (an end zone, a scoring play's bar); none
+    /// known is a faint white.
+    static func mark(_ team: Game.Team) -> Color {
+        vivid(team).map { Color(hex: tone($0, lightness: 0.58, saturationFloor: 0.7)) } ?? .white.opacity(0.3)
+    }
+
+    /// The team's color, or for a black or grey one (Gustavus, St. Olaf) its logo's first real color; nil
+    /// when none is known.
+    static func vivid(_ team: Game.Team) -> UInt32? {
+        ([team.rgb].compactMap { $0 } + team.colors).first { rgb in
+            let (_, lightness, saturation) = hls(rgb)
+            return saturation > 0.15 && (0.08...0.92).contains(lightness)
+        }
+    }
+
+    /// The color at that lightness, its hue kept, its saturation held between the floor and the cap (a
+    /// grey stays grey).
+    static func tone(_ rgb: UInt32, lightness: Double, saturationFloor: Double = 0.6, saturationCap: Double = 1) -> UInt32 {
+        let (hue, _, saturation) = hls(rgb)
+        let s = saturation > 0.08 ? min(max(saturation, saturationFloor), saturationCap) : saturation
+        let q = lightness < 0.5 ? lightness * (1 + s) : lightness + s - lightness * s, p = 2 * lightness - q
+        func channel(_ t: Double) -> UInt32 {
+            let t = t < 0 ? t + 1 : t > 1 ? t - 1 : t
+            let v = t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p
+            return UInt32((v * 255).rounded())
+        }
+        return channel(hue + 1 / 3) << 16 | channel(hue) << 8 | channel(hue - 1 / 3)
+    }
+
+    /// Hue (0 to 1), lightness and saturation.
+    private static func hls(_ rgb: UInt32) -> (Double, Double, Double) {
+        let r = Double(rgb >> 16 & 0xFF) / 255, g = Double(rgb >> 8 & 0xFF) / 255, b = Double(rgb & 0xFF) / 255
+        let high = max(r, g, b), low = min(r, g, b), l = (high + low) / 2, d = high - low
+        guard d > 0 else { return (0, l, 0) }
+        let s = l > 0.5 ? d / (2 - high - low) : d / (high + low)
+        let h = high == r ? (g - b) / d + (g < b ? 6 : 0) : high == g ? (b - r) / d + 2 : (r - g) / d + 4
+        return (h / 6, l, s)
+    }
+}
+
+/// A chip between the logos on the page's dark: "Live" behind Apple's red dot, "Final", or the day.
+private struct NightChip: View {
+    let text: String
+    var dot: Color? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let dot { Circle().fill(dot).frame(width: 7, height: 7) }
+            Text(text).font(.sansBold(13)).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .frame(height: 24)
+        .background(.white.opacity(0.14), in: Capsule())
+    }
+}
+
+/// Football's down and distance over the field (ticket 08's Football draft): the host's end zone on the
+/// left in its color as the score sits, yard lines every ten, the ball on its spot and BP's yellow at the
+/// first down. The ball and the line spring to each new spot.
+private struct FieldBar: View {
+    let game: Game
+    let drive: Game.Live.Drive
+
+    static let height: CGFloat = 30
+    static let endZone: CGFloat = 8
+    static let corner: CGFloat = 9
+
+    var body: some View {
+        VStack(spacing: GameMatchup.Metric.barTop) {
+            Text(drive.line)
+                .font(.sansMedium(15))
+                .foregroundStyle(.white.opacity(0.9))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+            GeometryReader { proxy in
+                let field = proxy.size.width - 2 * Self.endZone
+                let x = { (yards: Int) in Self.endZone + field * CGFloat(yards) / 100 }
+                ZStack(alignment: .leading) {
+                    Color.white.opacity(0.08)
+                    ForEach(1..<10) { ten in
+                        Color.white.opacity(0.16).frame(width: 1).offset(x: x(ten * 10))
+                    }
+                    GameMatchup.mark(game.teams[0]).frame(width: Self.endZone)
+                    GameMatchup.mark(game.teams[1]).frame(width: Self.endZone).offset(x: proxy.size.width - Self.endZone)
+                    if let first = drive.firstDown {
+                        Hue.brandDisc.frame(width: 2).offset(x: x(first) - 1)
+                    }
+                    if let ball = drive.ball {
+                        Color.white.opacity(0.9).frame(width: 2).offset(x: x(ball) - 1)
+                        Ellipse().fill(.white).frame(width: 14, height: 10).offset(x: x(ball) - 7)
+                    }
+                }
+            }
+            .frame(height: Self.height)
+            .clipShape(RoundedRectangle(cornerRadius: Self.corner, style: .continuous))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(drive.spoken(teams: game.teams))
     }
 }
 
@@ -252,74 +436,14 @@ struct WhiteGameCard: View {
     }
 }
 
-/// The final where VS was: the score with the loser's number and its dash at 55% (a tie fades
-/// neither), over the "Final" pill (FotMob's full time; the mock's Picked row).
-private struct FinalScore: View {
-    let final: [Int]
-    let winner: Int?
-
-    var body: some View {
-        let faded = Color.white.opacity(GameMatchup.Metric.faded)
-        let home = String(final[0]), away = String(final[1])
-        let score: Text = switch winner {
-        case 0: Text("\(home)\(Text(" – \(away)").foregroundStyle(faded))")
-        case 1: Text("\(Text("\(home) – ").foregroundStyle(faded))\(away)")
-        default: Text("\(home) – \(away)")
-        }
-        VStack(spacing: 6) {
-            score
-                .font(.eventDisplay(34))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                // A basketball score ("102 – 98") still fits the column.
-                .minimumScaleFactor(0.7)
-            Text("Final")
-                .font(.sansSemibold(12))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 9)
-                .frame(height: 22)
-                .background(.white.opacity(0.22), in: Capsule())
-        }
-        // Up to the mock's 112 pt, narrower on a 375 pt phone, where three columns would overrun the card.
-        .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
-    }
-}
-
-/// The score while it's on, where VS was: FinalScore's look with neither side faded, each new
-/// number rolling in as the scoreboard's do, over a pill with the period and clock ("Q3 · 4:12";
-/// the mock's Picked row, Live phone). A clock that stops coming in is hidden, not left frozen.
-/// A scoring play turns the pill white round its words for 3 s (`MomentLine`, ticket 07).
-private struct LiveScore: View {
-    let live: Game.Live
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text("\(live.score[0]) – \(live.score[1])")
-                .font(.eventDisplay(34))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.numericText(countsDown: false))
-                .animation(reduceMotion ? nil : Motion.smooth, value: live.score)
-            // Each second, so soccer's minute turns over on time and a stale clock goes.
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                MomentLine(style: .onColor) {
-                    Text(live.line(at: context.date)).monospacedDigit()
-                }
-            }
-        }
-        .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
-    }
-}
-
 /// A game's scoring plays on its Event page, newest first (BP app game-card 05; Jesse, 2026-10-25: "copy
 /// sidearm"): SIDEARM's own words, the time under each, the score after it with the scoring side in ink,
 /// and a thin bar of the scoring school's color on its side, as Apple Sports' Key Plays draw them
 /// (`references/live-plays/`). Volleyball shows its sets instead: every point would be a play.
 struct GameScoring: View {
     let game: Game
+    /// Above its heading, when it has anything to show.
+    var top: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -335,6 +459,7 @@ struct GameScoring: View {
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
+            .padding(.top, top)
         } else if game.sport.localizedCaseInsensitiveContains("volleyball"), game.periods.count == 2 {
             section("Sets") {
                 ForEach(game.periods[0].indices, id: \.self) { set in
@@ -343,6 +468,7 @@ struct GameScoring: View {
                         side: score[0] == score[1] ? nil : (score[0] > score[1] ? 0 : 1))
                 }
             }
+            .padding(.top, top)
         }
     }
 
@@ -376,12 +502,12 @@ struct GameScoring: View {
         .padding(.leading, side == 1 ? 16 : 20)
         .padding(.trailing, side == 1 ? 20 : 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         // The scoring school's color, on its side of the row.
         .overlay(alignment: side == 1 ? .trailing : .leading) {
             if let side, game.teams.indices.contains(side) {
                 Capsule()
-                    .fill(GameMatchup.fill(game.teams[side]))
+                    .fill(GameMatchup.mark(game.teams[side]))
                     .frame(width: Self.bar)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 8)
@@ -390,31 +516,6 @@ struct GameScoring: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([text, when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
             .compactMap { $0 }.joined(separator: ", "))
-    }
-}
-
-/// One school: its logo on a white disc, its short name under it.
-private struct TeamColumn: View {
-    let team: Game.Team
-    /// 0 for the host, 1 for the other: a moment of its own pops its disc (ticket 07).
-    let side: Int
-
-    var body: some View {
-        VStack(spacing: GameMatchup.Metric.nameGap) {
-            LogoDisc(logo: team.logo, initial: team.initial, logoSide: GameMatchup.Metric.logo, letter: .eventDisplay(34))
-                .frame(width: GameMatchup.Metric.disc, height: GameMatchup.Metric.disc)
-                // The mock's two shadows: a tight one where it sits, a soft one under it.
-                .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
-                .shadow(color: .black.opacity(0.22), radius: 11, y: 8)
-                .momentPop(side)
-
-            Text(team.short)
-                .font(.sansSemibold(13))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(width: GameMatchup.Metric.column)
     }
 }
 

@@ -451,20 +451,20 @@ final class TownFeed {
     #if DEBUG
     @ObservationIgnored private var replaying = false
 
-    /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score
-    /// and scoring plays change every 4 seconds through the same path a realtime update takes, to its
-    /// final. The plays' names are made up.
+    /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
+    /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
+    /// realtime update takes, to its final. The plays' names are made up.
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let steps: [(String, String?)] = [
-            (#"[0,0],"period":"Q1","clock":"15:00""#, nil),
-            (#"[7,0],"period":"Q1","clock":"9:18""#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
-            (#"[7,3],"period":"Q2","clock":"0:03""#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
-            (#"[14,3],"period":"Q3","clock":"4:12""#, #"{"id":"3","text":"J. Jeffrey 52 yd TD run (M. Olson kick)","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
-            (#"[14,10],"period":"Q4","clock":"6:05""#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
-            (#"[21,10],"period":"Q4","clock":"0:45""#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
+            (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
+            (#"[7,0],"period":"Q1","clock":"9:18","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
+            (#"[7,3],"period":"Q2","clock":"0:03","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
+            (#"[14,3],"period":"Q3","clock":"4:12","drive":{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#, #"{"id":"3","text":"J. Jeffrey 52 yd TD run (M. Olson kick)","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
+            (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
+            (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
         ]
         Task { @MainActor [weak self] in
             var plays: [Game.Play] = []

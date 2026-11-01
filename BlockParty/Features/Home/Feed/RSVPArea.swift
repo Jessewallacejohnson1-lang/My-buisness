@@ -118,6 +118,8 @@ struct RSVPArea: View {
     let item: FeedCardItem
     let words: RSVPWords
     var size: Size = .card
+    /// On a dark ground (a game's Event page), Attend is BP yellow (`AttendPill.yellow`).
+    var yellow = false
     /// The card's send: Invite opens the same invite card.
     let onInvite: (() -> Void)?
     /// The Town card: its send leads the line, and once you're going it leaves for the yellow share
@@ -197,7 +199,7 @@ struct RSVPArea: View {
 
             if words.pill != nil {
                 AttendPill(item: item, words: words, size: size, onInvite: onInvite,
-                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp)
+                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp, yellow: yellow)
             }
         }
         // The pill's height with no pill too, so a game's "212 went" sits where its Attend did.

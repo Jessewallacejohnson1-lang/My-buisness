@@ -267,9 +267,9 @@ struct MomentLineStyle {
     static let onWhite = MomentLineStyle(plain: (.clear, 0, nil, Hue.inkSecondary),
                                          filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
                                          font: .sansSemibold(13), detailFont: .sans(13), longest: 24)
-    /// On team colors (the Event page's band, the card before 06): the clear pill; a moment is white.
-    static let onColor = MomentLineStyle(plain: (.white.opacity(0.22), 9, 22, .white),
-                                         filled: (.white.opacity(0.97), 9, 24, Hue.ink.onLightCanvas,
+    /// On a game's dark Event page (ticket 08): the clock in plain white words; a moment is a white capsule.
+    static let onNight = MomentLineStyle(plain: (.clear, 0, nil, .white.opacity(0.9)),
+                                         filled: (.white.opacity(0.97), 10, 28, Hue.ink.onLightCanvas,
                                                   Hue.inkSecondary.onLightCanvas),
-                                         font: .sansSemibold(12), detailFont: .sans(12), longest: 22)
+                                         font: .sansMedium(16), detailFont: .sans(16), longest: 16)
 }

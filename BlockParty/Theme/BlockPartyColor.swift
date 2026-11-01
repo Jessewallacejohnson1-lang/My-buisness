@@ -239,6 +239,10 @@ nonisolated enum Hue {
     /// The Town's Event of the day poster, DICE's dark card (the approved Round 3 page, BP app
     /// event-card 03), which its photo fades into. The same in both appearances: a poster.
     static let poster        = Color(hex: 0x1A1A1A)
+    /// A game's Event page, which its teams' colors fade into from halfway down, as Apple Sports' live
+    /// game screen does (BP app game-card 08, measured off `references/game-page-blend/`). The same in
+    /// both appearances: the page is always dark.
+    static let gameNight     = Color(hex: 0x0B0A0D)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 
