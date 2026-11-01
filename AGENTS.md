@@ -24,17 +24,19 @@ skill.** Surface the mismatch rather than inventing a path or an API around it.
    whole job; never leave loose threads, dead code, or a TODO standing in for the work.
 4. **Plain English.** `[prose]` Explain technical things the way you would to a smart
    friend, not to another engineer. Name the file and what changed, not the abstraction.
+   Jesse judges the result for the customer: never hand him code to read.
 5. **Keep it tidy.** `[prose]` Every project lives in its own folder. Never dump loose
    files at the repo root. New code goes in the folder its feature already owns.
-6. **Short answers.** `[prose]` Bullets over paragraphs. No essays.
+6. **Short answers.** `[prose]` Bullets over paragraphs. No essays. Jesse types by voice:
+   read intent, not typos.
 7. **Show drafts before anything gets sent anywhere** `[prose]` — a push, a migration, a
    message, a deploy. Local commits need no draft.
 
 ### Corrections become rules — `MEMORY.md`
 
-When Jesse corrects you, write the lesson into **`MEMORY.md`** at the repo root as a new
-rule, dated, one line. `[prose]` Read `MEMORY.md` before every task. That file is how this
-repo gets smarter each week; this one is how it stays consistent.
+When Jesse corrects you, write the lesson into **`MEMORY.md`** at the repo root: one dated
+line per topic. `[prose]` A change to a topic rewrites its line; never stack a new one under
+it. Read `MEMORY.md` before every task.
 
 ## Before you change anything
 
