@@ -554,16 +554,16 @@ final class TownFeedEventsTests: XCTestCase {
     /// one (Gustavus, St. Olaf) takes its logo's first real color; none at all is none.
     func testAGamesColorsDeepenAndABlackTeamTakesItsLogosColor() throws {
         func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
-        let sju = try team(#"{"name":"Saint John's","color":"#C20430"}"#)
+        let sju = try team(##"{"name":"Saint John's","color":"#C20430"}"##)
         XCTAssertEqual(GameMatchup.vivid(sju), 0xC20430)
         let deep = GameMatchup.tone(0xC20430, lightness: 0.21)
         let (r, g, b) = (deep >> 16, (deep >> 8) & 0xFF, deep & 0xFF)
         XCTAssertTrue(r > 80 && r < 110 && g < 20 && b < 40, String(deep, radix: 16))
         XCTAssertEqual(GameMatchup.tone(0x000000, lightness: 0.21), 0x363636, "grey stays grey")
-        let gustavus = try team(#"{"name":"Gustavus Adolphus","color":"#000000","colors":["#000000","#F2C80F","#8A8A8A"]}"#)
+        let gustavus = try team(##"{"name":"Gustavus Adolphus","color":"#000000","colors":["#000000","#F2C80F","#8A8A8A"]}"##)
         XCTAssertEqual(GameMatchup.vivid(gustavus), 0xF2C80F, "black takes the logo's gold")
-        XCTAssertNil(GameMatchup.vivid(try team(#"{"name":"Somebody"}"#)), "no color known")
-        XCTAssertNil(GameMatchup.vivid(try team(#"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"#)))
+        XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"Somebody"}"##)), "no color known")
+        XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"##)))
     }
 
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
