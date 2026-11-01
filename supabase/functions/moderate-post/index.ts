@@ -75,14 +75,16 @@ Deno.serve(async (req) => {
           messages: [{ role: 'user', content }],
         }),
       })
-      if (!res.ok) return null
+      // Why the check couldn't answer, for the function's logs; never the caller's words.
+      if (!res.ok) { console.error('moderate-post: model answered', res.status, (await res.text()).slice(0, 300)); return null }
       const data = await res.json()
       const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
       const match = text.match(/\{[\s\S]*\}/)
-      if (!match) return null
+      if (!match) { console.error('moderate-post: no JSON in', text.slice(0, 200)); return null }
       const parsed = JSON.parse(match[0])
       return { ok: !!parsed.ok, reason: String(parsed.reason ?? '') }
-    } catch {
+    } catch (err) {
+      console.error('moderate-post: model call failed', String(err).slice(0, 200))
       return null
     }
   }
