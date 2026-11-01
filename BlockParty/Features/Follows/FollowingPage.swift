@@ -6,7 +6,7 @@
 //  Following: everyone and everything you follow, A to Z, each with its Following button, as
 //  Instagram's list (60 pt pictures, 76 pt rows, its 104 x 32 pt button). One tap unfollows; the
 //  row stays, as Follow, until you leave, so a slip is one tap to undo (Jesse's pick at Check-in
-//  1). Pushed from the Profile sheet's Following row, under Blocked's top. Groups aren't listed:
+//  1). Pushed from Settings' Following row, under Blocked's top. Groups aren't listed:
 //  the You tab's Groups row holds them. A row opens what it follows, as Instagram's list does
 //  (ticket 05): a person's page, a Place's business page as Search opens it, a team's page, the
 //  City's or Joetown's page, a board's meetings (follows 04); a

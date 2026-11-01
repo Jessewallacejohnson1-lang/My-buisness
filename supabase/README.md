@@ -22,13 +22,15 @@ waitlist website.
 ## Changing the schema
 
 A schema change is a new migration file here, committed with the Swift change that needs
-it (`supabase migration new <name>`), applied with the Supabase MCP's `apply_migration`
-or `supabase db push`. Never a hand edit in the dashboard.
+it (`supabase migration new <name>`), and applied after Jesse's yes with
+`scripts/apply_migration.py <file> --apply`, which refuses a change that would undo another
+chat's live work. Never a hand edit in the dashboard, and never the Supabase connector's own
+`apply_migration` tool, which skips that check (BP app blocks it with a hook).
 
 ## Known gaps
 
 - The live migration history still lists the 34 changes this file replaced.
-  `apply_migration` doesn't care; `supabase db push` refuses until
+  `scripts/apply_migration.py` doesn't care; `supabase db push` refuses until
   `supabase migration repair` marks those 34 reverted and `20260929000000` applied.
 - `is_admin()` hardcodes one email, so admin can't change without a migration.
 - The `bizops_ro` password is set by hand and never committed.
