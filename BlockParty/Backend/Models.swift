@@ -569,6 +569,24 @@ nonisolated enum TownFeedLine: Hashable {
     case news(TownNews)
 }
 
+/// One line of a round past the Town feed's later Events (`get_town_more`, town-feed 23): a place to
+/// try, or an Event or News item from the ranked list, again. An unknown kind is never drawn.
+nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
+    enum Kind: String, Decodable, Sendable { case place, again, unknown }
+    let kind: Kind
+    let id: String
+}
+
+nonisolated extension TownMoreRow {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown
+        id = try c.decode(String.self, forKey: .id)
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, id }
+}
+
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when
 /// they have one in our bucket. Only friends who show their plans to friends (town-feed 28).
 nonisolated struct FeedFriend: Hashable, Sendable {

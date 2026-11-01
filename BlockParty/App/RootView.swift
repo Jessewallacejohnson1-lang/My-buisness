@@ -752,7 +752,8 @@ struct MainTabsView: View {
                                 onCreate: create,
                                 onOpenPage: { path.append($0) },
                                 townFeed: townFeed,
-                                eventOfTheDay: eventOfTheDay
+                                eventOfTheDay: eventOfTheDay,
+                                places: searchModel.place
                             )
                         // Daily shows paper while its first read is out, then its page: the week
                         // on top, and under it the picked day, or the named, reserved slot on a
