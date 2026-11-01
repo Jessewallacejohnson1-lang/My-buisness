@@ -551,7 +551,6 @@ struct MainTabsView: View {
             NewEventSheet(places: searchModel.places.filter { [.business, .restaurant, .coffee, .park].contains($0.kind) }
                               .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
                           onShared: shared)
-                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         // Logged in from that ask: the neighbour whose code it was.
@@ -707,9 +706,8 @@ struct MainTabsView: View {
     }
 
     /// What New event shared: the pill says it at once, and Town reads again so it's there.
-    private func shared(_ event: NewEventShared) {
-        HelloInbox.shared.add(.posted(.init(eventId: event.id, title: event.title, photo: event.photo, live: event.live)))
-        if tab != .town { select(.town) }
+    private func shared(_ posted: HelloItem.Posted) {
+        HelloInbox.shared.add(.posted(posted))
         Task { await townFeed.reload() }
     }
 

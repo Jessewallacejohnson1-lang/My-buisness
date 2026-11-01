@@ -71,27 +71,41 @@ final class NewEventTests: XCTestCase {
 
     func testThePillSaysItAtOnceAndTheBellKeepsIt() {
         let photo = URL(string: "https://example.com/p.jpg")
-        let live = HelloItem(what: .posted(.init(eventId: "e1", title: "Porch concert", photo: photo, live: true)), at: Date())
+        let live = HelloItem(what: .posted(.init(eventId: "e1", title: "Porch concert", photo: photo, live: true,
+                                                 eventDate: "2026-11-30", startTime: "19:00", location: "Bad Habit Brewing")), at: Date())
         XCTAssertTrue(live.yours, "a tap's answer, outside the 3 a day")
         XCTAssertEqual(live.rank, 0)
         XCTAssertEqual(live.id, "posted:e1")
         XCTAssertEqual(live.message?.text, "Your event is live")
-        XCTAssertEqual(live.message?.target, .eventID("e1"))
+        // Its page opens from the pill even while it's more than two weeks out and not on Town yet.
+        guard case .event(let card)? = live.message?.target else { return XCTFail("the pill opens its Event") }
+        XCTAssertEqual(card.id, "e1")
+        XCTAssertEqual(card.title, "Porch concert")
+        XCTAssertEqual(card.eventDate, "2026-11-30")
         XCTAssertEqual(live.message?.logo, photo)
         XCTAssertEqual(live.row().words, "shared Porch concert.")
 
-        let waiting = HelloItem(what: .posted(.init(eventId: "e2", title: "Porch concert", photo: nil, live: false)), at: Date())
+        let waiting = HelloItem(what: .posted(.init(eventId: "e2", title: "Porch concert", photo: nil, live: false,
+                                                    eventDate: "2026-11-30", startTime: "19:00", location: "Bad Habit Brewing")), at: Date())
         XCTAssertEqual(waiting.message?.text, "Shared. It goes up once it's checked.")
         XCTAssertEqual(waiting.message?.target, .town)
         XCTAssertEqual(waiting.row().words, "shared Porch concert. It goes up once it's checked.")
         XCTAssertEqual(waiting.row().picture, .tick)
     }
 
+    func testARetryCountsWhatAlreadyLandedAsSent() {
+        XCTAssertTrue(SupabaseError(message: "duplicate key value violates unique constraint \"club_events_pkey\"", status: 409).alreadyThere)
+        XCTAssertTrue(SupabaseError(message: "The resource already exists", status: 400).alreadyThere)
+        XCTAssertFalse(SupabaseError(message: "new row violates row-level security policy", status: 403).alreadyThere)
+        XCTAssertFalse(SupabaseError(message: "The server couldn't complete this request.", status: 0).alreadyThere)
+    }
+
     func testAnotherAccountForgetsWhatThisOneShared() {
         let keep = UserDefaults(suiteName: "NewEventTests")!
         keep.removePersistentDomain(forName: "NewEventTests")
         let inbox = HelloInbox(keep: keep)
-        inbox.add(.posted(.init(eventId: "e1", title: "Porch concert", photo: nil, live: true)))
+        inbox.add(.posted(.init(eventId: "e1", title: "Porch concert", photo: nil, live: true,
+                                eventDate: "2026-11-30", startTime: "19:00", location: "Bad Habit Brewing")))
         XCTAssertEqual(inbox.next?.id, "posted:e1")
         inbox.forgetAccount()
         XCTAssertNil(inbox.next)

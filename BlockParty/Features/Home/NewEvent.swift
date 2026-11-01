@@ -69,6 +69,9 @@ enum NewEventCopy {
     static let offline = "Couldn't share. Check your connection and try again."
     static let live = "Your event is live"
     static let waiting = "Shared. It goes up once it's checked."
+    static let discard = "Discard event?"
+    static let discardWhy = "If you leave now, you'll lose what you've added."
+    static let discardButton = "Discard"
 }
 
 // MARK: - The model
@@ -80,6 +83,11 @@ final class NewEventModel {
     private(set) var sharing = false
     /// The check's no, or why it couldn't send, under Share.
     var problem: String?
+    /// Each failed Share: Share shakes once for each (buttons-and-pills.md, 2026-09-27).
+    private(set) var failures = 0
+
+    /// Something to lose: a swipe down or the X asks first.
+    var edited: Bool { photo != nil || !draft.title.isEmpty || !draft.location.isEmpty }
 
     /// One id for every try at one Event, so a retry finishes it rather than starting another;
     /// a new one after a no, since a declined Event stays declined.
@@ -98,24 +106,43 @@ final class NewEventModel {
             if !posted {
                 if let photo, photoURL == nil {
                     guard let data = ProfileModel.coverJPEG(photo) else { throw CocoaError(.fileReadCorruptFile) }
-                    photoURL = try await api.uploadEventPhoto(data, id: id).absoluteString
+                    photoURL = try await Self.once { try await api.uploadEventPhoto(data, id: id) }?.absoluteString
+                        ?? api.eventPhotoURL(id: id)?.absoluteString
                 }
-                try await api.addEvent(draft.input(id: id, imageURL: photoURL))
+                try await Self.once { try await api.addEvent(draft.input(id: id, imageURL: photoURL)) }
                 posted = true
             }
         } catch {
-            problem = NewEventCopy.offline
+            fail(NewEventCopy.offline)
             return nil
         }
         let check = await api.checkNewEvent(id)
         if case .declined(let reason) = check {
-            problem = reason
+            fail(reason)
             id = UUID().uuidString.lowercased()
             photoURL = nil
             posted = false
-            AccessibilityNotification.Announcement(reason).post()
         }
         return check
+    }
+
+    /// A send that may already have landed: an answer lost on the way back leaves the photo or
+    /// the Event saved, and the retry is told it already exists. That counts as sent; nil then.
+    private static func once<T>(_ send: () async throws -> T) async throws -> T? {
+        do { return try await send() } catch let error as SupabaseError where error.alreadyThere { return nil }
+    }
+
+    private func fail(_ words: String) {
+        problem = words
+        failures += 1
+        Haptics.error()
+        AccessibilityNotification.Announcement(words).post()
+    }
+
+    /// What the pill and the bell keep of it.
+    func posted(live: Bool) -> HelloItem.Posted {
+        HelloItem.Posted(eventId: id, title: draft.title, photo: photoURL.flatMap(URL.init(string:)), live: live,
+                         eventDate: Town.day(draft.when), startTime: NewEventDraft.clock(draft.when), location: draft.location)
     }
 
     /// A new photo: the one already sent belonged to the last.
@@ -127,22 +154,16 @@ final class NewEventModel {
 
 // MARK: - The sheet
 
-/// What Share left behind, for the shell: the hello pill says it, and Town reads again.
-struct NewEventShared {
-    let id: String
-    let title: String
-    let photo: URL?
-    let live: Bool
-}
-
 struct NewEventSheet: View {
     /// The town's places, from Search's read, for Place.
     let places: [SearchItem]
-    var onShared: (NewEventShared) -> Void = { _ in }
+    /// What Share left: the shell's pill says it, and Town reads again.
+    var onShared: (HelloItem.Posted) -> Void = { _ in }
 
     @State private var model = NewEventModel()
     @State private var pick: PhotosPickerItem?
     @State private var path: [Step] = []
+    @State private var discarding = false
     @Environment(\.dismiss) private var dismiss
 
     enum Step: Hashable { case details, place }
@@ -160,8 +181,12 @@ struct NewEventSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { dismiss() } label: { Image(systemName: "xmark") }
+                        Button { if model.edited { discarding = true } else { dismiss() } } label: { Image(systemName: "xmark") }
                             .accessibilityLabel("Close")
+                            // Instagram asks before a post with edits goes.
+                            .confirmationDialog(NewEventCopy.discard, isPresented: $discarding, titleVisibility: .visible) {
+                                Button(NewEventCopy.discardButton, role: .destructive) { dismiss() }
+                            } message: { Text(NewEventCopy.discardWhy) }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(NewEventCopy.next) { path.append(.details) }
@@ -182,7 +207,8 @@ struct NewEventSheet: View {
                 model.pick(data.flatMap(UIImage.init(data:)))
             }
         }
-        .interactiveDismissDisabled(model.sharing)
+        // A swipe down can't throw away what's typed or picked; the X asks first.
+        .interactiveDismissDisabled(model.sharing || model.edited)
         #if DEBUG
         // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
         .onAppear { if let name = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: name)) } }
@@ -195,8 +221,7 @@ struct NewEventSheet: View {
             switch check {
             case .declined: return
             case .live, .waiting:
-                onShared(NewEventShared(id: model.id, title: model.draft.title, photo: model.photoURL.flatMap(URL.init(string:)),
-                                        live: check == .live))
+                onShared(model.posted(live: check == .live))
                 dismiss()
             }
         }
@@ -209,6 +234,7 @@ private struct NewEventDetails: View {
     let share: () -> Void
     let choosePlace: () -> Void
     @FocusState private var naming: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
@@ -241,6 +267,8 @@ private struct NewEventDetails: View {
                     DatePicker(NewEventCopy.when, selection: $model.draft.when, in: Date()...,
                                displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
+                        // The town's clock, as Share sends it: a phone away from home picks St. Joseph's 7 PM.
+                        .environment(\.timeZone, Town.timeZone)
                         // Opening the calendar puts the keyboard away first, so it doesn't come back
                         // when the calendar closes (recorded 2026-11-01).
                         .simultaneousGesture(TapGesture().onEnded { naming = false })
@@ -297,6 +325,7 @@ private struct NewEventDetails: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.97, haptic: model.draft.ready))
+            .turnBackShake(failures: model.failures, shakes: !reduceMotion)
             .disabled(!model.draft.ready || model.sharing)
             .accessibilityLabel(model.sharing ? "Sharing" : NewEventCopy.share)
         }

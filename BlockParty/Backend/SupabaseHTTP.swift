@@ -13,6 +13,13 @@ struct SupabaseError: LocalizedError {
     let message: String
     let status: Int?
     var errorDescription: String? { message }
+
+    /// The row or file is already there: a retry of a send whose answer was lost. PostgREST
+    /// answers 409; Storage answers 400 with "already exists" (BP app town-plus).
+    var alreadyThere: Bool {
+        status == 409 || message.localizedCaseInsensitiveContains("already exists")
+            || message.localizedCaseInsensitiveContains("duplicate")
+    }
 }
 
 enum SupabaseHTTP {

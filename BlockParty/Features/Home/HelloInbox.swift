@@ -38,6 +38,17 @@ struct HelloItem: Codable, Hashable, Identifiable {
         let photo: URL?
         /// Through the instant check; false while it waits for Review.
         let live: Bool
+        /// When and where, as it went out, so its page opens from here: an Event more than two
+        /// weeks out isn't on Town yet (shows_from), and the feed can't hand its card over.
+        let eventDate: String
+        let startTime: String
+        let location: String
+
+        /// Its Event page's card, made from what was sent.
+        var card: FeedCardItem {
+            FeedCardItem(UpcomingEvent(id: eventId, title: title, eventDate: eventDate, startTime: startTime,
+                                       location: location, goingCount: 0, createdAt: "", imageUrl: photo?.absoluteString))
+        }
     }
 
     /// "Clemens Library added an event": the newest of the day's, and how many.
@@ -176,7 +187,7 @@ struct HelloItem: Codable, Hashable, Identifiable {
                               target: .eventID(added.eventId), logo: added.picture, photo: added.pictureIsPhoto)
         case .posted(let posted):
             HelloDrop.Message(text: posted.live ? NewEventCopy.live : NewEventCopy.waiting,
-                              target: posted.live ? .eventID(posted.eventId) : .town, logo: posted.photo, photo: true)
+                              target: posted.live ? .event(posted.card) : .town, logo: posted.photo, photo: true)
         }
     }
 

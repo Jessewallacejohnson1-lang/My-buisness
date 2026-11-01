@@ -195,8 +195,16 @@ private struct HelloItemRow: View {
             } else {
                 padded(words).accessibilityElement(children: .combine)
             }
-        case .moment, .posted:
+        case .moment:
             padded(words).accessibilityElement(children: .combine)
+        // Your own Event, live: its page, wherever it sits on Town.
+        case .posted(let posted):
+            if posted.live {
+                NavigationLink(value: NoticeEventRoute(item: posted.card)) { padded(words).contentShape(Rectangle()) }
+                    .buttonStyle(RowPressStyle())
+            } else {
+                padded(words).accessibilityElement(children: .combine)
+            }
         case .added:
             if let card {
                 NavigationLink(value: NoticeEventRoute(item: card)) { padded(words).contentShape(Rectangle()) }

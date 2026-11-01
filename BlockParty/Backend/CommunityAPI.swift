@@ -409,6 +409,12 @@ struct CommunityAPI {
         return try await db.upload(bucket: "event-images", path: "\(uid)/\(id).jpg", jpeg, type: "image/jpeg")
     }
 
+    /// Where that photo is, once sent: for a retry told it's already there.
+    func eventPhotoURL(id: String) -> URL? {
+        guard let uid = try? db.userID.lowercased() else { return nil }
+        return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/event-images/\(uid)/\(id).jpg")
+    }
+
     /// The instant check on your own pending Event (`moderate-post` `submit`, BP app town-plus): live,
     /// or no with the reason. Anything else, the day's 10 used or no answer, leaves it waiting
     /// for Review.
