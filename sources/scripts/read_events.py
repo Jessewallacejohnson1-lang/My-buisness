@@ -379,8 +379,8 @@ def read_pathify(src, entry, today):
 
 # 511mn.org moved to a new map on 2026-10-21 and its old GraphQL address now answers with the
 # map's page. The new map loads every road report in the state from one address; the ones on a
-# road inside the box are kept. Incidents, closures and work zones are what the old map called
-# road reports (crashes came through it from 2026-10-17).
+# road inside the box are kept. Closures and work zones are what the old map called road reports;
+# the registry's address leaves out incidents (crashes came through from 2026-10-17 to 2026-11-01).
 
 
 def box(lat, lon, miles):

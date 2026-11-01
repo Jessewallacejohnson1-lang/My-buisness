@@ -421,7 +421,7 @@ tier: watched
 category: gov
 added_by: agent:claude
 sources:
-  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=incidents,closures,workZones
+  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=closures,workZones
     method: api
     trust: official
     reader: cars511
@@ -430,8 +430,10 @@ sources:
 ```
 Notes: MnDOT's road reports (construction, closures, maintenance) within 10 miles of St.
 Joseph (Jesse, 2026-10-14): St. Cloud, Sartell, Waite Park, Avon, Cold Spring, Collegeville.
-Road work is News. 511mn.org is a map app; this is the feed its map loads, every report in the
-state in one call (no robots file; 1 MB), and the reader keeps those on a road inside the box.
+Road work is News; crashes and other incidents are not, since they clear in hours (Jesse,
+2026-11-01), so the address asks for closures and work zones only. 511mn.org is a map app; this
+is the feed its map loads, every report in the state in one call (no robots file; 1 MB), and the
+reader keeps those on a road inside the box.
 511 moved to this map on 2026-10-21; the old GraphQL address (`511mn.org/api/graphql`) has
 answered with the map's page since. It carries state and federal highways, rarely county roads. MnDOT's WZDx work-zone
 feed (`https://mn.carsprogram.org/carsapi_v1/api/wzdx`, no key, no robots file) answered on
@@ -5623,7 +5625,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ```yaml
 id: kostreba-appliance-services-center
 status: active
-tier: watched
+tier: listed
 category: "home_service"
 place_type: "Business"
 address: "545 8th Ave NE"
@@ -5631,12 +5633,12 @@ phone: "17633906267"
 aka: ["Kostreba Appliance Services Center"]
 added_by: agent:town-verify
 sources:
-  - url: https://omegaforceappliancerepair.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-11-01: back to `listed`, website TODO. Overture's website, omegaforceappliancerepair.com, is a different Twin Cities company (its vans and staff say Omega Force), so its photos and pages were never this place's; a web search finds no site for Kostreba (Jesse: "yes").
 
 ## Kraft Mechanical St Cloud
 ```yaml
