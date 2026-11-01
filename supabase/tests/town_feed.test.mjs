@@ -142,6 +142,14 @@ await db.exec(findable);
 for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
   await db.exec(readFileSync(join(migrations, f), 'utf8'));
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
+// The two functions as they were before feed-load (20261101200821_feed_once_per_open.sql), kept under
+// other names so the stories can hold the new ones to them: the whole feed with its own body, and the
+// Event of the day that worked it all out.
+const before = (file, fn, as) => readFileSync(join(migrations, file), 'utf8')
+  .match(new RegExp(`create or replace function public\\.${fn}\\([\\s\\S]*?\\n\\$\\$;`))[0]
+  .replace(`public.${fn}(`, `public.${as}(`).replaceAll('public.get_town_feed(', 'public.old_town_feed(');
+await db.exec(before('20261101180305_road_news.sql', 'get_town_feed', 'old_town_feed'));
+await db.exec(before('20261026132204_activity_follow_lift.sql', 'get_event_of_the_day', 'old_event_of_the_day'));
 // The stories empty teams between them; the activities stay, matched by their ids.
 await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
                  drop constraint team_activities_fielded_by_fkey`);
@@ -870,7 +878,9 @@ test('the nightly clean-up deletes only views older than 60 days', async () => {
   assert.deepEqual(rows, [{ action: 'open', recent: false }, { action: 'view', recent: true }]);
 });
 
-test('the feed is read in under 100 ms with 5,000 people', async () => {
+// A busy Town for the speed stories: about eight weeks, 200 events, 5,000 people, the reader's friends,
+// views and follows.
+async function fiveThousand() {
   await reset();
   // About eight weeks of a busy Town: 200 events, 5,000 people with three picks each,
   // 50,000 Going, 10,000 saves and 50,000 hearts.
@@ -938,6 +948,10 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     from (select id, row_number() over (order by id) n from public.clubs where name like 'Group %') c
     where split_part(e.title, ' ', 2)::int % 7 = 0 and split_part(e.title, ' ', 2)::int / 7 % 3 + 1 = c.n;
     analyze;`);
+}
+
+test('the feed is read in under 100 ms with 5,000 people', async () => {
+  await fiveThousand();
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
   const times = [];
@@ -2431,4 +2445,167 @@ test("the City's and Joetown's other Events lift for their followers; a Place yo
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall Fest', 'Pilates class', 'Bingo', 'Winterwalk'],
                    "Joetown's second Event counts half, as any host's");
   await noPlaces();
+});
+
+// Feed load (20261101200821_feed_once_per_open.sql): Event of the day reads only its slice of the Town
+// feed, never the whole of it, and gives exactly what it gave when it read the whole feed.
+const SHE = '00000000-0000-0000-0000-0000000000c1';
+async function busyWeekend() {
+  await reset();
+  const e = {};
+  const on = async (title, day, start, host, interests = null, draw = 2) => {
+    e[title] = await add(title, day, { start_time: start, source_name: host });
+    if (interests) await tagged(e[title], interests, draw);
+    return e[title];
+  };
+  // Friday Oct 9, with the morning's picks.
+  await on('Bake sale', '2026-10-09', '8 AM', 'Church', ['dining']);
+  await on('Pancake breakfast', '2026-10-09', '9 AM', 'Legion', ['dining']);
+  await on('Quilt show', '2026-10-09', '1 PM', 'Quilters', ['arts']);
+  await on('Fix-It Clinic', '2026-10-09', '2 PM', 'Library', ['books']);
+  await on('Parade', '2026-10-09', '3 PM', 'JoeTown', ['festivals'], 3);
+  await on('Campus lecture', '2026-10-09', '4 PM', 'CSB', ['campus', 'books']);
+  await on('Fall fair', '2026-10-09', '5 PM', 'Fair board', ['festivals'], 3);
+  await on('Loud night', '2026-10-09', '9 PM', 'Loud bar', ['bars']);
+  await on('Halloween party', '2026-10-09', '8 PM', 'Taproom', ['bars', 'live_music']);
+  await on('Council meeting', '2026-10-09', '6 PM', 'City', [], 1);
+  // The rest of each host's Events, which the feed's spacing reads, and a weekly regular.
+  for (const d of ['2026-10-09', '2026-10-16', '2026-10-23']) await add('Trivia', d, { start_time: '7 PM', source_name: 'Taproom' });
+  await on('Taproom brunch', '2026-10-10', '10 AM', 'Taproom', ['dining']);
+  await on('Taproom show', '2026-10-10', '7 PM', 'Taproom', ['live_music'], 3);
+  await on('Rummage sale', '2026-10-10', '9 AM', 'Church', ['dining']);
+  await on('Campus concert', '2026-10-10', '2 PM', 'SJU', ['campus', 'live_music'], 3);
+  await on('Campus play', '2026-10-12', '7 PM', 'CSB', ['campus', 'arts'], 3);
+  await on('Fair cleanup', '2026-10-10', '8 AM', 'Fair board', ['outdoors']);
+  await on('Legion fish fry', '2026-10-10', '5 PM', 'Legion', ['dining'], 3);
+  await on('Second quilt show', '2026-10-13', '1 PM', 'Quilters', ['arts']);
+  // Called off, still in the feed for the Heart it has: never a pick.
+  await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [e.Parade]);
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [e.Parade, SHE]);
+  await standouts('2026-10-09', [e.Parade, e['Fall fair'], e['Quilt show'], e['Loud night'], e['Bake sale'],
+                                 e['Campus lecture'], e['Pancake breakfast'], e['Halloween party']]);
+  // Saturday Oct 10 has no picks; Sunday Oct 11 has nothing on.
+  return e;
+}
+
+// Each viewer as the stories read them: signed out, a neighbour with a hidden Event, a muted host and
+// a Going, and the admin (the Score line).
+async function asViewer(who, e) {
+  if (who === 'out') { await db.exec('reset role; reset request.jwt.claim.sub; reset test.admin; set role anon'); return; }
+  await signIn(ME, ['dining', 'campus', 'arts']);
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Loud bar', 'Loud bar') on conflict do nothing`, [ME]);
+  await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
+                  values ($1, $2, 'not_interested', timestamptz '2026-10-01 12:00-05') on conflict do nothing`, [ME, e['Quilt show']]);
+  await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2) on conflict do nothing`, [e['Taproom brunch'], ME]);
+  await db.exec(`set role authenticated; ${who === 'admin' ? "set test.admin = 'on'" : 'reset test.admin'}`);
+}
+const MOMENTS = ['00:00', '07:00', '10:30', '15:00', '18:30', '21:30', '23:30']
+  .flatMap((t) => ['2026-10-09', '2026-10-10', '2026-10-11'].map((d) => `${d} ${t}`));
+const rowsOf = async (fn, at) => (await db.query(
+  `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+
+test('feed-load: Event of the day picks what it did when it read the whole feed: signed out, signed in, admin, every day and time', async () => {
+  const e = await busyWeekend();
+  const seen = {};
+  for (const who of ['out', 'in', 'admin']) {
+    await asViewer(who, e);
+    for (const at of MOMENTS) {
+      const now = await rowsOf('get_event_of_the_day', at);
+      assert.deepEqual(now, await rowsOf('old_event_of_the_day', at), `${who} at ${at}`);
+      seen[`${who} ${at}`] = now.map((r) => r.title);
+    }
+  }
+  await db.exec('reset role; reset test.admin');
+  // The stories reach every way a pick goes: picks that fit, a called-off pick, a hidden one, a muted
+  // host's, one that's over, a day with no picks, a day with nothing on.
+  assert.deepEqual(seen['out 2026-10-09 07:00'], ['Bake sale', 'Quilt show', 'Fall fair']);
+  assert.deepEqual(seen['in 2026-10-09 07:00'], ['Bake sale', 'Campus lecture', 'Fall fair'],
+                   'not the hidden quilt show, nor the muted loud night; the cancelled parade never');
+  assert.deepEqual(seen['in 2026-10-09 10:30'], ['Pancake breakfast', 'Campus lecture', 'Fall fair'],
+                   'the bake sale is over: the next morning pick takes its spot');
+  assert.deepEqual(seen['out 2026-10-10 00:00'], ['Campus concert'],
+                   "no picks: the feed's top Event; the Taproom show counts half behind its host's other Events");
+  assert.deepEqual(seen['in 2026-10-10 00:00'], ['Taproom brunch'], 'no picks: the one you are Going to');
+  assert.deepEqual(seen['out 2026-10-11 07:00'], [], 'nothing on');
+  assert.ok(seen['admin 2026-10-09 07:00'].length === 3);
+});
+
+test('feed-load: get_town_feed gives the same rows in the same order as before it moved to private.town_feed', async () => {
+  const e = await busyWeekend();
+  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Taproom', interests: ['dining'] });
+  await news('Road work on Minnesota St', '2026-10-08 09:00', { category: 'road' });
+  for (const who of ['out', 'in', 'admin']) {
+    await asViewer(who, e);
+    for (const at of ['2026-10-08 12:00', '2026-10-09 07:00', '2026-10-09 15:00', '2026-10-10 18:30']) {
+      for (const n of [false, true]) {
+        const sql = (fn) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'), $2)`, [at, n]);
+        const [a, b] = [(await sql('get_town_feed')).rows, (await sql('old_town_feed')).rows];
+        assert.ok(a.length > 3);
+        assert.deepEqual(a, b, `${who} at ${at}, news ${n}`);
+      }
+    }
+  }
+  await db.exec('reset role; reset test.admin');
+  // A later migration that gives get_town_feed a body of its own again would leave Event of the day
+  // reading the old one: change private.town_feed instead.
+  const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean)'::regprocedure) as def`);
+  assert.match(def, /private\.town_feed\(p_now, p_news, null\)/);
+});
+
+// Calls to each function during one read, counted by Postgres itself (track_functions): the counts
+// after it less those before it.
+async function callsDuring(sql, as) {
+  const counts = async () => Object.fromEntries((await db.query(`select funcname, calls::int from pg_stat_xact_user_functions
+    where funcname in ('get_town_feed', 'old_town_feed', 'town_feed')`)).rows.map((r) => [r.funcname, r.calls]));
+  await db.exec(`reset role; begin; set local track_functions = 'all'`);
+  const was = await counts();
+  await db.exec(as);
+  await db.query(sql);
+  await db.exec('reset role');
+  const now = await counts();
+  await db.exec('commit');
+  return Object.fromEntries(Object.entries(now).map(([f, n]) => [f, n - (was[f] ?? 0)]).filter(([, n]) => n > 0));
+}
+
+test('feed-load: with 5,000 people, Event of the day never works out the whole feed, and reads faster', async () => {
+  await fiveThousand();
+  const READER = '00000000-0000-0000-0001-000000000042';
+  const at = '2026-10-08 12:00';
+  const eotd = (fn, when = at) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [when]);
+  const median = async (fn, when) => {
+    await eotd(fn, when); // warm up
+    const times = [];
+    for (let i = 0; i < 5; i++) { const t0 = performance.now(); await eotd(fn, when); times.push(performance.now() - t0); }
+    return times.sort((a, b) => a - b)[2];
+  };
+  await signIn(READER);
+  const as = `set role authenticated; set request.jwt.claim.sub = '${READER}'`;
+  // No picks written (Daily's other days, or a morning the job didn't run): the day's Events.
+  const out = {};
+  out.oldNone = await median('old_event_of_the_day', at);
+  out.newNone = await median('get_event_of_the_day', at);
+  assert.deepEqual((await eotd('get_event_of_the_day')).rows, (await eotd('old_event_of_the_day')).rows);
+  assert.equal((await eotd('get_event_of_the_day')).rows.length, 1);
+  // The morning's picks: four of the day's Events.
+  await db.exec('reset role');
+  const { rows: today } = await db.query(`select id from public.club_events where event_date = '2026-10-08' order by title limit 4`);
+  await standouts('2026-10-08', today.map((r) => r.id));
+  await signIn(READER);
+  out.oldPicks = await median('old_event_of_the_day', '2026-10-08 07:00');
+  out.newPicks = await median('get_event_of_the_day', '2026-10-08 07:00');
+  const picked = (await eotd('get_event_of_the_day', '2026-10-08 07:00')).rows;
+  assert.deepEqual(picked, (await eotd('old_event_of_the_day', '2026-10-08 07:00')).rows);
+  assert.ok(picked.length >= 1);
+  console.log(`  get_event_of_the_day with 5,000 people, median: no picks ${out.oldNone.toFixed(1)} ms before, ` +
+              `${out.newNone.toFixed(1)} ms now; with picks ${out.oldPicks.toFixed(1)} ms before, ${out.newPicks.toFixed(1)} ms now`);
+  // Postgres's own count: the old one ran the whole feed once a read; the new one never does.
+  const q = (fn) => `select * from public.${fn}(('2026-10-08 07:00'::timestamp at time zone 'America/Chicago'))`;
+  assert.deepEqual(await callsDuring(q('old_event_of_the_day'), as), { old_town_feed: 1 });
+  assert.deepEqual(await callsDuring(q('get_event_of_the_day'), as), { town_feed: 1 });
+  assert.deepEqual(await callsDuring(q('get_town_feed'), as), { get_town_feed: 1, town_feed: 1 });
+  // Each read works out a slice, far smaller than the feed: at most half its time, either way.
+  assert.ok(out.newNone < out.oldNone / 2, `no picks: ${out.newNone} ms against ${out.oldNone}`);
+  assert.ok(out.newPicks < out.oldPicks / 2, `picks: ${out.newPicks} ms against ${out.oldPicks}`);
+  await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
 });
