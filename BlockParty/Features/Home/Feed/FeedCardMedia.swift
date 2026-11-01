@@ -3,12 +3,14 @@
 //  Block Party — feed-card image loading and image-source presentation helpers.
 //
 
-import CoreML
 import Foundation
 import ImageIO
 import SwiftUI
 import UIKit
 import Vision
+#if targetEnvironment(simulator)
+import CoreML  // MLComputeDevice, for Vision on the simulator's CPU (`FeedCardImageLoader.focus(of:)`)
+#endif
 
 struct FeedCardURLPhoto: View {
     let url: URL
@@ -162,19 +164,21 @@ final class FeedCardImageLoader {
             return cached
         }
         guard let thumbnail = await Self.decode(request) else { return nil }
-        // Before it shows, so it never jumps. Round faces (small) skip it: many, and square already.
-        if request.maxPixelSize > Self.smallPixels, focuses[request.url] == nil {
-            focuses[request.url] = await Self.focus(of: thumbnail)
+        // Before it shows, so it never jumps. A small square one (a face in its circle) has nothing to cut.
+        if focuses[request.url] == nil, request.maxPixelSize > Self.smallPixels || thumbnail.width != thumbnail.height,
+           let spot = await Self.focus(of: thumbnail) {
+            focuses[request.url] = spot
         }
         insert(thumbnail, for: request)
         return thumbnail
     }
 
     /// Where the eye goes, from the top left (0...1): the middle of the photo's faces, else of
-    /// what Vision's attention saliency picks, else the middle. The place-photos skill's
-    /// `focus.swift` draws the approval sheet with the same rule; change both together.
+    /// what Vision's attention saliency picks, else the middle; nil when Vision failed or was
+    /// cancelled, so the next decode looks again. The place-photos skill's `focus.swift` draws
+    /// the approval sheet with the same rule; change both together.
     @concurrent
-    nonisolated static func focus(of image: CGImage) async -> UnitPoint {
+    nonisolated static func focus(of image: CGImage) async -> UnitPoint? {
         // Closures, not `\.boundingBox` key paths: a key path links the setter iOS 27 added, and the
         // app then wouldn't launch on iOS 26.5 (2026-10-31).
         var faces = DetectFaceRectanglesRequest(), saliency = GenerateAttentionBasedSaliencyImageRequest()
@@ -185,9 +189,10 @@ final class FeedCardImageLoader {
         faces.setComputeDevice(cpu, for: .main)
         saliency.setComputeDevice(cpu, for: .main)
         #endif
-        var boxes = ((try? await faces.perform(on: image)) ?? []).map { $0.boundingBox.cgRect }
+        guard var boxes = try? await faces.perform(on: image).map({ $0.boundingBox.cgRect }) else { return nil }
         if boxes.isEmpty {
-            boxes = (try? await saliency.perform(on: image))?.salientObjects.map { $0.boundingBox.cgRect } ?? []
+            guard let salient = try? await saliency.perform(on: image) else { return nil }
+            boxes = salient.salientObjects.map { $0.boundingBox.cgRect }
         }
         guard let first = boxes.first else { return .center }
         let box = boxes.dropFirst().reduce(first) { $0.union($1) }
