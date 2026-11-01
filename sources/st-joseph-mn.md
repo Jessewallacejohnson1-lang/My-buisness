@@ -421,7 +421,7 @@ tier: watched
 category: gov
 added_by: agent:claude
 sources:
-  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=incidents,closures,workZones
+  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=closures,workZones
     method: api
     trust: official
     reader: cars511
@@ -430,8 +430,10 @@ sources:
 ```
 Notes: MnDOT's road reports (construction, closures, maintenance) within 10 miles of St.
 Joseph (Jesse, 2026-10-14): St. Cloud, Sartell, Waite Park, Avon, Cold Spring, Collegeville.
-Road work is News. 511mn.org is a map app; this is the feed its map loads, every report in the
-state in one call (no robots file; 1 MB), and the reader keeps those on a road inside the box.
+Road work is News; crashes and other incidents are not, since they clear in hours (Jesse,
+2026-11-01), so the address asks for closures and work zones only. 511mn.org is a map app; this
+is the feed its map loads, every report in the state in one call (no robots file; 1 MB), and the
+reader keeps those on a road inside the box.
 511 moved to this map on 2026-10-21; the old GraphQL address (`511mn.org/api/graphql`) has
 answered with the map's page since. It carries state and federal highways, rarely county roads. MnDOT's WZDx work-zone
 feed (`https://mn.carsprogram.org/carsapi_v1/api/wzdx`, no key, no robots file) answered on

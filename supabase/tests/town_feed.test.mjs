@@ -1673,14 +1673,14 @@ test('news leaves after 7 days, or once the day it is about is over', async () =
   assert.deepEqual(await newsTitles('2026-10-15 09:01'), []);
 });
 
-test('road alerts, unpublished news and news with no post to open stay out', async () => {
+test('road work shows; unpublished news and news with no post to open stay out', async () => {
   await reset();
-  await news('I-94 crash', '2026-10-08 17:00', { category: 'road', source_name: 'Minnesota 511' });
+  await news('Fiber installation underway', '2026-10-08 17:00', { category: 'road', source_name: 'City of St. Joseph' });
   await news('Still being checked', '2026-10-08 17:00', { status: 'staging' });
   await news('No link', '2026-10-08 17:00', { source_url: ' ' });
   await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Neighbors Route 75' });
   await db.exec('set role anon');
-  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Taco Tuesday']);
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Fiber installation underway', 'Taco Tuesday']);
 });
 
 test('a host you muted keeps its news out too', async () => {
