@@ -582,13 +582,6 @@
   "busy": false
  },
  {
-  "entry_id": "cedar-street-salon-spa",
-  "name": "Cedar Street Salon and Spa",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/MEKAR99",
-  "busy": false
- },
- {
   "entry_id": "central-minnesota-detailing",
   "name": "Central Minnesota Detailing",
   "kind": "facebook",
@@ -2015,27 +2008,6 @@
   "name": "Apollo High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/mnapollohoops",
-  "busy": false
- },
- {
-  "entry_id": "cedar-street-salon-spa",
-  "name": "Cedar Street Salon and Spa",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/MEKAR99",
-  "busy": false
- },
- {
-  "entry_id": "jet-black",
-  "name": "Jet Black",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/MyJetBlack",
-  "busy": false
- },
- {
-  "entry_id": "jet-black",
-  "name": "Jet Black",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/myjetblack",
   "busy": false
  },
  {
