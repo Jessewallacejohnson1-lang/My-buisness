@@ -54,7 +54,6 @@ nonisolated enum LaunchFlags {
         case openTab = "-open-tab"
         case openTeam = "-open-team"
         case poiLogoStub = "-poi-logo-stub"
-        case profileAutoclose = "-profile-autoclose"
         case profileBottom = "-profile-bottom"
         case profileEdit = "-profile-edit"
         case profileEditInterests = "-profile-edit-interests"

@@ -370,10 +370,8 @@ struct MainTabsView: View {
         self.answersLate = answersLate
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
-        // `-open-map` and `-open-profile` raise the map and the profile sheet on launch, for
-        // screenshots: their real way in is a tap.
+        // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
-        _showProfileSheet = State(initialValue: LaunchFlags.has(.openProfile))
         _session = State(initialValue: AppSession())
     }
 
@@ -382,6 +380,8 @@ struct MainTabsView: View {
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
         #if DEBUG
+        // Your Profile is the You tab now (five-tabs 03); the old flag still lands there.
+        if LaunchFlags.has(.openProfile) { return .you }
         if let tab = LaunchFlags.value(.openTab) {
             switch tab {
             case "town":     return .town
@@ -428,8 +428,6 @@ struct MainTabsView: View {
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
-    /// Profile, in Apple's standard sheet, from the photo at the top left of You.
-    @State private var showProfileSheet = false
     /// Log in, for an Anonymous account that opened a neighbour's code.
     @State private var signingIn = false
     /// That code's neighbour, opened once the login lands.
@@ -586,9 +584,8 @@ struct MainTabsView: View {
         .environment(friendsBook)
         // A neighbour's page lays their groups and your shared plans over the You tab's reads.
         .environment(you)
-        // The friend sheet and its refusals; the Profile sheet shows its own while it is up, since
-        // one sheet can't open over another from here (follows 05).
-        .friendSurfaces(friendsBook, actions: actions, active: !showProfileSheet)
+        // The friend sheet and its refusals (follows 05).
+        .friendSurfaces(friendsBook, actions: actions)
         // The dot: read at launch and on coming back to the app (and on each visit to Town),
         // and again for another account, or the same one logged in for real.
         .task { await friendsBook.refreshDot() }
@@ -684,17 +681,20 @@ struct MainTabsView: View {
         return DailyWeek.friendsGoing(in: townFeed.cards)
     }
 
-    /// A neighbour's code (friends 07): their page on the shell's stack, over the map and your
-    /// Profile, once `get_neighbor` answers; your own opens your Profile.
+    /// A neighbour's code (friends 07): their page on the shell's stack, over the map, once
+    /// `get_neighbor` answers; your own opens your Profile, the You tab.
     private func openCode(_ id: String) {
         showMap = false
-        if id == auth.userId?.lowercased() { showProfileSheet = true; return }
+        if id == auth.userId?.lowercased() {
+            path = NavigationPath()
+            tab = .you
+            return
+        }
         guard auth.isSignedIn, !auth.isAnonymous else {
             codeAfterLogin = id
             signingIn = true
             return
         }
-        showProfileSheet = false
         Task { if let neighbor = try? await Neighbor.read(id) { path.append(neighbor) } }
     }
 
@@ -742,10 +742,13 @@ struct MainTabsView: View {
                                 // The Town tab reads the feed; a launch straight onto Friends reads it here.
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         case .search:   SearchPage(model: searchModel)
-                        // Your three weeks; your photo at its top left opens Profile.
+                        // Your Profile, with your full Calendar and Agenda (five-tabs 03).
                         case .you:
-                            YouPage(model: you, avatarURL: avatar.avatarUrl,
-                                    onProfile: { showProfileSheet = true })
+                            ProfileView(model: session.profile, saves: saves)
+                                // Settings' Calendar switch, and what Muted and Following read.
+                                .environment(calendarSync)
+                                .environment(townFeed)
+                                .environment(searchModel)
                         }
                     }
                     // Identity keyed on the tab so a switch is an insertion+removal that
@@ -792,31 +795,6 @@ struct MainTabsView: View {
             // The basemap did NOT get a dark palette, and deliberately: Mapbox renders
             // light-v11 cartography in both modes, so map INK is pinned to its light
             // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
-        }
-        // Profile: Apple's standard sheet, from the photo on You.
-        // It drags down to close, so it draws no close button of its own.
-        .sheet(isPresented: $showProfileSheet) {
-            // Its own stack, for Saved and the event pages it opens (architecture.md: a sheet
-            // may carry one). Every page in it draws its own top, so the bar stays hidden (shown
-            // on Saved, it dropped the page 20pt at the end of the push); `SwipeBack` keeps the
-            // swipe back alive without it.
-            NavigationStack {
-                ProfileView(saves: saves)
-                    // Its pages push in its own stack, which can't take a host's page.
-                    .environment(\.hostOpener, nil)
-                    .toolbar(.hidden, for: .navigationBar)
-                    .background { SwipeBack().frame(width: 0, height: 0) }
-            }
-            .environment(calendarSync)
-            .environment(friendsBook)
-            .environment(you)
-            .environment(townFeed)
-            .environment(actions)
-            .environment(searchModel)
-            .friendSurfaces(friendsBook, actions: actions)
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
         // The map is a destination, not a tab: full screen, with its own close, and its card
         // opens the Event page on the map's own stack (BP app references/map-reset).
