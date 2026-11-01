@@ -40,7 +40,8 @@ await db.exec(`
   create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
   create table vault.decrypted_secrets (name text, decrypted_secret text);
   insert into vault.decrypted_secrets values
-    ('morning_check', '{"key":"test-key","account":"ca_test","to":"jesse@example.com"}');
+    ('morning_check', '{"headers":{"x-user-api-key":"test-key","x-org-id":"ok_test"},"account":"ca_test",
+      "user":"consumer-test","to":"jesse@example.com"}');
   insert into cron.job values (4, 'game-finals'), (5, 'live-scores');
   create table public.club_events (id uuid primary key default gen_random_uuid(), title text, event_date date,
     start_time text, team_ids text[], final_score int[], live_score jsonb, cancelled_at timestamptz,
@@ -50,7 +51,8 @@ await db.exec(`
 await db.exec(read(readdirSync(migrations).find((f) => f.endsWith('_morning_reports.sql'))));
 await db.exec(fn('private.sidearm_file'));
 await db.exec(fn('private.live_games'));
-await db.exec(read(creating(migrations, ['private.morning_check']).at(-1)));
+// Every file that makes the check, oldest first: the first also makes its schedule.
+for (const f of creating(migrations, ['private.morning_problems', 'private.morning_check'])) await db.exec(read(f));
 
 // Monday Nov 2, 8:00 in Chicago (winter time, UTC-6).
 const NOW = '2026-11-02 14:00:00+00';
@@ -84,15 +86,16 @@ test('a normal morning sends no email', async () => {
   assert.equal((await sent()).length, 0);
 });
 
-test('no report today: one email through Composio, to the address and with the key in Vault', async () => {
+test('no report today: one email through Composio, to the address, with the headers and account in Vault', async () => {
   await story(null);
   await check();
   const calls = await sent();
   assert.equal(calls.length, 1);
   assert.equal(calls[0].uri, 'https://backend.composio.dev/api/v3.1/tools/execute/GMAIL_SEND_EMAIL');
-  assert.match(calls[0].headers, /x-api-key,test-key/);
+  assert.equal(calls[0].headers, '{"(x-org-id,ok_test)","(x-user-api-key,test-key)"}');
   const body = JSON.parse(calls[0].content);
   assert.equal(body.connected_account_id, 'ca_test');
+  assert.equal(body.user_id, 'consumer-test');
   assert.equal(body.arguments.recipient_email, 'jesse@example.com');
   assert.equal(body.arguments.subject, "Block Party: No morning report today: the morning run didn't finish.");
   assert.equal(body.arguments.body,
