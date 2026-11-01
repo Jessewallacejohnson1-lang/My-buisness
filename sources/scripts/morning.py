@@ -358,13 +358,20 @@ def photo_lines(rows):
         uids = ",".join(f'"{r["source_uid"]}"' for r in rows)
         ids = {(e["source_name"], e["source_uid"]): e["id"]
                for e in db.rest("GET", f"club_events?select=id,source_name,source_uid&source_uid=in.({quote(uids)})") or []}
+        # An Event with its own live photo (kind 'event', event-photos 09) is done, whatever URL its card read; a
+        # retired one doesn't count.
+        own = {p["event_id"] for p in db.rest("GET", "place_photos?select=event_id&kind=eq.event&status=eq.live"
+                                                    f"&event_id=in.({','.join(ids.values())})") or []} if ids else set()
+        done = {k for k, i in ids.items() if i in own}
+        ids = {k: i for k, i in ids.items() if k not in done}
         shown = {k: (db.rest("POST", "rpc/event_picture", {"p_event": i}) or {}).get("url") for k, i in ids.items()}
         urls = ",".join(f'"{u}"' for u in set(shown.values()) if u)
         scenes = {s["url"] for s in db.rest("GET", f"place_photos?select=url&kind=in.(scene,event)&url=in.({quote(urls)})") or []
                   } if urls else set()
     except Exception as e:
         return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
-    bare = [r for r in rows if shown.get((r["source_name"], r["source_uid"])) not in scenes]
+    bare = [r for r in rows if (r["source_name"], r["source_uid"]) not in done
+            and shown.get((r["source_name"], r["source_uid"])) not in scenes]
     return [head] * bool(bare) + event_lines(bare)
 
 
@@ -1393,8 +1400,12 @@ def photos_told():
                                       "title": title, "location": "Sunny Mary Meadow", "source_name": "Sunny Mary Meadow",
                                       "source_uid": uid, **more}
     rows = [row("Holiday Market", "m"), row("Winter Yoga", "y"), row("Football", "g", sport="Football", team_ids=["a", "b"]),
-            row("Boys Swim vs Brainerd", "s", sport=None, team_ids=None)]
-    shown = {"id-m": "https://x/scene-market.jpg", "id-y": "https://x/meadow.jpg", "id-s": "https://x/pool.jpg"}
+            row("Boys Swim vs Brainerd", "s", sport=None, team_ids=None), row("Reflection: Selected Works", "r"),
+            row("Pumpkin Walk", "p")]
+    shown = {"id-m": "https://x/scene-market.jpg", "id-y": "https://x/meadow.jpg", "id-s": "https://x/pool.jpg",
+             "id-r": "https://x/reflection.jpg", "id-p": "https://x/meadow.jpg"}
+    # Reflection has its own live photo, whatever URL its card read; Pumpkin Walk's own photo was retired.
+    own = [{"event_id": "id-r", "kind": "event", "status": "live"}, {"event_id": "id-p", "kind": "event", "status": "retired"}]
     asked = []
 
     class FakeDb:
@@ -1405,6 +1416,9 @@ def photos_told():
                         for r in rows if quote(f'"{r["source_uid"]}"') in path]
             if path == "rpc/event_picture":
                 return {"url": shown.get(body["p_event"]), "kind": "photo"}
+            if path.startswith("place_photos?select=event_id"):
+                return [{"event_id": o["event_id"]} for o in own if o["event_id"] in path
+                        and all(f"{k}=eq." not in path or f"{k}=eq.{o[k]}" in path for k in ("kind", "status"))]
             return [{"url": "https://x/scene-market.jpg"}] if "kind=in.(scene,event)" in path else []
 
     class Unread:
@@ -1419,10 +1433,12 @@ def photos_told():
     finally:
         Supabase = saved
     return [(told == ["No event photo yet:", "- Sat Dec 5 · 10 AM · Winter Yoga · Sunny Mary Meadow",
-                      "- Sat Dec 5 · 10 AM · Boys Swim vs Brainerd · Sunny Mary Meadow"],
-             "a new Event whose card shows its place's photo is listed, a meet with no two teams too; one showing a "
-             "photo of what it is isn't"),
-            (games == [] and asked.count("rpc/event_picture") == 3, "a game's white card has no photo: never listed or asked"),
+                      "- Sat Dec 5 · 10 AM · Boys Swim vs Brainerd · Sunny Mary Meadow",
+                      "- Sat Dec 5 · 10 AM · Pumpkin Walk · Sunny Mary Meadow"],
+             "a new Event whose card shows its place's photo is listed, a meet with no two teams too, and one whose own "
+             "photo was retired; one showing a photo of what it is isn't, nor one with its own live photo"),
+            (games == [] and asked.count("rpc/event_picture") == 4,
+             "a game's white card has no photo: never listed or asked; an Event with its own photo isn't asked either"),
             (unread == ["No event photo yet: not read (Supabase GET club_events failed 503: Service Unavailable)"],
              "a database that can't be read is one line, never a lost report")]
 
