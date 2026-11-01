@@ -484,6 +484,52 @@ final class TownFeedEventsTests: XCTestCase {
                        [], "uneven columns read as none")
     }
 
+    /// Soccer's minute ring (game-card 09): the minute runs on from the last push and holds at each period's
+    /// end through the break; halftime is the first half's clock stopped at 45:00; no other sport has a minute.
+    func testSoccersMinuteRunsOnAndHoldsAtEachPeriodsEnd() throws {
+        func live(_ period: String, _ seconds: Int, sport: String = "Soccer") throws -> Game.Live {
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint John's"},{"name":"Augsburg"}],"live":{"score":[1,0],"period":"\#(period)","clock":"\#(seconds / 60 + 1)'","clock_s":\#(seconds),"complete":false,"at":"2026-11-03T20:30:00Z"}}"#
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+        }
+        let first = try live("1st half", 1330), at = try XCTUnwrap(first.at)
+        XCTAssertEqual(first.minute(at: at), 23)
+        XCTAssertEqual(first.minute(at: at.addingTimeInterval(5 * 60)), 28, "it runs on between pushes")
+        XCTAssertEqual(first.minute(at: at.addingTimeInterval(60 * 60)), 45, "held at 45")
+        XCTAssertFalse(first.isHalftime)
+        let half = try live("1st half", 2700)
+        XCTAssertTrue(half.isHalftime, "the clock stopped at 45:00")
+        XCTAssertEqual(half.minute(at: at.addingTimeInterval(15 * 60)), 45, "held through the break")
+        let second = try live("2nd half", 2700)
+        XCTAssertFalse(second.isHalftime, "the second half has begun")
+        XCTAssertEqual(second.minute(at: at), 46)
+        XCTAssertEqual(second.minute(at: at.addingTimeInterval(60 * 60)), 90, "held at 90")
+        XCTAssertEqual(try live("OT", 5400).minute(at: at.addingTimeInterval(30 * 60)), 100, "the first overtime holds at 100")
+        XCTAssertEqual(try live("OT", 6000).minute(at: at.addingTimeInterval(5 * 60)), 100, "its break too")
+        XCTAssertEqual(try live("OT", 6060).minute(at: at.addingTimeInterval(30 * 60)), 110, "the second holds at 110")
+        let football = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","clock":"9:18","clock_s":558,"complete":false,"at":"2026-10-31T19:40:00Z"}}"#.utf8)).value?.live)
+        XCTAssertNil(football.minute(at: .now), "a football clock is no minute")
+    }
+
+    /// Soccer's scorers (game-card 09): one line per player under their team, a second goal joining the
+    /// first's line, a goal with no name read as "Goal"; kept past the final; none for any other sport.
+    func testSoccersScorersAreOneLinePerPlayerUnderTheirTeam() throws {
+        func game(_ plays: [(String, String, Int)], sport: String = "Soccer", final: Bool = false) throws -> Game {
+            let list = plays.enumerated().map { i, p in
+                #"{"id":"\#(i)","text":"\#(p.0)","period":"2nd half","clock":"\#(p.1)","side":\#(p.2),"score":[1,0]}"#
+            }.joined(separator: ",")
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint John's"},{"name":"Augsburg"}]"#
+                + (final ? #","final":[2,1]"# : "") + #","plays":["# + list + "]}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let goals = [("Goal by SJU Hanson,Ben, top left", "41'", 0), ("Goal by AUG Larkin,Sam", "58'", 1),
+                     ("Goal by SJU Hanson,Ben", "71'", 0), ("Goal by SJU", "88'", 0)]
+        XCTAssertEqual(try game(goals).scorers, [["Hanson 41', 71'", "Goal 88'"], ["Larkin 58'"]])
+        XCTAssertEqual(try game(goals, final: true).scorers, [["Hanson 41', 71'", "Goal 88'"], ["Larkin 58'"]], "kept past the final")
+        XCTAssertEqual(try game([]).scorers, [[], []], "no goals yet")
+        XCTAssertEqual(try game(goals, sport: "Girls Soccer").scorers.first?.first, "Hanson 41', 71'")
+        XCTAssertEqual(try game(goals, sport: "Hockey").scorers, [], "only soccer has the row")
+    }
+
     /// A game's live score (game-card 03) reads in its teams' order with the period and clock; the
     /// clock goes once it's two minutes old and Live after ten; only the server's final ends it; a bad one is none.
     func testAGamesLiveScoreReadsAndCompleteCountsAsTheFinal() throws {

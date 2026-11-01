@@ -3,7 +3,7 @@
 //  Block Party — what pushed pages share (BP app codebase-health 19): the top bar with its back
 //  chevron and centred title, a list row with a button at its right and that grey button, their
 //  sizes, and the three press styles every screen uses. Drawn, not Apple's bar, which dropped a
-//  page pushed inside the Profile sheet 20pt at the end of the push (Saved, 2026-10-13).
+//  page pushed inside the old Profile sheet 20pt at the end of the push (Saved, 2026-10-13).
 //
 
 import SwiftUI
@@ -13,9 +13,6 @@ nonisolated enum PageMetric {
     static let bar: CGFloat = 44
     /// The back chevron's square in from the page's left edge.
     static let backLead: CGFloat = 6
-    /// A bar inside the Profile sheet, down from the sheet's edge: where Apple's own bar sat, its
-    /// back button's centre 42pt down (measured on BP Build, 2026-10-13).
-    static let sheetTop: CGFloat = 20
     /// The smallest tap area, Apple's 44: smaller marks get theirs grown to it.
     static let tapMin: CGFloat = 44
 
@@ -36,10 +33,9 @@ nonisolated struct TapArea: Shape {
 }
 
 /// A pushed page's top: the back chevron at the left, the title in the middle, on paper the list
-/// passes under. `top` is how far down its sheet it sits; a page on the tab's own stack passes 0.
+/// passes under.
 struct PageBar: View {
     let title: String
-    var top: CGFloat = PageMetric.sheetTop
     let onBack: () -> Void
 
     var body: some View {
@@ -55,7 +51,6 @@ struct PageBar: View {
             .padding(.leading, PageMetric.backLead)
         }
         .frame(height: PageMetric.bar)
-        .padding(.top, top)
         .frame(maxWidth: .infinity)
         .background(Hue.paper.ignoresSafeArea(edges: .top))
     }
