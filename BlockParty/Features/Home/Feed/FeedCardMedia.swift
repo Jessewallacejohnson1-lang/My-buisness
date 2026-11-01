@@ -3,6 +3,7 @@
 //  Block Party — feed-card image loading and image-source presentation helpers.
 //
 
+import CoreML
 import Foundation
 import ImageIO
 import SwiftUI
@@ -174,10 +175,19 @@ final class FeedCardImageLoader {
     /// `focus.swift` draws the approval sheet with the same rule; change both together.
     @concurrent
     nonisolated static func focus(of image: CGImage) async -> UnitPoint {
-        var boxes = ((try? await DetectFaceRectanglesRequest().perform(on: image)) ?? []).map(\.boundingBox.cgRect)
+        // Closures, not `\.boundingBox` key paths: a key path links the setter iOS 27 added, and the
+        // app then wouldn't launch on iOS 26.5 (2026-10-31).
+        var faces = DetectFaceRectanglesRequest(), saliency = GenerateAttentionBasedSaliencyImageRequest()
+        #if targetEnvironment(simulator)
+        // The simulator gives Vision no Neural Engine or GPU ("Could not create inference context"):
+        // its CPU, so a screenshot there shows what a phone does.
+        let cpu = MLComputeDevice.allComputeDevices.first { if case .cpu = $0 { true } else { false } }
+        faces.setComputeDevice(cpu, for: .main)
+        saliency.setComputeDevice(cpu, for: .main)
+        #endif
+        var boxes = ((try? await faces.perform(on: image)) ?? []).map { $0.boundingBox.cgRect }
         if boxes.isEmpty {
-            boxes = (try? await GenerateAttentionBasedSaliencyImageRequest().perform(on: image))?
-                .salientObjects.map(\.boundingBox.cgRect) ?? []
+            boxes = (try? await saliency.perform(on: image))?.salientObjects.map { $0.boundingBox.cgRect } ?? []
         }
         guard let first = boxes.first else { return .center }
         let box = boxes.dropFirst().reduce(first) { $0.union($1) }
