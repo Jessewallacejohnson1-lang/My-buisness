@@ -185,7 +185,8 @@ final class AppSessionTests: XCTestCase {
         // The reads a switch doesn't start: the Saved list, a day in Daily's week, a hide.
         await session.saves.refresh()
         await session.dayPicks.refresh(DailyWeek.days(from: Date())[1])
-        await session.townFeed.hide(id: "e2", host: "Library", mute: false)
+        // A real Event's id: a sample's sends nothing.
+        await session.townFeed.hide(id: UUID().uuidString, host: "Library", mute: false)
 
         let reached = Set(functions(from: 0))
         let every: Set = ["get_town_feed", "club_events", "get_groups", "get_my_going", "get_my_saves",
