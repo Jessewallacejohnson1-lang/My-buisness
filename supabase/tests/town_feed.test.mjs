@@ -678,11 +678,11 @@ async function viewed(event, who, at) {
 test('posted since your last visit and not yet seen is New: 2 points, under yours', async () => {
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
-  await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 12:00-05' });
+  await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 09:00-05' });
   const past = await add('Old craft fair', '2026-10-01', { start_time: '10 AM', source_name: 'C' });
   await add('Yours', '2026-10-09', { start_time: '7 PM', source_name: 'C' });
   await tap('event_likes', past, YOU, '2026-10-01 12:00');
-  // A first open: no last visit, so nothing is New.
+  // A first open: no last visit, and nothing came in the last 24 hours, so nothing is New.
   await signIn(YOU);
   await db.exec(`set test.admin = 'on'`);
   assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'));
@@ -699,7 +699,7 @@ test('posted since your last visit and not yet seen is New: 2 points, under your
 test('New ends once you have seen it, and a view in the last 30 minutes is not a last visit', async () => {
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
-  const fresh = await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 12:00-05' });
+  const fresh = await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 09:00-05' });
   // Your only view is from this visit: no last visit yet.
   await viewed(old, YOU, '2026-10-08 11:50');
   await signIn(YOU);
@@ -716,7 +716,7 @@ test('your own posting is never New to you, only to everyone else', async () => 
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
   await add('My yard sale', '2026-10-09', { start_time: '6 PM', source_name: null, submitted_by: YOU,
-                                           created_at: '2026-10-07 12:00-05' });
+                                           created_at: '2026-10-07 09:00-05' });
   await viewed(old, YOU, '2026-10-06 09:00');
   await viewed(old, ME, '2026-10-06 09:00');
   await signIn(YOU);
@@ -741,12 +741,53 @@ test('an Event is New from its show-from day, posted weeks before', async () => 
 test("someone else's views make nothing New for you, and nobody reads anyone's views", async () => {
   await reset();
   const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
-  await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 12:00-05' });
+  await add('Posted since', '2026-10-09', { start_time: '6 PM', source_name: 'B', created_at: '2026-10-07 09:00-05' });
   await viewed(old, ME, '2026-10-06 09:00');
   await signIn(YOU);
   assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'));
   await db.exec(`reset role; set role anon; reset request.jwt.claim.sub`);
   assert.deepEqual((await db.query('select * from private.my_views()')).rows, [], 'signed out reads no views');
+});
+
+// New lasts a day (town-feed 38): in the feed in the last 24 hours counts even with no last visit,
+// or a last visit since it came, until you've seen it.
+test('in the feed in the last 24 hours is New with no last visit or a newer one, until you see it', async () => {
+  await reset();
+  const old = await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
+  const found = await add('Found this morning', '2026-10-09', { start_time: '6 PM', source_name: 'B',
+                                                                created_at: '2026-10-08 06:14-05' });
+  await add('Found yesterday morning', '2026-10-09', { start_time: '7 PM', source_name: 'C',
+                                                       created_at: '2026-10-07 06:14-05' });
+  await add('Shows from today', '2026-10-20', { start_time: '10 AM', source_name: 'D', shows_from: '2026-10-08' });
+  // A first open: no last visit.
+  await signIn(YOU);
+  let reasons = Object.fromEntries((await feed('2026-10-08 19:00')).map((r) => [r.title, r.reason]));
+  assert.equal(reasons['Found this morning'], 'new');
+  assert.equal(reasons['Shows from today'], 'new');
+  assert.notEqual(reasons['Found yesterday morning'], 'new', '37 hours ago');
+  // You looked at 1 PM without reaching it: still New at 7 PM.
+  await viewed(old, YOU, '2026-10-08 13:00');
+  await signIn(YOU);
+  reasons = Object.fromEntries((await feed('2026-10-08 19:00')).map((r) => [r.title, r.reason]));
+  assert.equal(reasons['Found this morning'], 'new');
+  // Once it has been on your screen, it isn't.
+  await viewed(found, YOU, '2026-10-08 18:50');
+  await signIn(YOU);
+  reasons = Object.fromEntries((await feed('2026-10-08 19:00')).map((r) => [r.title, r.reason]));
+  assert.notEqual(reasons['Found this morning'], 'new');
+});
+
+test('signed out, a found Event in the feed in the last 24 hours is New', async () => {
+  await reset();
+  await add('Old', '2026-10-09', { start_time: '10 AM', source_name: 'A' });
+  await add('Found this morning', '2026-10-09', { start_time: '6 PM', source_name: 'B',
+                                                  created_at: '2026-10-08 06:14-05' });
+  await add('Found 25 hours ago', '2026-10-09', { start_time: '7 PM', source_name: 'C',
+                                                  created_at: '2026-10-07 18:00-05' });
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  const rows = await feed('2026-10-08 19:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.reason]),
+                   [['Found this morning', 'new'], ['Old', 'tomorrow'], ['Found 25 hours ago', 'tomorrow']]);
 });
 
 test('the score breakdown is filled for the admin and null for everyone else', async () => {
