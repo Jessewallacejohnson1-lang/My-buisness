@@ -454,7 +454,7 @@ final class TownFeed {
     /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
     /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
     /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
-    /// Carleton plays from late in its third set to a 3-1 final instead, its sets kept past it (game-card 09).
+    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it (game-card 09).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
@@ -471,13 +471,13 @@ final class TownFeed {
         ]
         // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts.
         let sets: [(String, String?)] = [
-            (#"[1,1],"period":"Set 3","periods":[[25,23,12],[21,25,10]]"#, nil),
             (#"[1,1],"period":"Set 3","periods":[[25,23,18],[21,25,14]]"#, nil),
             (#"[1,1],"period":"Set 3","periods":[[25,23,24],[21,25,19]]"#, nil),
             (#"[2,1],"period":"Set 4","periods":[[25,23,25,0],[21,25,19,0]]"#, nil),
-            (#"[2,1],"period":"Set 4","periods":[[25,23,25,9],[21,25,19,7]]"#, nil),
-            (#"[2,1],"period":"Set 4","periods":[[25,23,25,18],[21,25,19,14]]"#, nil),
-            (#"[2,1],"period":"Set 4","periods":[[25,23,25,24],[21,25,19,22]]"#, nil),
+            (#"[2,1],"period":"Set 4","periods":[[25,23,25,16],[21,25,19,20]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,0],[21,25,19,25,0]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
+            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),
         ]
         let steps = volleyball ? sets : football
         let live = { (score: String, complete: Bool) in
@@ -493,7 +493,7 @@ final class TownFeed {
             }
             // The server keeps the last live score beside a final: volleyball's sets stay.
             if volleyball {
-                self?.score(id, final: [3, 1], live: live(#"[3,1],"period":"Set 4","periods":[[25,23,25,25],[21,25,19,22]]"#, true))
+                self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
             } else {
                 self?.score(id, final: [21, 10], live: nil)
             }
