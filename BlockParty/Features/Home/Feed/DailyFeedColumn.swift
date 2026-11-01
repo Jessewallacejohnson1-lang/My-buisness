@@ -41,7 +41,7 @@ struct DailyFeedColumn: View {
     var now = Date()
     /// One of the last few cards came on screen: the Town feed asks for its next round (town-feed 23).
     var onNearEnd: (() -> Void)? = nil
-    /// A round on its way: a spinner under the last card.
+    /// A round on its way: a card's skeleton under the last card.
     var loadingMore = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -77,8 +77,10 @@ struct DailyFeedColumn: View {
                         .onAppear { if index >= items.count - Self.nearEnd { onNearEnd?() } }
                 }
                 if loadingMore {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    // The next card's shape, as the feed's own skeleton draws one (never a spinner).
+                    SkeletonBlock(cornerRadius: Radius.card)
+                        .aspectRatio(3.0 / 2.0, contentMode: .fit)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
                         .accessibilityLabel("Loading more")
                 }
             }

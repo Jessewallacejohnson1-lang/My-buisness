@@ -322,6 +322,10 @@ struct FeedView: View {
         .onChange(of: offline) { _, offline in
             if offline { AccessibilityNotification.Announcement(FeedStateCopy.offline).post() }
         }
+        // And again once the live list is in: on a first launch the jump landed on the skeleton.
+        .onChange(of: townFeedPhase) { _, phase in
+            if forcedScroll, phase == 2 { feedPosition.scrollTo(y: Self.forcedScrollY) }
+        }
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG

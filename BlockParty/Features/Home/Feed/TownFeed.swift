@@ -308,7 +308,7 @@ final class TownFeed {
     private(set) var later: [TownFeedEntry] = []
     /// Each round past them, in `get_town_more`'s order: places to try and repeats.
     private(set) var rounds: [[TownMoreRow]] = []
-    /// A round on its way: the column ends in a spinner.
+    /// A round on its way: the column ends in a card's skeleton.
     private(set) var loadingMore = false
     /// Numbers the rounds' reads, so one that a fresh order or a new account overtook never lands.
     @ObservationIgnored private var moreRead = 0

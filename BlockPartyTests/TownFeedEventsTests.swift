@@ -1391,7 +1391,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         await town.loadMore()
         XCTAssertTrue(town.rounds.isEmpty)
-        XCTAssertFalse(town.loadingMore, "a failed round leaves no spinner")
+        XCTAssertFalse(town.loadingMore, "a failed round leaves no skeleton")
         fail.value = false
         await town.loadMore()
         XCTAssertEqual(town.rounds.count, 1)
