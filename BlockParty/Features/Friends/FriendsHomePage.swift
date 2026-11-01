@@ -57,7 +57,8 @@ extension FriendsMetric {
     static let groupTile: CGFloat = 56
     static let groupTileRadius: CGFloat = 12
     static let joinPill: CGFloat = 32
-    static let joinSide: CGFloat = 18
+    /// Join's words in from each end: the pill's Club size (`MeetupPillStyle.sidePadding`).
+    static let joinSide: CGFloat = 16
     /// "Groups to join" under your own Groups: 13pt grey, 6pt over the rows.
     static let subTop: CGFloat = 10
     static let subBottom: CGFloat = 6

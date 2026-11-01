@@ -93,9 +93,9 @@ struct GroupJoinRow: View {
                     Text("Joined").opacity(member.isMember ? 1 : 0)
                 }
                 .font(.apple(15, weight: .semibold))
-                .padding(.horizontal, FriendsMetric.joinSide)
             }
-            .buttonStyle(MeetupPillStyle(height: FriendsMetric.joinPill, minWidth: 0, light: member.isMember))
+            .buttonStyle(MeetupPillStyle(height: FriendsMetric.joinPill, minWidth: 0, light: member.isMember,
+                                         sidePadding: FriendsMetric.joinSide))
             .turnBackShake(failures: actions.memberFailureCount(group.id), shakes: !reduceMotion)
             .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: member.isMember)
             .accessibilityLabel(member.isMember ? "Joined, \(group.name)" : "Join \(group.name)")

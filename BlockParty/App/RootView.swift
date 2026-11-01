@@ -737,7 +737,10 @@ struct MainTabsView: View {
                             .task { await eventOfTheDay.refresh() }
                         // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
                         // Town feed's cards for what friends are going to.
-                        case .friends:  FriendsHomePage(tab: true, cards: townFeed.cards)
+                        case .friends:
+                            FriendsHomePage(tab: true, cards: townFeed.cards)
+                                // The Town tab reads the feed; a launch straight onto Friends reads it here.
+                                .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         case .search:   SearchPage(model: searchModel)
                         // Your three weeks; your photo at its top left opens Profile.
                         case .you:
