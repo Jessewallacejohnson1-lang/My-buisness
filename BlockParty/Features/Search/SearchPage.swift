@@ -1039,7 +1039,7 @@ struct SearchShelfPage: View {
             }
             // Covered by an open business, the logos stop following the tilt.
             .environment(opener.isOpen ? nil : tilt)
-            PageBar(title: shelf.title, top: 0) { dismiss() }
+            PageBar(title: shelf.title) { dismiss() }
             BusinessPage()
         }
         .environment(opener)
