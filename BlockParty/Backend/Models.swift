@@ -352,6 +352,24 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return final[0] > final[1] ? 0 : 1
     }
 
+    /// Volleyball keeps sets, not quarters or halves: its page draws them, and a set won is a moment.
+    var isVolleyball: Bool { sport.localizedCaseInsensitiveContains("volleyball") }
+
+    /// Volleyball's sets, each one's points in `teams` order (game-card 09): the chips under its logos.
+    /// None for any other sport, whose periods are quarters and halves.
+    var sets: [[Int]] {
+        guard isVolleyball, periods.count == 2 else { return [] }
+        return zip(periods[0], periods[1]).map { [$0, $1] }
+    }
+
+    /// The set being played, by its place in `sets`: the newest while the match is on; none before, once
+    /// SIDEARM says it's complete, after the final, and between sets, when the sets won (volleyball's
+    /// score) count every set listed.
+    var setPlaying: Int? {
+        guard let live, !live.complete, live.score.reduce(0, +) < sets.count else { return nil }
+        return sets.count - 1
+    }
+
     nonisolated struct Team: Decodable, Hashable, Sendable {
         let name: String
         /// As neighbours say it ("Gustavus", not "Gustavus Adolphus").
@@ -586,7 +604,7 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
     /// nil for your own plans, which are in neither (town-feed 31).
     var pool: String? = nil
-    /// Points for being new since your last visit (town-feed 36).
+    /// Points for being new: in the feed since your last visit or the last 24 hours, unseen (town-feed 36, 38).
     var new: Double? = nil
 }
 

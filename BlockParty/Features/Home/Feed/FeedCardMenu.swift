@@ -341,7 +341,7 @@ struct FeedCardMenu: View {
     /// nil for a code this app has no words for, which leaves the card without its •••.
     static func line(reason: String, name: String?) -> String? {
         switch reason {
-        case "new": return "New since your last visit"
+        case "new": return "New"
         case "friend": return name.map { "\($0) is going" }
         case "follow": return name.map { "You follow \($0)" }
         // Instagram's "Your algorithm" says "Lately you've been into ..." (town-feed 30).
@@ -382,7 +382,7 @@ private struct ScoreBox: View {
             row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
             row("You follow it", "+" + Self.number(score.follow), idle: score.follow == 0)
             row("Host you've been into", "+" + Self.number(score.tapped ?? 0), idle: (score.tapped ?? 0) == 0)
-            row("New since your last visit", "+" + Self.number(score.new ?? 0), idle: (score.new ?? 0) == 0)
+            row("New", "+" + Self.number(score.new ?? 0), idle: (score.new ?? 0) == 0)
             row("Draws the town out", "+" + Self.number(score.draw ?? 0), idle: (score.draw ?? 0) == 0)
             row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
             row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
