@@ -870,7 +870,7 @@ test('the nightly clean-up deletes only views older than 60 days', async () => {
 });
 
 // The feed's speed is measured in yardsticks: one yardstick is the time this fixed query takes on the
-// same machine, hashing, grouping and sorting 60,000 rows on no table. The feed reads 4.1 to 4.9
+// same machine, hashing, grouping and sorting 60,000 rows on no table. The feed reads 3.8 to 4.9
 // yardsticks (Linux cloud box, 2026-11-01, idle or at a load of 11, while its milliseconds swung from
 // 156 to 565). 10 keeps the headroom the old 100 ms budget gave the Mac's 40 ms; a feed with its
 // indexes gone reads 32.
