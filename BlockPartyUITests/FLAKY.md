@@ -23,6 +23,12 @@ flake moves to Fixed, dated, and stays there.
 
 ## Fixed
 
+- 2026-11-02 · `event_photos.py --selftest` "the batch names each picture and its source; a block
+  with none isn't shown" · red on 4419fe77, a DECISIONS.md-only commit (run 41502676020, attempt 1)
+  · it looked for "e3" anywhere in the batch file, whose first line holds the random temp folder's
+  path, and about 1 name in 200 holds "e3" (reproduced with TMPDIR set to a folder named e3) · it
+  now looks for the block itself, `"event": "e3"` · fix in this commit
+
 - 2026-11-01 · `town_feed.test.mjs` "an event card shows its place's photo of what the event is, in
   season, taking turns (event-photos 07)" · red on 94738acd, a Swift-only change (run 41114834248) ·
   its 8 Events had random ids, which hash (`md5(e.id || s.id)`) onto 2 any-season photos, so about 1
