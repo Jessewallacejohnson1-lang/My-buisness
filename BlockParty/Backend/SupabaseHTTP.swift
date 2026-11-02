@@ -4,7 +4,7 @@
 //  edge functions.
 //
 //  Hand-rolled over URLSession: no SDK, no SwiftPM dependency, full control of
-//  the exact queries — matching the @hygge/core layer 1:1.
+//  the exact queries.
 //
 
 import Foundation

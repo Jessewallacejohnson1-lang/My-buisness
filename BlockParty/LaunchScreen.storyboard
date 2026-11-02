@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-     The launch screen, stripped to bare paper on 2026-09-18 (Jesse's call: no splash).
-     iOS always shows SOMETHING between the tap and the first app frame, so this is the
-     quietest possible version of it — the app's own `Hue.paper` (#FAFAF7), no mark, no
-     wordmark. The window's first real frame is the same colour, so the hand-off is
-     invisible rather than a brand screen that fades.
+     The launch's still (Jesse, 2026-11-01; BP app references/launch-ball): BP yellow (#FCE804) with
+     the app icon's "Bp" in its ink (#111111), B and p at 90% of their size and no ! yet. It is the
+     first frame of the launch animation (`LaunchBall`), so the hand-off can't be seen: the same
+     249.6 pt Bp! canvas, centred on the screen, each letter shrunk about the middle of its foot on
+     the baseline. The letters are `LaunchMarkB` and `LaunchMarkP` on the Daily mark's canvas, and
+     every number below comes from `LaunchMotion` (90% of 249.6 x 140.25, offset from the centre).
+     Yellow and ink in light and dark alike. iPhone caches this screen: reinstall to see a change.
+     (2026-09-18 to 2026-11-01 it was bare paper, Jesse's no-splash call, now reversed.)
 -->
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="26600" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="launch-view-controller">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
@@ -21,8 +24,32 @@
                     <view key="view" contentMode="scaleToFill" userInteractionEnabled="NO" id="launch-root-view">
                         <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchMarkB" translatesAutoresizingMaskIntoConstraints="NO" id="launch-mark-b">
+                                <rect key="frame" x="81.418" y="377.674" width="224.640" height="126.229"/>
+                                <color key="tintColor" red="0.066666666666666666" green="0.066666666666666666" blue="0.066666666666666666" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="224.63991860651333" id="launch-b-w"/>
+                                    <constraint firstAttribute="height" constant="126.22908875093026" id="launch-b-h"/>
+                                </constraints>
+                            </imageView>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchMarkP" translatesAutoresizingMaskIntoConstraints="NO" id="launch-mark-p">
+                                <rect key="frame" x="90.973" y="377.674" width="224.640" height="126.229"/>
+                                <color key="tintColor" red="0.066666666666666666" green="0.066666666666666666" blue="0.066666666666666666" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="224.63991860651333" id="launch-p-w"/>
+                                    <constraint firstAttribute="height" constant="126.22908875093026" id="launch-p-h"/>
+                                </constraints>
+                            </imageView>
+                        </subviews>
                         <viewLayoutGuide key="safeArea" id="launch-safe-area"/>
-                        <color key="backgroundColor" red="0.98039215686274506" green="0.98039215686274506" blue="0.96862745098039216" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.9882352941176471" green="0.90980392156862744" blue="0.015686274509803921" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="launch-mark-b" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="-7.261994705655158" id="launch-b-x"/>
+                            <constraint firstItem="launch-mark-b" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="3.7888668029505057" id="launch-b-y"/>
+                            <constraint firstItem="launch-mark-p" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="2.293261485996356" id="launch-p-x"/>
+                            <constraint firstItem="launch-mark-p" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="3.7888668029505057" id="launch-p-y"/>
+                        </constraints>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="launch-first-responder" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -30,4 +57,8 @@
             <point key="canvasLocation" x="46" y="374"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="LaunchMarkB" width="39.150001525878906" height="22"/>
+        <image name="LaunchMarkP" width="39.150001525878906" height="22"/>
+    </resources>
 </document>

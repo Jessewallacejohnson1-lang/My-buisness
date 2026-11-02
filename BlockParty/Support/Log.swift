@@ -42,12 +42,8 @@ import OSLog
 enum Log {
     private static let subsystem = "Jesse.BlockParty"
     private static let net  = Logger(subsystem: subsystem, category: "network")
-    private static let rt   = Logger(subsystem: subsystem, category: "realtime")
-    private static let au   = Logger(subsystem: subsystem, category: "auth")
     private static let view = Logger(subsystem: subsystem, category: "ui")
 
     static func network(_ message: String)  { net.error("\(message, privacy: .public)") }
-    static func realtime(_ message: String) { rt.error("\(message, privacy: .public)") }
-    static func auth(_ message: String)     { au.error("\(message, privacy: .public)") }
     static func ui(_ message: String)       { view.error("\(message, privacy: .public)") }
 }

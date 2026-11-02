@@ -4,7 +4,7 @@
 //  an Event you follow (an activity starred, or its whole school) or are Going to that was
 //  canceled, or moved more than 15 minutes or to another place (`get_my_changes`). Nothing pops
 //  up (Jesse, 2026-10-26: "dont pop up on screen unless pressed just move to notifications"): the
-//  bell gets the friends mark's dot, and its page lists them. The free Apple team can't send a
+//  bell gets a dot, as the Friends tab does for a request, and its page lists them. The free Apple team can't send a
 //  push; that is ticket 06. Grew out of ticket 12's alert for a called-off Event (watch-every-place).
 //
 
@@ -170,7 +170,7 @@ final class Notices {
             return
         }
         failed = false
-        // Animated, so the bell's dot grows in rather than pops (the friends mark's).
+        // Animated, so the bell's dot grows in rather than pops.
         withAnimation(.snappy) { list = Self.showing(fresh, now: now) }
     }
 

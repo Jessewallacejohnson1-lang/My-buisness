@@ -31,8 +31,6 @@ enum PlaceFamily: String, Codable, Hashable, CaseIterable {
     case business
 
     /// Marker tint — places differ by glyph, not colour.
-    /// Named `tint` to match `SpotCategory.tint` / `EventCategory.tint`, so a shared
-    /// pin renderer can read one accessor across civic and POI pins.
     var tint: Color {
         switch self {
         case .food:     return Hue.ink
@@ -200,11 +198,5 @@ enum PlaceCategoryMap {
             if (primaryType ?? "").hasSuffix("_restaurant") { return "fork.knife" }
             return family.defaultGlyph
         }
-    }
-
-    /// Convenience: classify + pick a glyph in one call. `nil` if unclassifiable.
-    nonisolated static func classify(primaryType: String?, types: [String] = []) -> (family: PlaceFamily, glyph: String)? {
-        guard let fam = family(primaryType: primaryType, types: types) else { return nil }
-        return (fam, glyph(primaryType: primaryType, family: fam))
     }
 }

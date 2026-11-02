@@ -84,7 +84,7 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   of each tab.** Verified once on the eyes sim at AX3 (2026-09-26, Daily). Set the size with
   `xcrun simctl ui <udid> content_size accessibility-extra-large` (AX3) or
   `accessibility-extra-extra-extra-large` (AX5), launch with `-open-tab town`, and
-  long-press each of the four tabs. Pass: each shows its icon and name enlarged.
+  long-press each of the five tabs. Pass: each shows its icon and name enlarged.
 
 ### Audit coverage ledger — decide the deferred screens
 
@@ -201,8 +201,8 @@ number, or a test name. "Looked fine" is not evidence and will get the item re-r
 These are on the record rather than forgotten. Each returns to **Run before ship** the day
 the page it names is finished.
 
-- **Search** — a `BlankTab` placeholder (Daily too, in release, until its Spotlight read exists). A title and one promise line;
-  there is no layout to hold or break yet.
+- **Search** — a real page since 2026-10-02, not yet opened by the audit. **Daily** keeps a
+  `BlankTab` placeholder in release until its Spotlight read exists: a title and one line.
 - **You / profile** — `ProfileView` is real but still moving. Its unfinished states ("No
   plans yet", "a neighbor", "Around town") were what the auditor kept reporting. High
   priority the day it settles: a profile is user-generated text of any length.

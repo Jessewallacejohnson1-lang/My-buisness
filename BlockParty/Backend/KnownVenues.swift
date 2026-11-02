@@ -6,8 +6,7 @@
 //  ("Millstream Park" returns nothing) or lands blocks away ("East Minnesota
 //  Street" resolved ~900 m east of downtown). Known venues resolve here first,
 //  verified 2026-07-04 against OpenStreetMap building footprints and the
-//  venues' published street addresses. Mirrors apps/mobile/src/lib/geo.ts in
-//  the Expo repo — keep the two tables in sync when adding a venue.
+//  venues' published street addresses.
 //
 //  Order matters: specific venues before broad areas, so "Church of St.
 //  Joseph, Minnesota St & College Ave" never falls through to plain downtown.
@@ -47,16 +46,6 @@ enum KnownVenues {
         // — broad areas last —
         Venue(kw: ["downtown", "minnesota st", "minnesota street", "college ave"],
               coord: .init(latitude: 45.5648, longitude: -94.3183)),
-    ]
-
-    /// Presentable quick-pick labels — one per curated venue, each of which
-    /// lowercase-contains its matching keyword above, so picking one still lights
-    /// the right pin. Keep aligned with `venues` when adding a venue.
-    static let suggestions: [String] = [
-        "Local Blend", "Bad Habit", "Krewe", "Church of St. Joseph",
-        "Millstream Park", "Klinefelter Park", "Memorial Park",
-        "Centennial Park", "Northland Park", "Wobegon Trail",
-        "Sacred Heart Chapel", "Saint John's", "Saint Ben's", "Downtown",
     ]
 
     /// Exact coordinates for a known St. Joe venue, or nil if we don't know it.

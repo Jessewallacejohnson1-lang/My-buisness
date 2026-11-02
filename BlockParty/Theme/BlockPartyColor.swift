@@ -14,14 +14,11 @@
 //  grey scale: the cream page becomes #141412 and cards #1D1D1A, so a card still
 //  reads as a lighter object sitting on the page rather than as a hairline box.
 //
-//  THE EXCEPTIONS ARE THE TWO FIXED-LIGHT GROUNDS. Mapbox renders LIGHT
-//  cartography in both appearances (`BasemapPalette`), so ink drawn ON the map
-//  canvas must stay ink or a pin badge turns white-on-white; and since round 2
-//  Phase D the pin card's status wash (`statusTint`) is the same light grey in
-//  both appearances, so its content pins to the light ramp too
-//  (`PinDetailSheet.CardInk`). Those call sites resolve their tokens through
-//  `onLightCanvas` below rather than following the system. That is scoping, not
-//  an opt-out: neither canvas actually changes.
+//  THE EXCEPTIONS ARE FIXED-LIGHT GROUNDS: Mapbox's LIGHT cartography in both
+//  appearances (`BasemapPalette`), the tab bar's glass on its white underlay, a
+//  card's white face. Ink drawn on them must stay ink or it turns white-on-white, so
+//  those call sites resolve their tokens through `onLightCanvas` below rather than
+//  following the system. That is scoping, not an opt-out: the ground never changes.
 //
 
 import SwiftUI
@@ -56,11 +53,10 @@ extension Color {
 
     /// This token as it renders in LIGHT appearance, whatever the device is set to.
     ///
-    /// For anything drawn over a ground that does NOT follow the system appearance.
-    /// Two such grounds exist: the Mapbox basemap (light cartography in both modes)
-    /// and the pin-detail status card's fixed pale `statusTint` wash. Ink over
-    /// either keeps its light-mode value or it disappears (a dark-mode near-white
-    /// `ink` measured ~1.1:1 on the wash — round 2 Phase D).
+    /// For anything drawn over a ground that does NOT follow the system appearance,
+    /// such as the Mapbox basemap (light cartography in both modes). Ink there keeps
+    /// its light-mode value or it disappears (a dark-mode near-white `ink` measured
+    /// ~1.1:1 on a pale wash).
     var onLightCanvas: Color {
         Color(UIColor(self).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)))
     }
@@ -113,9 +109,7 @@ nonisolated enum Hue {
     static let fill          = Color(light: 0xF1F1EF, dark: 0x23231F)
 
     /// A border that has to be SEEN rather than merely felt — a dashed edge, a
-    /// stronger rule. One step darker than `hairline`; it was #D8D6CE written out
-    /// twice (the day sheet's checkbox and the rail's suggested card) before it was
-    /// a token, which is exactly the drift `BlockPartyColor` exists to prevent.
+    /// stronger rule. One step darker than `hairline`.
     static let edge          = Color(light: 0xD8D6CE, dark: 0x45443D)
 
     /// The outline of an interactive control that is currently EMPTY — an unchecked
@@ -124,12 +118,6 @@ nonisolated enum Hue {
     /// absence rather than as something to press. This warm grey measures 3.46:1 on
     /// white and 4.89:1 on the dark card, so one value serves both appearances.
     static let control       = Color(hex: 0x8C8A82)
-
-    /// The pin-detail sheet's status-card wash: a plain light grey, the light `fill`
-    /// value. It is the same in BOTH appearances, so the card's content pins to the light
-    /// ramp via `onLightCanvas` (`PinDetailSheet.CardInk`). The header dot is ink, and
-    /// `now` green while live.
-    static let statusTint    = Color(hex: 0xF1F1EF)
 
     /// The like state, and nothing else. A heart that stays ink reads as a shape;
     /// a heart that turns red reads as something you did — which is the whole job of
@@ -271,10 +259,6 @@ nonisolated enum Hue {
     static let mapLand       = Color(hex: 0xECECF4)
     static let mapBuilding   = Color(hex: 0xE0E0E4)
     static let mapPark       = Color(hex: 0xACE0B8)
-    /// The map's top and bottom edge washes: the land in light mode, so the edges
-    /// fade into the ground instead of a lighter band; the dark page in dark mode.
-    /// Its light value must stay `mapLand`'s.
-    static let mapEdge       = Color(light: 0xECECF4, dark: 0x141412)
     /// The hue the logo wall's cast shadows take, and a grey logo's on a Town card.
     nonisolated static let searchStudioHue: Double = 34
 

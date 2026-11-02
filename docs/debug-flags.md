@@ -19,7 +19,6 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   - `-open-tab town|daily|friends|search|you` — **`-open-tab map` is dead**, the map is no longer a tab.
   - `-tab-cycle` steps forward through the bar every 1.4s, wrapping, so the tab motion can be recorded headlessly (there is no tap automation here).
   - `-open-map` raises the map cover on launch and is now the only headless way into the map, since the real entry is a tap on Today's top-bar map button.
-  - `-show-home`.
   - `-show-skeletons`. Loading is a skeleton, and `-show-skeletons` is the flag that shows it.
   - `-share-demo`.
   - `-open-tab search` opens the Search tab (its places load signed out too, with the public key). Events there are DEBUG samples; groups are the Town's real ones (`get_groups`, read signed out too), and a group's card or result opens its Group page, whose Join group follows the same flags as Join below (under `-town-samples` it writes nowhere); typed words find real neighbours, or the sample ones under `-town-samples`; recents start from the mockup's five until something is searched.
@@ -54,11 +53,10 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
 - **The social feed (on Town):** `-daily-feed-preview [-daily-feed-state mixed|postings|events|empty]` mounts `DailyView` over `DailyFixtures` with no auth and no network. The state argument is not a convenience: nothing here can drive a scroll, so without it only what comes first is ever reachable for a screenshot — `postings` brings a 4:5 posting card to the top, `events` the short overlay card, `empty` the onboarding state. This flag mounts the column full-screen with no top bar; to photograph it where it actually ships, use `-open-tab town`. The order is the fixtures' own: postings, then the events still on (the finished sample event is absent). Fixture content is INVENTED; only the town is real.
 - **The map:** `-map-center <lat>,<lon>`, `-map-zoom <z>`, `-map-bearing <deg>` and `-map-pitch <deg>` start the camera elsewhere, closer or further, turned or tilted (the compass shows once it's turned); `-map-open-bubble <n>` opens the card of the nth of today's bubbles (0 the soonest) once they've loaded. The map is a full-screen cover with its own close X, and `-open-map` is what raises it (BP app references/map-reset).
 - **The event page:** `-event-page-two-photos` gives every event page a second, bundled photo (`centennial-park`) in place of the Google venue photo, and skips that lookup, so the photo carousel exists with no network. It is for `EventCardPhotoTapTests`, whose edge swipe must start on a carousel; Town's cards look the same with or without it.
-- **Signed-out data:** `-anon-data` — with NO session, `AuthStore.validAccessToken()` hands back the shipped public anon key so a signed-out simulator can still photograph data-bearing states. Places, the Town feed's events and the map's events no longer need it: their reads fall back to the public key on their own, as release does. Reads go exactly as far as RLS lets the anon role (`places`/`club_events` allow anon SELECT); any write is refused server-side like any anonymous caller. DEBUG-only, compiles out in release.
 - **Map clock:** `-map-now HH:MM` pins the map's clock there at launch and lets it tick on, so a live bubble and a countdown can be recorded at any hour.
-- **Logos:** add `-poi-logo-stub` for deterministic offline logos (`POILogoCache`).
 - **Profile:** your Profile is the You tab (BP app five-tabs 03): `-open-tab you`, or `-open-profile`, which lands there too, with `-profile-settings` (opens Settings), `-profile-bottom` (Settings, scrolled to Sign out), `-profile-edit`, `-profile-edit-interests` or `-profile-moderation`. Under `-town-samples` its Calendar and Agenda show the sample plans. `-review-queue-preview` shows the admin Review queue over the City's real found events with no account or network (its only real entry is an admin's profile); add `-review-queue-fail` to make every decision fail, so the row coming back with a shake can be recorded.
 - **Hello pill** (hello-drop): any launch flag keeps the day's hello away, so other runs' frames stay as they were; `-hello-drop` shows it on every launch and `-hello-welcome` shows the first open's welcome. `-hello-drop-hold` keeps it 10 s, so a recorded tap lands on the message. `-hello-seen-days N` acts as if the last open was N days ago. `-hello-later` is a later open, the day's hello already said: 8 s after launch a sample final and a sample contact who joined are found. `-hello-final win|loss` drops Saint John's final against Gustavus 8 s after launch, and `-hello-moment <name>` (`firstEvent`, `tenthEvent`, `firstFriend`...) drops that moment. A forced pill checks contacts who joined only with `-hello-joined`, since each check spends one of the Contacts page's 5 a day.
+- **The launch** (BP app references/launch-ball): it plays on every launch except under `-ui-tests`, which skips it so no test waits it out. `-launch-play` plays it under `-ui-tests` too and exposes it to XCUITest as the element `launch` (`LaunchBallTests`). `-launch-at <ms>` holds it still at that moment of the mock's simulation time (the screen plays at ¾ speed, so 1000 is 1.33 s in), the same moment as the mock's `mock.html#at-<ms>`; past its end it shows the app. `-launch-skip <ms>` taps it at that moment, as the mock's skip frames do, and `-launch-reduce` plays it as Reduce Motion does.
 - **New event** (BP app references/town-plus): `-new-event-photo <file>` gives New event a bundled photo (`rocktoberfest.jpg`) as if picked, since AXe's taps can't reach Apple's photo picker, which runs in its own process; the picker still shows, and Next goes on with that photo. It lets the hello pill drop, as no flag at all does, so Share's pill can be recorded.
 - **Test runs:** `-ui-tests` marks a UI test run: the app makes no account and sends no tap kept from before (`AuthStore.isTestRun`), and the Town bar runs without its blur, whose paused animation would hold every XCUITest step to its 60 s idle timeout.
 - **Friends tab / notifications:** `-open-friends` opens the Friends tab (the middle tab since
@@ -70,8 +68,7 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   fail. With `-town-samples`, `-friends-fail` makes every Add friend, Cancel, Confirm and
   Delete fail (the hold, flip back and shake) and `-friends-limit` makes Add friend hit the
   daily limit (Apple's alert) (2026-10-13, friends 03).
-  `-open-friends-chat` pushes the sample inbox and then its newest chat (2026-10-06), the one
-  way left into the sample chats. `-open-notifications` raises the screen behind the bell, and
+  `-open-notifications` raises the screen behind the bell, and
   `-notice-samples` fills it (and the hello pill's memory) with the sample changes. Their only
   real trigger is a tap, so without these there is no way to screenshot them and no way to add
   them to `DynamicTypeAuditTests`' walk — which is exactly the reason their ledger entries say
@@ -90,7 +87,7 @@ in a confusing silence: `-seed-places` (the Google place seeder, removed 2026-11
 `-BPMockNowSpeed`, `-map-sheet`, `-map-detent`, `-map-open`, `-map-open-poi`,
 `-map-detail-expanded`, `-map-filter`, `-map-search`, `-map-search-open`, `-map-search-committed`,
 `-map-save`, `-map-force-live`, `-map-autozoom`, `-town-rain`, `-town-rain-preview`, `-show-map-intro`
-(the map reset, 2026-10-30),
+(the map reset, 2026-10-30), `-poi-logo-stub`, `-anon-data`, `-show-home` (2026-11-01), `-open-friends-chat` (2026-11-02),
 `-yourday-*`, `-header-hairline`, `-open-speeddial`, `-speeddial-loop`, `-show-loader`,
 `-show-loading-cover`, `-launch-splash-hold`, `-launch-splash-skip`, `-open-search` (now
 `-open-notifications`), `-profile-expand`, `-show-onboarding`, the old `-onboarding-*` and `-bp-*`
