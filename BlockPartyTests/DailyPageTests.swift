@@ -332,7 +332,7 @@ final class DailyPageTests: XCTestCase {
             switch item {
             case .eventOfTheDay(let event): return "\(event.item.score?.spot ?? 0)/\(event.item.score?.of ?? 0)"
             case .event(let card): return "\(card.score?.spot ?? 0)/\(card.score?.of ?? 0)"
-            case .posting, .news: return "-"
+            case .posting, .news, .caughtUp, .place, .again: return "-"
             }
         }
         XCTAssertEqual(places, ["1/4", "2/4", "-", "4/4"])
@@ -395,6 +395,19 @@ final class DailyPageTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
         return calendar.date(from: DateComponents(year: 2026, month: 10, day: 22))!
+    }
+
+    /// The Friends tab's Friends are going (five-tabs 02): the next three weeks, soonest first
+    /// whatever the friend count, nothing from day 21 on, nobody's card left out.
+    @MainActor
+    func testTheFriendsTabsGoingIsThreeWeeksSoonestFirst() {
+        let cards = [dayCard("Three, Friday", day: "2026-10-23", at: "8 AM", friends: ["Ana", "Ben", "Sam"]),
+                     dayCard("One, Thursday", day: "2026-10-22", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Day 20", day: "2026-11-11", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Day 21", day: "2026-11-12", at: "6 PM", friends: ["Kim"]),
+                     dayCard("Nobody", day: "2026-10-22", at: "8 AM")]
+        XCTAssertEqual(FriendsHomePage.going(cards, now: dayStart).map(\.item.title),
+                       ["One, Thursday", "Three, Friday", "Day 20"])
     }
 
     /// The day's events that match your interests, in the feed's order; with none, the day's all.

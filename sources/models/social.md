@@ -13,8 +13,8 @@ carry on with the rest.
 ## Steps
 
 **Ready.** Run `python3 sources/scripts/ready.py social`, and install nothing
-   any other way. It installs the libraries the scripts need and checks the keys by name; their
-   values stay out of every command's output and your answer. When its line says `not ready`,
+   any other way. It installs the libraries the scripts need and checks the database takes the
+   routine's key; their values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so.
    Apify's key is the environment's network secret for `api.apify.com`, which the session never
    sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused

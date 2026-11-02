@@ -15,6 +15,9 @@ and a long one lost every event past 15,000 characters).
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from towns import TOWNS, DEFAULT
+
 BATCH = 12
 PAGE_CHARS = 15_000  # one part; the 2026-10-13 test run read pages cut here
 OVERLAP = 1_000      # characters each part repeats from the one before
@@ -39,8 +42,9 @@ def parts(text, size=PAGE_CHARS, overlap=OVERLAP):
         start = line + 1 if line != -1 else end - overlap
 
 
-def layout(pages, today, town="St. Joseph, Minnesota"):
-    """Pages ({file, url, text}) as the cheap model's messages, one per batch of BATCH parts."""
+def layout(pages, today, town=TOWNS[DEFAULT]["display"]):
+    """Pages ({file, url, text}) as the cheap model's messages, one per batch of BATCH parts.
+    `town`: the town file's display name."""
     cut = []
     for p in pages:
         bits = parts(p["text"])
@@ -50,7 +54,7 @@ def layout(pages, today, town="St. Joseph, Minnesota"):
     out = []
     for b in range(0, len(cut), BATCH):
         batch = cut[b:b + BATCH]
-        out.append("\n".join([f"Today is {today:%A, %B %-d, %Y}. The town is {town}. "
+        out.append("\n".join([f"Today is {today:%A, %B %-d, %Y}. The town is {town}, Minnesota. "
                               f"{len(batch)} pages follow.\n"] + batch))
     return out
 

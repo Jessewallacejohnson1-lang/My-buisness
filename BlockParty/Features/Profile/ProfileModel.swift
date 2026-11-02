@@ -1,8 +1,9 @@
 //
 //  ProfileModel.swift
-//  Block Party — state for Profile, the sheet behind the photo on the You tab. Loads the
-//  town_profiles row (name · avatar · interests) and owns the edit/save + sign-out paths.
-//  What the neighbour is Going to lives on the You page (`YouModel`), not here.
+//  Block Party — state for your Profile, the You tab (five-tabs 03). Loads the town_profiles row
+//  (name · avatar · interests) and owns the edit/save + sign-out paths. The shell keeps one
+//  (`AppSession`), so a second visit shows your page at once while it reads again. What you're
+//  Going to lives in `YouModel`, not here.
 //
 
 import SwiftUI
@@ -108,13 +109,30 @@ final class ProfileModel: ObservableObject {
         loaded = true
     }
 
+    /// Another account, or none (`AppSession`): nothing of the last one's stays on the page. The
+    /// switches wait for the next one's row, unless a write of their own stands in for the server
+    /// (the DEBUG samples, tests).
+    func accountChanged() {
+        displayName = Interests.displayName ?? ""
+        avatarUrl = nil
+        interestIds = []
+        email = nil
+        sinceLabel = nil
+        isAdmin = false
+        bio = ""
+        coverUrl = nil
+        extras = nil
+        loaded = false
+        if writePlans == nil { plansToFriends = nil }
+        if writeSuggest == nil { suggestMe = nil }
+    }
+
     /// Only a real account has a bio, a cover, friends and a `get_profile` to read.
     var canDescribe: Bool { auth.isSignedIn && !auth.isAnonymous }
 
     // MARK: - Edit / save
 
-    /// Persist an edit (same shape as OnboardingView.finishData, minus the onboarded
-    /// stamp). Writes to the server FIRST and returns whether it succeeded — the
+    /// Persist an edit. Writes to the server FIRST and returns whether it succeeded — the
     /// local mirror + published state are committed only on success, so the editor
     /// can surface a real failure instead of falsely reporting "saved" and then
     /// silently reverting on the next load.

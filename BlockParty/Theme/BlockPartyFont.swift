@@ -5,8 +5,7 @@
 //  Jost is the display, headline, and wordmark face; BP Body is the body, UI, and
 //  data face through the sans and mono helpers; BP Event Heading is scoped to the one role
 //  it was drawn for, the event headline (`eventDisplay`), and Fraunces Black to the
-//  one word that stands in for the logo (`logoSerif`). Atkinson Hyperlegible Bold
-//  remains bundled but is no longer referenced. Numbers keep tabular figures by
+//  one word that stands in for the logo (`logoSerif`). Numbers keep tabular figures by
 //  pairing the mono helpers with `.monospacedDigit()` at the call site (BP Body
 //  carries a `tnum` feature for it). SF Pro is left only in `glyph`, for symbols.
 //
@@ -80,7 +79,7 @@ extension Font {
     ///
     /// ponytail: the app currently spends 22 distinct sizes across these 10 steps,
     /// so the argument is closer to a hint than a measurement. Collapsing the call
-    /// sites onto the five named roles in `DayTypeScale` is the real cleanup and it
+    /// sites onto five named roles is the real cleanup and it
     /// needs a design eye on screenshots, not a rule in a token file.
     static func nearestTextStyle(to size: CGFloat) -> TextStyle {
         switch size {
@@ -173,9 +172,10 @@ extension Font {
         .custom(Face.bodyBold, size: size, relativeTo: nearestTextStyle(to: size))
     }
 
-    /// SF Pro at the nearest text style, scaling with it: Profile's text under the name, the
-    /// one screen off BP Body (Jesse, 2026-10-25: "use same font as group page", the Group
-    /// page's SF Pro before BP Body; BP app taste/you.md).
+    /// SF Pro at the nearest text style, scaling with it: Profile's text under the name (Jesse,
+    /// 2026-10-25: "use same font as group page", the Group page's SF Pro before BP Body; BP app
+    /// taste/you.md), and the word on the charcoal pills: Attend, Invite, Canceled, Join group
+    /// (Jesse, 2026-10-31: "apples font"; BP app taste/buttons-and-pills.md).
     static func apple(_ size: CGFloat, weight: Weight = .regular) -> Font {
         .system(nearestTextStyle(to: size), weight: weight)
     }

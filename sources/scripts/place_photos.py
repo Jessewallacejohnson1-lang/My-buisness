@@ -13,9 +13,13 @@ place-photos skill imports its picture-finding from here, so there is one copy.
     python3 sources/scripts/place_photos.py propose <key> <n>    candidate n saved as a proposal: <key> is a stale
                                                                   row's id (it takes that slot) or an entry id (a
                                                                   first photo); the app shows none until Jesse's yes
+    python3 sources/scripts/place_photos.py takedown <row id> "<reason>"   a live photo that isn't a real one, saved
+                                                                  as a take-down pick; it stays up until Jesse's yes
     python3 sources/scripts/place_photos.py --selftest
 
-`check` reads and `propose` writes with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (the morning job's
+Any of them takes --town T (a sources/towns/ file's name): a proposal goes in that town's photo folder.
+
+`check` reads and `propose` and `takedown` write with SUPABASE_URL and a key (db.py: the morning job's
 keys); pages and pictures are read with run.py's polite fetch (robots.txt, crawl-delay, one request
 per server). A photo is matched by its fingerprint (a difference hash), so the check works however the
 photo was added. Jesse's own walk photos have no page, and a Facebook or Instagram page is read only
@@ -43,8 +47,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run  # noqa: E402  (the polite fetch)
 from db import Db, DbError  # noqa: E402
+from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
-TOWN = 'st-joseph'
+TOWN = TOWNS[DEFAULT]['photo_slug']  # the photo store's folder and place_photos.town; --town sets it
 OUT = Path(__file__).resolve().parents[2] / '.runs' / 'photos'
 LONG_SIDE = 1600  # the feed hero asks for 1200 px; a little more for the 3x detail view
 MIN_PHOTO = 200  # short side
@@ -289,7 +294,7 @@ def db():
     """The shared client (db.py), made on first use so a run that never writes needs no key."""
     global _db
     if _db is None:
-        _db = Db('needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (never in the repo)', timeout=60)
+        _db = Db(timeout=60)
     return _db
 
 
@@ -604,6 +609,18 @@ def propose(key, n):
           + f" (position {v['position']})")
 
 
+def takedown(row_id, reason):
+    """A live photo that isn't a real one, saved as a take-down pick (public.photo_takedowns) for Jesse's
+    review page. Nothing comes down here. One pick per photo, ever: a photo he kept stays kept."""
+    row = db().rest('GET', f'place_photos?select=entry_id&status=eq.live&id=eq.{int(row_id)}')
+    if not row:
+        sys.exit(f'row {row_id} is not a live photo')
+    added = db().rest('POST', 'photo_takedowns?on_conflict=photo_id',
+                      [{'photo_id': int(row_id), 'reason': reason.strip(), 'proposed_by': 'the monthly refresh'}],
+                      'return=representation,resolution=ignore-duplicates')
+    print(f"{row[0]['entry_id']}: row {row_id} " + ('asked to take down' if added else 'was asked about before'))
+
+
 # --- Self-test ------------------------------------------------------------------------------------
 
 def selftest():
@@ -673,6 +690,10 @@ def selftest():
 
 if __name__ == '__main__':
     a = sys.argv[1:]
+    if '--town' in a:
+        i = a.index('--town')
+        TOWN = lookup(a[i + 1] if i + 1 < len(a) else '')['photo_slug']
+        a = a[:i] + a[i + 2:]
     if a == ['--selftest']:
         selftest()
     elif a[:1] == ['check']:
@@ -683,5 +704,7 @@ if __name__ == '__main__':
         candidates(minutes=6)
     elif a[:1] == ['propose'] and len(a) == 3:
         propose(a[1], int(a[2]))
+    elif a[:1] == ['takedown'] and len(a) == 3 and a[2].strip():
+        takedown(a[1], a[2])
     else:
         sys.exit(__doc__)

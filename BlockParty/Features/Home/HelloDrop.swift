@@ -132,7 +132,7 @@ enum HelloDrop {
             return Message(text: "\(event.item.title) is today\(at)", target: .event(event.item))
         }
         let meetings = groups.filter(\.joined).compactMap { group in
-            group.meetings.first { $0.day == today }.map { (group, $0) }
+            group.meetings.first { $0.day == today && $0.away != true }.map { (group, $0) }
         }
         if let (group, meeting) = meetings.first {
             let minutes = EventWhen.minutes(meeting.time)
@@ -216,8 +216,9 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
+        // A New event proof (`-new-event-photo`) records the pill its Share drops.
         forced || later || debugMoment != nil || debugFinal != nil
-            || !LaunchFlags.any
+            || !LaunchFlags.any || LaunchFlags.has(.newEventPhoto)
         #else
         return true
         #endif
@@ -350,6 +351,9 @@ struct HelloDropView: View {
     /// When the app last left the screen; 0 before the very first open.
     @AppStorage(HelloDrop.lastSeenKey) private var lastSeen: Double = 0
     @Environment(\.scenePhase) private var scenePhase
+    /// The launch plays over the app first (`LaunchBall`): the pill waits for it, or it dropped,
+    /// spoke and used up the day's hello under the yellow (review, 2026-11-01).
+    private let launch = LaunchStage.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The pill's top sits 6 pt above the safe area's: 56 pt on a 16 Pro, just under its island.
@@ -405,6 +409,9 @@ struct HelloDropView: View {
             }
             #endif
             if !start() { await later() }
+        }
+        .onChange(of: launch.finished) { _, done in
+            if done, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !start() { Task { await later() } }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !start() {
@@ -528,8 +535,9 @@ struct HelloDropView: View {
     private func start() -> Bool {
         let now = Date()
         // The schedule last: its yes marks the day said.
-        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, !HelloDrop.later,
-              step == .hidden, run == nil, schedule.shouldShow(now: now, forced: HelloDrop.forced) else { return false }
+        guard HelloDrop.allowed, launch.finished, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
+              !HelloDrop.later, step == .hidden, run == nil,
+              schedule.shouldShow(now: now, forced: HelloDrop.forced) else { return false }
         // DEBUG `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
         let seen = HelloDrop.debugSeen(now: now)
             ?? (lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil)
@@ -607,9 +615,9 @@ struct HelloDropView: View {
     /// made with a tap doesn't wait.
     private func dropNext() {
         let now = Date()
-        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
+        guard HelloDrop.allowed, launch.finished, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
               scenePhase != .background, step == .hidden, run == nil, let item = inbox.next else { return }
-        let yours = if case .moment(let moment) = item.what { moment.yours } else { false }
+        let yours = item.yours
         guard yours || inbox.mayDrop(now: now) else { return }
         if !yours { inbox.dropped(now: now) }
         run = Task { await say(item, fromHello: false) }

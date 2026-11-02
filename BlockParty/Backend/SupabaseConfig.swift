@@ -3,15 +3,14 @@
 //  Block Party — Supabase project coordinates.
 //
 //  The anon key is public by design (it only grants what Row-Level Security
-//  allows), so it's safe to ship in the app. Same project as the Expo app —
-//  values mirror apps/mobile/.env.
+//  allows), so it's safe to ship in the app.
 //
 
 import Foundation
 
 // nonisolated: these are immutable config constants (the module defaults to
-// MainActor isolation), so off-main callers — e.g. the `WeatherClipCache`
-// actor — can read the derived URLs without hopping to the main actor.
+// MainActor isolation), so off-main callers can read the derived URLs without
+// hopping to the main actor.
 nonisolated enum SupabaseConfig {
     static let url = URL(string: "https://lxdgwhvqjqmqliobwjpi.supabase.co")!
     static let anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4ZGd3aHZxanFtcWxpb2J3anBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMjU3MTEsImV4cCI6MjA5NjcwMTcxMX0.WrwYA1NN8pOy5iOqljBJHys15CqpVAbUEFeqiriwmb0"

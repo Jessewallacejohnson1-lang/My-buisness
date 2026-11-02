@@ -287,8 +287,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:y")
         await town.hide(id: "y", host: "Parks", mute: true)
         town.undoEnded("y")
-        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c"],
-                       "Parks' pick and cards all go")
+        XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c", "caught-up"],
+                       "Parks' pick and cards all go; the list still ends on its line (town-feed 23)")
     }
 
     /// Scrolled down, the poster holds at what it showed when the feed left the top, a pick that
@@ -460,6 +460,116 @@ final class TownFeedEventsTests: XCTestCase {
         }
     }
 
+    /// Volleyball's sets (game-card 09): one chip per set from SIDEARM's periods, the newest one being
+    /// played while the match is on and none once it's complete; any other sport has no sets.
+    func testVolleyballsSetsAreItsPeriodsWithTheNewestBeingPlayed() throws {
+        func game(_ more: String, sport: String = "Volleyball") throws -> Game {
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint Benedict"},{"name":"Carleton"}]"# + more + "}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let on = try game(#","live":{"score":[2,1],"period":"Set 4","complete":false,"periods":[[25,23,25,18],[21,25,19,14]]}"#)
+        XCTAssertEqual(on.sets, [[25, 21], [23, 25], [25, 19], [18, 14]])
+        XCTAssertEqual(on.setPlaying, 3, "the newest set is the one being played")
+        let between = try game(#","live":{"score":[2,1],"period":"Set 3","complete":false,"periods":[[25,23,25],[21,25,19]]}"#)
+        XCTAssertNil(between.setPlaying, "set 3 just won, set 4 not begun: every set listed is over")
+        let final = try game(#","final":[3,1],"live":{"score":[3,1],"period":"Set 4","complete":true,"periods":[[25,23,25,25],[21,25,19,22]]}"#)
+        XCTAssertEqual(final.sets.count, 4, "every set stays past the final")
+        XCTAssertNil(final.setPlaying)
+        let complete = try game(#","live":{"score":[3,0],"period":"Set 3","complete":true,"periods":[[25,25,25],[17,21,21]]}"#)
+        XCTAssertNil(complete.setPlaying, "complete, its final on the way: no set is being played")
+        XCTAssertEqual(try game("").sets, [], "before the first serve")
+        XCTAssertEqual(try game(#","live":{"score":[7,0],"period":"Q1","complete":false,"periods":[[7],[0]]}"#, sport: "Football").sets,
+                       [], "football's quarters are no sets")
+        XCTAssertEqual(try game(#","live":{"score":[0,0],"period":"Set 1","complete":false,"periods":[[3,1],[2]]}"#).sets,
+                       [], "uneven columns read as none")
+    }
+
+    /// Soccer's minute ring (game-card 09): the minute runs on from the last push and holds at each period's
+    /// end through the break; halftime is the first half's clock stopped at 45:00; no other sport has a minute.
+    func testSoccersMinuteRunsOnAndHoldsAtEachPeriodsEnd() throws {
+        func live(_ period: String, _ seconds: Int, sport: String = "Soccer") throws -> Game.Live {
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint John's"},{"name":"Augsburg"}],"live":{"score":[1,0],"period":"\#(period)","clock":"\#(seconds / 60 + 1)'","clock_s":\#(seconds),"complete":false,"at":"2026-11-03T20:30:00Z"}}"#
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+        }
+        let first = try live("1st half", 1330), at = try XCTUnwrap(first.at)
+        XCTAssertEqual(first.minute(at: at), 23)
+        XCTAssertEqual(first.minute(at: at.addingTimeInterval(5 * 60)), 28, "it runs on between pushes")
+        XCTAssertEqual(first.minute(at: at.addingTimeInterval(60 * 60)), 45, "held at 45")
+        XCTAssertFalse(first.isHalftime)
+        let half = try live("1st half", 2700)
+        XCTAssertTrue(half.isHalftime, "the clock stopped at 45:00")
+        XCTAssertEqual(half.minute(at: at.addingTimeInterval(15 * 60)), 45, "held through the break")
+        let second = try live("2nd half", 2700)
+        XCTAssertFalse(second.isHalftime, "the second half has begun")
+        XCTAssertEqual(second.minute(at: at), 46)
+        XCTAssertEqual(second.minute(at: at.addingTimeInterval(60 * 60)), 90, "held at 90")
+        XCTAssertEqual(try live("OT", 5400).minute(at: at.addingTimeInterval(30 * 60)), 100, "the first overtime holds at 100")
+        XCTAssertEqual(try live("OT", 6000).minute(at: at.addingTimeInterval(5 * 60)), 100, "its break too")
+        XCTAssertEqual(try live("OT", 6060).minute(at: at.addingTimeInterval(30 * 60)), 110, "the second holds at 110")
+        let football = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","clock":"9:18","clock_s":558,"complete":false,"at":"2026-10-31T19:40:00Z"}}"#.utf8)).value?.live)
+        XCTAssertNil(football.minute(at: .now), "a football clock is no minute")
+    }
+
+    /// Basketball's bar (game-card 09): one part per quarter or half and one for overtime, the played ones full and
+    /// the one being played as far as its clock has run; the Bonus from the other team's 5th foul of a quarter or 7th
+    /// of a half, a count from a period that's over read as none; no bar for any other sport or an old read.
+    func testBasketballsBarFillsWithTheClockAndTheBonusComesFromTheOtherTeamsFouls() throws {
+        func live(_ period: Int, of regulation: Int = 4, clock: Int, length: Int = 600, fouls: String? = nil,
+                  sport: String = "Basketball", bar: Bool = true) throws -> Game.Live {
+            let extra = (bar ? #","period_n":\#(period),"regulation":\#(regulation),"period_s":\#(length)"# : "")
+                + (fouls.map { #","fouls":\#($0)"# } ?? "")
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint Benedict"},{"name":"Loras"}],"live":{"score":[34,29],"period":"Q\#(period)","clock":"3:48","clock_s":\#(clock),"complete":false,"at":"2026-11-07T20:30:00Z"\#(extra)}}"#
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+        }
+        XCTAssertEqual(try live(2, clock: 150).barFill, [1, 0.75, 0, 0], "Q2 with 2:30 left")
+        XCTAssertEqual(try live(1, clock: 600).barFill, [0, 0, 0, 0], "tip-off")
+        XCTAssertEqual(try live(4, clock: 0).barFill, [1, 1, 1, 1], "the 4th's buzzer")
+        XCTAssertEqual(try live(5, clock: 150, length: 300).barFill, [1, 1, 1, 1, 0.5], "overtime adds a part")
+        XCTAssertEqual(try live(6, clock: 300, length: 300).barFill, [1, 1, 1, 1, 0], "a second overtime refills it")
+        XCTAssertEqual(try live(2, of: 2, clock: 300, length: 1200).barFill, [1, 0.75], "SJU's men: two halves")
+
+        let quarter = try live(2, clock: 228, fouls: #"{"period":2,"ids":[["a","b"],["c","d","e","f","g"]]}"#)
+        XCTAssertEqual(quarter.fouls, [2, 5])
+        XCTAssertTrue(quarter.inBonus(0), "Loras's 5th foul of the quarter: Saint Ben's in the bonus")
+        XCTAssertFalse(quarter.inBonus(1))
+        XCTAssertFalse(try live(2, clock: 228, fouls: #"{"period":2,"ids":[[],["c","d","e","f"]]}"#).inBonus(0), "four is not yet")
+        XCTAssertNil(try live(3, clock: 600, fouls: #"{"period":2,"ids":[[],["c","d","e","f","g"]]}"#).fouls,
+                     "last quarter's count is none")
+        XCTAssertTrue(try live(5, clock: 151, length: 300, fouls: #"{"period":4,"ids":[["a","b","c","d","e"],[]]}"#).inBonus(1),
+                      "overtime counts with the 4th")
+        let half = #"{"period":2,"ids":[[],["a","b","c","d","e","f"]]}"#
+        XCTAssertFalse(try live(2, of: 2, clock: 372, length: 1200, fouls: half).inBonus(0), "a half takes seven")
+        XCTAssertTrue(try live(2, of: 2, clock: 372, length: 1200, fouls: half.replacingOccurrences(of: #""f"]"#, with: #""f","g"]"#)).inBonus(0))
+
+        XCTAssertNil(try live(2, clock: 228, bar: false).bar, "an old read has no bar")
+        XCTAssertEqual(try live(2, clock: 228, bar: false).barFill, [])
+        XCTAssertFalse(try live(2, clock: 228, fouls: #"{"period":2,"ids":[["a"]]}"#).inBonus(0), "a count that doesn't read is none")
+        let football = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","clock":"9:18","clock_s":558,"complete":false,"at":"2026-10-31T19:40:00Z"}}"#.utf8)).value)
+        XCTAssertNil(football.live?.bar, "football has no bar")
+        XCTAssertFalse(football.isBasketball)
+        XCTAssertTrue(try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Girls Basketball","teams":[{"name":"Sartell"},{"name":"Foley"}]}"#.utf8)).value).isBasketball)
+    }
+
+    /// Soccer's scorers (game-card 09): one line per player under their team, a second goal joining the
+    /// first's line, a goal with no name read as "Goal"; kept past the final; none for any other sport.
+    func testSoccersScorersAreOneLinePerPlayerUnderTheirTeam() throws {
+        func game(_ plays: [(String, String, Int)], sport: String = "Soccer", final: Bool = false) throws -> Game {
+            let list = plays.enumerated().map { i, p in
+                #"{"id":"\#(i)","text":"\#(p.0)","period":"2nd half","clock":"\#(p.1)","side":\#(p.2),"score":[1,0]}"#
+            }.joined(separator: ",")
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint John's"},{"name":"Augsburg"}]"#
+                + (final ? #","final":[2,1]"# : "") + #","plays":["# + list + "]}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let goals = [("Goal by SJU Hanson,Ben, top left", "41'", 0), ("Goal by AUG Larkin,Sam", "58'", 1),
+                     ("Goal by SJU Hanson,Ben", "71'", 0), ("Goal by SJU", "88'", 0)]
+        XCTAssertEqual(try game(goals).scorers, [["Hanson 41', 71'", "Goal 88'"], ["Larkin 58'"]])
+        XCTAssertEqual(try game(goals, final: true).scorers, [["Hanson 41', 71'", "Goal 88'"], ["Larkin 58'"]], "kept past the final")
+        XCTAssertEqual(try game([]).scorers, [[], []], "no goals yet")
+        XCTAssertEqual(try game(goals, sport: "Girls Soccer").scorers.first?.first, "Hanson 41', 71'")
+        XCTAssertEqual(try game(goals, sport: "Hockey").scorers, [], "only soccer has the row")
+    }
+
     /// A game's live score (game-card 03) reads in its teams' order with the period and clock; the
     /// clock goes once it's two minutes old and Live after ten; only the server's final ends it; a bad one is none.
     func testAGamesLiveScoreReadsAndCompleteCountsAsTheFinal() throws {
@@ -519,6 +629,51 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(updated.live?.score, [21, 7])
         XCTAssertEqual(updated.with(final: [21, 7], live: nil).final, [21, 7])
         XCTAssertNil(updated.with(final: [21, 7], live: nil).live)
+    }
+
+    /// A live football game's down, distance and spot (game-card 08), as `private.sidearm_drive` writes them:
+    /// the line over the field bar, the first-down marker toward the goal its team is going for, and one that
+    /// doesn't read leaving the score as it was.
+    func testALiveFootballGamesDriveReadsAndABadOneCostsNothing() throws {
+        func live(_ drive: String) throws -> Game.Live {
+            try JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":[14,3],"period":"Q3","clock":"4:12","drive":"# + drive + "}").utf8))
+        }
+        let ours = try XCTUnwrap(try live(#"{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#).drive)
+        XCTAssertEqual(ours.line, "2nd & 7 · GAC 34")
+        XCTAssertEqual(ours.firstDown, 73, "the host goes right, toward 100")
+        XCTAssertEqual(ours.spoken(teams: try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(
+            #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus Adolphus","short":"Gustavus"}]}"#.utf8)).value).teams),
+                       "2nd and 7 on the GAC 34, Saint John's ball")
+        let theirs = try XCTUnwrap(try live(#"{"down":3,"togo":"4","spot":"SJU12","side":1,"ball":12}"#).drive)
+        XCTAssertEqual(theirs.firstDown, 8, "the other team goes left, toward 0")
+        let goal = try XCTUnwrap(try live(#"{"down":1,"togo":"Goal","spot":"GAC3","side":0,"ball":97}"#).drive)
+        XCTAssertEqual(goal.line, "1st & Goal · GAC 3")
+        XCTAssertNil(goal.firstDown, "at the goal line the goal is the marker")
+        XCTAssertEqual(try XCTUnwrap(try live(#"{"down":4,"togo":"1","spot":"50","side":0,"ball":50}"#).drive).line, "4th & 1 · 50")
+        XCTAssertNil(try XCTUnwrap(try live(#"{"down":1,"togo":"10","spot":"XYZ20","side":0,"ball":null}"#).drive).firstDown,
+                     "a spot naming neither team: the words, no marker")
+        for bad in [#"{"down":5,"togo":"1","spot":"50","side":0}"#, #"{"down":1,"togo":"10","spot":"50","side":2}"#, #""2nd & 7""#] {
+            let read = try live(bad)
+            XCTAssertNil(read.drive, bad)
+            XCTAssertEqual(read.score, [14, 3], "the score still reads")
+        }
+        XCTAssertNil(try JSONDecoder().decode(Game.Live.self, from: Data(#"{"score":[0,0],"period":"Set 1"}"#.utf8)).drive, "other sports have none")
+    }
+
+    /// The page's colors (game-card 08): each team's color at Apple Sports' depth, hue kept; a black or grey
+    /// one (Gustavus, St. Olaf) takes its logo's first real color; none at all is none.
+    func testAGamesColorsDeepenAndABlackTeamTakesItsLogosColor() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        let sju = try team(##"{"name":"Saint John's","color":"#C20430"}"##)
+        XCTAssertEqual(GameMatchup.vivid(sju), 0xC20430)
+        let deep = GameMatchup.tone(0xC20430, lightness: 0.21)
+        let (r, g, b) = (deep >> 16, (deep >> 8) & 0xFF, deep & 0xFF)
+        XCTAssertTrue(r > 80 && r < 110 && g < 20 && b < 40, String(deep, radix: 16))
+        XCTAssertEqual(GameMatchup.tone(0x000000, lightness: 0.21), 0x363636, "grey stays grey")
+        let gustavus = try team(##"{"name":"Gustavus Adolphus","color":"#000000","colors":["#000000","#F2C80F","#8A8A8A"]}"##)
+        XCTAssertEqual(GameMatchup.vivid(gustavus), 0xF2C80F, "black takes the logo's gold")
+        XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"Somebody"}"##)), "no color known")
+        XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"##)))
     }
 
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
@@ -584,7 +739,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
-        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New since your last visit")
+        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New")
         XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")
@@ -1239,10 +1394,122 @@ final class TownFeedEventsTests: XCTestCase {
         let newer = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"notInterested":0.3,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
         XCTAssertEqual(try JSONDecoder().decode(FeedScore.self, from: Data(newer.utf8)).notInterested, 0.3)
     }
+
+    // MARK: After the best (town-feed 23)
+
+    private func place(_ id: String) -> SearchItem {
+        let logo = SearchLogo(placeId: id, row: .init(url: URL(string: "https://x/\(id).webp")!, hue: 0, chroma: false))
+        return SearchItem(id: "p:\(id)", kind: .business, name: "Place \(id)", logo: logo, placeID: id)
+    }
+
+    func testNearTheEndTheFirstRoundBringsTheLineLaterEventsAndPlaces() async {
+        let asked = Box<[Int]>([])
+        let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
+                            readLater: { [self] in [row("x"), row("b")].map(TownFeed.entry) },
+                            readMore: { round, opened, shown in
+                                asked.value.append(round)
+                                XCTAssertEqual(opened, ["p2"])
+                                XCTAssertEqual(shown, ["a", "b"], "the list on screen: the only repeats")
+                                return [.init(kind: .place, id: "p1"), .init(kind: .place, id: "gone"),
+                                        .init(kind: .place, id: "p2"), .init(kind: .unknown, id: "?")]
+                            },
+                            opened: { ["p2"] })
+        await town.reload(at: now)
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "event:b", "caught-up"],
+                       "the list ends on the line at once; nothing past it until its end comes near")
+        await town.loadMore()
+        let items = town.column(eventOfTheDay: [], now: now) { ["p1", "p2"].contains($0) ? self.place($0) : nil }
+        XCTAssertEqual(items.map(\.id), ["event:a", "event:b", "caught-up", "event:x", "place:0:p:p1", "place:0:p:p2"],
+                       "b is already above; a place Search can't open, and an unknown kind, are left out")
+        XCTAssertEqual(asked.value, [0])
+    }
+
+    func testEachRoundAppendsBelowWithRepeatsOfOnlyWhatsStillAbove() async {
+        let town = TownFeed(read: { [self] in [row("a"), row("b")].map(TownFeed.entry) },
+                            readMore: { round, _, _ in
+                                round == 0 ? [.init(kind: .place, id: "p1")]
+                                    : [.init(kind: .place, id: "p1"), .init(kind: .again, id: "a"),
+                                       .init(kind: .again, id: "hidden-or-gone")]
+                            })
+        await town.reload(at: now)
+        await town.loadMore()
+        await town.loadMore()
+        let items = town.column(eventOfTheDay: [], now: now) { $0 == "p1" ? self.place($0) : nil }
+        XCTAssertEqual(items.map(\.id), ["event:a", "event:b", "caught-up", "place:0:p:p1", "place:1:p:p1",
+                                         "again:1:a"])
+        XCTAssertEqual(items.last?.hideID, "a", "Not interested on a repeat folds it in place")
+        XCTAssertNil(items.last?.eventID, "a repeat's view is counted where it first showed")
+    }
+
+    func testAFreshOrderClearsWhatsPastTheListAndARoundItOvertookNeverLands() async {
+        let feedBox = Box<TownFeed?>(nil)
+        let reorder = Box(false)
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            readMore: { _, _, _ in
+                                if reorder.value { await feedBox.value?.reload() }
+                                return [.init(kind: .place, id: "p1")]
+                            })
+        feedBox.value = town
+        await town.reload(at: now)
+        await town.loadMore()
+        XCTAssertEqual(town.rounds.count, 1)
+        await town.reload(at: now)
+        XCTAssertTrue(town.rounds.isEmpty, "a fresh order starts past the list again")
+        reorder.value = true
+        await town.loadMore()
+        XCTAssertTrue(town.rounds.isEmpty, "the round a fresh order overtook is dropped")
+        XCTAssertFalse(town.loadingMore)
+        town.accountChanged()
+        XCTAssertTrue(town.later.isEmpty && town.rounds.isEmpty)
+    }
+
+    func testNothingPastAnEmptyListAndAFailedRoundIsAskedAgain() async {
+        let asked = Box(0)
+        let fail = Box(true)
+        let empty = TownFeed(read: { [] }, readMore: { _, _, _ in asked.value += 1; return [] })
+        await empty.reload(at: now)
+        await empty.loadMore()
+        XCTAssertEqual(asked.value, 0, "an empty list keeps its own quiet screen")
+        XCTAssertTrue(empty.column(eventOfTheDay: [], now: now).isEmpty)
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            readMore: { _, _, _ in
+                                if fail.value { throw Offline() }
+                                return [.init(kind: .place, id: "p1")]
+                            })
+        await town.reload(at: now)
+        await town.loadMore()
+        XCTAssertTrue(town.rounds.isEmpty)
+        XCTAssertFalse(town.loadingMore, "a failed round leaves no skeleton")
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "caught-up"],
+                       "offline the list still ends on the line, which asks again when it comes back on screen")
+        fail.value = false
+        await town.loadMore()
+        XCTAssertEqual(town.rounds.count, 1)
+    }
+
+    func testALaterEventSaidNotInterestedToStaysOut() async {
+        let town = TownFeed(read: { [self] in [row("a")].map(TownFeed.entry) },
+                            choose: { _ in nil },
+                            readLater: { [self] in [row("x"), row("y")].map(TownFeed.entry) },
+                            readMore: { _, _, _ in [] })
+        await town.reload(at: now)
+        await town.loadMore()
+        await town.hide(id: "x", host: "City of St. Joseph", mute: false)
+        town.undoEnded("x")
+        XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "caught-up", "event:y"])
+    }
 }
 
 
 private extension TownFeed {
     /// A card's own hide, as its ••• sheet sends it.
     func hide(_ card: FeedCardItem, mute: Bool) async { await hide(id: card.id, host: card.hostName, mute: mute) }
+
 }
+
+/// A value the test and a feed's closures share.
+private final class Box<Value> {
+    var value: Value
+    init(_ value: Value) { self.value = value }
+}
+

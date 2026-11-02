@@ -56,8 +56,9 @@ extension DailyEvent {
     /// day), most friends first, then soonest (Jesse at daily-tab 21's Check-in 1). Event-centred:
     /// never one friend's list of plans; a friend's "Show my plans to friends" off already keeps
     /// them out of the Town feed's `friends_going`.
+    /// `soonestFirst`: by start alone, for the Friends tab's three weeks (five-tabs 02).
     static func friendsGoing(from cards: [FeedCardItem], days: Set<String>, now: Date,
-                             without shown: [DailyEvent]) -> [DailyEvent] {
+                             without shown: [DailyEvent], soonestFirst: Bool = false) -> [DailyEvent] {
         let shownIDs = Set(shown.map(\.id))
         return Array(cards.filter { card in
             !card.friendsGoing.isEmpty && !card.cancelled && card.eventDate.map(days.contains) == true
@@ -65,7 +66,8 @@ extension DailyEvent {
         }
         .compactMap { YouCalendar.event(from: $0) }
         .filter { $0.ends > now }
-        .sorted { ($0.item.friendsGoing.count, $1.starts) > ($1.item.friendsGoing.count, $0.starts) }
+        .sorted { soonestFirst ? $0.starts < $1.starts
+                               : ($0.item.friendsGoing.count, $1.starts) > ($1.item.friendsGoing.count, $0.starts) }
         .prefix(DailyRowMetric.limit))
     }
 }
@@ -86,17 +88,20 @@ struct DailyRowTitle: View {
 
 /// A titled row of Town cards the finger slides sideways, each stopping at the margin.
 struct DailyCardRow: View {
-    let title: String
+    /// nil on a page that draws its own section titles (the Friends tab's Friends are going).
+    let title: String?
     let events: [DailyEvent]
     let size: CGSize
     let titleSize: CGFloat
     let showsFriends: Bool
     let now: Date
+    /// The page's side margin, so the first card lines up with its titles.
+    var side: CGFloat = DailyRowMetric.side
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: DailyRowMetric.titleToCards) {
-            DailyRowTitle(title: title)
+            if let title { DailyRowTitle(title: title) }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: DailyRowMetric.gap) {
                     ForEach(events) { event in
@@ -108,7 +113,7 @@ struct DailyCardRow: View {
                 // A finished event's card closes up instead of vanishing.
                 .animation(reduceMotion ? nil : Motion.smooth, value: events.map(\.id))
             }
-            .contentMargins(.horizontal, DailyRowMetric.side, for: .scrollContent)
+            .contentMargins(.horizontal, side, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollClipDisabled()
         }

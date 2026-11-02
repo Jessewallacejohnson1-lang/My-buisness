@@ -11,7 +11,7 @@ Usage:
   python3 run.py --town st-joseph-mn  # one town
   python3 run.py --tier watched       # only watched entries (the morning job)
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
-  python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+  python3 run.py --write              # prod: needs SUPABASE_URL and a key (db.py)
   python3 run.py --selftest           # when a page goes through Firecrawl, with fake sites
 """
 import argparse, hashlib, html, json, os, re, shutil, socket, sys, threading, time, zlib
@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).parent))
 from registry import find_root, load, validate, is_todo
-from db import Db, DbError
+from db import Db, DbError, KEYS
 import composio
 
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
@@ -437,7 +437,7 @@ def selftest():
         ("SUMMARY:Adapted Floor Hockey: Monticello vs St. Cloud (CI)" in to_text(
             "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Adapted Floor Hockey: Monticello v\r\n s St. Cloud (CI)\r\n").splitlines(),
          "a calendar's long line folded onto the next stays whole"),
-        (one_bad_row_is_one_line(), "a row the database refuses is one report line; the rest are recorded"),
+        (one_bad_row_is_one_line(), "a row the database refuses is one report line, still named by a later part; the rest are recorded"),
         (polite_across_parts(), "a timed run's next part reads no robots.txt again and waits out its Crawl-delay"),
         (one_at_a_time(), "a second prepare beside one still running is refused, and runs once that one ends"),
     ]
@@ -488,15 +488,18 @@ def one_bad_row_is_one_line():
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 report = fetch_watched(entries, Supabase())
+                # A timed morning's next part fetches nothing new and must still name the refused row.
+                later = fetch_watched(entries, Supabase(), done=report["results"])
     finally:
         g.update(saved[0])
         urllib.request.urlopen = saved[1]
         os.environ.clear()
         os.environ.update(saved[2])
     lines = [l for l in out.getvalue().splitlines() if "NOT RECORDED" in l]
-    return (len(lines) == 1 and "NOT RECORDED b https://b/: Supabase PATCH" in lines[0]
+    return (len(lines) == 2 and "NOT RECORDED b https://b/: Supabase PATCH" in lines[0] and lines[1] == lines[0]
             and "500" in lines[0] and "statement timeout" in lines[0]
-            and len(recorded) == 2 and [u["entry_id"] for u in report["unrecorded"]] == ["b"])
+            and len(recorded) == 2 and [u["entry_id"] for u in report["unrecorded"]] == ["b"]
+            and later["unrecorded"] == report["unrecorded"])
 
 
 def polite_across_parts():
@@ -555,7 +558,7 @@ class Supabase(Db):
     """The `sources` table's runtime state, over the shared client (db.py)."""
 
     def __init__(self):
-        super().__init__("--write needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env. Never put the key in the repo.")
+        super().__init__(f"--write needs SUPABASE_URL and a key in env: {KEYS}")
 
     def upsert_registry(self, rows):
         self.rest("POST", "sources?on_conflict=entry_id,url", rows,
@@ -761,12 +764,14 @@ def fetch_watched(entries, db, picked=None, workers=6, done=(), stop=None, run_d
                 db.record(r["entry_id"], r["url"], {**fields, **memo})
                 r.update(mark)  # named only once it is recorded, so it is named once
             except DbError as ex:  # one bad row is one report line; the rest still get recorded
-                unrecorded.append({"entry_id": r["entry_id"], "url": r["url"], "error": str(ex)[:300]})
+                r["unrecorded"] = str(ex)[:300]  # on the result, so a later part still names it
     if not db:
         local_state_path.write_text(json.dumps(new_state, indent=1))
 
     # In the registry's order, so pages read over several parts lie as one run's would.
     results = sorted([*done, *new], key=lambda r: order.get(page(r), len(order)))
+    unrecorded += [{"entry_id": r["entry_id"], "url": r["url"], "error": r["unrecorded"]}
+                   for r in results if r.get("unrecorded")]
     changed = [r for r in results if r["ok"] and r["changed"]]
     failed = [r for r in results if not r["ok"]]
     marked = lambda how: [r for r in results if r.get("aside") == how]

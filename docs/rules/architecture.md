@@ -6,20 +6,16 @@ belongs.
 ## Project
 
 **Block Party** — a native **SwiftUI + Mapbox** iOS app for the real town of **St. Joseph,
-MN**. It is a **native port of the Expo / React Native app** in a separate repo at
-`~/Documents/my-business/apps/mobile`.
+MN**. It began as a port of an Expo / React Native app, retired on 2026-11-02 (Jesse); nothing
+is kept in sync with it any more.
 
-> **The app is mid-rebuild.** The 2026-09-17 strip-down emptied Today, gutted two tabs to
-> reserved blank slots, and moved the map off the tab bar. Parts of these rule files describe
-> surfaces that no longer render. **`docs/archive/GUTTING-LEDGER.md`** is the record of what went,
-> why, and how to recover it — open it when something is missing, not as background.
+> **Something missing?** `docs/archive/GUTTING-LEDGER.md` records every surface that was deleted,
+> why, and how to get it back. Open it when something is missing, not as background.
 
 - **Project, scheme, bundle id and deployment target:** `docs/rules/identifiers.md`.
 - **Only SPM dependency:** [`mapbox-maps-ios`](https://github.com/mapbox/mapbox-maps-ios).
-- **Shared backend:** the same Supabase project as the Expo app. The two apps are
-  backend-twins — schema, RLS and query semantics match `@hygge/core` in the Expo repo.
-  **Keep design tokens and query behaviour in sync with that repo** `[prose]`; each Swift
-  source that ports a JS file says so in its header.
+- **Backend:** one Supabase project (`docs/rules/identifiers.md`), shared with the Android
+  port to come.
 - **A migration file is made with `supabase migration new <name>`** `[script]`, which stamps the
   version to the second; `apply_migration.py` refuses a new round or future version, and a version
   another worktree already holds (2026-10-25, two chats both took 20261025235000).
@@ -28,45 +24,29 @@ MN**. It is a **native port of the Expo / React Native app** in a separate repo 
   live from main's newest copy: another chat applied a change that isn't on main, and remaking
   the function from the repo would undo it (2026-10-17, the friends lift).
 
-### Three-repo rule
+### Other repos
 
-This is the **native iOS / map** codebase, and it is the **spec** the other two are ported
-from. Map, Mapbox and native-iOS work happens **here**.
+This is the **native iOS / map** codebase and the **spec** the Android app is ported from.
 
-- **Expo / React-Native / web** — `~/Documents/my-business`. RN and web work happens there.
-  The two look nearly identical on the simulator; this app's first tab is **Town**, the Expo
-  app's is **Home**.
-- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. Port target.
-
-### Android port rule — do it without being asked
-
-**After changing any SwiftUI screen in this repo, port the change to the Android repo in the
-same session.** `[prose]` Do not wait for a request and do not ask whether the port is
-wanted; it is. Treat an un-ported iOS change as unfinished work, and report the port in the
-same summary as the iOS change: which screen, which Kotlin files, and whether the
-side-by-side screenshot check was run.
-
-Before writing Kotlin, read `~/Documents/block-party-android/CLAUDE.md` — it holds the stack,
-the Swift→Kotlin translation rules (spring-curve conversion, `matchedGeometryEffect` →
-`SharedTransitionLayout`, blur → Haze) and the screenshot verify loop. Follow it rather than
-improvising a translation.
-
-Two things are never ported:
-- **Server-side logic.** `[prose]` Both apps call the same Supabase project and the same edge
-  functions. Kotlin calls them; it never re-implements them.
-- **Screens that are mid-rebuild.** `[prose]` A surface being actively gutted or rebuilt is
-  ported once it settles, not on every intermediate commit. Note the skip in your summary so
-  it is visible rather than silent. *(Delete this bullet to make the rule unconditional.)*
+- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. **The port waits
+  until iOS is done (Jesse, 2026-11-02): don't port iOS changes to it as you go.** `[prose]`
+  When it resumes, read that repo's `CLAUDE.md` first. Server-side logic is never ported:
+  Kotlin calls the same Supabase functions; it never re-implements them.
 
 ## The shell
 
 `BlockPartyApp` (`@main`) registers fonts, sets the Mapbox token, installs the
 unauthorized-response handler, injects `AuthStore.shared`, optionally runs the DEBUG place
-seeder, and mounts `RootView` directly.
+seeder, and mounts `RootView` inside `LaunchHost`.
 
-- **There is no splash** (Jesse, 2026-09-18). `LaunchScreen.storyboard` is bare `Hue.paper`
-  with no mark, so frame zero and the app's first real frame are the same colour and the
-  hand-off is invisible.
+- **The launch** (Jesse, 2026-11-01, reversing 2026-09-18's no splash; BP app
+  `references/launch-ball/`): on a fresh process start the Town's round logo bounces off Bp,
+  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
+  (or zooms through over Welcome). `LaunchScreen.storyboard` is its first frame: BP yellow with
+  "Bp" at 90%. The app loads underneath from the first frame and never waits on it; a tap
+  skips it, Reduce Motion fades it, UI tests skip it (`-ui-tests`) unless they ask
+  (`-launch-play`), and the app shows within 6 s whatever happens. The math is
+  `LaunchMotion`, the drawing `LaunchBall`.
 - **Sign-in is switched OFF** (Jesse, 2026-09-18, "for now"): `RootView.requiresSignIn =
   false`, so the gate hands straight to `MainTabsView` with or without a session. **It is a
   switch, not a deletion** `[prose]` — `LoginView`, `AuthStore`, the keychain session and
@@ -103,12 +83,14 @@ seeder, and mounts `RootView` directly.
 
 ### The tab bar
 
-`MainTabsView` owns **four** tabs (`Tab`: town/daily/search/you), the custom
-`BlockPartyTabBar` and the full-screen map cover. **Town** (`house`) is the town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is the personalised paper
-(town feed ∩ what the neighbour follows), **Search** is BP's traced magnifier (`MagnifierGlyph`,
-thicker when selected, as Instagram's is) — it took Business's slot on 2026-09-29, when the
-Town bar's leading control became a friends mark — and **You** mounts
-`ProfileView(showsClose: false)`, since a tab has no close. Business has no slot for now.
+`MainTabsView` owns **five** tabs (`Tab`: town/daily/friends/search/you), the custom
+`BlockPartyTabBar` and the full-screen map cover. **Town** (BP's house, `HouseGlyph`) is the
+town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is
+the personalised paper (town feed ∩ what the neighbour follows), **Friends** (`person.2`) is
+neighbours, requests and Groups (`FriendsHomePage`; a page pushed from the Town bar until
+2026-11-01), **Search** is BP's traced magnifier (`MagnifierGlyph`, thicker when selected, as
+Instagram's is), and **You** mounts `ProfileView`, your own Profile (BP app five-tabs 03).
+Business has no slot.
 
 - **Search** (`Features/Search/`, 2026-10-02) is Jesse's Search mockup v7 and its Figma
   frames: a field and filter pills over sideways rows (People, Businesses, Restaurants,
@@ -128,9 +110,10 @@ Town bar's leading control became a friends mark — and **You** mounts
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
-- **The bar is four slots built from `Tab.allCases`** `[test]`, pinned by
-  `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
-  so **there is no compose entry anywhere in the app** — not in the bar, not on the map. Do not add one back without Jesse saying posting is on again.
+- **The bar is five slots built from `Tab.allCases`** `[test]`, pinned by
+  `TabBarTests`. The centre Create disc was removed on 2026-09-24. Posting came back on
+  2026-11-01 through the Town bar's + (New event, BP app town-plus); there is no compose
+  entry in the tab bar or on the map.
 - **It is BP's own bar, not Apple's `TabView`, copying Instagram's iOS 26 bar with BP's
   icons** (2026-09-27; Apple's `TabView` was rejected on 2026-09-25, the why is in
   `DECISIONS.md`). One floating glass capsule, the same gap from each side and from the
@@ -169,8 +152,8 @@ Town bar's leading control became a friends mark — and **You** mounts
 
 ### Backend — hand-rolled, no Supabase SDK (`BlockParty/Backend/`)
 
-The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is
-**no `supabase-swift` dependency**. `[prose]`
+The entire backend is written by hand over `URLSession` — there is **no `supabase-swift`
+dependency**. `[prose]`
 
 - **`Supabase`** (in `SupabaseHTTP.swift`) — the one client for PostgREST (`rest`, `rpc`),
   Storage (`upload`) and edge functions (`invoke`) (BP app codebase-health 16). It holds the
@@ -183,8 +166,8 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
   password, **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates
   the refresh token, so concurrent refreshes funnel through one in-flight task). **Always get
   tokens via `validAccessToken()`.** `[prose]`
-- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the
-  Expo `createCommunityApi`, plus the per-user "My activity" reads behind the profile.
+- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), plus the
+  per-user "My activity" reads behind the profile.
 - **`ProfileAPI`** — the community-profile layer over **`town_profiles`** (own-row RLS).
   **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table**
   `[prose]` — the shared Supabase project backs two apps, and `profiles` belongs to the other
@@ -192,9 +175,9 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 - **`RealtimeClient`** (`@MainActor`) — a hand-written Phoenix-channel client over
   `URLSessionWebSocketTask`. Joins `postgres_changes` on `club_events` with the user's JWT
   (RLS still filters what arrives), heartbeats, and reconnects with capped exponential
-  backoff. **One production subscriber** since the strip-down: `MapModel`, which asks
-  `ClubEventRelevance.matters` whether a change is worth a re-read; a subscriber that comes
-  back passes its own days to the same rule.
+  backoff. **Two production subscribers:** `MapModel`, which asks
+  `ClubEventRelevance.matters` whether a change is worth a re-read (a new subscriber passes
+  its own days to the same rule), and `TownFeed`, for a live game's score.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,
@@ -203,18 +186,19 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 ## Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
 
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
-class … ObservableObject`) that owns state and API calls. Top-level folders: `Home`, `Add`,
-`Auth`, `Board`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, `Share`.
+class … ObservableObject`) that owns state and API calls. Top-level folders: `Auth`,
+`Components`, `Daily`, `Follows`, `Friends`, `Groups`, `Home` (the Town tab), `Map`,
+`Notifications`, `Onboarding`, `Place`, `Profile`, `Search`, `Share`, `You`.
 
 - **The parked utility row (`Civic/Parked/`) was deleted on 2026-10-25** (BP app
   codebase-health 09). `user_utility_prefs` still holds real per-user configuration: a Civic
   tab built later must re-hydrate it rather than start from defaults.
   `docs/archive/GUTTING-LEDGER.md` says how to get the code back.
-- **If onboarding is rebuilt, `ONBOARDING.md` is the spec — read it first.** `[prose]` Its
-  locked rule: the primary CTA occupies one fixed position for the whole flow and never moves
-  between steps (only its title and enabled state change), with the shell owning the chrome
-  and footer so step views cannot draw their own button. `Onboarding/` survives today only
-  because `MapIntroView`, `InterestPickerView` and `OnboardingChrome.swift` live there.
+- **Onboarding is on** (BP app onboarding 24, 2026-10-30): a first launch walks its steps
+  (`OnboardingFlow`). **`ONBOARDING.md` is the spec — read it before changing it.** `[prose]`
+  Its locked rule: the primary CTA occupies one fixed position for the whole flow and never
+  moves between steps (only its title and enabled state change), with the shell owning the
+  chrome and footer so step views cannot draw their own button.
 
 ### Town feed (`Features/Home/Feed/`)
 
@@ -272,7 +256,8 @@ which holds `TodayTopBar` and the feed.
 `FeedRegistry`, `FeedController`, `FeedModule*`, `FeedRoute` and the `Briefing*` stack are
 gone: the Town tab is the top bar over the Town feed, and a load makes no
 `rpc/get_today_briefing` call and logs no `briefingOpen`. The server side (`daily_briefings`,
-`compose_briefing`, `get_today_briefing`) was left as it was. `docs/archive/GUTTING-LEDGER.md`
+`compose_briefing`, `get_today_briefing`) is still in the database; its hourly
+`briefing-reconcile` job was switched off on 2026-10-30. `docs/archive/GUTTING-LEDGER.md`
 says how to get the client back.
 
 ### Town top bar (`Features/Home/TodayTopBar.swift`)
@@ -332,9 +317,10 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
   and `.accessibilityHidden(chromeHidden)` sit on the control row.
 - **Three controls in 44pt boxes, 16pt in from the screen's edges** (Instagram's, measured
-  2026-09-27). `[prose]` A friends mark leads (search until 2026-09-29, when it became a tab),
+  2026-09-27). `[prose]` Instagram's + leads and opens New event (`NewEvent.swift`, BP app
+  town-plus, 2026-11-01; friends led until it became a tab that day, search before 2026-09-29),
   the wordmark centres, a notifications bell holds the trailing corner, and the map disc sits
-  inboard of it. Friends and the bell are
+  inboard of it. The + and the bell are
   **bare ink at home and sit in frosted circles while the bar floats** over the feed
   (`TodayHeader.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
   home again) — a material circle, not Liquid Glass, so it slides and fades with its mark
@@ -352,24 +338,21 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   in `Features/Home/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
   as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
-  **The bell has no badge**, because the app has no notifications feature to badge honestly.
-  The friends mark does carry one: a new friend request puts Instagram's unread dot on it, in
-  exact BP yellow (`FriendsBook.dot`, BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
-  The one exception is the friends mark: it is Apple's `person.2.fill` itself, because Jesse's
-  Reference is that symbol (they differ by ~1px of antialiasing), so there is nothing to trace.
+  The + is `PlusGlyph`, in the same file. **The bell carries a dot** while Notifications or the
+  hello pill hold something unseen (`TodayTopBar.bellButton`); no number. A new friend
+  request puts Instagram's unread dot on the Friends tab, in exact BP yellow (`FriendsBook.dot`,
+  BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
 
 ### Other surfaces
 
 - **Town menu** — deleted on 2026-10-25 (`TownMenuView`, `GlassShowcaseOverlay`,
   `-open-menu`); only that flag reached it. Its appearance switch went with it: a saved
   System / Light / Dark choice still applies (`AppearanceStore`), and nothing sets one now.
-- **You** (`Features/You/`) — the fourth tab: the neighbour's three weeks of Going on a
-  Lapse-style Calendar, with the Agenda for the picked day under it, read by
-  `get_my_going` and kept in the shell (`YouModel`) like the Town feed (BP app
-  `docs/plans/you-tab`).
-- **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You:
-  identity and settings, **no fabricated counts** `[prose]`. Its Saved
-  row pushes the saved Events inside the sheet's own stack (`SavedPage`), read by
+- **You** (`Features/Profile/`, `Features/You/`) — the fifth tab is your own Profile
+  (`ProfileView`, BP app five-tabs 03): identity and settings, **no fabricated counts**
+  `[prose]`, over your three weeks of Going on a Lapse-style Calendar with the picked day's
+  Agenda (`YouPage`), read by `get_my_going` and kept in the shell (`YouModel`) like the
+  Town feed (BP app `docs/plans/you-tab`). Its Saved row pushes the saved Events (`SavedPage`), read by
   `get_my_saves` and kept in the shell (`YouModel.saves()`), with this session's saves laid
   over it from `RealLifeActions` (BP app `docs/plans/you-tab`, ticket 04). `EditProfileView` writes
   **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
@@ -388,9 +371,8 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **The Town feed's rules live in `get_town_feed`, not in the app.** `[prose]` They are BP app
   `docs/plans/town-feed/issues/05-eligible.md` (Jesse, 2026-10-08), and they replace the old
   "one-time news, not a standing calendar" rule and `feat/tab-town`'s `townSurfacing`: do not
-  adopt that branch. `dedupeRecurring` and `FeedSectioning` are the old posting pipeline, used
-  only by DEBUG previews. Two decided rules wait on data: City meetings stay in until people
+  adopt that branch. Two decided rules wait on data: City meetings stay in until people
   can follow the City, and the ZIP check waits until events carry a ZIP or a Place.
 - **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
-  `DateHelpers.swift`. Self-approved events are an intentional product decision shared with
-  the Expo app. **RLS is the real boundary.**
+  `DateHelpers.swift`. Self-approved events are an intentional product decision. **RLS is the real
+  boundary.**

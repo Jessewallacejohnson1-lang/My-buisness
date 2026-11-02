@@ -326,7 +326,7 @@ struct GroupPage: View {
                     HStack(spacing: RSVPArea.glyphGap) { RSVPArea.invite(size) }
                         .opacity(isMember ? 1 : 0)
                 }
-                .font(.sansSemibold(size.top))
+                .font(.apple(size.top, weight: .semibold))
                 .frame(maxWidth: isMember ? nil : .infinity)
             }
             .buttonStyle(MeetupPillStyle(height: isMember ? size.pillHeight : Metric.pillHeight,

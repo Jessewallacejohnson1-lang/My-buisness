@@ -1,11 +1,24 @@
-"""The pipeline's one client for the project's REST and Storage APIs, with the service key
-from the environment (never from the repo).
+"""The pipeline's one client for the project's REST and Storage APIs, with a key from the
+environment (never from the repo).
 
 A failed call raises DbError with the real status and body; the caller decides whether that
 ends the run or is one line in its report. Only a missing key ends the run here.
 """
 import json, os, sys
 import urllib.request, urllib.error, urllib.parse
+
+KEYS = ("SUPABASE_PUBLISHABLE_KEY (in the cloud, with the Watch key as the network secret) "
+        "or SUPABASE_SERVICE_ROLE_KEY (on a Mac). Never put a key in the repo.")
+
+
+def key_headers(env=os.environ):
+    """The key headers, or None when no key is set. A Mac sends the service key. A cloud routine
+    sends only the public key, and the environment's network secret adds the Watch key on the way
+    out, so the run never holds a key that can delete or reach accounts (BP app loopholes 12)."""
+    service, public = env.get("SUPABASE_SERVICE_ROLE_KEY"), env.get("SUPABASE_PUBLISHABLE_KEY")
+    if service:
+        return {"apikey": service, "Authorization": f"Bearer {service}"}
+    return {"apikey": public} if public else None
 
 
 class DbError(RuntimeError):
@@ -15,16 +28,15 @@ class DbError(RuntimeError):
 
 
 class Db:
-    def __init__(self, missing="needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env. Never put the key in the repo.",
-                 timeout=30):
+    def __init__(self, missing=f"needs SUPABASE_URL and a key in env: {KEYS}", timeout=30):
         self.timeout = timeout
         self.url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-        self.key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if not self.url or not self.key:
+        self.keys = key_headers()
+        if not self.url or not self.keys:
             sys.exit(missing)
 
     def _send(self, method, path, data, headers):
-        headers = {"apikey": self.key, "Authorization": f"Bearer {self.key}", **headers}
+        headers = {**self.keys, **headers}
         req = urllib.request.Request(self.url + path, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:

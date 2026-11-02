@@ -54,14 +54,16 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/. Every command needs SUPABASE_URL and
-SUPABASE_SERVICE_ROLE_KEY in the environment; `save --dry-run`, then `finish --dry-run`, write nothing.
+a key in the environment (db.py); `save --dry-run`, then `finish --dry-run`, write nothing.
 
-  python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD]
+  python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD] [--town T]
   python3 sources/scripts/morning.py titles
-  python3 sources/scripts/morning.py save [--dry-run]
+  python3 sources/scripts/morning.py save [--dry-run] [--town T]
   python3 sources/scripts/morning.py today
-  python3 sources/scripts/morning.py finish [--dry-run]
+  python3 sources/scripts/morning.py finish [--dry-run] [--town T]
   python3 sources/scripts/morning.py --selftest
+
+--town names a sources/towns/ file (default st-joseph-mn, towns.DEFAULT).
 """
 
 import argparse, collections, contextlib, json, re, shutil, subprocess, sys, time, urllib.error
@@ -76,13 +78,14 @@ from batch import layout
 import write_judged
 import social
 import spots
+import apple_maps
+from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, to_text, deadline, late, only_one, part_state, resume_part, aside_lines
 from db import DbError
 
 SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
 TAG_MAX = 5  # interests an Event carries at most (onboarding 21)
-TOWN = "st-joseph-mn"  # daily_standouts.town, as town_status names it
 STANDOUTS = 9
 THIN = 120        # characters: an About under this says less than a sentence
 DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
@@ -163,10 +166,11 @@ def reader_lines(proc, out, name):
     return None
 
 
-def prepare(today, out, minutes=PART_MINUTES):
+def prepare(today, out, minutes=PART_MINUTES, town=DEFAULT):
     """In timed parts: each starts no new page or reader after `minutes`, saves what it read in
     prepare-part.json and says "run again" with what is left; the next part carries on, each page
-    fetched once a morning. The part that finishes lays out the batches and prints the summary."""
+    fetched once a morning. The part that finishes lays out the batches and prints the summary.
+    Only `town`'s registry entries are fetched and laid out; the sync still covers every town's."""
     out.parent.mkdir(parents=True, exist_ok=True)
     if not only_one(out.parent / "prepare.lock"):
         return print("[morning] another prepare is still running in this copy: let it finish, and start no second one")
@@ -187,16 +191,17 @@ def prepare(today, out, minutes=PART_MINUTES):
     every, errors = load(root)
     if errors:
         sys.exit("[morning] registry invalid:\n" + "\n".join(errors))
-    entries = [e for e in every if e.get("status") == "active"]
+    entries = [e for e in every if e.get("status") == "active" and e["_town"] == town]
 
     # The league's site is slow and no other source's server (twelve minutes for the schools
     # on 2026-10-25, with its retries), so the schools are read while the pages are fetched.
     done = part["readers"]
-    games = None if "games" in done else start_reader(out, today, "games", ["--reader", "mshsl"], stop)
+    games = None if "games" in done else start_reader(out, today, "games", ["--reader", "mshsl", "--town", town], stop)
     db = Supabase()
     try:
         with open(out / "fetch.log", "a") as log, contextlib.redirect_stdout(log):
-            report = fetch_watched(every, db, done=part["pages"], stop=stop, run_dir=out / "fetch", today=today)
+            report = fetch_watched(every, db, picked=[e for e in entries if e.get("tier", "listed") == "watched"],
+                                   done=part["pages"], stop=stop, run_dir=out / "fetch", today=today)
     except BaseException:
         if games:
             games.kill()
@@ -209,7 +214,7 @@ def prepare(today, out, minutes=PART_MINUTES):
     # The feeds share servers with the pages, so they are read after them.
     feeds = None
     if not report["left"] and "feeds" not in done and not late(stop):
-        feeds = reader_lines(start_reader(out, today, "feeds", ["--skip-reader", "mshsl"], stop), out, "feeds")
+        feeds = reader_lines(start_reader(out, today, "feeds", ["--skip-reader", "mshsl", "--town", town], stop), out, "feeds")
     for name, lines in (("feeds", feeds), ("games", games and reader_lines(games, out, "games"))):
         if lines is not None:
             done[name] = lines
@@ -230,7 +235,7 @@ def prepare(today, out, minutes=PART_MINUTES):
     pages = pages_to_read(report["changed"], entries)
     for p in pages:
         p["text"] = snapshot_text(run_dir / "snapshots" / p["snapshot"])
-    for i, text in enumerate(layout(pages, today), 1):
+    for i, text in enumerate(layout(pages, today, TOWNS[town]["display"]), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in pages], indent=1))
     (out / "existing.json").write_text(json.dumps(write_judged.listed_in_db(), indent=1, default=str))
@@ -242,6 +247,7 @@ def prepare(today, out, minutes=PART_MINUTES):
                "first_seen": sum(1 for c in report["changed"] if c.get("first_seen")),
                "to_read": len(pages), "batches": len(list((out / "batches").iterdir())),
                "aside": aside_lines(report, today),  # a failing page is named only when set aside or back (smooth-mornings 04)
+               "unrecorded": report["unrecorded"],
                "readers": readers, "interests": write_judged.interest_ids()}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
     say_prepared(summary, out)
@@ -254,7 +260,16 @@ def say_prepared(s, out):
         print(ln)
     for a in s["aside"]:
         print(f"[morning] {a}")
+    for ln in not_recorded_lines(s):
+        print(ln)
     print(f"[morning] interests: {', '.join(s['interests'])}")
+
+
+def not_recorded_lines(prep):
+    """A page whose check the database refused (run.fetch_watched carries on past it), worded as a
+    failed step so the 8 AM check (private.morning_problems) emails it."""
+    return [f"[morning] recording {u['entry_id']} {u['url']} failed: {' '.join(u['error'].split())[:300]}"
+            for u in prep.get("unrecorded", [])]
 
 
 def read_items(path):
@@ -289,6 +304,7 @@ def summary_lines(prep, result, written):
              f"- Skipped: {count.get('skipped', 0)} (past, outside the area or unreadable)"]
     lines += [f"- Source failed: {f}" for f in prep.get("failed", [])]
     lines += [f"- {a}" for a in prep.get("aside", [])]
+    lines += not_recorded_lines(prep)
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
     lines += [f"- Still over {write_judged.TITLE_MAX} characters: {g['row']['title']}" for g in result["events"]
@@ -426,12 +442,12 @@ def short_titles(out):
             and 0 < len(v.strip()) < len(k)} if isinstance(got, dict) else {}
 
 
-def write(out, dry_run, today):
+def write(out, dry_run, today, town=DEFAULT):
     prep = json.loads((out / "prepare.json").read_text())
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
     items = feeds + judged
     existing = write_judged.listed_in_db()
-    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out),
+    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[town], titles=short_titles(out),
                                teams=write_judged.known_teams(), recent_news=write_judged.news_in_db())
     write_judged.report(items, result)
     try:
@@ -754,7 +770,7 @@ def lay_out_today(out, today):
     print(f"[morning] {len(events)} events today for the standouts ({out / 'today.txt'})")
 
 
-def plan_standouts(lines, events, today):
+def plan_standouts(lines, events, today, town=DEFAULT):
     """The model's lines as today's daily_standouts rows: only Events it was given, each once, with
     a reason, best first (rank is the line's place), nine at most."""
     given, rows = {e["id"] for e in events}, []
@@ -763,19 +779,19 @@ def plan_standouts(lines, events, today):
             continue
         why = " ".join(str(ln.get("why") or "").split())[:200]
         if why and len(rows) < STANDOUTS:
-            rows.append({"town": TOWN, "day": str(today), "event_id": ln["id"], "rank": len(rows) + 1, "why": why})
+            rows.append({"town": town, "day": str(today), "event_id": ln["id"], "rank": len(rows) + 1, "why": why})
     return rows
 
 
-def standouts(out, dry_run, today):
+def standouts(out, dry_run, today, town=DEFAULT):
     # today.txt's Event lines, as the model read them.
     events = [e for e in read_items(out / "today.txt") if isinstance(e, dict)]
-    rows = plan_standouts(read_items(out / "standouts.jsonl"), events, today)
+    rows = plan_standouts(read_items(out / "standouts.jsonl"), events, today, town)
     # No usable line keeps whatever today has: with no rows Daily shows the Town feed's top pick.
     saved_f = out / "standouts-saved.json"  # these picks, once written: a finish run again doesn't write them twice
     if rows and not dry_run and not (saved_f.exists() and saved_f.read_text() == json.dumps(rows)):
         db = Supabase()
-        db.rest("DELETE", f"daily_standouts?town=eq.{TOWN}&day=eq.{today}", prefer="return=minimal")
+        db.rest("DELETE", f"daily_standouts?town=eq.{town}&day=eq.{today}", prefer="return=minimal")
         db.rest("POST", "daily_standouts", rows, prefer="return=minimal")
         saved_f.write_text(json.dumps(rows))
     by_id = {e["id"]: e for e in events}
@@ -786,7 +802,7 @@ def standouts(out, dry_run, today):
                for r in rows])
 
 
-def save(out, dry_run, today, minutes=PART_MINUTES):
+def save(out, dry_run, today, minutes=PART_MINUTES, town=DEFAULT):
     """write, once a morning, then lay out the helpers' work within the rest of the part's minutes. The
     summary waits in report.txt for finish; a save run again the same morning writes nothing again (the
     Oct 22 job wrote twice) and only lays the batches out again."""
@@ -794,7 +810,7 @@ def save(out, dry_run, today, minutes=PART_MINUTES):
     if kept.exists() and not dry_run:
         print("[morning] saved already this morning: nothing written again; finish prints its summary")
     else:
-        kept.write_text("\n".join(write(out, dry_run, today)) + "\n")
+        kept.write_text("\n".join(write(out, dry_run, today, town)) + "\n")
     if json.loads((out / "prepare.json").read_text()).get("run"):
         return  # a social check: social.py done finishes it
     untagged(out, today)
@@ -806,7 +822,7 @@ def kept_report(out, dry_run):
     return out / ("report-dry-run.txt" if dry_run else "report.txt")
 
 
-def finish(out, dry_run, today, minutes=PART_MINUTES):
+def finish(out, dry_run, today, minutes=PART_MINUTES, town=DEFAULT):
     """In timed parts while the tags are written, then the Abouts and standouts, then the whole report,
     always: a save that fails (one timeout among 900 tag writes) is one line in it, and a finish run again
     writes only what is left."""
@@ -821,9 +837,11 @@ def finish(out, dry_run, today, minutes=PART_MINUTES):
     if tagged.startswith("[morning] run again"):
         return print(tagged)
     lines = [*kept.read_text().splitlines(), tagged]
-    # Then each new Event's spot on the map, and the ones with none listed (BP app references/map-reset).
-    for what, step in (("Abouts", lambda: describe(out, dry_run)), ("standouts", lambda: standouts(out, dry_run, today)),
-                       ("map spots", lambda: spots.fill(Supabase(), today, not dry_run))):
+    # Then each new Event's spot on the map, and the ones with none listed (BP app references/map-reset),
+    # then the places Apple Maps calls closed for good, hidden (Jesse, 2026-11-01).
+    for what, step in (("Abouts", lambda: describe(out, dry_run)), ("standouts", lambda: standouts(out, dry_run, today, town)),
+                       ("map spots", lambda: spots.fill(Supabase(), today, not dry_run)),
+                       ("Apple Maps", lambda: apple_maps.check(Supabase(), not dry_run, today))):
         try:
             lines += step()
         except DbError as e:
@@ -914,6 +932,15 @@ def selftest():
                    "the summary names what its schedules called off or brought back, and the writer's notes"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    refused = {"entry_id": "b", "url": "https://b/",
+               "error": 'Supabase PATCH sources?entry_id=eq.b failed 500: {"message":"canceling statement\n due to statement timeout"}'}
+    report_ = "\n".join(summary_lines({**prep, "unrecorded": [refused]}, result, None))
+    # The 8 AM check's own pattern (private.morning_problems), one line per refused row.
+    alerts = re.findall(r"^\[morning\] (.+ failed: .*)$", report_, re.M)
+    checks.append((alerts == ['recording b https://b/ failed: Supabase PATCH sources?entry_id=eq.b failed 500: '
+                              '{"message":"canceling statement due to statement timeout"}']
+                   and not re.findall(r"^\[morning\]", "\n".join(lines), re.M),
+                   "a page the database refused to record is one line in the saved report, and the 8 AM check reads it"))
     run_ = {"event_date": "2026-10-26", "end_at": "2026-10-31T00:00:00-05:00", "all_day": True, "start_time": None,
             "title": "Bootique Week", "location": "White Peony Boutique", "source_name": "White Peony Boutique"}
     night = {"event_date": "2026-10-24", "end_at": "2026-10-25T01:00:00-05:00", "all_day": False, "start_time": "9 PM",
@@ -1046,6 +1073,7 @@ def selftest():
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
     checks += set_aside_across_days()
+    checks += one_town()
     checks += instructions() + whole_morning()
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -1650,6 +1678,74 @@ def set_aside_across_days():
                      "last_checked_at": "2026-10-14T16:00:00+00:00"}, "the sync clears the error row of a page no longer watched"),
     ]
 
+def one_town():
+    """prepare --town with a second town in the registry (BP app codebase-health 15): only that town's
+    pages are fetched and laid out, its readers are told the town, and its batches name it; the sync
+    still gets every town's entries. With no --town it is St. Joseph's, as before."""
+    import io, tempfile
+    global Supabase, load, fetch_watched, find_root
+    entries = [{"id": f"{t}{i}", "_name": f"{t} place {i}", "_town": town, "_extra": {}, "status": "active",
+                "tier": "watched", "sources": [{"url": f"https://{t}{i}.example/events", "method": "fetch"}]}
+               for t, town in (("joe", "st-joseph-mn"), ("cloud", "st-cloud-mn")) for i in range(3)]
+    synced, fetched, readers = [], [], []
+
+    class FakeDb:
+        def rest(self, method, path, body=None, prefer=None):
+            return []
+
+    def fake_fetch(every, db, picked=None, done=(), stop=None, run_dir=None, today=None):
+        synced.append(len(every))
+        (run_dir / "snapshots").mkdir(parents=True, exist_ok=True)
+        changed = []
+        for e in picked:
+            (run_dir / "snapshots" / f"{e['id']}.txt").write_text(f"Harvest supper at {e['_name']}")
+            changed.append({"entry_id": e["id"], "url": e["sources"][0]["url"], "hash": "h", "first_seen": False,
+                            "snapshot": f"{e['id']}.txt"})
+        fetched.append([e["id"] for e in picked])
+        return {"results": [], "left": 0, "fetched": len(changed), "changed": changed, "run_dir": str(run_dir),
+                "failed": [], "uncounted": False, "set_aside": [], "back": [], "still": [], "unrecorded": []}
+
+    def fake_popen(cmd, **kw):
+        readers.append(cmd)
+        Path(cmd[cmd.index("--items") + 1]).write_text("")
+        return type("Done", (), {"wait": lambda self: 0, "kill": lambda self: None})()
+
+    def morning(tmp, *town):
+        out = Path(tmp) / (town[0] if town else "default") / "morning"
+        out.parent.mkdir()
+        readers.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            prepare(date(2026, 10, 28), out, None, *town)
+        pages = [p["entry_id"] for p in json.loads((out / "pages.json").read_text())]
+        return pages, "".join(f.read_text() for f in (out / "batches").iterdir()), [c[c.index("--town") + 1] for c in readers]
+
+    saved = (Supabase, load, fetch_watched, find_root, subprocess.Popen, write_judged.listed_in_db,
+             write_judged.interest_ids)
+    TOWNS["st-cloud-mn"] = {"label": "St. Cloud MN", "zips": ["56301"], "display": "St. Cloud", "photo_slug": "st-cloud"}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            Supabase, load, fetch_watched, find_root = FakeDb, (lambda root: (entries, [])), fake_fetch, (lambda *a: Path(tmp))
+            subprocess.Popen = fake_popen
+            write_judged.listed_in_db, write_judged.interest_ids = (lambda: []), (lambda: ["dining"])
+            cloud = morning(tmp, "st-cloud-mn")
+            joe = morning(tmp)
+    finally:
+        (Supabase, load, fetch_watched, find_root, subprocess.Popen, write_judged.listed_in_db,
+         write_judged.interest_ids) = saved
+        del TOWNS["st-cloud-mn"]
+    return [
+        (fetched[0] == ["cloud0", "cloud1", "cloud2"] and cloud[0] == fetched[0] and synced == [len(entries)] * 2
+         and cloud[2] == ["st-cloud-mn", "st-cloud-mn"],
+         f"prepare --town st-cloud-mn fetches and lays out only St. Cloud's pages, tells its readers the town, "
+         f"and syncs every town's entries: {fetched}, {cloud[0]}, {cloud[2]}, {synced}"),
+        ("The town is St. Cloud, Minnesota." in cloud[1] and "joe" not in cloud[1],
+         "a second town's batches name it, and carry none of the first town's pages"),
+        (fetched[1] == ["joe0", "joe1", "joe2"] and joe[0] == fetched[1] and joe[2] == ["st-joseph-mn", "st-joseph-mn"]
+         and "The town is St. Joseph, Minnesota." in joe[1] and "cloud" not in joe[1],
+         f"prepare with no --town is St. Joseph's, as before: {fetched}, {joe[2]}"),
+    ]
+
+
 ROUTINE_FILES = ("morning.md", "social.md", "photos.md")  # sources/models/: what the routines follow
 
 
@@ -1708,6 +1804,7 @@ def whole_morning():
     global Supabase, load, start_reader, fetch_watched, find_root, own_page
     # The spots step reads the real registry; spots.py's own self-test covers it.
     real_fill, spots.fill = spots.fill, lambda db, today, write: ["- Map spots: set 4, 0 with no spot"]
+    real_check, apple_maps.check = apple_maps.check, lambda db, write, today: ["- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place"]
     clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
     sites = ["p0", "p1", "p2", "p3", "dsl"]
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
@@ -1819,8 +1916,9 @@ def whole_morning():
             own_page = lambda url: (200, f"<p>Harvest Supper, a church supper open to all, at {url}</p>")
             write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids = save_items, (lambda: []), (lambda: ["dining", "faith", "markets"])
             write_judged.known_teams, write_judged.news_in_db = dict, (lambda today=None: [])
-            env = {"SUPABASE_URL": "u", "SUPABASE_SERVICE_ROLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
-            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [])[0]
+            env = {"SUPABASE_URL": "u", "SUPABASE_PUBLISHABLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
+            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [],
+                                                                  reach=lambda: "")[0]
             prepared = parts("prepare")
             out.mkdir(parents=True, exist_ok=True)  # prepare made it, unless its command is gone
             (out / "flags.jsonl").write_text("")  # the cheap model's flags, then the judge's items
@@ -1863,6 +1961,7 @@ def whole_morning():
             evening_laid = (out / "tag").exists() or (out / "describe").exists()
     finally:
         spots.fill = real_fill
+        apple_maps.check = real_check
         (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
          start_reader, fetch_watched, find_root, own_page, write_judged.apply, write_judged.listed_in_db,
          write_judged.interest_ids, write_judged.known_teams, write_judged.news_in_db) = saved
@@ -1926,6 +2025,7 @@ def whole_morning():
                     "[morning] standouts: 1 of 1 events today",
                     "[morning] #1 Harvest Supper (5 PM): A church supper open to all",
                     "- Map spots: set 4, 0 with no spot",
+                    "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
                     "Apify: $4.20 of $25 this month (resets after 2026-11-18)"],
          "Finish prints the whole report:\n" + "\n".join(report)),
         (stored, "Save wrote once and moved the changed pages' fingerprints; Finish saved the tags, the About and "
@@ -1940,24 +2040,26 @@ def main(argv=None):
     ap.add_argument("step", nargs="?", choices=["prepare", "titles", "save", "today", "finish"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--dry-run", action="store_true", help="save, finish: print what would be written, write nothing")
+    ap.add_argument("--town", default=DEFAULT, help="prepare, save, finish: the town (a sources/towns/ file's name)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
     if args.selftest:
         return selftest()
     if not args.step:
         ap.error("prepare, titles, save, today or finish")
+    lookup(args.town)
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
     if args.step == "prepare":
-        prepare(today, out)
+        prepare(today, out, town=args.town)
     elif args.step == "titles":
         long_titles(out)
     elif args.step == "save":
-        save(out, args.dry_run, today)
+        save(out, args.dry_run, today, town=args.town)
     elif args.step == "today":
         lay_out_today(out, today)
     else:
-        finish(out, args.dry_run, today)
+        finish(out, args.dry_run, today, town=args.town)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,8 @@ that fails is a line in the answer, and you carry on with the rest.
 ## Steps
 
 **Ready.** Run `python3 sources/scripts/ready.py photos`, and install nothing
-   any other way. It installs the libraries the scripts need and checks the keys by name; their
-   values stay out of every command's output and your answer. When its line says `not ready`,
+   any other way. It installs the libraries the scripts need and checks the database takes the
+   routine's key; their values stay out of every command's output and your answer. When its line says `not ready`,
    stop and say so.
 
 **Check.** Run `python3 sources/scripts/place_photos.py check` in the foreground with a 600000 ms
@@ -41,16 +41,19 @@ that fails is a line in the answer, and you carry on with the rest.
 
 **Look over the live photos.** Run `python3 sources/scripts/place_photos.py live-sheets` and open
    every `.runs/photos/live-<n>.png` the same way. Each tile is labelled with its row id and place.
-   List every live photo that isn't a real photo by Pick by eye's rules, and every picture shown on
-   two places (name both), with the row id and one plain reason. Take nothing down: Jesse decides.
+   For every live photo that isn't a real photo by Pick by eye's rules, and every picture shown on
+   two places (the copy on the place it does not belong to), run
+   `python3 sources/scripts/place_photos.py takedown <row id> "<one plain reason>"`. It saves the pick
+   for Jesse's review page and takes nothing down: he decides. A photo he kept before says
+   `was asked about before`; leave it.
 
 **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
    saves the picture as a proposal; the app never shows a proposal.
 
 **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
    you proposed or why nothing); then the places without a photo you proposed one for; then, if
-   you made any proposals, "Swaps waiting for Jesse: N"; then the live photos' list (Look over the
-   live photos) under "To take down?".
+   you made any proposals, "Swaps waiting for Jesse: N"; then each take-down you saved (Look over
+   the live photos: the place, row id and reason) under "To take down: N".
    With any proposals or any photo to take down, also send Jesse one push notification saying how
    many of each wait for him; none otherwise.
 
@@ -58,6 +61,6 @@ that fails is a line in the answer, and you carry on with the rest.
 
 - Pages and pictures are fetched only by `place_photos.py` (run.py's fetcher obeys robots rules
   and Crawl-delay). WebFetch, curl and the like stay unused.
-- The database is written only by `place_photos.py propose`, which adds proposals and nothing else.
-  Live photos, logos and every other table stay untouched.
+- The database is written only by `place_photos.py propose` and `takedown`, which add proposals and
+  take-down picks and nothing else. Live photos, logos and every other table stay untouched.
 - Nothing is committed or pushed; `.runs/` is scratch.

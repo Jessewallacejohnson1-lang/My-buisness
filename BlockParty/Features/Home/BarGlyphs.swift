@@ -37,24 +37,62 @@ import SwiftUI
 /// The arc is the detail that rules SF out, and it is genuinely part of the mark —
 /// it appears at identical geometry in two independent reference frames, so it is not
 /// a transient "searching" state.
+///
+/// Each tap on Search swoops the arc once round the lens: both ends travel a full lap
+/// clockwise, the leading end a little ahead so the line stretches as it goes, and it
+/// lands back in its spot with a small overshoot (Jesse, 2026-10-31: "the line in the
+/// middle swoops around like a cool simple shine effect", Swoop picked from three).
+/// Every value is GUESSED: there was no recording to copy. Mock:
+/// https://claude.ai/artifact/Pdes43fDx8XRxMxme3mJp3
 struct MagnifierGlyph: View {
     var size: CGFloat = 20
     var bold = false
+    /// Bumped on every tap on Search; each change plays the swoop.
+    var swoops = 0
 
     /// Instagram's selected search stroke over its resting one: 8.82 / 5.79px at 3x
     /// (MEASURED on Mobbin's Instagram tab bar, 2026-09-29). The ring keeps its
     /// centreline, so the extra weight spills ~0.4pt past the box on each side.
     static let boldStroke: CGFloat = 1.52
 
+    /// The mock's two curves: a swoop that eases out of the start and glides into the
+    /// end, and a gentle settle back from the overshoot.
+    nonisolated private static let swoop = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.45, y: 0), endControlPoint: UnitPoint(x: 0.2, y: 1))
+    nonisolated private static let settle = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.4, y: 0), endControlPoint: UnitPoint(x: 0.6, y: 1))
+
+    /// The arc's two ends, as clock angles.
+    struct Shine {
+        var tail = MagnifierShape.restStart
+        var head = MagnifierShape.restEnd
+    }
+
     var body: some View {
-        MagnifierShape()
-            .stroke(style: StrokeStyle(
-                lineWidth: size * MagnifierShape.strokeFraction * (bold ? Self.boldStroke : 1),
-                lineCap: .round,
-                lineJoin: .round
-            ))
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        KeyframeAnimator(initialValue: Shine(), trigger: swoops) { shine in
+            MagnifierShape(arcStart: shine.tail, arcEnd: shine.head)
+                .stroke(style: StrokeStyle(
+                    lineWidth: size * MagnifierShape.strokeFraction * (bold ? Self.boldStroke : 1),
+                    lineCap: .round,
+                    lineJoin: .round
+                ))
+        } keyframes: { shine in
+            // One lap on from wherever the line is, so a tap mid-swoop carries it on
+            // rather than snapping it back to its spot first.
+            let lap = 360 * ((shine.tail - MagnifierShape.restStart) / 360).rounded()
+            // Head: round by 400 ms, 16° past its spot, back by 600.
+            KeyframeTrack(\.head) {
+                LinearKeyframe(lap + MagnifierShape.restEnd + 376, duration: 0.40, timingCurve: Self.swoop)
+                LinearKeyframe(lap + MagnifierShape.restEnd + 360, duration: 0.20, timingCurve: Self.settle)
+            }
+            // Tail: a beat slower, so the line stretches; 10° past, back by 640.
+            KeyframeTrack(\.tail) {
+                LinearKeyframe(lap + MagnifierShape.restStart + 370, duration: 0.46, timingCurve: Self.swoop)
+                LinearKeyframe(lap + MagnifierShape.restStart + 360, duration: 0.18, timingCurve: Self.settle)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -71,9 +109,12 @@ nonisolated struct MagnifierShape: Shape {
     private static let stroke: CGFloat = 0.176
     /// The reflection arc's radius, in lens radii.
     private static let arcRadius: CGFloat = 0.600
-    /// The arc's sweep, as CLOCK angles — 0° is 12 o'clock, increasing clockwise.
-    private static let arcStart: CGFloat = 5
-    private static let arcEnd: CGFloat = 95
+    /// The arc's sweep at rest, as CLOCK angles — 0° is 12 o'clock, increasing
+    /// clockwise. `MagnifierGlyph`'s swoop moves the two ends.
+    static let restStart: CGFloat = 5
+    static let restEnd: CGFloat = 95
+    var arcStart = Self.restStart
+    var arcEnd = Self.restEnd
     /// How far the handle's far cap sits from the lens centre, in lens radii, and the
     /// angle it leaves on. 44.80° measured; 45° is what was meant.
     private static let handleReach: CGFloat = 1.874
@@ -112,11 +153,11 @@ nonisolated struct MagnifierShape: Shape {
         path.addEllipse(in: CGRect(x: centre.x - r, y: centre.y - r, width: r * 2, height: r * 2))
 
         // The reflection arc, concentric inside it.
-        path.move(to: point(Self.arcStart, Self.arcRadius))
+        path.move(to: point(arcStart, Self.arcRadius))
         path.addArc(center: centre,
                     radius: Self.arcRadius * r,
-                    startAngle: clock(Self.arcStart),
-                    endAngle: clock(Self.arcEnd),
+                    startAngle: clock(arcStart),
+                    endAngle: clock(arcEnd),
                     clockwise: false)
 
         // The handle. It starts ON the ring's centreline rather than at its outer
@@ -124,6 +165,37 @@ nonisolated struct MagnifierShape: Shape {
         // where the two strokes meet.
         path.move(to: point(Self.handleAngle + 90, 1))
         path.addLine(to: point(Self.handleAngle + 90, Self.handleReach))
+        return path
+    }
+}
+
+// MARK: - Plus
+
+/// The Town bar's +, Instagram's: two strokes with round ends, 19.7 pt across with a 2 pt
+/// line (MEASURED on Mobbin's Instagram home, 2026-11-01, BP app `references/town-plus/`).
+/// Drawn rather than SF's `plus`, whose line is a weight, not a measured 2 pt.
+struct PlusGlyph: View {
+    var size: CGFloat = 19.7
+    var line: CGFloat = 2
+
+    var body: some View {
+        PlusShape(inset: line / 2)
+            .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The two strokes, inset by half the line so the round ends land on the frame's edges.
+nonisolated struct PlusShape: Shape {
+    var inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + inset))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - inset))
+        path.move(to: CGPoint(x: rect.minX + inset, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.midY))
         return path
     }
 }
@@ -338,8 +410,11 @@ struct DailyMarkGlyph: View {
 
     /// Where the line's foot and the dot's base sit on the mark's canvas, from
     /// `DailyMark.svg`'s paths. The squashes pivot there, so neither foot slides.
-    nonisolated private static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
-    nonisolated private static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+    nonisolated static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
+    nonisolated static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+    /// The line's crouch, the hop's first beat. The launch grows the line out of the dot over
+    /// it (`LaunchBall`), since the ! has no line before it hops there.
+    nonisolated static let crouch = 0.07
     /// The mock's two curves: a lift that starts fast and eases into the top, and a
     /// fall that speeds up into the landing.
     nonisolated private static let lift = UnitCurve.bezier(
@@ -347,11 +422,16 @@ struct DailyMarkGlyph: View {
     nonisolated private static let fall = UnitCurve.bezier(
         startControlPoint: UnitPoint(x: 0.5, y: 0), endControlPoint: UnitPoint(x: 0.8, y: 0.4))
 
-    struct Hop {
+    nonisolated struct Hop {
         var y: CGFloat = 0
         var width: CGFloat = 1
         var height: CGFloat = 1
     }
+
+    /// The hop at any moment, for the launch's ! (Jesse, 2026-11-01: "can we make the animation
+    /// of the ! the same as tab bars"), which plays it scaled up with no tap.
+    static let lineHop = KeyframeTimeline(initialValue: Hop(), content: lineKeyframes)
+    static let dotHop = KeyframeTimeline(initialValue: Hop(), content: dotKeyframes)
 
     var body: some View {
         ZStack {
@@ -361,57 +441,63 @@ struct DailyMarkGlyph: View {
                     content
                         .scaleEffect(x: hop.width, y: hop.height, anchor: Self.lineFoot)
                         .offset(y: hop.y)
-                } keyframes: { _ in
-                    // Crouch 70 ms, up by 230, down at 360, settled by 500.
-                    KeyframeTrack(\.y) {
-                        LinearKeyframe(0, duration: 0.07)
-                        LinearKeyframe(-4, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(0, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(0, duration: 0.14)
-                    }
-                    KeyframeTrack(\.width) {
-                        LinearKeyframe(1.12, duration: 0.07)
-                        LinearKeyframe(0.94, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(1.1, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(0.97, duration: 0.07, timingCurve: Self.lift)
-                        LinearKeyframe(1, duration: 0.07)
-                    }
-                    KeyframeTrack(\.height) {
-                        LinearKeyframe(0.86, duration: 0.07)
-                        LinearKeyframe(1.08, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(0.9, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(1.03, duration: 0.07, timingCurve: Self.lift)
-                        LinearKeyframe(1, duration: 0.07)
-                    }
-                }
+                } keyframes: { _ in Self.lineKeyframes() }
             layer("DailyMarkBangDot")
                 .keyframeAnimator(initialValue: Hop(), trigger: hops) { content, hop in
                     content
                         .scaleEffect(x: hop.width, y: hop.height, anchor: Self.dotBase)
                         .offset(y: hop.y)
-                } keyframes: { _ in
-                    // Leaves at 80 ms, up by 200, down at 320, settled by 400.
-                    KeyframeTrack(\.y) {
-                        LinearKeyframe(0, duration: 0.08)
-                        LinearKeyframe(-2, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(0, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(0, duration: 0.08)
-                    }
-                    KeyframeTrack(\.width) {
-                        LinearKeyframe(1, duration: 0.08)
-                        LinearKeyframe(0.95, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(1.15, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(1, duration: 0.08, timingCurve: Self.lift)
-                    }
-                    KeyframeTrack(\.height) {
-                        LinearKeyframe(1, duration: 0.08)
-                        LinearKeyframe(1.06, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(0.85, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(1, duration: 0.08, timingCurve: Self.lift)
-                    }
-                }
+                } keyframes: { _ in Self.dotKeyframes() }
         }
         .accessibilityHidden(true)
+    }
+
+    /// The line: crouch 70 ms, up by 230, down at 360, settled by 500.
+    @KeyframesBuilder<Hop>
+    nonisolated private static func lineKeyframes() -> some Keyframes<Hop> {
+        KeyframeTrack(\.y) {
+            LinearKeyframe(0, duration: crouch)
+            LinearKeyframe(-4, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(0, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(0, duration: 0.14)
+        }
+        KeyframeTrack(\.width) {
+            LinearKeyframe(1.12, duration: crouch)
+            LinearKeyframe(0.94, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(1.1, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(0.97, duration: 0.07, timingCurve: lift)
+            LinearKeyframe(1, duration: 0.07)
+        }
+        KeyframeTrack(\.height) {
+            LinearKeyframe(0.86, duration: crouch)
+            LinearKeyframe(1.08, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(0.9, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(1.03, duration: 0.07, timingCurve: lift)
+            LinearKeyframe(1, duration: 0.07)
+        }
+    }
+
+    /// The dot: leaves at 80 ms, up by 200, down at 320, settled by 400.
+    @KeyframesBuilder<Hop>
+    nonisolated private static func dotKeyframes() -> some Keyframes<Hop> {
+        KeyframeTrack(\.y) {
+            LinearKeyframe(0, duration: 0.08)
+            LinearKeyframe(-2, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(0, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(0, duration: 0.08)
+        }
+        KeyframeTrack(\.width) {
+            LinearKeyframe(1, duration: 0.08)
+            LinearKeyframe(0.95, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(1.15, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(1, duration: 0.08, timingCurve: lift)
+        }
+        KeyframeTrack(\.height) {
+            LinearKeyframe(1, duration: 0.08)
+            LinearKeyframe(1.06, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(0.85, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(1, duration: 0.08, timingCurve: lift)
+        }
     }
 
     private func layer(_ name: String) -> some View {

@@ -224,7 +224,7 @@ throwing it away. This round removes the rest.
 ### Not recoverable
 
 The town facts and the generated lines lived only in the database. They were exported to
-**`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`** before the drop — 15 distinct facts and 13
+**`docs/archive/ST-JOSEPH-ALMANAC-ARCHIVE.md`** before the drop — 15 distinct facts and 13
 generated lines. That file is now the only copy.
 
 **Recover:** `git checkout 291ca50 -- <path>` for any deleted file above (291ca50 is the last
@@ -260,11 +260,39 @@ neighbour (no caller, or only a DEBUG flag). Jesse approved 09's picks on 2026-1
 | Town menu | `TownMenuView.swift`, `GlassShowcaseOverlay.swift`, `-open-menu`, `-menu-autoclose`, the `town-menu` UI-audit surface | Only `-open-menu` opened it. Its appearance switch went too; a saved choice still applies and `-appearance` still sets one |
 | Old Today feed | `TodayFeedView`, `TodayFeedPreview`, `FeedSectioning`, `FeedRecurrence`, `FeedPipelineSelfCheck`, `FeedCardItem(from: FeedPosting)`, `FeedPostingSection.mapped`, `FeedCardSection`, `FeedPosting`, `GoingPreview`, `Home/CommunityFeed/`, `WeatherBackground.swift`, `FeedDebugFocus.swift`, `BlockMotifSpinner.swift`, `-today-feed-*` | Reached only by DEBUG flags |
 | Briefing | `Home/Briefing/` (5 files), `BriefingAPI`, `BriefingAnalytics`, `BriefingCache`, `BriefingPayload`, `FeedRegistry`, `FeedController`, `FeedModule`, `FeedModuleContext`, `FeedModuleID` (with `BriefingDate`), `FeedPhase`, `FeedRoute`, FeedView's briefing call, `briefingOpen` analytics and reveal hold, `FeedUnavailableCard`, `FeedSkeletonStrip`, two module error lines, `firstNameFromEmail`, `blockPartyCard`, repo-root `fixtures/` and `scripts/generate_briefing_samples.py`; tests `BriefingFeelTests`, `BriefingLiveParityTests`, `BriefingModelTests`, `BriefingPayloadTests`, `FeedRegistryTests`, `FeedRouteAndCopyTests`' route tests | The registry was empty, yet every Town load made one signed-in `rpc/get_today_briefing` call. The server side (`daily_briefings`, `compose_briefing`, its cron, `app_events`) was left alone. A phone's old `briefing-cache.json` stays on disk, unread |
-| Civic | `Features/Civic/` (Parked utility row, `CivicTabDestination`), `UtilityPrefsAPI`, `TownStatusAPI`, `WeatherService`, `RealtimeClient.onAnyChange`, `Motion.tilePress` / `tileEntrance`, `ProfileAvatar`, `SupabaseCoding.encoder`; tests `Utility*Tests` (7), `GarbageScheduleTests`, `LibraryHoursTests`, four `TownTimezoneTests` | **`user_utility_prefs` rows stay in the database**: a Civic tab built later must re-hydrate them. `docs/adr/ADR-001-utility-tile-persistence.md` still describes the design |
+| Civic | `Features/Civic/` (Parked utility row, `CivicTabDestination`), `UtilityPrefsAPI`, `TownStatusAPI`, `WeatherService`, `RealtimeClient.onAnyChange`, `Motion.tilePress` / `tileEntrance`, `ProfileAvatar`, `SupabaseCoding.encoder`; tests `Utility*Tests` (7), `GarbageScheduleTests`, `LibraryHoursTests`, four `TownTimezoneTests` | **`user_utility_prefs` rows stay in the database**: a Civic tab built later must re-hydrate them. `docs/adr/ADR-001-utility-tile-persistence.md` still describes the design. `WeatherService` read Open-Meteo at the town's coordinates |
 | Day schedule | `Feed/DaySchedule/` (14 files), `EventCompletionsAPI`, `DateProvider`, `Modules/DayItem.swift`, `YourDayItems.swift`, `YourDayRailSpec.swift`, most of `YourDayLogic`, `DateHelpers.weekdayLabel`, `-day-sheet-*`; tests: the day-sheet classes in `FeedPolishTests`, `FeedPlaceholderRuleTests`, most of `YourDayLogicTests`, `DayCompletionStoreTests` | Kept: `DayScheduleLogic.directionsURL(forPlace:)`, now `Directions.url(forPlace:)` beside `InfoPill` (event page and business page), with its test; `YourDayLogic.minutes`, `townDay`, `assumedEventDuration` and `changeIsRelevant` |
 | Trivia | `TriviaAPI.swift`, `Modules/TriviaModel.swift`, `TriviaTests`, `-trivia-*` | It carried a streak. The `trivia_*` tables and functions are still in the database |
 | Backend | `Moderation.swift`, `PostingDismissalsAPI.swift`, `GeocoderService.coordinate`, `CommunityAPI.getEventsByDate` / `getMonthEventCounts` / `getMonthEventDates` / `getEventsForRange` / `getTrails` / `setQuest` / `submitClub` / `currentUserId`, `SocialAPI.deleteComment`, `GooglePlacesService.newSessionToken`, `ClubInput`, `DateRow`, `AgendaRow`, `AgendaEvent` | No callers. Posting (`addEvent`, `addTrail`) stays: it comes back |
 | Skills | `.claude/skills/ui-ux-pro-max`, `design`, `design-system`, `ui-styling`, `brand`, `banner-design`, `slides` | Web (shadcn, Tailwind, HTML slides) skills nothing used. `title-and-place` stays: the morning job's step 5 uses it |
+
+## 2026-11-01 — whole-app tidy (branch `chore/tidy-nov`)
+
+From `ad08d079`. Periphery (a compiler-index scan for unused declarations) over the app and
+tests, every hit checked by hand, plus a file-by-file read of everything outside the app.
+Nothing a neighbour sees changed. **Recover any of it:** `git checkout ad08d079 -- <path>`.
+
+| Area | Deleted | Notes |
+| --- | --- | --- |
+| Backend | `Reminders.swift`, `LocationPermission.swift`, `UserLocation.swift`, `TrailServices.swift` (`GeocoderService`), `CurrentUser`, `CommunityAPI.isAdmin`, `Interests.isOnboarded`/`setOnboarded`, `KnownVenues.suggestions`, `Log.realtime`/`auth`, `Town.name`/`latitude`/`longitude` | Reminders' last caller left 2026-10-12 (saves moved up); the location pair's with the map reset (2026-10-30). `NSLocationWhenInUseUsageDescription` stays in `Info.plist`: Mapbox links location APIs |
+| Search | `TownSearch`'s Explore dropdown (`Suggestion`, `SearchFilter`, `suggestions`, `popular`, `matches`, `expandedTerms`), `MapSpots`' spot list (`Spot`, `SpotCategory`, `all`) | Search calls only `TownSearch.score`; the map reads only `MapSpots.center` |
+| Components and theme | `BlockPartyLogoBadge.swift`, `InviteButton`, `ShareCenter.place`, `appearStagger`, `popIn`, `SavedStore.isSaved`/`toggle`, `Motion.interactive`, `staggeredAppear`, `Hue.statusTint`, `Hue.mapEdge`, `EventCategory.tint`, `PlaceCategoryMap.classify`, `POILogoCache.resolvedImage` | `SavedStore` stays only to move old phone saves up |
+| Feed | `FeedMotion`'s Town Notes expand (`newsExpand`, `newsExpandSpec`, `expandResponse`, `expandDamping`, its two tests in `FeedPolishTests`), `newsBodyTransition`, `stateSwap`, `FeedCardActionState.init(item:)`, the Event page's `inSheet` | Only tests reached the expand motion |
+| Flags | `-poi-logo-stub`, `-anon-data`, `-show-home` | In `docs/debug-flags.md`'s Dead list |
+| Kept alive only by tests | `ConcentricRectangle.swift` (with `ConcentricRectangleTests`, 7 tests), `TodayHeader.eyebrow(for:)` (3 tests in `TodayHeaderTests`), `CommunityAPI.dayLookbackDays` (its test keeps the number) | `ConcentricRectangle` shadowed SwiftUI's own shape of the same name; unqualified, the name now means SwiftUI's |
+| Files | 8 weather photos (`clear-day` … `storm`), 13 of 14 `Lucide/` icons (`ellipsis` stays), `AtkinsonHyperlegible-Bold.ttf`, `screens/` (Horizon card proofs), `refs/your-day/`, `refs/chrome/create-6x.png`, `docs/reviews/`, `docs/feed-pattern-brief.md`, `docs/place-logos-manifest.json`, `scripts/fit_rain.py`, `track_rain.swift`, `rank_rain_roster.py` | The weather photos went unread with `WeatherBackground` (2026-10-25); the rain scripts with the town rain (2026-10-30) |
+| Moved | `docs/BRIEFING_PREFLIGHT.md`, `BRIEFING_ROUTINE.md`, `UTILITY_ROW.md`, `ST-JOSEPH-ALMANAC-ARCHIVE.md` | Now in `docs/archive/` |
+
+**Second round, 2026-11-02, Jesse's yes to all three questions.** Recover the files with
+`git checkout f5a3c1f0 -- <path>`.
+
+| Area | Deleted | Notes |
+| --- | --- | --- |
+| Sample friend chats | `FriendsPage.swift` (the inbox; its shared `FriendsMetric`, `FriendsTitleBar` and `FriendsSearchField` moved to `FriendsChrome.swift`), `FriendChatPage.swift`, `FriendsModel.swift` (its `FriendsRoute` moved too), `FriendsModelTests`, `-open-friends-chat` | DEBUG samples only that flag reached. Real messaging's plan: BP app `references/friends-inbox/plan-draft.md` |
+| Files | `refs/onboarding/shots/` (all but the two motion strips), `refs/onboarding/duolingo/_raw/` (Mobbin originals), `scripts/harvest_candidates.py`, `docs/archive/HARVEST-LEDGER.md` | The July onboarding proofs. The harvest was a rules proposal from 2026-09-23 never approved; its sources (`REVIEW.md`, `DECISIONS.md`) stay |
+| Agent log | `.claude/hooks/log-event.sh` and `.py`, their five hook entries, `supabase/functions/log-agent-event` (deleted live too) | Every prompt in an iOS chat went to `agent_events`, which nothing read. The table itself stays |
+| Database | `daily_briefings`, `briefing_featured`, `daily_touches`, `touch_votes` and their 14 functions (`20261102142710_drop_briefing_and_touch.sql`) | The old Today briefing and its poll/history/trivia card. Rows saved off git first: `~/Documents/backups/2026-11-02-briefing-and-touch-tables.json` |
+| Expo twin | The rule to keep iOS 1:1 with `~/Documents/my-business` and to port every change to Android in the same chat | Expo retired (the folder is gone); Android follows once iOS is done (`docs/rules/architecture.md`) |
 
 ---
 

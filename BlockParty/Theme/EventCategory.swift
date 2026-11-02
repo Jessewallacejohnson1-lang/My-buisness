@@ -2,9 +2,7 @@
 //  EventCategory.swift
 //  Block Party — the event category taxonomy + its calendar iconography.
 //
-//  Mirrors the Expo app's INTERESTS list (apps/mobile/src/lib/interests.ts, also
-//  exported as EventCategory in @hygge/core) so the two backend-twins share one
-//  vocabulary: the raw values ARE the interest ids (outdoors, music_arts, …).
+//  The raw values ARE the interest ids the database stores (outdoors, music_arts, …).
 //  `club_events.category` is a nullable text column — a null / legacy / unknown
 //  row resolves to `.other` (see `from(_:)`) so a category icon never renders blank.
 //
@@ -37,10 +35,6 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// Short human label — the composer chip + the icon's accessibility text.
-    ///
-    /// `nonisolated`: a pure string switch, read by the `nonisolated` Your Day
-    /// accessibility builder. Colour-bearing members stay isolated because they
-    /// read MainActor `Hue` tokens.
     nonisolated var label: String {
         switch self {
         case .outdoors:  return "Outdoors"
@@ -56,8 +50,7 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Filled SF Symbol — reads cleanly in white at ~22pt on the ink circle,
-    /// the same filled-glyph choice SpotCategory.filledSymbol makes for map pins.
+    /// Filled SF Symbol — reads cleanly in white at ~22pt on the ink circle.
     var glyph: String {
         switch self {
         case .outdoors:  return "figure.hiking"
@@ -70,22 +63,6 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         case .service:   return "heart.fill"
         case .games:     return "gamecontroller.fill"
         case .other:     return "calendar"
-        }
-    }
-
-    /// Category tint is monochrome; the glyph carries the category distinction.
-    var tint: Color {
-        switch self {
-        case .outdoors:  return Hue.ink
-        case .musicArts: return Hue.ink
-        case .food:      return Hue.ink
-        case .families:  return Hue.ink
-        case .faith:     return Hue.ink
-        case .sports:    return Hue.ink
-        case .books:     return Hue.ink
-        case .service:   return Hue.ink
-        case .games:     return Hue.ink
-        case .other:     return Hue.ink
         }
     }
 }

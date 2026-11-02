@@ -59,11 +59,8 @@ These are external actions. No repository edit can substitute for either one.
 
 ## 2. Deliberate remaining references
 
-- **The one deliberate application-code carve-out is seven Swift comments that
-  reference `@hygge/core`. Keep them.** That is the live npm
-  package name in the twin Expo repository at
-  `~/Documents/my-business/packages/core/package.json`. The comments describe a real
-  synchronization boundary and stay accurate until that package is renamed.
+- **The Expo twin is retired (2026-11-02).** Its `@hygge/core` package was the last live
+  `hygge` name; a Swift comment that still names it is history, not a sync boundary.
 - A handful of comments still name `hygge.*` to explain what the keys used to be and
   why nothing is migrated. Those are explanatory, not live identifiers.
 - **`supabase/migrations/*` is applied history. Never edit it retroactively.** Old
@@ -788,6 +785,8 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 
 ## Decided 2026-10-12 — You's photo arrives as a first-name pill
 
+- **Retired 2026-11-01** (BP app five-tabs 03): You became your Profile, whose own big photo
+  is on screen, so the pill and `YouBadge` are gone. Kept below as the record.
 - **A second capsule, on purpose.** `Radius.button` says a button is never a pill, and the
   photo at the top left of You is a button. Each time the neighbour switches to You it shows
   as a white capsule holding their first name, then folds into the photo's circle after 2

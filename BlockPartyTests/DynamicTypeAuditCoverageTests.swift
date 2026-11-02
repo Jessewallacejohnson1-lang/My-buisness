@@ -41,7 +41,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // "Around town" — were what the auditor kept reporting. It goes back to
         // `.audited` the day the page is finished; the surface is parked in
         // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
-        "RootView.swift:$showProfileSheet": .notYetAudited(reason: "The You tab's profile. Not a developed page yet — see DynamicTypeAuditTests.notDevelopedYet. High priority the day it settles: a profile is user-generated text of any length."),
 
         "OnboardingNamePhoto.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
@@ -60,6 +59,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "EditProfileView.swift:$showInterests": .notYetAudited(reason: "Interest picker; a grid of chips, which is what breaks first at AX5."),
         "ModerationView.swift:$link": .notYetAudited(reason: "Safari view on a found event's page — system UI, scales on its own."),
         "TownNewsCard.swift:$link": .notYetAudited(reason: "Safari view on a town news post (town-feed 35) — system UI, scales on its own."),
+        "RootView.swift:$creating": .notYetAudited(reason: "New event, from the Town bar's + (BP app town-plus): Apple's photo picker, then a name, Apple's date picker, a Place row and Share; Place is a List that wraps. The name field and the place on its row hold one line and truncate at the largest sizes. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "RootView.swift:$helloLink": .notYetAudited(reason: "Safari view on the hello pill's news post (hello-drop 03) — system UI, scales on its own."),
         "FeedEventDetailDestination.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
     ]

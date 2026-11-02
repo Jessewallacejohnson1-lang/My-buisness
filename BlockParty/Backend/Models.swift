@@ -42,8 +42,11 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         var time: String? = nil
         /// Only when it isn't the group's usual place.
         var place: String? = nil
+        /// Read from the group's own calendar and outside St. Joseph (a St. Cloud club's other runs): it shows on
+        /// the Group page, but the hello leaves it out.
+        var away: Bool? = nil
 
-        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where" }
+        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where", away }
     }
 
     let id: String
@@ -211,6 +214,94 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen, and a
         /// score older than `quietAfter` no longer says Live (a weather delay, a feed gone quiet).
         let at: Date?
+        /// Football's down, distance and spot (game-card 08); nil for every other sport and between plays
+        /// SIDEARM doesn't give one (a kickoff, an extra point).
+        let drive: Drive?
+        /// Basketball's quarters, or halves, as one bar (game-card 09); nil for any other sport and an old read.
+        let bar: Bar?
+        /// Basketball's fouls this quarter, or half, in `teams` order (game-card 09): the Bonus. Nil for any other
+        /// sport, an old read, and a count from a period that is over.
+        let fouls: [Int]?
+
+        /// Basketball's periods as SIDEARM sends them (`private.sidearm_live`).
+        nonisolated struct Bar: Hashable, Sendable {
+            /// 1 for the first quarter or half; past `regulation` in overtime.
+            let period: Int
+            /// How many make the game: 4 quarters (CSB's women), 2 halves (SJU's men).
+            let regulation: Int
+            /// The period's length in seconds: 600 a quarter, 1200 a half, 300 an overtime.
+            let length: Int
+
+            /// One part per quarter or half, and one for overtime once it's on (a second refills it).
+            var parts: Int { regulation + (period > regulation ? 1 : 0) }
+            /// The part being played, from 0.
+            var playing: Int { min(period, regulation + 1) - 1 }
+            /// The quarter or half its fouls count in: overtime's count with the last one (the NCAA's rule).
+            var foulPeriod: Int { min(period, regulation) }
+        }
+
+        /// How full each part of basketball's bar is, 0 to 1: the ones played full, the one being played as far as
+        /// its clock has run as last sent (it stops on every whistle), the rest empty. None for any other sport.
+        var barFill: [Double] {
+            guard let bar else { return [] }
+            let run = 1 - Double(seconds ?? bar.length) / Double(bar.length)
+            return (0..<bar.parts).map { $0 < bar.playing ? 1 : $0 > bar.playing ? 0 : min(1, max(0, run)) }
+        }
+
+        /// That side is in the bonus: the other team's 5th foul of a quarter, or 7th of a half (the NCAA's rule).
+        func inBonus(_ side: Int) -> Bool {
+            guard let bar, let fouls, (0...1).contains(side) else { return false }
+            return fouls[1 - side] >= (bar.regulation == 2 ? 7 : 5)
+        }
+
+        /// A live football game's situation as SIDEARM's newest play gives it (`private.sidearm_drive`): the
+        /// down and distance, where the ball is, and who has it. Like SIDEARM's own scoreboard, it is the
+        /// spot the newest play started from.
+        nonisolated struct Drive: Decodable, Hashable, Sendable {
+            let down: Int
+            /// "7", or "Goal" inside the 10.
+            let togo: String
+            /// "GAC34": the side's letters and the yard line; "50" at midfield.
+            let spot: String
+            /// Who has the ball: 0 for the first team (the host), 1 for the other.
+            let side: Int
+            /// Yards from the host's goal line, 0 to 100; nil when the spot names neither team.
+            let ball: Int?
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                down = try c.decode(Int.self, forKey: .down)
+                togo = try c.decode(String.self, forKey: .togo)
+                spot = try c.decode(String.self, forKey: .spot)
+                side = try c.decode(Int.self, forKey: .side)
+                guard (1...4).contains(down), (0...1).contains(side), !togo.isEmpty, !spot.isEmpty else {
+                    throw DecodingError.dataCorruptedError(forKey: .down, in: c, debugDescription: "a down")
+                }
+                ball = ((try? c.decodeIfPresent(Int.self, forKey: .ball)) ?? nil).flatMap { (0...100).contains($0) ? $0 : nil }
+            }
+
+            private enum CodingKeys: String, CodingKey { case down, togo, spot, side, ball }
+
+            /// "2nd & 7 · GAC 34", "1st & Goal · SJU 3", "4th & 1 · 50".
+            var line: String {
+                let nth = ["1st", "2nd", "3rd", "4th"][down - 1]
+                let letters = spot.prefix { $0.isLetter }, yard = spot.drop { $0.isLetter }
+                return "\(nth) & \(togo) · \(letters.isEmpty ? String(yard) : "\(letters) \(yard)")"
+            }
+
+            /// Where the first down is, in yards from the host's goal line: the ball plus the distance toward
+            /// the goal its team is going for. None at "& Goal", or without a ball.
+            var firstDown: Int? {
+                guard let ball, let yards = Int(togo) else { return nil }
+                return min(100, max(0, side == 0 ? ball + yards : ball - yards))
+            }
+
+            /// "2nd and 7 on the GAC 34, Saint John's ball".
+            func spoken(teams: [Team]) -> String {
+                let words = line.replacingOccurrences(of: " & ", with: " and ").replacingOccurrences(of: " · ", with: " on the ")
+                return teams.indices.contains(side) ? "\(words), \(teams[side].short) ball" : words
+            }
+        }
 
         static let staleAfter: TimeInterval = 120
         static let quietAfter: TimeInterval = 600
@@ -218,21 +309,40 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         func isLive(at now: Date) -> Bool { at.map { now.timeIntervalSince($0) < Self.quietAfter } ?? false }
 
         /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none. Soccer's
-        /// clock never stops, so its minute runs on from the last push ("2nd half · 67'"), holding
-        /// at 45' and 90' through stoppage time and the break; football's and basketball's stop
-        /// on every whistle, so theirs shows as the scorer last sent it.
+        /// minute runs on from the last push ("2nd half · 67'", `minute(at:)`); football's and
+        /// basketball's clocks stop on every whistle, so theirs shows as the scorer last sent it.
         func line(at now: Date) -> String {
             guard let clock, let at else { return period }
-            let since = now.timeIntervalSince(at)
-            if clock.hasSuffix("'"), let seconds {
-                let minute = (seconds + Int(max(0, since))) / 60 + 1
-                let end: Int? = switch period { case "1st half": 45; case "2nd half": 90; default: nil }
-                return "\(period) · \(end.map { min(minute, $0) } ?? minute)'"
-            }
-            return since < Self.staleAfter ? "\(period) · \(clock)" : period
+            if let minute = minute(at: now) { return "\(period) · \(minute)'" }
+            return now.timeIntervalSince(at) < Self.staleAfter ? "\(period) · \(clock)" : period
         }
 
-        private enum CodingKeys: String, CodingKey { case score, period, clock, seconds = "clock_s", complete, periods, at }
+        /// Soccer's minute: it runs on from the last push, held at the end of the period that push was in
+        /// through the break (45, 90, then each 10-minute overtime's end). Nil for a clock that isn't soccer's.
+        func minute(at now: Date) -> Int? {
+            guard clock?.hasSuffix("'") == true, let seconds, let at else { return nil }
+            let minute = (seconds + Int(max(0, now.timeIntervalSince(at)))) / 60 + 1
+            let end: Int? = switch period {
+            case "1st half": 45
+            case "2nd half": 90
+            // SIDEARM's clock runs on from 90:00 through every overtime (guessed: no overtime seen yet).
+            case "OT": 90 + 10 * max(1, (seconds - 5400 + 599) / 600)
+            default: nil
+            }
+            return end.map { min(minute, $0) } ?? minute
+        }
+
+        /// The half is over: SIDEARM's clock stops at 45:00 and stays there until the second half starts
+        /// (the NCAA's has no stoppage time: CSB's and SJU's files of 2026-10-24 ended halves at 45:00 and 90:00).
+        var isHalftime: Bool { period == "1st half" && (seconds ?? 0) >= 2700 }
+
+        private enum CodingKeys: String, CodingKey {
+            case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls
+            case periodNumber = "period_n", length = "period_s"
+        }
+
+        /// The fouls as the server keeps them: the quarter or half, and each side's foul plays by id.
+        private struct Fouls: Decodable { let period: Int; let ids: [[String]] }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -247,6 +357,17 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
             self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
             at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
+            // One that doesn't read is none: it never costs the score.
+            drive = (try? c.decodeIfPresent(Drive.self, forKey: .drive)) ?? nil
+            let int = { (key: CodingKeys) in ((try? c.decodeIfPresent(Int.self, forKey: key)) ?? nil).flatMap { $0 > 0 ? $0 : nil } }
+            if let period = int(.periodNumber), let regulation = int(.regulation), let length = int(.length) {
+                bar = Bar(period: period, regulation: regulation, length: length)
+            } else {
+                bar = nil
+            }
+            // A count the server hasn't started over for this period yet is none, so no stale Bonus shows.
+            let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
+            self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
         }
 
         /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".
@@ -296,6 +417,49 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     var winner: Int? {
         guard let final, final[0] != final[1] else { return nil }
         return final[0] > final[1] ? 0 : 1
+    }
+
+    /// Volleyball keeps sets, not quarters or halves: its page draws them, and a set won is a moment.
+    var isVolleyball: Bool { sport.localizedCaseInsensitiveContains("volleyball") }
+
+    /// Soccer's page draws the minute in a ring and the scorers under the teams (game-card 09).
+    var isSoccer: Bool { sport.localizedCaseInsensitiveContains("soccer") }
+
+    /// Basketball's page draws its quarters as a bar, the Bonus and a faint court (game-card 09).
+    var isBasketball: Bool { sport.localizedCaseInsensitiveContains("basketball") }
+
+    /// Soccer's scorers under each team, in `teams` order (game-card 09): one line per player, in the order
+    /// they first scored, their minutes after the name ("Hanson 23', 71'"); a goal SIDEARM names no one
+    /// for is "Goal 23'". Kept after the final, as the plays are. None for any other sport.
+    var scorers: [[String]] {
+        guard isSoccer else { return [] }
+        return [0, 1].map { side in
+            var lines: [(name: String, minutes: [String])] = []
+            for play in plays where play.side == side {
+                let name = GameMoment.scorer(in: play.text) ?? "Goal"
+                if let i = lines.firstIndex(where: { $0.name == name }) {
+                    lines[i].minutes += [play.clock].compactMap { $0 }
+                } else {
+                    lines.append((name, [play.clock].compactMap { $0 }))
+                }
+            }
+            return lines.map { ([$0.name] + [$0.minutes.joined(separator: ", ")].filter { !$0.isEmpty }).joined(separator: " ") }
+        }
+    }
+
+    /// Volleyball's sets, each one's points in `teams` order (game-card 09): the chips under its logos.
+    /// None for any other sport, whose periods are quarters and halves.
+    var sets: [[Int]] {
+        guard isVolleyball, periods.count == 2 else { return [] }
+        return zip(periods[0], periods[1]).map { [$0, $1] }
+    }
+
+    /// The set being played, by its place in `sets`: the newest while the match is on; none before, once
+    /// SIDEARM says it's complete, after the final, and between sets, when the sets won (volleyball's
+    /// score) count every set listed.
+    var setPlaying: Int? {
+        guard let live, !live.complete, live.score.reduce(0, +) < sets.count else { return nil }
+        return sets.count - 1
     }
 
     nonisolated struct Team: Decodable, Hashable, Sendable {
@@ -494,6 +658,24 @@ nonisolated enum TownFeedLine: Hashable {
     case news(TownNews)
 }
 
+/// One line of a round past the Town feed's later Events (`get_town_more`, town-feed 23): a place to
+/// try, or an Event or News item from the ranked list, again. An unknown kind is never drawn.
+nonisolated struct TownMoreRow: Decodable, Hashable, Sendable {
+    enum Kind: String, Decodable, Sendable { case place, again, unknown }
+    let kind: Kind
+    let id: String
+}
+
+nonisolated extension TownMoreRow {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .unknown
+        id = try c.decode(String.self, forKey: .id)
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, id }
+}
+
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when
 /// they have one in our bucket. Only friends who show their plans to friends (town-feed 28).
 nonisolated struct FeedFriend: Hashable, Sendable {
@@ -532,7 +714,7 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
     /// nil for your own plans, which are in neither (town-feed 31).
     var pool: String? = nil
-    /// Points for being new since your last visit (town-feed 36).
+    /// Points for being new: in the feed since your last visit or the last 24 hours, unseen (town-feed 36, 38).
     var new: Double? = nil
 }
 
@@ -759,6 +941,8 @@ struct EventComment: Identifiable {
 // MARK: - Insert inputs
 
 struct NewEventInput {
+    /// Made by the phone, so a retried insert can't post the Event twice (BP app town-plus).
+    var id: String? = nil
     var title: String
     var eventDate: String      // YYYY-MM-DD
     var startTime: String      // display string e.g. "7pm"
@@ -820,11 +1004,6 @@ struct RawEvent: Decodable {
 
     struct ClubRef: Decodable { let name: String? }
 }
-
-/// club_members row (subset).
-
-/// The authed user, from GET /auth/v1/user.
-struct CurrentUser: Decodable { let id: String; let email: String? }
 
 // MARK: - Town profile (this community app's per-user identity; separate from the
 // wellness app's `profiles` table). Decoded with convertFromSnakeCase.

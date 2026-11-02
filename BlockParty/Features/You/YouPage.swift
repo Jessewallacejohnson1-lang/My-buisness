@@ -1,11 +1,10 @@
 //
 //  YouPage.swift
-//  Block Party — the You tab: the neighbour's own three weeks (BP app docs/plans/you-tab).
-//  Their photo at the top left opens Profile; each visit it starts as a pill with their
-//  first name and folds into the photo after 2 seconds. Under it the Calendar, Lapse's: three rows
-//  of seven days from this week's Sunday, each day they're Going to something showing
-//  that Event's photo. Right under it the Agenda for the day picked there, today until
-//  they tap another or swipe the Agenda to it. Only they ever see it.
+//  Block Party — the You tab's own part: your three weeks (BP app docs/plans/you-tab), under your
+//  Profile's head since You became your Profile (five-tabs 03, `ProfileView`). The Calendar,
+//  Lapse's: three rows of seven days from this week's Sunday, each day you're Going to something
+//  showing that Event's photo. Right under it the Agenda for the day picked there, today until you
+//  tap another or swipe the Agenda to it. Only you ever see it; a neighbour's Profile shows Going rows.
 //
 
 import SwiftUI
@@ -17,25 +16,9 @@ import SwiftUI
 /// above the first row; 20pt semibold numbers. The rest are the mock Jesse approved
 /// (https://claude.ai/artifact/VQEwBiGQ47eMNY8JWnKSju).
 enum YouMetric {
-    /// X's photo button, about 32pt, 16pt from the edge
-    /// (`references/profile-tab/mobbin/button-x-1.jpg`), in a 44pt tap target.
-    static let photo: CGFloat = 32
-    static let photoEdge: CGFloat = 16
-    static let target: CGFloat = 44
-    /// The first-name pill the page arrives with (Jesse, 2026-10-12; mock
-    /// https://claude.ai/artifact/3pi7cpc7GUZvFrK8WP1tDJ): Rodeo's pill
-    /// (`references/profile-tab/mobbin/calendar-rodeo-1.jpg`) sized to the 32pt photo, its
-    /// left edge on the photo's. It shows 2 seconds, then folds into the photo, which comes
-    /// in over the fold's last part (the mock's timing, guessed until there's a recording).
-    static let pill: CGFloat = 42
-    static let pillSide: CGFloat = 14
-    static let peek: Duration = .seconds(2)
-    static let photoIn: Double = 0.15
-    /// How far the name eases left as the pill closes over it (the mock's).
-    static let nameOut: CGFloat = 18
-    /// The bar the photo sits in, and from it to the weekdays: the mock's.
-    static let bar: CGFloat = 52
-    static let calendarTop: CGFloat = 8
+    /// From the Profile's "Going" title to the weekdays: the five-tabs mock's
+    /// (https://claude.ai/artifact/29BVrCrrQ3WeWhS3egMozR).
+    static let calendarTop: CGFloat = 12
     static let calendarSide: CGFloat = 18.5
     static let day: CGFloat = 48.3
     static let rowGap: CGFloat = 11.7
@@ -62,7 +45,7 @@ enum YouMetric {
     static let emptyLine: CGFloat = 18
     /// Cards the Agenda's skeleton draws while the first read is out.
     static let skeletonCards = 2
-    /// The Groups and Places rows, Instagram's highlights as the mock draws them: a 62pt
+    /// The Friends tab's own groups, Instagram's highlights as the mock draws them: a 62pt
     /// photo in a 70pt ring (2pt line, 2pt gap), the name 6pt under it in a 72pt column, 14pt apart.
     static let highlightPhoto: CGFloat = 62
     static let highlightRing: CGFloat = 70
@@ -75,28 +58,18 @@ enum YouMetric {
     static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
     static let groupGlyph: CGFloat = 24
-    /// The Groups row fades in this long after Places starts moving down for it (picked).
-    static let groupsIn: Double = 0.15
 }
 
 struct YouPage: View {
     let model: YouModel
-    /// The neighbour's photo; nil draws Instagram's blank picture.
-    let avatarURL: String?
-    let onProfile: () -> Void
+    /// An Agenda card's tap: your Profile (`ProfileView`) pushes its Event page, where it outlives
+    /// the day's cards.
+    let open: (FeedCardItem) -> Void
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     /// The day the Agenda shows; nil is today.
     @State private var picked: Date?
-    /// The event page an Agenda card opened. Held here, where it outlives the day's cards.
-    @State private var pushed: FeedCardItem?
-    /// How far the page has scrolled, held only up to the frosted band's fade.
-    @State private var scrolled: CGFloat = 0
-    /// The first name the photo shows as a pill on arrival; nil once it has folded. Read
-    /// once per visit (every tab switch builds the page anew), so a name that lands late
-    /// never pops in.
-    @State private var peek = YouPage.firstName(Interests.displayName)
     @Namespace private var ring
 
     var body: some View {
@@ -110,101 +83,28 @@ struct YouPage: View {
                                   isGoing: { actions.going($0).isGoing }, first: first)
             }
             let day = picked.flatMap { days.contains($0) ? $0 : nil } ?? today
-            page(now: now, days: days, today: today, day: day, going: going)
+            plans(now: now, days: days, today: today, day: day, going: going)
                 // On every visit and each new week: the list on screen stays meanwhile.
                 .task(id: first) { await model.refresh(now: now) }
         }
-        // On every visit: the row on screen stays meanwhile.
+        // On every visit, for your Profile's groups and a neighbour's page.
         .task { await refreshGroups() }
-        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
-        // An event page opened mid-peek: back on You, the photo is already there.
-        .onChange(of: pushed) { _, item in if item != nil { fold() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.refresh(); await refreshGroups() } }
         }
     }
 
-    private func page(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
-        // The ones they're in, in the read's order, Search's shelf's (Jesse, ticket 09 Check-in 1),
-        // with this session's Join group and leave laid over it.
-        let groups = (model.groups ?? []).filter { actions.member($0).isMember }
-        return ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                bar
-                calendar(days: days, today: today, day: day, going: going ?? [])
-                    .padding(.top, YouMetric.calendarTop)
-                // A working word; Jesse writes the final one.
-                DailySectionLabel(title: "Agenda", ink: Hue.ink)
-                    .padding(.top, YouMetric.calendarToLabel)
-                // A tapped day's cards come in at once; only the ring travels (`calendar`),
-                // so two days' cards never show over each other mid-fade.
-                agenda(going: going, days: days, today: today, day: day, now: now)
-                    .padding(.top, YouMetric.labelToCards)
-                // Left out until they join one, as Places is.
-                if !groups.isEmpty {
-                    VStack(spacing: 0) {
-                        DailySectionLabel(title: "Groups", ink: Hue.ink)
-                            .padding(.top, YouMetric.calendarToLabel)
-                        YouGroups(groups: groups)
-                            .padding(.top, YouMetric.labelToCards)
-                    }
-                    // In once Places has made room, so the two never show over each other.
-                    .transition(.asymmetric(insertion: .opacity.animation(Motion.smooth.delay(YouMetric.groupsIn)),
-                                            removal: .opacity))
-                }
-                // Left out while there's nowhere to go, as on Daily.
-                let places = YouCalendar.places(going ?? [], now: now)
-                if !places.isEmpty {
-                    // A working word; Jesse writes the final one.
-                    DailySectionLabel(title: "Places", ink: Hue.ink)
-                        .padding(.top, YouMetric.calendarToLabel)
-                    YouPlaces(events: places, open: { pushed = $0 })
-                        .padding(.top, YouMetric.labelToCards)
-                }
-                Color.clear.frame(height: DailyMetric.tabBarClearance)
-            }
-            // The first groups read of a visit lands after the page is up: the row comes in
-            // and Places moves down for it, rather than jumping.
-            .animation(reduceMotion ? nil : Motion.smooth, value: groups.map(\.id))
-        }
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
-        } action: { _, offset in scrolled = offset }
-        // The finger, not the offset: the page can report one on its own as it settles in.
-        .onScrollPhaseChange { _, phase in if phase == .interacting { fold() } }
-        .background(Hue.paper.ignoresSafeArea())
-        // The Town feed's frosted band behind the clock, in with the first bit of scroll.
-        .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
-    }
-
-    // MARK: The photo
-
-    /// The page arrives with the first name in a pill where the photo sits; after
-    /// `YouMetric.peek` the pill folds into the photo, as Gmail's Compose button folds
-    /// into its pencil. A scroll or a tap folds it early.
-    private var bar: some View {
-        HStack(spacing: 0) {
-            Button {
-                fold()
-                onProfile()
-            } label: {
-                YouBadge(url: avatarURL, name: peek, reduceMotion: reduceMotion)
-                    // A 44pt target around the 32pt photo.
-                    .padding((YouMetric.target - YouMetric.photo) / 2)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableCardStyle())
-            .accessibilityLabel("Your profile")
-            // Voice Control: "Tap Jesse" works while the name shows.
-            .accessibilityInputLabels(["Your profile", peek].compactMap { $0 })
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, YouMetric.photoEdge - (YouMetric.target - YouMetric.photo) / 2)
-        .frame(height: YouMetric.bar)
-        .task {
-            // Only a wait that ran its course folds; leaving the tab cancels it.
-            guard (try? await Task.sleep(for: YouMetric.peek)) != nil else { return }
-            fold()
+    private func plans(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
+        VStack(spacing: 0) {
+            calendar(days: days, today: today, day: day, going: going ?? [])
+                .padding(.top, YouMetric.calendarTop)
+            // A working word; Jesse writes the final one.
+            DailySectionLabel(title: "Agenda", ink: Hue.ink)
+                .padding(.top, YouMetric.calendarToLabel)
+            // A tapped day's cards come in at once; only the ring travels (`calendar`),
+            // so two days' cards never show over each other mid-fade.
+            agenda(going: going, days: days, today: today, day: day, now: now)
+                .padding(.top, YouMetric.labelToCards)
         }
     }
 
@@ -214,12 +114,7 @@ struct YouPage: View {
         if let groups = await model.refreshGroups() { actions.read(groups) }
     }
 
-    private func fold() {
-        guard peek != nil else { return }
-        withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { peek = nil }
-    }
-
-    /// The first word of the saved name; nil when there's none.
+    /// The first word of the saved name, for the hello pill and onboarding's Done; nil when there's none.
     static func firstName(_ name: String?) -> String? {
         name?.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
@@ -300,68 +195,13 @@ struct YouPage: View {
                    // on that day does (ticket 11).
                    next: going.flatMap { YouCalendar.next($0, day: day, now: now) },
                    pick: { pick(YouCalendar.calendar.startOfDay(for: $0.starts), from: day) },
-                   retry: { Task { await model.refresh() } }, open: { pushed = $0 })
-    }
-}
-
-/// Where the neighbour's plans are, as Instagram's highlights: each place's next Event's
-/// photo with the place's name under it. A tap opens that Event. No photo of its own: the
-/// place's first letter on the grey (ticket 10).
-private struct YouPlaces: View {
-    let events: [DailyEvent]
-    let open: (FeedCardItem) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: YouMetric.highlightGap) {
-                ForEach(events) { event in
-                    let place = YouCalendar.place(of: event) ?? ""
-                    Button { open(event.item) } label: {
-                        YouHighlight(name: place) {
-                            if let url = event.photo {
-                                FeedCardURLPhoto(url: url)
-                            } else if let letter = place.first(where: \.isLetter) {
-                                // No photo: its first letter, as the game card's schools without a
-                                // logo show theirs (ticket 10); "123 Main St" shows M, never a digit.
-                                Text(String(letter).uppercased())
-                                    .font(.eventDisplay(26))
-                                    .foregroundStyle(Hue.ink)
-                            }
-                        }
-                    }
-                    .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel("\(place), \(event.item.title), \(Town.format(event.starts, "EEEEMMMMd"))")
-                }
-            }
-        }
-        .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
-    }
-}
-
-/// The groups the neighbour is in, as the same highlights, in Search's order. A tap opens
-/// the Group page, as Search's Groups shelf does.
-private struct YouGroups: View {
-    let groups: [TownGroup]
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: YouMetric.highlightGap) {
-                ForEach(groups) { group in
-                    NavigationLink(value: group) {
-                        YouHighlight(name: group.name) { YouGroupPicture(group: group) }
-                    }
-                    .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel(group.name)
-                }
-            }
-        }
-        .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
+                   retry: { Task { await model.refresh() } }, open: open)
     }
 }
 
 /// One of Instagram's highlights: the picture in a ring with the name under it, cut at the
-/// column's width, never reworded. Places and Groups share it.
-private struct YouHighlight<Picture: View>: View {
+/// column's width, never reworded: the Friends tab's groups.
+struct YouHighlight<Picture: View>: View {
     let name: String
     @ViewBuilder let picture: () -> Picture
 
@@ -400,52 +240,6 @@ struct YouGroupPicture: View {
             Image(systemName: "person.2")
                 .font(.glyph(YouMetric.groupGlyph))
                 .foregroundStyle(Hue.inkSecondary)
-        }
-    }
-}
-
-/// The bar's photo, or the first-name pill it starts as: one capsule at two sizes. The name
-/// slides out of it as it shrinks to the photo's circle, and the photo comes in over the
-/// end of the fold.
-private struct YouBadge: View {
-    let url: String?
-    let name: String?
-    let reduceMotion: Bool
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // Always here, so the photo loads during the peek: no width and unseen until the
-            // fold opens it up, then it comes in over the fold's last part.
-            Avatar(avatarUrl: url, size: YouMetric.photo)
-                .animation(Motion.smooth.delay(YouMetric.photoIn)) {
-                    $0.opacity(name == nil ? 1 : 0)
-                        .scaleEffect(name == nil || reduceMotion ? 1 : 0.6)
-                }
-                .frame(width: name == nil ? YouMetric.photo : 0, alignment: .leading)
-            if let name {
-                Text(name)
-                    .font(.sansSemibold(16))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
-                    .padding(.horizontal, YouMetric.pillSide)
-                    // A one-letter name still makes a pill, not an upright oval.
-                    .frame(minWidth: YouMetric.pill)
-                    // The pill closes over it from the right as it eases left and fades, gone
-                    // in a quarter second, before the photo comes in (the mock's).
-                    .transition((reduceMotion ? AnyTransition.opacity : .opacity.combined(with: .offset(x: -YouMetric.nameOut)))
-                        .animation(Motion.snappy))
-            }
-        }
-        .frame(minHeight: name == nil ? YouMetric.photo : YouMetric.pill)
-        .clipShape(Capsule())
-        .background {
-            // The cards' white, hairline and shadow, gone as the photo comes in: by then the
-            // pill has all but reached the photo's circle.
-            Capsule()
-                .fill(Hue.surface)
-                .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
-                .modifier(CardShadow())
-                .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
         }
     }
 }

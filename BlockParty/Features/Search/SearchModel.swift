@@ -79,7 +79,7 @@ struct SearchItem: Identifiable, Hashable {
 /// pipeline, and 3D for the ones the `logo-3d` skill has made and checked. The file lives in
 /// Storage (`places/<town>/<place_id>/logo-<hash>.webp`) and `places.search_logo` points at
 /// it with its hue and row order, both written by BP app's `logo3d.py publish`. Images load
-/// through `POILogoCache`, the map pins' cache, so a logo is fetched once and kept on disk.
+/// through `POILogoCache`, so a logo is fetched once and kept on disk.
 struct SearchLogo: Hashable {
     /// `places.search_logo` as stored.
     struct Row: Decodable, Hashable {
@@ -309,6 +309,12 @@ final class SearchModel {
             if id.hasPrefix("q:") { return .query(String(id.dropFirst(2))) }
             return byID[id].map { .item($0) }
         }
+    }
+
+    /// A place by its `places.id`, as its page opens; nil for one Search can't open (no logo) or hasn't
+    /// read yet. The Town feed's places to try are drawn from here (town-feed 23).
+    func place(_ id: String) -> SearchItem? {
+        places.first { $0.placeID == id && $0.opens }
     }
 
     func remember(_ id: String) {

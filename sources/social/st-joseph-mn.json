@@ -1,12 +1,5 @@
 [
  {
-  "entry_id": "bello-cucina",
-  "name": "Bello Cucina",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/BelloCucinaStJoseph",
-  "busy": true
- },
- {
   "entry_id": "bo-diddleys",
   "name": "Bo-Diddley's",
   "kind": "facebook",
@@ -122,7 +115,7 @@
   "entry_id": "neighbors-route-75",
   "name": "Neighbors Route 75",
   "kind": "facebook",
-  "url": "https://www.facebook.com/NeighborsEateryandSaloon",
+  "url": "https://www.facebook.com/NeighborsRoute75",
   "busy": true
  },
  {
@@ -579,13 +572,6 @@
   "name": "Caribou Coffee",
   "kind": "instagram",
   "url": "https://www.instagram.com/cariboucoffee",
-  "busy": false
- },
- {
-  "entry_id": "cedar-street-salon-spa",
-  "name": "Cedar Street Salon and Spa",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/607165879153114",
   "busy": false
  },
  {
@@ -1570,7 +1556,7 @@
   "entry_id": "solar-nails-of-st-joseph",
   "name": "Solar Nails of St Joseph",
   "kind": "facebook",
-  "url": "https://www.facebook.com/546931688721928",
+  "url": "https://www.facebook.com/solarnailsMN",
   "busy": false
  },
  {
@@ -1602,24 +1588,10 @@
   "busy": false
  },
  {
-  "entry_id": "health-joseph-st-wellness",
-  "name": "St. Joseph Health & Wellness",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/200709873131935",
-  "busy": false
- },
- {
   "entry_id": "clinic-joseph-st-vet",
   "name": "St. Joseph Vet Clinic",
   "kind": "facebook",
   "url": "https://www.facebook.com/Cold-Spring-StJoe-Paynesville-Vet-Clinic",
-  "busy": false
- },
- {
-  "entry_id": "clinic-joseph-st-vet",
-  "name": "St. Joseph Vet Clinic",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/Cold-Spring-StJoe-Paynesville-Vet-Clinic-10150124425220268",
   "busy": false
  },
  {
@@ -1835,13 +1807,6 @@
   "busy": false
  },
  {
-  "entry_id": "hair-salon-styles-uptown",
-  "name": "Uptown Styles Hair Salon",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/750398788666631",
-  "busy": false
- },
- {
   "entry_id": "viking-log-furniture",
   "name": "Viking Log Furniture",
   "kind": "facebook",
@@ -2036,6 +2001,83 @@
   "name": "Apollo High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/mnapollohoops",
+  "busy": false
+ },
+ {
+  "entry_id": "saint-johns-abbey",
+  "name": "Saint John's Abbey",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/saintjohnsabbey",
+  "busy": false
+ },
+ {
+  "entry_id": "saint-johns-abbey",
+  "name": "Saint John's Abbey",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/saintjohnsabbey",
+  "busy": false
+ },
+ {
+  "entry_id": "chem-dry-of-st-cloud",
+  "name": "Chem-Dry of St. Cloud",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/ChemDryofStCloud",
+  "busy": false
+ },
+ {
+  "entry_id": "ami-auction",
+  "name": "Ami Auction",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/profile.php?id=61565190705851",
+  "busy": false
+ },
+ {
+  "entry_id": "benedict-of-of-order-sisters-st",
+  "name": "Sisters of the Order of Saint Benedict",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/stbensisters",
+  "busy": false
+ },
+ {
+  "entry_id": "benedict-of-of-order-sisters-st",
+  "name": "Sisters of the Order of Saint Benedict",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/stbensisters",
+  "busy": false
+ },
+ {
+  "entry_id": "episcopal-house-of-prayer",
+  "name": "Episcopal House of Prayer",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/ehouseofprayer",
+  "busy": false
+ },
+ {
+  "entry_id": "st-joseph-township-hall",
+  "name": "St. Joseph Township Hall",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/St-Joseph-Charter-Township-561229234269016",
+  "busy": false
+ },
+ {
+  "entry_id": "hemker-park-zoo",
+  "name": "Hemker Park & Zoo",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/HemkerZoo",
+  "busy": false
+ },
+ {
+  "entry_id": "hemker-park-zoo",
+  "name": "Hemker Park & Zoo",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/hemkerzoo",
+  "busy": false
+ },
+ {
+  "entry_id": "solar-nails-of-st-joseph",
+  "name": "Solar Nails of St Joseph",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/solarnailsmn",
   "busy": false
  }
 ]

@@ -4,7 +4,6 @@ Everything here was measured off the reference frames with a pixel-scanning scri
 not estimated by eye. Numbers are **points** (measured @3x ÷ 3).
 
 Frames: `refs/onboarding/duolingo/S01.png … S20.png`, 1180×2556.
-Originals (uncropped, with the Mobbin watermark) are in `duolingo/_raw/`.
 
 ---
 

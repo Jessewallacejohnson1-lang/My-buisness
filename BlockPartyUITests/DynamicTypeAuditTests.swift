@@ -61,14 +61,13 @@ final class DynamicTypeAuditTests: XCTestCase {
     ///    Event of the day, Agenda, Suggestions and Following are still to come.
     ///  • `search` — a `BlankTab` placeholder. A title and one promise line: there
     ///    is no layout here to hold or break yet.
-    ///  • `you` / `you-profile` — `ProfileView`. A real screen, but still moving,
+    ///  • `you` — `ProfileView`, your Profile since five-tabs 03. A real screen, but still moving,
     ///    and its unfinished states are what the auditor was reporting: "No plans
     ///    yet", "a neighbor", "Around town".
     static let notDevelopedYet: [Surface] = [
         Surface(id: "daily", arguments: ["-open-tab", "daily", "-daily-samples"]),
         Surface(id: "search", arguments: ["-open-tab", "search"]),
         Surface(id: "you", arguments: ["-open-tab", "you"]),
-        Surface(id: "you-profile", arguments: ["-open-tab", "you", "-open-profile"]),
     ]
 
     /// The two sizes Apple's App Store "Larger Text" criteria names by name. AX5 is
@@ -250,13 +249,13 @@ final class DynamicTypeAuditTests: XCTestCase {
     private func isFrozenByDesign(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
         guard let label = issue.element?.label else { return false }
 
-        // The tab bar. Four fixed destinations in a bar with a fixed height; a grown
+        // The tab bar. Five fixed destinations in a bar with a fixed height; a grown
         // tab bar eats the screen the content needs. Every one of these labels
         // carries a large-content viewer, so a long press still enlarges it.
         //
         // NOTE this matches by LABEL, app-wide, not by position in the bar, so any
         // other element labelled exactly one of these words is suppressed too.
-        if ["Town", "Daily", "Search", "You"].contains(label) { return true }
+        if ["Town", "Daily", "Friends", "Friends, new friend request", "Search", "You"].contains(label) { return true }
 
         // The wordmark. A logo is a mark, not text — it holds its proportions
         // against the artwork beside it at every content size.

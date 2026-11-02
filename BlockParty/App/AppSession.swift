@@ -21,7 +21,7 @@ final class AppSession {
     /// Search's places and recents, kept so the tab doesn't fetch the Town's places again each
     /// time it comes back. Its groups reads tell `actions`.
     let searchModel: SearchModel
-    /// Friend requests, friends and the dot on the friends mark, so a row and a person's page
+    /// Friend requests, friends and the dot on the Friends tab, so a row and a person's page
     /// agree (BP app docs/plans/friends, ticket 03).
     let friendsBook: FriendsBook
     /// The You tab's three weeks of Going, kept like the Town feed's.
@@ -37,6 +37,8 @@ final class AppSession {
     let notices: Notices
     /// The You tab's photo, and the tab bar's.
     let avatar: TodayHeaderProfileModel
+    /// Your Profile, the You tab (five-tabs 03): kept, so coming back to You shows it at once.
+    let profile: ProfileModel
     private let hello: HelloInbox
     /// Saves this phone kept before they moved to the server.
     private let saved: SavedStore
@@ -44,8 +46,8 @@ final class AppSession {
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
-         notices: Notices, avatar: TodayHeaderProfileModel, hello: HelloInbox, saved: SavedStore,
-         supabase: Supabase) {
+         notices: Notices, avatar: TodayHeaderProfileModel, profile: ProfileModel, hello: HelloInbox,
+         saved: SavedStore, supabase: Supabase) {
         self.actions = actions
         self.townFeed = townFeed
         self.searchModel = searchModel
@@ -56,6 +58,7 @@ final class AppSession {
         self.dayPicks = dayPicks
         self.notices = notices
         self.avatar = avatar
+        self.profile = profile
         self.hello = hello
         self.saved = saved
         self.supabase = supabase
@@ -67,7 +70,7 @@ final class AppSession {
         self.init(actions: actions, townFeed: TownFeed(actions: actions), searchModel: SearchModel(actions: actions),
                   friendsBook: FriendsBook(), you: YouModel(), saves: YouModel.saves(),
                   eventOfTheDay: EventOfTheDay(), dayPicks: DailyDayPicks(), notices: Notices(),
-                  avatar: TodayHeaderProfileModel(auth: .shared), hello: .shared, saved: .shared,
+                  avatar: TodayHeaderProfileModel(auth: .shared), profile: ProfileModel(), hello: .shared, saved: .shared,
                   supabase: Supabase(auth: AuthStore.shared))
     }
 
@@ -91,6 +94,7 @@ final class AppSession {
             dayPicks.accountChanged()
             notices.reset()
             avatar.accountChanged()
+            profile.accountChanged()
             // A first launch makes its account after the shell appears: today's open.
             if old == nil, signedIn { recordOpen() }
             // The feed reads again for who's going as this account sees it.

@@ -421,7 +421,7 @@ tier: watched
 category: gov
 added_by: agent:claude
 sources:
-  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=incidents,closures,workZones
+  - url: https://api-511x-mn.carsprogram.org/events/map-features?eventClassifications=closures,workZones
     method: api
     trust: official
     reader: cars511
@@ -430,8 +430,10 @@ sources:
 ```
 Notes: MnDOT's road reports (construction, closures, maintenance) within 10 miles of St.
 Joseph (Jesse, 2026-10-14): St. Cloud, Sartell, Waite Park, Avon, Cold Spring, Collegeville.
-Road work is News. 511mn.org is a map app; this is the feed its map loads, every report in the
-state in one call (no robots file; 1 MB), and the reader keeps those on a road inside the box.
+Road work is News; crashes and other incidents are not, since they clear in hours (Jesse,
+2026-11-01), so the address asks for closures and work zones only. 511mn.org is a map app; this
+is the feed its map loads, every report in the state in one call (no robots file; 1 MB), and the
+reader keeps those on a road inside the box.
 511 moved to this map on 2026-10-21; the old GraphQL address (`511mn.org/api/graphql`) has
 answered with the map's page since. It carries state and federal highways, rarely county roads. MnDOT's WZDx work-zone
 feed (`https://mn.carsprogram.org/carsapi_v1/api/wzdx`, no key, no robots file) answered on
@@ -965,7 +967,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ## Bello Cucina
 ```yaml
 id: bello-cucina
-status: active
+status: retired
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -976,6 +978,7 @@ sources:
     trust: official
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56496, -94.31764. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Retired 2026-11-01 (Jesse): closed. Its own Facebook said goodbye on 2026-10-24 and Apple Maps marks it Permanently Closed.
 
 ## Benedicta Arts Center
 ```yaml
@@ -3050,7 +3053,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Auto Color & Industrial Supply
 ```yaml
 id: auto-color-industrial-supply
-status: proposed
+status: retired
 tier: listed
 category: "vehicle_parts_store"
 place_type: "Business"
@@ -3064,7 +3067,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Avon Ag-Lime
 ```yaml
@@ -3535,7 +3538,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.aveda.com no longer opens; https://cedarstreetsalonandspa.squarespace.com/ is its site now (the old link was aveda.com's homepage, not the salon's) (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.aveda.com no longer opens; https://cedarstreetsalonandspa.squarespace.com/ is its site now (the old link was aveda.com's homepage, not the salon's) (place-photos 07, Jesse's yes). 2026-11-01: Google now lists facebook.com/MEKAR99 and instagram.com/MEKAR99 for it, an Indonesian online-gambling account, so the social watch follows neither; turn them down when the monthly accounts check proposes them again (Jesse: "yes to all").
 
 ## Cedar Trails Apartments
 ```yaml
@@ -3820,12 +3823,12 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Concrete Plus, Inc. active in MN SOS, annual renewal filed 9/28/2026; principal office 15 E Minnesota St.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Concrete Plus, Inc. active in MN SOS, annual renewal filed 9/28/2026; principal office 15 E Minnesota St.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Kept 2026-11-01: Google Maps says permanently closed, but the MN SOS renewal above is newer; left for town-verify.
 
 ## Cone Castle
 ```yaml
 id: cone-castle
-status: proposed
+status: retired
 tier: listed
 category: "casual_eatery"
 place_type: "Business"
@@ -3838,7 +3841,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Contardo Laser Dentistry
 ```yaml
@@ -4657,7 +4660,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## A and G Corn Maze
 ```yaml
 id: g-corn-maze
-status: proposed
+status: retired
 tier: listed
 category: "food_and_beverage_store"
 place_type: "Business"
@@ -4670,7 +4673,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.aandgcornmaze.com/ no longer exists (no DNS record); aandgcornmaze.co is gone too. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.aandgcornmaze.com/ no longer exists (no DNS record); aandgcornmaze.co is gone too. The place stays (place-photos 07, Jesse's yes). Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Donabauer Taxidermy
 ```yaml
@@ -4926,7 +4929,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Grilled Cravings & Quality Ice Cream
 ```yaml
 id: grilled-cravings-quality-ice-cream
-status: proposed
+status: retired
 tier: listed
 category: "casual_eatery"
 place_type: "Business"
@@ -4939,7 +4942,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Gutter Shutter of St. Cloud
 ```yaml
@@ -5240,7 +5243,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Innovative Concrete construction
 ```yaml
 id: innovative-concrete-construction
-status: proposed
+status: retired
 tier: listed
 category: "home_service"
 place_type: "Business"
@@ -5253,7 +5256,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Insurance Advisors: St. Joseph
 ```yaml
@@ -5342,7 +5345,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Jet-Black's current national locations page lists Jet-Black of St. Cloud MN with the same phone 320-529-0697 (street address not shown).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Jet-Black's current national locations page lists Jet-Black of St. Cloud MN with the same phone 320-529-0697 (street address not shown).. Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-01: facebook.com/MyJetBlack and instagram.com/myjetblack are the national franchise's pages, not the St. Cloud shop's, so the social watch follows neither (Jesse: "yes to all").
 
 ## JK Monuments LLC*
 ```yaml
@@ -5623,7 +5626,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ```yaml
 id: kostreba-appliance-services-center
 status: active
-tier: watched
+tier: listed
 category: "home_service"
 place_type: "Business"
 address: "545 8th Ave NE"
@@ -5631,12 +5634,12 @@ phone: "17633906267"
 aka: ["Kostreba Appliance Services Center"]
 added_by: agent:town-verify
 sources:
-  - url: https://omegaforceappliancerepair.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-11-01: back to `listed`, website TODO. Overture's website, omegaforceappliancerepair.com, is a different Twin Cities company (its vans and staff say Omega Force), so its photos and pages were never this place's; a web search finds no site for Kostreba (Jesse: "yes").
 
 ## Kraft Mechanical St Cloud
 ```yaml
@@ -6433,7 +6436,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Opus Motorcar Company
 ```yaml
 id: opus-motorcar
-status: proposed
+status: retired
 tier: listed
 category: "vehicle_dealer"
 place_type: "Business"
@@ -6446,7 +6449,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-01: Google Maps says permanently closed (the monthly accounts check); Jesse approved that list ("give approval").
 
 ## Outlet Bait & Tackle
 ```yaml
