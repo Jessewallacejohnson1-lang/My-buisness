@@ -14,7 +14,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SYSTEM = `You moderate posts for Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota. Neighbors post events, clubs, and trails.
+const SYSTEM = `You moderate posts for Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota. Neighbors post events, clubs, and trails, and everyday posts (kind "post"): a few words about life around town, maybe with a photo, with no date; a photo with no words is fine.
 
 Approve when the post is a plausible local community post of its stated kind, is not spam/advertising/scam, is not abusive/hateful/harassing, and is not sexual, violent, or otherwise inappropriate. If an image is provided it must also be appropriate. A photo from another day, angle or place is fine: never turn a post down because its photo doesn't match its name or its place. Minor unpolished wording is fine — do not reject for tone alone.
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   const verdict = async (e: any): Promise<{ ok: boolean, reason: string } | null> => {
     const facts = [
       `Kind: ${e.kind}`,
-      `Title: ${e.title}`,
+      e.kind === 'post' ? `Words: ${e.title || '(none, just the photo)'}` : `Title: ${e.title}`,
       e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
       e.location ? `Location: ${e.location}` : null,
       e.description ? `Description: ${e.description}` : null,
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  // A neighbour's own new Event (BP app references/town-plus). claim_submit lets it through once,
+  // A neighbour's own new Event or post (BP app references/town-plus, references/post-screen). claim_submit lets it through once,
   // only while it's the caller's, pending, plain (nothing set the check doesn't read) and one of
   // their 10 that day. Yes puts it live; no declines it and takes its photo down; no answer leaves
   // it pending and claimed, so it waits for Jesse's Review and never pays twice. Nothing claimed
