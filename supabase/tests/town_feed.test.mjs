@@ -19,7 +19,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster',
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster', 'private.post_poster',
   'public.get_town_more']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
@@ -2898,6 +2898,10 @@ test('the poster names the friends they tagged, in their order', async () => {
   await signIn(ME);
   const [row] = await posts('2026-10-08 12:00');
   assert.deepEqual(row.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }]);
+  await signIn(CAL);
+  const [mine] = await posts('2026-10-08 12:00');
+  assert.deepEqual(mine.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }],
+                   'a friend tagged sees their own name on it too');
 });
 
 test('a post with a photo sends its shape, so the card is the right size before the photo loads', async () => {
