@@ -26,6 +26,8 @@ final class LiveGames {
     /// The map, while it's open: every change on the connection.
     @ObservationIgnored private var follower: ((RealtimeClient.Change) -> Void)?
     @ObservationIgnored private var away = false
+    /// Checks again when a held game's hours start or end, with no one touching the screen.
+    @ObservationIgnored private var recheck: Task<Void, Never>?
     /// Turns the change stream on and off: the realtime connection, or a test's fake.
     @ObservationIgnored private var listen: (Bool) -> Void
 
@@ -94,25 +96,53 @@ final class LiveGames {
     }
 
     /// The newer of `kept` and `other`: the one with a final, else the one whose live score is later
-    /// (one with no time is oldest); `kept` on a tie, since a change that only adds a scoring play
-    /// leaves the live score's time where it was.
+    /// (one with no time is oldest). On a tie, `other`, the one that came in last (a corrected final, a
+    /// logo found), unless `kept` has scoring plays it lacks: a change that only adds a play leaves the
+    /// live score's time where it was.
     nonisolated static func newer(_ kept: Game?, _ other: Game?) -> Game? {
         guard let kept else { return other }
         guard let other else { return kept }
         if (kept.final == nil) != (other.final == nil) { return kept.final != nil ? kept : other }
-        return (other.live?.at ?? .distantPast) > (kept.live?.at ?? .distantPast) ? other : kept
+        let (keptAt, otherAt) = (kept.live?.at ?? .distantPast, other.live?.at ?? .distantPast)
+        if keptAt != otherAt { return otherAt > keptAt ? other : kept }
+        return other.plays.count >= kept.plays.count ? other : kept
     }
 
-    /// On while a held game with no final is being played, or the map follows; never while away.
-    private func check(at now: Date) {
-        let playing = held.values.joined().contains { card in
-            guard let game = game(card), game.final == nil else { return false }
-            return game.live != nil || card.isNow(at: now)
+    /// The held cards with their games as they are now, those without a final.
+    private var unfinished: [FeedCardItem] {
+        held.values.joined().compactMap { card in
+            guard let game = game(card), game.final == nil else { return nil }
+            var card = card
+            card.game = game
+            return card
         }
+    }
+
+    /// When listening may next change by the clock alone: the soonest start or end still to come of
+    /// a held game's hours (a game runs three hours), for one whose score isn't coming yet.
+    func nextCheck(at now: Date) -> Date? {
+        unfinished.filter { $0.game?.live == nil }
+            .compactMap { card in card.when.flatMap { when in [when.start, when.end].first { $0 > now } } }
+            .min()
+    }
+
+    /// On while a held game with no final is being played, or the map follows; never while away. A
+    /// page opened before kickoff checks again at kickoff, and once more when the game's hours end.
+    private func check(at now: Date) {
+        let playing = unfinished.contains { $0.game?.live != nil || $0.isNow(at: now) }
         let on = !away && (playing || follower != nil)
-        guard on != listening else { return }
-        listening = on
-        listen(on)
+        if on != listening {
+            listening = on
+            listen(on)
+        }
+        recheck?.cancel()
+        recheck = away ? nil : nextCheck(at: now).map { next in
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(1, next.timeIntervalSinceNow)))
+                guard !Task.isCancelled else { return }
+                self?.check(at: Date())
+            }
+        }
     }
 
     #if DEBUG

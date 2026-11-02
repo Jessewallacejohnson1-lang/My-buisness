@@ -130,6 +130,28 @@ final class LiveGamesTests: XCTestCase {
         XCTAssertEqual(live.game(opened)?.plays.map(\.id), ["9"])
     }
 
+    /// A page opened before kickoff starts listening at kickoff with no one touching the screen, and
+    /// checks once more when the game's three hours end.
+    func testAPageOpenedBeforeKickoffChecksAgainAtKickoff() throws {
+        live.hold("page:1", [card(try game())], at: at(18, 55))
+        XCTAssertFalse(live.listening)
+        XCTAssertEqual(live.nextCheck(at: at(18, 55)), at(19))
+        XCTAssertEqual(live.nextCheck(at: at(19, 5)), at(22), "then when its hours end")
+        live.changed(change(live: liveScore([7, 0], 18)), at: at(19, 18))
+        XCTAssertNil(live.nextCheck(at: at(19, 18)), "a score coming in keeps it on whatever the clock says")
+    }
+
+    /// A fresh read wins a tie: a final corrected, a special night added, while the app is open.
+    func testAFreshReadWinsATie() throws {
+        let opened = card(try game())
+        live.hold("town", [card(try game(#","final":[21,10]"#))], at: at(22))
+        live.hold("town", [card(try game(#","final":[21,17]"#))], at: at(22, 5))
+        XCTAssertEqual(live.game(opened)?.final, [21, 17])
+        live.hold("town", [card(try game(), id: "g2")], at: at(12))
+        live.hold("town", [card(try game(#","occasion":"Homecoming""#), id: "g2")], at: at(12, 5))
+        XCTAssertEqual(live.games["g2"]?.occasion, "Homecoming")
+    }
+
     func testAChangeToAGameNothingShowedIsDropped() throws {
         live.hold("town", [card(try game())], at: at(19, 5))
         live.changed(change("other", live: liveScore([3, 0], 10)), at: at(19, 10))

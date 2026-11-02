@@ -55,7 +55,8 @@ final class MapModel: ObservableObject {
         currentDate = Town.day(.now)
         show(feed.cards)
         if feed.entries == nil { readAgain() }
-        subscribe()
+        // Every change on the app's one `club_events` connection (`LiveGames`).
+        live.follow { [weak self] change in self?.handle(change) }
         scheduleMidnightRollover()
         startClock()
     }
@@ -133,10 +134,6 @@ final class MapModel: ObservableObject {
     }
 
     // MARK: Realtime
-
-    private func subscribe() {
-        live?.follow { [weak self] change in self?.handle(change) }
-    }
 
     private func handle(_ change: RealtimeClient.Change) {
         // A live score coming in (game-card 03) moves nothing on the map: no refetch for it. A
