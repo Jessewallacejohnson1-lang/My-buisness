@@ -306,6 +306,8 @@ struct OnboardingFollowGrid<Heading: View>: View {
         guard !following, let order else { return }
         let (next, moved) = FollowSuggestions.pull(order, after: s.target, follows: Set(follows + [s.target]))
         guard !moved.isEmpty, let at = next.firstIndex(where: { $0.target == s.target }) else { return }
+        // Followed from a search: the grid behind it reorders unseen, and the results stay as they are.
+        guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { self.order = next; return }
         // Each grows out of the tile followed: from its own new spot, how far that tile is.
         let pitch = CGSize(width: column + FollowGridMetric.columnGap, height: FollowGridMetric.tile + FollowGridMetric.rowGap)
         var arriving: [FollowTarget: Arrival] = [:]
