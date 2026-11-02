@@ -6,11 +6,11 @@
 //  opens from the Town bar), so the map shows what the Town feed shows, with the same
 //  hearts and Going, hides and mutes, and adds no second feed read: `get_town_feed` can
 //  take 8 s for a new account (2026-10-30). Each event's spot comes from
-//  `club_events.lat,lng` (BP app references/map-reset), read once per event. Owns a
-//  single RealtimeClient on club_events: a change that touches today asks the Town feed
-//  to read again (debounced), so a new happening gets its bubble and a deleted one goes,
-//  with no refresh. Tears down on disappear, re-reads and resubscribes on foreground, and
-//  rolls over at midnight.
+//  `club_events.lat,lng` (BP app references/map-reset), read once per event. Follows the
+//  app's one `club_events` connection (`LiveGames`, BP app codebase-health-2 08): a change
+//  that touches today asks the Town feed to read again (debounced), so a new happening gets
+//  its bubble and a deleted one goes, with no refresh. Lets go on disappear, re-reads on
+//  foreground, and rolls over at midnight.
 //
 
 import Foundation
@@ -31,11 +31,12 @@ final class MapModel: ObservableObject {
     private var api: CommunityAPI? { auth.map { CommunityAPI(auth: $0) } }
 
     private weak var feed: TownFeed?
+    /// The app's one `club_events` connection, which the map follows while it's open.
+    private weak var live: LiveGames?
     /// Each of today's events' spot, once read; `asked` holds every id read, found or not.
     private var spots: [String: CLLocationCoordinate2D] = [:]
     private var asked: Set<String> = []
 
-    private var realtime: RealtimeClient?
     private var currentDate = Town.day(.now)
 
     private var resyncTask: Task<Void, Never>?
@@ -45,23 +46,24 @@ final class MapModel: ObservableObject {
 
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
 
-    func start(auth: AuthStore, feed: TownFeed) {
+    func start(auth: AuthStore, feed: TownFeed, live: LiveGames) {
         if self.auth == nil { self.auth = auth }
         self.feed = feed
+        self.live = live
         guard !started else { return }
         started = true
         currentDate = Town.day(.now)
         show(feed.cards)
         if feed.entries == nil { readAgain() }
-        subscribe()
+        // Every change on the app's one `club_events` connection (`LiveGames`).
+        live.follow { [weak self] change in self?.handle(change) }
         scheduleMidnightRollover()
         startClock()
     }
 
     func stop() {
         started = false
-        realtime?.stop()
-        realtime = nil
+        live?.follow(nil)
         resyncTask?.cancel(); resyncTask = nil
         midnightTask?.cancel(); midnightTask = nil
         clockTask?.cancel(); clockTask = nil
@@ -78,20 +80,18 @@ final class MapModel: ObservableObject {
         }
     }
 
-    /// App returned to foreground: the socket was dropped on background and the date may
-    /// have rolled over while away. Re-read and re-subscribe.
+    /// App returned to foreground: the connection was dropped on background (`LiveGames.away`)
+    /// and the date may have rolled over while away. Re-read.
     func onForeground() {
         guard started else { return }
         currentDate = Town.day(.now)
         readAgain()
-        subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
         startClock()
     }
 
-    /// App backgrounded: drop the socket to spare the battery; foreground rebuilds it.
+    /// App backgrounded: the timers stop; `LiveGames` drops the connection.
     func onBackground() {
-        realtime?.stop()
         midnightTask?.cancel(); midnightTask = nil
         clockTask?.cancel(); clockTask = nil
     }
@@ -134,24 +134,6 @@ final class MapModel: ObservableObject {
     }
 
     // MARK: Realtime
-
-    private func subscribe() {
-        if realtime == nil {
-            let client = RealtimeClient(table: "club_events") { [weak self] in
-                await self?.freshToken() ?? nil
-            }
-            client.onChange = { [weak self] change in self?.handle(change) }
-            realtime = client
-        }
-        realtime?.start()
-    }
-
-    /// A guaranteed-fresh access token for the socket join / keepalive. @MainActor so the
-    /// nonisolated token-provider closure hops here to touch auth safely.
-    private func freshToken() async -> String? {
-        guard let auth else { return nil }
-        return try? await auth.validAccessToken()
-    }
 
     private func handle(_ change: RealtimeClient.Change) {
         // A live score coming in (game-card 03) moves nothing on the map: no refetch for it. A

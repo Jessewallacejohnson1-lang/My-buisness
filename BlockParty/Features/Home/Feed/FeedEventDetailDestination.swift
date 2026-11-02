@@ -29,8 +29,10 @@ struct FeedEventDetailDestination: View {
     @Environment(\.colorScheme) private var colorScheme
     /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
-    /// The Town feed, for a game's score as it comes in (game-card 05); nil off the feed.
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    /// Every game's newest score, from whatever tab opened the page (codebase-health-2 08); nil in previews.
+    @Environment(LiveGames.self) private var live: LiveGames?
+    /// The page's hold on Live games while it's open, its own, so two pages of one Event let go one at a time.
+    @State private var liveHolder = "page:" + UUID().uuidString
     /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var saveTappedAt = 0
@@ -210,11 +212,11 @@ struct FeedEventDetailDestination: View {
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear {
             actions.pageOpened(item.id)
-            if game != nil { feed?.holdScores(true) }
+            live?.hold(liveHolder, [item])
         }
         .onDisappear {
             actions.pageClosed(item.id)
-            if game != nil { feed?.holdScores(false) }
+            live?.hold(liveHolder, [])
         }
         .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
     }
@@ -231,9 +233,9 @@ struct FeedEventDetailDestination: View {
 
     // MARK: A game (game-card 05)
 
-    /// The game as the feed has it now, its score and plays coming in; else as the page was opened.
+    /// The game as it is now, its score and plays coming in; else as the page was opened.
     private var game: Game? {
-        feed?.entries?.first(where: { $0.id == item.id })?.card?.game ?? item.game
+        live?.game(item) ?? item.game
     }
 
     /// The opened Event with that game, so a final reaching the open page turns its bar to "went"

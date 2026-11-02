@@ -23,9 +23,8 @@
 //  back and takes the choice back. The ids and host names hidden this session stay out of
 //  every list, so a read that raced the write, or a kept list, can't bring a card back.
 //
-//  While a game on today's list has no final, its card's score comes in as it changes (BP app
-//  game-card 03): the realtime feed `club_events` already has sends the row the server wrote, and
-//  only that card changes, in place.
+//  A game's card carries its newest score from Live games (`LiveGames`, BP app codebase-health-2 08),
+//  which the feed holds its games with while it's on screen.
 //
 
 import Foundation
@@ -176,8 +175,6 @@ final class TownFeed {
     @ObservationIgnored private var latestRead = 0
     /// When the feed last came on screen, for the speed log.
     @ObservationIgnored private var cameBackAt: Date?
-    /// Today's games' scores as they come in, on while one is on the list and the feed is showing.
-    @ObservationIgnored private var scores: RealtimeClient?
 
     /// A card at least half on screen this long is one view (ticket 20).
     static let viewAfter: TimeInterval = 1
@@ -222,8 +219,9 @@ final class TownFeed {
     /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
     private let choose: (FeedChoice) async throws -> String?
     private let readMuted: () async throws -> [MutedHost]
-    /// The live scores' sign-in: the session's account, or the public key with none.
-    private let token: () async -> String?
+    /// Every game's newest score: the feed holds its games there while it's on screen, and its cards
+    /// carry what it says (codebase-health-2 08). nil in tests that don't need it.
+    private let live: LiveGames?
     /// Past the ranked list (town-feed 23): the later Events, each round's order (given the places this
     /// phone opened, which go last, and the list's ids, the only repeats), and those opened places.
     private let readLater: () async throws -> [TownFeedEntry]
@@ -240,7 +238,7 @@ final class TownFeed {
          send: @escaping ([FeedAction]) async throws -> Void = { _ in },
          choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
          readMuted: @escaping () async throws -> [MutedHost] = { [] },
-         token: @escaping () async -> String? = { nil },
+         live: LiveGames? = nil,
          readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
          readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
          opened: @escaping () -> [String] = { [] },
@@ -251,7 +249,7 @@ final class TownFeed {
         self.sender = send
         self.choose = choose
         self.readMuted = readMuted
-        self.token = token
+        self.live = live
         self.readLater = readLater
         self.readMore = readMore
         self.opened = opened
@@ -262,18 +260,18 @@ final class TownFeed {
     /// work has photos under the chrome and never reads the live database;
     /// `-town-offline` keeps the samples on screen with every read failing. Live, every read
     /// and write goes through `supabase`, the session's one client (`AppSession`).
-    convenience init(supabase: Supabase, actions: RealLifeActions? = nil) {
+    convenience init(supabase: Supabase, actions: RealLifeActions? = nil, live: LiveGames? = nil) {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
             self.init(read: { throw URLError(.notConnectedToInternet) },
-                      kept: { DailyFixtures.townEntries() }, actions: actions)
+                      kept: { DailyFixtures.townEntries() }, actions: actions, live: live)
             return
         case .samples:
             // Mute and the Muted list kept in memory, so the Eyes pass shows both (ticket 21).
             let mutes = SampleMutes()
             self.init(read: { DailyFixtures.townEntries() }, actions: actions,
-                      choose: mutes.choose, readMuted: { mutes.list })
+                      choose: mutes.choose, readMuted: { mutes.list }, live: live)
             return
         case .live:
             break
@@ -288,7 +286,7 @@ final class TownFeed {
                   send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
                   choose: { try await api.feedChoice($0) },
                   readMuted: { try await api.mutedHosts() },
-                  token: { try? await supabase.auth.validAccessToken() },
+                  live: live,
                   readLater: { try await api.getTownFeedLater().map(TownFeed.entry) },
                   readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids },
@@ -296,14 +294,19 @@ final class TownFeed {
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
-    /// anything from a host you muted (ticket 21).
+    /// anything from a host you muted (ticket 21). A game's card carries its newest score.
     var shown: [TownFeedEntry] {
-        (entries ?? []).filter { entry in
-            guard entry.leavesAt > (holding ? heldClock : clock) else { return false }
+        (entries ?? []).compactMap { entry in
+            guard entry.leavesAt > (holding ? heldClock : clock) else { return nil }
             switch entry.item {
-            case .event(let card): return !isHidden(card)
-            case .news(let news): return !isHidden(id: news.id, host: news.place)
-            case .post(let post): return !isHidden(id: post.id, host: "")
+            case .event(let card):
+                guard !isHidden(card) else { return nil }
+                guard let live, let game = live.game(card), game != card.game else { return entry }
+                var card = card
+                card.game = game
+                return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
+            case .news(let news): return isHidden(id: news.id, host: news.place) ? nil : entry
+            case .post(let post): return isHidden(id: post.id, host: "") ? nil : entry
             }
         }
     }
@@ -420,8 +423,7 @@ final class TownFeed {
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
-        // A game's Event page pushed over the feed keeps them coming (game-card 05).
-        watchScores(at: now)
+        holdGames(at: now)
     }
 
     /// The feed is back on screen. After 30 minutes away the next read may bring a
@@ -436,7 +438,7 @@ final class TownFeed {
             freshDue = true
             returnY = 0
         }
-        watchScores(at: now)
+        holdGames(at: now)
     }
 
     /// Reads behind the list on screen (coming back, a card leaving).
@@ -494,7 +496,7 @@ final class TownFeed {
             }
             freshDue = false
             failed = false
-            watchScores(at: now)
+            holdGames(at: now)
         } catch {
             // Left mid-read (the tab went away): not a failure; the read runs again
             // when the feed comes back.
@@ -505,149 +507,14 @@ final class TownFeed {
         clock = now
     }
 
-    // MARK: Live scores (game-card 03)
+    // MARK: Live scores (codebase-health-2 08)
 
-    /// Listens while a game is being played (its score already coming, or on by its hours) and the
-    /// feed is showing; stops otherwise. A high school game on by its hours listens for nothing for
-    /// three hours: cheaper than the server marking which games will score.
-    private func watchScores(at now: Date) {
-        let playing = entries?.contains { entry in
-            guard let card = entry.card, let game = card.game, game.final == nil else { return false }
-            return game.live != nil || card.isNow(at: now)
-        } ?? false
-        // A game's Event page, pushed over the feed, keeps the scores coming (game-card 05).
-        guard playing, awaySince == nil || heldBy > 0 else { scores?.stop(); return }
-        #if DEBUG
-        if LaunchFlags.has(.townLive) { replayLiveGame(); return }
-        #endif
-        if scores == nil {
-            let client = RealtimeClient(table: "club_events", tokenProvider: token)
-            client.onChange = { [weak self] change in self?.scored(change) }
-            scores = client
-        }
-        scores?.start()
+    /// The feed's games to Live games while the feed is on screen, so it listens while one is played;
+    /// none once it's gone. An Event page holds its own.
+    private func holdGames(at now: Date) {
+        let games = awaySince == nil ? (entries ?? []).compactMap(\.card).filter { $0.game != nil } : []
+        live?.hold("town", games, at: now)
     }
-
-    @ObservationIgnored private var heldBy = 0
-
-    /// A game's Event page is open (`true`) or closed (`false`): the scores keep coming while it's
-    /// up, though the feed under it has gone.
-    func holdScores(_ on: Bool, at now: Date = Date()) {
-        heldBy = max(0, heldBy + (on ? 1 : -1))
-        watchScores(at: now)
-    }
-
-    /// A game's row changed: its card takes the new scores. Anything else waits for the next read.
-    private func scored(_ change: RealtimeClient.Change) {
-        guard change.kind == .update, let row = change.new, let id = row.id else { return }
-        let live = row.liveScore.flatMap { try? JSONDecoder().decode(Game.Live.self, from: $0) }
-        let plays = row.scoringPlays.flatMap(Game.Play.list(from:))
-        score(id, final: row.finalScore, live: live, plays: plays)
-    }
-
-    private func score(_ id: String, final: [Int]?, live: Game.Live?, plays: [Game.Play]? = nil) {
-        guard let index = entries?.firstIndex(where: { $0.id == id }),
-              let entry = entries?[index], var card = entry.card, let game = card.game else { return }
-        let scored = game.with(final: final, live: live, plays: plays)
-        guard scored != game else { return }
-        card.game = scored
-        entries?[index] = TownFeedEntry(card: card, leavesAt: entry.leavesAt)
-        // A final may have been the last game playing.
-        if scored.final != nil { watchScores(at: Date()) }
-    }
-
-    #if DEBUG
-    @ObservationIgnored private var replaying = false
-
-    /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score,
-    /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
-    /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
-    /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
-    /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final; with `-town-basketball`,
-    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final (game-card 09).
-    private func replayLiveGame() {
-        guard !replaying else { return }
-        replaying = true
-        let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
-        let basketball = LaunchFlags.has(.townBasketball)
-        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : "g1"
-        // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
-        let football: [(String, String?)] = [
-            (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
-            (#"[7,0],"period":"Q1","clock":"9:18","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
-            (#"[7,3],"period":"Q2","clock":"0:03","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
-            (#"[14,3],"period":"Q3","clock":"4:12","drive":{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#, #"{"id":"3","text":"J. Jeffrey 52 yd TD run (M. Olson kick)","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
-            (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
-            (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
-        ]
-        // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts, so a set
-        // won shows on its own before the next begins.
-        let sets: [(String, String?)] = [
-            (#"[1,1],"period":"Set 3","periods":[[25,23,18],[21,25,14]]"#, nil),
-            (#"[1,1],"period":"Set 3","periods":[[25,23,24],[21,25,19]]"#, nil),
-            (#"[2,1],"period":"Set 3","periods":[[25,23,25],[21,25,19]]"#, nil),
-            (#"[2,1],"period":"Set 4","periods":[[25,23,25,0],[21,25,19,0]]"#, nil),
-            (#"[2,1],"period":"Set 4","periods":[[25,23,25,16],[21,25,19,20]]"#, nil),
-            (#"[2,2],"period":"Set 4","periods":[[25,23,25,22],[21,25,19,25]]"#, nil),
-            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,0],[21,25,19,25,0]]"#, nil),
-            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,9],[21,25,19,25,7]]"#, nil),
-            (#"[2,2],"period":"Set 5","periods":[[25,23,25,22,14],[21,25,19,25,12]]"#, nil),
-        ]
-        // The minute as SIDEARM pushes it: the clock in seconds, stopped at 45:00 through halftime.
-        let halves: [(String, String?)] = [
-            (#"[0,0],"period":"1st half","clock":"38'","clock_s":2230"#, nil),
-            (#"[1,0],"period":"1st half","clock":"41'","clock_s":2410"#, #"{"id":"1","text":"Goal by SJU Hanson,Ben, top left","period":"1st half","clock":"41'","side":0,"score":[1,0]}"#),
-            (#"[1,0],"period":"1st half","clock":"46'","clock_s":2700"#, nil),
-            (#"[1,0],"period":"2nd half","clock":"46'","clock_s":2700"#, nil),
-            (#"[1,1],"period":"2nd half","clock":"58'","clock_s":3430"#, #"{"id":"2","text":"Goal by AUG Larkin,Sam","period":"2nd half","clock":"58'","side":1,"score":[1,1]}"#),
-            (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Goal by SJU Hanson,Ben, low right","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
-            (#"[2,1],"period":"2nd half","clock":"90'","clock_s":5350"#, nil),
-        ]
-        // The clock as last sent, the period and its length, and each team's fouls this quarter by play id
-        // (overtime's counting with the 4th); SIDEARM's words for the baskets, the names made up.
-        func quarter(_ score: String, _ q: Int, _ clock: Int, fouls: (Int, Int, Int)) -> String {
-            let ids = { (side: String, n: Int) in "[" + (0..<n).map { #""\#(side)\#(q)-\#($0)""# }.joined(separator: ",") + "]" }
-            return #"\#(score),"period":"\#(q > 4 ? "OT" : "Q\(q)")","clock":"\#(clock / 60):\#(String(format: "%02d", clock % 60))","#
-                + #""clock_s":\#(clock),"period_n":\#(q),"regulation":4,"period_s":\#(q > 4 ? 300 : 600),"#
-                + #""fouls":{"period":\#(fouls.0),"ids":[\#(ids("c", fouls.1)),\#(ids("l", fouls.2))]}"#
-        }
-        let basket = { (id: Int, text: String, period: String, clock: String, side: Int, score: String) in
-            #"{"id":"\#(id)","text":"\#(text)","period":"\#(period)","clock":"\#(clock)","side":\#(side),"score":\#(score)}"#
-        }
-        let quarters: [(String, String?)] = [
-            (quarter("[30,27]", 2, 228, fouls: (2, 2, 4)), nil),
-            (quarter("[33,27]", 2, 192, fouls: (2, 2, 5)), basket(1, "5 Jo Rohe 3PTR GOOD (11 Pt)", "Q2", "3:12", 0, "[33,27]")),
-            (quarter("[33,29]", 2, 144, fouls: (2, 3, 5)), basket(2, "14 Ella Lindqvist LAYUP GOOD (8 Pt)", "Q2", "2:24", 1, "[33,29]")),
-            (quarter("[35,29]", 2, 90, fouls: (2, 3, 6)), basket(3, "21 Anna Moore JUMPER GOOD (8 Pt)", "Q2", "1:30", 0, "[35,29]")),
-            (quarter("[35,29]", 3, 600, fouls: (3, 0, 0)), nil),
-            (quarter("[35,32]", 3, 401, fouls: (3, 5, 1)), basket(4, "3 Kate Hanna 3PTR GOOD (5 Pt)", "Q3", "6:41", 1, "[35,32]")),
-            (quarter("[44,44]", 4, 0, fouls: (4, 2, 5)), nil),
-            (quarter("[44,44]", 5, 300, fouls: (4, 2, 5)), nil),
-            (quarter("[48,46]", 5, 151, fouls: (4, 3, 5)), basket(5, "5 Jo Rohe LAYUP GOOD (19 Pt)", "OT", "2:31", 0, "[48,46]")),
-            // A sixth basket: the list keeps the newest 5.
-            (quarter("[50,46]", 5, 64, fouls: (4, 3, 5)), basket(6, "21 Anna Moore LAYUP GOOD (10 Pt)", "OT", "1:04", 0, "[50,46]")),
-        ]
-        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : football
-        let live = { (score: String, complete: Bool) in
-            try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
-                + DateHelpers.timestampString(.now) + #""}"#).utf8))
-        }
-        Task { @MainActor [weak self] in
-            var plays: [Game.Play] = []
-            for (score, play) in steps {
-                if let play, let decoded = try? JSONDecoder().decode(Game.Play.self, from: Data(play.utf8)) { plays.append(decoded) }
-                self?.score(id, final: nil, live: live(score, false), plays: plays)
-                try? await Task.sleep(for: .seconds(4))
-            }
-            // The server keeps the last live score beside a final: volleyball's sets stay.
-            if volleyball {
-                self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
-            } else {
-                self?.score(id, final: soccer ? [2, 1] : basketball ? [52, 48] : [21, 10], live: nil)
-            }
-        }
-    }
-    #endif
 
     // MARK: Views and opens (ticket 20)
 

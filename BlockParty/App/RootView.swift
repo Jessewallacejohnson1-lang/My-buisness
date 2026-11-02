@@ -482,7 +482,7 @@ struct MainTabsView: View {
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
-                        // A game's score and plays as they come in (game-card 05).
+                        // Its menu's Not interested and Report.
                         .environment(townFeed)
                         // An open, for popularity (ticket 20): only from the Town feed,
                         // not Daily, which pushes the same page.
@@ -578,6 +578,8 @@ struct MainTabsView: View {
         .background { CalendarFollower(sync: calendarSync) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
+        // A game's newest score, on whichever page shows it (codebase-health-2 08).
+        .environment(session.liveGames)
         // The bell's dot and its page.
         .environment(notices)
         .environment(friendsBook)
@@ -824,6 +826,7 @@ struct MainTabsView: View {
                 .environment(actions)
                 .environment(friendsBook)
                 .environment(townFeed)
+                .environment(session.liveGames)
         }
         #if DEBUG
         .onAppear {

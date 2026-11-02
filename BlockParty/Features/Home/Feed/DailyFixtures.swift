@@ -185,8 +185,21 @@ enum DailyFixtures {
             card.startTime = started ? Self.townClock("h:mm a", now.addingTimeInterval(-3600)) : g.time
             card.location = g.place
             card.game = g.game
+            // You's Going lists the game on (`liveGameGoing`): its card says Going too.
+            card.isJoined = started
             return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
         }
+    }
+
+    /// `-town-live`'s game as You's Going read sends it (BP app codebase-health-2 08): the Town feed's
+    /// first game, started an hour ago today, with its teams, so its Event page opens from You too.
+    static func liveGameGoing(now: Date) -> UpcomingEvent? {
+        guard LaunchFlags.has(.townGames), LaunchFlags.has(.townLive),
+              let card = gameSamples(now: now).first?.card, let day = card.eventDate else { return nil }
+        var event = UpcomingEvent(id: card.id, title: card.title, eventDate: day, startTime: card.startTime,
+                                  location: card.location, goingCount: card.goingCount, createdAt: "", rsvpd: true)
+        event.game = card.game
+        return event
     }
 
     /// A date in St. Joseph's time, as the feed writes it ("2026-10-31", "1:05 PM").
