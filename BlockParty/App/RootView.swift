@@ -432,6 +432,10 @@ struct MainTabsView: View {
     @State private var signingIn = false
     /// That code's neighbour, opened once the login lands.
     @State private var codeAfterLogin: String?
+    /// New event, from the Town bar's + (BP app references/town-plus).
+    @State private var creating = false
+    /// The + asked for an account first: New event opens once the login lands.
+    @State private var createAfterLogin = false
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -539,7 +543,14 @@ struct MainTabsView: View {
         .onOpenURL { url in
             if let id = YourCode.userID(from: url) { openCode(id) }
         }
-        .signInSheet(isPresented: $signingIn)
+        .signInSheet(isPresented: $signingIn) {
+            if createAfterLogin, auth.isSignedIn, !auth.isAnonymous { creating = true }
+            createAfterLogin = false
+        }
+        .sheet(isPresented: $creating) {
+            NewEventSheet(places: NewEventPlaces.ordered(searchModel.items), onShared: shared)
+                .presentationDragIndicator(.visible)
+        }
         // Logged in from that ask: the neighbour whose code it was.
         .onChange(of: auth.accountKey) {
             if let id = codeAfterLogin, auth.isSignedIn, !auth.isAnonymous {
@@ -681,6 +692,23 @@ struct MainTabsView: View {
         return DailyWeek.friendsGoing(in: townFeed.cards)
     }
 
+    /// The Town bar's +: New event for a real account; anyone else signs in first (Jesse,
+    /// 2026-11-01: "anyone signed in"), and New event opens once they have.
+    private func create() {
+        guard auth.isSignedIn, !auth.isAnonymous else {
+            createAfterLogin = true
+            signingIn = true
+            return
+        }
+        creating = true
+    }
+
+    /// What New event shared: the pill says it at once, and Town reads again so it's there.
+    private func shared(_ posted: HelloItem.Posted) {
+        HelloInbox.shared.add(.posted(posted))
+        Task { await townFeed.reload() }
+    }
+
     /// A neighbour's code (friends 07): their page on the shell's stack, over the map, once
     /// `get_neighbor` answers; your own opens your Profile, the You tab.
     private func openCode(_ id: String) {
@@ -717,6 +745,7 @@ struct MainTabsView: View {
                             HomeView(
                                 onOpenMap: { showMap = true },
                                 onOpenNotifications: { path.append(NotificationsRoute()) },
+                                onCreate: create,
                                 onOpenPage: { path.append($0) },
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay,

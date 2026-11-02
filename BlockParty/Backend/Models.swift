@@ -941,6 +941,8 @@ struct EventComment: Identifiable {
 // MARK: - Insert inputs
 
 struct NewEventInput {
+    /// Made by the phone, so a retried insert can't post the Event twice (BP app town-plus).
+    var id: String? = nil
     var title: String
     var eventDate: String      // YYYY-MM-DD
     var startTime: String      // display string e.g. "7pm"

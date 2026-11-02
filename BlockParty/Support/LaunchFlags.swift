@@ -39,6 +39,7 @@ nonisolated enum LaunchFlags {
         case mapOpenBubble = "-map-open-bubble"
         case mapPitch = "-map-pitch"
         case mapZoom = "-map-zoom"
+        case newEventPhoto = "-new-event-photo"
         case noticeSamples = "-notice-samples"
         case onboarding = "-onboarding"
         case onboardingNoIsland = "-onboarding-no-island"
