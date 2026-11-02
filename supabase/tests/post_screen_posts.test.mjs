@@ -13,7 +13,7 @@ import { PGlite } from '@electric-sql/pglite';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const files = readdirSync(migrations)
-  .filter((f) => ['_town_plus_posting.sql', '_town_plus_empty_interests.sql', '_post_screen_posts.sql']
+  .filter((f) => ['_town_plus_posting.sql', '_town_plus_empty_interests.sql', '_post_screen_posts.sql', '_post_screen_tag_order.sql']
     .some((end) => f.endsWith(end))).sort();
 
 const db = await PGlite.create();
@@ -177,4 +177,12 @@ test('a kind the app doesn\'t know is refused', async () => {
 test('a photo\'s shape stays inside Instagram\'s limits, 4:5 tall to 1.91:1 wide', async () => {
   for (const aspect of [0.8, 1, 1.91]) assert.ok(await posted(ME, { image_aspect: aspect }));
   for (const aspect of [0.5, 2.5]) await assert.rejects(posted(ME, { image_aspect: aspect }), /club_events_image_aspect_check/);
+});
+
+test('tagged friends keep the order they were tagged in, once each', async () => {
+  const PAL2 = '00000000-0000-0000-0000-0000000000e5';
+  await db.exec(`reset role; insert into private.friendships (a, b) values ('${[ME, PAL2].sort().join("', '")}')`);
+  const id = await posted(ME, { tagged: [PAL2, YOU, PAL, PAL2] });
+  assert.equal(await claim(id, ME), true);
+  assert.deepEqual((await row(id)).tagged, [PAL2, PAL]);
 });

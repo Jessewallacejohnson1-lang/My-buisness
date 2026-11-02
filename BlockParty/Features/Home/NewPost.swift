@@ -206,7 +206,7 @@ struct NewPostDraft: Equatable {
 
     func input(id: String, imageURL: String?, aspect: Double?) -> NewPostInput {
         NewPostInput(id: id, words: text, imageURL: imageURL, aspect: imageURL == nil ? nil : aspect, place: location,
-                     friendsOnly: friendsOnly, tagged: friendsOnly ? [] : tagged.map(\.userId))
+                     friendsOnly: friendsOnly, tagged: tagged.map(\.userId))
     }
 
     /// A photo's shape inside Instagram's limits: 4:5 tall to 1.91:1 wide.
@@ -354,6 +354,9 @@ final class PostOutbox {
     }
 
     private(set) var sent: Sent?
+    /// Your post the check just let up: it stays on top of Town for the session, where its faded card was,
+    /// instead of landing a card or two down out of sight (the review, 2026-11-02; Facebook's own).
+    private(set) var justPosted: String?
     /// Picked up by New post as it opens.
     var back: Back?
 
@@ -367,7 +370,10 @@ final class PostOutbox {
             case .live:
                 Haptics.success()
                 await live()
-                if self.sent?.id == sent.id { self.sent = nil }
+                if self.sent?.id == sent.id {
+                    self.justPosted = sent.id
+                    self.sent = nil
+                }
             case .declined(let reason):
                 self.sent?.state = .notPosted(reason)
                 AccessibilityNotification.Announcement("This post didn't go up").post()
@@ -526,6 +532,8 @@ struct NewPostSheet: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { if model.edited { discarding = true } else { dismiss() } } label: { Image(systemName: "xmark") }
                         .accessibilityLabel("Close")
+                        // Mid-save, closing would leave a post going up the X said was gone.
+                        .disabled(model.busy)
                         .confirmationDialog(NewPostCopy.discard, isPresented: $discarding, titleVisibility: .visible) {
                             Button(NewPostCopy.discardButton, role: .destructive) { dismiss() }
                             Button(NewPostCopy.keepEditing, role: .cancel) {}
@@ -542,9 +550,18 @@ struct NewPostSheet: View {
         }
         .tint(Hue.ink)
         .onChange(of: pick) { _, item in
+            guard let item else { return }
             Task {
-                let data = try? await item?.loadTransferable(type: Data.self)
-                if let image = data.flatMap(UIImage.init(data:)) { model.pick(image) }
+                let data = try? await item.loadTransferable(type: Data.self)
+                // Shrunk to what goes up (`coverJPEG`'s 1290 wide) before it's cut: a 48 MP photo
+                // never sits whole in memory or gets cut on the main thread.
+                if let image = data.flatMap(UIImage.init(data:)) {
+                    let k = min(1, NewPostMetric.upload / max(image.size.width * image.scale, 1))
+                    let size = CGSize(width: image.size.width * image.scale * k, height: image.size.height * image.scale * k)
+                    model.pick(await image.byPreparingThumbnail(ofSize: size) ?? image)
+                }
+                // The same photo picked again, after the trash, is a change.
+                pick = nil
             }
         }
         // A swipe down can't throw away what's typed or picked; the X asks first.
@@ -615,7 +632,11 @@ struct NewPostSheet: View {
             .padding(.trailing, 8)
             .frame(height: NewPostMetric.pill)
             .background(Hue.fill, in: Capsule())
+            // 26 pt drawn, 44 pt to tap.
+            .padding(.vertical, (NewPostMetric.tap - NewPostMetric.pill) / 2)
+            .contentShape(Rectangle())
         }
+        .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
         .disabled(model.event)
         .accessibilityLabel(NewPostCopy.who)
         .accessibilityValue(model.draft.friendsOnly ? NewPostCopy.friends : Town.everyday)
@@ -1022,6 +1043,8 @@ private nonisolated enum NewPostMetric {
     static let post: CGFloat = 38
     static let postWidth: CGFloat = 74
     static let friendFace: CGFloat = 44
+    /// `ProfileModel.coverJPEG`'s width, in pixels.
+    static let upload: CGFloat = 1290
     static let friendRow: CGFloat = 60
     static let pickedFace: CGFloat = 56
 }

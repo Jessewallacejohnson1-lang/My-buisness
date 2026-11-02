@@ -23,6 +23,9 @@ struct FeedPostCard: View {
     @State private var menuPresented = false
     @State private var deleting = false
     @State private var expanded = false
+    /// The words as shown and in full, for See more.
+    @State private var shownHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
     /// `heartFailureCount` at the last tap: a tap mid-shake stills it.
     @State private var heartTappedAt = 0
 
@@ -121,19 +124,39 @@ struct FeedPostCard: View {
 
     // MARK: - Words and photo
 
+    /// Facebook's words: past six lines they fold, with See more under them to open.
     private var words: some View {
+        let folds = !expanded && !dynamicTypeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 2) {
+            wordsText
+                .lineLimit(folds ? Metric.lines : nil)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { shownHeight = $0 }
+                // The whole of it, measured unseen, says whether the fold hides any.
+                .background(alignment: .top) {
+                    wordsText.hidden()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                }
+            if folds && fullHeight > shownHeight + 1 {
+                Text("See more")
+                    .font(.sansSemibold(16))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(reduceMotion ? nil : Motion.snappy) { expanded.toggle() }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var wordsText: some View {
         Text(post.words)
             .font(.sans(16))
             .lineSpacing(3)
             .foregroundStyle(Hue.ink)
-            .lineLimit(expanded || dynamicTypeSize.isAccessibilitySize ? nil : Metric.lines)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(reduceMotion ? nil : Motion.snappy) { expanded.toggle() }
-            }
-            .accessibilityAddTraits(.isStaticText)
     }
 
     /// Edge to edge in its own shape (4:5 to 1.91:1), known before it loads.
