@@ -265,6 +265,8 @@ private struct LaunchMark: View {
     private static let glassCaps = EdgeInsets(top: 90, leading: 90, bottom: 90, trailing: 90)
     /// The picture's corners, an iPhone 16 Pro's display's.
     private static let glassCorner: CGFloat = 62
+    /// The signature's bottom above the screen's, as on the launch screen.
+    private static let footerLift: CGFloat = 64
     /// The shade: the mock's drop-shadow(0 9 12) in canvas units, in the ink at 21%. SwiftUI's
     /// radius is CSS's blur length (half of it fell off twice as fast, measured 2026-11-02).
     private static let shade = 0.21
@@ -287,6 +289,15 @@ private struct LaunchMark: View {
                               lineWidth: 10)
                 .blur(radius: 5)
                 .opacity(frame.yellow)
+            // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02:
+            // "the bottom copy the written font spacing and size but put block party. made by
+            // jesse"; "make BP larger than my name"): the launch screen's own picture, so the still
+            // and this frame are one.
+            Image("LaunchFooter")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, Self.footerLift)
+                .opacity(frame.yellow)
+                .accessibilityHidden(true)
             ZStack(alignment: .topLeading) {
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))

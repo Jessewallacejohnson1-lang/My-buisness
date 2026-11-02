@@ -8,7 +8,8 @@
      249.6 pt Bp! canvas in the middle of the 282 x 173 pt picture, moved 27.502 pt right and
      3.822 pt up so that Bp sits in the screen's middle (`LaunchMotion.centring`). Both
      pictures are drawn by BP app references/launch-ball/make_still.py from the mock's own CSS.
-     iPhone caches this screen: reinstall to see a change.
+     At the bottom, Jesse's signature (`LaunchFooter`, 64 pt above the screen's bottom, Bending
+     Spoons' sizes; mock round 12). iPhone caches this screen: reinstall to see a change.
      (2026-09-18 to 2026-11-01 it was bare paper, Jesse's no-splash call, now reversed.)
 -->
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="26600" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="launch-view-controller">
@@ -30,6 +31,13 @@
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchGlass" translatesAutoresizingMaskIntoConstraints="NO" id="launch-glass">
                                 <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
                             </imageView>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchFooter" translatesAutoresizingMaskIntoConstraints="NO" id="launch-footer">
+                                <rect key="frame" x="81" y="750" width="240" height="60"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="240" id="launch-footer-w"/>
+                                    <constraint firstAttribute="height" constant="60" id="launch-footer-h"/>
+                                </constraints>
+                            </imageView>
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchStill" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
                                 <rect key="frame" x="87.502" y="346.678" width="282" height="173"/>
                                 <constraints>
@@ -45,6 +53,8 @@
                             <constraint firstItem="launch-glass" firstAttribute="bottom" secondItem="launch-root-view" secondAttribute="bottom" id="launch-glass-b"/>
                             <constraint firstItem="launch-glass" firstAttribute="leading" secondItem="launch-root-view" secondAttribute="leading" id="launch-glass-l"/>
                             <constraint firstItem="launch-glass" firstAttribute="trailing" secondItem="launch-root-view" secondAttribute="trailing" id="launch-glass-r"/>
+                            <constraint firstItem="launch-footer" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="launch-footer-x"/>
+                            <constraint firstItem="launch-root-view" firstAttribute="bottom" secondItem="launch-footer" secondAttribute="bottom" constant="64" id="launch-footer-b"/>
                             <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="27.502" id="launch-still-x"/>
                             <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="-3.822" id="launch-still-y"/>
                         </constraints>
@@ -58,5 +68,6 @@
     <resources>
         <image name="LaunchGlass" width="402" height="874"/>
         <image name="LaunchStill" width="282" height="173"/>
+        <image name="LaunchFooter" width="240" height="60"/>
     </resources>
 </document>
