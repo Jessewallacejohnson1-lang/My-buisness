@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Place photos: is each live place photo still on the page it came from, and what could replace a
 stale one. The monthly photo refresh (sources/models/photos.md) runs it in the cloud; BP app's
-place-photos skill imports its picture-finding and an Event's picture subjects from here, so there
-is one copy.
+place-photos skill imports its picture-finding, an Event's picture subjects and the one way to save a
+picture (save_picture) from here, so there is one copy.
 
     python3 sources/scripts/place_photos.py check [--logos]      every live photo (or logo) against its page:
                                                                   .runs/photos/check-<kind>.json, stale ones printed
@@ -34,7 +34,6 @@ import hashlib
 import html as htmllib
 import io
 import json
-import os
 import random
 import re
 import sys
@@ -412,8 +411,75 @@ def db():
     return _db
 
 
-def public_url(path):
-    return f"{os.environ['SUPABASE_URL'].rstrip('/')}/storage/v1/object/public/places/{urllib.parse.quote(path)}"
+class Unsent:
+    """An Adapter that sends nothing and keeps each call: a dry run and the self-tests see exactly what a
+    save would send. `url` is the project's, so a public link reads as the real one."""
+
+    def __init__(self, url):
+        self.url, self.calls = url.rstrip('/'), []
+
+    def rest(self, method, path, body=None, prefer=None):
+        self.calls.append((method, path, body))
+        return [] if method == 'GET' else None
+
+    def storage_put(self, path, data, content_type='image/webp'):
+        self.calls.append(('PUT', path, data))
+
+
+KINDS = ('photo', 'logo', 'scene', 'event', 'flyer')
+EVENT_KINDS = ('event', 'flyer')  # an Event's own picture: it names its Event and takes no slot of its place
+
+
+def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), rows=None, replaces=None,
+                 status='live', name='', **more):
+    """The one way a picture is saved, by every writer (the morning's Event photos, the monthly refresh's
+    proposals, the skill's place photos and scenes): WebP (a logo square and see-through, anything else at
+    most LONG_SIDE), at <town>/<entry>/<kind>-[<name>-]<hash>.webp in the places bucket (an Event's under
+    <town>/events/), uploaded once (the same file from an interrupted run is fine), with its width and height.
+
+    A place's photo, logo or scene (`entry_id`) takes the slot after the place's live and proposed ones, or with
+    `replaces` (a live row's id) that row's slot, as a proposal; a file the place already has, live or retired,
+    is not saved again. `rows` are the place's place_photos rows (id, url, position, status, kind), read through
+    `db` when not given; what is saved is added to them, so the next save sees it. An Event's photo or flyer
+    (`events`: [(event id, its place's entry id)]) is one file and a row per Event, in no slot. `more` are the
+    row's other columns (credit, description, hue, subjects, seasons, proposed_by): None leaves a column's default.
+    `db` is the Adapter: db.py's Db, or Unsent. Returns the rows sent, [] when the file is already there."""
+    event = kind in EVENT_KINDS
+    if kind not in KINDS or event != bool(events) or event == bool(entry_id):
+        raise ValueError(f'a {kind} names {"its Events" if event else "one place"}')
+    data = webp(im, logo=kind == 'logo')
+    width, height = Image.open(io.BytesIO(data)).size  # the Town card takes the photo's shape before it loads
+    folder = 'events' if event else entry_id
+    path = f"{town}/{folder}/{kind}-{name[:70] + '-' if name else ''}{hashlib.sha1(data).hexdigest()[:10]}.webp"
+    url = f'{db.url}/storage/v1/object/public/places/{urllib.parse.quote(path)}'
+    row = {'town': town, 'url': url, 'source_url': source_url, 'kind': kind, 'status': status, 'width': width,
+           'height': height, **{k: v for k, v in more.items() if v is not None}}
+    if event:
+        out = [{'entry_id': e, 'event_id': ev, **row} for ev, e in events]
+    else:
+        if rows is None:
+            rows = db.rest('GET', 'place_photos?select=id,url,position,status,kind'
+                                  f'&entry_id=eq.{urllib.parse.quote(entry_id)}')
+        if any(r['url'] == url for r in rows):
+            return []
+        if replaces is not None:
+            old = next((r for r in rows if r.get('id') == replaces and r['status'] == 'live'), None)
+            if not old:
+                raise ValueError(f'row {replaces} is not a live row of {entry_id}')
+            position, row['status'] = old['position'], 'proposed'
+        else:
+            taken = [r['position'] for r in rows if r['status'] != 'retired' and r.get('kind') not in EVENT_KINDS]
+            position = max(taken) + 1 if taken else 0
+        out = [{'entry_id': entry_id, 'position': position, **row}]
+    try:
+        db.storage_put(f'places/{path}', data, 'image/webp')
+    except DbError as x:
+        if x.status not in (400, 409):  # the same file from an earlier, interrupted run
+            raise
+    db.rest('POST', 'place_photos', out, 'return=minimal')
+    if not event:
+        rows += out
+    return out
 
 
 # --- The monthly check ----------------------------------------------------------------------------
@@ -702,25 +768,14 @@ def propose(key, n):
     review page swaps it in (the skill's `swap`)."""
     v = json.loads((OUT / 'candidates.json').read_text())[str(key)]  # KeyError: not a key on the sheets
     c = next(x for x in v['cands'] if x['n'] == n)
-    if v['position'] is None:  # a first photo: the next free slot (a live logo keeps its own)
-        taken = [r['position'] for r in db().rest('GET', f"place_photos?select=position&entry_id=eq.{v['entry_id']}"
-                                                   '&status=in.(live,proposed)')]
-        v['position'] = max(taken) + 1 if taken else 0
-    data = webp(Image.open(OUT / str(key) / f'c{n}.png'))
-    width, height = Image.open(io.BytesIO(data)).size  # the Town card takes the photo's shape before it loads
-    path =f"{TOWN}/{v['entry_id']}/photo-{hashlib.sha1(data).hexdigest()[:10]}.webp"
-    try:
-        db().storage_put(f'places/{path}', data, 'image/webp')
-    except DbError as x:
-        if x.status not in (400, 409):  # the same file from an earlier, interrupted run
-            raise
-    db().rest('POST', 'place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
-                                           'source_url': c['page'], 'position': v['position'], 'status': 'proposed',
-                                           'kind': 'photo', 'credit': credit(c), 'proposed_by': 'the monthly refresh',
-                                           'width': width, 'height': height}],
-              'return=minimal')
-    print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if str(key).isdigit() else ' as its first photo')
-          + f" (position {v['position']})")
+    stale = v['position'] is not None  # a stale photo's key is its row id; a first photo's, its entry id
+    saved = save_picture(db(), Image.open(OUT / str(key) / f'c{n}.png'), 'photo', c['page'], town=TOWN,
+                         entry_id=v['entry_id'], replaces=int(key) if stale else None, status='proposed',
+                         credit=credit(c), proposed_by='the monthly refresh')
+    if not saved:
+        sys.exit(f"{v['entry_id']}: candidate {n} is already one of its photos")
+    print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if stale else ' as its first photo')
+          + f" (position {saved[0]['position']})")
 
 
 def takedown(row_id, reason):
@@ -752,6 +807,99 @@ def _later_migration_fails(sql, changed=False):
             return changed and differs
         except ValueError:
             return not changed
+
+
+def _saves():
+    """save_picture through the Unsent Adapter: a place photo, a proposal, a logo, a scene and a flyer."""
+    def raises(f):
+        try:
+            f()
+        except (ValueError, DbError):
+            return True
+        return False
+
+    def is_webp(data):
+        return data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+
+    db_ = Unsent('https://db.example/')
+    big = Image.effect_noise((2400, 1200), 60).convert('RGB')
+    other = Image.effect_noise((900, 1200), 40).convert('RGB')
+    rows = [{'id': 7, 'url': 'x', 'position': 0, 'status': 'live', 'kind': 'photo'},
+            {'id': 8, 'url': 'y', 'position': 4, 'status': 'retired', 'kind': 'photo'},
+            {'id': 9, 'url': 'z', 'position': 2, 'status': 'live', 'kind': 'event'}]
+    photo = save_picture(db_, big, 'photo', 'https://bakery.com/', town='st-joseph', entry_id='bakery', rows=rows,
+                         credit=None)
+    (_, put, data), (_, table, sent) = db_.calls
+    again = save_picture(db_, big, 'photo', 'https://bakery.com/', town='st-joseph', entry_id='bakery', rows=rows)
+    second = save_picture(db_, other, 'photo', 'https://bakery.com/', town='st-joseph', entry_id='bakery', rows=rows)
+    proposal = save_picture(db_, big.rotate(90, expand=True), 'photo', 'https://bakery.com/', town='st-joseph',
+                            entry_id='bakery', rows=rows, replaces=7, proposed_by='the monthly refresh')
+    rows[-1] = {**rows[-1], 'status': 'retired'}  # the proposal, retired: its file stays retired
+    retired_again = save_picture(db_, big.rotate(90, expand=True), 'photo', 'x', town='st-joseph', entry_id='bakery',
+                                 rows=rows)
+    logo = Unsent('https://db.example')
+    save_picture(logo, Image.new('RGBA', (120, 60), (220, 30, 30, 255)), 'logo', 'https://bakery.com/', town='st-joseph',
+                 entry_id='bakery', hue=0)
+    scene = Unsent('https://db.example')
+    save_picture(scene, other, 'scene', 'https://news.com/a', town='st-joseph', entry_id='arena',
+                 rows=[{'id': 1, 'url': 'e', 'position': 0, 'status': 'live', 'kind': 'flyer'}],
+                 name='hockey-players-battle-for-the-puck', description='Players battle for the puck',
+                 subjects=['hockey', 'boys'], seasons=[])
+    flyer = Unsent('https://db.example')
+    save_picture(flyer, other, 'flyer', 'https://facebook.com/p/1', town='st-joseph',
+                 events=[('ev1', 'bakery'), ('ev2', 'unplaced')], description='Pizza night schedule', credit='Bakery')
+
+    class Taken(Unsent):
+        def __init__(self, status):
+            super().__init__('https://db.example')
+            self.status = status
+
+        def storage_put(self, path, data, content_type='image/webp'):
+            raise DbError('POST', path, self.status, 'Duplicate')
+    taken = Taken(409)
+    save_picture(taken, other, 'photo', 'x', town='st-joseph', entry_id='bakery', rows=[])
+    return [
+        ('a place photo: WebP at most 1600 px at <town>/<entry>/photo-<hash>.webp, its size, its public link, '
+         'a None column left to its default',
+         put.startswith('places/st-joseph/bakery/photo-') and put.endswith('.webp') and is_webp(data)
+         and Image.open(io.BytesIO(data)).size == (1600, 800) and table == 'place_photos'
+         and sent == photo and len(sent) == 1 and 'credit' not in sent[0]
+         and {k: sent[0][k] for k in ('entry_id', 'kind', 'status', 'width', 'height', 'source_url')}
+         == {'entry_id': 'bakery', 'kind': 'photo', 'status': 'live', 'width': 1600, 'height': 800,
+             'source_url': 'https://bakery.com/'}
+         and sent[0]['url'] == 'https://db.example/storage/v1/object/public/' + put),
+        ("the slot after the place's live and proposed photos (a retired slot is free, an Event's photo takes "
+         "none); the next save sees the last; a file the place has, live or retired, isn't saved twice",
+         photo[0]['position'] == 1 and again == [] and second[0]['position'] == 2 and retired_again == []
+         and len(db_.calls) == 6),
+        ('a proposal takes the slot of the live row it replaces; a row not live is refused',
+         [(r['position'], r['status'], r['proposed_by']) for r in proposal] == [(0, 'proposed', 'the monthly refresh')]
+         and raises(lambda: save_picture(Unsent('https://db.example'), big.rotate(180), 'photo', 'x', town='st-joseph',
+                                         entry_id='bakery', rows=rows, replaces=8))),
+        ("a logo is square and see-through; with no rows given, the place's rows are read through the Adapter",
+         logo.calls[0] == ('GET', 'place_photos?select=id,url,position,status,kind&entry_id=eq.bakery', None)
+         and logo.calls[1][1].startswith('places/st-joseph/bakery/logo-')
+         and Image.open(io.BytesIO(logo.calls[1][2])).mode == 'RGBA'
+         and len(set(Image.open(io.BytesIO(logo.calls[1][2])).size)) == 1 and logo.calls[2][2][0]['position'] == 0
+         and logo.calls[2][2][0]['hue'] == 0),
+        ("a scene: named by what it shows, first in its place's slots, with its subjects and seasons",
+         scene.calls[0][1].startswith('places/st-joseph/arena/scene-hockey-players-battle-for-the-puck-')
+         and {k: scene.calls[1][2][0][k] for k in ('position', 'kind', 'subjects', 'seasons', 'description')}
+         == {'position': 0, 'kind': 'scene', 'subjects': ['hockey', 'boys'], 'seasons': [],
+             'description': 'Players battle for the puck'}),
+        ("an Event's flyer: one file under <town>/events/, a row per Event naming it, in no slot",
+         [c[0] for c in flyer.calls] == ['PUT', 'POST'] and flyer.calls[0][1].startswith('places/st-joseph/events/flyer-')
+         and [(r['event_id'], r['entry_id'], r['kind'], r['credit']) for r in flyer.calls[1][2]]
+         == [('ev1', 'bakery', 'flyer', 'Bakery'), ('ev2', 'unplaced', 'flyer', 'Bakery')]
+         and not any('position' in r for r in flyer.calls[1][2])),
+        ('a flyer names its Events, a photo one place',
+         raises(lambda: save_picture(Unsent('x'), other, 'flyer', 'x', town='t', entry_id='bakery'))
+         and raises(lambda: save_picture(Unsent('x'), other, 'photo', 'x', town='t', events=[('ev1', 'bakery')]))
+         and raises(lambda: save_picture(Unsent('x'), other, 'banner', 'x', town='t', entry_id='bakery'))),
+        ('a file already uploaded by an interrupted run still gets its row; any other upload error stops it',
+         [c[0] for c in taken.calls] == ['POST']
+         and raises(lambda: save_picture(Taken(500), other, 'photo', 'x', town='t', entry_id='bakery', rows=[]))),
+    ]
 
 
 def selftest():
@@ -835,6 +983,7 @@ def selftest():
          _later_migration_fails('drop function private.event_subject(text, text, text);')
          and _later_migration_fails(subject_sql().replace('$$', '$function$'), changed=True)
          and _later_migration_fails(subject_sql() + '\n' + subject_sql().replace("'hockey'", "'hokey'"), changed=True)),
+        *_saves(),
     ]
     failed = [name for name, ok in checks if not ok]
     for name in failed:
