@@ -453,7 +453,7 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, yellow: store.step == .friends,
+            OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed, yellow: store.step == .friends,
                               action: store.step == .friends ? askContacts : go { [store] in store.next() })
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
@@ -481,6 +481,15 @@ struct OnboardingFlow: View {
         if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
+    }
+
+    /// Picks or follows the title still asks for, for its number's roll.
+    private var stillToPick: Int {
+        switch store.step {
+        case .interests: max(0, 3 - store.interests.count)
+        case .follow: followsNeeded
+        default: 0
+        }
     }
 
     /// Follows still to make on step 8; none while the read is out, when it failed or when it found

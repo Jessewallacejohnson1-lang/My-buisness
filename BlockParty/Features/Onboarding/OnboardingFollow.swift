@@ -60,7 +60,7 @@ enum FollowSuggestions {
     static let likeIt = 3
     /// The two rows under the one followed are already in sight: places like it come from further down,
     /// so a follow always shows something new rather than reshuffling what's on screen.
-    static let inSight = 6
+    static let rowsInSight = 2
 
     static func interests(ofKind type: String?) -> [String] {
         guard let type else { return [] }
@@ -139,13 +139,14 @@ enum FollowSuggestions {
 
     /// Following `target` pulls up to `likeIt` places like it (sharing a category, most in common first,
     /// then busiest) from below the two rows in sight to right after it, as Spotify adds artists after
-    /// the one you pick. Places above it, in sight and already followed stay put. `moved` is what
-    /// changed place.
+    /// the one you pick. Places above it, in sight and already followed stay put. `moved` is what was
+    /// pulled.
     static func pull(_ order: [FollowSuggestion], after target: FollowTarget,
                      follows: Set<FollowTarget>) -> (order: [FollowSuggestion], moved: [FollowTarget]) {
         guard let i = order.firstIndex(where: { $0.target == target }) else { return (order, []) }
         let tapped = order[i].categories
-        let picks = order.indices.dropFirst(i + 1 + inSight)
+        // From the row after the rows in sight under the followed one's row (3 to a row).
+        let picks = order.indices.dropFirst((i / 3 + 1 + rowsInSight) * 3)
             .filter { !follows.contains(order[$0].target) && !order[$0].categories.isDisjoint(with: tapped) }
             .sorted { a, b in
                 let sa = order[a].categories.intersection(tapped).count, sb = order[b].categories.intersection(tapped).count
@@ -158,8 +159,7 @@ enum FollowSuggestions {
         let ids = Set(pulled.map(\.target))
         var next = order.filter { !ids.contains($0.target) }
         next.insert(contentsOf: pulled, at: i + 1)
-        let moved = pulled.enumerated().filter { order[i + 1 + $0.offset].target != $0.element.target }.map(\.element.target)
-        return (next, moved)
+        return (next, pulled.map(\.target))
     }
 
     /// A search: every name or kind that has the words, busiest first.
@@ -198,7 +198,8 @@ struct OnboardingFollowGrid<Heading: View>: View {
     /// followed instead of sliding up from far down the grid.
     @State private var showing: [FollowTarget: Int] = [:]
     @State private var arrivals: [FollowTarget: Arrival] = [:]
-    /// The search field's resting top, read from its slot in the scroll; it pins at `scrollTop`.
+    /// The search field's top in the scroll, read only down to just past the pin line (`scrollTop`), so
+    /// scrolling further doesn't redraw the grid every frame.
     @State private var searchTop: CGFloat = 255
 
     /// One spring for every move (the mock's: 0.42 s, a little bounce), 44 ms between arrivals
@@ -211,28 +212,28 @@ struct OnboardingFollowGrid<Heading: View>: View {
     var body: some View {
         GeometryReader { geo in
             let column = FollowGridMetric.column(geo.size.width)
-            let pinned = min(1, max(0, (FollowGridMetric.scrollTop + 16 - searchTop) / 16))
+            let pinned = searchTop <= FollowGridMetric.scrollTop
             ZStack(alignment: .top) {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
-                        // The search field's slot: the field floats over it, and stays once it reaches the top.
-                        Color.clear
-                            .frame(height: FollowGridMetric.search)
-                            .padding(.top, 24)
-                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY - FollowGridMetric.search } action: {
-                                searchTop = $0
-                            }
+                        OnboardingSearchField(prompt: "Search places", query: $query)
+                            .opacity(pinned ? 0 : 1)
+                            .onGeometryChange(for: CGFloat.self) {
+                                max($0.frame(in: .named(Self.space)).maxY - FollowGridMetric.search, FollowGridMetric.scrollTop - 16)
+                            } action: { searchTop = $0 }
                         tiles(column)
                             .padding(.top, 20)
                     }
                     .padding(.horizontal, FollowGridMetric.gutter)
                     .padding(.top, 128 - FollowGridMetric.scrollTop)
                     .padding(.bottom, 200)
+                    // While searching, room to stay pinned however few the results, so the field never
+                    // drops away under the typing.
+                    .frame(minHeight: query.isEmpty ? 0 : geo.size.height + 240, alignment: .top)
                 }
                 .scrollDismissesKeyboard(.immediately)
                 .padding(.top, FollowGridMetric.scrollTop)
-                .accessibilitySortPriority(0)
 
                 // Once pinned, the backdrop closes over the tiles behind and just under the field.
                 OnboardingBackdrop()
@@ -244,13 +245,17 @@ struct OnboardingFollowGrid<Heading: View>: View {
                             Spacer(minLength: 0)
                         }
                     }
-                    .opacity(pinned)
+                    // Comes in over the first 16 pt past the pin, so nothing under the field pops away.
+                    .opacity(min(1, max(0, (FollowGridMetric.scrollTop - searchTop) / 16)))
                     .allowsHitTesting(false)
 
-                OnboardingSearchField(prompt: "Search places", query: $query)
-                    .padding(.horizontal, FollowGridMetric.gutter)
-                    .offset(y: max(searchTop, FollowGridMetric.scrollTop) - 24)
-                    .accessibilitySortPriority(1)
+                if pinned {
+                    // VoiceOver keeps the field in its slot, which it scrolls back to.
+                    OnboardingSearchField(prompt: "Search places", query: $query)
+                        .padding(.horizontal, FollowGridMetric.gutter)
+                        .offset(y: FollowGridMetric.scrollTop - 24)
+                        .accessibilityHidden(true)
+                }
             }
             .coordinateSpace(.named(Self.space))
         }
@@ -259,6 +264,8 @@ struct OnboardingFollowGrid<Heading: View>: View {
             order = new.map { FollowSuggestions.ordered($0, picked: interests) }
             showing = [:]
         }
+        // A tile a search hid and brought back doesn't grow out of an old follow again.
+        .onChange(of: query) { arrivals = [:] }
     }
 
     @ViewBuilder private func tiles(_ column: CGFloat) -> some View {
@@ -271,8 +278,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, 4)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(column), spacing: FollowGridMetric.columnGap), count: 3),
-                      alignment: .leading, spacing: FollowGridMetric.rowGap) {
+            LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
                 ForEach(shown.map { Tile(suggestion: $0, showing: showing[$0.target, default: 0]) }) { tile in
                     FollowTile(suggestion: tile.suggestion, on: follows.contains(tile.suggestion.target), width: column) {
                         follow(tile.suggestion, column: column)
@@ -287,8 +293,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 4)
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(column), spacing: FollowGridMetric.columnGap), count: 3),
-                      alignment: .leading, spacing: FollowGridMetric.rowGap) {
+            LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
                 ForEach(0..<9, id: \.self) { _ in
                     VStack(spacing: 8) {
                         SkeletonBlock(cornerRadius: FollowGridMetric.art / 2).frame(width: FollowGridMetric.art, height: FollowGridMetric.art)
@@ -375,6 +380,7 @@ enum FollowGridMetric {
 
     /// 104 on a 402 pt phone, Instagram's pill width.
     static func column(_ width: CGFloat) -> CGFloat { (width - 2 * gutter - 2 * columnGap) / 3 }
+    static func columns(_ column: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(column), spacing: columnGap), count: 3) }
 }
 
 /// One place: its logo, its name and Follow under it. The whole tile is the button (Spotify's), and sinks
@@ -491,6 +497,7 @@ struct OnboardingPillFace: View {
             .font(.sansSemibold(14))
             .foregroundStyle(on ? Hue.ink : Hue.surface)
             .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .padding(.horizontal, width == nil ? 16 : 0)
             .frame(minWidth: width ?? FollowMetric.listWidth, minHeight: FollowMetric.rowHeight)
             .frame(width: width)
