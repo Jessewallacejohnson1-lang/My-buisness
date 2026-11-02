@@ -1169,6 +1169,9 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.equal(await subject('Organic Gardening Workshop', null, null), 'talk', 'organic is no organ: \\y is a word edge');
   assert.equal(await subject('7th Grade', null, 'watch_sports'), 'sports');
   assert.equal(await subject('Fall Picture Retakes', null, null), 'place');
+  assert.equal(await subject('Varsity Jazz', null, 'art_theater'), 'dance', "a dance team's jazz meet is dance, not band");
+  assert.equal(await subject('Conference Kick', null, 'art_theater'), 'dance');
+  assert.equal(await subject('Fare for All', null, 'markets'), 'market', 'food boxes, not a dinner');
   const season = async (d) => (await db.query('select private.season_of($1::date) as s', [d])).rows[0].s;
   assert.deepEqual([await season('2026-11-30'), await season('2026-12-01'), await season('2027-02-28')], ['fall', 'winter', 'winter']);
 
