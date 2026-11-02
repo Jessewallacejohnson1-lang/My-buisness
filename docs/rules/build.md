@@ -25,8 +25,8 @@ A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTes
   wipes that sim's container — Keychain session, `bp.onboarded.<uid>`, local mirrors — on
   whatever sim it targets (it signed the primary sim out twice on 2026-08-13/14). The
   reserved screenshot device is named in `.claude/guard-config.json`; `sim-guard.sh`
-  refuses a test run aimed at it. A wiped sim makes a new anonymous account on its next
-  launch (`AuthStore.ensureAccount`); a real account needs a manual sign-in.
+  refuses a test run aimed at it. A wiped sim opens on the Welcome with no account; a real
+  account needs a sign-in (bp-build's `proof_login.sh`).
   `sim-guard.sh` is registered on a `Bash` matcher, so it only sees `xcodebuild test` run
   through the shell — `mcp__xcodebuildmcp__test_sim` never reaches it, even though
   `CLAUDE.md` says to prefer XcodeBuildMCP for Apple tooling. A test run made through that

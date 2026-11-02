@@ -47,27 +47,24 @@ seeder, and mounts `RootView` inside `LaunchHost`.
   skips it, Reduce Motion fades it, UI tests skip it (`-ui-tests`) unless they ask
   (`-launch-play`), and the app shows within 6 s whatever happens. The math is
   `LaunchMotion`, the drawing `LaunchBall`.
-- **Sign-in is switched OFF** (Jesse, 2026-09-18, "for now"): `RootView.requiresSignIn =
-  false`, so the gate hands straight to `MainTabsView` with or without a session. **It is a
-  switch, not a deletion** `[prose]` — `LoginView`, `AuthStore`, the keychain session and
-  every authed API path are untouched; flip it back to `true` and sign-in returns as it was.
-  Signed out, the app is honest rather than broken: authed reads fail into their own empty
-  states, the profile tab reads "Add your name" with zeroed counts, and its **Sign out** row
-  is hidden.
-- **Every install gets a quiet anonymous account** (2026-10-09, BP app
-  `docs/plans/real-life-actions`). `AuthStore.ensureAccount()` makes one through Supabase's
-  anonymous sign-in once `restore()` finds no session, and again on each return to the
-  foreground; it fails silently and never replaces a restored session. It is a session like
-  any other (Keychain, shared refresh), so `isSignedIn` (has a session: may Join, Save,
-  Heart) is true for it, and `isAnonymous` tells it apart where only a real account counts
-  (the You tab's Sign out). **Anonymous accounts act but never publish** `[test]`:
-  restrictive `is_real_account()` rules stop them posting events, starting clubs,
-  commenting and uploading photos (`supabase/migrations/20261009220000_anonymous_accounts.sql`,
-  stories in `supabase/tests/`). Unit tests make no account. **Unsigned simulator builds
-  (bp-build's `xc.sh`) can't use the Keychain** (-34018, no entitlement): there the session
-  lives in UserDefaults (`Keychain.simulatorKey`), so it survives relaunches but not
-  eyes.py's uninstall, and each eyes.py run makes one new anonymous account on the live
-  project. Before 2026-10-09 every simulator launch did.
+- **Nobody gets past the Welcome without an account** (Jesse, 2026-11-02, BP app onboarding 27;
+  sign-in was off from 2026-09-18). `RootView` shows onboarding until `AuthStore.hasAccount`, a
+  session that isn't a quiet anonymous one: the Welcome's Continue with email opens Create account,
+  its Log in opens Log in (`LoginView.swift`, the same screen), and the account is made before the
+  first question. Log in reads Your profile: an account with `onboarded_at` goes straight to the
+  tabs, any other to Name. No account once the launch has looked (`AuthStore.booting`), by sign-out
+  or a token the server turned down, resets onboarding to a clean Welcome
+  (`OnboardingStore.reset`). DEBUG `-skip-onboarding` and `-ui-tests` let screenshot runs and UI
+  tests in with no account. "Come back when you're 13"'s Close deletes the account it made
+  (`delete_my_account()`).
+- **No more quiet anonymous accounts** (2026-11-02). From 2026-10-09 every install made one
+  (`ensureAccount`); phones that still hold one keep `isAnonymous` true and land on the Welcome.
+  **Anonymous accounts act but never publish** `[test]`: restrictive `is_real_account()` rules
+  stop them posting events, starting clubs, commenting and uploading photos
+  (`supabase/migrations/20261009220000_anonymous_accounts.sql`, stories in `supabase/tests/`).
+  **Unsigned simulator builds (bp-build's `xc.sh`) can't use the Keychain** (-34018, no
+  entitlement): there the session lives in UserDefaults (`Keychain.simulatorKey`), so it
+  survives relaunches but not eyes.py's uninstall.
 - **One `NavigationStack` wraps the whole shell** (`MainTabsView.body`, `RootView.swift`)
   `[prose]`, with `.navigationDestination(for: FeedCardItem.self)` opening the event page,
   so a pushed page covers the tab bar and the edge swipe brings Town back under the finger.

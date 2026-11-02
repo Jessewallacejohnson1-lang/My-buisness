@@ -156,8 +156,8 @@ nonisolated enum Hue {
     /// DESIGN.md's "accents are small by rule" still holds: the map disc, the saved
     /// bookmark, Daily's top and the poster's date are the four, each scoped in by Jesse.
     /// A fifth is his call, not an agent's. Onboarding is the fifth (Jesse, 2026-10-24): its
-    /// progress bar fills with it, and its question screens sit on a faint wash of it
-    /// (`OnboardingBackdrop`), the one exception to taste's never-tint line.
+    /// progress bar fills with it. Its screens sat on a faint wash of it until 2026-11-02; they
+    /// are white now (`OnboardingBackdrop`).
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.

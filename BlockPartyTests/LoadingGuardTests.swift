@@ -26,7 +26,7 @@ final class LoadingGuardTests: XCTestCase {
     /// stand in for there, so a spinner is honest. Content — a screen, a list, a
     /// card, a feed section, an image well — never gets one.
     private static let spinnerAllowlist: Set<String> = [
-        "Features/Auth/LoginView.swift",          // sign-in button, mid-request
+        "Features/Onboarding/OnboardingChrome.swift", // the Next bar on Log in, mid-request
         "Features/Profile/EditProfileView.swift", // save button, mid-save
         "Features/Components/InlineAction.swift", // the shared inline button itself
         "Features/Home/NewPost.swift",            // Post, mid-post; a post on its way (as AddFormView's was)

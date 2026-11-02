@@ -140,8 +140,8 @@ and `DECISIONS.md` win wherever they disagree.
   - **Don't flash** — if the data is already cached, render it directly rather than showing a
     skeleton for one frame.
 - **`ProgressView` has exactly one legitimate use: an action already tapped, in flight,
-  inside the control that started it.** `[test]` `LoginView`, `EditProfileView` and
-  `InlineAction` are the entire allowlist in `LoadingGuardTests` — there is no content shape
+  inside the control that started it.** `[test]` The onboarding Next bar (Log in, mid-request),
+  `EditProfileView`, `InlineAction` and New post are the entire allowlist in `LoadingGuardTests` — there is no content shape
   to stand in for there. (`AddFormView` was a fourth until 2026-09-24, when posting was
   paused and the compose screens were deleted.) Content — a screen, a list, a card, a feed
   section, an image well — never gets a spinner.

@@ -65,18 +65,15 @@ final class OnboardingNextBarTests: XCTestCase {
         // A refusal kept from an earlier run would end the flow at step 8.
         app.resetAuthorizationStatus(for: .contacts)
         // Follow 3's picks stay saved between runs too: `<5b5d>` is "[]", so it starts on none.
+        // Starts on Name: Create account before it would make a live account (onboarding 27).
         app.launchArguments = ["-ui-tests", "-onboarding",
-                               "-onboarding.step", "0", "-onboarding.finished", "NO",
+                               "-onboarding.step", "name", "-onboarding.finished", "NO",
                                "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24",
                                "-bp.interests", "()", "-onboarding.follows", "<5b5d>"]
         app.launch()
 
-        let phone = app.buttons["Continue with phone"]
-        XCTAssertTrue(phone.waitForExistence(timeout: 15), "no Welcome")
-        phone.tap()
-
         let next = app.buttons["onboarding-next"]
-        XCTAssertTrue(next.waitForExistence(timeout: 5), "no Next bar")
+        XCTAssertTrue(next.waitForExistence(timeout: 15), "no Next bar")
         // Name (step 1) opens the keyboard and the bar rides above it (Phone and Code wait for phone
         // sign-in, onboarding 24), so the bar's own place is read on Photo, once the keyboard has gone.
         let first = app.textFields["First name"]
