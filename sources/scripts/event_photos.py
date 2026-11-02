@@ -405,7 +405,7 @@ def selftest():
               f"each picture downloaded once and numbered; one under {MIN_WIDTH} px dropped")
         check(sheets(gs, folder) == 1 and (folder / "sheet-1.png").exists(), "one sheet for three blocks")
         batch = (folder / "batch-1.txt").read_text()
-        check('"pick": "c2", "from": "other post"' in batch and "e3" not in batch, "the batch names each picture and its source; a block with none isn't shown")
+        check('"pick": "c2", "from": "other post"' in batch and '"event": "e3"' not in batch, "the batch names each picture and its source; a block with none isn't shown")
 
         picks = plan([{"event": "e1", "pick": "c2", "shows": "The cast on stage"}, {"event": "e1", "pick": "c1"},
                       {"event": "e2", "pick": "c9"}, {"event": "e9", "pick": "c1"}, "unreadable line: x"], gs)
