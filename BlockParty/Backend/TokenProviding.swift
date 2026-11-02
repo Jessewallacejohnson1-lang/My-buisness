@@ -13,6 +13,7 @@ import Foundation
 protocol TokenProviding {
     func validAccessToken() async throws -> String
     var userId: String? { get }
+    var email: String? { get }
     /// The server refused a token the phone still thought good (a 401): refresh it, or sign out.
     func handleUnauthorized() async
 }

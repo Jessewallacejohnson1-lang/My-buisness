@@ -12,12 +12,14 @@ import Foundation
 final class FakeTokenProvider: TokenProviding {
     var token = "test-access-token"
     var userId: String?
+    var email: String?
     var throwOnToken = false
     /// How many 401s the client reported.
     var unauthorized = 0
 
-    init(userId: String? = "test-user") {
+    init(userId: String? = "test-user", email: String? = "test@example.com") {
         self.userId = userId
+        self.email = email
     }
 
     func validAccessToken() async throws -> String {
