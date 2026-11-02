@@ -32,6 +32,7 @@ struct SJMapView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(TownFeed.self) private var townFeed
+    @Environment(LiveGames.self) private var liveGames
     @StateObject private var model = MapModel()
 
     /// The zoom the map opens at: downtown and Saint Ben's fill the screen, so their bubbles
@@ -80,7 +81,7 @@ struct SJMapView: View {
             .navigationDestination(for: FeedCardItem.self) { FeedEventDetailDestination(item: $0) }
         }
         .onAppear {
-            model.start(auth: auth, feed: townFeed)
+            model.start(auth: auth, feed: townFeed, live: liveGames)
             Haptics.prepare()
         }
         .onDisappear { model.stop() }

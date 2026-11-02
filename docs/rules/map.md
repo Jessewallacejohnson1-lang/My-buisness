@@ -19,10 +19,10 @@ nothing else.
 - **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
   before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
   hides and mutes, and makes no second `get_town_feed` read (8 s for a new account, 2026-10-30).
-  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Owns the
-  `RealtimeClient` on `club_events`: a change touching today asks the Town feed to read again after
-  300 ms. Handles teardown, background socket-drop and foreground resubscribe, and the midnight
-  rollover.
+  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Follows
+  the app's one `club_events` connection (`LiveGames.follow`, BP app codebase-health-2 08): a change
+  touching today asks the Town feed to read again after 300 ms. `LiveGames.away` drops the
+  connection in the background; the map re-reads on foreground and rolls over at midnight.
 - **`TodayPlaces`** — one bubble per exact spot, its events ordered on-now first
   (`TodayBubbleRules.order`); events without a spot stay off. `merge` folds bubbles that touch on
   screen into one, run when the camera settles (`onMapIdle`).

@@ -18,6 +18,9 @@ final class AppSession {
     /// The Town feed's events, kept here so coming back to Town shows the list it left while
     /// it reads again behind it.
     let townFeed: TownFeed
+    /// Every game's newest score while it's played, for the Town feed's cards, an Event page from any
+    /// tab and the map, on the app's one `club_events` connection (BP app codebase-health-2 08).
+    let liveGames: LiveGames
     /// Search's places and recents, kept so the tab doesn't fetch the Town's places again each
     /// time it comes back. Its groups reads tell `actions`.
     let searchModel: SearchModel
@@ -47,9 +50,10 @@ final class AppSession {
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
          notices: Notices, avatar: TodayHeaderProfileModel, profile: ProfileModel, hello: HelloInbox,
-         saved: SavedStore, supabase: Supabase) {
+         saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil) {
         self.actions = actions
         self.townFeed = townFeed
+        self.liveGames = liveGames ?? LiveGames(listen: { _ in })
         self.searchModel = searchModel
         self.friendsBook = friendsBook
         self.you = you
@@ -71,7 +75,8 @@ final class AppSession {
     convenience init(supabase: Supabase? = nil, phone: UserDefaults? = nil, saved: SavedStore? = nil) {
         let supabase = supabase ?? .app
         let actions = RealLifeActions(supabase: supabase)
-        self.init(actions: actions, townFeed: TownFeed(supabase: supabase, actions: actions),
+        let live = LiveGames(token: { try? await supabase.auth.validAccessToken() })
+        self.init(actions: actions, townFeed: TownFeed(supabase: supabase, actions: actions, live: live),
                   searchModel: SearchModel(supabase: supabase, defaults: phone ?? .standard, actions: actions),
                   friendsBook: FriendsBook(supabase: supabase), you: YouModel(supabase: supabase),
                   saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
@@ -79,7 +84,7 @@ final class AppSession {
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
                   avatar: TodayHeaderProfileModel(supabase: supabase), profile: ProfileModel(supabase: supabase),
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
-                  supabase: supabase)
+                  supabase: supabase, liveGames: live)
     }
 
     /// The account changed (`AuthStore.accountKey`): another one, none, or the same one logged in
@@ -125,6 +130,7 @@ final class AppSession {
 
     /// Back to the app: today's open, the friends dot and the bell, and on Daily today's picks.
     func cameForward(on tab: Tab) {
+        liveGames.away(false)
         recordOpen()
         Task { await friendsBook.refreshDot() }
         Task { await notices.refresh() }
@@ -134,6 +140,7 @@ final class AppSession {
 
     /// Off to the background: the Town feed's views and opens go up now.
     func wentAway() {
+        liveGames.away(true)
         Task { await townFeed.send(always: true) }
     }
 

@@ -175,9 +175,11 @@ dependency**. `[prose]`
 - **`RealtimeClient`** (`@MainActor`) — a hand-written Phoenix-channel client over
   `URLSessionWebSocketTask`. Joins `postgres_changes` on `club_events` with the user's JWT
   (RLS still filters what arrives), heartbeats, and reconnects with capped exponential
-  backoff. **Two production subscribers:** `MapModel`, which asks
-  `ClubEventRelevance.matters` whether a change is worth a re-read (a new subscriber passes
-  its own days to the same rule), and `TownFeed`, for a live game's score.
+  backoff. **One production connection, held by `LiveGames`** (BP app codebase-health-2 08):
+  it keeps every game's newest score while a held game is played (the Town feed's list on
+  screen, an open Event page from any tab), and hands every change to `MapModel` while the map
+  is open, which asks `ClubEventRelevance.matters` whether it is worth a re-read (a new follower
+  passes its own days to the same rule). Never open a second `RealtimeClient` on `club_events`.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,
