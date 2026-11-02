@@ -136,3 +136,4 @@ final class AppSession {
         Task { try? await api.recordOpen() }
     }
 }
+// ci-skip proof: a Swift change runs the iPhone tests (BP app ci-skip 01). Never merged.
