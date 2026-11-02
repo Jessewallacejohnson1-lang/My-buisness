@@ -1,8 +1,8 @@
 import Foundation
 
 extension FeedCardItem {
-    /// A Your Day event as a card item, so Town and Your Day open the one event
-    /// page. Same image cascade as a posting (`imageSource`), so an event without
+    /// An event read as `UpcomingEvent` (the Town feed's rows, Notifications) as a card
+    /// item, so every list opens the one Event page. Same image cascade as a posting (`imageSource`), so an event without
     /// its own photo still falls back to a venue lookup. Its description is the page's
     /// About. `.other` is the fallback for a null category column, so it maps to no
     /// category at all.

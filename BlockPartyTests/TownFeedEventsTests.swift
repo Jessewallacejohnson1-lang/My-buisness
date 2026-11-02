@@ -510,6 +510,46 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(football.minute(at: .now), "a football clock is no minute")
     }
 
+    /// Basketball's bar (game-card 09): one part per quarter or half and one for overtime, the played ones full and
+    /// the one being played as far as its clock has run; the Bonus from the other team's 5th foul of a quarter or 7th
+    /// of a half, a count from a period that's over read as none; no bar for any other sport or an old read.
+    func testBasketballsBarFillsWithTheClockAndTheBonusComesFromTheOtherTeamsFouls() throws {
+        func live(_ period: Int, of regulation: Int = 4, clock: Int, length: Int = 600, fouls: String? = nil,
+                  sport: String = "Basketball", bar: Bool = true) throws -> Game.Live {
+            let extra = (bar ? #","period_n":\#(period),"regulation":\#(regulation),"period_s":\#(length)"# : "")
+                + (fouls.map { #","fouls":\#($0)"# } ?? "")
+            let json = #"{"sport":"\#(sport)","teams":[{"name":"Saint Benedict"},{"name":"Loras"}],"live":{"score":[34,29],"period":"Q\#(period)","clock":"3:48","clock_s":\#(clock),"complete":false,"at":"2026-11-07T20:30:00Z"\#(extra)}}"#
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+        }
+        XCTAssertEqual(try live(2, clock: 150).barFill, [1, 0.75, 0, 0], "Q2 with 2:30 left")
+        XCTAssertEqual(try live(1, clock: 600).barFill, [0, 0, 0, 0], "tip-off")
+        XCTAssertEqual(try live(4, clock: 0).barFill, [1, 1, 1, 1], "the 4th's buzzer")
+        XCTAssertEqual(try live(5, clock: 150, length: 300).barFill, [1, 1, 1, 1, 0.5], "overtime adds a part")
+        XCTAssertEqual(try live(6, clock: 300, length: 300).barFill, [1, 1, 1, 1, 0], "a second overtime refills it")
+        XCTAssertEqual(try live(2, of: 2, clock: 300, length: 1200).barFill, [1, 0.75], "SJU's men: two halves")
+
+        let quarter = try live(2, clock: 228, fouls: #"{"period":2,"ids":[["a","b"],["c","d","e","f","g"]]}"#)
+        XCTAssertEqual(quarter.fouls, [2, 5])
+        XCTAssertTrue(quarter.inBonus(0), "Loras's 5th foul of the quarter: Saint Ben's in the bonus")
+        XCTAssertFalse(quarter.inBonus(1))
+        XCTAssertFalse(try live(2, clock: 228, fouls: #"{"period":2,"ids":[[],["c","d","e","f"]]}"#).inBonus(0), "four is not yet")
+        XCTAssertNil(try live(3, clock: 600, fouls: #"{"period":2,"ids":[[],["c","d","e","f","g"]]}"#).fouls,
+                     "last quarter's count is none")
+        XCTAssertTrue(try live(5, clock: 151, length: 300, fouls: #"{"period":4,"ids":[["a","b","c","d","e"],[]]}"#).inBonus(1),
+                      "overtime counts with the 4th")
+        let half = #"{"period":2,"ids":[[],["a","b","c","d","e","f"]]}"#
+        XCTAssertFalse(try live(2, of: 2, clock: 372, length: 1200, fouls: half).inBonus(0), "a half takes seven")
+        XCTAssertTrue(try live(2, of: 2, clock: 372, length: 1200, fouls: half.replacingOccurrences(of: #""f"]"#, with: #""f","g"]"#)).inBonus(0))
+
+        XCTAssertNil(try live(2, clock: 228, bar: false).bar, "an old read has no bar")
+        XCTAssertEqual(try live(2, clock: 228, bar: false).barFill, [])
+        XCTAssertFalse(try live(2, clock: 228, fouls: #"{"period":2,"ids":[["a"]]}"#).inBonus(0), "a count that doesn't read is none")
+        let football = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","clock":"9:18","clock_s":558,"complete":false,"at":"2026-10-31T19:40:00Z"}}"#.utf8)).value)
+        XCTAssertNil(football.live?.bar, "football has no bar")
+        XCTAssertFalse(football.isBasketball)
+        XCTAssertTrue(try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(#"{"sport":"Girls Basketball","teams":[{"name":"Sartell"},{"name":"Foley"}]}"#.utf8)).value).isBasketball)
+    }
+
     /// Soccer's scorers (game-card 09): one line per player under their team, a second goal joining the
     /// first's line, a goal with no name read as "Goal"; kept past the final; none for any other sport.
     func testSoccersScorersAreOneLinePerPlayerUnderTheirTeam() throws {
