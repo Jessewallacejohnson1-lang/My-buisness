@@ -58,6 +58,34 @@
   }
  },
  {
+  "id": "b1",
+  "title": "CSB Basketball vs Loras",
+  "host": "CSB Athletics",
+  "place": "Claire Lynch Hall",
+  "day": "2026-11-07",
+  "time": "2 PM",
+  "hoursUntil": 145,
+  "went": 0,
+  "game": {
+   "sport": "Basketball",
+   "teams": [
+    {
+     "name": "Saint Benedict",
+     "short": "Saint Ben's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/activities-athletic-csb/logo-e99d0312e8.webp",
+     "color": "#BD0F34",
+     "colors": ["#BB2037", "#0F9CD7"]
+    },
+    {
+     "name": "Loras",
+     "short": "Loras",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/loras/logo-4816cf78ba.png",
+     "color": "#402070"
+    }
+   ]
+  }
+ },
+ {
   "id": "g1",
   "title": "SJU Football vs Gustavus Adolphus",
   "host": "SJU Athletics",

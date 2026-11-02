@@ -70,6 +70,7 @@ nonisolated enum LaunchFlags {
         case skipOnboarding = "-skip-onboarding"
         case tabCycle = "-tab-cycle"
         case tilt = "-tilt"
+        case townBasketball = "-town-basketball"
         case townCancelled = "-town-cancelled"
         case townGames = "-town-games"
         case townGroup = "-town-group"
