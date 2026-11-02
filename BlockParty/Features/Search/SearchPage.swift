@@ -941,7 +941,7 @@ private struct RemoveButton: View {
     }
 }
 
-/// Nothing matched: a large grey magnifier, no words. Search's, and the friends inbox's.
+/// Nothing matched: a large grey magnifier, no words.
 struct NothingFound: View {
     var body: some View {
         Image(systemName: "magnifyingglass")

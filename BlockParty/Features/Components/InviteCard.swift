@@ -80,25 +80,3 @@ struct PlaceShareCard: View {
         }
     }
 }
-
-/// A tap-to-share "Invite a neighbor" button. Presents the app-wide share
-/// reveal (`ShareCenter`) instead of jumping straight to the OS share sheet.
-struct InviteButton: View {
-    let title: String
-    let dateLabel: String
-    let time: String?
-    let location: String?
-
-    var body: some View {
-        Button {
-            ShareCenter.shared.present(.event(title: title, dateLabel: dateLabel, time: time, location: location))
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up").font(.sansSemibold(12))
-                Text("Invite a neighbor").font(.sansSemibold(13))
-            }
-            .foregroundStyle(Hue.ink)
-        }
-        .buttonStyle(.plain)
-    }
-}

@@ -10,7 +10,7 @@ check it before you type an identifier from memory.
   `if #available(iOS 27, *)` with an iOS 26 fallback, since the app still runs on 26.5. Check a new API
   in Xcode's `DocumentationSearch` or the `swiftui-whats-new-27` skill, not from memory. iOS 27 draws
   Liquid Glass differently from 26, so a glass change is checked on both.
-- **Shared Supabase project id:** `lxdgwhvqjqmqliobwjpi` — the same project the Expo app uses, and the same one the Android port calls. `[prose]`
+- **Shared Supabase project id:** `lxdgwhvqjqmqliobwjpi` — the one the Android port calls too. `[prose]`
 
 ## Reference libraries
 

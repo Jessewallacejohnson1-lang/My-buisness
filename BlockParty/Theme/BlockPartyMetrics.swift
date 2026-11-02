@@ -11,20 +11,17 @@ enum Radius {
     static let tile: CGFloat = 16
     static let card: CGFloat = 20
 
-    /// The Calendar-bento family — the Insights bento boxes and the Today utility
-    /// tiles, which are the same object at two sizes. Deliberately OUTSIDE the
-    /// 12/16/20 scale: a bento is a large gradient slab, not a white card, and 20
-    /// reads boxy at that footprint while 24 starts to look like a pill.
-    ///
-    /// It exists as a token because the two surfaces MUST stay equal. They were
-    /// two separate literals carrying "deliberate match" comments, and a comment
-    /// cannot fail a build when one of them moves.
+    /// A large slab's corner: Daily's Spotlight card (Jesse, 2026-09-30).
+    /// Deliberately OUTSIDE the 12/16/20 scale: 20 reads boxy at that footprint while
+    /// 24 starts to look like a pill.
     static let bento: CGFloat = 22
 
     /// Search, measured from its References (mockup v7, 2026-10-02): iOS's search field
     /// and the round result avatars' squares (10), Photoroom's logo squares (11), and
     /// Airbnb's photo cards (13).
     static let searchField: CGFloat = 10
+    /// New event's photo, Instagram's New post's (MEASURED 2026-11-01, BP app references/town-plus).
+    static let newEventPhoto: CGFloat = 8
     static let logoTile: CGFloat = 11
     static let photoCard: CGFloat = 13
 

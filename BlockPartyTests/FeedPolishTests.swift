@@ -1,6 +1,6 @@
 //
 //  FeedPolishTests.swift
-//  BlockPartyTests — the Today feed's Reduce Motion contract, its "no placeholder
+//  BlockPartyTests — the Town feed's Reduce Motion contract, its "no placeholder
 //  values" product rule and the event-detail route.
 //
 //  These are the parts of the polish pass that are decidable without a screenshot.
@@ -19,7 +19,6 @@ final class FeedMotionTests: XCTestCase {
 
     func testReduceMotionTurnsEveryFeedAnimationIntoACrossFade() {
         let specs: [(name: String, spec: FeedMotion.Spec)] = [
-            ("news expand", FeedMotion.newsExpandSpec(reduceMotion: true)),
             ("quiet press", FeedMotion.quietPressSpec(reduceMotion: true)),
             ("plus press", FeedMarkPress.spec(reduceMotion: true)),
         ]
@@ -31,27 +30,6 @@ final class FeedMotionTests: XCTestCase {
             XCTAssertTrue(entry.spec.isCrossFade, "\(entry.name) must be a cross-fade")
             XCTAssertEqual(entry.spec.duration, FeedMotion.crossFade)
         }
-    }
-
-    func testFullMotionKeepsTheSignatureExpandSpringy() {
-        let spec = FeedMotion.newsExpandSpec(reduceMotion: false)
-
-        XCTAssertTrue(spec.usesSpring)
-        XCTAssertTrue(spec.usesOffset, "The body rises as it fades in")
-        XCTAssertFalse(spec.usesScale, "The card grows; it does not zoom")
-        XCTAssertEqual(spec.duration, FeedMotion.expandResponse)
-        XCTAssertFalse(spec.isCrossFade)
-    }
-
-    func testReduceMotionExpandIsAPlainTimedFade() {
-        XCTAssertEqual(
-            FeedMotion.newsExpand(reduceMotion: true),
-            .easeInOut(duration: FeedMotion.crossFade)
-        )
-        XCTAssertNotEqual(
-            FeedMotion.newsExpand(reduceMotion: false),
-            FeedMotion.newsExpand(reduceMotion: true)
-        )
     }
 
     func testReduceMotionRemovesEveryPressScaleAndSubstitutesAFade() {

@@ -209,6 +209,19 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   assert.deepEqual(await asJob('read back', `select e.lat, p.status, (select hours from public.places) as hours
     from public.club_events e join public.place_photos p on p.event_id = e.id`),
     [{ lat: 45.561, status: 'live', hours: { mon: '9-5' } }]);
+  // The finish's Apple Maps step (apple_maps.check): a place Apple calls closed for good is hidden and
+  // its upcoming Events cancelled, and the app's public read no longer shows it.
+  const open = await asJob('Apple Maps: open places', 'select id, entry_id, name, apple_place_id from public.places where closed_at is null');
+  await asJob('Apple Maps: hide a closed place', 'update public.places set closed_at = now() where id = $1', [open[0].id]);
+  const cancelled = await asJob('Apple Maps: its upcoming Events cancelled', `update public.club_events set cancelled_at = now()
+    where place_entry_id = $1 and event_date >= $2 and cancelled_at is null returning id`, ['hayloft', day(0)]);
+  assert.deepEqual(cancelled, [{ id }]);
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    assert.deepEqual((await db.query('select name from public.places')).rows, [], 'the app no longer reads a closed place');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
 });
 
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
@@ -228,6 +241,7 @@ test('the Watch key is refused: deleting an Event, the waitlist, sign-in account
   await refused("change a neighbour's comment", `update public.event_comments set body = 'x'`);
   await refused('see who is Going', 'select user_id from public.event_rsvps');
   await refused('rename a Place', `update public.places set name = 'x'`);
+  await refused("change a Place's Apple Maps id", `update public.places set apple_place_id = 'x'`);
   await refused('take a place photo down', `update public.place_photos set status = 'retired'`);
   await refused("decide a take-down (Jesse's Keep)", 'update public.photo_takedowns set kept_at = now()');
   await refused("put a file in another bucket (someone's photo)", `insert into storage.objects (bucket_id, name) values ('avatars', 'u1/a.jpg')`);

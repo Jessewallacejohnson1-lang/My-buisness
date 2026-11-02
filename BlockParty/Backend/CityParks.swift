@@ -7,18 +7,15 @@
 //  transcribed 2026-07-11). Lake Wobegon Trailhead is deliberately omitted —
 //  it's already represented as a trail (see WobegonExploreCard).
 //
-//  Each park carries a building-accurate `coordinate` used to anchor Rule A's
-//  Google-Places photo confidence check (`confidentPhoto(name:coordinate:)`). Five were
-//  cross-validated against OSM leisure=park polygon centers to within ~2 m
-//  (Centennial, Klinefelter, Memorial, Millstream, Northland — they also live
-//  in KnownVenues); the other four are address-level geocodes (Cloverdale,
-//  Hollow, Monument) or, for Rivers Bend, a triangulated estimate — a wrong
-//  coordinate only makes the 75 m confidence gate skip a photo (fail-safe),
-//  never shows a wrong one.
+//  Each park keeps its position (`lat`, `lon`), for when parks become `places` rows.
+//  Five were cross-validated against OSM leisure=park polygon centers to within ~2 m
+//  (Centennial, Klinefelter, Memorial, Millstream, Northland — they also live in
+//  KnownVenues); the other four are address-level geocodes (Cloverdale, Hollow,
+//  Monument) or, for Rivers Bend, a triangulated estimate. Search reads only the
+//  names, ids and features today.
 //
 
 import Foundation
-import CoreLocation
 
 struct Park: Identifiable, Hashable {
     let id: String
@@ -29,8 +26,6 @@ struct Park: Identifiable, Hashable {
     let features: [String]
     let lat: Double
     let lon: Double
-
-    var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 }
 
 enum CityParks {

@@ -22,7 +22,8 @@
 //  On 2026-09-29 search moved down to the tab bar, into Business's slot, and a
 //  friends mark (Apple's `person.2.fill`) took the leading edge (Jesse). On 2026-11-01
 //  it went down too, as the Friends tab in the bar's middle, its dot with it (BP app
-//  docs/plans/five-tabs, ticket 02); the leading edge is empty, the wordmark still centred.
+//  docs/plans/five-tabs, ticket 02); the leading edge was empty until Instagram's + took it
+//  the same day, opening New event (BP app references/town-plus). The wordmark stays centred.
 //
 //  The marks are BARE INK, not discs. That is what the reference does, and
 //  it is also the only thing the width budget allows — see `controls`.
@@ -129,21 +130,6 @@ nonisolated enum TodayHeader {
     static func chromeFloating(wasFloating: Bool, hidden: Bool, offset: CGFloat) -> Bool {
         guard offset > 0 else { return false }
         return wasFloating || hidden
-    }
-
-    /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
-    ///
-    /// Formatted on the TOWN's clock, never the device's: a neighbor travelling east
-    /// is still reading Saint Joseph's day, and at 23:30 Central a phone in Berlin has
-    /// already rolled over to tomorrow. The `en_US` pin fixes the language and the US
-    /// shape; `d` — not `dd` — keeps a
-    /// single-digit day unpadded.
-    static func eyebrow(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = Town.timeZone
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: date).uppercased(with: formatter.locale)
     }
 }
 
@@ -254,6 +240,8 @@ struct TodayTopBar: View {
     var onOpenMap: () -> Void = {}
     /// The trailing bell → notifications.
     var onOpenNotifications: () -> Void = {}
+    /// The leading + → New event (BP app references/town-plus).
+    var onCreate: () -> Void = {}
     /// The wordmark's menu → the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// True once a downward scroll has sent the chrome off the top of the screen;
@@ -365,8 +353,8 @@ struct TodayTopBar: View {
     /// claims 75.4pt either side of the midline. The trailing side consumes
     /// `rowInset 16 + glyphTap 44 + controlGap 4 + mapSide 44` = 108pt, which leaves
     /// `W/2 − 183.4`: **+4.1pt at 375, +13.1 at 393, +36.6 at 440**. Break-even is
-    /// 366.8pt, below every iPhone that runs this OS. The leading side is empty
-    /// since the friends mark became the Friends tab (2026-11-01).
+    /// 366.8pt, below every iPhone that runs this OS. The leading side holds Instagram's +
+    /// (2026-11-01), the bell's mirror: 16 + 44 = 60pt, well inside the lockup's 75.4.
     ///
     /// The bell is a bare mark at home and only sits in a frosted circle
     /// while the bar floats (`chromeFloating`), as Instagram's do. The map disc is
@@ -376,6 +364,7 @@ struct TodayTopBar: View {
     /// roughly 7,800 a yellow disc puts there.)
     private var controls: some View {
         HStack(spacing: 0) {
+            plusButton
             Spacer(minLength: 0)
             mapButton
             Spacer(minLength: 0).frame(width: TodayBarMetric.controlGap)
@@ -434,6 +423,13 @@ struct TodayTopBar: View {
     /// A canceled or moved Event you follow or are Going to puts the quiet dot (`UnreadDot`) on the
     /// bell (BP app docs/plans/school-activities, ticket 04), and so does something new the hello
     /// pill hasn't said yet (hello-drop 05): no number, gone once its page opens.
+    /// Instagram's +, the bell's mirror: bare at home, frosted while the bar floats.
+    private var plusButton: some View {
+        glyphButton(label: "New event", hint: "Share an event with the town", action: onCreate) {
+            PlusGlyph()
+        }
+    }
+
     private var bellButton: some View {
         let dot = notices?.dot == true || HelloInbox.shared.next != nil
         return glyphButton(label: dot ? "Notifications, new" : "Notifications", hint: "What you have missed",

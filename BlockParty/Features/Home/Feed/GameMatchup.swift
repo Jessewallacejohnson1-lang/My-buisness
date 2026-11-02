@@ -64,6 +64,10 @@ struct GameMatchup: View {
                 .accessibilityLabel((fresh ? "Live, " : "") + game.spoken + (fresh ? clock(live, at: context.date).map { ", \($0)" } ?? "" : ""))
                 .accessibilityValue(cancelled ? "Canceled" : "")
                 .accessibilityAddTraits(.isHeader)
+                // Basketball's court rides the score, so its circle stays round the clock on every phone.
+                .background(alignment: .top) {
+                    if game.isBasketball, live?.bar != nil { BasketballCourt().transition(.opacity) }
+                }
                 if fresh, let drive = live?.drive {
                     FieldBar(game: game, drive: drive)
                         .padding(.top, Metric.driveTop)
@@ -79,7 +83,14 @@ struct GameMatchup: View {
                         .padding(.top, Metric.driveTop)
                         .transition(.opacity)
                 }
+                if let live, live.bar != nil {
+                    QuarterBar(game: game, live: live, fresh: fresh)
+                        .padding(.top, Metric.driveTop)
+                        .transition(.opacity)
+                }
             }
+            // The bar fades in with the first live score.
+            .animation(reduceMotion ? nil : Motion.smooth, value: live?.bar == nil)
             .animation(reduceMotion ? nil : Motion.smooth, value: fresh ? live?.drive : nil)
             // The first set's chip fades in, even when the live score came before any set.
             .animation(reduceMotion ? nil : Motion.smooth, value: game.sets.isEmpty)
@@ -188,7 +199,7 @@ struct GameMatchup: View {
             if game.isVolleyball {
                 VolleyballNet()
             }
-            if game.isSoccer {
+            if game.isSoccer || game.isBasketball {
                 // The draft's halfway line: 2 pt of white at 9%, down the middle to where the net stops.
                 Color.white.opacity(0.09)
                     .frame(width: 2, height: VolleyballNet.depth)
@@ -538,6 +549,133 @@ private struct Scorers: View {
     }
 }
 
+/// Basketball's quarters, or a men's game's halves, as one bar under the logos (game-card 09; Jesse, 2026-11-01:
+/// "Yeah, I agree" to the mock beside the Figma draft, `references/basketball-bar/`): the ones played white, the one
+/// being played filling as its clock runs, an OT part once overtime starts, each part's number under it; and Bonus
+/// under the team in the bonus, in a row that keeps its room so nothing moves when it comes and goes.
+private struct QuarterBar: View {
+    let game: Game
+    let live: Game.Live
+    /// The Bonus waits for a fresh score, so a feed gone quiet never leaves one standing.
+    let fresh: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The draft's bar, measured in its CSS: parts 8 pt tall and 6 pt apart, their numbers 14 pt under their tops,
+    /// the Bonus chip 84 x 24 at 38 pt.
+    enum Metric {
+        static let gap: CGFloat = 6
+        static let height: CGFloat = 8
+        static let track: Double = 0.14
+        static let labelGap: CGFloat = 6
+        static let label: Double = 0.55
+        /// The number under the part being played (the mock's; the draft shows every number alike).
+        static let playingLabel: Double = 0.9
+        static let bonusTop: CGFloat = 38
+        static let bonus = CGSize(width: 84, height: 24)
+    }
+
+    var body: some View {
+        let fill = live.barFill
+        let playing = live.bar?.playing
+        ZStack(alignment: .top) {
+            HStack(alignment: .top, spacing: Metric.gap) {
+                ForEach(fill.indices, id: \.self) { part in
+                    VStack(spacing: Metric.labelGap) {
+                        Capsule()
+                            .fill(.white.opacity(Metric.track))
+                            .overlay(alignment: .leading) {
+                                GeometryReader { proxy in
+                                    Capsule().fill(.white).frame(width: proxy.size.width * fill[part])
+                                }
+                            }
+                            .frame(height: Metric.height)
+                        Text(name(part))
+                            .font(.sansMedium(12))
+                            .foregroundStyle(.white.opacity(part == playing ? Metric.playingLabel : Metric.label))
+                            .lineLimit(1)
+                    }
+                    .transition(.opacity)
+                }
+            }
+            HStack(spacing: 0) {
+                bonus(0)
+                Color.clear.frame(width: GameMatchup.Metric.middle, height: 0)
+                bonus(1)
+            }
+            .padding(.top, Metric.bonusTop)
+        }
+        .animation(reduceMotion ? nil : Motion.smooth, value: fill)
+        // "Quarter 2 of 4, Saint Ben's in the bonus".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    /// "1" to "4" (or "1" and "2"), then "OT".
+    private func name(_ part: Int) -> String {
+        part < (live.bar?.regulation ?? 0) ? "\(part + 1)" : "OT"
+    }
+
+    private func bonus(_ side: Int) -> some View {
+        let on = fresh && live.inBonus(side)
+        return Text("Bonus")
+            .font(.sansBold(12))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(width: Metric.bonus.width, height: Metric.bonus.height)
+            .background(.white.opacity(Metric.track), in: Capsule())
+            .scaleEffect(on || reduceMotion ? 1 : 0.8)
+            .opacity(on ? 1 : 0)
+            .animation(reduceMotion ? Motion.smooth : Motion.select, value: on)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var spoken: String {
+        guard let bar = live.bar else { return "" }
+        let period = bar.period > bar.regulation ? "Overtime"
+            : bar.regulation == 2 ? "Half \(bar.period) of 2" : "Quarter \(bar.period) of \(bar.regulation)"
+        let bonus = game.teams.indices.filter { fresh && live.inBonus($0) }.map { "\(game.teams[$0].short) in the bonus" }
+        return ([period] + bonus).joined(separator: ", ")
+    }
+}
+
+/// Basketball's faint court behind the score (game-card 09's draft): the center circle round Live and the clock, and
+/// the two three-point arcs reaching in from the sides, white 2 pt lines. The draft draws them at 9% under the page's
+/// dark wash; drawn over it here, as soccer's circle is, they take the wash's share down the page on a 402 pt phone.
+private struct BasketballCourt: View {
+    /// The draft's SVG: the circle r 56 and the arcs r 170 from 60 pt off each side, all 54 pt under the score's top.
+    static let centerY: CGFloat = 54
+    static let circle: CGFloat = 112
+    static let arc: CGFloat = 340
+    static let arcOut: CGFloat = 261
+    static let line: CGFloat = 2
+
+    private static func stroke(_ alphas: [Double]) -> LinearGradient {
+        LinearGradient(colors: alphas.map { .white.opacity($0) }, startPoint: .top, endPoint: .bottom)
+    }
+    /// 9% times what the wash leaves at each height: the circle 117 to 229 pt down, the arcs 3 to 343.
+    private static let circleStroke = stroke([0.080, 0.075, 0.063])
+    private static let arcStroke = stroke([0.090, 0.083, 0.075, 0.055, 0.032])
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Self.circleStroke, lineWidth: Self.line)
+                .frame(width: Self.circle, height: Self.circle)
+            ForEach([-1, 1], id: \.self) { side in
+                Circle().stroke(Self.arcStroke, lineWidth: Self.line)
+                    .frame(width: Self.arc, height: Self.arc)
+                    .offset(x: CGFloat(side) * Self.arcOut)
+            }
+        }
+        .frame(width: 0, height: 0)
+        .offset(y: Self.centerY)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// A game's Town card (BP app game-card 06; Jesse, 2026-10-29: "remove the background entirely and
 /// just have the two teams versus over the white background"): white, the sport above, the two logos
 /// bare with their short names under them, VS between them over the time, the place below. While
@@ -722,9 +860,14 @@ struct GameScoring: View {
     var body: some View {
         if !game.plays.isEmpty {
             section("Scoring plays") {
-                ForEach(game.plays.reversed()) { play in
+                // A basketball game scores about 80 times (CSB v Augsburg, 2026-02-21): its newest 5 (game-card 09;
+                // Jesse, 2026-11-01: yes to the mock's pick).
+                ForEach(game.isBasketball ? Array(game.plays.suffix(5).reversed()) : game.plays.reversed()) { play in
                     row(play)
-                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        // A new play slides in on top; basketball's oldest of the 5 fades where it is, not
+                        // sliding up over the rest.
+                        .transition(reduceMotion ? .opacity
+                                    : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)

@@ -967,7 +967,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ## Bello Cucina
 ```yaml
 id: bello-cucina
-status: active
+status: retired
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -978,6 +978,7 @@ sources:
     trust: official
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56496, -94.31764. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Retired 2026-11-01 (Jesse): closed. Its own Facebook said goodbye on 2026-10-24 and Apple Maps marks it Permanently Closed.
 
 ## Benedicta Arts Center
 ```yaml
