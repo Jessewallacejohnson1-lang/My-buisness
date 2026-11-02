@@ -7,6 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -79,7 +80,7 @@ await db.exec(one('_event_photos_christmas_fit.sql'));
 await db.exec(one('_event_photos_my_changes.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
-const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+const soon = townDay;
 const game = async (fields = {}) => {
   const f = { title: 'Apollo Volleyball vs Sartell', sport: 'Volleyball', team_ids: ['apollo', 'sartell'],
     event_date: soon(3), start_time: '7 PM', location: 'Apollo High School', ...fields };

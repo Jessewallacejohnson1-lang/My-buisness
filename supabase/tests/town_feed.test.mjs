@@ -4,11 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -673,7 +673,7 @@ test("a sport spelled two ways is one team's, and a team with no row is named by
 
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
-const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const day = townDay;
 const nowTown = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Chicago' }).slice(0, 16);
 const [ANNA, BEN, CAL, DEE] = ['c1', 'c2', 'c3', 'c4'].map((x) => `00000000-0000-0000-0000-0000000000${x}`);
 const PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${ANNA}/me.jpg`;
@@ -980,6 +980,15 @@ test('the nightly clean-up deletes only views older than 60 days', async () => {
   assert.deepEqual(rows, [{ action: 'open', recent: false }, { action: 'view', recent: true }]);
 });
 
+// The feed's speed is measured in yardsticks: one yardstick is the time this fixed query takes on the
+// same machine, hashing, grouping and sorting 60,000 rows on no table. The feed reads 3.8 to 4.9
+// yardsticks (Linux cloud box, 2026-11-01, idle or at a load of 11, while its milliseconds swung from
+// 156 to 565). 10 keeps the headroom the old 100 ms budget gave the Mac's 40 ms; a feed with its
+// indexes gone reads 32.
+const YARDSTICK = `select count(*) from (select md5(g::text) h, g % 977 k from generate_series(1, 60000) g) x
+  group by k order by count(*) desc, min(h)`;
+const FEED_YARDSTICKS = 10;
+
 // A busy Town for the speed stories: about eight weeks, 200 events, 5,000 people, the reader's friends,
 // views and follows.
 async function fiveThousand() {
@@ -1061,29 +1070,34 @@ async function fiveThousand() {
     analyze;`);
 }
 
-test('the feed is read in under 100 ms with 5,000 people', async () => {
+test('the feed is read in under 10 yardsticks with 5,000 people', async () => {
   await fiveThousand();
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
-  const times = [];
-  for (let i = 0; i < 5; i++) {
-    const t0 = performance.now();
+  await db.query(YARDSTICK);
+  // The time is judged against a yardstick read on the same machine in the same seconds: a fixed
+  // query that touches none of the feed's tables or functions, so only the machine's speed moves
+  // it. A slow or busy machine slows both alike (run 41157284060 read 250.2 ms on a Swift-only
+  // change; a building Mac read 489 ms at a load of 90 and 782 at 68, 2026-11-01), so a busy Mac is
+  // timed too; a slower feed moves only the feed. Each pair is read back to back, and the median of
+  // nine pairs is kept.
+  const pairs = [];
+  for (let i = 0; i < 9; i++) {
+    let t0 = performance.now();
+    await db.query(YARDSTICK);
+    const yard = performance.now() - t0;
+    t0 = performance.now();
     await feed('2026-10-08 12:00');
-    times.push(performance.now() - t0);
+    pairs.push({ feed: performance.now() - t0, yard });
   }
-  times.sort((a, b) => a - b);
-  console.log(`  get_town_feed with 5,000 people: median ${times[2].toFixed(1)} ms`);
-  // GitHub's shared runner reads it about 2.5x slower than the Mac (102 ms against 40 ms,
-  // 2026-10-16), so its budget is 2.5x too. A busy Mac reads anything: 159 ms at a load of 70
-  // (2026-10-18), 489 at 90 and 782 at 68 (2026-11-01), each refusing a push that touched no SQL.
-  // So a busy Mac only logs the reading; GitHub times every push.
-  const load = loadavg()[0];
-  if (!process.env.CI && load > 8) {
-    console.log(`  not timed: the Mac is busy (load ${load.toFixed(0)}); GitHub times it on every push`);
-  } else {
-    const budget = process.env.CI ? 250 : 100;
-    assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
-  }
+  const mid = (xs) => xs.sort((a, b) => a - b)[4];
+  const ms = mid(pairs.map((p) => p.feed));
+  const yard = mid(pairs.map((p) => p.yard));
+  const ratio = mid(pairs.map((p) => p.feed / p.yard));
+  console.log(`  get_town_feed with 5,000 people: median ${ms.toFixed(1)} ms, yardstick ${yard.toFixed(1)} ms, ` +
+              `${ratio.toFixed(2)} yardsticks`);
+  assert.ok(ratio < FEED_YARDSTICKS, `median ${ratio.toFixed(2)} yardsticks (${ms.toFixed(1)} ms against ` +
+            `${yard.toFixed(1)} ms), budget ${FEED_YARDSTICKS}`);
   const reasons = (await feed('2026-10-08 12:00')).filter((r) => r.reason === 'follow').length;
   assert.ok(reasons > 20, `${reasons} Events lifted by a follow`);
   await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
@@ -1632,9 +1646,13 @@ test('one listener at a time: the games are handed out at most once in 50 second
   const until = (await db.query('select until from private.live_listener')).rows[0].until;
   await start();
   assert.deepEqual((await db.query('select until from private.live_listener')).rows[0].until, until, 'the second start does nothing');
-  await db.exec(`update private.live_listener set until = now() - interval '1 second'`);
+  // Judged against the claim that ran out, a second in the past, never against the first claim: the
+  // two claims can be under a millisecond apart on a fast Mac and read back as the same time.
+  const ranOut = (await db.query(`update private.live_listener set until = now() - interval '1 second'
+                                  returning until`)).rows[0].until;
   await start();
-  assert.ok((await db.query('select until from private.live_listener')).rows[0].until > until, 'free again after it runs out');
+  const fresh = (await db.query('select until from private.live_listener')).rows[0].until;
+  assert.ok(fresh - ranOut > 50000, `free again after it runs out: claimed ${fresh - ranOut} ms past the old claim`);
   for (const fn of ['public.start_live_scores()', 'public.record_live_score(uuid, jsonb)'])
     assert.equal((await db.query(`select has_function_privilege('anon', $1, 'execute') as ok`, [fn])).rows[0].ok, false,
                  `${fn}: the service role only`);

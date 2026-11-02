@@ -12,6 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -82,7 +83,7 @@ async function asJob(what, sql, params = []) {
   }
 }
 
-const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+const day = townDay;
 const uid = 'mshsl:153:rocori|sartell:1';
 const game = (date, more = {}) => ({ status: 'approved', title: 'Sartell Volleyball vs ROCORI', event_date: date,
   start_time: '7 PM', end_at: null, all_day: false, location: 'ROCORI High School, Cold Spring', description: null,
