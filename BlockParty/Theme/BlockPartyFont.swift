@@ -165,8 +165,7 @@ extension Font {
 
     /// SF Pro at the nearest text style, scaling with it: Profile's text under the name (Jesse,
     /// 2026-10-25: "use same font as group page", the Group page's SF Pro before BP Body; BP app
-    /// taste/you.md), and the word on the charcoal pills: Attend, Invite, Canceled, Join group
-    /// (Jesse, 2026-10-31: "apples font"; BP app taste/buttons-and-pills.md).
+    /// taste/you.md). The pills' words moved to Inter Tight (2026-11-02).
     static func apple(_ size: CGFloat, weight: Weight = .regular) -> Font {
         .system(nearestTextStyle(to: size), weight: weight)
     }

@@ -170,7 +170,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(face.name)
                 .font(.display(28))
-                .lineSpacing(Event.titleLineSpacing)
+                .lineSpacing(Event.nameLineSpacing)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

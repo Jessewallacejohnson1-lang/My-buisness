@@ -376,7 +376,7 @@ struct OnboardingFlow: View {
                 .foregroundStyle(Hue.ink)
             VStack(alignment: .leading, spacing: 0) {
                 Text(firstHere ? "You're one of the first here" : store.step.question)
-                    .font(.display(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
+                    .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.opacity)
@@ -555,7 +555,7 @@ struct OnboardingWelcome: View {
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
                 .font(.display(36))
-                .lineSpacing(-4)   // BP Body's 44 pt line to the mock's 40
+                .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)

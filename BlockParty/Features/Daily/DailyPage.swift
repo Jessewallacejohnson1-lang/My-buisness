@@ -75,7 +75,7 @@ nonisolated enum DailyMetric {
     /// The photo is the card, 4:5 (picked on the drafts board).
     static let cardAspect: CGFloat = 4.0 / 5.0
     /// The words sit 16 in from the card's left edge, and the business line's baseline
-    /// 16 over its bottom edge, as App Store's do: Jost's descent is the other 5.
+    /// 16 over its bottom edge, as App Store's do: the face's descent is the rest.
     static let wordsInset: CGFloat = 16
     static let wordsBottom: CGFloat = 11
     /// The bottom fade starts this far over the name, as App Store's starts over its
@@ -498,12 +498,11 @@ private struct SpotlightCardFace: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(spotlight.name)
                 .font(.display(28))
-                // The Town card's title, set the same way (`FeedEventCard.imageCopy`).
-                .lineSpacing(-2)
+                // The Town card title's line gap: its -2, less Inter Tight's 7 pt taller line.
+                .lineSpacing(-9)
                 .lineLimit(3)
                 .foregroundStyle(.white)
-            // Jost Medium stands in for Airbnb's Cereal, which Airbnb doesn't license
-            // (Jesse picks the final face later, 2026-10-19).
+            // Body text, so BP Body (Jesse, 2026-11-02: headers are Inter Tight, body stays BP Body).
             Text(spotlight.about)
                 .font(.sansMedium(15))
                 .foregroundStyle(.white.opacity(0.85))

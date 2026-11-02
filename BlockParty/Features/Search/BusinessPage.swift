@@ -405,7 +405,7 @@ private struct BusinessPageContent: View {
         return VStack(alignment: .leading, spacing: 0) {
             Text(item.name)
                 .font(.display(28))
-                .lineSpacing(Metric.titleLineSpacing)
+                .lineSpacing(Metric.nameLineSpacing)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

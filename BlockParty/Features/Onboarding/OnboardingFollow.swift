@@ -273,7 +273,7 @@ private struct SuggestionPicture: View {
                         .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
                 } else {
                     Text(initials)
-                        .font(.display(17))
+                        .font(.sansBold(17))
                         .foregroundStyle(Hue.ink)
                 }
             }
