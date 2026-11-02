@@ -1983,7 +1983,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("items", nargs="?", help="the judged items, one JSON object per line")
     ap.add_argument("--existing", help="'db', or a JSON file of the events already in the list")
-    ap.add_argument("--news", help="'db', or a JSON file of this week's News already in the app")
+    ap.add_argument("--news", help="'db', or a JSON file of this week's News already in the app (with --apply, db by default)")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--town", default=DEFAULT)
     ap.add_argument("--sql", help="write the live write as SQL to this file")
@@ -2006,7 +2006,9 @@ def main():
     if not interests:
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
-    news = [] if not args.news else news_in_db() if args.news == "db" else json.loads(Path(args.news).read_text())
+    # A live write always checks this week's News: the database no longer drops a link it already has.
+    news_from = args.news or ("db" if args.apply else None)
+    news = [] if not news_from else news_in_db() if news_from == "db" else json.loads(Path(news_from).read_text())
     r = plan(items, existing, today, interests, town, teams=known_teams() if args.apply else None,
              recent_news=news)
     report(items, r)
