@@ -79,12 +79,14 @@ async function reset() {
     await db.query('insert into auth.users (id, is_anonymous) values ($1, $2)', [who, anonymous]);
     await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [who, name]);
   }
-  await db.exec(`insert into public.club_events (id, event_date, start_time, cancelled_at, end_at) values
-    ('${MARKET}', current_date + 3, '9:00 AM', null, null),
-    ('${TRIVIA}', current_date + 1, '7:00 PM', null, null),
-    ('${FISH}',   current_date + 5, '5:00 PM', null, null),
-    ('${OVER}',   current_date - 2, '6:00 PM', null, null),
-    ('${CALLED}', current_date + 2, '6:00 PM', now(), null)`);
+  // Dated on the Town's calendar, as get_profile counts them; current_date is UTC's, a day ahead after 7 PM.
+  await db.exec(`insert into public.club_events (id, event_date, start_time, cancelled_at, end_at)
+    select id::uuid, (now() at time zone 'America/Chicago')::date + d, t, c, null from (values
+    ('${MARKET}', 3, '9:00 AM', null::timestamptz),
+    ('${TRIVIA}', 1, '7:00 PM', null),
+    ('${FISH}',   5, '5:00 PM', null),
+    ('${OVER}',  -2, '6:00 PM', null),
+    ('${CALLED}', 2, '6:00 PM', now())) v (id, d, t, c)`);
 }
 
 /** Runs one call as `who`: a real account unless `anonymous`. */

@@ -253,6 +253,40 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertEqual(lastBody, ["recheck": id])
     }
 
+    /// A neighbour's post (town-feed 29): pending, kind post, its words, Place, photo and shape, who can
+    /// see it and who's tagged, with no day or time.
+    func testANewPostGoesInPendingAsAPost() async throws {
+        try await community.addPost(NewPostInput(id: "p1", words: "Burger night", imageURL: "https://x/p1.jpg", aspect: 0.8,
+                                                 place: "Sal's", friendsOnly: true, tagged: ["u2"]))
+        XCTAssertEqual(last.httpMethod, "POST")
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_events")
+        let body = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(body["id"] as? String, "p1")
+        XCTAssertEqual(body["kind"] as? String, "post")
+        XCTAssertEqual(body["status"] as? String, "pending")
+        XCTAssertEqual(body["title"] as? String, "Burger night")
+        XCTAssertEqual(body["location"] as? String, "Sal's")
+        XCTAssertEqual(body["image_aspect"] as? Double, 0.8)
+        XCTAssertEqual(body["friends_only"] as? Bool, true)
+        XCTAssertEqual(body["tagged"] as? [String], ["u2"])
+        XCTAssertEqual(body["submitted_by"] as? String, "test-user")
+        XCTAssertTrue(body["event_date"] is NSNull && body["start_time"] is NSNull)
+    }
+
+    /// Delete takes the row, then its photo through Storage's remove (a bare DELETE with a JSON type was
+    /// refused live, 2026-11-02); a photo that won't go never brings the post back.
+    func testDeletingYourPostTakesTheRowThenItsPhoto() async throws {
+        try await community.deletePost("p1", photo: true)
+        XCTAssertEqual(server.requests.count, 2)
+        XCTAssertEqual(server.requests[0].httpMethod, "DELETE")
+        XCTAssertEqual(server.requests[0].url!.absoluteString, "\(rest)/club_events?id=eq.p1")
+        XCTAssertEqual(last.httpMethod, "DELETE")
+        XCTAssertEqual(last.url!.absoluteString, "\(SupabaseConfig.url.absoluteString)/storage/v1/object/event-images")
+        XCTAssertEqual(server.lastBody as? [String: [String]], ["prefixes": ["test-user/p1.jpg"]])
+        server.answers["object/event-images"] = .init(status: 400, body: "{}")
+        try await community.deletePost("p2", photo: true)
+    }
+
     func testDecliningAPostSaysWhy() async throws {
         try await community.declinePost("p1", reason: .wrongWhen)
         XCTAssertEqual(last.httpMethod, "PATCH")

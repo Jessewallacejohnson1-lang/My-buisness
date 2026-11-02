@@ -29,6 +29,8 @@ enum DailyFeedItem: Identifiable {
     case eventOfTheDay(DailyEvent)
     /// Town news, below the events (town-feed 35).
     case news(TownNews)
+    /// A neighbour's post, among the Events (town-feed 29).
+    case post(TownPost)
     /// Where the ranked Town feed ends (town-feed 23).
     case caughtUp
     /// A place to try past the later Events, in the round that brought it (town-feed 23).
@@ -42,6 +44,7 @@ enum DailyFeedItem: Identifiable {
         case .event(let item):          return "event:" + item.id
         case .eventOfTheDay(let event): return "event-of-the-day:" + event.id
         case .news(let news):           return "news:" + news.id
+        case .post(let post):           return "post:" + post.id
         case .caughtUp:                 return "caught-up"
         case .place(let place, let round): return "place:\(round):" + place.id
         case .again(let item, let round):  return "again:\(round):" + TownFeedEntry(item: item, leavesAt: .distantFuture).id
@@ -52,7 +55,7 @@ enum DailyFeedItem: Identifiable {
     /// A repeat is counted where it first showed, so its two rows never cross each other's timing.
     var eventID: String? {
         switch self {
-        case .posting, .news, .caughtUp, .place, .again: return nil
+        case .posting, .news, .post, .caughtUp, .place, .again: return nil
         case .event(let item): return item.id
         case .eventOfTheDay(let event): return event.id
         }
@@ -63,7 +66,9 @@ enum DailyFeedItem: Identifiable {
     var hideID: String? {
         switch self {
         case .news(let news): return news.id
+        case .post(let post): return post.id
         case .again(.news(let news), _): return news.id
+        case .again(.post(let post), _): return post.id
         case .again(.event(let card), _): return card.id
         default: return eventID
         }
@@ -88,6 +93,8 @@ enum DailyFeedItem: Identifiable {
                 return .event(card)
             case .news(let news):
                 return .news(news)
+            case .post(let post):
+                return .post(post)
             }
         }
     }

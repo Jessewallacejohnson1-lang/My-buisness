@@ -23,7 +23,7 @@
 //  friends mark (Apple's `person.2.fill`) took the leading edge (Jesse). On 2026-11-01
 //  it went down too, as the Friends tab in the bar's middle, its dot with it (BP app
 //  docs/plans/five-tabs, ticket 02); the leading edge was empty until Instagram's + took it
-//  the same day, opening New event (BP app references/town-plus). The wordmark stays centred.
+//  the same day, opening New post (BP app references/post-screen; New event before it, town-plus). The wordmark stays centred.
 //
 //  The marks are BARE INK, not discs. That is what the reference does, and
 //  it is also the only thing the width budget allows — see `controls`.
@@ -240,7 +240,7 @@ struct TodayTopBar: View {
     var onOpenMap: () -> Void = {}
     /// The trailing bell → notifications.
     var onOpenNotifications: () -> Void = {}
-    /// The leading + → New event (BP app references/town-plus).
+    /// The leading + → New post (BP app references/post-screen).
     var onCreate: () -> Void = {}
     /// The wordmark's menu → the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
@@ -425,7 +425,7 @@ struct TodayTopBar: View {
     /// pill hasn't said yet (hello-drop 05): no number, gone once its page opens.
     /// Instagram's +, the bell's mirror: bare at home, frosted while the bar floats.
     private var plusButton: some View {
-        glyphButton(label: "New event", hint: "Share an event with the town", action: onCreate) {
+        glyphButton(label: "New post", hint: "Share with the town", action: onCreate) {
             PlusGlyph()
         }
     }

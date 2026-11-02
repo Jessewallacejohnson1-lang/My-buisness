@@ -31,11 +31,13 @@
 import Foundation
 import UIKit
 
-/// One line of the Town feed: an event's card or town news (ticket 35), and when it leaves.
+/// One line of the Town feed: an event's card, town news (ticket 35) or a neighbour's post (ticket 29),
+/// and when it leaves.
 struct TownFeedEntry: Identifiable {
     enum Item {
         case event(FeedCardItem)
         case news(TownNews)
+        case post(TownPost)
     }
     let item: Item
     let leavesAt: Date
@@ -44,12 +46,19 @@ struct TownFeedEntry: Identifiable {
         switch item {
         case .event(let card): card.id
         case .news(let news): news.id
+        case .post(let post): post.id
         }
     }
 
-    /// The event's card; nil for news.
+    /// The event's card; nil for news and posts.
     var card: FeedCardItem? {
         if case .event(let card) = item { return card }
+        return nil
+    }
+
+    /// The neighbour's post; nil for the rest.
+    var post: TownPost? {
+        if case .post(let post) = item { return post }
         return nil
     }
 }
@@ -218,6 +227,8 @@ final class TownFeed {
     private let readLater: () async throws -> [TownFeedEntry]
     private let readMore: (Int, [String], [String]) async throws -> [TownMoreRow]
     private let opened: () -> [String]
+    /// Where your own post's Delete goes (town-feed 29).
+    private let deletePost: (TownPost) async throws -> Void
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
     /// first read, so it is built with the account that read sees.
@@ -229,7 +240,8 @@ final class TownFeed {
          readMuted: @escaping () async throws -> [MutedHost] = { [] },
          readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
          readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
-         opened: @escaping () -> [String] = { [] }) {
+         opened: @escaping () -> [String] = { [] },
+         deletePost: @escaping (TownPost) async throws -> Void = { _ in }) {
         self.read = read
         self.kept = kept
         self.actions = actions
@@ -239,6 +251,7 @@ final class TownFeed {
         self.readLater = readLater
         self.readMore = readMore
         self.opened = opened
+        self.deletePost = deletePost
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
@@ -271,7 +284,8 @@ final class TownFeed {
                   readMuted: { try await CommunityAPI(auth: AuthStore.shared).mutedHosts() },
                   readLater: { try await CommunityAPI(auth: AuthStore.shared).getTownFeedLater().map(Self.entry) },
                   readMore: { try await CommunityAPI(auth: AuthStore.shared).getTownMore(round: $0, opened: $1, shown: $2) },
-                  opened: { OpenedPlaces.ids })
+                  opened: { OpenedPlaces.ids },
+                  deletePost: { try await CommunityAPI(auth: AuthStore.shared).deletePost($0.id, photo: $0.photo != nil) })
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -282,6 +296,7 @@ final class TownFeed {
             switch entry.item {
             case .event(let card): return !isHidden(card)
             case .news(let news): return !isHidden(id: news.id, host: news.place)
+            case .post(let post): return !isHidden(id: post.id, host: "")
             }
         }
     }
@@ -438,6 +453,7 @@ final class TownFeed {
             keptChecked = true
             if let kept = kept(), kept.contains(where: { $0.leavesAt > now }) {
                 actions?.read(kept.compactMap(\.card))
+                actions?.read(posts: kept.compactMap(\.post))
                 entries = kept
                 clock = now
             }
@@ -456,6 +472,7 @@ final class TownFeed {
                 self.cameBackAt = nil
             }
             actions?.read(new.compactMap(\.card))
+            actions?.read(posts: new.compactMap(\.post))
             if entries == nil || freshOrder || (freshDue && atTop) {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
@@ -688,8 +705,13 @@ final class TownFeed {
 
     /// Report a card (ticket 22), from its sheet, which waits for the answer to say thanks or shake.
     func report(_ card: FeedCardItem, _ reason: ReportReason) async throws {
-        _ = try await choose(.report(card.id, reason))
-        reportedIDs.insert(card.id)
+        try await report(id: card.id, reason)
+    }
+
+    /// An Event's or a neighbour's post's report (town-feed 29), by its id.
+    func report(id: String, _ reason: ReportReason) async throws {
+        _ = try await choose(.report(id, reason))
+        reportedIDs.insert(id)
     }
 
     /// Cards reported from this phone this session: their sheet has no Report row.
@@ -698,8 +720,25 @@ final class TownFeed {
     /// A reported card, once its sheet has closed: out, with the same Undo line as Not interested.
     /// The report already went; Undo lifts only the hide.
     func hideReported(_ card: FeedCardItem) {
-        hiddenIDs.insert(card.id)
-        showUndo(FeedHide(id: card.id, hostName: card.hostName, mute: false))
+        hideReported(id: card.id, host: card.hostName)
+    }
+
+    func hideReported(id: String, host: String) {
+        hiddenIDs.insert(id)
+        showUndo(FeedHide(id: id, hostName: host, mute: false))
+    }
+
+    /// Your own post, deleted from its ••• (town-feed 29): out at once, with no Undo; one the server
+    /// didn't take comes back.
+    func delete(_ post: TownPost) async {
+        hiddenIDs.insert(post.id)
+        do {
+            try await deletePost(post)
+        } catch {
+            Log.network("TownFeed: post not deleted: \(error)")
+            hiddenIDs.remove(post.id)
+            Haptics.error()
+        }
     }
 
     private func showUndo(_ hide: FeedHide) {
@@ -819,6 +858,7 @@ final class TownFeed {
         switch line {
         case .event(let row): entry(row)
         case .news(let news): TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
+        case .post(let post): TownFeedEntry(item: .post(post), leavesAt: post.leavesAt)
         }
     }
 
@@ -854,6 +894,7 @@ private final class SampleMutes {
         switch entry.item {
         case .event(let card): (card.id, card.hostName)
         case .news(let news): (news.id, news.place)
+        case .post(let post): (post.id, post.poster.name)
         }
     }, uniquingKeysWith: { first, _ in first })
 

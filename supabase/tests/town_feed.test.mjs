@@ -4,11 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -19,7 +19,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit',
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster', 'private.post_poster',
   'public.get_town_more']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
@@ -56,7 +56,9 @@ await db.exec(`
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
     source_name text, shows_from date, place_entry_id text, description text,
-    sport text, team_ids text[], occasion text, source_url text);
+    sport text, team_ids text[], occasion text, source_url text,
+    -- A post (town-feed 29): who may see it and who it's with.
+    friends_only boolean not null default false, tagged uuid[], image_aspect real);
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
@@ -143,6 +145,10 @@ await db.exec(findable);
 for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
   await db.exec(readFileSync(join(migrations, f), 'utf8'));
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
+// Posts (town-feed 29): a Friends-only post is kept by the read rule itself, as it is live.
+const postRules = readFileSync(join(migrations, readdirSync(migrations).find((f) => f.endsWith('_post_screen_posts.sql'))), 'utf8');
+await db.exec(postRules.match(/create or replace function private\.sees_post[\s\S]*?\$\$;/)[0]);
+await db.exec(postRules.match(/alter policy "read events"[\s\S]*?;/)[0]);
 // The stories empty teams between them; the activities stay, matched by their ids.
 await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
                  drop constraint team_activities_fielded_by_fkey`);
@@ -665,7 +671,7 @@ test("a sport spelled two ways is one team's, and a team with no row is named by
 
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
-const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const day = townDay;
 const nowTown = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Chicago' }).slice(0, 16);
 const [ANNA, BEN, CAL, DEE] = ['c1', 'c2', 'c3', 'c4'].map((x) => `00000000-0000-0000-0000-0000000000${x}`);
 const PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${ANNA}/me.jpg`;
@@ -972,7 +978,16 @@ test('the nightly clean-up deletes only views older than 60 days', async () => {
   assert.deepEqual(rows, [{ action: 'open', recent: false }, { action: 'view', recent: true }]);
 });
 
-test('the feed is read in under 100 ms with 5,000 people', async () => {
+// The feed's speed is measured in yardsticks: one yardstick is the time this fixed query takes on the
+// same machine, hashing, grouping and sorting 60,000 rows on no table. The feed reads 3.8 to 4.9
+// yardsticks (Linux cloud box, 2026-11-01, idle or at a load of 11, while its milliseconds swung from
+// 156 to 565). 10 keeps the headroom the old 100 ms budget gave the Mac's 40 ms; a feed with its
+// indexes gone reads 32.
+const YARDSTICK = `select count(*) from (select md5(g::text) h, g % 977 k from generate_series(1, 60000) g) x
+  group by k order by count(*) desc, min(h)`;
+const FEED_YARDSTICKS = 10;
+
+test('the feed is read in under 10 yardsticks with 5,000 people', async () => {
   await reset();
   // About eight weeks of a busy Town: 200 events, 5,000 people with three picks each,
   // 50,000 Going, 10,000 saves and 50,000 hearts.
@@ -1051,25 +1066,30 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
-  const times = [];
-  for (let i = 0; i < 5; i++) {
-    const t0 = performance.now();
+  await db.query(YARDSTICK);
+  // The time is judged against a yardstick read on the same machine in the same seconds: a fixed
+  // query that touches none of the feed's tables or functions, so only the machine's speed moves
+  // it. A slow or busy machine slows both alike (run 41157284060 read 250.2 ms on a Swift-only
+  // change; a building Mac read 489 ms at a load of 90 and 782 at 68, 2026-11-01), so a busy Mac is
+  // timed too; a slower feed moves only the feed. Each pair is read back to back, and the median of
+  // nine pairs is kept.
+  const pairs = [];
+  for (let i = 0; i < 9; i++) {
+    let t0 = performance.now();
+    await db.query(YARDSTICK);
+    const yard = performance.now() - t0;
+    t0 = performance.now();
     await feed('2026-10-08 12:00');
-    times.push(performance.now() - t0);
+    pairs.push({ feed: performance.now() - t0, yard });
   }
-  times.sort((a, b) => a - b);
-  console.log(`  get_town_feed with 5,000 people: median ${times[2].toFixed(1)} ms`);
-  // GitHub's shared runner reads it about 2.5x slower than the Mac (102 ms against 40 ms,
-  // 2026-10-16), so its budget is 2.5x too. A busy Mac reads anything: 159 ms at a load of 70
-  // (2026-10-18), 489 at 90 and 782 at 68 (2026-11-01), each refusing a push that touched no SQL.
-  // So a busy Mac only logs the reading; GitHub times every push.
-  const load = loadavg()[0];
-  if (!process.env.CI && load > 8) {
-    console.log(`  not timed: the Mac is busy (load ${load.toFixed(0)}); GitHub times it on every push`);
-  } else {
-    const budget = process.env.CI ? 250 : 100;
-    assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
-  }
+  const mid = (xs) => xs.sort((a, b) => a - b)[4];
+  const ms = mid(pairs.map((p) => p.feed));
+  const yard = mid(pairs.map((p) => p.yard));
+  const ratio = mid(pairs.map((p) => p.feed / p.yard));
+  console.log(`  get_town_feed with 5,000 people: median ${ms.toFixed(1)} ms, yardstick ${yard.toFixed(1)} ms, ` +
+              `${ratio.toFixed(2)} yardsticks`);
+  assert.ok(ratio < FEED_YARDSTICKS, `median ${ratio.toFixed(2)} yardsticks (${ms.toFixed(1)} ms against ` +
+            `${yard.toFixed(1)} ms), budget ${FEED_YARDSTICKS}`);
   const reasons = (await feed('2026-10-08 12:00')).filter((r) => r.reason === 'follow').length;
   assert.ok(reasons > 20, `${reasons} Events lifted by a follow`);
   await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
@@ -1486,6 +1506,13 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   const at = live.at;
   await record(sjuLive);
   assert.equal((await row()).live_score.at, at, 'a push that changed nothing writes nothing, so realtime stays quiet');
+  // A clock standing still (2026-10-31: football's, between plays): once 'at' is a minute old, the same push writes
+  // it again, so the app doesn't hide a clock SIDEARM still shows as stale.
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await row()).live_score.at;
+  await record(sjuLive);
+  assert.ok(new Date((await row()).live_score.at) > new Date(old), 'a minute-old score SIDEARM confirms is written again');
   // The feed sends it in the game and keeps a game being played two more hours: still there at 5:30.
   await db.exec('set role anon');
   const feed = async (t) => (await db.query(`select game from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))
@@ -1531,12 +1558,19 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
   await record(first);
   assert.equal(await record([play('12', 'A. Moen 7 yd TD run (T. Lund kick)', 'VisitingTeam', 1, 175, 7, 7)]), 'live');
   assert.deepEqual((await plays()).map((p) => [p.id, p.side, p.score]), [['9', 0, [7, 0]], ['12', 1, [7, 7]]], 'once each, oldest first');
+  // SIDEARM corrects a play it already sent (2026-10-31: a field goal first sent with the score before it): the
+  // correction takes the play's place, and a push that changes nothing writes nothing.
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 7, 7)]), 'live');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'live');
+  assert.deepEqual((await plays()).map((p) => [p.id, p.score]), [['9', [7, 0]], ['12', [7, 7]], ['14', [10, 7]]],
+                   'the correction, in its place');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'ignored', 'nothing new');
   // The feed sends them inside the game.
   await db.exec('set role anon');
   const [row] = (await db.query(`select game from public.get_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
     where game is not null`)).rows;
   await db.exec('reset role');
-  assert.equal(row.game.plays.length, 2);
+  assert.equal(row.game.plays.length, 3);
   // Volleyball keeps none: every point carries a score; its sets show instead.
   assert.deepEqual((await db.query(`select private.sidearm_scoring($1::jsonb, true, 'csb/wvball') as s`,
                                    [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
@@ -1609,6 +1643,29 @@ test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts
   assert.deepEqual([row.game.live.period_n, row.game.live.regulation, row.game.live.period_s], [5, 4, 300]);
 });
 
+test("a minute-old basketball score SIDEARM confirms is written again with its fouls and bar, so Bonus keeps counting", async () => {
+  await reset();
+  const game = await add('CSB Basketball vs Augsburg', '2026-02-21', { start_time: '1 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Basketball', team_ids = array['saint-benedict', 'augsburg']
+    where id = $1`, [game]);
+  const live = async () => (await db.query('select live_score from public.club_events where id = $1', [game])).rows[0].live_score;
+  // Mid-1st, the quarter's fouls so far: the clock then stands still (a timeout), and SIDEARM pushes the same Game.
+  const push = { Game: { ...csbHoops.Game, IsComplete: false, Period: 1, ClockSeconds: 300,
+                         LastPlays: csbHoops.Plays.filter((p) => p.Period === 1 && p.Type === 'FOUL') } };
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const before = await live();
+  assert.deepEqual(before.fouls.ids.map((s) => s.length), [3, 3]);
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await live()).at;
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const after = await live();
+  // Against the minute-old time, not the first push's: two pushes can land in the same millisecond.
+  assert.ok(new Date(after.at) > new Date(old), 'written again');
+  const { at: _a, ...kept } = before, { at: _b, ...now } = after;
+  assert.deepEqual(now, kept, 'the fouls, period_n, regulation and period_s all kept');
+});
+
 test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {
   await db.exec('delete from private.live_listener');
   const start = async () => (await db.query('select count(*)::int as n from public.start_live_scores()')).rows[0].n;
@@ -1618,9 +1675,13 @@ test('one listener at a time: the games are handed out at most once in 50 second
   const until = (await db.query('select until from private.live_listener')).rows[0].until;
   await start();
   assert.deepEqual((await db.query('select until from private.live_listener')).rows[0].until, until, 'the second start does nothing');
-  await db.exec(`update private.live_listener set until = now() - interval '1 second'`);
+  // Judged against the claim that ran out, a second in the past, never against the first claim: the
+  // two claims can be under a millisecond apart on a fast Mac and read back as the same time.
+  const ranOut = (await db.query(`update private.live_listener set until = now() - interval '1 second'
+                                  returning until`)).rows[0].until;
   await start();
-  assert.ok((await db.query('select until from private.live_listener')).rows[0].until > until, 'free again after it runs out');
+  const fresh = (await db.query('select until from private.live_listener')).rows[0].until;
+  assert.ok(fresh - ranOut > 50000, `free again after it runs out: claimed ${fresh - ranOut} ms past the old claim`);
   for (const fn of ['public.start_live_scores()', 'public.record_live_score(uuid, jsonb)'])
     assert.equal((await db.query(`select has_function_privilege('anon', $1, 'execute') as ok`, [fn])).rows[0].ok, false,
                  `${fn}: the service role only`);
@@ -2721,4 +2782,151 @@ test('a later round: unopened places first, a new order each round, one repeat u
   for (const o of orders) assert.deepEqual(o.slice(-2).sort(), ['place:Place A', 'place:Place B']);
   await db.exec('reset role');
   await noPlaces();
+});
+
+// Posts (town-feed 29, BP app references/post-screen): a neighbour's own words, maybe a photo, for 7
+// days once the check said yes. The app asks with p_news, as it does for news.
+async function post(by, words, more = {}) {
+  await db.exec('reset role');
+  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, aspect: null, ...more };
+  const { rows } = await db.query(
+    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url, image_aspect)
+     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7, $8) returning id`,
+    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo, row.aspect]);
+  return rows[0].id;
+}
+async function posts(at, news = true) {
+  const { rows } = await db.query(
+    `select title, kind, poster, event_date, leaves_at from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), $2)
+     where kind = 'post'`, [at, news]);
+  return rows;
+}
+const postTitles = async (at) => (await posts(at)).map((r) => r.title);
+
+test('a neighbour\'s post shows for 7 days with who posted it, and only to an app that asks', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee', { photo: PHOTO });
+  await post(ANNA, 'Anyone up for sledding?');
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.equal(row.title, 'Anyone up for sledding?');
+  assert.equal(row.event_date, null);
+  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [], friends_only: false });
+  assert.deepEqual(await posts('2026-10-08 12:00', false), [], 'an older app never gets a row with no date');
+  assert.deepEqual(await postTitles('2026-10-15 08:59'), ['Anyone up for sledding?']);
+  assert.deepEqual(await postTitles('2026-10-15 09:01'), [], 'gone after 7 days');
+  assert.deepEqual(await postTitles('2026-10-08 08:59'), [], 'nor before it was posted');
+});
+
+test('a pending or refused post never shows, except a pending one to its poster', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await post(ANNA, 'Waiting', { status: 'pending' });
+  await post(ANNA, 'Refused', { status: 'rejected' });
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), []);
+  await signIn(ANNA);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), [], 'the feed shows only what the check passed');
+});
+
+test('a Friends-only post reaches the poster and their friends, and no one else', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(ANNA, 'Just for friends', { friendsOnly: true });
+  await post(ANNA, 'For the Town', { at: '2026-10-08 08:00' });
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town']);
+  assert.deepEqual((await db.query(`select title from public.club_events where kind = 'post'`)).rows.map((r) => r.title),
+                   ['For the Town'], 'not even a plain read hands it over');
+  await befriend(ME, ANNA);
+  await signIn(ME);
+  assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
+  await signIn(ANNA);
+  assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
+  assert.deepEqual((await posts('2026-10-08 12:00')).map((r) => [r.title, r.poster.friends_only]).sort(),
+                   [['For the Town', false], ['Just for friends', true]], 'and its card says who can see it');
+  await signIn(BEN);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town']);
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town'], 'signed out sees the Town\'s only');
+});
+
+test('a post from someone you blocked, or who blocked you, or a nameless account, stays out', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, '');
+  await post(ANNA, 'From Anna');
+  await post(BEN, 'From Ben');
+  await post(CAL, 'From nobody');
+  await db.query(`insert into private.blocks (blocker_id, blocked_id) values ($1, $2), ($3, $1)`, [ME, ANNA, BEN]);
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), []);
+});
+
+test('Not interested keeps out that post alone, even when two photo posts share no words', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  const one = await post(ANNA, '', { photo: 'https://example.com/a.jpg' });
+  await post(ANNA, '', { photo: 'https://example.com/b.jpg', at: '2026-10-08 08:00' });
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [ME]);
+  await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
+                  values ($1, $2, 'not_interested', now())`, [ME, one]);
+  await signIn(ME);
+  assert.equal((await posts('2026-10-08 12:00')).length, 1);
+});
+
+test('a second post from the same neighbour counts half, as a host\'s second Event does', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(ANNA, 'A');
+  await post(ANNA, 'B');
+  await post(BEN, 'C');
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['A', 'C', 'B']);
+});
+
+test('your own post and a friend\'s rise above a stranger\'s; points halve each day', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(BEN, 'Stranger, just now', { at: '2026-10-08 11:00' });
+  await post(BEN, 'Stranger, yesterday', { at: '2026-10-07 11:00' });
+  await post(ANNA, 'Friend, this morning', { at: '2026-10-08 10:00' });
+  await befriend(ME, ANNA);
+  await db.exec('reset role');
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, ANNA]);
+  await neighbour(ME, 'Me Myself');
+  await post(ME, 'Mine, two days ago', { at: '2026-10-06 11:00' });
+  await signIn(ME);
+  // Friend: (1 + 3 yours + 2 new) × 0.94; stranger now: (1 + 2 new) × 0.97; mine: (1 + 3) × 0.25;
+  // stranger yesterday: 1 × 0.5, not New any more.
+  assert.deepEqual(await postTitles('2026-10-08 12:00'),
+                   ['Friend, this morning', 'Stranger, just now', 'Mine, two days ago', 'Stranger, yesterday']);
+});
+
+test('the poster names the friends they tagged, in their order', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, 'Cal Ng');
+  await post(ANNA, 'Sledding', { tagged: [CAL, BEN] });
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.deepEqual(row.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }]);
+  await signIn(CAL);
+  const [mine] = await posts('2026-10-08 12:00');
+  assert.deepEqual(mine.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }],
+                   'a friend tagged sees their own name on it too');
+});
+
+test('a post with a photo sends its shape, so the card is the right size before the photo loads', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await post(ANNA, 'Burger night', { photo: 'https://example.com/p.jpg', aspect: 0.8 });
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.ok(Math.abs(row.poster.aspect - 0.8) < 1e-6);
 });

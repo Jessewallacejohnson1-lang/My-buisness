@@ -446,8 +446,10 @@ struct FeedCardMenuSheet: ViewModifier {
     let why: String?
     let score: FeedScore?
     let report: PhotoReport?
-    /// The Event's card, which Report sends; nil for News.
+    /// The Event's card, which Report sends; nil for News and posts.
     let card: FeedCardItem?
+    /// A neighbour's post (town-feed 29): Not interested and Report, by its id alone.
+    var post: TownPost? = nil
 
     init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?) {
         _isPresented = isPresented
@@ -471,6 +473,19 @@ struct FeedCardMenuSheet: ViewModifier {
         card = nil
     }
 
+    /// Someone else's post (town-feed 29): Not interested and Report, by its id, and no Mute; your own
+    /// post's ••• is Delete instead (`FeedPostCard`).
+    init(isPresented: Binding<Bool>, post: TownPost) {
+        _isPresented = isPresented
+        id = post.id
+        hostName = ""
+        why = "Posted in \(Town.everyday)"
+        score = nil
+        report = nil
+        card = nil
+        self.post = post
+    }
+
     @Environment(TownFeed.self) private var feed: TownFeed?
     @Environment(RealLifeActions.self) private var actions
     @State private var chosen: Bool?
@@ -488,14 +503,15 @@ struct FeedCardMenuSheet: ViewModifier {
             FeedCardMenu(why: why, score: score, report: report,
                          hostName: hostName.isEmpty ? nil : hostName,
                          onHide: onHide,
-                         reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) } ?? [],
+                         reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) }
+                            ?? (post == nil ? [] : ReportReason.offered(photo: false, found: false)),
                          onReport: onReport)
         }
     }
 
     private var canAct: Bool { feed != nil && actions.canAct }
     /// Once per card: a second report from the same phone would only add to its count.
-    private var canReport: Bool { canAct && card != nil && feed?.reportedIDs.contains(id) == false }
+    private var canReport: Bool { canAct && (card != nil || post != nil) && feed?.reportedIDs.contains(id) == false }
 
     private var onHide: ((Bool) -> Void)? {
         guard canAct else { return nil }
@@ -508,19 +524,18 @@ struct FeedCardMenuSheet: ViewModifier {
     }
 
     private func send(_ reason: ReportReason) async throws {
-        guard let card else { return }
-        try await feed?.report(card, reason)
+        try await feed?.report(id: id, reason)
         guard reason.hides else { return }
         // The sheet was dragged away while it sent: fold now, not at the next close.
-        if isPresented { reported = true } else { feed?.hideReported(card) }
+        if isPresented { reported = true } else { feed?.hideReported(id: id, host: hostName) }
     }
 
     private func hide() {
         guard let feed else { return }
-        if reported, let card {
+        if reported {
             reported = false
             Haptics.light()
-            feed.hideReported(card)
+            feed.hideReported(id: id, host: hostName)
             return
         }
         guard let mute = chosen else { return }
