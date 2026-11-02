@@ -459,21 +459,6 @@ struct CommunityAPI {
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
-    // MARK: - One day, town time
-
-    /// How far back an event's `event_date` may sit and still be running today.
-    ///
-    /// A multi-day festival is ONE row whose `event_date` is its first day, so a
-    /// strict `event_date=eq.today` filter would drop it on days two through five.
-    /// The window cannot be expressed as an `end_at` predicate because that column
-    /// is not applied yet, and querying a missing column is a 400 — so the read
-    /// casts a slightly wide net by date and the overlap rule does the real
-    /// filtering client-side. Two weeks is nothing for a town whose entire
-    /// calendar is ~9 rows.
-    /// Internal (not private) and nonisolated: a realtime subscriber that shows this window
-    /// passes it to `ClubEventRelevance.matters`, and two copies of this number would drift.
-    nonisolated static let dayLookbackDays = 14
-
     /// Which of these ids are Events, for moving the phone's old saves up to the server
     /// (`RealLifeActions.moveUp`): the phone's saved list holds the map's Places too.
     func knownEventIDs(_ ids: [String]) async throws -> Set<String> {
