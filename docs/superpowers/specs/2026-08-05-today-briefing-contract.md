@@ -346,7 +346,7 @@ let (data, _) = try await SupabaseHTTP.rest("rpc/get_today_briefing", method: "P
 
 Copy the shape of `UtilityTileRegistry` — it is the house precedent and it already
 proves a new module can ship without touching a UI file
-(`docs/UTILITY_ROW.md:50`).
+(`docs/archive/UTILITY_ROW.md:50`).
 
 - `BriefingModuleID`: a string-backed `RawRepresentable`, **not** a closed enum.
   Same reason as `UtilityTileID` — a payload from a newer server version must decode

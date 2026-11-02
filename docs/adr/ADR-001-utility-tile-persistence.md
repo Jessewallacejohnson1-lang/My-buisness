@@ -71,7 +71,7 @@ remaining path was a `.contextMenu` long-press on a tile, which is not an afford
 user can discover. The data was intact the whole time; the user simply had nothing to
 tap.
 
-**Why it survived testing.** The shipped acceptance check in `docs/UTILITY_ROW.md`
+**Why it survived testing.** The shipped acceptance check in `docs/archive/UTILITY_ROW.md`
 tested *"disable all four"*. That makes `tiles.isEmpty` true, which brings the Customize
 tile back, so the check passed. Disabling *some* — the ordinary case, and the only
 broken one — was never exercised. The transferable lesson: an acceptance check written

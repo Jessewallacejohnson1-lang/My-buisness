@@ -176,8 +176,8 @@ extension View {
     /// Sign in over this screen, for a tap that needs an account while there is none:
     /// a bookmark with no account yet opens it (Jesse, 2026-10-12), and so does finding
     /// neighbours from an Anonymous one. It closes once a real account is signed in.
-    func signInSheet(isPresented: Binding<Bool>) -> some View {
-        sheet(isPresented: isPresented) {
+    func signInSheet(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil) -> some View {
+        sheet(isPresented: isPresented, onDismiss: onDismiss) {
             SignInSheet().environmentObject(AuthStore.shared)
         }
     }

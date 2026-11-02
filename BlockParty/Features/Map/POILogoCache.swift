@@ -1,18 +1,16 @@
 //
 //  POILogoCache.swift
-//  Block Party — in-memory brand-logo images for map POI markers.
+//  Block Party — the one in-memory cache for logo and place pictures from Storage:
+//  Search's logo wall and business pages, the map's bubbles, a game card's logos.
 //
-//  WHY NOT AsyncImage: annotation views are torn down and rebuilt continuously during
-//  pan/zoom cluster churn, and AsyncImage restarts from its placeholder on every
-//  rebuild — visible flashing on the pins. Here the whole (small-town) logo set is
-//  prefetched once right after `places` loads, so a marker's `body` does a synchronous
-//  dictionary lookup and renders its final state on its first frame.
+//  WHY NOT AsyncImage: it restarts from its placeholder every time a view is rebuilt,
+//  which flashes. Here a set of URLs is prefetched once, so a view's `body` does a
+//  synchronous dictionary lookup and renders its final state on its first frame.
 //
 //  Disk persistence rides the session's URLCache (logos are immutable per URL —
 //  `.returnCacheDataElseLoad` means a relaunch re-fills memory from disk, offline).
-//  Search's logos (`SearchLogo.url`) load through it too, so there is one cache for
-//  every logo file in Storage. Each image is decoded off the main thread as it lands,
-//  so the first look at the logo wall doesn't stall decoding 69 of them at once.
+//  Each image is decoded off the main thread as it lands, so the first look at the
+//  logo wall doesn't stall decoding 69 of them at once.
 //
 
 import SwiftUI
@@ -39,15 +37,6 @@ final class POILogoCache: ObservableObject {
         return URLSession(configuration: cfg)
     }()
 
-    /// The logo for a POI if it is already resolved — synchronous by design (see header).
-    func resolvedImage(for poi: POI) -> UIImage? {
-        #if DEBUG
-        if Self.stubEnabled { return Self.stubImage(for: poi) }
-        #endif
-        guard let url = poi.logoURL else { return nil }
-        return images[url]
-    }
-
     /// A Search logo if it has arrived; nil until then (its tile shows the backdrop alone).
     func image(for url: URL) -> UIImage? { images[url] }
 
@@ -67,48 +56,4 @@ final class POILogoCache: ObservableObject {
             }
         }
     }
-
-    #if DEBUG
-    /// `-poi-logo-stub`: every POI renders a deterministic code-drawn mark so the
-    /// pin/detail logo layout can be screenshot-verified before any real data exists.
-    nonisolated static let stubEnabled =
-        LaunchFlags.has(.poiLogoStub)
-
-    private static var stubImages: [String: UIImage] = [:]
-
-    /// A deterministic fake “brand mark” per POI: colored rounded tile + monogram on
-    /// white, matching the pipeline's normalized output (256px, white-padded square).
-    private static func stubImage(for poi: POI) -> UIImage {
-        if let cached = stubImages[poi.id] { return cached }
-        let palette: [UIColor] = [
-            UIColor(red: 0.76, green: 0.22, blue: 0.18, alpha: 1),   // brick
-            UIColor(red: 0.13, green: 0.29, blue: 0.53, alpha: 1),   // navy
-            UIColor(red: 0.16, green: 0.42, blue: 0.27, alpha: 1),   // pine
-            UIColor(red: 0.83, green: 0.53, blue: 0.10, alpha: 1),   // amber
-            UIColor(red: 0.35, green: 0.20, blue: 0.47, alpha: 1),   // purple
-        ]
-        let hash = abs(poi.id.hashValue)
-        let color = palette[hash % palette.count]
-        let monogram = String(poi.name.prefix(1)).uppercased()
-
-        let size = CGSize(width: 256, height: 256)
-        let image = UIGraphicsImageRenderer(size: size).image { ctx in
-            UIColor.white.setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            let tile = CGRect(x: 30, y: 30, width: 196, height: 196)
-            color.setFill()
-            UIBezierPath(roundedRect: tile, cornerRadius: 44).fill()
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 110, weight: .bold),
-                .foregroundColor: UIColor.white,
-            ]
-            let text = NSAttributedString(string: monogram, attributes: attrs)
-            let bounds = text.boundingRect(with: size, options: [], context: nil)
-            text.draw(at: CGPoint(x: tile.midX - bounds.width / 2,
-                                  y: tile.midY - bounds.height / 2))
-        }
-        stubImages[poi.id] = image
-        return image
-    }
-    #endif
 }

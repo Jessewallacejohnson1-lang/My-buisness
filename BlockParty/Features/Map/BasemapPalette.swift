@@ -160,8 +160,7 @@ enum BasemapPalette {
         //
         // Mapbox's own label collision can't help: our markers are SwiftUI view annotations
         // drawn above the map canvas, so the style never sees them and cannot yield to them.
-        // Hiding the layer is the fix; `POICluster.labelledPOIs` already de-conflicts OUR
-        // labels against each other, the civic pins, the cluster bubbles and the app chrome.
+        // Hiding the layer is the fix.
         //
         // Trade-off, accepted deliberately: this also drops basemap labels for venues we do
         // NOT carry. That is the correct side to err on — a name we render is tappable and

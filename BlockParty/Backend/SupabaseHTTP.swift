@@ -4,7 +4,7 @@
 //  edge functions.
 //
 //  Hand-rolled over URLSession: no SDK, no SwiftPM dependency, full control of
-//  the exact queries — matching the @hygge/core layer 1:1.
+//  the exact queries.
 //
 
 import Foundation
@@ -13,6 +13,13 @@ struct SupabaseError: LocalizedError {
     let message: String
     let status: Int?
     var errorDescription: String? { message }
+
+    /// The row or file is already there: a retry of a send whose answer was lost. PostgREST
+    /// answers 409; Storage answers 400 with "already exists" (BP app town-plus).
+    var alreadyThere: Bool {
+        status == 409 || message.localizedCaseInsensitiveContains("already exists")
+            || message.localizedCaseInsensitiveContains("duplicate")
+    }
 }
 
 enum SupabaseHTTP {
@@ -148,12 +155,13 @@ struct Supabase {
         return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/\(bucket)/\(path)")
     }
 
-    /// An edge function (`functions/v1/<function>`) given `body`.
-    func invoke(_ function: String, _ body: [String: Any]) async throws {
+    /// An edge function (`functions/v1/<function>`) given `body`, and its answer.
+    @discardableResult
+    func invoke(_ function: String, _ body: [String: Any]) async throws -> Data {
         var request = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/\(function)"))
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        try await perform(request, type: "application/json")
+        return try await perform(request, type: "application/json")
     }
 
     /// Every call's one way out. A 401 (a token the server refused though the phone still

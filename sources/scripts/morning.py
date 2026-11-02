@@ -78,6 +78,7 @@ from batch import layout
 import write_judged
 import social
 import spots
+import apple_maps
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, to_text, deadline, late, only_one, part_state, resume_part, aside_lines
 from db import DbError
@@ -843,9 +844,11 @@ def finish(out, dry_run, today, minutes=PART_MINUTES, town=DEFAULT):
     if tagged.startswith("[morning] run again"):
         return print(tagged)
     lines = [*kept.read_text().splitlines(), tagged]
-    # Then each new Event's spot on the map, and the ones with none listed (BP app references/map-reset).
+    # Then each new Event's spot on the map, and the ones with none listed (BP app references/map-reset),
+    # then the places Apple Maps calls closed for good, hidden (Jesse, 2026-11-01).
     for what, step in (("Abouts", lambda: describe(out, dry_run)), ("standouts", lambda: standouts(out, dry_run, today, town)),
-                       ("map spots", lambda: spots.fill(Supabase(), today, not dry_run))):
+                       ("map spots", lambda: spots.fill(Supabase(), today, not dry_run)),
+                       ("Apple Maps", lambda: apple_maps.check(Supabase(), not dry_run, today))):
         try:
             lines += step()
         except DbError as e:
@@ -1817,6 +1820,7 @@ def whole_morning():
     global Supabase, load, start_reader, fetch_watched, find_root, own_page
     # The spots step reads the real registry; spots.py's own self-test covers it.
     real_fill, spots.fill = spots.fill, lambda db, today, write: ["- Map spots: set 4, 0 with no spot"]
+    real_check, apple_maps.check = apple_maps.check, lambda db, write, today: ["- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place"]
     clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
     sites = ["p0", "p1", "p2", "p3", "dsl"]
     entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
@@ -1973,6 +1977,7 @@ def whole_morning():
             evening_laid = (out / "tag").exists() or (out / "describe").exists()
     finally:
         spots.fill = real_fill
+        apple_maps.check = real_check
         (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
          start_reader, fetch_watched, find_root, own_page, write_judged.apply, write_judged.listed_in_db,
          write_judged.interest_ids, write_judged.known_teams, write_judged.news_in_db) = saved
@@ -2036,6 +2041,7 @@ def whole_morning():
                     "[morning] standouts: 1 of 1 events today",
                     "[morning] #1 Harvest Supper (5 PM): A church supper open to all",
                     "- Map spots: set 4, 0 with no spot",
+                    "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
                     "Apify: $4.20 of $25 this month (resets after 2026-11-18)"],
          "Finish prints the whole report:\n" + "\n".join(report)),
         (stored, "Save wrote once and moved the changed pages' fingerprints; Finish saved the tags, the About and "
