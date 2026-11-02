@@ -167,8 +167,8 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: t).p.width, 1, accuracy: 0.01)
     }
 
-    /// With Reduce Motion nothing moves: B and p at the still's 90%, the crest fading in at the
-    /// dot and going black, the ! line fading in, then a fade into the app.
+    /// With Reduce Motion nothing moves: B and p at the still's 90%, fading over to full size as
+    /// the ! line fades in, the crest fading in at the dot and going black, then a fade into the app.
     func testReduceMotionFades() {
         let m = LaunchMotion(screen: phone, reduceMotion: true)
         for t in [0.0, 0.3, 0.6, 0.9] {
@@ -179,6 +179,11 @@ final class LaunchMotionTests: XCTestCase {
         }
         XCTAssertEqual(m.frame(at: 0.075).ballOpacity, 0.5, accuracy: 1e-9)
         XCTAssertTrue(m.frame(at: 0.6).dotShown)
+        XCTAssertEqual(m.frame(at: 0.4).fullLetters, 0)
+        XCTAssertEqual(m.frame(at: 0.65).fullLetters, 1, accuracy: 1e-9)
+        XCTAssertEqual(m.frame(at: 0.65).letters, 1, accuracy: 1e-9, "the full B and p are in before the 90% ones go")
+        XCTAssertEqual(m.frame(at: 0.8).letters, 0, accuracy: 1e-9)
+        XCTAssertEqual(LaunchMotion(screen: phone).frame(at: 2).fullLetters, 0, "only Reduce Motion fades letters")
         XCTAssertFalse(m.frame(at: 1.0).done)
         XCTAssertTrue(m.frame(at: 0.9).takesTaps)
         XCTAssertFalse(m.frame(at: 1.0).takesTaps)

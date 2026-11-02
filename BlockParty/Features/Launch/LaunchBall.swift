@@ -233,8 +233,13 @@ private struct LaunchMark: View {
             ZStack(alignment: .topLeading) {
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))
+                    .opacity(frame.letters)
                 piece("LaunchMarkP")
                     .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.footP))
+                    .opacity(frame.letters)
+                // Reduce Motion's full-size B and p, fading in over the 90% ones.
+                piece("LaunchMarkB").opacity(frame.fullLetters)
+                piece("LaunchMarkP").opacity(frame.fullLetters)
                 bang
                 ball
             }

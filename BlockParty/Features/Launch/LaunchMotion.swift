@@ -232,9 +232,12 @@ nonisolated struct LaunchMotion {
         /// fades it in, and it goes once it has become the real dot.
         var ballBlack: Double = 0
         var ballOpacity = 1.0
-        /// B and p's scale about their feet.
+        /// B and p's scale about their feet, and how strongly they show.
         var b = CGSize(width: Self.small, height: Self.small)
         var p = CGSize(width: Self.small, height: Self.small)
+        var letters = 1.0
+        /// Reduce Motion only: B and p at full size, fading in over the 90% ones as the ! appears.
+        var fullLetters = 0.0
         var dotShown = false
         var lineOpacity = 0.0
         /// Time into the Daily tab's ! hop (`DailyMarkGlyph`); nil holds the ! at rest.
@@ -365,9 +368,11 @@ nonisolated struct LaunchMotion {
         return (spring.value(target: 1.0, time: t - endAt), spring.velocity(target: 1.0, time: t - endAt))
     }
 
-    /// Reduce Motion: nothing moves. B and p stay at the still's 90%, so nothing jumps from it
-    /// (Jesse, 2026-11-02), the crest fades in at the dot and goes black, the ! line fades in,
-    /// and the whole launch fades into the app. A tap jumps to the fade.
+    /// Reduce Motion: nothing moves. B and p start at the still's 90%, so nothing jumps from it,
+    /// and fade over to full size as the ! line fades in, so it ends on the true Bp! (Jesse,
+    /// 2026-11-02): the full ones fade in on top, then the 90% ones go, so where they overlap
+    /// never thins. The crest fades in at the dot and goes black, and the whole launch fades into
+    /// the app. A tap jumps to the fade.
     private func reduced(at real: Double) -> Frame {
         var t = real
         if let skip, skip <= real, skip < Self.reduceOut { t = Self.reduceOut + (real - skip) }
@@ -379,6 +384,8 @@ nonisolated struct LaunchMotion {
         f.ballBlack = clamp01((t - 0.30) / 0.20)
         f.dotShown = t >= 0.5
         f.lineOpacity = clamp01((t - 0.50) / 0.15)
+        f.fullLetters = f.lineOpacity
+        f.letters = 1 - clamp01((t - 0.65) / 0.15)
         f.yellow = 1 - out
         f.markOpacity = 1 - out
         f.headerUp = true
