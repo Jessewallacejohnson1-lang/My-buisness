@@ -14,7 +14,7 @@ import { townDay } from './town_day.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
-const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
+const files = creating(migrations, ['public.get_my_going', 'private.event_cards', 'public.place_picture', 'public.get_my_saves',
   'private.going_count', 'private.heart_count', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit']);
 // Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
 // shown, as they are now: each function alone, its newest definition in any migration.
@@ -24,6 +24,10 @@ const cut = (fn) => readdirSync(migrations).filter((f) => f.endsWith('.sql')).so
   .filter(Boolean).pop()[0];
 const findable = cut('private.findable');
 const friendsGoing = cut('private.friends_going');
+// The Event card's helpers (codebase-health-2 01), the same way: the group a found Event was found for,
+// its host's picture and a game's teams.
+const cardHelpers = ['private.event_group', 'public.place_picture', 'private.entry_picture',
+  'private.host_picture', 'private.event_game'].map(cut);
 
 const db = await PGlite.create();
 await db.exec(`
@@ -44,14 +48,26 @@ await db.exec(`
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create function public.is_admin() returns boolean language sql stable as $$ select false $$;
-  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null);
+  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null,
+    status text not null default 'approved', own_entry_id text, place_entry_id text,
+    created_at timestamptz not null default now());
   create table public.club_events (
     id uuid primary key default gen_random_uuid(), club_id uuid, submitted_by uuid,
     status text not null default 'approved', title text not null, event_date date,
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz, place_entry_id text, description text, sport text);
+    cancelled_at timestamptz, place_entry_id text, description text, sport text,
+    source_url text, what text, team_ids text[], occasion text, final_score int[], live_score jsonb,
+    scoring_plays jsonb);
+  -- The Event card's hosts and games: the source registry's pages and the hosts named by hand, which no
+  -- neighbour may read (as live), and the schools a game names.
+  create table public.sources (id uuid primary key default gen_random_uuid(), entry_id text not null,
+    url text, name text);
+  create table public.host_entries (name text primary key, entry_id text not null);
+  create table public.teams (id text primary key, name text not null, short_name text not null,
+    logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
+    local boolean not null default false, nickname text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -71,6 +87,8 @@ await db.exec(`
   alter table public.event_rsvps enable row level security;
   alter table public.event_saves enable row level security;
   alter table public.clubs enable row level security;
+  alter table public.sources enable row level security;
+  alter table public.host_entries enable row level security;
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
   create policy "own rsvps select" on public.event_rsvps for select to public
@@ -86,6 +104,10 @@ for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_
 await db.exec('grant select on public.place_photos to anon, authenticated');
 await db.exec(findable);
 await db.exec(friendsGoing);
+// place_picture's own columns come with the files below; the stories run every helper's body.
+await db.exec('set check_function_bodies = off');
+for (const sql of cardHelpers) await db.exec(sql);
+await db.exec('reset check_function_bodies');
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const CITY = 'City of St. Joseph';
@@ -96,7 +118,8 @@ async function reset() {
   await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_saves;
                  delete from public.club_events; delete from private.friendships;
                  delete from public.town_profiles; delete from auth.users;
-                 delete from public.clubs; reset request.jwt.claim.sub;`);
+                 delete from public.clubs; delete from public.sources; delete from public.teams;
+                 delete from public.place_photos; reset request.jwt.claim.sub;`);
 }
 
 async function add(title, date, more = {}) {
@@ -382,4 +405,84 @@ test('your Going and your saves carry each event\'s description', async () => {
   await db.exec('reset role');
   assert.equal(g[0].description, 'Teams of up to six.');
   assert.equal(s[0].description, 'Teams of up to six.');
+});
+
+// The Event card (BP app codebase-health-2, ticket 01): get_my_going sends each Event's card whole, as one
+// nested value beside its old columns, read here as PostgREST hands an RPC's rows to the app (json_agg).
+const CARD_KEYS = ['all_day', 'cancelled', 'category', 'club_name', 'created_at', 'description', 'end_at',
+  'event_date', 'friends_going', 'game', 'going', 'going_count', 'host_picture', 'id', 'image_url', 'location',
+  'place_picture', 'source_name', 'source_url', 'start_time', 'title', 'what'];
+
+async function asTheAppReads(day) {
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const { rows } = await db.query(
+    `select coalesce(json_agg(t), '[]')::text as body from public.get_my_going($1::date, $1::date) t`, [day]);
+  await db.exec('reset role');
+  return JSON.parse(rows[0].body);
+}
+
+test('the Going read sends a full Event card: photo, found link, about, host, game, friends, called off', async () => {
+  await reset();
+  const day = soon();
+  // A found game, called off, whose page names the group it was found for, at a place with a photo.
+  const { rows: [club] } = await db.query(
+    `insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'sju-athletics') returning id`);
+  await db.exec(`insert into public.sources (entry_id, name) values ('sju-athletics', 'SJU Athletics');
+    insert into public.place_photos (entry_id, url, source_url, kind, status) values
+      ('sju-athletics', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 'logo', 'live'),
+      ('clemens-field', 'https://x/field.webp', 'https://csbsju.edu/', 'photo', 'live');
+    insert into public.teams (id, name, short_name, logo_url) values
+      ('saint-johns', 'Saint John''s', 'SJU', 'https://x/sju.png'), ('concordia', 'Concordia', 'Concordia', null);`);
+  const id = await add('SJU Football vs Concordia', day, { source_name: 'SJU Athletics' });
+  await db.query(`update public.club_events set start_time = '1 PM', location = 'Clemens Field', category = 'sports',
+      image_url = 'https://x/flyer.jpg', end_at = $2::date + time '21:00', place_entry_id = 'clemens-field',
+      description = 'Homecoming against the Cobbers.', what = 'Football game',
+      source_url = 'https://gojohnnies.com/sports/football/schedule', sport = 'Football',
+      team_ids = '{saint-johns,concordia}', occasion = 'Homecoming', cancelled_at = now()
+    where id = $1`, [id, day]);
+  await db.query('insert into auth.users (id) values ($1)', [FRIEND]);
+  await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url) values ($1, 'Anna Lee', $2)`,
+                 [FRIEND, FRIEND_PHOTO]);
+  await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1)', [ME, FRIEND]);
+  await going(ME, id);
+  await going(FRIEND, id);
+
+  const [row] = await asTheAppReads(day);
+  const { card } = row;
+  assert.equal(typeof card, 'object', 'one nested value, never a string the app has to parse again');
+  assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
+  assert.equal(card.id, id);
+  assert.deepEqual([card.title, card.event_date, card.start_time, card.location, card.image_url, card.category],
+                   ['SJU Football vs Concordia', day, '1 PM', 'Clemens Field', 'https://x/flyer.jpg', 'sports']);
+  assert.equal(new Date(card.end_at).toISOString(), `${day}T21:00:00.000Z`);
+  assert.equal(card.club_name, 'Johnnie Football Boosters', 'the group it was found for, as the Town feed names it');
+  assert.equal(card.source_name, 'SJU Athletics');
+  assert.deepEqual([card.going_count, card.going, card.cancelled, card.all_day], [2, true, true, false]);
+  assert.equal(card.place_picture.url, 'https://x/field.webp');
+  assert.deepEqual(card.host_picture, { url: 'https://x/sju-logo.webp', kind: 'logo', hue: null });
+  assert.equal(card.description, 'Homecoming against the Cobbers.');
+  assert.equal(card.what, 'Football game');
+  assert.equal(card.source_url, 'https://gojohnnies.com/sports/football/schedule');
+  assert.deepEqual([card.game.sport, card.game.occasion, card.game.teams.map((t) => t.name), card.game.final],
+                   ['Football', 'Homecoming', ["Saint John's", 'Concordia'], null]);
+  assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: FRIEND_PHOTO }]);
+  // The old columns stay as builds on phones read them (ticket 03 drops them).
+  assert.deepEqual([row.going_count, row.place_picture.url, row.friends_going, row.club_name, row.cancelled],
+                   [2, 'https://x/field.webp', [{ name: 'Anna', photo: FRIEND_PHOTO }], null, true]);
+});
+
+test('the Going read sends a bare Event card with empties, never a missing key', async () => {
+  await reset();
+  const day = soon();
+  const id = await add('Porch jam', day, { source_name: null, submitted_by: NEIGHBOUR });
+  await going(ME, id);
+  const [{ card }] = await asTheAppReads(day);
+  assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
+  assert.deepEqual(card, {
+    id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
+    club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
+    going_count: 1, going: true, cancelled: false, place_picture: null, host_picture: null, description: null,
+    what: null, source_url: null, game: null, friends_going: [],
+  });
+  assert.ok(!Number.isNaN(Date.parse(card.created_at)));
 });
