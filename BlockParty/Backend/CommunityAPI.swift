@@ -268,6 +268,22 @@ struct CommunityAPI {
             let sourceUrl: String?
             /// Who puts it on, its logo first (Jesse, 2026-10-23).
             let hostPicture: PlacePicture.Lenient?
+            /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29).
+            let poster: LenientPoster?
+        }
+        /// Who posted a post, or nil when it doesn't decode: that post is left out, never the feed.
+        struct LenientPoster: Decodable {
+            struct Poster: Decodable {
+                struct Tag: Decodable { let id: String; let name: String }
+                let id: String
+                let name: String
+                let photo: String?
+                let tagged: [Tag]?
+                let aspect: Double?
+                let friendsOnly: Bool?
+            }
+            let value: Poster?
+            init(from decoder: Decoder) { value = try? Poster(from: decoder) }
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -277,6 +293,18 @@ struct CommunityAPI {
         }
         return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
+            if row.kind == "post" {
+                guard let poster = row.poster?.value, !poster.name.isEmpty,
+                      let posted = DateHelpers.timestamp(row.createdAt) else { return nil }
+                return .post(TownPost(id: row.id, poster: .init(id: poster.id, name: poster.name),
+                                      posterPhoto: poster.photo.flatMap(URL.init(string:)), words: row.title,
+                                      photo: row.imageUrl.flatMap(URL.init(string:)), aspect: poster.aspect,
+                                      place: row.location,
+                                      tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
+                                      friendsOnly: poster.friendsOnly ?? false,
+                                      posted: posted, leavesAt: leavesAt, heartCount: row.heartCount ?? 0,
+                                      hearted: row.hearted ?? false))
+            }
             if row.kind == "news" {
                 guard let post = row.sourceUrl.flatMap(URL.init(string:)) else { return nil }
                 let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -408,6 +436,32 @@ struct CommunityAPI {
     func eventPhotoURL(id: String) -> URL? {
         guard let uid = try? db.userID.lowercased() else { return nil }
         return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/event-images/\(uid)/\(id).jpg")
+    }
+
+    /// A neighbour's post (BP app town-feed 29), pending until the instant check (`checkNewEvent`) says
+    /// yes: its words, maybe a photo and its shape, a Place, who can see it and the friends tagged.
+    func addPost(_ post: NewPostInput) async throws {
+        let uid = try db.userID
+        let b: [String: Any] = [
+            "id": post.id, "kind": PostKind.post.rawValue, "title": post.words, "submitted_by": uid,
+            "status": ClubStatus.pending.rawValue, "location": post.place ?? NSNull(),
+            "image_url": post.imageURL ?? NSNull(), "image_aspect": post.aspect ?? NSNull(),
+            "friends_only": post.friendsOnly, "tagged": post.tagged.isEmpty ? NSNull() : post.tagged,
+            "event_date": NSNull(), "start_time": NSNull(),
+        ]
+        try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
+    }
+
+    /// Your own post goes, its photo with it (town-feed 29). The row first: a photo left behind is
+    /// only a file, a row left without its photo would be a broken card. Once the row is gone the post
+    /// is, whatever the photo's answer.
+    func deletePost(_ id: String, photo: Bool) async throws {
+        try await db.rest("club_events", method: "DELETE", [("id", "eq.\(id)")], prefer: "return=minimal")
+        guard photo, let uid = try? db.userID.lowercased() else { return }
+        // ponytail: a photo whose delete fails stays in Storage; sweep orphans if they ever add up.
+        do { try await db.removeFile(bucket: "event-images", path: "\(uid)/\(id).jpg") } catch {
+            Log.network("CommunityAPI: post \(id)'s photo left in Storage: \(error)")
+        }
     }
 
     /// The instant check on your own pending Event (`moderate-post` `submit`, BP app town-plus): live,

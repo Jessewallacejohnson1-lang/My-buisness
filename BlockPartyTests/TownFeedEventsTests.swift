@@ -88,6 +88,76 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["e1"])
     }
 
+    /// A neighbour's post comes in the feed's own rows, kind "post" (town-feed 29): its words, photo and
+    /// shape, Place, who posted it, the friends they tagged and who can see it, in the feed's order. One
+    /// with no poster to name is left out, never the feed; the events' cards never count a post.
+    func testPostRowsBecomeTownPostsInTheirPlace() async throws {
+        let json = """
+        [{"id":"p1","title":"Burger night. Who's in?","event_date":null,"start_time":null,"location":"Sal's",
+          "image_url":"https://x/event-images/u/p1.jpg","category":null,"club_name":null,"source_name":null,
+          "end_at":null,"all_day":false,"created_at":"2026-10-07T15:00:00+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2099-10-14T15:00:00+00:00","heart_count":3,"hearted":true,"kind":"post",
+          "source_url":null,"poster":{"id":"u1","name":"Jesse","photo":"https://x/avatars/u1/a.jpg",
+          "tagged":[{"id":"u2","name":"Sam Lee"}],"aspect":0.8,"friends_only":true}},
+         {"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM","location":null,
+          "image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event","source_url":null},
+         {"id":"p2","title":"","event_date":null,"start_time":null,"location":null,"image_url":null,
+          "category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,
+          "created_at":"2026-10-07T15:00:00+00:00","going_count":0,"rsvpd":false,"recurrence":null,
+          "leaves_at":"2099-10-14T15:00:00+00:00","kind":"post","source_url":null,"poster":{"id":"u3"}}]
+        """
+        let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
+        XCTAssertEqual(lines.count, 2, "a post whose poster doesn't decode is left out")
+        guard case .post(let post) = lines[0] else { return XCTFail("\(lines)") }
+        XCTAssertEqual(post.words, "Burger night. Who's in?")
+        XCTAssertEqual(post.poster, TownPost.Person(id: "u1", name: "Jesse"))
+        XCTAssertEqual(post.posterPhoto?.absoluteString, "https://x/avatars/u1/a.jpg")
+        XCTAssertEqual(post.photo?.absoluteString, "https://x/event-images/u/p1.jpg")
+        XCTAssertEqual(post.photoAspect, 0.8)
+        XCTAssertEqual(post.place, "Sal's")
+        XCTAssertEqual(post.tagged.map(\.name), ["Sam Lee"])
+        XCTAssertTrue(post.friendsOnly)
+        XCTAssertEqual(post.heartCount, 3)
+        XCTAssertTrue(post.hearted)
+        XCTAssertEqual(post.line, "Jesse is with Sam Lee at Sal's.")
+        XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
+
+        let town = TownFeed { lines.map(TownFeed.entry) }
+        await town.refresh()
+        XCTAssertEqual(town.shown.map(\.id), ["p1", "e1"])
+        XCTAssertEqual(town.cards.map(\.id), ["e1"])
+        // Report and Not interested match a post by its id (photo-only posts share an empty name).
+        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), post: post).id, "p1")
+    }
+
+    /// Your own post's Delete: out at once; one the server didn't take comes back.
+    func testDeletingYourPostTakesItOutAndBringsItBackIfItFails() async {
+        let post = TownPost(id: "p1", poster: .init(id: "me", name: "Jesse"), words: "Hi", posted: now,
+                            leavesAt: now.addingTimeInterval(86_400))
+        let entries = [TownFeedEntry(item: .post(post), leavesAt: post.leavesAt)]
+        var deleted: [String] = []
+        let town = TownFeed(read: { entries }, deletePost: { deleted.append($0.id) })
+        await town.refresh(at: now)
+        await town.delete(post)
+        XCTAssertEqual(town.shown.map(\.id), [])
+        XCTAssertEqual(deleted, ["p1"])
+        let offline = TownFeed(read: { entries }, deletePost: { _ in throw Offline() })
+        await offline.refresh(at: now)
+        await offline.delete(post)
+        XCTAssertEqual(offline.shown.map(\.id), ["p1"], "the server didn't take it: it comes back")
+    }
+
+    /// The name line, Facebook's: the name alone, with friends, at a Place, or both.
+    func testAPostsNameLineSaysWhoTheyreWithAndWhere() {
+        XCTAssertEqual(TownPost.line(name: "Jesse", with: [], at: nil), "Jesse")
+        XCTAssertEqual(TownPost.line(name: "Jesse", with: [], at: " Sal's "), "Jesse is at Sal's.")
+        XCTAssertEqual(TownPost.line(name: "Jesse", with: ["Sam"], at: nil), "Jesse is with Sam.")
+        XCTAssertEqual(TownPost.line(name: "Jesse", with: ["Sam", "Ana"], at: "Sal's"), "Jesse is with Sam and Ana at Sal's.")
+        XCTAssertEqual(TownPost.line(name: "Jesse", with: ["Sam", "Ana", "Bo"], at: nil), "Jesse is with Sam and 2 others.")
+    }
+
     /// A News card's words (found-posts): its headline over the picture and its facts under it;
     /// with no headline the facts stand in for it, and nothing is said twice.
     func testNewsCardSaysItsHeadlineThenItsFacts() {

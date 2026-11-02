@@ -235,8 +235,10 @@ struct ModerationView: View {
                             ForEach(model.posts) { post in
                                 ReviewQueueRow(
                                     tile: ReviewRow.tile(post.eventDate).map { .date($0.month, $0.day) }
-                                        ?? .symbol(post.kind == .trail ? "figure.hiking" : "calendar"),
-                                    title: post.trail.title,
+                                        ?? .symbol(post.kind == .trail ? "figure.hiking"
+                                                   : post.kind == .post ? "text.bubble" : "calendar"),
+                                    // A neighbour's post (town-feed 29): its words, or that it's a photo.
+                                    title: post.kind == .post && post.trail.title.isEmpty ? "Photo" : post.trail.title,
                                     subtitle: ReviewRow.subtitle(startTime: post.startTime, allDay: post.allDay,
                                                                  sourceName: post.sourceName,
                                                                  location: post.trail.location),

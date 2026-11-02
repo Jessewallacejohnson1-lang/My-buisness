@@ -118,6 +118,8 @@ struct DailyFeedColumn: View {
                 .padding(.horizontal, DailyFeedMetric.contentInset)
         case .news(let news), .again(.news(let news), _):
             TownNewsCard(news: news)
+        case .post(let post), .again(.post(let post), _):
+            FeedPostCard(post: post)
         case .caughtUp:
             CaughtUpLine()
         case .place(let place, _):

@@ -19,7 +19,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit',
+  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster', 'private.post_poster',
   'public.get_town_more']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
@@ -56,7 +56,9 @@ await db.exec(`
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
     source_name text, shows_from date, place_entry_id text, description text,
-    sport text, team_ids text[], occasion text, source_url text);
+    sport text, team_ids text[], occasion text, source_url text,
+    -- A post (town-feed 29): who may see it and who it's with.
+    friends_only boolean not null default false, tagged uuid[], image_aspect real);
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
@@ -151,6 +153,10 @@ const before = (file, fn, as) => readFileSync(join(migrations, file), 'utf8')
   .replace(`public.${fn}(`, `public.${as}(`).replaceAll('public.get_town_feed(', 'public.old_town_feed(');
 await db.exec(before('20261102005713_post_screen_feed.sql', 'get_town_feed', 'old_town_feed'));
 await db.exec(before('20261026132204_activity_follow_lift.sql', 'get_event_of_the_day', 'old_event_of_the_day'));
+// Posts (town-feed 29): a Friends-only post is kept by the read rule itself, as it is live.
+const postRules = readFileSync(join(migrations, readdirSync(migrations).find((f) => f.endsWith('_post_screen_posts.sql'))), 'utf8');
+await db.exec(postRules.match(/create or replace function private\.sees_post[\s\S]*?\$\$;/)[0]);
+await db.exec(postRules.match(/alter policy "read events"[\s\S]*?;/)[0]);
 // The stories empty teams between them; the activities stay, matched by their ids.
 await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
                  drop constraint team_activities_fielded_by_fkey`);
@@ -2957,4 +2963,151 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   assert.ok(out.newNone < out.oldNone / 2, `no picks: ${out.newNone} ms against ${out.oldNone}`);
   assert.ok(out.newPicks < out.oldPicks / 2, `picks: ${out.newPicks} ms against ${out.oldPicks}`);
   await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
+});
+
+// Posts (town-feed 29, BP app references/post-screen): a neighbour's own words, maybe a photo, for 7
+// days once the check said yes. The app asks with p_news, as it does for news.
+async function post(by, words, more = {}) {
+  await db.exec('reset role');
+  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, aspect: null, ...more };
+  const { rows } = await db.query(
+    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url, image_aspect)
+     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7, $8) returning id`,
+    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo, row.aspect]);
+  return rows[0].id;
+}
+async function posts(at, news = true) {
+  const { rows } = await db.query(
+    `select title, kind, poster, event_date, leaves_at from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), $2)
+     where kind = 'post'`, [at, news]);
+  return rows;
+}
+const postTitles = async (at) => (await posts(at)).map((r) => r.title);
+
+test('a neighbour\'s post shows for 7 days with who posted it, and only to an app that asks', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee', { photo: PHOTO });
+  await post(ANNA, 'Anyone up for sledding?');
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.equal(row.title, 'Anyone up for sledding?');
+  assert.equal(row.event_date, null);
+  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [], friends_only: false });
+  assert.deepEqual(await posts('2026-10-08 12:00', false), [], 'an older app never gets a row with no date');
+  assert.deepEqual(await postTitles('2026-10-15 08:59'), ['Anyone up for sledding?']);
+  assert.deepEqual(await postTitles('2026-10-15 09:01'), [], 'gone after 7 days');
+  assert.deepEqual(await postTitles('2026-10-08 08:59'), [], 'nor before it was posted');
+});
+
+test('a pending or refused post never shows, except a pending one to its poster', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await post(ANNA, 'Waiting', { status: 'pending' });
+  await post(ANNA, 'Refused', { status: 'rejected' });
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), []);
+  await signIn(ANNA);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), [], 'the feed shows only what the check passed');
+});
+
+test('a Friends-only post reaches the poster and their friends, and no one else', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(ANNA, 'Just for friends', { friendsOnly: true });
+  await post(ANNA, 'For the Town', { at: '2026-10-08 08:00' });
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town']);
+  assert.deepEqual((await db.query(`select title from public.club_events where kind = 'post'`)).rows.map((r) => r.title),
+                   ['For the Town'], 'not even a plain read hands it over');
+  await befriend(ME, ANNA);
+  await signIn(ME);
+  assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
+  await signIn(ANNA);
+  assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
+  assert.deepEqual((await posts('2026-10-08 12:00')).map((r) => [r.title, r.poster.friends_only]).sort(),
+                   [['For the Town', false], ['Just for friends', true]], 'and its card says who can see it');
+  await signIn(BEN);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town']);
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town'], 'signed out sees the Town\'s only');
+});
+
+test('a post from someone you blocked, or who blocked you, or a nameless account, stays out', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, '');
+  await post(ANNA, 'From Anna');
+  await post(BEN, 'From Ben');
+  await post(CAL, 'From nobody');
+  await db.query(`insert into private.blocks (blocker_id, blocked_id) values ($1, $2), ($3, $1)`, [ME, ANNA, BEN]);
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), []);
+});
+
+test('Not interested keeps out that post alone, even when two photo posts share no words', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  const one = await post(ANNA, '', { photo: 'https://example.com/a.jpg' });
+  await post(ANNA, '', { photo: 'https://example.com/b.jpg', at: '2026-10-08 08:00' });
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [ME]);
+  await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
+                  values ($1, $2, 'not_interested', now())`, [ME, one]);
+  await signIn(ME);
+  assert.equal((await posts('2026-10-08 12:00')).length, 1);
+});
+
+test('a second post from the same neighbour counts half, as a host\'s second Event does', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(ANNA, 'A');
+  await post(ANNA, 'B');
+  await post(BEN, 'C');
+  await signIn(ME);
+  assert.deepEqual(await postTitles('2026-10-08 12:00'), ['A', 'C', 'B']);
+});
+
+test('your own post and a friend\'s rise above a stranger\'s; points halve each day', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await post(BEN, 'Stranger, just now', { at: '2026-10-08 11:00' });
+  await post(BEN, 'Stranger, yesterday', { at: '2026-10-07 11:00' });
+  await post(ANNA, 'Friend, this morning', { at: '2026-10-08 10:00' });
+  await befriend(ME, ANNA);
+  await db.exec('reset role');
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, ANNA]);
+  await neighbour(ME, 'Me Myself');
+  await post(ME, 'Mine, two days ago', { at: '2026-10-06 11:00' });
+  await signIn(ME);
+  // Friend: (1 + 3 yours + 2 new) × 0.94; stranger now: (1 + 2 new) × 0.97; mine: (1 + 3) × 0.25;
+  // stranger yesterday: 1 × 0.5, not New any more.
+  assert.deepEqual(await postTitles('2026-10-08 12:00'),
+                   ['Friend, this morning', 'Stranger, just now', 'Mine, two days ago', 'Stranger, yesterday']);
+});
+
+test('the poster names the friends they tagged, in their order', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, 'Cal Ng');
+  await post(ANNA, 'Sledding', { tagged: [CAL, BEN] });
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.deepEqual(row.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }]);
+  await signIn(CAL);
+  const [mine] = await posts('2026-10-08 12:00');
+  assert.deepEqual(mine.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }],
+                   'a friend tagged sees their own name on it too');
+});
+
+test('a post with a photo sends its shape, so the card is the right size before the photo loads', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await post(ANNA, 'Burger night', { photo: 'https://example.com/p.jpg', aspect: 0.8 });
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.ok(Math.abs(row.poster.aspect - 0.8) < 1e-6);
 });

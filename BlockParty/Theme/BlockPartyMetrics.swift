@@ -20,8 +20,6 @@ enum Radius {
     /// and the round result avatars' squares (10), Photoroom's logo squares (11), and
     /// Airbnb's photo cards (13).
     static let searchField: CGFloat = 10
-    /// New event's photo, Instagram's New post's (MEASURED 2026-11-01, BP app references/town-plus).
-    static let newEventPhoto: CGFloat = 8
     static let logoTile: CGFloat = 11
     static let photoCard: CGFloat = 13
 

@@ -155,6 +155,15 @@ struct Supabase {
         return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/\(bucket)/\(path)")
     }
 
+    /// Takes the file at `path` out of a Storage bucket, as supabase-js's `remove` does (a DELETE with
+    /// no body is refused with a JSON content type). A refusal or no answer throws.
+    func removeFile(bucket: String, path: String) async throws {
+        var request = URLRequest(url: SupabaseConfig.storageURL.appendingPathComponent("object/\(bucket)"))
+        request.httpMethod = "DELETE"
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["prefixes": [path]])
+        try await perform(request, type: "application/json")
+    }
+
     /// An edge function (`functions/v1/<function>`) given `body`, and its answer.
     @discardableResult
     func invoke(_ function: String, _ body: [String: Any]) async throws -> Data {
