@@ -5,15 +5,13 @@
 //  the Meetup pill's (`MeetupPillStyle`).
 //
 //  `FeedMotion` owns the feed's motion vocabulary and its Reduce Motion contract;
-//  everything there is deliberately quiet (`quietPress` = 0.985). The "+" is the
-//  documented exception — one of the two moments in this app permitted to feel
-//  good — so its numbers live here rather than diluting `FeedMotion.quietPress`
-//  into "sometimes big".
+//  everything there is deliberately quiet (`quietPress`). This press is the
+//  documented exception, so its numbers live here rather than diluting
+//  `FeedMotion.quietPress` into "sometimes big".
 //
 //  It is an EXTENSION of that vocabulary, not a second one: the Reduce Motion
 //  branch returns `FeedMotion.Spec` and cross-fades on `FeedMotion.crossFade`,
-//  exactly like every other feed animation. Under Reduce Motion the "+" and a
-//  Town Notes card degrade identically.
+//  exactly like every other feed animation.
 //
 
 import SwiftUI

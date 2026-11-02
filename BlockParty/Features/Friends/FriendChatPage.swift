@@ -85,7 +85,7 @@ struct FriendChatPage: View {
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer(proxy: proxy, chat: chat) }
+            .safeAreaInset(edge: .bottom, spacing: 0) { composer(proxy: proxy) }
             .onChange(of: typing) { _, now in
                 guard now, let last = chat.last?.id else { return }
                 withAnimation(reduceMotion ? nil : .smooth) { proxy.scrollTo(last, anchor: .bottom) }
@@ -108,7 +108,7 @@ struct FriendChatPage: View {
 
     // MARK: Composer
 
-    private func composer(proxy: ScrollViewProxy, chat: FriendChat) -> some View {
+    private func composer(proxy: ScrollViewProxy) -> some View {
         let canSend = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(alignment: .bottom, spacing: 8) {
             TextField("Message", text: $draft, prompt: Text("Message…").foregroundStyle(Hue.searchFaint), axis: .vertical)

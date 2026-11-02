@@ -67,10 +67,6 @@ struct CommunityAPI {
     private static let realOnly: Supabase.Query = [("or", "(submitted_by.not.is.null,source_name.not.is.null)"),
                                                    ("followers_only", "is.false")]
 
-    // MARK: - User / admin
-
-    func isAdmin() async -> Bool { Admin.isAdmin(db.auth.email) }
-
     // MARK: - Places (permanent food/business POI markers)
 
     /// The town's permanent venues, seeded once into Supabase (see PlaceSeeder). Read
@@ -463,7 +459,7 @@ struct CommunityAPI {
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
-    // MARK: - Your Day (the Today rail — one day, town time)
+    // MARK: - One day, town time
 
     /// How far back an event's `event_date` may sit and still be running today.
     ///
@@ -537,7 +533,7 @@ struct CommunityAPI {
         try await db.rpc("hide_suggestion", ["p_user": userID])
     }
 
-    /// A request newer than your last visit to Friends: the dot on the friends mark.
+    /// A request newer than your last visit to Friends: the dot on the Friends tab.
     func friendsDot() async throws -> Bool {
         let data = try await db.rpc("friends_dot")
         return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool ?? false

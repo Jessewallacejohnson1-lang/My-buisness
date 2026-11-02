@@ -951,11 +951,6 @@ struct RawEvent: Decodable {
     struct ClubRef: Decodable { let name: String? }
 }
 
-/// club_members row (subset).
-
-/// The authed user, from GET /auth/v1/user.
-struct CurrentUser: Decodable { let id: String; let email: String? }
-
 // MARK: - Town profile (this community app's per-user identity; separate from the
 // wellness app's `profiles` table). Decoded with convertFromSnakeCase.
 struct TownProfile: Decodable {

@@ -20,9 +20,6 @@ extension FriendsMetric {
     /// Facebook's friends-list photo, measured; its row is the inbox's 76 (`row`).
     static let neighborFace: CGFloat = 60
     static let resultsTop: CGFloat = 8
-    /// The neighbour's page: the photo starts this far under the bar, Instagram's 11 (±1)
-    /// on someone else's profile (BP app references/friends/ig-person-private.jpg).
-    static let headTop: CGFloat = 11
     static let noteTop: CGFloat = 18
     /// Stand-in rows while a search is asked, and how wide their name bar is.
     static let loadingRows = 3
@@ -65,9 +62,7 @@ extension FriendsMetric {
     /// "Groups to join" under your own Groups: 13pt grey, 6pt over the rows.
     static let subTop: CGFloat = 10
     static let subBottom: CGFloat = 6
-    /// A person's page: its button sits where Edit profile sits on your own Profile, at
-    /// least the mock's 132pt wide.
-    static let pageButtonTop: CGFloat = 14
+    /// A person's page: its button is at least the mock's 132pt wide.
     static let pageButton: CGFloat = 132
     /// Ticket 04: Facebook's ••• on a friend's row ends 20pt from the screen's edge
     /// (fb-requests-4, 375pt at 1:1); its 44pt target leaves this much past it.

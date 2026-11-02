@@ -2,8 +2,7 @@
 //  GooglePlacesService.swift
 //  Block Party — Google Places API (New) client. places.googleapis.com/v1 only.
 //
-//  Same shape as GeocoderService (TrailServices.swift): a
-//  @MainActor singleton whose caches stay on the main actor, hand-rolled over
+//  A @MainActor singleton whose caches stay on the main actor, hand-rolled over
 //  URLSession, failing soft (nil / []) so the UI never sees an error.
 //
 //  Cost discipline (keep it frugal, no hard cap):

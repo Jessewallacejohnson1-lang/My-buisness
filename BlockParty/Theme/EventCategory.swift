@@ -56,8 +56,7 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Filled SF Symbol — reads cleanly in white at ~22pt on the ink circle,
-    /// the same filled-glyph choice SpotCategory.filledSymbol makes for map pins.
+    /// Filled SF Symbol — reads cleanly in white at ~22pt on the ink circle.
     var glyph: String {
         switch self {
         case .outdoors:  return "figure.hiking"
@@ -70,22 +69,6 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         case .service:   return "heart.fill"
         case .games:     return "gamecontroller.fill"
         case .other:     return "calendar"
-        }
-    }
-
-    /// Category tint is monochrome; the glyph carries the category distinction.
-    var tint: Color {
-        switch self {
-        case .outdoors:  return Hue.ink
-        case .musicArts: return Hue.ink
-        case .food:      return Hue.ink
-        case .families:  return Hue.ink
-        case .faith:     return Hue.ink
-        case .sports:    return Hue.ink
-        case .books:     return Hue.ink
-        case .service:   return Hue.ink
-        case .games:     return Hue.ink
-        case .other:     return Hue.ink
         }
     }
 }
