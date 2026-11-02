@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
 import { townDay } from './town_day.mjs';
+import { CARD_KEYS } from './event_card.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -20,7 +21,7 @@ const files = creating(migrations, ['public.get_town_feed', 'public.place_pictur
   'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
   'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
   'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster', 'private.post_poster',
-  'public.get_town_more']);
+  'public.get_town_more', 'private.event_cards']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1168,6 +1169,9 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.equal(await subject('Organic Gardening Workshop', null, null), 'talk', 'organic is no organ: \\y is a word edge');
   assert.equal(await subject('7th Grade', null, 'watch_sports'), 'sports');
   assert.equal(await subject('Fall Picture Retakes', null, null), 'place');
+  assert.equal(await subject('Varsity Jazz', null, 'art_theater'), 'dance', "a dance team's jazz meet is dance, not band");
+  assert.equal(await subject('Conference Kick', null, 'art_theater'), 'dance');
+  assert.equal(await subject('Fare for All', null, 'markets'), 'market', 'food boxes, not a dinner');
   const season = async (d) => (await db.query('select private.season_of($1::date) as s', [d])).rows[0].s;
   assert.deepEqual([await season('2026-11-30'), await season('2026-12-01'), await season('2027-02-28')], ['fall', 'winter', 'winter']);
 
@@ -2885,8 +2889,11 @@ async function asViewer(who, e) {
 }
 const MOMENTS = ['00:00', '07:00', '10:30', '15:00', '18:30', '21:30', '23:30']
   .flatMap((t) => ['2026-10-09', '2026-10-10', '2026-10-11'].map((d) => `${d} ${t}`));
-const rowsOf = async (fn, at) => (await db.query(
-  `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+// Every column but the Event card (codebase-health-2 02), which the old functions don't send: the card's own
+// stories check it.
+const cardless = (rows) => rows.map(({ card, ...row }) => row);
+const rowsOf = async (fn, at) => cardless((await db.query(
+  `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows);
 
 test('feed-load: Event of the day picks what it did when it read the whole feed: signed out, signed in, admin, every day and time', async () => {
   const e = await busyWeekend();
@@ -2926,7 +2933,7 @@ test('feed-load: get_town_feed gives the same rows in the same order as before i
         for (const later of [false, true]) {
           const sql = (fn) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'), $2, $3)`,
                                        [at, n, later]);
-          const [a, b] = [(await sql('get_town_feed')).rows, (await sql('old_town_feed')).rows];
+          const [a, b] = [cardless((await sql('get_town_feed')).rows), (await sql('old_town_feed')).rows];
           if (!later) assert.ok(a.length > 3);
           assert.deepEqual(a, b, `${who} at ${at}, news ${n}, later ${later}`);
         }
@@ -2972,7 +2979,7 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   const out = {};
   out.oldNone = await median('old_event_of_the_day', at);
   out.newNone = await median('get_event_of_the_day', at);
-  assert.deepEqual((await eotd('get_event_of_the_day')).rows, (await eotd('old_event_of_the_day')).rows);
+  assert.deepEqual(cardless((await eotd('get_event_of_the_day')).rows), (await eotd('old_event_of_the_day')).rows);
   assert.equal((await eotd('get_event_of_the_day')).rows.length, 1);
   // The morning's picks: four of the day's Events.
   await db.exec('reset role');
@@ -2981,7 +2988,7 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   await signIn(READER);
   out.oldPicks = await median('old_event_of_the_day', '2026-10-08 07:00');
   out.newPicks = await median('get_event_of_the_day', '2026-10-08 07:00');
-  const picked = (await eotd('get_event_of_the_day', '2026-10-08 07:00')).rows;
+  const picked = cardless((await eotd('get_event_of_the_day', '2026-10-08 07:00')).rows);
   assert.deepEqual(picked, (await eotd('old_event_of_the_day', '2026-10-08 07:00')).rows);
   assert.ok(picked.length >= 1);
   console.log(`  get_event_of_the_day with 5,000 people, median: no picks ${out.oldNone.toFixed(1)} ms before, ` +
@@ -3142,4 +3149,105 @@ test('a post with a photo sends its shape, so the card is the right size before 
   await signIn(ME);
   const [row] = await posts('2026-10-08 12:00');
   assert.ok(Math.abs(row.poster.aspect - 0.8) < 1e-6);
+});
+
+// The Event card (BP app codebase-health-2, ticket 02): the Town feed and Daily's Event of the day send each
+// Event's card whole, beside their old columns, read here as PostgREST hands an RPC's rows to the app
+// (json_agg). Its values are the feed's own: the old columns now come from it.
+const asTheAppReads = async (sql, params = []) => JSON.parse((await db.query(
+  `select coalesce(json_agg(t), '[]')::text as body from (${sql}) t`, params)).rows[0].body);
+
+test('the Town feed sends a full Event card: photo, found link, about, host, game, friends, called off', async () => {
+  await reset();
+  // SJU Athletics' registry entry, as host_entries names it (live, and here from its migration).
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.sources (entry_id, name) values ('activities-athletic-sju', 'SJU Athletics');
+    insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'activities-athletic-sju');
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, hue, width, height) values
+      ('activities-athletic-sju', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 0, 'logo', 'live', 20, null, null),
+      ('clemens-field', 'https://x/field.webp', 'https://csbsju.edu/', 1, 'photo', 'live', null, 1600, 1067);
+    insert into public.teams (id, name, short_name, logo_url) values
+      ('saint-johns', 'Saint John''s', 'SJU', 'https://x/sju.png'), ('concordia', 'Concordia', 'Concordia', null);`);
+  const id = await add('SJU Football vs Concordia', day(2), { source_name: 'SJU Athletics', start_time: '1 PM',
+                                                             category: 'sports' });
+  await db.query(`update public.club_events set location = 'Clemens Field', image_url = 'https://x/flyer.jpg',
+      end_at = $2::date + time '21:00', place_entry_id = 'clemens-field', description = 'Homecoming against the Cobbers.',
+      what = 'Football game', source_url = 'https://gojohnnies.com/sports/football/schedule', sport = 'Football',
+      team_ids = '{saint-johns,concordia}', occasion = 'Homecoming', cancelled_at = now()
+    where id = $1`, [id, day(2)]);
+  // Called off stays in the feed only once someone Hearted it.
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [id, BEN]);
+  await neighbour(ANNA, 'Anna Lee', { photo: PHOTO });
+  await befriend(ME, ANNA);
+  await goes(id, ANNA);
+  await goes(id, ME);
+  await signIn(ME);
+  const rows = await asTheAppReads(`select * from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true)`,
+                                   [nowTown()]);
+  await db.exec('reset role; delete from public.place_photos;');
+  const row = rows.find((r) => r.id === id);
+  const { card } = row;
+  assert.equal(typeof card, 'object', 'one nested value, never a string the app has to parse again');
+  assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
+  assert.deepEqual([card.id, card.title, card.event_date, card.start_time, card.location, card.image_url, card.category],
+                   [id, 'SJU Football vs Concordia', day(2), '1 PM', 'Clemens Field', 'https://x/flyer.jpg', 'sports']);
+  assert.equal(new Date(card.end_at).toISOString(), `${day(2)}T21:00:00.000Z`);
+  assert.deepEqual([card.club_name, card.source_name], ['Johnnie Football Boosters', 'SJU Athletics']);
+  assert.deepEqual([card.going_count, card.going, card.cancelled, card.all_day], [2, true, true, false]);
+  assert.equal(card.place_picture.url, 'https://x/field.webp');
+  assert.deepEqual(card.host_picture, { url: 'https://x/sju-logo.webp', kind: 'logo', hue: 20 });
+  assert.deepEqual([card.description, card.what, card.source_url],
+                   ['Homecoming against the Cobbers.', 'Football game', 'https://gojohnnies.com/sports/football/schedule']);
+  assert.deepEqual([card.game.sport, card.game.occasion, card.game.teams.map((t) => t.name), card.game.final],
+                   ['Football', 'Homecoming', ["Saint John's", 'Concordia'], null]);
+  assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: PHOTO }]);
+  // The feed's own columns say the same, so a build on a phone now sees what it saw.
+  assert.deepEqual([row.title, row.going_count, row.rsvpd, row.cancelled, row.place_picture, row.host_picture, row.game,
+                    row.friends_going, row.club_name, row.source_url, row.description, row.what],
+                   [card.title, card.going_count, card.going, card.cancelled, card.place_picture, card.host_picture,
+                    card.game, card.friends_going, card.club_name, card.source_url, card.description, card.what]);
+});
+
+test('the Town feed sends a bare Event card with empties, and none with news or a post', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  const id = await add('Porch jam', '2026-10-09', { source_name: null, submitted_by: ANNA });
+  await news('Road work on Minnesota St', '2026-10-08 09:00', { category: 'road' });
+  await post(ANNA, 'Anyone up for sledding?');
+  await signIn(ME);
+  const rows = await asTheAppReads(
+    `select * from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'), true)`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => r.kind).sort(), ['event', 'news', 'post']);
+  const by = Object.fromEntries(rows.map((r) => [r.kind, r]));
+  const { card } = by.event;
+  assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
+  assert.deepEqual(card, {
+    id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
+    club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
+    going_count: 0, going: false, cancelled: false, place_picture: null, host_picture: null, description: null,
+    what: null, source_url: null, game: null, friends_going: [],
+  });
+  assert.ok(!Number.isNaN(Date.parse(card.created_at)));
+  assert.deepEqual([by.news.card, by.post.card], [null, null]);
+});
+
+test("Daily's Event of the day sends the Event card, with the found link and host picture it never had", async () => {
+  await reset();
+  await db.exec(`delete from public.daily_standouts; delete from public.place_photos; delete from public.places;
+    insert into public.places (name, entry_id, search_logo) values
+      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
+    insert into public.sources (entry_id, url, name) values ('cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
+  const id = await add('Sundae Social', '2026-10-09', { start_time: '6 PM', source_name: 'The Wandering Cow' });
+  await db.query(`update public.club_events set source_url = 'https://cow/events/sundae' where id = $1`, [id]);
+  await db.exec('set role anon');
+  const rows = await asTheAppReads(
+    `select * from public.get_event_of_the_day(('2026-10-09 07:00'::timestamp at time zone 'America/Chicago'))`);
+  await db.exec('reset role; delete from public.places;');
+  assert.deepEqual(rows.map((r) => r.title), ['Sundae Social']);
+  const { card } = rows[0];
+  assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
+  assert.equal(card.source_url, 'https://cow/events/sundae');
+  assert.deepEqual(card.host_picture, { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 });
+  assert.deepEqual([card.going, card.going_count, card.friends_going], [false, 0, []], 'signed out');
 });

@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
 import { townDay } from './town_day.mjs';
+import { CARD_KEYS } from './event_card.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -407,26 +408,21 @@ test('your Going and your saves carry each event\'s description', async () => {
   assert.equal(s[0].description, 'Teams of up to six.');
 });
 
-// The Event card (BP app codebase-health-2, ticket 01): get_my_going sends each Event's card whole, as one
-// nested value beside its old columns, read here as PostgREST hands an RPC's rows to the app (json_agg).
-const CARD_KEYS = ['all_day', 'cancelled', 'category', 'club_name', 'created_at', 'description', 'end_at',
-  'event_date', 'friends_going', 'game', 'going', 'going_count', 'host_picture', 'id', 'image_url', 'location',
-  'place_picture', 'source_name', 'source_url', 'start_time', 'title', 'what'];
-
-async function asTheAppReads(day) {
+// The Event card (BP app codebase-health-2, tickets 01 and 02): get_my_going and get_my_saves send each Event's
+// card whole, as one nested value beside their old columns, read here as PostgREST hands an RPC's rows to the
+// app (json_agg).
+async function asTheAppReads(read, day) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const { rows } = await db.query(
-    `select coalesce(json_agg(t), '[]')::text as body from public.get_my_going($1::date, $1::date) t`, [day]);
+  const call = read === 'going' ? 'public.get_my_going($1::date, $1::date)' : 'public.get_my_saves($1::date)';
+  const { rows } = await db.query(`select coalesce(json_agg(t), '[]')::text as body from ${call} t`, [day]);
   await db.exec('reset role');
   return JSON.parse(rows[0].body);
 }
 
-test('the Going read sends a full Event card: photo, found link, about, host, game, friends, called off', async () => {
-  await reset();
-  const day = soon();
-  // A found game, called off, whose page names the group it was found for, at a place with a photo.
-  const { rows: [club] } = await db.query(
-    `insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'sju-athletics') returning id`);
+// A found game, called off, whose page names the group it was found for, at a place with a photo, that you
+// and a friend are Going to.
+async function fullEvent(day) {
+  await db.query(`insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'sju-athletics')`);
   await db.exec(`insert into public.sources (entry_id, name) values ('sju-athletics', 'SJU Athletics');
     insert into public.place_photos (entry_id, url, source_url, kind, status) values
       ('sju-athletics', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 'logo', 'live'),
@@ -446,9 +442,10 @@ test('the Going read sends a full Event card: photo, found link, about, host, ga
   await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1)', [ME, FRIEND]);
   await going(ME, id);
   await going(FRIEND, id);
+  return id;
+}
 
-  const [row] = await asTheAppReads(day);
-  const { card } = row;
+function isFullCard(card, id, day) {
   assert.equal(typeof card, 'object', 'one nested value, never a string the app has to parse again');
   assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
   assert.equal(card.id, id);
@@ -466,6 +463,22 @@ test('the Going read sends a full Event card: photo, found link, about, host, ga
   assert.deepEqual([card.game.sport, card.game.occasion, card.game.teams.map((t) => t.name), card.game.final],
                    ['Football', 'Homecoming', ["Saint John's", 'Concordia'], null]);
   assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: FRIEND_PHOTO }]);
+}
+
+// A neighbour's own posting with nothing else.
+const bareCard = (card, id, day, going) => ({
+  id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
+  club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
+  going_count: going ? 1 : 0, going, cancelled: false, place_picture: null, host_picture: null, description: null,
+  what: null, source_url: null, game: null, friends_going: [],
+});
+
+test('the Going read sends a full Event card: photo, found link, about, host, game, friends, called off', async () => {
+  await reset();
+  const day = soon();
+  const id = await fullEvent(day);
+  const [row] = await asTheAppReads('going', day);
+  isFullCard(row.card, id, day);
   // The old columns stay as builds on phones read them (ticket 03 drops them).
   assert.deepEqual([row.going_count, row.place_picture.url, row.friends_going, row.club_name, row.cancelled],
                    [2, 'https://x/field.webp', [{ name: 'Anna', photo: FRIEND_PHOTO }], null, true]);
@@ -476,13 +489,31 @@ test('the Going read sends a bare Event card with empties, never a missing key',
   const day = soon();
   const id = await add('Porch jam', day, { source_name: null, submitted_by: NEIGHBOUR });
   await going(ME, id);
-  const [{ card }] = await asTheAppReads(day);
+  const [{ card }] = await asTheAppReads('going', day);
   assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
-  assert.deepEqual(card, {
-    id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
-    club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-    going_count: 1, going: true, cancelled: false, place_picture: null, host_picture: null, description: null,
-    what: null, source_url: null, game: null, friends_going: [],
-  });
+  assert.deepEqual(card, bareCard(card, id, day, true));
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
+});
+
+test('Saved sends the same full Event card (codebase-health-2 02)', async () => {
+  await reset();
+  const day = soon();
+  const id = await fullEvent(day);
+  await save(ME, id);
+  const [row] = await asTheAppReads('saves', day);
+  isFullCard(row.card, id, day);
+  // The old columns stay as builds on phones read them, now taken from the card.
+  assert.deepEqual([row.going_count, row.going, row.place_picture.url, row.friends_going, row.club_name, row.cancelled],
+                   [2, true, 'https://x/field.webp', [{ name: 'Anna', photo: FRIEND_PHOTO }], null, true]);
+});
+
+test('Saved sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
+  await reset();
+  const day = soon();
+  const id = await add('Porch jam', day, { source_name: null, submitted_by: NEIGHBOUR });
+  await save(ME, id);
+  const [row] = await asTheAppReads('saves', day);
+  assert.deepEqual(Object.keys(row.card).sort(), CARD_KEYS);
+  assert.deepEqual(row.card, bareCard(row.card, id, day, false));
+  assert.deepEqual([row.going_count, row.going, row.place_picture, row.friends_going], [0, false, null, []]);
 });

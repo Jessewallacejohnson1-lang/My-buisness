@@ -139,15 +139,6 @@ struct CommunityAPI {
         return PlaceName(url: url, emblem: row.kind == "emblem")
     }
 
-    /// The page a found Event was read from (`club_events.source_url`, ADR-021), for an Event page
-    /// opened from a read that doesn't send it. Signed out, it reads with the public key.
-    func eventSourceURL(_ eventID: String) async throws -> URL? {
-        struct Row: Decodable { let sourceUrl: String? }
-        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [("select", "source_url"), ("id", "eq.\(eventID)")],
-                                                            anon: true))
-        return rows.first?.sourceUrl.flatMap(URL.init(string:))
-    }
-
     /// A row that doesn't decode is that one photo gone, never the rest.
     nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
         struct Row: Decodable {
@@ -304,6 +295,13 @@ struct CommunityAPI {
             let hostPicture: PlacePicture.Lenient?
             /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29).
             let poster: LenientPoster?
+            /// The Event card (BP app codebase-health-2 02); nil on news and posts.
+            let card: LenientCard?
+        }
+        /// An Event card, or nil when it doesn't decode: that row reads its own columns, never fails the feed.
+        struct LenientCard: Decodable {
+            let value: UpcomingEvent?
+            init(from decoder: Decoder) { value = try? UpcomingEvent(from: decoder) }
         }
         /// Who posted a post, or nil when it doesn't decode: that post is left out, never the feed.
         struct LenientPoster: Decodable {
@@ -349,7 +347,9 @@ struct CommunityAPI {
                                       interest: row.reason == "interest" ? row.reasonName : nil))
             }
             guard let eventDate = row.eventDate else { return nil }
-            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,
+            // ponytail: a row with no card (a feed kept on disk, or read before codebase-health-2 02's migration
+            // is live) or one that doesn't decode reads its own columns; 03 deletes this.
+            let event = row.card?.value ?? UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,
                                       startTime: row.startTime, location: row.location,
                                       goingCount: row.goingCount, createdAt: row.createdAt,
                                       imageUrl: row.imageUrl, rsvpd: row.rsvpd,
@@ -722,20 +722,17 @@ struct CommunityAPI {
         try Self.changeRows(from: await db.rpc("get_my_changes"))
     }
 
-    /// `get_my_changes`' rows: each an Event as `get_my_going` sends one, with what changed.
+    /// `get_my_changes`' rows: each an Event card, as `get_my_going` sends one, with what changed.
     static func changeRows(from data: Data) throws -> [Notice] {
         struct Row: Decodable {
             let changedAt: String
             let movedFrom: Notice.Was?
             let followed: String?
             let followedLogo: String?
-            let game: Game.LenientItem<Game>?
         }
         let rows = try Supabase.decode(data, as: [Row].self)
         return zip(try myGoingRows(from: data), rows).compactMap { event, row in
             guard let changedAt = DateHelpers.timestamp(row.changedAt) else { return nil }
-            var event = event
-            event.game = row.game?.value
             return Notice(event: event, changedAt: changedAt, movedFrom: row.movedFrom, followed: row.followed,
                           followedLogo: row.followedLogo.flatMap(URL.init(string:)))
         }
@@ -752,9 +749,8 @@ struct CommunityAPI {
                 if let card = try? c.decodeIfPresent(UpcomingEvent.self, forKey: .card) {
                     event = card
                 } else {
-                    // ponytail: a read with no `card` yet (Saved and the bell until codebase-health-2 02, the
-                    // Going read until its migration is live), or one that doesn't decode, reads its own row;
-                    // 03 deletes this.
+                    // ponytail: a read with no `card` yet (until codebase-health-2 01's and 02's migrations are
+                    // live), or one that doesn't decode, reads its own row; 03 deletes this.
                     var row = try UpcomingEvent(from: decoder)
                     row.rsvpd = try c.decodeIfPresent(Bool.self, forKey: .going) ?? true
                     event = row
