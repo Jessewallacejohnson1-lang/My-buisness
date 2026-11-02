@@ -36,20 +36,25 @@ final class ProfileModel: ObservableObject {
     @Published var loading = false
     @Published var loaded = false
 
-    private let auth: AuthStore
-    private var profiles: ProfileAPI { ProfileAPI(auth: auth, send: send) }
-    private var send = Supabase.Send.live
+    /// The one client every read and write goes through, and the account it goes as.
+    private var supabase: Supabase
+    private var auth: any TokenProviding { supabase.auth }
+    private var profiles: ProfileAPI { ProfileAPI(supabase) }
+    private let endSession: () async -> Void
     private var writePlans: ((Bool) async throws -> Void)?
     private var writeSuggest: ((Bool) async throws -> Void)?
     /// The switches with a write out, so taps queue behind it.
     private var writing: Set<PartialKeyPath<ProfileModel>> = []
 
-    // Default arg is nil (not `.shared`) so the main-actor singleton is only
+    // Default args are nil (not `.app`, `.shared`) so the main-actor singletons are only
     // touched inside this @MainActor init body — no cross-isolation warning.
-    // `writePlans` stands in for the server in tests.
-    init(auth: AuthStore? = nil, writePlans: ((Bool) async throws -> Void)? = nil,
+    // `supabase` is the app's one client unless a test hands a fake (BP app codebase-health 22);
+    // `signOut` ends the session; `writePlans` stands in for the server in tests.
+    init(supabase: Supabase? = nil, signOut: (() async -> Void)? = nil,
+         writePlans: ((Bool) async throws -> Void)? = nil,
          writeSuggest: ((Bool) async throws -> Void)? = nil) {
-        self.auth = auth ?? .shared
+        self.supabase = supabase ?? .app
+        endSession = signOut ?? { await AuthStore.shared.signOut() }
         self.writePlans = writePlans
         self.writeSuggest = writeSuggest
         // The name at once, so the sheet never opens on "Add your name" and fades to it.
@@ -58,7 +63,7 @@ final class ProfileModel: ObservableObject {
         // `-town-samples`: the switches show on and their taps write nowhere, as Join's do;
         // `-town-offline`: every tap fails, as with no network.
         // `-town-offline`: Save fails as with no signal too, and sends nothing.
-        if LaunchFlags.backend == .offline { send = .offline }
+        if LaunchFlags.backend == .offline { self.supabase.send = .offline }
         if writePlans == nil, LaunchFlags.backend != .live {
             let offline = LaunchFlags.backend == .offline
             plansToFriends = true
@@ -243,7 +248,7 @@ final class ProfileModel: ObservableObject {
         return square.jpegData(compressionQuality: 0.85)
     }
 
-    func signOut() async { await auth.signOut() }
+    func signOut() async { await endSession() }
 
     /// The switch answers at once. One write at a time: taps made while one is out are sent
     /// as their latest value when it returns, so the server ends where the switch does. A

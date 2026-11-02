@@ -222,6 +222,8 @@ final class TownFeed {
     /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
     private let choose: (FeedChoice) async throws -> String?
     private let readMuted: () async throws -> [MutedHost]
+    /// The live scores' sign-in: the session's account, or the public key with none.
+    private let token: () async -> String?
     /// Past the ranked list (town-feed 23): the later Events, each round's order (given the places this
     /// phone opened, which go last, and the list's ids, the only repeats), and those opened places.
     private let readLater: () async throws -> [TownFeedEntry]
@@ -238,6 +240,7 @@ final class TownFeed {
          send: @escaping ([FeedAction]) async throws -> Void = { _ in },
          choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
          readMuted: @escaping () async throws -> [MutedHost] = { [] },
+         token: @escaping () async -> String? = { nil },
          readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
          readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
          opened: @escaping () -> [String] = { [] },
@@ -248,6 +251,7 @@ final class TownFeed {
         self.sender = send
         self.choose = choose
         self.readMuted = readMuted
+        self.token = token
         self.readLater = readLater
         self.readMore = readMore
         self.opened = opened
@@ -256,8 +260,9 @@ final class TownFeed {
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
     /// work has photos under the chrome and never reads the live database;
-    /// `-town-offline` keeps the samples on screen with every read failing.
-    convenience init(actions: RealLifeActions? = nil) {
+    /// `-town-offline` keeps the samples on screen with every read failing. Live, every read
+    /// and write goes through `supabase`, the session's one client (`AppSession`).
+    convenience init(supabase: Supabase, actions: RealLifeActions? = nil) {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
@@ -275,17 +280,19 @@ final class TownFeed {
         }
         #endif
         // A test run never records views for whatever account the simulator kept. A plain
-        // closure, not a choice between one and `Self.sendLive`: Xcode 26.6's compiler, which
+        // closure, not a choice between one and the live send: Xcode 26.6's compiler, which
         // GitHub's check builds with, gave up on that (red from 2026-10-13).
         let testRun = AuthStore.isTestRun
-        self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions,
-                  send: { batch in if !testRun { try await Self.sendLive(batch) } },
-                  choose: { try await CommunityAPI(auth: AuthStore.shared).feedChoice($0) },
-                  readMuted: { try await CommunityAPI(auth: AuthStore.shared).mutedHosts() },
-                  readLater: { try await CommunityAPI(auth: AuthStore.shared).getTownFeedLater().map(Self.entry) },
-                  readMore: { try await CommunityAPI(auth: AuthStore.shared).getTownMore(round: $0, opened: $1, shown: $2) },
+        let api = CommunityAPI(supabase)
+        self.init(read: { try await api.getTownFeed().map(TownFeed.entry) }, kept: Self.keptOnDisk, actions: actions,
+                  send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
+                  choose: { try await api.feedChoice($0) },
+                  readMuted: { try await api.mutedHosts() },
+                  token: { try? await supabase.auth.validAccessToken() },
+                  readLater: { try await api.getTownFeedLater().map(TownFeed.entry) },
+                  readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids },
-                  deletePost: { try await CommunityAPI(auth: AuthStore.shared).deletePost($0.id, photo: $0.photo != nil) })
+                  deletePost: { try await api.deletePost($0.id, photo: $0.photo != nil) })
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -514,7 +521,7 @@ final class TownFeed {
         if LaunchFlags.has(.townLive) { replayLiveGame(); return }
         #endif
         if scores == nil {
-            let client = RealtimeClient(table: "club_events") { try? await AuthStore.shared.validAccessToken() }
+            let client = RealtimeClient(table: "club_events", tokenProvider: token)
             client.onChange = { [weak self] change in self?.scored(change) }
             scores = client
         }
@@ -835,14 +842,6 @@ final class TownFeed {
         else { return }
         viewed.insert(id)
         unsent.append(FeedAction(itemID: id, kind: .view))
-    }
-
-    private static func sendLive(_ batch: [FeedAction]) async throws {
-        try await CommunityAPI(auth: AuthStore.shared).recordFeedActions(batch)
-    }
-
-    private static func live() async throws -> [TownFeedEntry] {
-        try await CommunityAPI(auth: AuthStore.shared).getTownFeed().map(entry)
     }
 
     /// The list the last live read left on disk, or nil when there is none or it no

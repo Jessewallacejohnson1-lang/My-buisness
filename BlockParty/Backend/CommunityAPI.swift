@@ -53,6 +53,8 @@ struct CommunityAPI {
     let db: Supabase
 
     init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
+    /// Through a client already made: the session's one (`AppSession`).
+    init(_ db: Supabase) { self.db = db }
 
     /// "Real events only" guard, appended to every event *display* query.
     /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail), and a

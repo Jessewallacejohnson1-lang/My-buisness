@@ -14,6 +14,10 @@ protocol TokenProviding {
     func validAccessToken() async throws -> String
     var userId: String? { get }
     var email: String? { get }
+    /// A session is open, anonymous or real.
+    var isSignedIn: Bool { get }
+    /// The session is the quiet anonymous one, not a real account.
+    var isAnonymous: Bool { get }
     /// The server refused a token the phone still thought good (a 401): refresh it, or sign out.
     func handleUnauthorized() async
 }

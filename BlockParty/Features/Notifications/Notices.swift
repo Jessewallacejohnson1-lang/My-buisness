@@ -149,15 +149,16 @@ final class Notices {
         seen = Set(keep.stringArray(forKey: Self.seenKey) ?? [])
     }
 
-    /// Your changes from `get_my_changes`, or under DEBUG `-notice-samples` the samples.
-    convenience init() {
+    /// Your changes from `get_my_changes` through `supabase`, the session's one client
+    /// (`AppSession`), or under DEBUG `-notice-samples` the samples.
+    convenience init(supabase: Supabase, keep: UserDefaults = .standard) {
         #if DEBUG
         if LaunchFlags.has(.noticeSamples) {
             self.init(read: { Notices.samples(now: Date()) }, keep: UserDefaults(suiteName: "NoticeSamples") ?? .standard)
             return
         }
         #endif
-        self.init(read: { try await CommunityAPI(auth: AuthStore.shared).getMyChanges() })
+        self.init(read: { try await CommunityAPI(supabase).getMyChanges() }, keep: keep)
     }
 
     /// The bell's dot: something on the page you haven't opened it to.

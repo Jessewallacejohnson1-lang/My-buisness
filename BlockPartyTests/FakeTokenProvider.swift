@@ -13,6 +13,8 @@ final class FakeTokenProvider: TokenProviding {
     var token = "test-access-token"
     var userId: String?
     var email: String?
+    var isAnonymous = false
+    var isSignedIn: Bool { userId != nil }
     var throwOnToken = false
     /// How many 401s the client reported.
     var unauthorized = 0

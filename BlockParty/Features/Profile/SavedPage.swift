@@ -6,7 +6,7 @@
 //  the title in the middle (BP app references/saved-in-profile), drawn as Search's shelf
 //  pages draw it, since Apple's bar dropped the page 20pt at the end of the push.
 //
-//  The read (`get_my_saves`, kept in the shell's `YouModel.saves()`) gives the list; a save
+//  The read (`get_my_saves`, kept in the shell's `YouModel.saves(supabase:)`) gives the list; a save
 //  or unsave made anywhere since comes from `RealLifeActions`, so the list matches without a
 //  refresh and a save that turns back never shows.
 //

@@ -12,6 +12,8 @@ import XCTest
 @MainActor
 final class SearchModelTests: XCTestCase {
     private var defaults: UserDefaults!
+    /// Nothing these tests do reads; a read would reach this fake, never the network.
+    private var supabase: Supabase { Supabase(auth: FakeTokenProvider(), send: FakeServer().send) }
 
     override func setUp() {
         super.setUp()
@@ -65,7 +67,7 @@ final class SearchModelTests: XCTestCase {
     /// Businesses show on the row only with a logo; food splits into coffee and the
     /// rest; names lose what only repeats the kind of place.
     func testPlacesSplitIntoRows() {
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         model.show([
             poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop", logo: logo()),
             poi("stjoe-no-logo", "Plain Shop", .business, "store"),
@@ -166,7 +168,7 @@ final class SearchModelTests: XCTestCase {
 
     /// Places read without their photos show, and say so, so the next try reads the photos.
     func testPlacesWithoutTheirPhotos() {
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         model.show([poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant", entry: "krewe")], photos: nil)
         XCTAssertTrue(model.placesLoaded)
         XCTAssertFalse(model.photosLoaded)
@@ -207,7 +209,7 @@ final class SearchModelTests: XCTestCase {
 
     /// The mockup's order first (the 3D logos lead), then by name.
     func testRowsKeepTheMockupsOrder() {
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         model.show([
             poi("stjoe-aaa", "Aardvark", .business, "store"),
             poi("stjoe-white-peony-boutique", "White Peony Boutique", .business, "clothing_store",
@@ -253,7 +255,7 @@ final class SearchModelTests: XCTestCase {
     /// Search's Groups row, in the server's order: the cover photo, else the logo on its backdrop
     /// (a grey one on the studio hue), else what kind of thing it is; and no made-up samples.
     func testGroupsReachTheShelf() {
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         XCTAssertTrue(model.isLoading(.club), "a skeleton row until they're read")
         XCTAssertTrue(model.row(.club).isEmpty, "the made-up Book Group, Morning Pages and Potluck are gone")
         model.show([
@@ -312,7 +314,7 @@ final class SearchModelTests: XCTestCase {
 
     /// Typing finds by name and by kind of place; the Businesses pill takes food too.
     func testTypedSearch() {
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         model.show([
             poi("stjoe-her-hair-studio", "Her Hair Studio", .business, "hair_salon"),
             poi("stjoe-gary", "Gary's Pizza", .food, "pizza_restaurant"),
@@ -326,7 +328,7 @@ final class SearchModelTests: XCTestCase {
     /// Newest first, no repeats, eight at most, and kept between launches.
     func testRecents() {
         defaults.set([String](), forKey: SearchModel.recentsKey)
-        let model = SearchModel(defaults: defaults)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
         for i in 0..<10 { model.remember("q:\(i)") }
         model.remember("q:3")
         XCTAssertEqual(model.recentIDs.count, SearchModel.recentsMax)
@@ -334,7 +336,7 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.recentIDs.filter { $0 == "q:3" }.count, 1)
         model.forget("q:3")
         XCTAssertFalse(model.recentIDs.contains("q:3"))
-        XCTAssertEqual(SearchModel(defaults: defaults).recentIDs, model.recentIDs)
+        XCTAssertEqual(SearchModel(supabase: supabase, defaults: defaults).recentIDs, model.recentIDs)
         XCTAssertEqual(SearchModel.queryID("  Pumpkin "), "q:pumpkin")
     }
 

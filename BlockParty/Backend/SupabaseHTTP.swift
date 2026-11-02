@@ -215,3 +215,10 @@ struct Supabase {
         return try decoder.decode(type, from: data)
     }
 }
+
+extension Supabase {
+    /// The app's one live client: the signed-in account's token, over the network. `AppSession`
+    /// makes it once and hands it to every model it holds (BP app codebase-health 22), so a test
+    /// can hand them all a fake instead.
+    @MainActor static var app: Supabase { Supabase(auth: AuthStore.shared) }
+}

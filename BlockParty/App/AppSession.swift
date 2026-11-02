@@ -64,14 +64,22 @@ final class AppSession {
         self.supabase = supabase
     }
 
-    /// The live models, or the DEBUG samples each one's launch flags pick.
-    convenience init() {
-        let actions = RealLifeActions()
-        self.init(actions: actions, townFeed: TownFeed(actions: actions), searchModel: SearchModel(actions: actions),
-                  friendsBook: FriendsBook(), you: YouModel(), saves: YouModel.saves(),
-                  eventOfTheDay: EventOfTheDay(), dayPicks: DailyDayPicks(), notices: Notices(),
-                  avatar: TodayHeaderProfileModel(auth: .shared), profile: ProfileModel(), hello: .shared, saved: .shared,
-                  supabase: Supabase(auth: AuthStore.shared))
+    /// The live models, or the DEBUG samples each one's launch flags pick. Every one reads and
+    /// writes through `supabase`, the app's one client (`Supabase.app`) unless a test hands it a
+    /// fake, so none of them can go around the account the session is on. `phone` and `saved`
+    /// are where the models keep what stays on the phone; a test hands its own.
+    convenience init(supabase: Supabase? = nil, phone: UserDefaults? = nil, saved: SavedStore? = nil) {
+        let supabase = supabase ?? .app
+        let actions = RealLifeActions(supabase: supabase)
+        self.init(actions: actions, townFeed: TownFeed(supabase: supabase, actions: actions),
+                  searchModel: SearchModel(supabase: supabase, defaults: phone ?? .standard, actions: actions),
+                  friendsBook: FriendsBook(supabase: supabase), you: YouModel(supabase: supabase),
+                  saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
+                  dayPicks: DailyDayPicks(supabase: supabase),
+                  notices: Notices(supabase: supabase, keep: phone ?? .standard),
+                  avatar: TodayHeaderProfileModel(supabase: supabase), profile: ProfileModel(supabase: supabase),
+                  hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
+                  supabase: supabase)
     }
 
     /// The account changed (`AuthStore.accountKey`): another one, none, or the same one logged in
@@ -132,7 +140,7 @@ final class AppSession {
     /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.
     func recordOpen() {
         guard supabase.auth.userId != nil else { return }
-        let api = CommunityAPI(auth: supabase.auth, send: supabase.send)
+        let api = CommunityAPI(supabase)
         Task { try? await api.recordOpen() }
     }
 }
