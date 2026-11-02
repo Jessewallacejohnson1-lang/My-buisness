@@ -5,7 +5,8 @@
      62 pt display corners, its middle stretching on other screens), and the app icon's "Bp" in its
      ink with the icon's soft shade (`LaunchStill`, B and p at 90% of their size, no ! yet). It is the
      first frame of the launch animation (`LaunchBall`), so the hand-off can't be seen: the same
-     249.6 pt Bp! canvas, centred on the screen, in the middle of the 282 x 173 pt picture. Both
+     249.6 pt Bp! canvas in the middle of the 282 x 173 pt picture, moved 27.502 pt right and
+     3.822 pt up so that Bp sits in the screen's middle (`LaunchMotion.centring`). Both
      pictures are drawn by BP app references/launch-ball/make_still.py from the mock's own CSS.
      iPhone caches this screen: reinstall to see a change.
      (2026-09-18 to 2026-11-01 it was bare paper, Jesse's no-splash call, now reversed.)
@@ -30,7 +31,7 @@
                                 <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
                             </imageView>
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchStill" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
-                                <rect key="frame" x="60" y="350.5" width="282" height="173"/>
+                                <rect key="frame" x="87.502" y="346.678" width="282" height="173"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="282" id="launch-still-w"/>
                                     <constraint firstAttribute="height" constant="173" id="launch-still-h"/>
@@ -44,8 +45,8 @@
                             <constraint firstItem="launch-glass" firstAttribute="bottom" secondItem="launch-root-view" secondAttribute="bottom" id="launch-glass-b"/>
                             <constraint firstItem="launch-glass" firstAttribute="leading" secondItem="launch-root-view" secondAttribute="leading" id="launch-glass-l"/>
                             <constraint firstItem="launch-glass" firstAttribute="trailing" secondItem="launch-root-view" secondAttribute="trailing" id="launch-glass-r"/>
-                            <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="launch-still-x"/>
-                            <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" id="launch-still-y"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="27.502" id="launch-still-x"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="-3.822" id="launch-still-y"/>
                         </constraints>
                     </view>
                 </viewController>

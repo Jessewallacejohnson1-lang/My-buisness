@@ -7,8 +7,8 @@
 //  approved as played; change one only with Jesse.
 //
 //  Times here are the mock's simulation time. The screen plays them at `pace`, so each
-//  motion takes 1.78x its value: round 4's ¾ speed (Jesse: "can you do .75 speed"), then ¾ of
-//  that again (Jesse, 2026-11-02: "speed 0.75", from the shipped launch's mock).
+//  motion takes 1.33x its value (Jesse: "can you do .75 speed"; slower still was tried and
+//  dropped on 2026-11-02: "nvm do 1 speed").
 //
 
 import SwiftUI
@@ -16,7 +16,7 @@ import SwiftUI
 nonisolated struct LaunchMotion {
     // MARK: Tuning (the mock's `T`)
 
-    static let pace = 0.75 * 0.75
+    static let pace = 0.75
     /// Gravity and the drop's starting speed, in points per second (per second).
     private static let gravity: CGFloat = 7600
     private static let dropSpeed: CGFloat = 650
@@ -59,6 +59,12 @@ nonisolated struct LaunchMotion {
     // MARK: The mark: the Daily mark's canvas, viewBox 137 302 751 422
 
     static let canvas = CGRect(x: 137, y: 302, width: 751, height: 422)
+    /// The middle of the still's Bp (B and p at 90%) on the canvas, measured off `LaunchStill`.
+    /// It sits in the screen's middle and the ! reaches past it on the right (Jesse, 2026-11-02:
+    /// "recenter that the BP is in the middle"), so the whole launch, the ball's start included,
+    /// moves by `centring` from the canvas's own middle.
+    static let bpMiddle = CGPoint(x: 429.75, y: 524.5)
+    static let centring = CGSize(width: (canvas.midX - bpMiddle.x) * scale, height: (canvas.midY - bpMiddle.y) * scale)
     /// Round 1's 17.2 pt ball, 125% larger (Jesse: "joetown logo needs to be 125% larger"),
     /// and the dot 15% smaller than it. The dot is 101 canvas units across, which sets the
     /// points per unit and so Bp!'s 249.6 pt width.
@@ -106,7 +112,8 @@ nonisolated struct LaunchMotion {
         self.reduceMotion = reduceMotion
         self.ending = ending
         let s = Self.scale
-        origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2, y: (screen.height - Self.canvas.height * s) / 2)
+        origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2 + Self.centring.width,
+                         y: (screen.height - Self.canvas.height * s) / 2 + Self.centring.height)
         let u = { [origin] (x: CGFloat, y: CGFloat) in
             CGPoint(x: origin.x + (x - Self.canvas.minX) * s, y: origin.y + (y - Self.canvas.minY) * s)
         }
@@ -121,9 +128,10 @@ nonisolated struct LaunchMotion {
         onDot = u(Self.dotCentre.x, Self.dotCentre.y)
 
         let g = Self.gravity, v0 = Self.dropSpeed
-        let dropTime = (-v0 + (v0 * v0 + 2 * g * (onB.y - Self.start.y)).squareRoot()) / g
-        drop = Flight(from: Self.start, time: Double(dropTime), vy: v0,
-                      vx: (onB.x - Self.start.x) / dropTime, spin: (-120, 0), shrinks: false)
+        let start = CGPoint(x: Self.start.x + Self.centring.width, y: Self.start.y + Self.centring.height)
+        let dropTime = (-v0 + (v0 * v0 + 2 * g * (onB.y - start.y)).squareRoot()) / g
+        drop = Flight(from: start, time: Double(dropTime), vy: v0,
+                      vx: (onB.x - start.x) / dropTime, spin: (-120, 0), shrinks: false)
         toP = Flight.arc(from: onB, to: onP, height: Self.arcB, spin: (0, 360))
         toDot = Flight.arc(from: onP, to: onDot, height: Self.arcP, spin: (360, 720), shrinks: true)
         hitB = drop.time

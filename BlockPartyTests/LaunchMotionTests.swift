@@ -12,6 +12,9 @@ import SwiftUI
 final class LaunchMotionTests: XCTestCase {
 
     private let phone = CGSize(width: 402, height: 874)
+    /// The mock's numbers were read before Bp moved to the screen's middle (2026-11-02): every
+    /// position on screen is theirs plus this.
+    private let moved = LaunchMotion.centring
     private var motion: LaunchMotion { LaunchMotion(screen: phone) }
 
     /// The drop, the two arcs and the landing take the mock's times.
@@ -20,8 +23,9 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(motion.hitP, 0.606587, accuracy: 1e-5)
         XCTAssertEqual(motion.landAt, 0.934977, accuracy: 1e-5)
         XCTAssertEqual(motion.ballEnd, 0.984977, accuracy: 1e-5)
-        XCTAssertEqual(motion.origin.x, 76.200045, accuracy: 1e-4)
-        XCTAssertEqual(motion.origin.y, 366.872728, accuracy: 1e-4)
+        XCTAssertEqual(motion.origin.x, 76.200045 + moved.width, accuracy: 1e-4)
+        XCTAssertEqual(motion.origin.y, 366.872728 + moved.height, accuracy: 1e-4)
+        XCTAssertEqual(moved.width, 27.5, accuracy: 0.01, "Bp sits 27.5 pt right of where Bp! was centred")
         XCTAssertEqual(LaunchMotion.ball, 38.603235, accuracy: 1e-5)
         XCTAssertEqual(LaunchMotion.dot, 33.56803, accuracy: 1e-5)
     }
@@ -42,8 +46,8 @@ final class LaunchMotionTests: XCTestCase {
         ]
         for (t, x, y, r, roll, sx, sy, heading) in mock {
             let b = motion.ball(at: t)
-            XCTAssertEqual(b.x, x, accuracy: 1e-3, "x at \(t)")
-            XCTAssertEqual(b.y, y, accuracy: 1e-3, "y at \(t)")
+            XCTAssertEqual(b.x, x + moved.width, accuracy: 1e-3, "x at \(t)")
+            XCTAssertEqual(b.y, y + moved.height, accuracy: 1e-3, "y at \(t)")
             XCTAssertEqual(b.r, r, accuracy: 1e-3, "r at \(t)")
             XCTAssertEqual(b.roll, roll, accuracy: 1e-3, "roll at \(t)")
             XCTAssertEqual(b.sx, sx, accuracy: 1e-4, "sx at \(t)")
@@ -95,9 +99,9 @@ final class LaunchMotionTests: XCTestCase {
     }
 
     /// The landed ball goes black, the ! hops, and Bp! glides onto the tab bar's Bp! on the
-    /// mock's spring, the whole launch done 3.3 s after the still. A tap belongs to the launch
+    /// mock's spring, the whole launch done 2.48 s after the still. A tap belongs to the launch
     /// until its yellow is mostly gone, then reaches the app under the glide.
-    func testEndsOnTheTabBarsBpAfter33Seconds() {
+    func testEndsOnTheTabBarsBpAfter248Seconds() {
         let target = CGRect(x: 113.6, y: 813, width: 39.15, height: 22)
         let m = LaunchMotion(screen: phone, ending: .tab(target))
         let endAt = m.landAt + 0.12 + 0.40
@@ -112,7 +116,7 @@ final class LaunchMotionTests: XCTestCase {
         }
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertEqual(t / LaunchMotion.pace, 3.304, accuracy: 0.04)
+        XCTAssertEqual(t / LaunchMotion.pace, 2.478, accuracy: 0.03)
         XCTAssertTrue(m.frame(at: endAt).takesTaps)
         XCTAssertFalse(m.frame(at: endAt + 0.2).takesTaps, "the yellow is mostly gone 0.2 s into the glide")
         // LaunchBallTests holds 1.6 to tap through: the yellow gone, the launch still on screen.

@@ -134,7 +134,7 @@ struct LaunchHost<Content: View>: View {
             AccessibilityNotification.Announcement("Block Party").post()
         }
         // Whatever stalls it, the app shows within 6 s: the splash deleted on 2026-09-18 left
-        // the app black on every cold start (swift-traps). It plays in 3.3.
+        // the app black on every cold start (swift-traps). It plays in 2.5.
         .task {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
