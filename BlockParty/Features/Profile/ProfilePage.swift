@@ -169,7 +169,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(face.name)
-                .font(.eventDisplay(28))
+                .font(.display(28))
                 .lineSpacing(Event.titleLineSpacing)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -282,7 +282,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
 
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.apple(17, weight: .semibold))
+            .font(.displaySemi(17))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, Sizes.sectionTop)

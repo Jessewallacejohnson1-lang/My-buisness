@@ -497,7 +497,7 @@ private struct SpotlightCardFace: View {
         // over the business line's capitals, as App Store's title sits over its subtitle.
         VStack(alignment: .leading, spacing: 0) {
             Text(spotlight.name)
-                .font(.eventDisplay(28))
+                .font(.display(28))
                 // The Town card's title, set the same way (`FeedEventCard.imageCopy`).
                 .lineSpacing(-2)
                 .lineLimit(3)
@@ -505,7 +505,7 @@ private struct SpotlightCardFace: View {
             // Jost Medium stands in for Airbnb's Cereal, which Airbnb doesn't license
             // (Jesse picks the final face later, 2026-10-19).
             Text(spotlight.about)
-                .font(.displayMedium(15))
+                .font(.sansMedium(15))
                 .foregroundStyle(.white.opacity(0.85))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

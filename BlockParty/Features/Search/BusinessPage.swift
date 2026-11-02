@@ -404,7 +404,7 @@ private struct BusinessPageContent: View {
         let rows = BusinessPage.rows(item.links)
         return VStack(alignment: .leading, spacing: 0) {
             Text(item.name)
-                .font(.eventDisplay(28))
+                .font(.display(28))
                 .lineSpacing(Metric.titleLineSpacing)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)

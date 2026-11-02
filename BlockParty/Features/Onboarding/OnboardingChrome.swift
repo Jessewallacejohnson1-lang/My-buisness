@@ -141,7 +141,7 @@ struct OnboardingNextBar: View {
             if allowed { action() } else { shakes += 1; Haptics.error() }
         } label: {
             Text(title)
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -280,7 +280,7 @@ struct ContinueButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)

@@ -376,7 +376,7 @@ struct OnboardingFlow: View {
                 .foregroundStyle(Hue.ink)
             VStack(alignment: .leading, spacing: 0) {
                 Text(firstHere ? "You're one of the first here" : store.step.question)
-                    .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
+                    .font(.display(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.opacity)
@@ -554,7 +554,7 @@ struct OnboardingWelcome: View {
                 .foregroundStyle(.white)
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
-                .font(.sansHeadline(36))
+                .font(.display(36))
                 .lineSpacing(-4)   // BP Body's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
@@ -644,7 +644,7 @@ private struct WelcomePill: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 icon.scaledToFit().font(.glyph(19, weight: .medium)).frame(width: 19, height: 19)
-                Text(title).font(.sansSemibold(17))
+                Text(title).font(.displaySemi(17))
             }
             .foregroundStyle(Hue.onBrandDisc)
             .frame(maxWidth: .infinity, minHeight: 48)

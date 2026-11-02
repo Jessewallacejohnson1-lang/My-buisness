@@ -156,7 +156,7 @@ struct FriendsEmptyInvite: View {
             }
             .accessibilityHidden(true)
             Text("No friends yet")
-                .font(.sansBold(20))
+                .font(.display(20))
                 .foregroundStyle(Hue.ink)
                 .padding(.top, FriendsMetric.emptyTitleTop)
                 .accessibilityAddTraits(.isHeader)
@@ -167,7 +167,7 @@ struct FriendsEmptyInvite: View {
                 .padding(.top, FriendsMetric.emptyLineTop)
             ShareLink(item: FriendsInvite.link, message: Text(FriendsInvite.words)) {
                 Label("Invite friends", systemImage: "square.and.arrow.up")
-                    .font(.sansSemibold(17))
+                    .font(.displaySemi(17))
                     .foregroundStyle(Hue.surface)
                     .frame(maxWidth: .infinity)
                     .frame(height: FriendsMetric.invite)

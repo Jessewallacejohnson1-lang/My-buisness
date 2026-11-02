@@ -189,7 +189,7 @@ struct GroupPage: View {
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(group.name)
-                .font(.eventDisplay(28))
+                .font(.display(28))
                 .lineSpacing(Event.titleLineSpacing)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -255,7 +255,7 @@ struct GroupPage: View {
 
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.sansSemibold(17))
+            .font(.displaySemi(17))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, Metric.sectionTop)
@@ -305,7 +305,7 @@ struct GroupPage: View {
             if isMember {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("You're in!")
-                        .font(.sansBold(size.top))
+                        .font(.display(size.top))
                         .foregroundStyle(Hue.ink)
                     RSVPArea.leave("Leave group?", size: size, hint: "Takes you out of the group",
                                    reduceMotion: reduceMotion, action: toggle)
@@ -326,7 +326,7 @@ struct GroupPage: View {
                     HStack(spacing: RSVPArea.glyphGap) { RSVPArea.invite(size) }
                         .opacity(isMember ? 1 : 0)
                 }
-                .font(.apple(size.top, weight: .semibold))
+                .font(.displaySemi(size.top))
                 .frame(maxWidth: isMember ? nil : .infinity)
             }
             .buttonStyle(MeetupPillStyle(height: isMember ? size.pillHeight : Metric.pillHeight,

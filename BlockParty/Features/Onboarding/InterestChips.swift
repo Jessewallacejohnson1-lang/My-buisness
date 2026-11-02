@@ -77,7 +77,7 @@ struct InterestChips: View {
         VStack(alignment: .leading, spacing: 12) {
             if let title {
                 Text(title)
-                    .font(.sansSemibold(15))
+                    .font(.displaySemi(15))
                     .foregroundStyle(Hue.ink)
                     .accessibilityAddTraits(.isHeader)
             }
