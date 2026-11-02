@@ -269,9 +269,9 @@ private struct NewEventDetails: View {
                         .labelsHidden()
                         // The town's clock, as Share sends it: a phone away from home picks St. Joseph's 7 PM.
                         .environment(\.timeZone, Town.timeZone)
-                        // Opening the calendar puts the keyboard away first, so it doesn't come back
-                        // when the calendar closes (recorded 2026-11-01).
-                        .simultaneousGesture(TapGesture().onEnded { naming = false })
+                        // The keyboard goes at touch-down, before the calendar opens: dropped on the tap's
+                        // end, iOS handed it back when the calendar closed (recorded 2026-11-01).
+                        .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { _ in naming = false })
                 }
                 Button { naming = false; choosePlace() } label: {
                     row(label: NewEventCopy.place, icon: { MapPinGlyph(size: NewEventMetric.icon) }) {
