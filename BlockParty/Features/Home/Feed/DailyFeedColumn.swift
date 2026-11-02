@@ -254,14 +254,19 @@ struct DailyCardEntrance: ViewModifier {
 
     @State private var shown = false
     /// Under the launch the cascade waits for its yellow to clear, so it plays where it's seen
-    /// (Jesse, 2026-11-02, "Town settles").
+    /// (Jesse, 2026-11-02, "Town settles"), and the cards wait there in full view, only low: a
+    /// fade as the yellow clears read as a feed still loading (recorded 2026-11-02).
+    @State private var underLaunch = false
     private let launch = LaunchStage.shared
 
     func body(content: Content) -> some View {
+        let waiting = !(shown || revealed || !enabled)
         content
-            .opacity(shown || revealed || !enabled ? 1 : 0)
-            .offset(y: shown || revealed || !enabled ? 0 : 12)
-            .onAppear { if launch.townSettles { enter() } }
+            .opacity(waiting && !underLaunch ? 0 : 1)
+            .offset(y: waiting ? 12 : 0)
+            .onAppear {
+                if launch.townSettles { enter() } else { underLaunch = true }
+            }
             .onChange(of: launch.townSettles) { _, settles in if settles { enter() } }
     }
 
