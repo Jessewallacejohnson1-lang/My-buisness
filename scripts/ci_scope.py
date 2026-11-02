@@ -16,15 +16,15 @@ import subprocess
 import sys
 
 # Nothing in these builds the app or is read by a test. test_ci_scope.py's drift guard fails when
-# a test starts reading a file the rule would skip; that file goes in TESTS_READ.
+# the app or a test starts reading a file the rule would skip; that file goes in TESTS_READ.
 SAFE_FOLDERS = ("supabase/", "sources/", "rules/", "scripts/", "refs/", ".claude/", ".agents/", "docs/")
 SAFE_FILES = {"AGENTS.md", "CLAUDE.md", "MEMORY.md", "DECISIONS.md", "DESIGN.md", "PRODUCT.md",
               "REVIEW.md", "ONBOARDING.md"}
-TESTS_READ = {"docs/debug-flags.md"}  # LaunchFlagsTests reads it
+TESTS_READ = {"docs/debug-flags.md"}  # LaunchFlagsTests reads it; lower case, as a Mac ignores case
 
 
 def safe(path):
-    return path not in TESTS_READ and (path in SAFE_FILES or path.startswith(SAFE_FOLDERS))
+    return path.lower() not in TESTS_READ and (path in SAFE_FILES or path.startswith(SAFE_FOLDERS))
 
 
 def needs_tests(files):

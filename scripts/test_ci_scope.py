@@ -16,6 +16,7 @@ class RuleTests(unittest.TestCase):
 
     def test_the_docs_file_a_test_reads_runs(self):
         self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "docs/debug-flags.md"]))
+        self.assertTrue(ci_scope.needs_tests(["docs/Debug-Flags.md"]))  # a Mac checkout ignores case
 
     def test_a_swift_file_runs(self):
         self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "BlockParty/App/RootView.swift"]))
@@ -110,24 +111,63 @@ class ChangesTests(unittest.TestCase):
         self.assertTrue(self.needs(event="pull_request", ref="refs/pull/1/merge"))
 
 
-class DriftGuardTests(unittest.TestCase):
-    """Every repo path a test names must run the tests when it changes: a test that starts reading,
-    say, a sources/ file would otherwise be skipped when that file changes."""
+APP_FOLDERS = ("BlockParty", "BlockPartyTests", "BlockPartyUITests")
 
-    def test_no_file_a_test_reads_is_skipped(self):
+
+def repo_paths(swift_text, tops):
+    """Every repo path a Swift file names in a string: from the first part that names a top-level
+    entry on, so "\\(root)/sources/a.md", "/sources/a.md" and "../sources/a.md" all give sources/a.md."""
+    found = set()
+    for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', swift_text):
+        parts = lit.split("/")
+        for i, part in enumerate(parts):
+            if part in tops:
+                found.add("/".join(parts[i:]))
+                break
+    return found
+
+
+class DriftGuardTests(unittest.TestCase):
+    """Whatever the app and its tests can read must run the tests when it changes: a test that
+    starts reading, say, a sources/ file would otherwise be skipped when that file changes.
+    ponytail: a test that walks the whole repo, or builds a path from pieces with no slash in a
+    string, isn't seen; nothing does either today."""
+
+    def test_the_scan_sees_each_way_of_writing_a_path(self):
+        tops = {"sources", "docs", "BlockParty"}
+        text = """root.appendingPathComponent("sources/a.md") "\\(root)/sources/b.md" root + "/sources/c.md"
+                  "BlockParty" "../sources/d.md" "./docs/e.md" "sources" "Could not read \\(sources.path)"
+                  """
+        self.assertEqual(repo_paths(text, tops),
+                         {"sources/a.md", "sources/b.md", "sources/c.md", "sources/d.md", "docs/e.md", "sources",
+                          "BlockParty"})
+
+    def test_no_file_the_app_or_a_test_reads_is_skipped(self):
         tops = {p.name for p in ROOT.iterdir()}
         read = set()
-        for folder in ("BlockPartyTests", "BlockPartyUITests"):
+        for folder in APP_FOLDERS:
             for swift in (ROOT / folder).rglob("*.swift"):
-                for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', swift.read_text(encoding="utf-8")):
-                    if lit.split("/")[0] in tops:
-                        read.add(lit)
-        outside = sorted(p for p in read if p != "BlockParty" and not p.startswith("BlockParty/"))
+                read |= repo_paths(swift.read_text(encoding="utf-8"), tops)
+        outside = sorted(p for p in read if p.split("/")[0] not in APP_FOLDERS)
         self.assertIn("docs/debug-flags.md", outside, "the scan found nothing it should: is it broken?")
         for p in outside:
-            self.assertTrue(ci_scope.needs_tests([p]), f"a test reads {p}, but changing it skips the tests")
+            self.assertTrue(ci_scope.needs_tests([p]), f"{p} is read, but changing it skips the tests")
             if (ROOT / p).is_dir():
-                self.assertTrue(ci_scope.needs_tests([p + "/x"]), f"a test reads {p}/, but it's skipped")
+                self.assertTrue(ci_scope.needs_tests([p + "/x"]), f"{p}/ is read, but it's skipped")
+
+    def test_no_link_in_the_app_or_test_folders(self):
+        links = [str(p.relative_to(ROOT)) for f in APP_FOLDERS for p in (ROOT / f).rglob("*") if p.is_symlink()]
+        self.assertEqual(links, [], "a link can pull a file the rule skips into the app or its tests")
+
+    def test_the_project_reads_nothing_the_rule_skips(self):
+        safe = "|".join(re.escape(n) for n in (*ci_scope.SAFE_FOLDERS, *ci_scope.SAFE_FILES))
+        for f in [ROOT / "BlockParty.xcodeproj/project.pbxproj", ROOT / "BlockParty.xctestplan",
+                  *ROOT.glob("BlockParty.xcodeproj/**/*.xcscheme")]:
+            text = f.read_text(encoding="utf-8")
+            m = re.search(r"shellScript|scriptText", text)
+            self.assertIsNone(m, f"{f.name} runs a script: what it reads must run the tests (ci_scope.py)")
+            m = re.search(rf"(?<![\w.-])(?:{safe})\S*", text)
+            self.assertIsNone(m, f"{f.name} names {m and m.group()}, which the rule skips")
 
 
 if __name__ == "__main__":
