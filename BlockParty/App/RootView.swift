@@ -795,6 +795,8 @@ struct MainTabsView: View {
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
                 // it moved nothing, and the capsule sat 34pt too high (measured).
                 .padding(.bottom, TabBarMetric.margin)
+                // It dips as the launch's Bp! lands in it (Jesse, 2026-11-02).
+                .launchCatch()
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .ignoresSafeArea(edges: .bottom)
                 .zIndex(10)
