@@ -143,8 +143,11 @@ struct LaunchHost<Content: View>: View {
 
     /// The app behind's scale to head for: its resting scale under the yellow, then full size
     /// once the ending starts. A held DEBUG frame takes the mock's exact value at that moment.
+    /// Full size once finished: a launch that never plays (UI tests) still draws its first frame,
+    /// and its 105% stuck on the app (2026-11-02, OnboardingNextBarTests red on main).
     private func backTarget(_ f: LaunchMotion.Frame) -> CGFloat {
-        stage.frozenAt != nil || f.ending == nil ? f.backScale : 1
+        if stage.finished { return 1 }
+        return stage.frozenAt != nil || f.ending == nil ? f.backScale : 1
     }
 
     private func settleBack(to target: CGFloat, _ f: LaunchMotion.Frame) {
