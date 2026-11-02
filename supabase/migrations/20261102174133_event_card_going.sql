@@ -23,6 +23,24 @@ stable
 security invoker
 set search_path = ''
 as $$
+  -- The group that posted it, else, for a found Event, the group it was found for: worked out once per
+  -- Event (kept, as the Town feed's `shown` is), never once per group the join tries.
+  with ev as materialized (
+    select e.*,
+           coalesce(e.club_id, case when e.submitted_by is null and e.source_name is not null
+                                    then private.event_group(e.source_name, e.place_entry_id, e.title) end) as group_id
+    from public.club_events e
+    where e.id = any (p_events)
+  ),
+  -- Each host's picture once, and all of them before any Event's picture. The host picture is read as
+  -- its owner and the Event picture as the caller, so asking for both on every row makes Postgres 18 plan
+  -- their shared place_picture again each time: 124 ms against 46 for 200 Events (PGlite, 2026-11-02).
+  hosts as materialized (
+    select jsonb_object_agg(k.host, private.host_picture(k.source_name, k.own_entry_id)) as pictures
+    from (select distinct jsonb_build_array(e.source_name, c.own_entry_id)::text as host, e.source_name, c.own_entry_id
+          from ev e
+          left join public.clubs c on c.id = e.group_id) k
+  )
   select e.id,
          jsonb_build_object(
            'id', e.id,
@@ -43,7 +61,7 @@ as $$
            -- A photo of what it is, else its place's picture (event-photos 07).
            'place_picture', public.event_picture(e.id),
            -- Who puts it on, its logo first (Jesse, 2026-10-23).
-           'host_picture', private.host_picture(e.source_name, c.own_entry_id),
+           'host_picture', h.pictures -> jsonb_build_array(e.source_name, c.own_entry_id)::text,
            'description', e.description,
            -- What it is, in one to three words (event-card 05).
            'what', e.what,
@@ -54,13 +72,10 @@ as $$
                      || jsonb_build_object('final', e.final_score, 'live', e.live_score, 'plays', e.scoring_plays),
            -- Up to three friends Going, newest Going first (town-feed 28).
            'friends_going', coalesce(fg.people, '[]'::jsonb))
-  from public.club_events e
-  -- The group that posted it, else, for a found Event, the group it was found for.
-  left join public.clubs c on c.id = coalesce(e.club_id,
-    case when e.submitted_by is null and e.source_name is not null
-         then private.event_group(e.source_name, e.place_entry_id, e.title) end)
+  from ev e
+  left join public.clubs c on c.id = e.group_id
   left join private.friends_going(p_events) fg on fg.event_id = e.id
-  where e.id = any (p_events)
+  cross join hosts h
 $$;
 revoke execute on function private.event_cards(uuid[]) from public;
 grant execute on function private.event_cards(uuid[]) to anon, authenticated;
