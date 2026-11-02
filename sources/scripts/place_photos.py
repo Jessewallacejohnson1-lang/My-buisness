@@ -373,16 +373,30 @@ $$;"""
 
 
 def made_by_migrations(name, folder=MIGRATIONS):
-    """The newest migration's `create ... function <name>(...) ... $$;`: the SQL the database runs today."""
-    make = re.compile(rf'create\s+(?:or\s+replace\s+)?function\s+{re.escape(name)}\s*\(.*?\$\$;', re.S | re.I)
-    made = [m.group(0) for p in sorted(folder.glob('*.sql')) for m in [make.search(p.read_text())] if m]
-    if not made:
+    """The SQL the database runs today for function <name>: the last create, drop or alter of it in the
+    newest migration that has one. A drop, a rename, or a create in another shape (a $function$ tag, a
+    language after the body) is an error, never a quiet fall back to an older copy."""
+    schema, fn = name.split('.')
+    who = rf'"?{schema}"?\s*\.\s*"?{fn}"?(?![\w"])'
+    said = re.compile(rf'\b(create|drop|alter)\s+(?:or\s+replace\s+)?function\s+(?:if\s+exists\s+)?{who}', re.I)
+    made = re.compile(rf'create\s+(?:or\s+replace\s+)?function\s+{who}\s*\(.*?(\$\w*\$).*?\1[^;]*;', re.I | re.S)
+    last = None
+    for p in sorted(folder.glob('*.sql')):
+        text = p.read_text()
+        for m in said.finditer(text):
+            last = p, text, m
+    if last is None:
         raise FileNotFoundError(f'no migration in {folder} makes {name}: run from a whole checkout, not sources/ alone')
-    return made[-1]
+    p, text, m = last
+    whole = made.match(text, m.start())
+    if m.group(1).lower() != 'create' or not whole:
+        raise ValueError(f'{p.name} ends with a {m.group(1)} of {name} this check cannot read: '
+                         'write it as `place_photos.py sql` prints it')
+    return whole.group(0)
 
 
 def same_sql(a, b):
-    return a.split() == b.split()
+    return a.strip() == b.strip()
 
 
 # --- The database ------------------------------------------------------------------------------------
@@ -723,6 +737,23 @@ def takedown(row_id, reason):
 
 # --- Self-test ------------------------------------------------------------------------------------
 
+def _later_migration_fails(sql, changed=False):
+    """The real migrations plus one newer file holding `sql`: does the drift check refuse it? With
+    `changed`, the newer file is readable and the check must see that it differs from the generator."""
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        for p in MIGRATIONS.glob('*.sql'):
+            shutil.copy(p, folder)
+        (folder / '99991231235959_later.sql').write_text(sql + '\n')
+        try:
+            differs = not same_sql(made_by_migrations('private.event_subject', folder), subject_sql())
+            return changed and differs
+        except ValueError:
+            return not changed
+
+
 def selftest():
     page = ('<meta property="og:image" content="/share.jpg"><img src="/a/storefront.jpg">'
             '<img srcset="/s-300.jpg 300w, /s-1200.jpg 1200w"><div style="background:url(\'/bg.webp\')"></div>'
@@ -800,6 +831,10 @@ def selftest():
          same_sql(made_by_migrations('private.event_subject'), subject_sql())
          and same_sql(made_by_migrations('private.season_of'), season_sql())
          and not same_sql(made_by_migrations('private.event_subject'), subject_sql().replace("'hockey'", "'hokey'"))),
+        ('a later drop, or a create in another shape, fails instead of reading an older copy',
+         _later_migration_fails('drop function private.event_subject(text, text, text);')
+         and _later_migration_fails(subject_sql().replace('$$', '$function$'), changed=True)
+         and _later_migration_fails(subject_sql() + '\n' + subject_sql().replace("'hockey'", "'hokey'"), changed=True)),
     ]
     failed = [name for name, ok in checks if not ok]
     for name in failed:
