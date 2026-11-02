@@ -58,6 +58,9 @@ enum FollowSuggestions {
 
     /// How many places like it a follow pulls up, as Spotify adds about three artists.
     static let likeIt = 3
+    /// The two rows under the one followed are already in sight: places like it come from further down,
+    /// so a follow always shows something new rather than reshuffling what's on screen.
+    static let inSight = 6
 
     static func interests(ofKind type: String?) -> [String] {
         guard let type else { return [] }
@@ -135,13 +138,14 @@ enum FollowSuggestions {
     }
 
     /// Following `target` pulls up to `likeIt` places like it (sharing a category, most in common first,
-    /// then busiest) from further down to right after it, as Spotify adds artists after the one you
-    /// pick. Places above it and ones already followed stay put. `moved` is what changed place.
+    /// then busiest) from below the two rows in sight to right after it, as Spotify adds artists after
+    /// the one you pick. Places above it, in sight and already followed stay put. `moved` is what
+    /// changed place.
     static func pull(_ order: [FollowSuggestion], after target: FollowTarget,
                      follows: Set<FollowTarget>) -> (order: [FollowSuggestion], moved: [FollowTarget]) {
         guard let i = order.firstIndex(where: { $0.target == target }) else { return (order, []) }
         let tapped = order[i].categories
-        let picks = order.indices.dropFirst(i + 1)
+        let picks = order.indices.dropFirst(i + 1 + inSight)
             .filter { !follows.contains(order[$0].target) && !order[$0].categories.isDisjoint(with: tapped) }
             .sorted { a, b in
                 let sa = order[a].categories.intersection(tapped).count, sb = order[b].categories.intersection(tapped).count
@@ -235,8 +239,8 @@ struct OnboardingFollowGrid<Heading: View>: View {
                     .mask {
                         VStack(spacing: 0) {
                             Color.clear.frame(height: FollowGridMetric.scrollTop)
-                            Color.black.frame(height: FollowGridMetric.search)
-                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 16)
+                            Color.black.frame(height: FollowGridMetric.search + 8)
+                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 20)
                             Spacer(minLength: 0)
                         }
                     }

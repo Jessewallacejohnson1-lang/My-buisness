@@ -261,31 +261,36 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testFollowingAPlacePullsPlacesOfItsKindUpToRightAfterIt() {
         let grid = FollowSuggestions.build(
-            places: [poi("c1", "Local Blend", "coffee_shop"), poi("r1", "Krewe", "cajun_restaurant"),
-                     poi("b1", "Middy", "bar"), poi("k1", "Flour", "bakery"), poi("c2", "Brew Two", "coffee_shop"),
-                     poi("r2", "Kay's", "restaurant"), poi("c3", "Brew Three", "coffee_shop"), poi("v1", "Vet", "veterinary_care"),
-                     poi("c4", "Brew Four", "coffee_shop"), poi("c5", "Brew Five", "coffee_shop", entry: "five")],
+            places: [poi("c1", "Local Blend", "coffee_shop"),
+                     // The two rows in sight under it.
+                     poi("r1", "Krewe", "cajun_restaurant"), poi("b1", "Middy", "bar"), poi("k1", "Flour", "bakery"),
+                     poi("c0", "Brew Near", "coffee_shop"), poi("r2", "Kay's", "restaurant"), poi("v1", "Vet", "veterinary_care"),
+                     // Further down.
+                     poi("c2", "Brew Two", "coffee_shop"), poi("g1", "Gym", "gym"), poi("c3", "Brew Three", "coffee_shop"),
+                     poi("k2", "Bakery Two", "bakery"), poi("c5", "Brew Five", "coffee_shop", entry: "five"),
+                     poi("c6", "Brew Six", "coffee_shop")],
             schools: [LocalSchool(id: "sju", uuid: "s1", name: "SJU", schoolName: nil, logoUrl: nil),
                       LocalSchool(id: "csb", uuid: "s2", name: "CSB", schoolName: nil, logoUrl: nil)],
             pages: [], events: [UpcomingTags(interests: [], place: "five")])
         let names = { (order: [FollowSuggestion]) in order.map(\.name) }
         let id = { (name: String) in grid.first { $0.name == name }!.target }
 
-        // Coffee shops first (two in common), the busiest first; then the bakery (coffee only); 3 at most.
+        // From below what's in sight: coffee shops first (two in common), the busiest first; 3 at most.
         let (once, moved) = FollowSuggestions.pull(grid, after: id("Local Blend"), follows: [id("Local Blend")])
         XCTAssertEqual(Array(names(once).prefix(4)), ["Local Blend", "Brew Five", "Brew Two", "Brew Three"])
         XCTAssertEqual(moved, [id("Brew Five"), id("Brew Two"), id("Brew Three")])
+        XCTAssertEqual(names(once)[4...9], ["Krewe", "Middy", "Flour", "Brew Near", "Kay's", "Vet"], "what was in sight keeps its order")
         XCTAssertEqual(Set(names(once)), Set(names(grid)), "pulled, never added or lost")
-        XCTAssertEqual(names(once)[4...6], ["Krewe", "Middy", "Flour"], "the rest keep their order")
 
-        // Places above the one followed, and followed ones, stay put; a school brings schools.
-        let (twice, _) = FollowSuggestions.pull(once, after: id("Brew Two"), follows: [id("Local Blend"), id("Brew Two"), id("Brew Four")])
-        XCTAssertEqual(names(twice).firstIndex(of: "Brew Five"), 1)
-        XCTAssertEqual(names(twice)[names(twice).firstIndex(of: "Brew Two")! + 1], "Brew Three", "already right after: stays")
-        let (schools, sMoved) = FollowSuggestions.pull(grid, after: id("SJU"), follows: [id("SJU")])
-        XCTAssertEqual(names(schools).suffix(2), ["SJU", "CSB"])
-        XCTAssertTrue(sMoved.isEmpty, "CSB already sits right after SJU")
-        XCTAssertTrue(FollowSuggestions.pull(grid, after: id("Vet"), follows: [id("Vet")]).moved.isEmpty, "nothing of its kind below")
+        // Places above it and followed ones stay put; one in common still counts once those run out.
+        let (twice, _) = FollowSuggestions.pull(once, after: id("Brew Two"), follows: [id("Local Blend"), id("Brew Two"), id("Brew Six")])
+        XCTAssertEqual(names(twice)[1], "Brew Five")
+        XCTAssertEqual(names(twice)[3], "Bakery Two")
+        XCTAssertEqual(names(twice).firstIndex(of: "Brew Six"), names(once).firstIndex(of: "Brew Six"), "followed: stays")
+
+        // Nothing of its kind further down: nothing moves.
+        XCTAssertTrue(FollowSuggestions.pull(grid, after: id("Vet"), follows: [id("Vet")]).moved.isEmpty)
+        XCTAssertTrue(FollowSuggestions.pull(grid, after: id("SJU"), follows: [id("SJU")]).moved.isEmpty, "CSB is already in sight")
     }
 
     func testFollowsWaitOnThePhoneUntilTheFlowIsDoneAndAreTakenOnce() {
