@@ -58,15 +58,17 @@ nonisolated enum Town {
     /// not their hotel's.
     static let timeZone = TimeZone(identifier: "America/Chicago")!
 
-    /// `Calendar.current` with ONLY the timezone replaced.
+    /// `Calendar.current` with ONLY the timezone replaced, built once on first use.
     ///
     /// Deliberately does NOT override `firstWeekday` or `locale`: those belong to
     /// the user. Pinning them here would silently change the user's week for no gain.
-    static var calendar: Calendar {
+    /// Stored, not rebuilt on every read: nothing needs it fresh within one run (a change
+    /// to the phone's region or week start reaches it on the next launch).
+    static let calendar: Calendar = {
         var cal = Calendar.current
         cal.timeZone = timeZone
         return cal
-    }
+    }()
 
     /// Gregorian in the Town's zone, built once: every sum over Town days and hours.
     /// Unlike `calendar` it ignores the phone's own calendar and week start.
@@ -89,11 +91,7 @@ nonisolated enum Town {
     }
 
     /// Town midnight on a "YYYY-MM-DD" date column; nil when it isn't one.
-    static func midnight(_ day: String) -> Date? {
-        let parts = day.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        return gregorian.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
-    }
+    static func midnight(_ day: String) -> Date? { DateHelpers.townDay(day) }
 
     /// Whole Town days from `from`'s day to `to`'s: 1 for any time tomorrow.
     static func days(from: Date, to: Date) -> Int {

@@ -291,14 +291,18 @@ struct TeamPage: View {
 
     /// "2026-10-31" as "Sat, Oct 31".
     static func day(_ date: String) -> String? {
-        let parse = DateFormatter()
-        parse.locale = Locale(identifier: "en_US_POSIX")
-        parse.timeZone = Town.timeZone
-        parse.dateFormat = "yyyy-MM-dd"
-        guard let day = parse.date(from: date) else { return nil }
-        parse.dateFormat = "EEE, MMM d"
-        return parse.string(from: day)
+        guard let day = DateHelpers.townDay(date) else { return nil }
+        return dayFormatter.string(from: day)
     }
+
+    /// Display only (text on screen), built once: "Sat, Oct 31" on the Town's clock.
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = Town.timeZone
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
 
     private func load() async {
         guard let id = team.id else { return }

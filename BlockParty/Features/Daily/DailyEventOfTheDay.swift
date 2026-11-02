@@ -104,10 +104,6 @@ struct DailyEvent: Identifiable {
                                category: EventCategory, what: String? = nil, description: String) -> DailyEvent {
         let url = Bundle.main.url(forResource: photo, withExtension: "jpg")
         // The event page's when line reads these, so it shows the day and the time.
-        let day = DateFormatter()
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.timeZone = Town.timeZone
-        day.dateFormat = "yyyy-MM-dd"
         let time = DateFormatter()
         time.locale = Locale(identifier: "en_US")
         time.timeZone = Town.timeZone
@@ -117,7 +113,7 @@ struct DailyEvent: Identifiable {
             image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
-            eventDate: day.string(from: starts), startTime: time.string(from: starts),
+            eventDate: Town.day(starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )
         item.what = what
