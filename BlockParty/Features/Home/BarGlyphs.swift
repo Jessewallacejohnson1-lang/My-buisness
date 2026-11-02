@@ -169,6 +169,37 @@ nonisolated struct MagnifierShape: Shape {
     }
 }
 
+// MARK: - Plus
+
+/// The Town bar's +, Instagram's: two strokes with round ends, 19.7 pt across with a 2 pt
+/// line (MEASURED on Mobbin's Instagram home, 2026-11-01, BP app `references/town-plus/`).
+/// Drawn rather than SF's `plus`, whose line is a weight, not a measured 2 pt.
+struct PlusGlyph: View {
+    var size: CGFloat = 19.7
+    var line: CGFloat = 2
+
+    var body: some View {
+        PlusShape(inset: line / 2)
+            .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The two strokes, inset by half the line so the round ends land on the frame's edges.
+nonisolated struct PlusShape: Shape {
+    var inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + inset))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - inset))
+        path.move(to: CGPoint(x: rect.minX + inset, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.midY))
+        return path
+    }
+}
+
 // MARK: - Bell
 
 /// The notifications mark: a domed body on vertical walls that splay into a base bar,

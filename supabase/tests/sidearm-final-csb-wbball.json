@@ -1,0 +1,719 @@
+{
+ "Game": {
+  "Type": "BasketballGame",
+  "HasStarted": true,
+  "IsComplete": true,
+  "Source": "sidearm",
+  "Date": "2/21/2026",
+  "DateUTC": null,
+  "StartTime": "1:00 PM",
+  "EndTime": "",
+  "UseLiveStatsAutomation": "false",
+  "NcaaGameId": "2748894",
+  "SidearmGameId": "",
+  "ClientId": "223",
+  "ClientAbbrev": "csb",
+  "ClientLiveStatsUrl": "https://gobennies.com/sidearmstats/wbball",
+  "Notes": [],
+  "Location": "Claire Lynch Hall",
+  "GlobalSportShortname": "wbball",
+  "BannerMessage": " ",
+  "StadiumImage": null,
+  "SiteImage": null,
+  "ClientHostname": "gobennies.com",
+  "Officials": "Badaso Osman,  James Patterson,  Keesha Pringle",
+  "Attendance": 0,
+  "PeriodsRegulation": 4,
+  "Period": 4,
+  "ClockSeconds": 0,
+  "Context": "",
+  "Rules": {
+   "PeriodMinutes": 10,
+   "PeriodName": "Quarter",
+   "OTMinutes": 5,
+   "ShowExtraPeriodsAsOT": true,
+   "ClockDirection": "Down",
+   "ClockSegmentation": "Periods"
+  },
+  "HomeTeam": {
+   "Id": "CSB",
+   "Name": "Saint Benedict",
+   "Score": 79,
+   "CurrentRecord": "15-9",
+   "PostgameRecord": "",
+   "NcaaSchoolCode": "595",
+   "Color": "#CC0033",
+   "TextColor": "#FFFFFF",
+   "Logo": "https://sidearmstats.com/csb/wbball/logos/CSB_ATH_Logomark_061224_RedwBlueOutline.png",
+   "Url": "http://gobennies.com",
+   "PeriodScores": [
+    20,
+    16,
+    22,
+    21
+   ],
+   "PeriodTimeouts": [
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "VisitingTeam": {
+   "Id": "AUG",
+   "Name": "Augsburg",
+   "Score": 57,
+   "CurrentRecord": "5-19",
+   "PostgameRecord": "",
+   "NcaaSchoolCode": "38",
+   "Color": "#7E0841",
+   "TextColor": "#FFFFFF",
+   "Logo": "https://sidearmstats.com/csb/wbball/logos/Augsburg-Spirit-Logo.png",
+   "Url": "http://athletics.augsburg.edu",
+   "PeriodScores": [
+    13,
+    12,
+    14,
+    18
+   ],
+   "PeriodTimeouts": [
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "LastPlays": [
+   {
+    "Id": "509+D4B7D91A",
+    "Team": "VisitingTeam",
+    "Type": "END",
+    "Action": "GAME",
+    "Period": 4,
+    "ClockSeconds": 0,
+    "Narrative": "Augsburg GAME",
+    "Score": null
+   },
+   {
+    "Id": "508+67C7199",
+    "Team": "HomeTeam",
+    "Type": "DEF",
+    "Action": "REBOUND",
+    "Period": 4,
+    "ClockSeconds": 23,
+    "Narrative": "11 Lily Ryan DEF. REBOUND (1 Reb, 1 Def)",
+    "Score": null
+   },
+   {
+    "Id": "507+699A3028",
+    "Team": "VisitingTeam",
+    "Type": "3PTR",
+    "Action": "MISS",
+    "Period": 4,
+    "ClockSeconds": 26,
+    "Narrative": "2 Wakinyela Bear 3PTR MISS",
+    "Score": null
+   },
+   {
+    "Id": "506+72F7B974",
+    "Team": "HomeTeam",
+    "Type": "FT",
+    "Action": "GOOD",
+    "Period": 4,
+    "ClockSeconds": 34,
+    "Narrative": "30 Kate Ebert FT GOOD (5 Pt)",
+    "Score": {
+     "HomeTeam": 79,
+     "VisitingTeam": 57
+    }
+   },
+   {
+    "Id": "505+F8F0F230",
+    "Team": "HomeTeam",
+    "Type": "OFF",
+    "Action": "REBOUND",
+    "Period": 4,
+    "ClockSeconds": 34,
+    "Narrative": "Saint Benedict REBOUND",
+    "Score": null
+   }
+  ]
+ },
+ "Plays": [
+  {
+   "Id": "8+FC88FCBB",
+   "Team": "HomeTeam",
+   "Type": "3PTR",
+   "Action": "GOOD",
+   "Period": 1,
+   "ClockSeconds": 539,
+   "Narrative": "5 Megan Driste 3PTR GOOD (3 Pt); 1 Lauren Arnold Assist (2 Asst)",
+   "Score": {
+    "HomeTeam": 5,
+    "VisitingTeam": 0
+   }
+  },
+  {
+   "Id": "24+EA074732",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 425,
+   "Narrative": "9 Drew Buslee FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "38+8D0E2E4C",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 354,
+   "Narrative": "20 Tyliah Frazier FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "48+AEA841D",
+   "Team": "VisitingTeam",
+   "Type": "LAYUP",
+   "Action": "GOOD",
+   "Period": 1,
+   "ClockSeconds": 281,
+   "Narrative": "25 Jada Stanford LAYUP GOOD (2 Pt); 20 Tyliah Frazier Assist (1 Asst)",
+   "Score": {
+    "HomeTeam": 13,
+    "VisitingTeam": 9
+   }
+  },
+  {
+   "Id": "50+367F8B9A",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 271,
+   "Narrative": "2 Wakinyela Bear FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "68+10CA78B3",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 172,
+   "Narrative": "20 Tyliah Frazier FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "73+D1388FAA",
+   "Team": "HomeTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 1,
+   "ClockSeconds": 171,
+   "Narrative": "5 Megan Driste FT GOOD (4 Pt)",
+   "Score": {
+    "HomeTeam": 14,
+    "VisitingTeam": 11
+   }
+  },
+  {
+   "Id": "80+DFBB9C57",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 109,
+   "Narrative": "5 Megan Driste FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "98+912D065",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 1,
+   "ClockSeconds": 41,
+   "Narrative": "10 Emily Crandall FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "104+12CCCB12",
+   "Team": "VisitingTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 1,
+   "ClockSeconds": 41,
+   "Narrative": "00 Kaylee Buerman FT GOOD (2 Pt)",
+   "Score": {
+    "HomeTeam": 20,
+    "VisitingTeam": 13
+   }
+  },
+  {
+   "Id": "128+5E7C32C8",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 507,
+   "Narrative": "25 Jada Stanford FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "140+7C375ADF",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 434,
+   "Narrative": "2 Wakinyela Bear FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "149+66A00A27",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 420,
+   "Narrative": "5 Megan Driste FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "159+817A8C07",
+   "Team": "VisitingTeam",
+   "Type": "JUMPER",
+   "Action": "GOOD",
+   "Period": 2,
+   "ClockSeconds": 371,
+   "Narrative": "20 Tyliah Frazier PULL UP GOOD (4 Pt)",
+   "Score": {
+    "HomeTeam": 30,
+    "VisitingTeam": 20
+   }
+  },
+  {
+   "Id": "178+5491DD4",
+   "Team": "VisitingTeam",
+   "Type": "LAYUP",
+   "Action": "GOOD",
+   "Period": 2,
+   "ClockSeconds": 254,
+   "Narrative": "20 Tyliah Frazier LAYUP GOOD (6 Pt)",
+   "Score": {
+    "HomeTeam": 32,
+    "VisitingTeam": 22
+   }
+  },
+  {
+   "Id": "179+D7796ACD",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 232,
+   "Narrative": "21 Sydney Hazuga FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "190+92E39F3D",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 216,
+   "Narrative": "30 Kate Ebert FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "199+D6DEA1D8",
+   "Team": "HomeTeam",
+   "Type": "JUMPER",
+   "Action": "GOOD",
+   "Period": 2,
+   "ClockSeconds": 180,
+   "Narrative": "9 Drew Buslee DRIVING LAYUP GOOD (5 Pt)",
+   "Score": {
+    "HomeTeam": 34,
+    "VisitingTeam": 23
+   }
+  },
+  {
+   "Id": "204+5F432790",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 2,
+   "ClockSeconds": 126,
+   "Narrative": "4 Alyssa Sadlovsky FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "236+C1DA0DD6",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 540,
+   "Narrative": "34 Saylor Gallagher FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "243+B751DE00",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 497,
+   "Narrative": "10 Evelyn Perkins FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "244+E059A45D",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 495,
+   "Narrative": "1 Lani Fonoti FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "245+CC369AD5",
+   "Team": "HomeTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 494,
+   "Narrative": "25 Kira Young FT GOOD (6 Pt)",
+   "Score": {
+    "HomeTeam": 37,
+    "VisitingTeam": 25
+   }
+  },
+  {
+   "Id": "252+E73DFDC0",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 437,
+   "Narrative": "25 Jada Stanford FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "265+EC168342",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 385,
+   "Narrative": "25 Kira Young FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "278+88BEFC54",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 312,
+   "Narrative": "5 Megan Driste FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "287+6E66F04A",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 311,
+   "Narrative": "1 Lauren Arnold FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "289+E1C47B1C",
+   "Team": "VisitingTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 310,
+   "Narrative": "00 Kaylee Buerman FT GOOD (4 Pt)",
+   "Score": {
+    "HomeTeam": 43,
+    "VisitingTeam": 29
+   }
+  },
+  {
+   "Id": "292+343576EB",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 286,
+   "Narrative": "1 Lauren Arnold FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "297+109A1E3D",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 265,
+   "Narrative": "00 Kaylee Buerman FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "298+54A1CC88",
+   "Team": "HomeTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 265,
+   "Narrative": "30 Kate Ebert FT GOOD (1 Pt)",
+   "Score": {
+    "HomeTeam": 44,
+    "VisitingTeam": 31
+   }
+  },
+  {
+   "Id": "301+12709A5F",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 256,
+   "Narrative": "21 Sydney Hazuga FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "306+DED693C4",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 229,
+   "Narrative": "2 Wakinyela Bear FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "314+C5BC5E70",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 208,
+   "Narrative": "4 Alyssa Sadlovsky FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "315+AD1B72B",
+   "Team": "VisitingTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 208,
+   "Narrative": "34 Saylor Gallagher FT GOOD (4 Pt)",
+   "Score": {
+    "HomeTeam": 51,
+    "VisitingTeam": 34
+   }
+  },
+  {
+   "Id": "317+38C06586",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 191,
+   "Narrative": "20 Tyliah Frazier FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "326+2A4F1BAD",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 162,
+   "Narrative": "34 Saylor Gallagher FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "342+D16D302",
+   "Team": "HomeTeam",
+   "Type": "LAYUP",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 126,
+   "Narrative": "4 Alyssa Sadlovsky LAYUP GOOD (2 Pt)",
+   "Score": {
+    "HomeTeam": 57,
+    "VisitingTeam": 38
+   }
+  },
+  {
+   "Id": "345+32EA5A21",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 87,
+   "Narrative": "10 Evelyn Perkins FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "355+4B359D33",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 3,
+   "ClockSeconds": 45,
+   "Narrative": "10 Emily Crandall FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "360+E5D9D53E",
+   "Team": "VisitingTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 3,
+   "ClockSeconds": 45,
+   "Narrative": "13 Alexiah LaRose FT GOOD (1 Pt)",
+   "Score": {
+    "HomeTeam": 58,
+    "VisitingTeam": 39
+   }
+  },
+  {
+   "Id": "381+866DA131",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 561,
+   "Narrative": "2 Wakinyela Bear FOUL (4 PF)",
+   "Score": null
+  },
+  {
+   "Id": "390+611A1C30",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 525,
+   "Narrative": "1 Lauren Arnold FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "400+F3BA9DB0",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 494,
+   "Narrative": "1 Lani Fonoti FOUL (2 PF)",
+   "Score": null
+  },
+  {
+   "Id": "408+91DC4D0C",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 439,
+   "Narrative": "34 Saylor Gallagher FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "438+A6A3C1EB",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 231,
+   "Narrative": "5 Megan Driste FOUL (4 PF)",
+   "Score": null
+  },
+  {
+   "Id": "451+F445A62B",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 218,
+   "Narrative": "21 Sydney Hazuga FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "454+B0A1A559",
+   "Team": "HomeTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 4,
+   "ClockSeconds": 218,
+   "Narrative": "1 Lauren Arnold FT GOOD (13 Pt)",
+   "Score": {
+    "HomeTeam": 69,
+    "VisitingTeam": 51
+   }
+  },
+  {
+   "Id": "458+A2F939D9",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 203,
+   "Narrative": "12 Emma Theisen FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "461+52C1A6E3",
+   "Team": "VisitingTeam",
+   "Type": "FT",
+   "Action": "GOOD",
+   "Period": 4,
+   "ClockSeconds": 203,
+   "Narrative": "00 Kaylee Buerman FT GOOD (5 Pt)",
+   "Score": {
+    "HomeTeam": 70,
+    "VisitingTeam": 52
+   }
+  },
+  {
+   "Id": "464+EA79D8B1",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 174,
+   "Narrative": "11 Lily Ryan FOUL (1 PF)",
+   "Score": null
+  },
+  {
+   "Id": "498+E588610F",
+   "Team": "HomeTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 56,
+   "Narrative": "10 Emily Crandall FOUL (3 PF)",
+   "Score": null
+  },
+  {
+   "Id": "503+18CA3BF1",
+   "Team": "VisitingTeam",
+   "Type": "FOUL",
+   "Action": "FOUL",
+   "Period": 4,
+   "ClockSeconds": 34,
+   "Narrative": "34 Saylor Gallagher FOUL (4 PF)",
+   "Score": null
+  }
+ ]
+}

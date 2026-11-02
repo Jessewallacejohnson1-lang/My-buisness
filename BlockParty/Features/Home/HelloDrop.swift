@@ -216,8 +216,9 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
+        // A New event proof (`-new-event-photo`) records the pill its Share drops.
         forced || later || debugMoment != nil || debugFinal != nil
-            || !LaunchFlags.any
+            || !LaunchFlags.any || LaunchFlags.has(.newEventPhoto)
         #else
         return true
         #endif
@@ -609,7 +610,7 @@ struct HelloDropView: View {
         let now = Date()
         guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil,
               scenePhase != .background, step == .hidden, run == nil, let item = inbox.next else { return }
-        let yours = if case .moment(let moment) = item.what { moment.yours } else { false }
+        let yours = item.yours
         guard yours || inbox.mayDrop(now: now) else { return }
         if !yours { inbox.dropped(now: now) }
         run = Task { await say(item, fromHello: false) }

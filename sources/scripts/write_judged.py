@@ -1562,13 +1562,13 @@ def t_one_news_one_link():
                                  "https://www.facebook.com/permalink.php?story_fbid=pfbid0u6&id=6156",
                                  "https://www.stearnscountymn.gov/", "http://www.2ndavecuts.com",
                                  "https://kennedy.isd742.org/calendar?cal_date=2026-11-01",
-                                 "https://www.facebook.com/BelloCucinaStJoseph/")]
+                                 "https://www.facebook.com/BoDiddleysDeli/")]
     assert own == [True, True, True, False, False, False, False], own
     # Saved and compared clean: no tracking, m. as www.; Facebook's m. site of a page is still a page.
     assert clean_link("https://www.instagram.com/p/DeBoo/?igsh=MW1&img_index=2") == "https://www.instagram.com/p/DeBoo/"
     assert clean_link("https://m.facebook.com/story.php?story_fbid=1&id=2&utm_source=ig") == \
         "https://www.facebook.com/story.php?story_fbid=1&id=2"
-    assert not own_link("https://m.facebook.com/BelloCucinaStJoseph")
+    assert not own_link("https://m.facebook.com/BoDiddleysDeli")
     assert same_link("https://www.instagram.com/p/DeBoo", "https://m.instagram.com/p/DeBoo/?igsh=MW1")
     r = run([item(kind="news", title="Boo baskets", start=None, source_url="https://m.instagram.com/p/DeBoo/?igsh=MW1")])
     assert [(n["source_url"], n["own_link"]) for n in payloads(r)["p_news"]] == [("https://www.instagram.com/p/DeBoo/", True)]

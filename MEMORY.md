@@ -73,6 +73,11 @@ or its `docs/rules/` file and leaves here.
   first mention, official or secondhand, sure or not (Jesse: "only hold back if its the exact
   same"). Only a repeat is kept out (`write_judged.repeat_of`, `same_event`). **Supersedes**
   ADR-001's two-tier trust: held items sat unreviewed for six weeks.
+- 2026-11-01 — **Apple Maps decides whether a place has closed** (Jesse: "use Apple Maps, Apple Maps
+  is correct"): Google still listed Bello Cucina's hours a week after its goodbye post. Each app place
+  keeps its Apple Maps id (`places.apple_place_id`); the morning finish reads its Apple Maps page and
+  hides a place Apple calls Permanently Closed (`places.closed_at`, `sources/scripts/apple_maps.py`),
+  telling Jesse after. Google's closed list, goodbye posts and news stories are only hints.
 - 2026-10-26 — From Google, store only the place id, a place's weekly hours and whether it is
   still open (Jesse: "its a fact were not copying", "lets do ur rec"; ADR-016). Hours go in
   `places.hours` via Composio's Google Maps tool, else the place's own site or Facebook, which

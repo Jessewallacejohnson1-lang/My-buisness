@@ -337,9 +337,10 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
   and `.accessibilityHidden(chromeHidden)` sit on the control row.
 - **Three controls in 44pt boxes, 16pt in from the screen's edges** (Instagram's, measured
-  2026-09-27). `[prose]` A friends mark leads (search until 2026-09-29, when it became a tab),
+  2026-09-27). `[prose]` Instagram's + leads and opens New event (`NewEvent.swift`, BP app
+  town-plus, 2026-11-01; friends led until it became a tab that day, search before 2026-09-29),
   the wordmark centres, a notifications bell holds the trailing corner, and the map disc sits
-  inboard of it. Friends and the bell are
+  inboard of it. The + and the bell are
   **bare ink at home and sit in frosted circles while the bar floats** over the feed
   (`TodayHeader.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
   home again) — a material circle, not Liquid Glass, so it slides and fades with its mark
