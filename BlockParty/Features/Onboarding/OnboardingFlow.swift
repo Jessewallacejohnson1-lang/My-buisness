@@ -531,6 +531,8 @@ struct OnboardingWelcome: View {
 
     @State private var shown = false
     @State private var loggingIn = false
+    /// A first open's launch zooms through to here; the logo and headline rise once it's half done.
+    private let launch = LaunchStage.shared
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -549,17 +551,18 @@ struct OnboardingWelcome: View {
     /// The white wordmark at 88 pt and the headline at 150 pt, 24 pt from the left.
     private var header: some View {
         let mark = 180 / BlockPartyWordmark.aspect
+        let up = shown && launch.headerUp
         return VStack(alignment: .leading, spacing: 0) {
             BlockPartyWordmark(height: mark)
                 .foregroundStyle(.white)
-                .rise(shown, delay: 0)
+                .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
                 .font(.sansHeadline(36))
                 .lineSpacing(-4)   // BP Body's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)
-                .rise(shown, delay: 0.06)
+                .rise(up, delay: 0.06)
         }
         .padding(.horizontal, 24)
         .padding(.top, 88)
