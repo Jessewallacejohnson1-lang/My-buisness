@@ -29,7 +29,7 @@ final class POILogoCache: ObservableObject {
     private nonisolated static let diskCacheBytes = 50 << 20
 
     /// Own session + cache, isolated from the app's default so a burst of logo loads
-    /// can never evict Google photo responses (and vice versa).
+    /// can never evict the photos' responses (and vice versa).
     private nonisolated static let session: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.urlCache = URLCache(memoryCapacity: memoryCacheBytes, diskCapacity: diskCacheBytes)

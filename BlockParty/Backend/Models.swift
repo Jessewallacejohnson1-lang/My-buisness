@@ -538,7 +538,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 /// Where an event happens, as a picture (`public.place_picture`, BP app
 /// docs/plans/place-photos): the place's own photo, or its logo when we have no photo of
 /// it. Saved once in Block Party's Storage, so showing it costs no lookup (Jesse,
-/// 2026-10-16, MEMORY.md).
+/// 2026-11-01, MEMORY.md).
 nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     enum Kind: String, Decodable, Sendable { case photo, logo }
 

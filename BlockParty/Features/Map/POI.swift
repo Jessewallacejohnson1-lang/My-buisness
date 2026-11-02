@@ -9,7 +9,7 @@ import CoreLocation
 
 struct POI: Identifiable, Decodable, Hashable {
     let id: String              // places.id (uuid)
-    let placeId: String?        // Google place_id (kept for a live photo re-fetch)
+    let placeId: String?        // Google's place id, or a local one (`stjoe-*`): Search's key for it
     let name: String
     let lat: Double
     let lon: Double
@@ -20,10 +20,6 @@ struct POI: Identifiable, Decodable, Hashable {
     /// Public URL of the curated brand logo (`places.logo_url`, Supabase Storage).
     /// Null for most places — the category glyph is the designed fallback.
     let logoUrl: String?
-    /// Google's own place id for a row whose `placeId` is a local one (`stjoe-*`), found
-    /// once through Locked Rule A (`scripts/resolve_google_place_ids.py`). nil when
-    /// nothing cleared it, or when `placeId` is already Google's.
-    var googlePlaceId: String? = nil
     /// Search's logo for this place (`places.search_logo`): its file in Storage and how
     /// Search shows it. nil for a place with no logo in Search.
     var searchLogo: SearchLogo.Row? = nil
