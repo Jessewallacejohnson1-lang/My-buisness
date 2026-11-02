@@ -87,7 +87,7 @@ def check_triggers(repo: Path) -> int:
     for missing in sorted(referenced - leaves):
         failures += 1
         print(f"::error::the trigger table points at {missing}, which does not exist")
-    for orphan in sorted(leaves - referenced - {"docs/rules/HARVEST-LEDGER.md"}):
+    for orphan in sorted(leaves - referenced):
         failures += 1
         print(
             f"::error::{orphan} is not reachable from the trigger table — "

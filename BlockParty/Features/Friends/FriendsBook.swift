@@ -1,7 +1,7 @@
 //
 //  FriendsBook.swift
 //  Block Party — friend requests and friends (BP app docs/plans/friends, tickets 03 and 04):
-//  the Friends page's sections, the dot on the friends mark, where you stand with each
+//  the Friends tab's sections, the dot on the Friends tab, where you stand with each
 //  person, which one button shows on every row and page, the friend sheet (Unfriend, Block)
 //  and Profile's Blocked list. Someone you block drops out of every list at once.
 //

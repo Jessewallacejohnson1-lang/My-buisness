@@ -546,12 +546,14 @@ final class TownFeed {
     /// scoring plays and down and distance (game-card 08) change every 4 seconds through the same path a
     /// realtime update takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
     /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
-    /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final (game-card 09).
+    /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final; with `-town-basketball`,
+    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final (game-card 09).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
         let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
-        let id = volleyball ? "v1" : soccer ? "s1" : "g1"
+        let basketball = LaunchFlags.has(.townBasketball)
+        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
@@ -584,7 +586,31 @@ final class TownFeed {
             (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Goal by SJU Hanson,Ben, low right","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
             (#"[2,1],"period":"2nd half","clock":"90'","clock_s":5350"#, nil),
         ]
-        let steps = volleyball ? sets : soccer ? halves : football
+        // The clock as last sent, the period and its length, and each team's fouls this quarter by play id
+        // (overtime's counting with the 4th); SIDEARM's words for the baskets, the names made up.
+        func quarter(_ score: String, _ q: Int, _ clock: Int, fouls: (Int, Int, Int)) -> String {
+            let ids = { (side: String, n: Int) in "[" + (0..<n).map { #""\#(side)\#(q)-\#($0)""# }.joined(separator: ",") + "]" }
+            return #"\#(score),"period":"\#(q > 4 ? "OT" : "Q\(q)")","clock":"\#(clock / 60):\#(String(format: "%02d", clock % 60))","#
+                + #""clock_s":\#(clock),"period_n":\#(q),"regulation":4,"period_s":\#(q > 4 ? 300 : 600),"#
+                + #""fouls":{"period":\#(fouls.0),"ids":[\#(ids("c", fouls.1)),\#(ids("l", fouls.2))]}"#
+        }
+        let basket = { (id: Int, text: String, period: String, clock: String, side: Int, score: String) in
+            #"{"id":"\#(id)","text":"\#(text)","period":"\#(period)","clock":"\#(clock)","side":\#(side),"score":\#(score)}"#
+        }
+        let quarters: [(String, String?)] = [
+            (quarter("[30,27]", 2, 228, fouls: (2, 2, 4)), nil),
+            (quarter("[33,27]", 2, 192, fouls: (2, 2, 5)), basket(1, "5 Jo Rohe 3PTR GOOD (11 Pt)", "Q2", "3:12", 0, "[33,27]")),
+            (quarter("[33,29]", 2, 144, fouls: (2, 3, 5)), basket(2, "14 Ella Lindqvist LAYUP GOOD (8 Pt)", "Q2", "2:24", 1, "[33,29]")),
+            (quarter("[35,29]", 2, 90, fouls: (2, 3, 6)), basket(3, "21 Anna Moore JUMPER GOOD (8 Pt)", "Q2", "1:30", 0, "[35,29]")),
+            (quarter("[35,29]", 3, 600, fouls: (3, 0, 0)), nil),
+            (quarter("[35,32]", 3, 401, fouls: (3, 5, 1)), basket(4, "3 Kate Hanna 3PTR GOOD (5 Pt)", "Q3", "6:41", 1, "[35,32]")),
+            (quarter("[44,44]", 4, 0, fouls: (4, 2, 5)), nil),
+            (quarter("[44,44]", 5, 300, fouls: (4, 2, 5)), nil),
+            (quarter("[48,46]", 5, 151, fouls: (4, 3, 5)), basket(5, "5 Jo Rohe LAYUP GOOD (19 Pt)", "OT", "2:31", 0, "[48,46]")),
+            // A sixth basket: the list keeps the newest 5.
+            (quarter("[50,46]", 5, 64, fouls: (4, 3, 5)), basket(6, "21 Anna Moore LAYUP GOOD (10 Pt)", "OT", "1:04", 0, "[50,46]")),
+        ]
+        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : football
         let live = { (score: String, complete: Bool) in
             try? JSONDecoder().decode(Game.Live.self, from: Data((#"{"score":"# + score + #","complete":\#(complete),"at":""#
                 + ISO8601DateFormatter().string(from: .now) + #""}"#).utf8))
@@ -600,7 +626,7 @@ final class TownFeed {
             if volleyball {
                 self?.score(id, final: [3, 2], live: live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true))
             } else {
-                self?.score(id, final: soccer ? [2, 1] : [21, 10], live: nil)
+                self?.score(id, final: soccer ? [2, 1] : basketball ? [52, 48] : [21, 10], live: nil)
             }
         }
     }

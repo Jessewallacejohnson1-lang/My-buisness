@@ -44,7 +44,7 @@ final class TownNamesGuardTests: XCTestCase {
                 if code.contains(Self.townName) { offenders.append("\(relative):\(index + 1): \(code)") }
             }
         }
-        XCTAssertEqual(offenders, [], "Name the town through Town (Town.name, .everyday, .nickname, .display)")
+        XCTAssertEqual(offenders, [], "Name the town through Town (Town.everyday, .nickname, .display)")
     }
 
     /// The scan itself: it catches the ways the town gets written, and lets Saint John's be.

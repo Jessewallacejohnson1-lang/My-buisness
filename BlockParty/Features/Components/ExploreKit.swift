@@ -1,7 +1,7 @@
 //
 //  ExploreKit.swift
-//  Block Party — shared press/appear motion, the bookmark glyph and button, and the
-//  phone's old saved list (now the map's Places).
+//  Block Party — shared press motion, the bookmark glyph and button, and the
+//  phone's old saved list (only read once, to move it up to the server).
 //
 
 import SwiftUI
@@ -78,92 +78,11 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// Staggered fade-and-rise as feed items mount. Honors Reduce Motion (instant).
-private struct AppearStagger: ViewModifier {
-    let index: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 12)
-            .onAppear {
-                guard !shown else { return }
-                if reduceMotion { shown = true; return }
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.86)
-                    .delay(Double(min(index, 8)) * 0.05)) {
-                    shown = true
-                }
-            }
-    }
-}
-
-extension View {
-    /// Fade+rise in, delayed by list position. Cap the visible stagger at ~8 items.
-    func appearStagger(_ index: Int) -> some View { modifier(AppearStagger(index: index)) }
-}
-
-/// A staggered "pop": each item scales up from just-below-full with a fade, one
-/// after another — the Wolt Discovery entrance where the category row lands one
-/// tile at a time, left → right. Distinct from
-/// `appearStagger` (a whole-section fade+rise): this is per-item and *scales*, so
-/// each element reads as its own little pop instead of the row sliding up as one.
-///
-/// Craft notes (Emil Kowalski's framework, same as SpringReveal):
-///   • Never from scale(0) — starts at 0.80 + a small rise + opacity so nothing
-///     pops from nothing but the grow-in still reads clearly.
-///   • Deliberately MORE pronounced than the Wolt reference (which is a quiet
-///     scale+fade): a bigger scale delta, a short rise, and a real spring bounce
-///     (overshoot past 1.0) make each tile visibly *pop*, and a slightly wider
-///     ~85ms stagger lets the eye catch them landing one at a time.
-///   • `base` holds the cascade a beat after the screen lands, so it plays on a
-///     settled screen instead of being swallowed by the tab-slide / splash-dismiss.
-///   • Only transform + opacity animate — GPU-friendly, no layout thrash.
-///   • Reduce Motion drops the movement to a gentle crossfade (comprehension, no pop).
-private struct PopIn: ViewModifier {
-    let index: Int
-    /// Shifts the whole cascade later, e.g. to begin just after the screen settles.
-    var base: Double = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = false
-
-    // Left-to-right cascade — wider ~85ms spacing so each tile's pop is distinct;
-    // cap so a long row never drags.
-    private var delay: Double { base + Double(min(index, 8)) * 0.085 }
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.80, anchor: .center)
-            .offset(y: shown || reduceMotion ? 0 : 9)
-            .onAppear {
-                guard !shown else { return }
-                if reduceMotion {
-                    withAnimation(.easeOut(duration: 0.22)) { shown = true }
-                    return
-                }
-                // A real bounce (overshoot past 1.0) is what makes the pop pop —
-                // bounce 0.38 stays playful without looking toylike.
-                withAnimation(.spring(duration: 0.42, bounce: 0.38).delay(delay)) {
-                    shown = true
-                }
-            }
-    }
-}
-
-extension View {
-    /// Pop each item in one at a time — scale-up (0.85→1 with a hair of overshoot)
-    /// + fade, delayed by list position. `base` shifts the cascade start later.
-    func popIn(_ index: Int, base: Double = 0) -> some View {
-        modifier(PopIn(index: index, base: base))
-    }
-}
-
 // MARK: - Saved (bookmark) state
 
-/// The viewer's saved list on this phone, persisted in UserDefaults: the map's Places
-/// (pin sheet, pin badges). Event saves live on the server (`RealLifeActions`); ones
-/// made here before that move up once (`RealLifeActions.moveUp`) and leave this list.
+/// The saves this phone kept in UserDefaults before saves lived on the server
+/// (`RealLifeActions`). They move up once (`RealLifeActions.moveUp`) and leave this list;
+/// nothing adds to it now.
 @MainActor
 final class SavedStore: ObservableObject {
     static let shared = SavedStore()
@@ -174,13 +93,6 @@ final class SavedStore: ObservableObject {
     init(key: String = "bp.saved.ids") {
         self.key = key
         ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
-    }
-
-    func isSaved(_ id: String) -> Bool { ids.contains(id) }
-
-    func toggle(_ id: String) {
-        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
-        UserDefaults.standard.set(Array(ids), forKey: key)
     }
 
     func remove(_ id: String) {

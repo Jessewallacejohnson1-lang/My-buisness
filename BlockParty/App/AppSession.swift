@@ -21,7 +21,7 @@ final class AppSession {
     /// Search's places and recents, kept so the tab doesn't fetch the Town's places again each
     /// time it comes back. Its groups reads tell `actions`.
     let searchModel: SearchModel
-    /// Friend requests, friends and the dot on the friends mark, so a row and a person's page
+    /// Friend requests, friends and the dot on the Friends tab, so a row and a person's page
     /// agree (BP app docs/plans/friends, ticket 03).
     let friendsBook: FriendsBook
     /// The You tab's three weeks of Going, kept like the Town feed's.

@@ -47,6 +47,8 @@ struct FeedView: View {
     /// only forwards the taps.
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
+    /// The bar's + → New event (BP app references/town-plus).
+    var onCreate: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// The Town feed's events, held by the shell so a tab switch doesn't read them again.
@@ -77,6 +79,7 @@ struct FeedView: View {
     init(
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
+        onCreate: @escaping () -> Void = {},
         onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
         eventOfTheDay: EventOfTheDay,
@@ -84,6 +87,7 @@ struct FeedView: View {
     ) {
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
+        self.onCreate = onCreate
         self.onOpenPage = onOpenPage
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
@@ -249,6 +253,7 @@ struct FeedView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             TodayTopBar(onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
+                        onCreate: onCreate,
                         onOpenPage: onOpenPage,
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
                         chromeFloating: chromeFloating,

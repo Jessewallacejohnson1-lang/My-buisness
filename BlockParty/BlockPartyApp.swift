@@ -20,18 +20,20 @@ struct BlockPartyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // No launch splash since 2026-09-18 (Jesse's call): the window shows the
-            // real destination on the first frame, and session restore swaps Login
-            // for the tabs underneath it.
-            RootView()
-                .environmentObject(auth)
-                .task {
-                    await auth.restore()
-                    // The quiet anonymous account, made only once restore has found
-                    // there is no stored session.
-                    await auth.ensureAccount()
-                }
-                .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed
+            // The launch plays over the app on every fresh start (Jesse, 2026-11-01, reversing
+            // 2026-09-18's no splash): the Town's ball bounces off Bp and becomes its !. The app
+            // loads underneath from the first frame and never waits on it (`LaunchBall`).
+            LaunchHost {
+                RootView()
+                    .environmentObject(auth)
+                    .task {
+                        await auth.restore()
+                        // The quiet anonymous account, made only once restore has found
+                        // there is no stored session.
+                        await auth.ensureAccount()
+                    }
+                    .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             // Offline at first launch: try again when the app comes back.

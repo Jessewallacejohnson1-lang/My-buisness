@@ -18,9 +18,6 @@
 import Foundation
 
 nonisolated enum Town {
-    /// Short name — the header title and the map's home label.
-    static let name = "Saint Joseph"
-
     /// Long form, for the places that name the state.
     static let display = "St. Joseph, Minnesota"
 
@@ -56,9 +53,6 @@ nonisolated enum Town {
     /// City's a free one on Wikimedia Commons (Jesse, 2026-10-27: "just take photos from web").
     static let townPagePhoto = (name: "joetown-page", credit: "joetown")
     static let cityPagePhoto = (name: "city-page", credit: "Skvader · CC BY-SA 4.0")
-
-    static let latitude = 45.565
-    static let longitude = -94.3186
 
     /// The town's civic clock. Fixed: a traveling user still gets the town's day,
     /// not their hotel's.

@@ -1,6 +1,6 @@
 //
 //  FeedEventDetailDestination.swift
-//  Block Party — the single event behind a Town or Your Day card.
+//  Block Party — the Event page: the single event behind a card.
 //
 //  Laid out to the Fresha venue page Jesse picked (`references/fresha-venue-detail.png`,
 //  1180 px at 393 pt, 3.0 px a point): a photo carousel under three round buttons, a
@@ -11,8 +11,7 @@
 //  Over it floats Meetup's white capsule with the RSVP words and pill the Town card has
 //  (rsvp-and-groups 02, Figma "Meetup depth").
 //
-//  Town pushes this onto the shell's stack; Your Day shows it as a sheet, where the
-//  back arrow becomes a close "x". The system bar stays hidden either way.
+//  Every list pushes this onto the shell's stack; the system bar stays hidden.
 //
 //  PRODUCT RULE: never render a zero count or a placeholder. Every row below is
 //  optional and simply absent when the data is: no description, no About; no
@@ -24,8 +23,6 @@ import SwiftUI
 
 struct FeedEventDetailDestination: View {
     let item: FeedCardItem
-    /// Shown as a sheet (Your Day) rather than pushed: the back arrow is a close "x".
-    let inSheet: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -60,9 +57,8 @@ struct FeedEventDetailDestination: View {
     @State private var scrolled = false
     @Environment(\.openURL) private var openURL
 
-    init(item: FeedCardItem, inSheet: Bool = false) {
+    init(item: FeedCardItem) {
         self.item = item
-        self.inSheet = inSheet
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
@@ -116,7 +112,6 @@ struct FeedEventDetailDestination: View {
         static let titleTop: CGFloat = 26
         static let titleLineSpacing: CGFloat = 9
         static let categoryTop: CGFloat = 8
-        static let whenTop: CGFloat = 14
         static let pillTop: CGFloat = 17.3
         static let aboutTop: CGFloat = 33
         static let pinGap: CGFloat = 8
@@ -380,8 +375,8 @@ struct FeedEventDetailDestination: View {
     private var topButtons: some View {
         HStack(spacing: 0) {
             Self.circleButton(
-                glyph: Image(systemName: inSheet ? "xmark" : "arrow.left"),
-                label: inSheet ? "Close" : "Back",
+                glyph: Image(systemName: "arrow.left"),
+                label: "Back",
                 reduceMotion: reduceMotion,
                 onColor: game != nil
             ) { dismiss() }
