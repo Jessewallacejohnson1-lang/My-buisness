@@ -95,8 +95,9 @@ final class LaunchMotionTests: XCTestCase {
     }
 
     /// The landed ball goes black, the ! hops, and Bp! glides onto the tab bar's Bp! on the
-    /// mock's spring, the whole launch done 2.48 s after the still.
-    func testEndsOnTheTabBarsBpAfter248Seconds() {
+    /// mock's spring, the whole launch done 3.3 s after the still. A tap belongs to the launch
+    /// until its yellow is mostly gone, then reaches the app under the glide.
+    func testEndsOnTheTabBarsBpAfter33Seconds() {
         let target = CGRect(x: 113.6, y: 813, width: 39.15, height: 22)
         let m = LaunchMotion(screen: phone, ending: .tab(target))
         let endAt = m.landAt + 0.12 + 0.40
@@ -111,7 +112,9 @@ final class LaunchMotionTests: XCTestCase {
         }
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertEqual(t / LaunchMotion.pace, 2.478, accuracy: 0.03)
+        XCTAssertEqual(t / LaunchMotion.pace, 3.304, accuracy: 0.04)
+        XCTAssertTrue(m.frame(at: endAt).takesTaps)
+        XCTAssertFalse(m.frame(at: endAt + 0.2).takesTaps, "the yellow is mostly gone 0.2 s into the glide")
         // Done at the spring's last overshoot, under 0.3% past the tab bar's Bp!, as in the mock:
         // a point or less.
         let last = m.frame(at: t)
@@ -157,19 +160,21 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: t).p.width, 1, accuracy: 0.01)
     }
 
-    /// With Reduce Motion nothing moves: full-size letters, the crest fading in at the dot and
-    /// going black, the ! line fading in, then a fade into the app.
+    /// With Reduce Motion nothing moves: B and p at the still's 90%, the crest fading in at the
+    /// dot and going black, the ! line fading in, then a fade into the app.
     func testReduceMotionFades() {
         let m = LaunchMotion(screen: phone, reduceMotion: true)
         for t in [0.0, 0.3, 0.6, 0.9] {
             let f = m.frame(at: t)
-            XCTAssertEqual(f.b, CGSize(width: 1, height: 1))
+            XCTAssertEqual(f.b, CGSize(width: 0.9, height: 0.9))
             XCTAssertEqual(f.ball.x, m.ball(at: 5).x)
             XCTAssertEqual(f.ball.y, m.ball(at: 5).y)
         }
         XCTAssertEqual(m.frame(at: 0.075).ballOpacity, 0.5, accuracy: 1e-9)
         XCTAssertTrue(m.frame(at: 0.6).dotShown)
         XCTAssertFalse(m.frame(at: 1.0).done)
+        XCTAssertTrue(m.frame(at: 0.9).takesTaps)
+        XCTAssertFalse(m.frame(at: 1.0).takesTaps)
         XCTAssertTrue(m.frame(at: 1.05).done)
         XCTAssertTrue(LaunchMotion(screen: phone, skip: 0.2, reduceMotion: true).frame(at: 0.45).done)
     }

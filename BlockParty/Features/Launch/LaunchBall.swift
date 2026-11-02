@@ -105,6 +105,7 @@ struct LaunchHost<Content: View>: View {
                     .contentShape(Rectangle())
                     // On touch-down, as every touch in BP answers.
                     .gesture(DragGesture(minimumDistance: 0).onChanged { _ in tap() })
+                    .allowsHitTesting(moment.frame.takesTaps)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
                     .sensoryFeedback(trigger: moment.frame.buzzes) { _, count in
                         LaunchMotion.buzzKinds.indices.contains(count - 1) ? LaunchMotion.buzzKinds[count - 1] : nil
@@ -133,7 +134,7 @@ struct LaunchHost<Content: View>: View {
             AccessibilityNotification.Announcement("Block Party").post()
         }
         // Whatever stalls it, the app shows within 6 s: the splash deleted on 2026-09-18 left
-        // the app black on every cold start (swift-traps). It plays in 2.5.
+        // the app black on every cold start (swift-traps). It plays in 3.3.
         .task {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
@@ -201,6 +202,8 @@ final class LaunchClock {
 }
 
 /// One frame of the launch: the yellow, then Bp! with the ball, all on the Daily mark's canvas.
+/// The yellow is the app icon's glass, its edge at 2.5x, and Bp! casts the icon's soft shade on
+/// it (Jesse, 2026-11-02; BP app references/launch-ball, mock round 6). Both fade with the yellow.
 private struct LaunchMark: View {
     let frame: LaunchMotion.Frame
     /// Where the canvas's top left sits at rest; the ball is placed from it.
@@ -210,10 +213,21 @@ private struct LaunchMark: View {
                                     height: LaunchMotion.canvas.height * LaunchMotion.scale)
     /// The tab bar's hop is in its own points, for a Bp! 39.15 pt wide: these are its points here.
     private static let hopPoints = box.width / TabBarMetric.dailyMarkWidth
+    /// The glass picture's corners, which keep their shape on any screen; its middle stretches.
+    private static let glassCaps = EdgeInsets(top: 90, leading: 90, bottom: 90, trailing: 90)
+    /// The shade: the mock's drop-shadow(0 9 12) in canvas units, in the ink at 21%. SwiftUI's
+    /// radius is CSS's blur length (half of it fell off twice as fast, measured 2026-11-02).
+    private static let shade = 0.21
+    private static let shadeDrop = 9 * LaunchMotion.scale
+    private static let shadeBlur = 12 * LaunchMotion.scale
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Hue.brandDisc.opacity(frame.yellow)
+            // The launch screen's own picture, so its still and this first frame are one.
+            Image("LaunchGlass")
+                .resizable(capInsets: Self.glassCaps, resizingMode: .stretch)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(frame.yellow)
             ZStack(alignment: .topLeading) {
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))
@@ -224,6 +238,8 @@ private struct LaunchMark: View {
             }
             .frame(width: Self.box.width, height: Self.box.height, alignment: .topLeading)
             .foregroundStyle(Hue.onBrandDisc)
+            .compositingGroup()
+            .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur, y: Self.shadeDrop)
             .scaleEffect(frame.zoom)
             .scaleEffect(frame.markScale / LaunchMotion.scale, anchor: .topLeading)
             .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)

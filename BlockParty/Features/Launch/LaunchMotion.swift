@@ -7,7 +7,8 @@
 //  approved as played; change one only with Jesse.
 //
 //  Times here are the mock's simulation time. The screen plays them at `pace`, so each
-//  motion takes 1.33x its value (Jesse: "can you do .75 speed").
+//  motion takes 1.78x its value: round 4's ¾ speed (Jesse: "can you do .75 speed"), then ¾ of
+//  that again (Jesse, 2026-11-02: "speed 0.75", from the shipped launch's mock).
 //
 
 import SwiftUI
@@ -15,7 +16,7 @@ import SwiftUI
 nonisolated struct LaunchMotion {
     // MARK: Tuning (the mock's `T`)
 
-    static let pace = 0.75
+    static let pace = 0.75 * 0.75
     /// Gravity and the drop's starting speed, in points per second (per second).
     private static let gravity: CGFloat = 7600
     private static let dropSpeed: CGFloat = 650
@@ -248,6 +249,10 @@ nonisolated struct LaunchMotion {
         var buzzes = 0
         var done = false
 
+        /// A tap belongs to the launch until its yellow is mostly gone, then goes through to the
+        /// app under the glide (Jesse, 2026-11-02).
+        var takesTaps: Bool { yellow > 0.25 }
+
         private static let small = LaunchMotion.startSize
     }
 
@@ -352,15 +357,15 @@ nonisolated struct LaunchMotion {
         return (spring.value(target: 1.0, time: t - endAt), spring.velocity(target: 1.0, time: t - endAt))
     }
 
-    /// Reduce Motion: nothing moves. B and p are full size, the crest fades in at the dot and
-    /// goes black, the ! line fades in, and the whole launch fades into the app. A tap jumps to
-    /// the fade.
+    /// Reduce Motion: nothing moves. B and p stay at the still's 90%, so nothing jumps from it
+    /// (Jesse, 2026-11-02), the crest fades in at the dot and goes black, the ! line fades in,
+    /// and the whole launch fades into the app. A tap jumps to the fade.
     private func reduced(at real: Double) -> Frame {
         var t = real
         if let skip, skip <= real, skip < Self.reduceOut { t = Self.reduceOut + (real - skip) }
         let out = clamp01((t - Self.reduceOut) / 0.25)
         var f = Frame(ball: Ball(x: onDot.x, y: onDot.y, r: Self.dot / 2, roll: 0), markOrigin: origin)
-        f.b = CGSize(width: 1, height: 1)
+        f.b = CGSize(width: Self.startSize, height: Self.startSize)
         f.p = f.b
         f.ballOpacity = t < 0.5 ? clamp01(t / 0.15) : 0
         f.ballBlack = clamp01((t - 0.30) / 0.20)
