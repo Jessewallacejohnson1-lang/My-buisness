@@ -51,7 +51,6 @@ jobs:
           set -euo pipefail
           mkdir -p BlockParty/Config
           echo 'let MAPBOX_ACCESS_TOKEN = "pk.ci-placeholder-not-a-real-token"' > BlockParty/Config/MapboxConfig.swift
-          echo 'let GOOGLE_PLACES_API_KEY = "ci-placeholder-not-a-real-key"' > BlockParty/Config/GooglePlacesConfig.swift
           mkdir -p "$RUNNER_TEMP/shots"
 
       - uses: anthropics/claude-code-action@6d5ae526d25ce88daa2200be073e1a373167f064 # v1.0.265

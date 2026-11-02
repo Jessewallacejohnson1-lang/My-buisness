@@ -221,9 +221,7 @@ final class FeedCardImageLoader {
 
     private nonisolated static func remoteData(from url: URL) async -> Data? {
         do {
-            // Through `mediaRequest`, so a Google Places photo carries the bundle-id
-            // header its key checks. Every other URL goes out as before.
-            let (data, response) = try await URLSession.shared.data(for: GooglePlacesService.mediaRequest(for: url))
+            let (data, response) = try await URLSession.shared.data(from: url)
             if let response = response as? HTTPURLResponse,
                !(200..<300).contains(response.statusCode) {
                 return nil
@@ -324,7 +322,7 @@ extension FeedCardImageSource {
     var isPhoto: Bool { url != nil }
 
     /// The chip a place's photo carries wherever it shows: the site it came from, or a
-    /// free photo's author and licence (MEMORY.md, 2026-10-16). nil when there is none, so
+    /// free photo's author and licence (MEMORY.md, 2026-11-01). nil when there is none, so
     /// no empty capsule renders.
     var attribution: String? {
         guard case .placePhoto(_, let credit?, _) = self, !credit.isEmpty else { return nil }

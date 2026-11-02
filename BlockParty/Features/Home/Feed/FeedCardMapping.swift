@@ -77,7 +77,7 @@ extension FeedCardItem {
 
     /// An organizer's own photo, then a bundled, human-verified `KnownLocalPhoto` for its
     /// title, then the place's saved photo or logo (`place`), then flat ink. Nothing here
-    /// asks Google: venue photos come from our own store (MEMORY.md, 2026-10-16).
+    /// asks Google: venue photos come from our own store (MEMORY.md, 2026-11-01).
     ///
     /// The bundled tier stays because it is exactly the set of human-vetted photos for
     /// events by name (Millstream Arts Festival), and bundled photos carry no credit, so

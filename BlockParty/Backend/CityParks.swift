@@ -60,9 +60,8 @@ enum CityParks {
              acres: nil,
              description: "An excellent bituminous walking trail loops a central wetland, crossing two pedestrian bridges past benches set for wildlife-watching. A memorial monument, picnic shelter, and bathrooms sit trailside.",
              features: ["Wetland walking trail", "2 pedestrian bridges", "Memorial monument", "Restrooms"],
-             // Google's verified "Klinefelter Park" pin (9 photos). The OSM polygon
-             // centroid (45.5572) sits ~195 m south — outside the 75 m photo gate —
-             // so anchor on Google's pin so the real park photos resolve.
+             // Google Maps' "Klinefelter Park" pin; the OSM polygon centroid (45.5572)
+             // sits ~195 m south.
              lat: 45.55884, lon: -94.30395),
 
         Park(id: "memorial-park",

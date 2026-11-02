@@ -1,7 +1,8 @@
 //
 //  NewEventTests.swift
-//  BlockPartyTests — New event, from the Town bar's + (BP app references/town-plus): what Share
-//  sends, how the instant check's answer reads, and how the pill says it.
+//  BlockPartyTests — New post, from the Town bar's + (BP app references/post-screen, town-feed 29), and
+//  its Event chip, town-plus's New event (references/town-plus): what Post and Share send, how the
+//  instant check's answer reads, and how the pill says it.
 //
 
 import XCTest
@@ -125,5 +126,75 @@ final class NewEventTests: XCTestCase {
         XCTAssertEqual(inbox.next?.id, "posted:e1")
         inbox.forgetAccount()
         XCTAssertNil(inbox.next)
+    }
+
+    // MARK: New post (town-feed 29)
+
+    func testPostLightsUpWithWordsOrAPhoto() {
+        var draft = NewPostDraft()
+        XCTAssertFalse(draft.ready(photo: false))
+        XCTAssertTrue(draft.ready(photo: true), "a photo alone")
+        draft.words = "  \n "
+        XCTAssertFalse(draft.ready(photo: false), "blank words")
+        draft.words = "Sledding?"
+        XCTAssertTrue(draft.ready(photo: false))
+    }
+
+    func testWordsAreBigWhileShortWithNoPhoto() {
+        var draft = NewPostDraft()
+        draft.words = String(repeating: "a", count: NewPostDraft.bigUntil)
+        XCTAssertTrue(draft.big(photo: false))
+        XCTAssertFalse(draft.big(photo: true), "a photo makes them small")
+        draft.words += "a"
+        XCTAssertFalse(draft.big(photo: false), "past 85 letters")
+    }
+
+    func testPostSendsTheTrimmedWordsPlaceAndTaggedFriends() {
+        var draft = NewPostDraft()
+        draft.words = "  Burger night \n"
+        draft.place = " Sal's "
+        draft.tagged = [Neighbor(userId: "u2", displayName: "Sam Lee", avatarUrl: nil, since: nil, relation: .friends,
+                                 mutualFriends: 0)]
+        XCTAssertEqual(draft.input(id: "p1", imageURL: "https://x/p1.jpg", aspect: 0.8),
+                       NewPostInput(id: "p1", words: "Burger night", imageURL: "https://x/p1.jpg", aspect: 0.8,
+                                    place: "Sal's", friendsOnly: false, tagged: ["u2"]))
+        XCTAssertNil(draft.input(id: "p1", imageURL: nil, aspect: 0.8).aspect, "no photo, no shape")
+        draft.friendsOnly = true
+        draft.place = "  "
+        let friends = draft.input(id: "p1", imageURL: nil, aspect: nil)
+        XCTAssertTrue(friends.friendsOnly)
+        XCTAssertNil(friends.place, "a blank Place is none")
+        XCTAssertEqual(draft.line(name: "Jesse"), "Jesse is with Sam Lee.")
+    }
+
+    func testLongWordsAreCutAtTheChecksLimit() {
+        var draft = NewPostDraft()
+        draft.words = String(repeating: "a", count: 2500)
+        XCTAssertEqual(draft.text.count, NewPostDraft.wordsLimit)
+    }
+
+    /// A photo is cut from its middle into Instagram's limits, 4:5 tall to 1.91:1 wide; one inside
+    /// them keeps its shape.
+    func testAPhotoIsCutIntoInstagramsLimits() {
+        XCTAssertEqual(NewPostDraft.aspect(CGSize(width: 1000, height: 3000)), 0.8)
+        XCTAssertEqual(NewPostDraft.aspect(CGSize(width: 4000, height: 1000)), 1.91)
+        XCTAssertEqual(NewPostDraft.aspect(CGSize(width: 1200, height: 900)), 4.0 / 3.0, accuracy: 1e-9)
+        XCTAssertEqual(NewPostDraft.cropRect(CGSize(width: 1000, height: 3000)), CGRect(x: 0, y: 875, width: 1000, height: 1250))
+        let wide = NewPostDraft.cropRect(CGSize(width: 4000, height: 1000))
+        XCTAssertEqual(wide.width, 1910, accuracy: 1)
+        XCTAssertEqual(wide.midX, 2000, accuracy: 1, "from the middle")
+        XCTAssertEqual(wide.height, 1000)
+        XCTAssertEqual(NewPostDraft.cropRect(CGSize(width: 1200, height: 900)), CGRect(x: 0, y: 0, width: 1200, height: 900))
+    }
+
+    /// The Event chip shares an Event with New post's words as its description.
+    func testAnEventCarriesThePostsWordsAsItsDescription() {
+        var draft = NewEventDraft(now: town("2026-11-01 15:00"))
+        draft.name = "Sledding"
+        draft.place = "Millstream Park"
+        draft.about = "  Bring a sled "
+        XCTAssertEqual(draft.input(id: "e1", imageURL: nil).description, "Bring a sled")
+        draft.about = " "
+        XCTAssertNil(draft.input(id: "e1", imageURL: nil).description)
     }
 }

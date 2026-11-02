@@ -12,6 +12,8 @@ import SwiftUI
 @MainActor @Observable
 final class TodayHeaderProfileModel {
     private(set) var avatarUrl: String?
+    /// Your name, for New post's name line (town-feed 29).
+    private(set) var displayName: String?
 
     private let loadProfile: () async throws -> TownProfile?
     /// Numbers each read, so one an account change overtook never lands.
@@ -32,12 +34,14 @@ final class TodayHeaderProfileModel {
         let mine = latestRead
         guard let profile = try? await loadProfile(), mine == latestRead else { return }
         avatarUrl = profile.avatarUrl
+        displayName = profile.displayName
     }
 
     /// Another account, or none: the last one's photo goes until this one's is read.
     func accountChanged() {
         latestRead += 1
         avatarUrl = nil
+        displayName = nil
     }
 }
 
@@ -46,7 +50,7 @@ struct FeedView: View {
     /// only forwards the taps.
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
-    /// The bar's + → New event (BP app references/town-plus).
+    /// The bar's + → New post (BP app references/post-screen).
     var onCreate: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
@@ -66,6 +70,11 @@ struct FeedView: View {
     /// Fixed for this view's life: whether the Town feed's first cards rise in. Not
     /// when it comes back partway down (`TownFeed.returnY`).
     @State private var entrance: Bool
+
+    /// Your post the check just let up, on top for the session (`PostOutbox.justPosted`), while the feed has it.
+    private var justPosted: TownPost? {
+        PostOutbox.shared.justPosted.flatMap { id in townFeed.shown.lazy.compactMap(\.post).first { $0.id == id } }
+    }
 
     /// A read failed while a list is showing: the bar says so (ticket 11).
     private var offline: Bool { townFeed.failed && townFeed.entries != nil }
@@ -146,6 +155,21 @@ struct FeedView: View {
         #endif
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                // Your post on its way, faded on top until it's up, or until Review let it up while it waited;
+                // once up, the post itself there for the session (town-feed 29).
+                if let sent = PostOutbox.shared.sent, !townFeed.shown.contains(where: { $0.id == sent.id }) {
+                    PostingPostCard(sent: sent) {
+                        PostOutbox.shared.reopen()
+                        onCreate()
+                    }
+                    .padding(.top, 12)
+                    .transition(.opacity)
+                } else if let mine = justPosted {
+                    FeedPostCard(post: mine)
+                        .padding(.top, 12)
+                        .environment(townFeed)
+                        .transition(.opacity)
+                }
                 // The social feed.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
@@ -155,6 +179,7 @@ struct FeedView: View {
                         TimelineView(.everyMinute) { context in
                             let items = townFeed.column(eventOfTheDay: eventOfTheDay.events ?? [], now: context.date,
                                                         places: places)
+                                .filter { item in justPosted.map { item.id != "post:" + $0.id } ?? true }
                             let top = items.first.flatMap { item -> String? in
                                 if case .eventOfTheDay(let event) = item { return event.id }
                                 return nil
@@ -198,6 +223,9 @@ struct FeedView: View {
                 Color.clear.frame(height: 96)
             }
             .tint(Hue.ink)
+            // Your post comes in on top and goes once it's up; the cards make room (town-feed 29).
+            .animation(Motion.smooth, value: PostOutbox.shared.sent?.id)
+            .animation(Motion.smooth, value: PostOutbox.shared.justPosted)
         }
         // The top bar's come-and-go, off the scroll's DIRECTION. The old value this
         // hands back is the previous offset; the one other thing stored is

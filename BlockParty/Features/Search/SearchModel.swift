@@ -26,7 +26,7 @@ struct SearchItem: Identifiable, Hashable {
         /// One Block Party saved of the place (`public.place_photos`), drawn with its credit.
         case saved(PlacePicture)
 
-        /// A saved photo carries its credit wherever it shows (MEMORY.md, 2026-10-16).
+        /// A saved photo carries its credit wherever it shows (MEMORY.md, 2026-11-01).
         var credited: Bool {
             if case .saved = self { true } else { false }
         }

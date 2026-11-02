@@ -418,9 +418,9 @@ struct MainTabsView: View {
     @State private var signingIn = false
     /// That code's neighbour, opened once the login lands.
     @State private var codeAfterLogin: String?
-    /// New event, from the Town bar's + (BP app references/town-plus).
+    /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
-    /// The + asked for an account first: New event opens once the login lands.
+    /// The + asked for an account first: New post opens once the login lands.
     @State private var createAfterLogin = false
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
@@ -529,9 +529,16 @@ struct MainTabsView: View {
             createAfterLogin = false
         }
         .sheet(isPresented: $creating) {
-            NewEventSheet(places: NewEventPlaces.ordered(searchModel.items), onShared: shared)
+            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: avatar, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
         }
+        #if DEBUG
+        // `-new-post`: New post open at launch; `-new-post-state <state>`: the faded card on Town.
+        .task {
+            if let state = LaunchFlags.value(.newPostState) { PostOutbox.shared.sample(state) }
+            if LaunchFlags.has(.newPost) { creating = true }
+        }
+        #endif
         // Logged in from that ask: the neighbour whose code it was.
         .onChange(of: auth.accountKey) {
             if let id = codeAfterLogin, auth.isSignedIn, !auth.isAnonymous {
@@ -668,8 +675,8 @@ struct MainTabsView: View {
         return DailyWeek.friendsGoing(in: townFeed.cards)
     }
 
-    /// The Town bar's +: New event for a real account; anyone else signs in first (Jesse,
-    /// 2026-11-01: "anyone signed in"), and New event opens once they have.
+    /// The Town bar's +: New post for a real account; anyone else signs in first (Jesse,
+    /// 2026-11-01: "anyone signed in"), and New post opens once they have.
     private func create() {
         guard auth.isSignedIn, !auth.isAnonymous else {
             createAfterLogin = true
@@ -679,7 +686,12 @@ struct MainTabsView: View {
         creating = true
     }
 
-    /// What New event shared: the pill says it at once, and Town reads again so it's there.
+    /// A post New post saved: faded on Town until the check answers; a yes reads Town again.
+    private func posted(_ sent: PostOutbox.Sent) {
+        PostOutbox.shared.check(sent, api: CommunityAPI(auth: AuthStore.shared)) { await townFeed.reload() }
+    }
+
+    /// What New post's Event shared: the pill says it at once, and Town reads again so it's there.
     private func shared(_ posted: HelloItem.Posted) {
         HelloInbox.shared.add(.posted(posted))
         Task { await townFeed.reload() }

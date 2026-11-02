@@ -213,6 +213,10 @@ which holds `TodayTopBar` and the feed.
   "Every 1st & 3rd Monday"; soonest first, the ones you go to last. Android calls the same
   function. **Never filter, re-sort or re-word it in the app** `[prose]`: change the function
   and its tests.
+- **The feed's body is `private.town_feed`** `[test]` (feed-load, 2026-11-01): `get_town_feed`
+  only calls it, and `get_event_of_the_day` asks it for just the day's picks and their hosts'
+  Events instead of the whole feed. A change to the feed replaces `private.town_feed`; giving
+  `get_town_feed` its own body again leaves Event of the day on the old one (a story checks).
 - **`TownFeed` is the app's one module for it** `[test]` (`TownFeedEventsTests`). `MainTabsView`
   holds it, so coming back to Town shows the list it left while it reads again; a failed read
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
@@ -317,8 +321,8 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
   and `.accessibilityHidden(chromeHidden)` sit on the control row.
 - **Three controls in 44pt boxes, 16pt in from the screen's edges** (Instagram's, measured
-  2026-09-27). `[prose]` Instagram's + leads and opens New event (`NewEvent.swift`, BP app
-  town-plus, 2026-11-01; friends led until it became a tab that day, search before 2026-09-29),
+  2026-09-27). `[prose]` Instagram's + leads and opens New post (`NewPost.swift`, BP app
+  post-screen, 2026-11-02; New event from town-plus, 2026-11-01, before it; friends led until it became a tab that day, search before 2026-09-29),
   the wordmark centres, a notifications bell holds the trailing corner, and the map disc sits
   inboard of it. The + and the bell are
   **bare ink at home and sit in frosted circles while the bar floats** over the feed

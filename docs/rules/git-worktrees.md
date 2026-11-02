@@ -21,9 +21,11 @@ checkout. It refuses a commit whose generated `AGENTS.md`/`CLAUDE.md` have drift
 (`scripts/ci_checks.sh`) on whatever is pushed to main. CI checks the same thing and is not bypassable, so skipping this install is
 survivable but slower — the drift surfaces at push time instead of commit time.
 
-A new worktree has no `BlockParty/Config/` (ignored; it holds the Google Places and Mapbox
-keys), so its first build fails with `cannot find 'GOOGLE_PLACES_API_KEY' in scope`. `[prose]`
+A new worktree has no `BlockParty/Config/` (ignored; it holds the Mapbox token), so its
+first build fails with `cannot find 'MAPBOX_ACCESS_TOKEN' in scope`. `[prose]`
 Copy it from a checkout that has it: `ditto ~/Documents/bp-build/BlockParty/Config <new>/BlockParty/Config`.
+A branch from before 2026-11-01 still has `GooglePlacesService.swift` and fails with
+`cannot find 'GOOGLE_PLACES_API_KEY' in scope`: merge `main` into it.
 
 ## The traps
 

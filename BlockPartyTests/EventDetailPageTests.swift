@@ -149,18 +149,6 @@ final class EventDetailPageTests: XCTestCase {
                        "nothing loaded, no hero")
     }
 
-    func testPlacesPhotoDownloadCarriesTheBundleHeader() throws {
-        // The key is restricted to this app's bundle id, which Google reads from this
-        // header; without it every photo download is a 403. No real key here.
-        let media = URL(string: "https://places.googleapis.com/v1/places/abc/photos/def/media?maxWidthPx=400")!
-        let request = GooglePlacesService.mediaRequest(for: media)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"),
-                       try XCTUnwrap(Bundle.main.bundleIdentifier))
-
-        XCTAssertNil(GooglePlacesService.mediaRequest(for: Self.photoURL).value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"),
-                     "only Google gets the header")
-    }
-
     /// The page's hero (420.33 pt on iPhone Air) asks for the same decode as its card
     /// (420 pt), so the photo is decoded once and cached once.
     func testThePageHeroSharesItsCardsDecodeWidth() {

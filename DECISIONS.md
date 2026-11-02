@@ -875,6 +875,18 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   deleted at 3:30 am Central. Free plan: 18 MB of 500 MB on 2026-10-13; views reach about
   1 GB kept at 3,000 daily people, so Pro comes before then (Jesse's spending yes).
 
+## Decided 2026-11-01 — no Google Places in the app (codebase-health 07)
+
+Jesse: "I don't want any of the Google photos anymore." The app had made no Google call since
+the map's open-now lookup went (iOS `716d5ea5`, 2026-10-30), and the old place page with
+Google's "Hours & contact" had no way in since 2026-09-18. Removed: `GooglePlacesService`,
+`VenueInfoView`, `PlaceDetailView`, the `-seed-places` seeder, the photo loader's bundle-id
+header, the CI placeholder key, `scripts/review_park_photos.py` and
+`scripts/resolve_google_place_ids.py`; `BlockParty/Config/GooglePlacesConfig.swift` is no
+longer needed. Kept: `places.google_place_id` and the weekly hours the server takes from Google
+(MEMORY 2026-10-26). This supersedes the Google photo decisions above (Locked Rule A,
+`photos(placeId:)`).
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

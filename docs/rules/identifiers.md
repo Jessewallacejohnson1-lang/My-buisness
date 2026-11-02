@@ -19,11 +19,10 @@ check it before you type an identifier from memory.
   onboarding. `[prose]` For any *measurement*, prefer the local pixel-scanned frames at
   `refs/onboarding/duolingo/S01–S20.png`; these ids are the provenance.
 
-## The two gitignored config files
+## The gitignored config file
 
-- **Two gitignored `BlockParty/Config/` files must be recreated** on a fresh clone (both hold secrets, both are in `.gitignore`, and the build won't compile without the symbols they declare):
-  - **`MapboxConfig.swift`** — `let MAPBOX_ACCESS_TOKEN = "pk...."`. Without it the map is blank / the token won't link.
-  - **`GooglePlacesConfig.swift`** — `let GOOGLE_PLACES_API_KEY = "AIza...."`. Without it `GooglePlacesService` fails to compile and the runtime venue-photo layer is dead. When recreating a worktree, copy both from an authorized sibling checkout — the handoffs' "copy Config/ back in" step means exactly these two. The Google Cloud key restriction now includes `Jesse.BlockParty` (verified 2026-08-19 — see `DECISIONS.md` §1), so venue photography works under the new bundle id.
+- **`BlockParty/Config/MapboxConfig.swift` must be recreated** on a fresh clone (it holds a secret, it is in `.gitignore`, and the build won't compile without the symbol it declares): `let MAPBOX_ACCESS_TOKEN = "pk...."`. Without it the map is blank / the token won't link. Copy it from an authorized sibling checkout.
+- **There is no Google Places key any more** (2026-11-01, codebase-health 07): the app makes no Google call. Delete an old `GooglePlacesConfig.swift` left in a checkout: `BlockParty/` compiles every Swift file in it, so the key would still ride along in the app. `.gitignore` still ignores it.
 
 ## Persisted identifiers and the 2026-08-09 rename
 

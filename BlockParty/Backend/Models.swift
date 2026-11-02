@@ -9,7 +9,8 @@
 import Foundation
 
 enum ClubStatus: String, Codable { case pending, approved, rejected }
-enum PostKind: String, Codable { case event, trail }
+/// A `club_events` row's kind: an Event, a trail, or a neighbour's post (BP app town-feed 29).
+enum PostKind: String, Codable { case event, trail, post }
 
 // MARK: - Public view models (some fields derived client-side)
 
@@ -537,7 +538,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 /// Where an event happens, as a picture (`public.place_picture`, BP app
 /// docs/plans/place-photos): the place's own photo, or its logo when we have no photo of
 /// it. Saved once in Block Party's Storage, so showing it costs no lookup (Jesse,
-/// 2026-10-16, MEMORY.md).
+/// 2026-11-01, MEMORY.md).
 nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     enum Kind: String, Decodable, Sendable { case photo, logo }
 
@@ -652,10 +653,62 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var facts: String? { words == headline ? nil : words }
 }
 
-/// One line of `get_town_feed`, in its order: an Event, or news under them (town-feed 35).
+/// A neighbour's post in the Town feed (BP app town-feed 29, references/post-screen): their own words,
+/// maybe one photo in its own shape and a Place, who posted it and the friends they tagged. It stays
+/// 7 days. Friends-only ones reach only the poster's friends: the server sends them to no one else.
+nonisolated struct TownPost: Hashable, Identifiable, Sendable {
+    struct Person: Hashable, Sendable {
+        let id: String
+        let name: String
+    }
+
+    let id: String
+    let poster: Person
+    var posterPhoto: URL? = nil
+    /// Their words; empty for a photo alone.
+    let words: String
+    var photo: URL? = nil
+    /// The photo's shape, width over height, inside Instagram's limits (4:5 to 1.91:1); nil when
+    /// unknown.
+    var aspect: Double? = nil
+    var place: String? = nil
+    var tagged: [Person] = []
+    /// Only the poster's friends see it.
+    var friendsOnly = false
+    let posted: Date
+    let leavesAt: Date
+    var heartCount = 0
+    var hearted = false
+
+    /// "Jesse is with Sam Lee at Sal's.", Facebook's line, or the name alone.
+    var line: String { Self.line(name: poster.name, with: tagged.map(\.name), at: place) }
+
+    /// The name line New post and its card share: "Jesse is with Sam Lee and 2 others at Sal's."
+    static func line(name: String, with friends: [String], at place: String?) -> String {
+        let place = place?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let with = switch friends.count {
+        case 0: ""
+        case 1: " is with \(friends[0])"
+        case 2: " is with \(friends[0]) and \(friends[1])"
+        default: " is with \(friends[0]) and \(friends.count - 1) others"
+        }
+        if with.isEmpty && place.isEmpty { return name }
+        return name + (with.isEmpty ? " is" : with) + (place.isEmpty ? "" : " at \(place)") + "."
+    }
+
+    /// The card's shape for the photo: its own, inside the limits; 4:5 when unknown.
+    var photoAspect: Double {
+        guard let aspect, aspect.isFinite, aspect > 0 else { return 4.0 / 5.0 }
+        return min(max(aspect, 4.0 / 5.0), 1.91)
+    }
+}
+
+/// One line of `get_town_feed`, in its order: an Event, news (town-feed 35), or a neighbour's post
+/// (town-feed 29).
 nonisolated enum TownFeedLine: Hashable {
     case event(TownFeedRow)
     case news(TownNews)
+    case post(TownPost)
 }
 
 /// One line of a round past the Town feed's later Events (`get_town_more`, town-feed 23): a place to
@@ -950,6 +1003,20 @@ struct NewEventInput {
     var description: String?
     var imageUrl: String?
     var category: String = EventCategory.other.rawValue   // club_events.category text
+}
+
+/// A neighbour's post as New post sends it (BP app town-feed 29).
+nonisolated struct NewPostInput: Equatable {
+    /// Made by the phone, so a retried insert can't post it twice.
+    let id: String
+    let words: String
+    var imageURL: String? = nil
+    /// Width over height, inside 4:5 to 1.91:1.
+    var aspect: Double? = nil
+    var place: String? = nil
+    var friendsOnly = false
+    /// Friends' ids, in the order tagged.
+    var tagged: [String] = []
 }
 
 struct NewTrailInput {

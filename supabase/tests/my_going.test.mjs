@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -307,7 +308,7 @@ test("your Going and your saves carry each event's place picture", async () => {
 const FRIEND = '00000000-0000-0000-0000-0000000000c1';
 const FRIEND_PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${FRIEND}/me.jpg`;
 // A Town day a few days from now, so the Event is never over when the stories run.
-const soon = () => new Date(Date.now() + 3 * 86400000).toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' });
+const soon = () => townDay(3);
 
 async function friendsOn(day) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);

@@ -171,34 +171,13 @@ and `DECISIONS.md` win wherever they disagree.
   (`FeedCardImageLoader.focus(of:)`), found on the phone as it loads, so every photo gets it,
   the cloud's new Event photos included; nothing is saved. BP app's place-photos `focus.swift`
   draws the approval sheet with the same rule: change both together.
-- **The Google Places Photo API is still the map's** (`VenueInfoView`, until place-photos
-  ticket 02), through
-  `GooglePlacesService.confidentPhoto(name:coordinate:)`, loaded through `FeedCardURLPhoto`,
-  whose loader sends the bundle-id header the key checks (a bare `AsyncImage` gets a 403).
-  The rules below hold for that path until it moves to the saved photos too.
-  - **Locked Rule A is the trust gate, not a formality.** `[prose]` A photo is shown only
-    when Google's text-search match clears a **name-aligned, tiered radius** around the
-    curated coordinate: **90 m** when the names merely align, **400 m** on an exact name,
-    **2 km** on an exact name AND a large-footprint type (park · arboretum · trail · campus,
-    where a centroid pin legitimately sits far from our curated door). The radii are
-    **measured, not guessed** (39 live lookups; the `RuleA` enum's docs in
-    `GooglePlacesService` carry the working) — a flat 75 m used to reject 6 of 7 real venues. `search()`
-    alone is a fuzzy match and **must never source a photo**.
-  - **The API supplies the photo; a person still spot-checks how it looks.** `[prose]`
-    Within a cleared place, `bestScenicPhoto` picks by geometry only — it cannot tell a vista
-    from a highway sign, a trash barrel, or a portrait shot that crops to an ugly middle
-    band. `scripts/review_park_photos.py` assembles a contact sheet for exactly that review.
-  - **ToS, and they shape the architecture** `[prose]`: `place_id` **may** be persisted —
-    store it in Supabase and key off it. Photo **names may NOT be persisted** — they live
-    only in the in-memory session cache and must be re-fetched from a fresh `details()` call,
-    so never write one into a DB column or an `image_url`. Any `authorAttributions` **must be
-    displayed wherever the image appears**. Keep the `X-Goog-FieldMask` minimal — the fields
-    you request *are* the cost.
-  - **Bundling a local image is the narrow exception** `[prose]`, for a place Google
-    genuinely can't serve or where the auto-pick stays bad: a hand-picked landscape in
-    `Resources/Images` plus a `KnownLocalPhoto` entry, sourced from city or owner-supplied
-    material (never a Google photo), recording the source and any permission caveat in the
-    code comment.
+- **No Google Places in the app** `[prose]` (Jesse, 2026-11-01: "I don't want any of the
+  Google photos anymore"): no Google photo, call or key. Every picture is a saved photo
+  above, a logo, or a bundled image.
+- **Bundling a local image is the narrow exception** `[prose]`, for a place with no saved
+  photo: a hand-picked landscape in `Resources/Images` plus a `KnownLocalPhoto` entry,
+  sourced from city or owner-supplied material (never a Google photo), recording the source
+  and any permission caveat in the code comment.
 - **Business logos are an OFFLINE pipeline, not runtime** `[prose]`, like the saved place
   photos above. Every logo lives in Storage, one folder per business:
   `places/<town>/<place_id>/logo-<hash>.webp` (Search's cut-out or 3D render, via
