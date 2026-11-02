@@ -202,8 +202,8 @@ final class AppSessionTests: XCTestCase {
     func testEveryModelReadsThroughTheSessionsClient() async {
         signIn("a")
         // A save from before saves moved to the server, so the switch asks which are Events.
+        UserDefaults.standard.set([UUID().uuidString], forKey: phoneName)
         let saved = SavedStore(key: phoneName)
-        saved.toggle(UUID().uuidString)
         let session = AppSession(supabase: Supabase(auth: auth, send: server.send), phone: phone, saved: saved)
         addTeardownBlock { TownFeedCache.clear() }
         // Search has read its groups, so it reads them again for the next account.
