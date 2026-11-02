@@ -69,7 +69,10 @@ struct LaunchHost<Content: View>: View {
     @State private var clock = LaunchClock()
     @State private var skip: Double?
     /// The launch's own frame on screen (full screen), and the top left of the app's space
-    /// (`LaunchStage.space`): together they put the tab bar's Bp! in the launch's space.
+    /// (`LaunchStage.space`): together they put the tab bar's Bp! in the launch's space. Both are
+    /// the screen's top left while the launch plays, but without this reading of the app's
+    /// space the tab bar's Bp! reached the launch only once, unlaid, and Bp! zoomed off instead
+    /// of landing (measured, 2026-11-01).
     @State private var screen = Self.windowBounds
     @State private var appOrigin = CGPoint.zero
     /// The window's safe area, for the app while the launch plays.
@@ -90,11 +93,13 @@ struct LaunchHost<Content: View>: View {
                 // screen and the app inside it gets the window's safe area back as padding.
                 .safeAreaPadding(stage.finished ? EdgeInsets() : insets)
                 .coordinateSpace(.named(LaunchStage.space))
-                // Where that space sits on screen, to put the tab bar's Bp! in the launch's.
                 .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { appOrigin = $0 }
                 .scaleEffect(backScale)
                 .ignoresSafeArea(.container, edges: stage.finished ? [] : .all)
-            TimelineView(.animation(paused: stage.finished || stage.frozenAt != nil)) { context in
+            // Paused only once done: a paused timeline doesn't draw again when what it reads
+            // changes, so a held DEBUG frame (`-launch-at`) keeps ticking on its one moment, to
+            // pick up the tab bar's Bp! once the bar has measured it.
+            TimelineView(.animation(paused: stage.finished)) { context in
                 let moment = self.moment(at: context.date)
                 LaunchMark(frame: moment.frame, origin: moment.origin)
                     .contentShape(Rectangle())
@@ -262,7 +267,7 @@ private struct LaunchMark: View {
             .scaleEffect(x: b.sx, y: b.sy)
             .rotationEffect(.degrees(b.heading))
             .position(x: b.x - origin.x, y: b.y - origin.y)
-            .opacity(frame.ballShown ? frame.ballOpacity : 0)
+            .opacity(frame.ballOpacity)
     }
 
     private func piece(_ name: String) -> some View {

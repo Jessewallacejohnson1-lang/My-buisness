@@ -139,10 +139,10 @@ final class LaunchMotionTests: XCTestCase {
     func testATapSkipsToTheDot() {
         let m = LaunchMotion(screen: phone, skip: 0.1)
         let midway = m.frame(at: 0.18)
-        XCTAssertTrue(midway.ballShown)
+        XCTAssertEqual(midway.ballOpacity, 1)
         XCTAssertGreaterThan(midway.ball.x, m.ball(at: 0.1).x)
         let landed = m.frame(at: 0.27)
-        XCTAssertFalse(landed.ballShown)
+        XCTAssertEqual(landed.ballOpacity, 0)
         XCTAssertTrue(landed.dotShown)
         XCTAssertEqual(landed.lineOpacity, 1)
         XCTAssertNil(landed.hop)

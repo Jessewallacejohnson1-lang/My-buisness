@@ -219,10 +219,9 @@ nonisolated struct LaunchMotion {
     /// Everything the screen draws at one moment.
     struct Frame: Equatable {
         var ball: Ball
-        /// How far the ball's colours have gone black, and whether it shows at all (it becomes
-        /// the real dot), and how strongly (Reduce Motion fades it in).
+        /// How far the ball's colours have gone black, and how strongly it shows: Reduce Motion
+        /// fades it in, and it goes once it has become the real dot.
         var ballBlack: Double = 0
-        var ballShown = true
         var ballOpacity = 1.0
         /// B and p's scale about their feet.
         var b = CGSize(width: Self.small, height: Self.small)
@@ -283,7 +282,7 @@ nonisolated struct LaunchMotion {
             f.ballBlack = Double(lerp(CGFloat(fromBlack), 1, v))
         }
         let swapped = t >= swapAt
-        f.ballShown = !swapped
+        f.ballOpacity = swapped ? 0 : 1
         f.dotShown = swapped
 
         // B and p dip and bulge on their hit and grow from 90%. A tap grows a letter the ball
@@ -363,9 +362,8 @@ nonisolated struct LaunchMotion {
         var f = Frame(ball: Ball(x: onDot.x, y: onDot.y, r: Self.dot / 2, roll: 0), markOrigin: origin)
         f.b = CGSize(width: 1, height: 1)
         f.p = f.b
-        f.ballOpacity = clamp01(t / 0.15)
+        f.ballOpacity = t < 0.5 ? clamp01(t / 0.15) : 0
         f.ballBlack = clamp01((t - 0.30) / 0.20)
-        f.ballShown = t < 0.5
         f.dotShown = t >= 0.5
         f.lineOpacity = clamp01((t - 0.50) / 0.15)
         f.yellow = 1 - out
