@@ -155,7 +155,7 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// nil until it's tagged, and on rows read before the feed sent it.
     var what: String? = nil
     /// The page it was found on (`club_events.source_url`, ADR-021), the Event page's link under
-    /// About. Only the Town feed's read sends it; nil elsewhere and for a neighbour's own event.
+    /// About. The Town feed's read and the Event card (You's Going) send it; nil for a neighbour's own event.
     var sourceURL: URL? = nil
     /// Up to three of the caller's friends Going, newest Going first: You's, Saved's and the bell's
     /// reads send them (`get_my_going`, `get_my_saves`, `get_my_changes`; BP app you-tab 07 and
