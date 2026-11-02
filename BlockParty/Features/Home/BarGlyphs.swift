@@ -169,6 +169,37 @@ nonisolated struct MagnifierShape: Shape {
     }
 }
 
+// MARK: - Plus
+
+/// The Town bar's +, Instagram's: two strokes with round ends, 19.7 pt across with a 2 pt
+/// line (MEASURED on Mobbin's Instagram home, 2026-11-01, BP app `references/town-plus/`).
+/// Drawn rather than SF's `plus`, whose line is a weight, not a measured 2 pt.
+struct PlusGlyph: View {
+    var size: CGFloat = 19.7
+    var line: CGFloat = 2
+
+    var body: some View {
+        PlusShape(inset: line / 2)
+            .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The two strokes, inset by half the line so the round ends land on the frame's edges.
+nonisolated struct PlusShape: Shape {
+    var inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + inset))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - inset))
+        path.move(to: CGPoint(x: rect.minX + inset, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.midY))
+        return path
+    }
+}
+
 // MARK: - Bell
 
 /// The notifications mark: a domed body on vertical walls that splay into a base bar,
@@ -379,8 +410,11 @@ struct DailyMarkGlyph: View {
 
     /// Where the line's foot and the dot's base sit on the mark's canvas, from
     /// `DailyMark.svg`'s paths. The squashes pivot there, so neither foot slides.
-    nonisolated private static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
-    nonisolated private static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+    nonisolated static let lineFoot = UnitPoint(x: 0.86, y: 0.517)
+    nonisolated static let dotBase = UnitPoint(x: 0.859, y: 0.787)
+    /// The line's crouch, the hop's first beat. The launch grows the line out of the dot over
+    /// it (`LaunchBall`), since the ! has no line before it hops there.
+    nonisolated static let crouch = 0.07
     /// The mock's two curves: a lift that starts fast and eases into the top, and a
     /// fall that speeds up into the landing.
     nonisolated private static let lift = UnitCurve.bezier(
@@ -388,11 +422,16 @@ struct DailyMarkGlyph: View {
     nonisolated private static let fall = UnitCurve.bezier(
         startControlPoint: UnitPoint(x: 0.5, y: 0), endControlPoint: UnitPoint(x: 0.8, y: 0.4))
 
-    struct Hop {
+    nonisolated struct Hop {
         var y: CGFloat = 0
         var width: CGFloat = 1
         var height: CGFloat = 1
     }
+
+    /// The hop at any moment, for the launch's ! (Jesse, 2026-11-01: "can we make the animation
+    /// of the ! the same as tab bars"), which plays it scaled up with no tap.
+    static let lineHop = KeyframeTimeline(initialValue: Hop(), content: lineKeyframes)
+    static let dotHop = KeyframeTimeline(initialValue: Hop(), content: dotKeyframes)
 
     var body: some View {
         ZStack {
@@ -402,57 +441,63 @@ struct DailyMarkGlyph: View {
                     content
                         .scaleEffect(x: hop.width, y: hop.height, anchor: Self.lineFoot)
                         .offset(y: hop.y)
-                } keyframes: { _ in
-                    // Crouch 70 ms, up by 230, down at 360, settled by 500.
-                    KeyframeTrack(\.y) {
-                        LinearKeyframe(0, duration: 0.07)
-                        LinearKeyframe(-4, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(0, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(0, duration: 0.14)
-                    }
-                    KeyframeTrack(\.width) {
-                        LinearKeyframe(1.12, duration: 0.07)
-                        LinearKeyframe(0.94, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(1.1, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(0.97, duration: 0.07, timingCurve: Self.lift)
-                        LinearKeyframe(1, duration: 0.07)
-                    }
-                    KeyframeTrack(\.height) {
-                        LinearKeyframe(0.86, duration: 0.07)
-                        LinearKeyframe(1.08, duration: 0.16, timingCurve: Self.lift)
-                        LinearKeyframe(0.9, duration: 0.13, timingCurve: Self.fall)
-                        LinearKeyframe(1.03, duration: 0.07, timingCurve: Self.lift)
-                        LinearKeyframe(1, duration: 0.07)
-                    }
-                }
+                } keyframes: { _ in Self.lineKeyframes() }
             layer("DailyMarkBangDot")
                 .keyframeAnimator(initialValue: Hop(), trigger: hops) { content, hop in
                     content
                         .scaleEffect(x: hop.width, y: hop.height, anchor: Self.dotBase)
                         .offset(y: hop.y)
-                } keyframes: { _ in
-                    // Leaves at 80 ms, up by 200, down at 320, settled by 400.
-                    KeyframeTrack(\.y) {
-                        LinearKeyframe(0, duration: 0.08)
-                        LinearKeyframe(-2, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(0, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(0, duration: 0.08)
-                    }
-                    KeyframeTrack(\.width) {
-                        LinearKeyframe(1, duration: 0.08)
-                        LinearKeyframe(0.95, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(1.15, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(1, duration: 0.08, timingCurve: Self.lift)
-                    }
-                    KeyframeTrack(\.height) {
-                        LinearKeyframe(1, duration: 0.08)
-                        LinearKeyframe(1.06, duration: 0.12, timingCurve: Self.lift)
-                        LinearKeyframe(0.85, duration: 0.12, timingCurve: Self.fall)
-                        LinearKeyframe(1, duration: 0.08, timingCurve: Self.lift)
-                    }
-                }
+                } keyframes: { _ in Self.dotKeyframes() }
         }
         .accessibilityHidden(true)
+    }
+
+    /// The line: crouch 70 ms, up by 230, down at 360, settled by 500.
+    @KeyframesBuilder<Hop>
+    nonisolated private static func lineKeyframes() -> some Keyframes<Hop> {
+        KeyframeTrack(\.y) {
+            LinearKeyframe(0, duration: crouch)
+            LinearKeyframe(-4, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(0, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(0, duration: 0.14)
+        }
+        KeyframeTrack(\.width) {
+            LinearKeyframe(1.12, duration: crouch)
+            LinearKeyframe(0.94, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(1.1, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(0.97, duration: 0.07, timingCurve: lift)
+            LinearKeyframe(1, duration: 0.07)
+        }
+        KeyframeTrack(\.height) {
+            LinearKeyframe(0.86, duration: crouch)
+            LinearKeyframe(1.08, duration: 0.16, timingCurve: lift)
+            LinearKeyframe(0.9, duration: 0.13, timingCurve: fall)
+            LinearKeyframe(1.03, duration: 0.07, timingCurve: lift)
+            LinearKeyframe(1, duration: 0.07)
+        }
+    }
+
+    /// The dot: leaves at 80 ms, up by 200, down at 320, settled by 400.
+    @KeyframesBuilder<Hop>
+    nonisolated private static func dotKeyframes() -> some Keyframes<Hop> {
+        KeyframeTrack(\.y) {
+            LinearKeyframe(0, duration: 0.08)
+            LinearKeyframe(-2, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(0, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(0, duration: 0.08)
+        }
+        KeyframeTrack(\.width) {
+            LinearKeyframe(1, duration: 0.08)
+            LinearKeyframe(0.95, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(1.15, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(1, duration: 0.08, timingCurve: lift)
+        }
+        KeyframeTrack(\.height) {
+            LinearKeyframe(1, duration: 0.08)
+            LinearKeyframe(1.06, duration: 0.12, timingCurve: lift)
+            LinearKeyframe(0.85, duration: 0.12, timingCurve: fall)
+            LinearKeyframe(1, duration: 0.08, timingCurve: lift)
+        }
     }
 
     private func layer(_ name: String) -> some View {
