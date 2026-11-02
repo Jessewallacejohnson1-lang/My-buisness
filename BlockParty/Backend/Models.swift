@@ -366,8 +366,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
                 bar = nil
             }
             // A count the server hasn't started over for this period yet is none, so no stale Bonus shows.
-            let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil
-            self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == bar?.foulPeriod ? $0.ids.map(\.count) : nil }
+            let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
+            self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
         }
 
         /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".
