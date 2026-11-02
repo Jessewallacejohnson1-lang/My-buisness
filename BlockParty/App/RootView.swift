@@ -529,8 +529,7 @@ struct MainTabsView: View {
             createAfterLogin = false
         }
         .sheet(isPresented: $creating) {
-            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), name: avatar.displayName ?? Interests.displayName ?? "",
-                         picture: avatar.avatarUrl.flatMap(URL.init(string:)), onShared: shared, onPosted: posted)
+            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: avatar, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
         }
         #if DEBUG
