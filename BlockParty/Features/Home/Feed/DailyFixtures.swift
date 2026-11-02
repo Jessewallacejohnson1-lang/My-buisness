@@ -185,6 +185,8 @@ enum DailyFixtures {
             card.startTime = started ? Self.townClock("h:mm a", now.addingTimeInterval(-3600)) : g.time
             card.location = g.place
             card.game = g.game
+            // You's Going lists the game on (`liveGameGoing`): its card says Going too.
+            card.isJoined = started
             return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
         }
     }
