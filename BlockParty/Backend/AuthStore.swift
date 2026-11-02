@@ -146,7 +146,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         let token = session?.accessToken
         session = nil
         Keychain.clear()
-        Interests.clearMirror()   // don't let the next account inherit this user's name/interests/onboarded
+        ProfileModel.forget()     // don't let the next account inherit this user's name/interests/onboarded
         TownFeedCache.clear()     // and the kept Town feed holds their Going
         if let token {
             _ = try? await SupabaseHTTP.auth("logout", bearer: token)

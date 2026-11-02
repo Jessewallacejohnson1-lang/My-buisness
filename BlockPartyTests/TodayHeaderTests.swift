@@ -309,48 +309,6 @@ final class TodayHeaderTests: XCTestCase {
         let low = min(red, green, blue)
         return high > 110 && high - low > 55
     }
-
-    // MARK: - Signed-in profile photo
-
-    /// The compact menu control must receive the avatar stored in `town_profiles`.
-    /// Before this regression fix the Today bar never loaded a profile at all and
-    /// always rendered the hard-coded person glyph, even when this field was set.
-    func testHeaderProfileRefreshPublishesTheSavedAvatar() async {
-        let savedAvatar = "https://example.com/avatars/neighbor.jpg"
-        let model = TodayHeaderProfileModel {
-            TownProfile(
-                userId: "neighbor-1",
-                displayName: "Taylor",
-                avatarUrl: savedAvatar,
-                interests: ["trails"],
-                onboardedAt: "2026-08-01T12:00:00Z"
-            )
-        }
-
-        XCTAssertNil(model.avatarUrl)
-
-        await model.refresh()
-
-        XCTAssertEqual(model.avatarUrl, savedAvatar)
-    }
-
-    /// A photo read the account changed under never lands (BP app codebase-health 22): signed out,
-    /// the last account's photo stays gone.
-    func testHeaderProfileDropsAReadTheAccountChangeOvertook() async {
-        var answer: CheckedContinuation<Void, Never>?
-        let model = TodayHeaderProfileModel {
-            await withCheckedContinuation { answer = $0 }
-            return TownProfile(userId: "a", displayName: "A", avatarUrl: "photo-a", interests: [], onboardedAt: nil)
-        }
-        let read = Task { await model.refresh() }
-        while answer == nil { await Task.yield() }
-
-        model.accountChanged()
-        answer?.resume()
-        await read.value
-
-        XCTAssertNil(model.avatarUrl)
-    }
 }
 
 private struct HeaderBitmap {

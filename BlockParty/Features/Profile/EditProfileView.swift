@@ -11,7 +11,7 @@ import SwiftUI
 import PhotosUI
 
 struct EditProfileView: View {
-    @ObservedObject var model: ProfileModel
+    let model: ProfileModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""

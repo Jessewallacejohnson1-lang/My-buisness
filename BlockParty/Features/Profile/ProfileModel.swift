@@ -1,64 +1,78 @@
 //
 //  ProfileModel.swift
-//  Block Party — state for your Profile, the You tab (five-tabs 03). Loads the town_profiles row
-//  (name · avatar · interests) and owns the edit/save + sign-out paths. The shell keeps one
-//  (`AppSession`), so a second visit shows your page at once while it reads again. What you're
-//  Going to lives in `YouModel`, not here.
+//  Block Party — Your profile (BP app codebase-health-2 09): your name, photo, Interests and
+//  onboarded date, read once and kept for every screen that shows or edits them: the You tab (your
+//  Profile), the tab bar's photo, New post, Your code, Edit interests and the "add your name"
+//  sheet. The root view makes it (it reads while onboarding is up) and hands it to the shell's
+//  `AppSession`; screens find it in the environment. Every save goes through it, so it shows
+//  everywhere at once, and only it writes the phone's copy of your name and Interests
+//  (`Interests`). What you're Going to lives in `YouModel`, not here.
 //
 
 import SwiftUI
-import Combine
 
-@MainActor
-final class ProfileModel: ObservableObject {
+@MainActor @Observable
+final class ProfileModel {
     // Identity
-    @Published var displayName = ""
-    @Published var avatarUrl: String?
-    @Published var interestIds: [String] = []
-    @Published var email: String?
-    @Published var sinceLabel: String?
-    @Published var isAdmin = false
+    var displayName = ""
+    var avatarUrl: String?
+    var interestIds: [String] = []
+    var email: String?
+    var sinceLabel: String?
+    var isAdmin = false
+    /// When this account finished onboarding, from its row (nil: not yet, or unread).
+    private(set) var onboardedAt: String?
     /// Profile's bio and cover photo, and the counts and groups `get_profile` sends (BP app
     /// references/profile-remake). Nil until read; an anonymous account has none.
-    @Published var bio = ""
-    @Published var coverUrl: String?
-    @Published var extras: ProfileExtras?
+    var bio = ""
+    var coverUrl: String?
+    var extras: ProfileExtras?
     /// "Show my plans to friends" (town-feed 28): nil until the server row says. Till then the
     /// switch shows the default, On, greyed, and can't be changed.
-    @Published var plansToFriends: Bool?
+    var plansToFriends: Bool?
     /// Counts writes that failed and flipped the switch back; each one shakes it.
-    @Published private(set) var plansFailures = 0
+    private(set) var plansFailures = 0
     /// "Suggest me to people I may know" (daily-tab 22), as `plansToFriends`.
-    @Published var suggestMe: Bool?
-    @Published private(set) var suggestFailures = 0
+    var suggestMe: Bool?
+    private(set) var suggestFailures = 0
 
-    // Lifecycle
-    @Published var loading = false
-    @Published var loaded = false
+    /// This account's row has been read, landed or failed: a sheet waiting on it opens, offline too.
+    var loaded = false
 
     /// The one client every read and write goes through, and the account it goes as.
-    private var supabase: Supabase
+    @ObservationIgnored private var supabase: Supabase
     private var auth: any TokenProviding { supabase.auth }
     private var profiles: ProfileAPI { ProfileAPI(supabase) }
-    private let endSession: () async -> Void
-    private var writePlans: ((Bool) async throws -> Void)?
-    private var writeSuggest: ((Bool) async throws -> Void)?
+    /// Where the phone's copy lives: `.standard`, or a test's own.
+    @ObservationIgnored private let phone: UserDefaults
+    @ObservationIgnored private let endSession: () async -> Void
+    @ObservationIgnored private var writePlans: ((Bool) async throws -> Void)?
+    @ObservationIgnored private var writeSuggest: ((Bool) async throws -> Void)?
     /// The switches with a write out, so taps queue behind it.
-    private var writing: Set<PartialKeyPath<ProfileModel>> = []
+    @ObservationIgnored private var writing: Set<PartialKeyPath<ProfileModel>> = []
+    /// The account what's shown belongs to.
+    @ObservationIgnored private var account: String?
+    /// The read out now, which a second ask joins rather than sending its own.
+    @ObservationIgnored private var reading: (account: String?, turn: Int, task: Task<TownProfile?, Error>)?
+    /// Moves on with every account change and every write, so a read sent before it never lands.
+    @ObservationIgnored private var turn = 0
 
     // Default args are nil (not `.app`, `.shared`) so the main-actor singletons are only
     // touched inside this @MainActor init body — no cross-isolation warning.
     // `supabase` is the app's one client unless a test hands a fake (BP app codebase-health 22);
     // `signOut` ends the session; `writePlans` stands in for the server in tests.
-    init(supabase: Supabase? = nil, signOut: (() async -> Void)? = nil,
+    init(supabase: Supabase? = nil, phone: UserDefaults = .standard, signOut: (() async -> Void)? = nil,
          writePlans: ((Bool) async throws -> Void)? = nil,
          writeSuggest: ((Bool) async throws -> Void)? = nil) {
         self.supabase = supabase ?? .app
+        self.phone = phone
         endSession = signOut ?? { await AuthStore.shared.signOut() }
         self.writePlans = writePlans
         self.writeSuggest = writeSuggest
-        // The name at once, so the sheet never opens on "Add your name" and fades to it.
-        displayName = Interests.displayName ?? ""
+        account = self.supabase.auth.userId
+        // From the phone's copy at once, so nothing opens on "Add your name" and fades to it.
+        displayName = Interests.displayName(phone) ?? ""
+        interestIds = Interests.get(phone)
         #if DEBUG
         // `-town-samples`: the switches show on and their taps write nowhere, as Join's do;
         // `-town-offline`: every tap fails, as with no network.
@@ -74,55 +88,78 @@ final class ProfileModel: ObservableObject {
         #endif
     }
 
-    // MARK: - Load
+    // MARK: - Read
 
-    func load() async {
-        loading = true
-
-        // Instant first paint from local mirrors + auth (offline-friendly), then
-        // refine from the network below.
+    /// Your row, for every screen: at launch and for each new account (`RootView`), and on each
+    /// visit to You. Asks made together share one request. True when it landed, row or none; false
+    /// when it failed, or an account change or a write overtook it (what that wrote stands).
+    @discardableResult
+    func read() async -> Bool {
+        let account = auth.userId
+        // Another account than the one shown, with nothing having said so (onboarding is up, so the
+        // shell isn't): the last one's goes first.
+        if account != self.account {
+            if self.account != nil { accountChanged() } else { self.account = account }
+        }
         email = auth.email
         isAdmin = Admin.isAdmin(auth.email)
-        // Real name only — never the raw email (that lives in the Account row).
-        // Empty → the header shows an "Add your name" prompt.
-        if displayName.isEmpty { displayName = Interests.displayName ?? "" }
-        if interestIds.isEmpty { interestIds = Interests.get() }
-
-        let profile = (try? await profiles.getMyProfile()) ?? nil
-        if let p = profile {
-            if let n = p.displayName, !n.isEmpty { displayName = n }
-            avatarUrl = p.avatarUrl
-            // The server row is authoritative — adopt its interests even when empty
-            // (a deliberate clear elsewhere must sync, not get resurrected on Save),
-            // and mirror locally so Home's matching agrees. Old ids come back as the new 21, so
-            // a Save never drops what someone picked before the list changed.
-            interestIds = Interests.migrate(p.interests)
-            Interests.set(interestIds)
-            // Onboarding went away for a while; a row made then has only its own stamp.
-            sinceLabel = ProfileModel.since(from: p.onboardedAt ?? p.createdAt)
-            bio = p.bio ?? ""
-            coverUrl = p.coverUrl
-            plansToFriends = p.plansToFriends ?? true
-            suggestMe = p.suggestMe ?? true
+        // The phone's copy until the row lands, so an edit opened offline never saves no Interests.
+        if displayName.isEmpty { displayName = Interests.displayName(phone) ?? "" }
+        if interestIds.isEmpty { interestIds = Interests.get(phone) }
+        // Joined only while nothing has been written since it went: an older read never lands.
+        let sent = turn
+        let task: Task<TownProfile?, Error>
+        if let out = reading, out.account == account, out.turn == sent {
+            task = out.task
+        } else {
+            let profiles = profiles
+            task = Task { try await profiles.getMyProfile() }
+            reading = (account, sent, task)
         }
-
-        if canDescribe, let uid = auth.userId, let read = try? await profiles.getProfile(uid) {
-            extras = read
-        }
-
-        loading = false
+        let result = await task.result
+        if reading?.task == task { reading = nil }
+        guard auth.userId == account else { return false }
         loaded = true
+        guard sent == turn, case .success(let found) = result else { return false }
+        // No row yet (a new quiet account): nothing to show but what the phone has.
+        guard let row = found else { return true }
+        if let n = row.displayName, !n.isEmpty { displayName = n }
+        avatarUrl = row.avatarUrl
+        // The server row is authoritative — adopt its interests even when empty (a deliberate
+        // clear elsewhere must sync, not get resurrected on Save). Old ids come back as the new
+        // 21, so a Save never drops what someone picked before the list changed.
+        interestIds = Interests.migrate(row.interests)
+        onboardedAt = row.onboardedAt
+        // Onboarding went away for a while; a row made then has only its own stamp.
+        sinceLabel = ProfileModel.since(from: row.onboardedAt ?? row.createdAt)
+        bio = row.bio ?? ""
+        coverUrl = row.coverUrl
+        plansToFriends = row.plansToFriends ?? true
+        suggestMe = row.suggestMe ?? true
+        keep()
+        return true
+    }
+
+    /// You's visit: your row, then the counts and groups only a real account has.
+    func load() async {
+        await read()
+        guard canDescribe, let uid = auth.userId, let read = try? await profiles.getProfile(uid),
+              auth.userId == uid else { return }
+        extras = read
     }
 
     /// Another account, or none (`AppSession`): nothing of the last one's stays on the page. The
     /// switches wait for the next one's row, unless a write of their own stands in for the server
     /// (the DEBUG samples, tests).
     func accountChanged() {
-        displayName = Interests.displayName ?? ""
+        turn += 1
+        account = auth.userId
+        displayName = Interests.displayName(phone) ?? ""
         avatarUrl = nil
         interestIds = []
         email = nil
         sinceLabel = nil
+        onboardedAt = nil
         isAdmin = false
         bio = ""
         coverUrl = nil
@@ -130,6 +167,59 @@ final class ProfileModel: ObservableObject {
         loaded = false
         if writePlans == nil { plansToFriends = nil }
         if writeSuggest == nil { suggestMe = nil }
+    }
+
+    // MARK: - Onboarding's answers
+
+    /// Onboarding finished: its name and Interests are yours on this phone at once, before any
+    /// save reaches the account.
+    func answered(name: String?, interests: [String]) {
+        if let name { displayName = name }
+        if !interests.isEmpty { interestIds = interests }
+        keep()
+    }
+
+    /// Onboarding's name, photo and Interests on your row (BP app onboarding 18, 20): only the
+    /// answers given travel. Throws, keeping nothing, when the photo or the row is refused.
+    func saveAnswers(name: String?, photo: Data?, interests: [String]) async throws {
+        turn += 1
+        var url: String?
+        if let photo { url = try await profiles.uploadPhoto(photo) }
+        try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, interests: interests)
+        if let name { displayName = name }
+        if let url { avatarUrl = url }
+        if !interests.isEmpty { interestIds = interests }
+        keep()
+    }
+
+    /// The onboarded stamp, with the birthday (onboarding 19) and the Interests (24), on your row.
+    /// True when the server took it.
+    func stampOnboarded(birthday: Date?, interests: [String]) async -> Bool {
+        turn += 1
+        guard (try? await profiles.markOnboarded(birthday: birthday, interests: interests)) != nil else { return false }
+        onboardedAt = DateHelpers.timestampString(Date())
+        sinceLabel = ProfileModel.since(from: onboardedAt)
+        if !interests.isEmpty {
+            interestIds = interests
+            keep()
+        }
+        return true
+    }
+
+    // MARK: - The phone's copy
+
+    /// Your name and Interests on the phone, so screens have them at once and offline.
+    private func keep() {
+        phone.set(interestIds, forKey: Interests.interestsKey)
+        phone.set(displayName.isEmpty ? nil : displayName, forKey: Interests.nameKey)
+    }
+
+    /// Signed out: the phone's copy goes, and the old un-scoped onboarded flag, so another account
+    /// here never inherits this one's name or Interests.
+    static func forget(_ phone: UserDefaults = .standard) {
+        phone.removeObject(forKey: Interests.interestsKey)
+        phone.removeObject(forKey: Interests.nameKey)
+        phone.removeObject(forKey: Interests.legacyOnboardedKey)
     }
 
     /// Only a real account has a bio, a cover, friends and a `get_profile` to read.
@@ -165,6 +255,7 @@ final class ProfileModel: ObservableObject {
     /// Saves the edit; nil when the server took it, else why it didn't.
     func save(name: String, image: UIImage?, interests: [String],
               bio: String? = nil, cover: UIImage? = nil) async -> SaveProblem? {
+        turn += 1
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         var newUrl = avatarUrl
@@ -186,13 +277,12 @@ final class ProfileModel: ObservableObject {
         }
 
         // Commit only after the server accepted the write.
-        Interests.set(interests)
-        Interests.displayName = trimmed.isEmpty ? nil : trimmed
         displayName = trimmed
         avatarUrl = newUrl
         interestIds = interests
         if canDescribe, let newBio { self.bio = newBio }
         if let newCover { coverUrl = newCover }
+        keep()
         return nil
     }
 

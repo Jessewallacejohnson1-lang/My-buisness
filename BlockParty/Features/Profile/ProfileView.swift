@@ -14,7 +14,7 @@ import SwiftUI
 struct ProfileView: View {
     /// Your name, photo, cover and switches, kept in the shell (`AppSession`) so coming back to You
     /// shows them at once while they read again.
-    @ObservedObject var model: ProfileModel
+    let model: ProfileModel
     /// Profile's Saved list, kept in the shell so a second visit shows the last list at once.
     let saves: YouModel
     @EnvironmentObject private var auth: AuthStore

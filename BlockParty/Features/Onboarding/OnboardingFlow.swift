@@ -67,15 +67,10 @@ final class OnboardingStore {
     var lastName: String { didSet { keep(lastName, Self.lastKey) } }
     /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
     var photo: Data? { didSet { keep(photo, Self.photoKey) } }
-    /// Interests' picks (ticket 20), in the order made. They live where every screen reads
-    /// interests (`Interests`), and reach the server with the name and photo.
-    var interests: [String] {
-        didSet {
-            Interests.set(interests)
-            answersPending = true
-            defaults.set(true, forKey: Self.pendingKey)
-        }
-    }
+    /// Interests' picks (ticket 20), in the order made. Kept on the phone until the flow is done,
+    /// then handed to Your profile (`ProfileModel.answered`), and reach the server with the name
+    /// and photo.
+    var interests: [String] { didSet { keep(interests, Self.interestsKey) } }
     /// Follow 3's picks (ticket 22), in the order made. Kept on the phone: following needs a signed-up
     /// account, so the shell sends them once there is one (`takeFollows`).
     private(set) var follows: [FollowTarget] {
@@ -102,6 +97,7 @@ final class OnboardingStore {
     private static let birthdayKey = "onboarding.birthday"
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
+    private static let interestsKey = "onboarding.interests"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -118,7 +114,8 @@ final class OnboardingStore {
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
-        interests = Interests.get()
+        // A flow begun before the picks had a key of their own kept them in the phone's copy.
+        interests = defaults.stringArray(forKey: Self.interestsKey) ?? Interests.get(defaults)
         follows = Self.savedFollows(defaults)
         requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
         arrivedBefore = before
@@ -207,7 +204,7 @@ final class OnboardingStore {
         birthday = nil
         follows = []
         requests = []
-        interests = []   // kept under bp.interests, not onboarding.
+        interests = []
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }

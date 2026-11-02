@@ -76,6 +76,9 @@ struct RootView: View {
     /// second account on the same device gets its own profile pulled (not the first
     /// account's leftover mirror).
     @State private var hydratedUserId: String?
+    /// Your profile (BP app codebase-health-2 09): made here, where it reads while onboarding is up,
+    /// and handed to the shell's `AppSession`; every screen finds it in the environment.
+    @State private var profile = ProfileModel()
 
     /// The neighbour's System / Light / Dark choice (its switch went with the town
     /// menu on 2026-10-25; a saved choice still applies). Held
@@ -129,6 +132,9 @@ struct RootView: View {
         // appearance underneath the ink drawn on them. It was removed a commit ago
         // (see the note further down this file) and must not come back.
         .preferredColorScheme(appearance.requestedScheme)
+        // Above the shell, its sheets and covers, and the DEBUG preview roots: Edit interests and
+        // the name sheet open from all of them.
+        .environment(profile)
         #if DEBUG
         // The preview roots above show cards without the shell; the shell sets its own.
         .environment(RealLifeActions.preview)
@@ -201,7 +207,7 @@ struct RootView: View {
                         .allowsHitTesting(!onboarding.finished)
                         .transition(.opacity)
                 } else {
-                    MainTabsView(answersLate: answersLate).transition(.opacity)
+                    MainTabsView(answersLate: answersLate, profile: profile).transition(.opacity)
                 }
             } else {
                 LoginView()
@@ -216,7 +222,7 @@ struct RootView: View {
         .task(id: auth.userId) { await hydrateIfNeeded() }
         .onChange(of: onboarding.finished) { _, done in
             guard done else { return }
-            if let name = onboarding.displayName { Interests.displayName = name }
+            profile.answered(name: onboarding.displayName, interests: onboarding.interests)
             guard onboarding.finishedHere else {
                 Task { await saveOnboardingAnswers() }
                 return
@@ -244,8 +250,7 @@ struct RootView: View {
     /// take it. Landing after the tabs came up (a slow signal, or the account came later), the Town
     /// feed reads again with them.
     private func stampOnboarded() async {
-        guard (try? await ProfileAPI(auth: AuthStore.shared)
-            .markOnboarded(birthday: onboarding.birthday, interests: onboarding.interests)) != nil else { return }
+        guard await profile.stampOnboarded(birthday: onboarding.birthday, interests: onboarding.interests) else { return }
         onboarding.birthday = nil
         if !onboardingUp { answersLate += 1 }
     }
@@ -256,13 +261,7 @@ struct RootView: View {
     private func saveOnboardingAnswers() async {
         guard onboarding.finished else { return }
         await onboarding.saveAnswers { name, photo in
-            let profiles = ProfileAPI(auth: AuthStore.shared)
-            var url: String?
-            if let photo { url = try await profiles.uploadPhoto(photo) }
-            let picks = onboarding.interests
-            try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
-            if let name { Interests.displayName = name }
-            if !picks.isEmpty { Interests.set(picks) }
+            try await profile.saveAnswers(name: name, photo: photo, interests: onboarding.interests)
         }
         // Contacts' Add friend picks, after the name: the server refuses a request without one
         // (onboarding 23). A quiet account can't send them; a real one later can.
@@ -270,27 +269,23 @@ struct RootView: View {
         await onboarding.sendRequests { _ = try await CommunityAPI(auth: AuthStore.shared).friendWrite(.add, $0) }
     }
 
-    /// Pull the community profile once per *user*: mirror interests/name locally (so
-    /// matching + greetings work offline) and honor a remote onboarded stamp (a
-    /// reinstall/new device shouldn't re-run onboarding). Re-runs when the signed-in
-    /// identity changes. Silent on failure.
+    /// Your profile's one read, once per *account*: the launch's, and each new account's. It honors
+    /// a remote onboarded stamp (a reinstall/new device shouldn't re-run onboarding). Silent on
+    /// failure.
     private func hydrateIfNeeded() async {
         guard let uid = auth.userId else { hydratedUserId = nil; return }   // signed out → allow re-hydrate on next sign-in
         guard hydratedUserId != uid else { return }
         hydratedUserId = uid
 
-        let fetched: TownProfile?
-        do { fetched = try await ProfileAPI(auth: AuthStore.shared).getMyProfile() } catch { return }
+        guard await profile.read() else { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
-        if fetched?.onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
+        if profile.onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
             await stampOnboarded()
+        } else if profile.onboardedAt != nil {
+            stampedOnServer = true
+            onboarding.serverSaysFinished()
         }
-        if let profile = fetched {
-            if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
-            if !profile.interests.isEmpty { Interests.set(profile.interests) }
-            if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
-        }
-        // After the mirror, so a name typed in onboarding beats the one read before it saved.
+        // After the read, so a name typed in onboarding beats the one read before it saved.
         await saveOnboardingAnswers()
     }
 }
@@ -356,13 +351,13 @@ struct MainTabsView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
-    init(answersLate: Int = 0) {
+    init(answersLate: Int = 0, profile: ProfileModel) {
         self.answersLate = answersLate
         // Town, or a DEBUG `-open-tab` override.
         _tab = State(initialValue: MainTabsView.initialTab())
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
-        _session = State(initialValue: AppSession())
+        _session = State(initialValue: AppSession(profile: profile))
     }
 
     /// DEBUG-only: `-open-tab town|daily|friends|search|you` launch argument selects
@@ -428,9 +423,8 @@ struct MainTabsView: View {
     @State private var slideForward = true
     /// The Town feed is reading down (`TabBarCompactKey`): the tab bar rests small.
     @State private var tabBarCompact = false
-    /// The You tab's photo. The narrow loader the Today header once used: one
-    /// profile read, and a failed refresh keeps the last good photo.
-    private var avatar: TodayHeaderProfileModel { session.avatar }
+    /// Your profile: the You tab's photo in the bar, and New post's name line.
+    private var profile: ProfileModel { session.profile }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// What a host row opens (follows 08): a person's page, a team's, a page, a board's meetings, or
@@ -529,7 +523,7 @@ struct MainTabsView: View {
             createAfterLogin = false
         }
         .sheet(isPresented: $creating) {
-            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: avatar, onShared: shared, onPosted: posted)
+            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
         }
         #if DEBUG
@@ -788,10 +782,7 @@ struct MainTabsView: View {
             .onPreferenceChange(TabBarCompactKey.self) { tabBarCompact = $0 }
 
             BlockPartyTabBar(selection: tab, onSelect: select,
-                             avatarURL: avatar.avatarUrl, compact: tabBarCompact, friendsDot: friendsBook.dot)
-                // Re-read on every tab change, so a photo changed on You (or missed
-                // by an offline launch) shows as soon as the neighbour moves on.
-                .task(id: tab) { await avatar.refresh() }
+                             avatarURL: profile.avatarUrl, compact: tabBarCompact, friendsDot: friendsBook.dot)
                 // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
                 // above the home-indicator safe area. The full-height frame is what
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone

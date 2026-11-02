@@ -363,6 +363,14 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   over it from `RealLifeActions` (BP app `docs/plans/you-tab`, ticket 04). `EditProfileView` writes
   **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
   instead of a false success.
+- **Your profile is one model** (`ProfileModel`, BP app codebase-health-2 09) `[test]`: your
+  name, photo, Interests and onboarded date. `RootView` makes it (it reads while onboarding is
+  up), hands it to `AppSession` and puts it in the environment at the root, so the You tab, the
+  tab bar's photo, New post, Your code, Edit interests and the name sheet all read one copy and
+  a save shows everywhere at once. One read per account; reads asked together share a request,
+  and one that an account change or a save overtook never lands. **Only it writes the phone's
+  copy** (`Interests`' keys) `[prose]`: never make a second `ProfileModel` or write those keys
+  elsewhere.
 - **Share** (`Features/Share/`) — the app-wide **share reveal**. Any share calls
   **`ShareCenter.shared.present(SharePayload(...))`**: a preview card of *exactly what's being
   shared* springs up over a dimmed backdrop in a dedicated overlay **`UIWindow`** (above the

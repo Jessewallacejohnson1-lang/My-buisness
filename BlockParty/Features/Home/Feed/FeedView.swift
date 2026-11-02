@@ -5,47 +5,6 @@
 
 import SwiftUI
 
-/// The Today chrome needs only the signed-in neighbor's avatar, not the profile
-/// screen's activity lists. Keeping this loader narrow avoids fetching RSVPs, clubs,
-/// and quests just to paint a 38pt button, while still sharing `ProfileAPI` as the
-/// source of truth.
-@MainActor @Observable
-final class TodayHeaderProfileModel {
-    private(set) var avatarUrl: String?
-    /// Your name, for New post's name line (town-feed 29).
-    private(set) var displayName: String?
-
-    private let loadProfile: () async throws -> TownProfile?
-    /// Numbers each read, so one an account change overtook never lands.
-    @ObservationIgnored private var latestRead = 0
-
-    init(loadProfile: @escaping () async throws -> TownProfile?) {
-        self.loadProfile = loadProfile
-    }
-
-    /// Through `supabase`, the session's one client (`AppSession`).
-    convenience init(supabase: Supabase) {
-        self.init { try await ProfileAPI(supabase).getMyProfile() }
-    }
-
-    /// A failed refresh keeps the last good photo instead of making the header flash
-    /// back to its placeholder during a transient network outage.
-    func refresh() async {
-        latestRead += 1
-        let mine = latestRead
-        guard let profile = try? await loadProfile(), mine == latestRead else { return }
-        avatarUrl = profile.avatarUrl
-        displayName = profile.displayName
-    }
-
-    /// Another account, or none: the last one's photo goes until this one's is read.
-    func accountChanged() {
-        latestRead += 1
-        avatarUrl = nil
-        displayName = nil
-    }
-}
-
 struct FeedView: View {
     /// The top bar's controls. The shell owns every presentation; the feed
     /// only forwards the taps.

@@ -166,32 +166,21 @@ enum Interests {
         return ranked.count < 3 ? [] : Array(ranked.prefix(limit))
     }
 
-    private static let interestsKey = "bp.interests"
-    private static let legacyOnboardedKey = "bp.onboarded"   // pre-per-user, un-scoped
-    private static let nameKey      = "bp.displayName"
+    /// The phone's copy of your Interests and name. Only Your profile (`ProfileModel`) writes it.
+    static let interestsKey = "bp.interests"
+    static let legacyOnboardedKey = "bp.onboarded"   // pre-per-user, un-scoped
+    static let nameKey      = "bp.displayName"
 
-    /// Old saved picks come back in today's ids.
-    static func get() -> [String] { migrate(UserDefaults.standard.stringArray(forKey: interestsKey) ?? []) }
-    static func set(_ ids: [String]) { UserDefaults.standard.set(ids, forKey: interestsKey) }
+    /// Your Interests from the phone's copy; old saved picks come back in today's ids.
+    static func get(_ phone: UserDefaults = .standard) -> [String] {
+        migrate(phone.stringArray(forKey: interestsKey) ?? [])
+    }
 
     /// Human labels for interest ids (array or set), dropping any unknown id.
     static func labels(for ids: some Sequence<String>) -> [String] {
         ids.compactMap { id in all.first { $0.id == id }?.label }
     }
 
-    static var displayName: String? {
-        get { UserDefaults.standard.string(forKey: nameKey) }
-        set { UserDefaults.standard.set(newValue, forKey: nameKey) }
-    }
-
-    /// Wipe the per-session identity mirror (interests + name) and the legacy
-    /// un-scoped onboarded flag on sign-out, so a different account on the same
-    /// device never inherits the previous user's name/interests or onboarded state.
-    /// Per-user onboarded keys are left intact (they're already scoped by uid).
-    static func clearMirror() {
-        let d = UserDefaults.standard
-        d.removeObject(forKey: interestsKey)
-        d.removeObject(forKey: nameKey)
-        d.removeObject(forKey: legacyOnboardedKey)
-    }
+    /// Your name from the phone's copy.
+    static func displayName(_ phone: UserDefaults = .standard) -> String? { phone.string(forKey: nameKey) }
 }

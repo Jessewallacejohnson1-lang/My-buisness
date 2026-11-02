@@ -117,7 +117,7 @@ struct CodeOwner: Equatable {
 /// a neighbour found there closes both and `open` pushes their page.
 struct YourCodeSheet: View {
     let open: (Neighbor) -> Void
-    @StateObject private var model = ProfileModel()
+    @Environment(ProfileModel.self) private var model
     @ObservedObject private var auth = AuthStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var scanning = false
@@ -178,7 +178,7 @@ struct YourCodeSheet: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.paper)
-        .task { await model.load() }
+        .task { if !model.loaded { await model.read() } }
         .task(id: owner?.id) {
             guard let owner else { codes = nil; return }
             let link = YourCode.link(for: owner.id)

@@ -127,13 +127,19 @@ final class OnboardingStoreTests: XCTestCase {
     }
 
     func testInterestPicksWaitToBeSaved() {
-        let saved = Interests.get()
-        defer { Interests.set(saved) }
         let store = OnboardingStore(defaults: defaults)
         XCTAssertFalse(store.answersPending)
         store.interests = ["coffee", "campus", "faith"]
-        XCTAssertTrue(OnboardingStore(defaults: defaults).answersPending, "picks wait for the account")
-        XCTAssertEqual(Interests.get(), ["coffee", "campus", "faith"], "every screen reads them at once")
+        let again = OnboardingStore(defaults: defaults)
+        XCTAssertTrue(again.answersPending, "picks wait for the account")
+        XCTAssertEqual(again.interests, ["coffee", "campus", "faith"], "a relaunch resumes on them")
+        XCTAssertEqual(Interests.get(defaults), [], "Your profile takes them when the flow is done")
+    }
+
+    /// A flow begun before the picks had a key of their own kept them in the phone's copy.
+    func testPicksFromBeforeTheUpdateComeBack() {
+        defaults.set(["coffee"], forKey: Interests.interestsKey)
+        XCTAssertEqual(OnboardingStore(defaults: defaults).interests, ["coffee"])
     }
 
     func testTwoSavesAtOnceSendOnce() async {
@@ -190,8 +196,6 @@ final class OnboardingStoreTests: XCTestCase {
     }
 
     func testCloseClearsEverythingTheDeviceKeptAndStartsOver() {
-        let saved = Interests.get()
-        defer { Interests.set(saved) }
         let store = onBirthday()
         store.interests = ["coffee", "campus", "faith"]   // picked, then back to the birthday
         store.birthday = day("2015-01-01")
@@ -202,7 +206,6 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(store.step, .welcome)
         XCTAssertNil(store.birthday)
         XCTAssertEqual(store.interests, [])
-        XCTAssertEqual(Interests.get(), [], "a kid's picks don't stay behind")
         XCTAssertFalse(store.answersPending)
         XCTAssertFalse(store.tooYoung)
         XCTAssertTrue(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("onboarding.") }.isEmpty)
@@ -210,6 +213,7 @@ final class OnboardingStoreTests: XCTestCase {
         let again = OnboardingStore(defaults: defaults)
         XCTAssertEqual(again.step, .welcome)
         XCTAssertNil(again.birthday)
+        XCTAssertEqual(again.interests, [], "a kid's picks don't stay behind")
     }
 
     // MARK: Follow 3 (onboarding 22)

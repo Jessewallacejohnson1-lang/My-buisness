@@ -63,12 +63,9 @@ final class AppSessionTests: XCTestCase {
             eventOfTheDay: EventOfTheDay(read: { _ = try await self.read("get_event_of_the_day"); return [] }),
             dayPicks: DailyDayPicks(read: { _ in _ = try await self.read("get_event_of_the_day"); return [] }),
             notices: Notices(read: { _ = try await self.read("get_my_changes"); return [] }, keep: phone),
-            avatar: TodayHeaderProfileModel {
-                let who = try await self.read("town_profiles")
-                return TownProfile(userId: who, displayName: who, avatarUrl: "photo-\(who)", interests: [], onboardedAt: nil)
-            },
-            // Never loaded here (a switch only clears it), but on the session's client like the rest.
-            profile: ProfileModel(supabase: Supabase(auth: auth, send: server.send)),
+            // Never read here (a switch only clears it; the root view reads), but on the session's
+            // client like the rest.
+            profile: ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone),
             hello: HelloInbox(keep: phone), saved: SavedStore(key: phoneName),
             supabase: Supabase(auth: auth, send: server.send))
     }
@@ -102,7 +99,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))
-        XCTAssertEqual(session.avatar.avatarUrl, "photo-a")
+        session.profile.avatarUrl = "photo-a"   // a's read: the root view's, not the session's
 
         signIn("b")
         let sent = server.requests.count
@@ -117,7 +114,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.eventOfTheDay.needsRead(now: Date()), "a's Event of the day reads again")
         XCTAssertNil(session.notices.list, "a's bell")
         XCTAssertFalse(session.friendsBook.dot, "a's friends dot")
-        XCTAssertNil(session.avatar.avatarUrl, "a's photo")
+        XCTAssertNil(session.profile.avatarUrl, "a's photo")
         XCTAssertTrue(session.townFeed.unsent.isEmpty, "a's views never go up as b")
         XCTAssertTrue(session.townFeed.hiddenIDs.isEmpty, "a's hidden cards")
         XCTAssertNil(phone.object(forKey: HelloInbox.seenKey), "a's hello look")
@@ -125,13 +122,12 @@ final class AppSessionTests: XCTestCase {
         // Then b's reads, every one as b.
         await reads.value
         XCTAssertEqual(Set(functions(from: sent)), ["get_town_feed", "get_my_going", "get_groups",
-                                                    "get_event_of_the_day", "get_my_changes", "friends_dot",
-                                                    "town_profiles"])
+                                                    "get_event_of_the_day", "get_my_changes", "friends_dot"],
+                       "no profile read: the root view's read is the one for each account")
         XCTAssertEqual(Set(server.requests[sent...].map { $0.value(forHTTPHeaderField: "Authorization") }),
                        ["Bearer token-b"])
         XCTAssertFalse(session.actions.going(card).isGoing, "a's Going left with b's feed")
         XCTAssertEqual(session.you.going?.map(\.id), ["going-b"])
-        XCTAssertEqual(session.avatar.avatarUrl, "photo-b")
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))
@@ -155,7 +151,7 @@ final class AppSessionTests: XCTestCase {
         session.accountChanged(from: "a", to: "b", signedIn: true)
 
         XCTAssertTrue(session.profile === profile, "one Profile for the session, kept between visits")
-        XCTAssertEqual(profile.displayName, Interests.displayName ?? "")
+        XCTAssertEqual(profile.displayName, Interests.displayName(phone) ?? "")
         XCTAssertNil(profile.avatarUrl, "a's photo")
         XCTAssertNil(profile.coverUrl, "a's cover")
         XCTAssertEqual(profile.bio, "", "a's bio")
@@ -216,6 +212,8 @@ final class AppSessionTests: XCTestCase {
         await session.dayPicks.refresh(DailyWeek.days(from: Date())[1])
         // A real Event's id: a sample's sends nothing.
         await session.townFeed.hide(id: UUID().uuidString, host: "Library", mute: false)
+        // Your profile's read is the root view's, on the same client.
+        await session.profile.read()
 
         let reached = Set(functions(from: 0))
         let every: Set = ["get_town_feed", "club_events", "get_groups", "get_my_going", "get_my_saves",

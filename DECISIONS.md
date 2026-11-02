@@ -596,8 +596,8 @@ is a `TabBarMetric` constant with its source. Still BP's own bar, for the reason
   gone: the two together reached ~1.08x against Instagram's 1.044x), and the white layer
   behind it thickens from 30% to 40% under a finger. Over a dark photo the pressed bar
   measured +18 to +20 lighter; Instagram's measured +14 to +47.
-- **You shows the neighbour's photo** (`TabAvatar`, loaded once by
-  `TodayHeaderProfileModel` and re-read on every tab change), the person icon while it
+- **You shows the neighbour's photo** (`TabAvatar`, from Your profile, `ProfileModel`, read
+  once at launch; BP app codebase-health-2 09 retired the re-read on every tab change), the person icon while it
   loads, when it fails or when there is none. No red dot: the Town bar's bell covers notifications. The ink ring on the
   selected photo is GUESSED; the recording never selects that tab.
 

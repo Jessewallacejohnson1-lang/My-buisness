@@ -477,8 +477,8 @@ struct PostingPostCard: View {
 struct NewPostSheet: View {
     /// The town's places, from Search's read, for Place.
     let places: [SearchItem]
-    /// Your name and photo: read here, so a New post opened as you sign in fills them once they're in.
-    let me: TodayHeaderProfileModel
+    /// Your profile: read here, so a New post opened as you sign in fills them once they're in.
+    let me: ProfileModel
     /// An Event shared: the shell's pill says it, and Town reads again (town-plus).
     var onShared: (HelloItem.Posted) -> Void = { _ in }
     /// A post saved: the check runs from the shell.
@@ -487,7 +487,7 @@ struct NewPostSheet: View {
     @State private var model = NewPostModel()
     @State private var pick: PhotosPickerItem?
 
-    private var name: String { me.displayName ?? Interests.displayName ?? "" }
+    private var name: String { me.displayName }
     private var picture: URL? { me.avatarUrl.flatMap(URL.init(string:)) }
     @State private var picking = false
     @State private var path: [Step] = []
@@ -569,7 +569,7 @@ struct NewPostSheet: View {
         }
         // A swipe down can't throw away what's typed or picked; the X asks first.
         .interactiveDismissDisabled(model.busy || model.edited)
-        .task { if me.displayName == nil { await me.refresh() } }
+        .task { if !me.loaded { await me.read() } }
         .onAppear {
             if let back = PostOutbox.shared.back {
                 model.restore(back)

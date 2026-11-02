@@ -1,12 +1,12 @@
 //
 //  FeedInterestEditorDestination.swift
-//  Block Party — loads the real profile before mounting the existing editor.
+//  Block Party — Edit profile from a Town card's menu, once Your profile has been read.
 //
 
 import SwiftUI
 
 struct FeedInterestEditorDestination: View {
-    @StateObject private var model = ProfileModel()
+    @Environment(ProfileModel.self) private var model
 
     var body: some View {
         Group {
@@ -19,10 +19,7 @@ struct FeedInterestEditorDestination: View {
             }
         }
         .animation(Motion.smooth, value: model.loaded)
-        .task {
-            guard !model.loaded, !model.loading else { return }
-            await model.load()
-        }
+        .task { if !model.loaded { await model.read() } }
     }
 }
 

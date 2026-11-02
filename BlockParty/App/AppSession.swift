@@ -38,9 +38,8 @@ final class AppSession {
     /// What the bell holds: Events you follow or are Going to that were canceled or moved (BP app
     /// docs/plans/school-activities, ticket 04).
     let notices: Notices
-    /// The You tab's photo, and the tab bar's.
-    let avatar: TodayHeaderProfileModel
-    /// Your Profile, the You tab (five-tabs 03): kept, so coming back to You shows it at once.
+    /// Your profile (codebase-health-2 09): the You tab, the tab bar's photo, New post's name line.
+    /// The root view makes it, since it reads while onboarding is up, before the shell exists.
     let profile: ProfileModel
     private let hello: HelloInbox
     /// Saves this phone kept before they moved to the server.
@@ -49,7 +48,7 @@ final class AppSession {
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
-         notices: Notices, avatar: TodayHeaderProfileModel, profile: ProfileModel, hello: HelloInbox,
+         notices: Notices, profile: ProfileModel, hello: HelloInbox,
          saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil) {
         self.actions = actions
         self.townFeed = townFeed
@@ -61,7 +60,6 @@ final class AppSession {
         self.eventOfTheDay = eventOfTheDay
         self.dayPicks = dayPicks
         self.notices = notices
-        self.avatar = avatar
         self.profile = profile
         self.hello = hello
         self.saved = saved
@@ -72,7 +70,8 @@ final class AppSession {
     /// writes through `supabase`, the app's one client (`Supabase.app`) unless a test hands it a
     /// fake, so none of them can go around the account the session is on. `phone` and `saved`
     /// are where the models keep what stays on the phone; a test hands its own.
-    convenience init(supabase: Supabase? = nil, phone: UserDefaults? = nil, saved: SavedStore? = nil) {
+    convenience init(supabase: Supabase? = nil, phone: UserDefaults? = nil, saved: SavedStore? = nil,
+                     profile: ProfileModel? = nil) {
         let supabase = supabase ?? .app
         let actions = RealLifeActions(supabase: supabase)
         let live = LiveGames(token: { try? await supabase.auth.validAccessToken() })
@@ -82,7 +81,7 @@ final class AppSession {
                   saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
-                  avatar: TodayHeaderProfileModel(supabase: supabase), profile: ProfileModel(supabase: supabase),
+                  profile: profile ?? ProfileModel(supabase: supabase, phone: phone ?? .standard),
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
                   supabase: supabase, liveGames: live)
     }
@@ -106,7 +105,8 @@ final class AppSession {
             eventOfTheDay.accountChanged()
             dayPicks.accountChanged()
             notices.reset()
-            avatar.accountChanged()
+            // Only lets go: the root view's read is the one for each new account (it runs while
+            // onboarding is up too, before this shell exists).
             profile.accountChanged()
             // A first launch makes its account after the shell appears: today's open.
             if old == nil, signedIn { recordOpen() }
@@ -120,7 +120,6 @@ final class AppSession {
             reads.append(Task { await eventOfTheDay.refresh() })
             reads.append(Task { await actions.moveUp(saved) })
             reads.append(Task { await notices.refresh() })
-            reads.append(Task { await avatar.refresh() })
         }
         // Friends are a real account's, so the same one logging in for real starts them over too.
         friendsBook.reset()

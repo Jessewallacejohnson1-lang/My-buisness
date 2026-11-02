@@ -541,7 +541,7 @@ struct HelloDropView: View {
         // DEBUG `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
         let seen = HelloDrop.debugSeen(now: now)
             ?? (lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil)
-        let greeting = HelloDrop.hello(name: YouPage.firstName(Interests.displayName), now: Date(),
+        let greeting = HelloDrop.hello(name: YouPage.firstName(Interests.displayName()), now: Date(),
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key
         hello = greeting.text

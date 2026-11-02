@@ -723,10 +723,10 @@ struct LogInToFindRow: View {
 }
 
 /// Edit profile for a neighbour asked for their name before a request goes
-/// (`friend-name-needed`). It opens once their profile has loaded, so saving can't wipe
+/// (`friend-name-needed`). It opens once their profile has been read, so saving can't wipe
 /// interests it never read.
 struct AddNameSheet: View {
-    @StateObject private var model = ProfileModel()
+    @Environment(ProfileModel.self) private var model
 
     var body: some View {
         Group {
@@ -747,7 +747,8 @@ struct AddNameSheet: View {
                 .accessibilityHidden(true)
             }
         }
-        .task { await model.load() }
+        // Read at launch already, so this opens at once; else the one read, landed or not.
+        .task { if !model.loaded { await model.read() } }
     }
 }
 
