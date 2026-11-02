@@ -70,8 +70,8 @@ final class AppSession {
     /// writes through `supabase`, the app's one client (`Supabase.app`) unless a test hands it a
     /// fake, so none of them can go around the account the session is on. `phone` and `saved`
     /// are where the models keep what stays on the phone; a test hands its own.
-    convenience init(supabase: Supabase? = nil, phone: UserDefaults? = nil, saved: SavedStore? = nil,
-                     profile: ProfileModel? = nil) {
+    convenience init(profile: ProfileModel, supabase: Supabase? = nil, phone: UserDefaults? = nil,
+                     saved: SavedStore? = nil) {
         let supabase = supabase ?? .app
         let actions = RealLifeActions(supabase: supabase)
         let live = LiveGames(token: { try? await supabase.auth.validAccessToken() })
@@ -81,7 +81,7 @@ final class AppSession {
                   saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
-                  profile: profile ?? ProfileModel(supabase: supabase, phone: phone ?? .standard),
+                  profile: profile,
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
                   supabase: supabase, liveGames: live)
     }

@@ -54,7 +54,8 @@ final class ProfileModel {
     @ObservationIgnored private var account: String?
     /// The read out now, which a second ask joins rather than sending its own.
     @ObservationIgnored private var reading: (account: String?, turn: Int, task: Task<TownProfile?, Error>)?
-    /// Moves on with every account change and every write, so a read sent before it never lands.
+    /// Moves on with every account change, and as each write goes and lands, so a read sent before
+    /// it, or while it was out, never lands.
     @ObservationIgnored private var turn = 0
 
     // Default args are nil (not `.app`, `.shared`) so the main-actor singletons are only
@@ -152,6 +153,8 @@ final class ProfileModel {
     /// switches wait for the next one's row, unless a write of their own stands in for the server
     /// (the DEBUG samples, tests).
     func accountChanged() {
+        // The root view's read for this account already let the last one go (it can go out first).
+        guard auth.userId != account else { return }
         turn += 1
         account = auth.userId
         displayName = Interests.displayName(phone) ?? ""
@@ -186,6 +189,7 @@ final class ProfileModel {
         var url: String?
         if let photo { url = try await profiles.uploadPhoto(photo) }
         try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, interests: interests)
+        turn += 1   // and a read sent while it was out
         if let name { displayName = name }
         if let url { avatarUrl = url }
         if !interests.isEmpty { interestIds = interests }
@@ -197,6 +201,7 @@ final class ProfileModel {
     func stampOnboarded(birthday: Date?, interests: [String]) async -> Bool {
         turn += 1
         guard (try? await profiles.markOnboarded(birthday: birthday, interests: interests)) != nil else { return false }
+        turn += 1   // and a read sent while it was out
         onboardedAt = DateHelpers.timestampString(Date())
         sinceLabel = ProfileModel.since(from: onboardedAt)
         if !interests.isEmpty {
@@ -220,6 +225,7 @@ final class ProfileModel {
         phone.removeObject(forKey: Interests.interestsKey)
         phone.removeObject(forKey: Interests.nameKey)
         phone.removeObject(forKey: Interests.legacyOnboardedKey)
+        phone.removeObject(forKey: OnboardingStore.interestsKey)   // picks from a flow this account finished
     }
 
     /// Only a real account has a bio, a cover, friends and a `get_profile` to read.
@@ -276,7 +282,8 @@ final class ProfileModel {
             return SaveProblem.of(error)
         }
 
-        // Commit only after the server accepted the write.
+        // Commit only after the server accepted the write; a read sent while it was out never lands.
+        turn += 1
         displayName = trimmed
         avatarUrl = newUrl
         interestIds = interests

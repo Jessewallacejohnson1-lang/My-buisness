@@ -19,6 +19,8 @@ final class YourProfileTests: XCTestCase {
     }()
     /// Holds each read of your row until the test lets it land.
     private let gate = Gate()
+    /// Holds each save of your row (not the photo's upload) until the test lets it land.
+    private let saves = Gate()
 
     private func row(_ who: String, photo: String) -> FakeServer.Answer {
         FakeServer.Answer(body: """
@@ -27,11 +29,15 @@ final class YourProfileTests: XCTestCase {
             """)
     }
 
-    /// The model on the fake server; `held` keeps every read of your row waiting on `gate`.
-    private func model(held: Bool = false) -> ProfileModel {
-        let server = server, gate = gate
+    /// The model on the fake server; `held` keeps every read of your row waiting on `gate`, and
+    /// `savesHeld` every save of it on `saves`.
+    private func model(held: Bool = false, savesHeld: Bool = false) -> ProfileModel {
+        let server = server, gate = gate, saves = saves
         let send = Supabase.Send { @MainActor request in
-            if held, request.httpMethod == "GET", request.url!.path.hasSuffix("town_profiles") { await gate.wait() }
+            if request.url!.path.hasSuffix("town_profiles") {
+                if held, request.httpMethod == "GET" { await gate.wait() }
+                if savesHeld, request.httpMethod == "POST" { await saves.wait() }
+            }
             return try await server.send.run(request)
         }
         return ProfileModel(supabase: Supabase(auth: auth, send: send), phone: phone, signOut: {})
@@ -97,6 +103,45 @@ final class YourProfileTests: XCTestCase {
         XCTAssertNotEqual(profile.avatarUrl, "photo-old")
     }
 
+    /// A read sent while a save is out, answering after it with the row from before, never lands.
+    func testAReadSentWhileASaveIsOutNeverLands() async {
+        server.answers["town_profiles"] = row("a", photo: "photo-old")
+        let profile = model(held: true, savesHeld: true)
+        let save = Task { await profile.save(name: "Avery Lund", image: photo(), interests: ["coffee"]) }
+        while saves.held == 0 { await Task.yield() }
+        let read = Task { await profile.read() }
+        while gate.held == 0 { await Task.yield() }
+
+        saves.open()
+        _ = await save.value
+        let saved = profile.avatarUrl
+        gate.open()
+
+        let landed = await read.value
+        XCTAssertFalse(landed)
+        XCTAssertEqual(profile.avatarUrl, saved)
+        XCTAssertNotEqual(profile.avatarUrl, "photo-old")
+    }
+
+    /// The root view's read for a new account can go out before the shell hears of the change: the
+    /// shell's word then changes nothing, and the read still lands.
+    func testTheShellsAccountChangeAfterTheReadKeepsIt() async {
+        server.answers["town_profiles"] = row("b", photo: "photo-b")
+        let profile = model(held: true)
+        profile.avatarUrl = "photo-a"
+        auth.userId = "b"
+        let read = Task { await profile.read() }
+        while gate.held == 0 { await Task.yield() }
+        XCTAssertNil(profile.avatarUrl, "a's photo went with the read")
+
+        profile.accountChanged()
+        gate.open()
+
+        let landed = await read.value
+        XCTAssertTrue(landed)
+        XCTAssertEqual(profile.avatarUrl, "photo-b")
+    }
+
     /// A read the account changed under never lands (codebase-health 22): the last account's photo
     /// stays gone, and the next account's sheets wait for its own read.
     func testAReadTheAccountChangeOvertookNeverLands() async {
@@ -158,9 +203,11 @@ final class YourProfileTests: XCTestCase {
         XCTAssertEqual(next.interestIds, ["coffee"])
         XCTAssertEqual(Interests.get(phone), ["coffee"])
 
+        phone.set(["faith"], forKey: OnboardingStore.interestsKey)   // picks from a flow finished here
         ProfileModel.forget(phone)
         XCTAssertNil(Interests.displayName(phone))
         XCTAssertEqual(Interests.get(phone), [])
+        XCTAssertEqual(OnboardingStore(defaults: phone).interests, [], "the next account's flow starts empty")
     }
 
     /// Onboarding's finish hands its name and picks over before any save, and the stamp shows the

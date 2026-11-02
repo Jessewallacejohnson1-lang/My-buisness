@@ -97,7 +97,7 @@ final class OnboardingStore {
     private static let birthdayKey = "onboarding.birthday"
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
-    private static let interestsKey = "onboarding.interests"
+    static let interestsKey = "onboarding.interests"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
