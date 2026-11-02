@@ -115,6 +115,9 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(t / LaunchMotion.pace, 3.304, accuracy: 0.04)
         XCTAssertTrue(m.frame(at: endAt).takesTaps)
         XCTAssertFalse(m.frame(at: endAt + 0.2).takesTaps, "the yellow is mostly gone 0.2 s into the glide")
+        // LaunchBallTests holds 1.6 to tap through: the yellow gone, the launch still on screen.
+        XCTAssertFalse(m.frame(at: 1.6).takesTaps)
+        XCTAssertFalse(m.frame(at: 1.6).done)
         // Done at the spring's last overshoot, under 0.3% past the tab bar's Bp!, as in the mock:
         // a point or less.
         let last = m.frame(at: t)

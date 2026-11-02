@@ -35,11 +35,12 @@ final class LaunchBallTests: XCTestCase {
     }
 
     /// Once the yellow is mostly gone, a tap goes through to Town under the glide; before that the
-    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 1700 is
-    /// late in the glide with the yellow gone, 1000 is the ! hopping on full yellow.
+    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 1600 is
+    /// in the glide with the yellow gone but the launch not done (LaunchMotionTests checks both),
+    /// 1000 is the ! hopping on full yellow.
     func testATapLateInTheGlideReachesTown() {
         continueAfterFailure = false
-        for (moment, opens) in [("1700", true), ("1000", false)] {
+        for (moment, opens) in [("1600", true), ("1000", false)] {
             let app = XCUIApplication()
             app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
                                    "-launch-at", moment, "-daily-samples", "-daily-hour", "12"]

@@ -214,6 +214,8 @@ private struct LaunchMark: View {
     /// The tab bar's hop is in its own points, for a Bp! 39.15 pt wide: these are its points here.
     private static let hopPoints = box.width / TabBarMetric.dailyMarkWidth
     /// The glass picture's corners, which keep their shape on any screen; its middle stretches.
+    /// The same 90 pt as the 270 px cap insets in LaunchGlass.imageset (drawn at 62 pt corners by
+    /// BP app references/launch-ball/make_still.py): change one, change both.
     private static let glassCaps = EdgeInsets(top: 90, leading: 90, bottom: 90, trailing: 90)
     /// The shade: the mock's drop-shadow(0 9 12) in canvas units, in the ink at 21%. SwiftUI's
     /// radius is CSS's blur length (half of it fell off twice as fast, measured 2026-11-02).
