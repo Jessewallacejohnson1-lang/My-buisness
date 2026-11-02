@@ -41,7 +41,9 @@ final class ClubEventRelevanceTests: XCTestCase {
     }
 
     func testInsertMatchesTheWindow() {
-        let window = day(-CommunityAPI.dayLookbackDays)...today
+        // A two-week lookback: a multi-day row is dated its first day.
+        let lookback = 14
+        let window = day(-lookback)...today
         func matters(_ c: RealtimeClient.Change) -> Bool {
             ClubEventRelevance.matters(c, shownIDs: [], days: window)
         }
@@ -49,7 +51,7 @@ final class ClubEventRelevanceTests: XCTestCase {
         // A multi-day row dated within the lookback can still overlap today.
         XCTAssertTrue(matters(change(.insert, new: row(date: day(-3)))))
         XCTAssertFalse(matters(change(.insert, new: row(date: day(1)))))
-        XCTAssertFalse(matters(change(.insert, new: row(date: day(-CommunityAPI.dayLookbackDays - 1)))))
+        XCTAssertFalse(matters(change(.insert, new: row(date: day(-lookback - 1)))))
         XCTAssertFalse(matters(change(.insert, new: row(date: today, kind: "trail"))))
         XCTAssertFalse(matters(change(.insert, new: row(date: nil))))
     }

@@ -5,7 +5,6 @@ import Foundation
 nonisolated enum LaunchFlags {
     /// Every flag the app reads. `LaunchFlagsTests` holds this list and the doc to each other.
     nonisolated enum Flag: String, CaseIterable {
-        case anonData = "-anon-data"
         case appearance = "-appearance"
         case appearanceDemo = "-appearance-demo"
         case dailyFeedPreview = "-daily-feed-preview"
@@ -54,14 +53,12 @@ nonisolated enum LaunchFlags {
         case openBusiness = "-open-business"
         case openEvent = "-open-event"
         case openFriends = "-open-friends"
-        case openFriendsChat = "-open-friends-chat"
         case openMap = "-open-map"
         case openNotifications = "-open-notifications"
         case openPage = "-open-page"
         case openProfile = "-open-profile"
         case openTab = "-open-tab"
         case openTeam = "-open-team"
-        case poiLogoStub = "-poi-logo-stub"
         case profileBottom = "-profile-bottom"
         case profileEdit = "-profile-edit"
         case profileEditInterests = "-profile-edit-interests"
@@ -75,7 +72,6 @@ nonisolated enum LaunchFlags {
         case searchWords = "-search-words"
         case seedPlaces = "-seed-places"
         case shareDemo = "-share-demo"
-        case showHome = "-show-home"
         case showSkeletons = "-show-skeletons"
         case skipOnboarding = "-skip-onboarding"
         case tabCycle = "-tab-cycle"

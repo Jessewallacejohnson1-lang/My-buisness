@@ -87,12 +87,7 @@ struct RootView: View {
     var body: some View {
         Group {
             #if DEBUG
-            if LaunchFlags.has(.showHome) {
-                // A deterministic Home route for simulator verification. The Home
-                // preview loader supplies local data, so this bypasses auth and
-                // onboarding without changing either production flow.
-                MainTabsView()
-            } else if LaunchFlags.has(.feedCardGallery) {
+            if LaunchFlags.has(.feedCardGallery) {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
@@ -146,8 +141,8 @@ struct RootView: View {
             }
         }
         #if DEBUG
-        // `-appearance <state>` / `-appearance-demo` — the stand-in for a tap on the
-        // town-menu control, which no automation in this setup can perform.
+        // `-appearance <state>` / `-appearance-demo` set an appearance for screenshots;
+        // nothing in the app sets one since the town menu went (2026-10-25).
         .task { appearance.applyDebugLaunchArguments() }
         #endif
     }
@@ -163,8 +158,7 @@ struct RootView: View {
     /// in the app, not bounce you to a login screen.
     ///
     /// Signed OUT, the app is honest about it rather than broken: authed reads fail
-    /// and their screens land in their own empty/failed states (the feed's briefing
-    /// sets `hasLoaded` on the failure path too, so the column still reveals), and
+    /// and their screens land in their own empty/failed states, and
     /// `hydrateIfNeeded` returns immediately with no `userId`. Nothing force-unwraps
     /// a session.
     private static let requiresSignIn = false
@@ -301,7 +295,7 @@ struct RootView: View {
     }
 }
 
-/// The authed shell: the four tabs and the sheets and covers they open.
+/// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
     /// The hello pill's one line (hello-drop 01, 03).
     /// The hello pill's news post, when its app isn't on the phone.
@@ -355,9 +349,6 @@ struct MainTabsView: View {
         try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)
     }
 
-    /// A one-shot starting tab. nil → the usual default (Town, or a DEBUG `-open-tab`
-    /// override).
-    let startTab: Tab?
     /// Counts onboarding's answers that reached the account after the Town feed's first read
     /// (BP app onboarding 24): each new count reads the feed again, sorted by them.
     let answersLate: Int
@@ -365,11 +356,10 @@ struct MainTabsView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
-    init(startTab: Tab? = nil, answersLate: Int = 0) {
-        self.startTab = startTab
+    init(answersLate: Int = 0) {
         self.answersLate = answersLate
-        let resolved = startTab ?? MainTabsView.initialTab()
-        _tab = State(initialValue: resolved)
+        // Town, or a DEBUG `-open-tab` override.
+        _tab = State(initialValue: MainTabsView.initialTab())
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
         _session = State(initialValue: AppSession())
@@ -414,19 +404,15 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The sample friends inbox and its chats, unreached until messaging (BP app
-    /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
-    @State private var friendsModel = FriendsModel()
-    /// The shell stack's path, so the Town bar's friends mark can push the Friends page.
+    /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
     /// over its tab.
     @State private var placeOpener = BusinessOpener()
     /// Made once, so the cards it reaches don't redraw each time the shell does.
     @State private var hostOpener: HostOpener?
-    /// The map, presented full-screen from the map disc in the Town tab's Today bar
-    /// rather than living in the tab bar. Its selected-pin state belongs to
-    /// `SJMapView` itself now — the shell has no tab bar to hide under it.
+    /// The map, presented full-screen from the map disc in the Town bar rather than
+    /// living in the tab bar. Its own state belongs to `SJMapView`.
     @State private var showMap = false
     /// Log in, for an Anonymous account that opened a neighbour's code.
     @State private var signingIn = false
@@ -506,17 +492,12 @@ struct MainTabsView: View {
                     DailyPostPage(posting: posting)
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in
-                    Group {
-                        switch route {
-                        case .home: FriendsHomePage()
-                        case .contacts: FriendsContactsPage()
-                        case .allFriends: FriendsAllPage(groups: false)
-                        case .groups: FriendsAllPage(groups: true)
-                        case .inbox: FriendsPage()
-                        case .chat(let id): FriendChatPage(id: id)
-                        }
+                    switch route {
+                    case .home: FriendsHomePage()
+                    case .contacts: FriendsContactsPage()
+                    case .allFriends: FriendsAllPage(groups: false)
+                    case .groups: FriendsAllPage(groups: true)
                     }
-                    .environment(friendsModel)
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
                 .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
@@ -656,14 +637,9 @@ struct MainTabsView: View {
     /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own
     /// function, out of `body`: Xcode 26.6 couldn't type-check the body with it inside in time.
     private func openLaunchPages() {
-        // DEBUG: `-open-friends` lands on the Friends tab; `-open-friends-chat` on the
-        // sample inbox's newest chat, the one way left into the sample chats.
+        // DEBUG: `-open-friends` lands on the Friends tab.
         if LaunchFlags.has(.openFriends) { tab = .friends }
         if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
-        if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
-            path.append(FriendsRoute.inbox)
-            path.append(FriendsRoute.chat(newest.id))
-        }
         #if DEBUG
         // `-open-team <uuid>` pushes that local school's page (school-activities 02).
         if let id = LaunchFlags.value(.openTeam),

@@ -131,21 +131,6 @@ nonisolated enum TodayHeader {
         guard offset > 0 else { return false }
         return wasFloating || hidden
     }
-
-    /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
-    ///
-    /// Formatted on the TOWN's clock, never the device's: a neighbor travelling east
-    /// is still reading Saint Joseph's day, and at 23:30 Central a phone in Berlin has
-    /// already rolled over to tomorrow. The `en_US` pin fixes the language and the US
-    /// shape; `d` — not `dd` — keeps a
-    /// single-digit day unpadded.
-    static func eyebrow(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = Town.timeZone
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: date).uppercased(with: formatter.locale)
-    }
 }
 
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as

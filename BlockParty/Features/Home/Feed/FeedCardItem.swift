@@ -213,15 +213,8 @@ struct FeedCardActionState: Equatable {
     private(set) var isLiked: Bool
     private(set) var isSaved: Bool
 
-    init(item: FeedCardItem) {
-        likeCount = item.likeCount
-        isLiked = item.isLiked
-        isSaved = item.isSaved
-    }
-
-    /// The counts on their own, for cards that are not built from a `FeedCardItem`
-    /// (the Daily feed's postings). The stored properties are `private(set)`, so
-    /// there is no synthesised memberwise init to lean on.
+    /// The stored properties are `private(set)`, so there is no synthesised memberwise
+    /// init to lean on.
     init(likeCount: Int, isLiked: Bool, isSaved: Bool) {
         self.likeCount = likeCount
         self.isLiked = isLiked

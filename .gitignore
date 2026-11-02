@@ -1,7 +1,6 @@
 # Xcode / Swift build artifacts
 build/
 DerivedData/
-.dd/
 *.xcuserstate
 xcuserdata/
 .DS_Store
@@ -32,16 +31,10 @@ BlockParty/Config/MapboxConfig.swift
 # Google Places API key — never commit
 BlockParty/Config/GooglePlacesConfig.swift
 
-# graphify knowledge-graph output — generated artifact, never commit
-graphify-out/
-
 # local sim pin for the onboarding design-match loop
 .bp-sim-udid
 
-# scratch DerivedData used to parallelise agent builds
-.dd-notes/
-
-# per-agent scratch DerivedData
+# per-agent scratch DerivedData (.dd-notes/ too)
 .dd-*/
 
 # Serena MCP project cache — local tool state, never commit
