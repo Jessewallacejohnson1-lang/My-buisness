@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-     The launch's still (Jesse, 2026-11-01; BP app references/launch-ball): BP yellow (#FCE804) with
-     the app icon's "Bp" in its ink (#111111), B and p at 90% of their size and no ! yet. It is the
+     The launch's still (Jesse, 2026-11-01 and 2026-11-02; BP app references/launch-ball): BP yellow
+     with the app icon's glass edge (`LaunchGlass`, 2.5x the icon's own rim, at an iPhone 16 Pro's
+     62 pt display corners, its middle stretching on other screens), and the app icon's "Bp" in its
+     ink with the icon's soft shade (`LaunchStill`, B and p at 90% of their size, no ! yet). It is the
      first frame of the launch animation (`LaunchBall`), so the hand-off can't be seen: the same
-     249.6 pt Bp! canvas, centred on the screen, each letter shrunk about the middle of its foot on
-     the baseline. The letters are `LaunchMarkB` and `LaunchMarkP` on the Daily mark's canvas, and
-     every number below comes from `LaunchMotion` (90% of 249.6 x 140.25, offset from the centre).
-     Yellow and ink in light and dark alike. iPhone caches this screen: reinstall to see a change.
+     249.6 pt Bp! canvas in the middle of the 282 x 173 pt picture, moved 27.502 pt right and
+     3.822 pt up so that Bp sits in the screen's middle (`LaunchMotion.centring`). Both
+     pictures are drawn by BP app references/launch-ball/make_still.py from the mock's own CSS.
+     At the bottom, Jesse's signature (`LaunchFooter`, 64 pt above the screen's bottom, Bending
+     Spoons' sizes; mock round 12). iPhone caches this screen: reinstall to see a change.
      (2026-09-18 to 2026-11-01 it was bare paper, Jesse's no-splash call, now reversed.)
 -->
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="26600" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="launch-view-controller">
@@ -25,30 +28,35 @@
                         <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchMarkB" translatesAutoresizingMaskIntoConstraints="NO" id="launch-mark-b">
-                                <rect key="frame" x="81.418" y="377.674" width="224.640" height="126.229"/>
-                                <color key="tintColor" red="0.066666666666666666" green="0.066666666666666666" blue="0.066666666666666666" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchGlass" translatesAutoresizingMaskIntoConstraints="NO" id="launch-glass">
+                                <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
+                            </imageView>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchFooter" translatesAutoresizingMaskIntoConstraints="NO" id="launch-footer">
+                                <rect key="frame" x="81" y="750" width="240" height="60"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="224.63991860651333" id="launch-b-w"/>
-                                    <constraint firstAttribute="height" constant="126.22908875093026" id="launch-b-h"/>
+                                    <constraint firstAttribute="width" constant="240" id="launch-footer-w"/>
+                                    <constraint firstAttribute="height" constant="60" id="launch-footer-h"/>
                                 </constraints>
                             </imageView>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchMarkP" translatesAutoresizingMaskIntoConstraints="NO" id="launch-mark-p">
-                                <rect key="frame" x="90.973" y="377.674" width="224.640" height="126.229"/>
-                                <color key="tintColor" red="0.066666666666666666" green="0.066666666666666666" blue="0.066666666666666666" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchStill" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
+                                <rect key="frame" x="87.502" y="346.678" width="282" height="173"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="224.63991860651333" id="launch-p-w"/>
-                                    <constraint firstAttribute="height" constant="126.22908875093026" id="launch-p-h"/>
+                                    <constraint firstAttribute="width" constant="282" id="launch-still-w"/>
+                                    <constraint firstAttribute="height" constant="173" id="launch-still-h"/>
                                 </constraints>
                             </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="launch-safe-area"/>
                         <color key="backgroundColor" red="0.9882352941176471" green="0.90980392156862744" blue="0.015686274509803921" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
-                            <constraint firstItem="launch-mark-b" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="-7.261994705655158" id="launch-b-x"/>
-                            <constraint firstItem="launch-mark-b" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="3.7888668029505057" id="launch-b-y"/>
-                            <constraint firstItem="launch-mark-p" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="2.293261485996356" id="launch-p-x"/>
-                            <constraint firstItem="launch-mark-p" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="3.7888668029505057" id="launch-p-y"/>
+                            <constraint firstItem="launch-glass" firstAttribute="top" secondItem="launch-root-view" secondAttribute="top" id="launch-glass-t"/>
+                            <constraint firstItem="launch-glass" firstAttribute="bottom" secondItem="launch-root-view" secondAttribute="bottom" id="launch-glass-b"/>
+                            <constraint firstItem="launch-glass" firstAttribute="leading" secondItem="launch-root-view" secondAttribute="leading" id="launch-glass-l"/>
+                            <constraint firstItem="launch-glass" firstAttribute="trailing" secondItem="launch-root-view" secondAttribute="trailing" id="launch-glass-r"/>
+                            <constraint firstItem="launch-footer" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="launch-footer-x"/>
+                            <constraint firstItem="launch-root-view" firstAttribute="bottom" secondItem="launch-footer" secondAttribute="bottom" constant="64" id="launch-footer-b"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="27.502" id="launch-still-x"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="-3.822" id="launch-still-y"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -58,7 +66,8 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LaunchMarkB" width="39.150001525878906" height="22"/>
-        <image name="LaunchMarkP" width="39.150001525878906" height="22"/>
+        <image name="LaunchGlass" width="402" height="874"/>
+        <image name="LaunchStill" width="282" height="173"/>
+        <image name="LaunchFooter" width="240" height="60"/>
     </resources>
 </document>

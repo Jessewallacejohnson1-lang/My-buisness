@@ -428,11 +428,6 @@ struct DailyMarkGlyph: View {
         var height: CGFloat = 1
     }
 
-    /// The hop at any moment, for the launch's ! (Jesse, 2026-11-01: "can we make the animation
-    /// of the ! the same as tab bars"), which plays it scaled up with no tap.
-    static let lineHop = KeyframeTimeline(initialValue: Hop(), content: lineKeyframes)
-    static let dotHop = KeyframeTimeline(initialValue: Hop(), content: dotKeyframes)
-
     var body: some View {
         ZStack {
             layer("DailyMarkBp")

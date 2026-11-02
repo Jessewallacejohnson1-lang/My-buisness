@@ -12,6 +12,7 @@
 //  (docs/rules/swift-traps.md).
 //
 
+import CoreMotion
 import SwiftUI
 
 /// What the launch shares with the screens under it.
@@ -36,6 +37,11 @@ import SwiftUI
     private(set) var headerUp: Bool
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
+    /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
+    /// 2026-11-02, "Town settles"). Until then they wait under it, 8 and 12 pt low.
+    private(set) var townSettles: Bool
+    /// How far the tab bar has dipped catching the launch's Bp! (Jesse, 2026-11-02, "tab bar catches").
+    var tabDip: CGFloat = 0
 
     private init() {
         frozenAt = LaunchFlags.value(.launchAt).flatMap(Double.init).map { $0 / 1000 }
@@ -46,17 +52,22 @@ import SwiftUI
         // Reduce Motion crossfades into the app, so the tab bar's Bp! shows under it throughout.
         landed = !plays || reduceMotion
         headerUp = !plays || reduceMotion
+        townSettles = !plays || reduceMotion
     }
 
     func raiseHeader() { headerUp = true }
+    func settleTown() { townSettles = true }
 
     func finish() {
         withTransaction(Transaction(animation: nil)) {
             landed = true
             headerUp = true
+            townSettles = true
             finished = true
             dailyMark = nil
         }
+        // What's left of the tab bar's catch eases out rather than snapping.
+        withAnimation(.smooth(duration: 0.2)) { tabDip = 0 }
     }
 }
 
@@ -67,6 +78,7 @@ struct LaunchHost<Content: View>: View {
 
     private let stage = LaunchStage.shared
     @State private var clock = LaunchClock()
+    @State private var tilt = LaunchTilt()
     @State private var skip: Double?
     /// The launch's own frame on screen (full screen), and the top left of the app's space
     /// (`LaunchStage.space`): together they put the tab bar's Bp! in the launch's space. Both are
@@ -101,10 +113,11 @@ struct LaunchHost<Content: View>: View {
             // pick up the tab bar's Bp! once the bar has measured it.
             TimelineView(.animation(paused: stage.finished)) { context in
                 let moment = self.moment(at: context.date)
-                LaunchMark(frame: moment.frame, origin: moment.origin)
+                LaunchMark(frame: moment.frame, origin: moment.origin, tilt: tilt.value)
                     .contentShape(Rectangle())
                     // On touch-down, as every touch in BP answers.
                     .gesture(DragGesture(minimumDistance: 0).onChanged { _ in tap() })
+                    .allowsHitTesting(moment.frame.takesTaps)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
                     .sensoryFeedback(trigger: moment.frame.buzzes) { _, count in
                         LaunchMotion.buzzKinds.indices.contains(count - 1) ? LaunchMotion.buzzKinds[count - 1] : nil
@@ -114,6 +127,8 @@ struct LaunchHost<Content: View>: View {
                     }
                     .onChange(of: moment.frame.headerUp, initial: true) { _, up in if up { stage.raiseHeader() } }
                     .onChange(of: moment.frame.done, initial: true) { _, done in if done { stage.finish() } }
+                    .onChange(of: moment.frame.ending != nil, initial: true) { _, ending in if ending { stage.settleTown() } }
+                    .onChange(of: moment.frame.tabDip) { _, dip in stage.tabDip = dip }
             }
             // Done, it goes, from here. It stays in the tree: taken out when done, SwiftUI kept it
             // on screen and ticking, an invisible layer over the app taking every tap (traced,
@@ -127,8 +142,13 @@ struct LaunchHost<Content: View>: View {
             .ignoresSafeArea()
         }
         .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { insets = $0 }
-        .onChange(of: stage.finished) { _, done in if done { backScale = 1 } }
+        .onChange(of: stage.finished) { _, done in
+            guard done else { return }
+            backScale = 1
+            tilt.stop()
+        }
         .onAppear {
+            if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
             guard stage.plays, UIAccessibility.isVoiceOverRunning else { return }
             AccessibilityNotification.Announcement("Block Party").post()
         }
@@ -184,6 +204,30 @@ struct LaunchHost<Content: View>: View {
     }
 }
 
+/// The phone's tilt while the launch plays, from how it was held when it began: Core Motion's
+/// gravity, half a g each way to full lean. Reduce Motion and held frames don't read it.
+@Observable final class LaunchTilt {
+    private(set) var value = CGVector.zero
+    @ObservationIgnored private let motion = CMMotionManager()
+    @ObservationIgnored private var held: CMAcceleration?
+
+    func start() {
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+        motion.deviceMotionUpdateInterval = 1.0 / 60
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] update, _ in
+            guard let self, let g = update?.gravity else { return }
+            let held = self.held ?? g
+            self.held = held
+            self.value = CGVector(dx: max(-1, min(1, (g.x - held.x) / 0.5)), dy: max(-1, min(1, (g.y - held.y) / 0.5)))
+        }
+    }
+
+    func stop() {
+        motion.stopDeviceMotionUpdates()
+        value = .zero
+    }
+}
+
 /// The launch's clock, in the mock's simulation time. A stalled frame slows it rather than
 /// skipping ahead (the mock's 50 ms cap), so a slow first second on a cold start can't jump
 /// the ball past a bounce.
@@ -200,31 +244,83 @@ final class LaunchClock {
     }
 }
 
-/// One frame of the launch: the yellow, then Bp! with the ball, all on the Daily mark's canvas.
+/// One frame of the launch: the yellow, its light when the phone tilts, then Bp! with the ball,
+/// all on the Daily mark's canvas.
+/// The yellow is the app icon's glass, its edge at 2.5x, and Bp! casts the icon's soft shade on
+/// it (Jesse, 2026-11-02; BP app references/launch-ball, mock round 6). Both fade with the yellow.
 private struct LaunchMark: View {
     let frame: LaunchMotion.Frame
     /// Where the canvas's top left sits at rest; the ball is placed from it.
     let origin: CGPoint
+    /// The phone's tilt from how it was held as the launch began, each way -1 to 1.
+    var tilt = CGVector.zero
 
     private static let box = CGSize(width: LaunchMotion.canvas.width * LaunchMotion.scale,
                                     height: LaunchMotion.canvas.height * LaunchMotion.scale)
     /// The tab bar's hop is in its own points, for a Bp! 39.15 pt wide: these are its points here.
     private static let hopPoints = box.width / TabBarMetric.dailyMarkWidth
+    /// The glass picture's corners, which keep their shape on any screen; its middle stretches.
+    /// The same 90 pt as the 270 px cap insets in LaunchGlass.imageset (drawn at 62 pt corners by
+    /// BP app references/launch-ball/make_still.py): change one, change both.
+    private static let glassCaps = EdgeInsets(top: 90, leading: 90, bottom: 90, trailing: 90)
+    /// The picture's corners, an iPhone 16 Pro's display's.
+    private static let glassCorner: CGFloat = 62
+    /// The signature's bottom above the screen's, as on the launch screen.
+    private static let footerLift: CGFloat = 64
+    /// The shade: the mock's drop-shadow(0 9 12) in canvas units, in the ink at 21%. SwiftUI's
+    /// radius is CSS's blur length (half of it fell off twice as fast, measured 2026-11-02).
+    private static let shade = 0.21
+    private static let shadeDrop = 9 * LaunchMotion.scale
+    private static let shadeBlur = 12 * LaunchMotion.scale
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Hue.brandDisc.opacity(frame.yellow)
+            // The launch screen's own picture, so its still and this first frame are one.
+            Image("LaunchGlass")
+                .resizable(capInsets: Self.glassCaps, resizingMode: .stretch)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(frame.yellow)
+            // The light catches the glass edge the phone tilts toward, as Liquid Glass's does
+            // (Jesse, 2026-11-02, "tilt shine"); held as it was, it's the icon's own edge.
+            RoundedRectangle(cornerRadius: Self.glassCorner, style: .continuous)
+                .strokeBorder(LinearGradient(colors: [Color.white.opacity(0.6 * Self.lean(tilt)), Color.white.opacity(0)],
+                                             startPoint: UnitPoint(x: 0.5 + tilt.dx / 2, y: 0.5 + tilt.dy / 2),
+                                             endPoint: .center),
+                              lineWidth: 10)
+                .blur(radius: 5)
+                .opacity(frame.yellow)
+            // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02:
+            // "the bottom copy the written font spacing and size but put block party. made by
+            // jesse"; "make BP larger than my name"): the launch screen's own picture, so the still
+            // and this frame are one.
+            Image("LaunchFooter")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, Self.footerLift)
+                .opacity(frame.yellow)
+                .accessibilityHidden(true)
             ZStack(alignment: .topLeading) {
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))
+                    .offset(y: frame.lift * Self.hopPoints)
+                    .opacity(frame.letters)
                 piece("LaunchMarkP")
                     .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.footP))
+                    .offset(y: frame.lift * Self.hopPoints)
+                    .opacity(frame.letters)
+                // Reduce Motion's full-size B and p, fading in over the 90% ones.
+                piece("LaunchMarkB").opacity(frame.fullLetters)
+                piece("LaunchMarkP").opacity(frame.fullLetters)
                 bang
+                ballShade
                 ball
             }
             .frame(width: Self.box.width, height: Self.box.height, alignment: .topLeading)
             .foregroundStyle(Hue.onBrandDisc)
+            .compositingGroup()
+            .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur, y: Self.shadeDrop)
             .scaleEffect(frame.zoom)
+            .scaleEffect(x: frame.markSquash.width, y: frame.markSquash.height, anchor: .bottom)
+            .rotationEffect(.degrees(frame.markTilt), anchor: .bottom)
             .scaleEffect(frame.markScale / LaunchMotion.scale, anchor: .topLeading)
             .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)
             .opacity(frame.markOpacity)
@@ -232,29 +328,31 @@ private struct LaunchMark: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// The ! : at rest, or the Daily tab's own hop, its line growing out of the dot during the
+    /// The ! : at rest, or jumping with B and p, its line growing out of the dot during the
     /// crouch since it isn't there before.
     @ViewBuilder private var bang: some View {
-        let (line, dot) = hop
         piece("DailyMarkBangLine")
-            .scaleEffect(x: line.width, y: line.height, anchor: DailyMarkGlyph.lineFoot)
-            .offset(y: line.y * Self.hopPoints)
+            .scaleEffect(x: frame.line.width, y: frame.line.height, anchor: DailyMarkGlyph.lineFoot)
+            .offset(y: frame.lift * Self.hopPoints)
             .opacity(frame.lineOpacity)
         piece("DailyMarkBangDot")
-            .scaleEffect(x: dot.width, y: dot.height, anchor: DailyMarkGlyph.dotBase)
-            .offset(y: dot.y * Self.hopPoints)
+            .scaleEffect(x: frame.dot.width, y: frame.dot.height, anchor: DailyMarkGlyph.dotBase)
+            .offset(y: frame.lift * Self.hopPoints)
             .opacity(frame.dotShown ? 1 : 0)
     }
 
-    private var hop: (DailyMarkGlyph.Hop, DailyMarkGlyph.Hop) {
-        guard let h = frame.hop else { return (DailyMarkGlyph.Hop(), DailyMarkGlyph.Hop()) }
-        var line = DailyMarkGlyph.lineHop.value(time: h)
-        let crouch = DailyMarkGlyph.crouch
-        if h < crouch {
-            line.height = DailyMarkGlyph.lineHop.value(time: crouch).height * LaunchMotion.easeOut.value(at: h / crouch)
-        }
-        return (line, DailyMarkGlyph.dotHop.value(time: h))
+    /// The ball's shadow on the glass (Jesse, 2026-11-02, "ball shadow"). SwiftUI's blur radius is
+    /// twice the mock's CSS blur, which is a standard deviation.
+    private var ballShade: some View {
+        let b = frame.ball
+        return Circle()
+            .frame(width: 2 * b.r, height: 2 * b.r)
+            .blur(radius: 2 * frame.shadeBlur)
+            .position(x: b.x - origin.x, y: b.y - origin.y + frame.shadeDrop)
+            .opacity(frame.shadeOpacity)
     }
+
+    private static func lean(_ tilt: CGVector) -> Double { min(1, Double(hypot(tilt.dx, tilt.dy))) }
 
     /// The Town's round logo: rolling, stretched along its speed, squashed on a hit, and going
     /// black as it lands.
@@ -288,6 +386,26 @@ extension View {
     /// The tab bar's Daily Bp!: hidden until the launch's lands on it, and telling the launch
     /// where it sits.
     func launchLanding() -> some View { modifier(LaunchLanding()) }
+
+    /// The tab bar: dips with the launch's Bp! as it lands there and springs back.
+    func launchCatch() -> some View { modifier(LaunchCatch()) }
+
+    /// Town's top bar: waits 8 pt low under the launch's yellow and rises into place as it clears.
+    func launchSettle() -> some View { modifier(LaunchSettle()) }
+}
+
+private struct LaunchCatch: ViewModifier {
+    private let stage = LaunchStage.shared
+    func body(content: Content) -> some View { content.offset(y: stage.tabDip) }
+}
+
+private struct LaunchSettle: ViewModifier {
+    private let stage = LaunchStage.shared
+    func body(content: Content) -> some View {
+        content
+            .offset(y: stage.townSettles ? 0 : 8)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: stage.townSettles)
+    }
 }
 
 private struct LaunchLanding: ViewModifier {
