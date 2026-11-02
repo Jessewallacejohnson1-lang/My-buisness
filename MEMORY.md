@@ -65,6 +65,11 @@ or its `docs/rules/` file and leaves here.
 
 ## Data and backend
 
+- 2026-11-01 — Venue photos come only from our own store (`public.place_photos`): the app has
+  no Google Places code, call or key (Jesse: "I don't want any of the Google photos
+  anymore"; Google at runtime cost about $40,000 a month at 10,000 users). Photos from a
+  place's own website show before the owner's OK, credited, and come down on request; a
+  refresh only proposes, Jesse's yes swaps. Full rule: `docs/rules/design.md`.
 - 2026-10-27 — The hello pill is the notification, and the bell keeps it (BP app hello-drop
   05): each kind is a `HelloItem` (`HelloInbox.swift`) whose pill `message` and bell `row` are
   exhaustive switches. At most 3 pills a day, an hour apart (`HelloInbox.mayDrop`), kept 7
@@ -91,10 +96,6 @@ or its `docs/rules/` file and leaves here.
 - 2026-10-17 — Before a migration that drops and remakes a database function, copy that
   function from the newest migration on `origin/main` that makes it, then apply. A copy of an
   older version once took the friends lift out of the live Town feed.
-- 2026-10-16 — Venue photos come from our own store (`public.place_photos`), not Google at
-  runtime: that cost about $40,000 a month at 10,000 users. Photos from a place's own website
-  show before the owner's OK, credited, and come down on request; a refresh only proposes,
-  Jesse's yes swaps. Full rule: `docs/rules/design.md`.
 - 2026-10-16 — Check the live Town feed the way the app reads it: POST
   `/rest/v1/rpc/get_town_feed` with the app's public key from `SupabaseConfig.swift`. A
   read-only SQL `select ... from get_town_feed()` fails "permission denied" on
