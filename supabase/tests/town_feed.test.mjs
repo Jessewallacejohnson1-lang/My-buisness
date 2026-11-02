@@ -1623,6 +1623,29 @@ test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts
   assert.deepEqual([row.game.live.period_n, row.game.live.regulation, row.game.live.period_s], [5, 4, 300]);
 });
 
+test("a minute-old basketball score SIDEARM confirms is written again with its fouls and bar, so Bonus keeps counting", async () => {
+  await reset();
+  const game = await add('CSB Basketball vs Augsburg', '2026-02-21', { start_time: '1 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Basketball', team_ids = array['saint-benedict', 'augsburg']
+    where id = $1`, [game]);
+  const live = async () => (await db.query('select live_score from public.club_events where id = $1', [game])).rows[0].live_score;
+  // Mid-1st, the quarter's fouls so far: the clock then stands still (a timeout), and SIDEARM pushes the same Game.
+  const push = { Game: { ...csbHoops.Game, IsComplete: false, Period: 1, ClockSeconds: 300,
+                         LastPlays: csbHoops.Plays.filter((p) => p.Period === 1 && p.Type === 'FOUL') } };
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const before = await live();
+  assert.deepEqual(before.fouls.ids.map((s) => s.length), [3, 3]);
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await live()).at;
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const after = await live();
+  // Against the minute-old time, not the first push's: two pushes can land in the same millisecond.
+  assert.ok(new Date(after.at) > new Date(old), 'written again');
+  const { at: _a, ...kept } = before, { at: _b, ...now } = after;
+  assert.deepEqual(now, kept, 'the fouls, period_n, regulation and period_s all kept');
+});
+
 test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {
   await db.exec('delete from private.live_listener');
   const start = async () => (await db.query('select count(*)::int as n from public.start_live_scores()')).rows[0].n;

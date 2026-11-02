@@ -3,8 +3,12 @@
 -- 'at' only moved when the score, period or clock changed. Football's clock stands still between plays, through
 -- timeouts and at breaks, so a clock SIDEARM still showed (Q4 10:37 at 20:11 UTC) was over 2 minutes old here and
 -- hidden. Now a push that confirms the same score writes it again once 'at' is a minute old: at most one quiet
--- write a minute a game. record_live_score is 20261031190500_live_plays_take_corrections.sql line for line but
--- for that.
+-- write a minute a game.
+--
+-- record_live_score is copied line for line from 20261101220159_basketball_bar.sql, the newest that makes it and
+-- the version live, with only that rewrite added. The rewrite writes v, which already carries basketball's fouls,
+-- period_n, regulation and period_s, so Bonus keeps its count. This replaces PR 13's 20261031201500 version, which
+-- was built on the record_live_score from before basketball and would have dropped the fouls.
 
 create or replace function public.record_live_score(p_event uuid, p_game jsonb)
 returns text
@@ -20,6 +24,9 @@ declare
   v_read jsonb;
   v_kept jsonb;
   v_merged jsonb;
+  v_host boolean;
+  v_reg int;
+  v_fouls jsonb;
 begin
   select c.event_date, c.source_name, c.sport, c.live_score, c.final_score, c.scoring_plays into e
   from public.club_events c where c.id = p_event
@@ -33,8 +40,8 @@ begin
   -- Scoring plays from the Game's last plays or a plays push, the host's side known from this or the last read.
   v_plays := case when jsonb_typeof(p_game) = 'object' and (p_game ? 'Game' or p_game ? 'HomeTeam')
                   then coalesce(p_game->'Game'->'LastPlays', p_game->'LastPlays') else p_game end;
-  v_read := private.sidearm_scoring(v_plays,
-              coalesce((v->>'host_home')::boolean, (e.live_score->>'host_home')::boolean), v_file);
+  v_host := coalesce((v->>'host_home')::boolean, (e.live_score->>'host_home')::boolean);
+  v_read := private.sidearm_scoring(v_plays, v_host, v_file);
   v_kept := coalesce(e.scoring_plays, '[]');
   -- Each kept play as SIDEARM reads it now (its correction), in its place; then the new ones, oldest first.
   v_merged := (select coalesce(jsonb_agg(coalesce((select n from jsonb_array_elements(v_read) n
@@ -46,6 +53,18 @@ begin
   -- Only a change is written, so realtime sends the app nothing for a push that moved nothing it shows.
   if v_merged is distinct from v_kept then
     update public.club_events set scoring_plays = v_merged where id = p_event;
+  end if;
+  -- Basketball's fouls this quarter or half (game-card 09): ride a Game's score, or join the kept score when a
+  -- plays push brings one, its time kept.
+  v_reg := coalesce((v->>'regulation')::int, (e.live_score->>'regulation')::int);
+  if v_reg is not null then
+    v_fouls := private.sidearm_fouls(v_plays, v_host, v_reg, e.live_score->'fouls', (v->>'period_n')::int);
+    if v is not null and v_fouls is not null then
+      v := v || jsonb_build_object('fouls', v_fouls);
+    elsif v is null and e.live_score is not null and v_fouls is distinct from e.live_score->'fouls' then
+      update public.club_events set live_score = live_score || jsonb_build_object('fouls', v_fouls) where id = p_event;
+      return 'live';
+    end if;
   end if;
   if v is null then return case when v_merged is distinct from v_kept then 'live' else 'ignored' end; end if;
   if (v->>'complete')::boolean and coalesce((e.live_score->>'complete')::boolean, false)
@@ -67,6 +86,5 @@ begin
   return 'live';
 end;
 $$;
-
 revoke execute on function public.record_live_score(uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.record_live_score(uuid, jsonb) to service_role;
