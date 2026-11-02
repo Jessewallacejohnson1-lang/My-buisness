@@ -2,10 +2,11 @@
 //  BlockPartyFont.swift
 //  Block Party — design tokens (typography)
 //
-//  Jost is the display, headline, and wordmark face; BP Body is the body, UI, and
-//  data face through the sans and mono helpers; BP Event Heading is scoped to the one role
-//  it was drawn for, the event headline (`eventDisplay`), and Fraunces Black to the
-//  one word that stands in for the logo (`logoSerif`). Numbers keep tabular figures by
+//  Inter Tight is the header and button-word face (`display`, `displaySemi`; Jesse,
+//  2026-11-02: "all headers besides events"); BP Body is the body, UI, and data face
+//  through the sans and mono helpers; BP Event Heading is scoped to the one role it was
+//  drawn for, the event headline (`eventDisplay`); Jost is left only in the frozen `logo`
+//  word, and Fraunces Black in the one word that stands in for the logo (`logoSerif`). Numbers keep tabular figures by
 //  pairing the mono helpers with `.monospacedDigit()` at the call site (BP Body
 //  carries a `tnum` feature for it). SF Pro is left only in `glyph`, for symbols.
 //
@@ -28,12 +29,13 @@
 import SwiftUI
 import CoreText
 
-/// Verified PostScript names of the bundled Jost variable font instances.
+/// Verified PostScript names of the bundled faces.
 enum Face {
-    static let displayRegular = "Jost-Regular"
-    static let displayMedium  = "JostRoman-Medium"
-    static let displaySemi    = "JostRoman-SemiBold"
-    static let displayBold    = "JostRoman-Bold"
+    /// Inter Tight (OFL, `InterTight-OFL.txt`), static SemiBold and Bold cut from the Google
+    /// Fonts variable font with fontTools' instancer: headers and button words.
+    static let displaySemi    = "InterTight-SemiBold"
+    static let displayBold    = "InterTight-Bold"
+    /// Jost's PostScript names are inconsistent upstream: `JostRoman-SemiBold`, exactly.
     static let logo           = "JostRoman-SemiBold"
 
     /// BP Event Heading — the event headline, and nothing else.
@@ -96,9 +98,9 @@ extension Font {
         }
     }
 
-    // MARK: - Display / headings — Jost
+    // MARK: - Headers and button words — Inter Tight
 
-    /// Jost Bold at an exact size, scaling against the nearest text style.
+    /// Inter Tight Bold at an exact size, scaling against the nearest text style: headers.
     ///
     /// The size survives verbatim here — a custom face can do what the system face
     /// cannot — so pass `relativeTo:` only when a heading should grow at a rate its
@@ -107,7 +109,8 @@ extension Font {
         .custom(Face.displayBold, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
-    /// Jost SemiBold at an exact size, scaling against the nearest text style.
+    /// Inter Tight SemiBold at an exact size, scaling against the nearest text style: button
+    /// words and the smaller headers.
     static func displaySemi(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .custom(Face.displaySemi, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
@@ -129,11 +132,6 @@ extension Font {
     /// character alone.
     static func eventDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .custom(Face.eventHeadline, size: size, relativeTo: style ?? nearestTextStyle(to: size))
-    }
-
-    /// Jost Medium at an exact size, scaling against the nearest text style.
-    static func displayMedium(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
-        .custom(Face.displayMedium, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
     /// The logo's face for a word: Fraunces Black, soft. The logo itself is drawn art
@@ -165,13 +163,6 @@ extension Font {
     static func sansSemibold(_ size: CGFloat) -> Font { body(Face.bodySemi, size) }
     static func sansBold(_ size: CGFloat) -> Font { body(Face.bodyBold, size) }
 
-    /// BP Body Bold at an exact size, for a headline set in the body face: the onboarding
-    /// Welcome's "Love where you live." at 36 (BP app onboarding 25 mock). `sansBold` would
-    /// snap 36 to the large title's 34.
-    static func sansHeadline(_ size: CGFloat) -> Font {
-        .custom(Face.bodyBold, size: size, relativeTo: nearestTextStyle(to: size))
-    }
-
     /// SF Pro at the nearest text style, scaling with it: Profile's text under the name (Jesse,
     /// 2026-10-25: "use same font as group page", the Group page's SF Pro before BP Body; BP app
     /// taste/you.md), and the word on the charcoal pills: Attend, Invite, Canceled, Join group
@@ -188,7 +179,7 @@ extension Font {
 
     // MARK: - The three that must not scale
 
-    /// Logo — Jost SemiBold, frozen. A logo is a mark, not text: it holds its
+    /// Logo — Jost SemiBold, frozen; the one place Jost is left. A logo is a mark, not text: it holds its
     /// proportions against the artwork beside it at every content size.
     static func logo(_ size: CGFloat) -> Font { .custom(Face.logo, fixedSize: size) }
 
