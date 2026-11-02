@@ -49,6 +49,38 @@ private struct FriendRow: Decodable {
     var feed: FeedFriend { FeedFriend(name: name, photo: photo.flatMap(URL.init(string:))) }
 }
 
+/// The app's one Event decoder: an Event card (`private.event_cards`, BP app codebase-health-2), everything
+/// one Event shows wherever it appears, as a read sends it in its `card`. A read with no `card` yet hands
+/// its own row here: its old columns carry the card's names (`going` aside: the Going read's rows are all
+/// Going).
+extension UpcomingEvent: Decodable {
+    private enum CardKeys: String, CodingKey {
+        case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
+             createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
+             game, friendsGoing
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CardKeys.self)
+        func text(_ key: CardKeys) throws -> String? { try c.decodeIfPresent(String.self, forKey: key) }
+        self.init(id: try c.decode(String.self, forKey: .id), title: try c.decode(String.self, forKey: .title),
+                  eventDate: try c.decode(String.self, forKey: .eventDate), startTime: try text(.startTime),
+                  location: try text(.location), goingCount: try c.decode(Int.self, forKey: .goingCount),
+                  createdAt: try c.decode(String.self, forKey: .createdAt), imageUrl: try text(.imageUrl),
+                  rsvpd: try c.decodeIfPresent(Bool.self, forKey: .going) ?? false, clubName: try text(.clubName),
+                  category: EventCategory.from(try text(.category)), endAt: DateHelpers.timestamp(try text(.endAt)),
+                  isAllDay: try c.decodeIfPresent(Bool.self, forKey: .allDay) ?? false,
+                  sourceName: try text(.sourceName),
+                  cancelled: try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false,
+                  placePicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .placePicture)?.value,
+                  hostPicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .hostPicture)?.value,
+                  description: try text(.description),
+                  game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
+                  sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
+                  friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed))
+    }
+}
+
 struct CommunityAPI {
     let db: Supabase
 
@@ -710,42 +742,28 @@ struct CommunityAPI {
     }
 
     /// `get_my_going`'s rows as events, each one the neighbour is Going to, and
-    /// `get_my_saves`' (`saved`), whose `going` says whether they are.
+    /// `get_my_saves`' (`saved`), whose `going` says whether they are. Each is its Event card.
     static func myGoingRows(from data: Data, saved: Bool = false) throws -> [UpcomingEvent] {
         struct Row: Decodable {
-            let id: String
-            let title: String
-            let eventDate: String
-            let startTime: String?
-            let location: String?
-            let imageUrl: String?
-            let category: String?
-            let clubName: String?
-            let sourceName: String?
-            let endAt: String?
-            let allDay: Bool
-            let createdAt: String
-            let goingCount: Int
-            let going: Bool?
-            let cancelled: Bool?
-            let placePicture: PlacePicture.Lenient?
-            let description: String?
-            /// Optional: a read before you-tab 07 (Going) or friends-on-event-page (saves, changes) sent none.
-            let friendsGoing: [FriendRow]?
+            let event: UpcomingEvent
+            private enum Keys: String, CodingKey { case card, going }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: Keys.self)
+                if let card = try? c.decodeIfPresent(UpcomingEvent.self, forKey: .card) {
+                    event = card
+                } else {
+                    // ponytail: a read with no `card` yet (Saved and the bell until codebase-health-2 02, the
+                    // Going read until its migration is live), or one that doesn't decode, reads its own row;
+                    // 03 deletes this.
+                    var row = try UpcomingEvent(from: decoder)
+                    row.rsvpd = try c.decodeIfPresent(Bool.self, forKey: .going) ?? true
+                    event = row
+                }
+            }
         }
         return try Supabase.decode(data, as: [Row].self).map { row in
-            var event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
-                          startTime: row.startTime, location: row.location,
-                          goingCount: row.goingCount, createdAt: row.createdAt,
-                          imageUrl: row.imageUrl, rsvpd: row.going ?? true, saved: saved,
-                          clubName: row.clubName,
-                          category: EventCategory.from(row.category),
-                          endAt: DateHelpers.timestamp(row.endAt),
-                          isAllDay: row.allDay, sourceName: row.sourceName,
-                          cancelled: row.cancelled ?? false,
-                          placePicture: row.placePicture?.value,
-                          description: row.description)
-            event.friendsGoing = (row.friendsGoing ?? []).map(\.feed)
+            var event = row.event
+            event.saved = saved
             return event
         }
     }
