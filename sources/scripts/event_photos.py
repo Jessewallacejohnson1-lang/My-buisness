@@ -18,13 +18,13 @@ The pictures are the ones each Event came with, so nothing paid starts and no ne
 Each is downloaded once, at least MIN_WIDTH wide, and drawn numbered on .runs/morning/photos/sheet-N.png; a
 helper on the cheap model picks one per Event by sources/models/event-photo.md: a real photo, else the Event's own
 flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the bakery's pastry photo), or none.
-`keep` uploads each pick to the places bucket as a place_photos row of kind 'event' for that Event ('flyer' for a
-flyer, which the card shows only when no scene fits) (one row per Event when one
-post names several), credited to its place (a post) or its site (a page), and marks every Event laid out as
-looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game, a meet or any
-sport has no photo of its own for now, and a sport's card shows the scene pool (event-photos 07).
+`keep` saves each pick the one way every picture is saved (place_photos.save_picture): to the places bucket as a
+place_photos row of kind 'event' for that Event ('flyer' for a flyer, which the card shows only when no scene fits)
+(one row per Event when one post names several), credited to its place (a post) or its site (a page). It marks
+every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game,
+a meet or any sport has no photo of its own for now, and a sport's card shows the scene pool (event-photos 07).
 """
-import argparse, hashlib, io, json, re, sys
+import argparse, json, re, sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -35,7 +35,6 @@ import social, write_judged  # noqa: E402
 from read_events import LOCAL  # noqa: E402
 from run import Supabase, fetch  # noqa: E402
 from morning import read_items  # noqa: E402
-from db import DbError  # noqa: E402
 from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
 LOOKBACK = timedelta(days=8)   # the weekly read is Thursday's: a Friday morning still finds its posts
@@ -303,7 +302,7 @@ def entry_of(e):
     return ids[0] if ids else "unplaced"
 
 
-def keep(out, dry_run=False, db=None, put=None, now=None):
+def keep(out, dry_run=False, db=None, now=None):
     import place_photos
     from PIL import Image
     folder = out / "photos"
@@ -315,22 +314,10 @@ def keep(out, dry_run=False, db=None, put=None, now=None):
     for g in groups:
         if g["key"] in picks and not dry_run:
             c, shows, flyer = picks[g["key"]]
-            data = place_photos.webp(Image.open(c["file"]))
-            w, h = Image.open(io.BytesIO(data)).size
-            path = f"{TOWN}/events/{hashlib.sha1(data).hexdigest()[:12]}.webp"
-            try:
-                (put or db.storage_put)(f"places/{path}", data, "image/webp")
-            except DbError as x:
-                if x.status not in (400, 409):  # the same file from an earlier, interrupted keep
-                    raise
-            url = f"{db.url}/storage/v1/object/public/places/{quote(path)}"
-            for e in g["events"]:
-                db.rest("POST", "place_photos", [{
-                    "entry_id": entry_of(e), "town": TOWN, "url": url, "source_url": c["page"],
-                    "kind": "flyer" if flyer else "event",
-                    "event_id": e["id"], "status": "live", "width": w, "height": h, "description": shows,
-                    "credit": e.get("source_name") if POST.search(c["page"]) else None,
-                    "proposed_by": "event photos"}], "return=minimal")
+            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+                                      events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
+                                      credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
+                                      proposed_by="event photos")
         if not dry_run:
             for e in g["events"]:
                 db.rest("PATCH", f"club_events?id=eq.{e['id']}", {"photo_checked_at": stamp}, prefer="return=minimal")
@@ -435,19 +422,12 @@ def selftest():
         (out / "photos" / "events.json").write_text(json.dumps(gs).replace(str(folder), str(out / "photos")))
         (out / "event_photos.jsonl").write_text('{"event": "e1", "pick": "c2", "shows": "The cast on stage"}\n')
 
-        class FakeDb:
-            url = "https://db.example"
-
-            def __init__(self):
-                self.calls = []
-
-            def rest(self, method, path, body=None, prefer=None):
-                self.calls.append((method, path, body))
-
-        fake, put = FakeDb(), []
-        line = keep(out, db=fake, put=lambda *a: put.append(a[0]), now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
-        rows_in = [b[0] for m, p, b in fake.calls if p == "place_photos"]
-        check(len(put) == 1 and [r["event_id"] for r in rows_in] == ["id0", "id1"]
+        import place_photos
+        fake = place_photos.Unsent("https://db.example")
+        line = keep(out, db=fake, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        put = [p for m, p, b in fake.calls if m == "PUT"]
+        rows_in = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
+        check(len(put) == 1 and put[0].startswith(f"places/{TOWN}/events/event-") and [r["event_id"] for r in rows_in] == ["id0", "id1"]
               and all(r["kind"] == "event" and r["credit"] == "Prep" and r["description"] == "The cast on stage"
                       and r["source_url"] == "https://www.facebook.com/prep/posts/pfbidCAST" for r in rows_in),
               "one upload, a row for each of the post's Events, credited to the place, linking the post it came from")
@@ -456,9 +436,9 @@ def selftest():
         check(line.startswith("[photos] 2 of 4 new Events got a photo of their own (0 from their own post or page, 2 from")
               and "none for 2: Reflection; Give to the Max" in line, f"the line says what it did: {line}")
         (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": own, "flyer": True}) + "\n")
-        fake = FakeDb()
-        keep(out, db=fake, put=lambda *a: None, now=datetime(2026, 11, 2, 11, tzinfo=timezone.utc))
-        check({b[0]["kind"] for m, p, b in fake.calls if p == "place_photos"} == {"flyer"}, "a flyer is saved as kind flyer")
+        fake = place_photos.Unsent("https://db.example")
+        keep(out, db=fake, now=datetime(2026, 11, 2, 11, tzinfo=timezone.utc))
+        check({r["kind"] for m, p, b in fake.calls if p == "place_photos" for r in b} == {"flyer"}, "a flyer is saved as kind flyer")
         dry = keep(out, dry_run=True)
         check("dry run" in dry, "a dry run writes nothing")
     print(f"{ok} passed, {bad} failed")
