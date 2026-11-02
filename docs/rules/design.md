@@ -73,13 +73,15 @@ allowlist of the palettes named below). A call split across lines is still caugh
   frozen exceptions — **`glyph` is for ARTWORK only** (map markers, the heart burst, avatar
   placeholders, tab bar icons), and text reaching for it is a bug. The tab bar has no
   labels (2026-09-27).
-  - **Two faces.** Display/wordmark/headlines are **Jost** (bundled variable font, OFL
-    licence alongside it); body/UI/data stay **SF Pro** via `Font.sans*`/`Font.mono*`, with
-    numbers tabular via `.monospacedDigit()`.
-  - **Jost's PostScript names are inconsistent upstream and must be used exactly** `[prose]`
-    — `Jost-Regular`, but `JostRoman-Medium`/`-SemiBold`/`-Bold`. A wrong name falls back to
-    the system font **silently**. `Font.logo` is `JostRoman-SemiBold`.
-    `registerBlockPartyFonts()` registers every bundled ttf, so Jost self-registers.
+  - **Faces.** Headers and button words are **Inter Tight** via `Font.display`/`displaySemi`
+    (static Bold and SemiBold, OFL licence alongside; Jesse, 2026-11-02); event, news and game
+    card titles are **BP Event Heading** via `Font.eventDisplay`; body/UI/data are **BP Body**
+    via `Font.sans*`/`Font.mono*`, with numbers tabular via `.monospacedDigit()`. Jost is left
+    only in the frozen `Font.logo` word.
+  - **PostScript names must be used exactly** `[prose]` — `InterTight-Bold`,
+    `InterTight-SemiBold`, and Jost's `JostRoman-SemiBold`. A wrong name falls back to the
+    system font **silently**; `testEveryFaceIsBundled` catches it.
+    `registerBlockPartyFonts()` registers every bundled ttf, so each face self-registers.
 - **Brand artwork** `[prose]` — the app icon is Jesse's Icon Composer file
   `BlockParty/AppIcon.icon` (2026-10-29): **"Bp!" in black on solid BP yellow (the logo's own B, a p at the logo's small-letter height, a `!` leaning 12°), flat
   like Spotify's**, letters lifted slightly (edge highlight, 25% neutral shadow), with dark, tinted and clear looks. Edit it in Icon Composer, never by hand;
