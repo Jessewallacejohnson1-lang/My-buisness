@@ -453,12 +453,15 @@ struct CommunityAPI {
     }
 
     /// Your own post goes, its photo with it (town-feed 29). The row first: a photo left behind is
-    /// only a file, a row left without its photo would be a broken card.
+    /// only a file, a row left without its photo would be a broken card. Once the row is gone the post
+    /// is, whatever the photo's answer.
     func deletePost(_ id: String, photo: Bool) async throws {
         try await db.rest("club_events", method: "DELETE", [("id", "eq.\(id)")], prefer: "return=minimal")
-        guard photo else { return }
-        let uid = try db.userID.lowercased()
-        try await db.removeFile(bucket: "event-images", path: "\(uid)/\(id).jpg")
+        guard photo, let uid = try? db.userID.lowercased() else { return }
+        // ponytail: a photo whose delete fails stays in Storage; sweep orphans if they ever add up.
+        do { try await db.removeFile(bucket: "event-images", path: "\(uid)/\(id).jpg") } catch {
+            Log.network("CommunityAPI: post \(id)'s photo left in Storage: \(error)")
+        }
     }
 
     /// The instant check on your own pending Event (`moderate-post` `submit`, BP app town-plus): live,

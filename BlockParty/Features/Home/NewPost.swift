@@ -272,7 +272,7 @@ final class NewPostModel {
         if on { draft.friendsOnly = false }
     }
 
-    /// A post that came back "Not posted": its words and photo, and why, with a new id (a declined post
+    /// A post that didn't go up: its words and photo, and why, with a new id (a declined post
     /// stays declined).
     func restore(_ back: PostOutbox.Back) {
         draft = back.draft
@@ -328,8 +328,8 @@ final class NewPostModel {
 // MARK: - Posting…
 
 /// A post on its way (round 2, step 9): saved, waiting on the instant check, faded at the top of Town.
-/// A yes and it's the feed's own card; a no turns it "Not posted", and a tap reopens New post with the
-/// words kept and why; no answer (the day's 10, the check down) leaves it "Waiting for review". Nothing
+/// A yes and it's the feed's own card; a no turns it "This post didn't go up", and a tap reopens New post
+/// with the words kept and why; no answer (the day's 10, the check down) leaves it "Waiting for review". Nothing
 /// pops up (taste.md: updates never pop up).
 @MainActor @Observable
 final class PostOutbox {
@@ -346,7 +346,7 @@ final class PostOutbox {
         var state = State.posting
     }
 
-    /// What a tapped "Not posted" hands back to New post.
+    /// What a tapped "This post didn't go up" hands back to New post.
     struct Back {
         let draft: NewPostDraft
         let photo: UIImage?
@@ -370,14 +370,14 @@ final class PostOutbox {
                 if self.sent?.id == sent.id { self.sent = nil }
             case .declined(let reason):
                 self.sent?.state = .notPosted(reason)
-                AccessibilityNotification.Announcement("Not posted").post()
+                AccessibilityNotification.Announcement("This post didn't go up").post()
             case .waiting:
                 self.sent?.state = .waiting
             }
         }
     }
 
-    /// "Not posted" tapped: back into New post.
+    /// "This post didn't go up" tapped: back into New post.
     func reopen() {
         guard let sent, case .notPosted(let reason) = sent.state else { return }
         back = Back(draft: sent.draft, photo: sent.photo, reason: reason)
@@ -396,7 +396,7 @@ final class PostOutbox {
 }
 
 /// The faded card at the top of Town while a post is on its way: Card A's top (picture, name, words,
-/// photo) with "Posting…", "Not posted" or "Waiting for review" under the name.
+/// photo) with "Posting…", "This post didn't go up" or "Waiting for review" under the name.
 struct PostingPostCard: View {
     let sent: PostOutbox.Sent
     let reopen: () -> Void
@@ -448,13 +448,14 @@ struct PostingPostCard: View {
         .buttonStyle(PressableStyle(scale: notPosted ? 0.98 : 1, haptic: notPosted))
         .disabled(!notPosted)
         .accessibilityElement(children: .combine)
-        .accessibilityHint(notPosted ? "Opens your post again" : "")
+        .accessibilityHint(notPosted ? "Opens your post again with why" : "")
     }
 
     private var status: String {
         switch sent.state {
         case .posting: "Posting…"
-        case .notPosted: "Not posted · Tap to edit"
+        // The words page's `post-refused` (Jesse, 2026-10-12); a tap opens it again with why.
+        case .notPosted: "This post didn't go up"
         case .waiting: "Waiting for review"
         }
     }
@@ -552,13 +553,14 @@ struct NewPostSheet: View {
             if let back = PostOutbox.shared.back {
                 model.restore(back)
                 PostOutbox.shared.back = nil
+            } else {
+                #if DEBUG
+                // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
+                if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
+                // `-new-post-words <words>`: typed, as AXe can't type on BP Build.
+                if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+                #endif
             }
-            #if DEBUG
-            // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
-            if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
-            // `-new-post-words <words>`: typed, as AXe can't type on BP Build.
-            if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
-            #endif
             focus = .words
         }
     }
@@ -684,9 +686,10 @@ struct NewPostSheet: View {
             .font(.sans(big ? NewPostMetric.bigWords : NewPostMetric.words))
             .foregroundStyle(Hue.ink)
             .focused($focus, equals: .words)
-            .onChange(of: model.draft.words) { _, words in
+            .onChange(of: model.draft.words) { was, words in
                 if words.count > NewPostDraft.wordsLimit { model.draft.words = String(words.prefix(NewPostDraft.wordsLimit)) }
-                model.problem = nil
+                // An edit clears why it wasn't posted; the words coming back with it don't.
+                if !was.isEmpty { model.problem = nil }
             }
     }
 
