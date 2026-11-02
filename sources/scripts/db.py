@@ -28,10 +28,11 @@ class DbError(RuntimeError):
 
 
 class Db:
-    def __init__(self, missing=f"needs SUPABASE_URL and a key in env: {KEYS}", timeout=30):
+    def __init__(self, missing=f"needs SUPABASE_URL and a key in env: {KEYS}", timeout=30, env=os.environ):
+        """`env` is where the URL and key come from: the environment, or the skill's key held in memory."""
         self.timeout = timeout
-        self.url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-        self.keys = key_headers()
+        self.url = env.get("SUPABASE_URL", "").rstrip("/")
+        self.keys = key_headers(env)
         if not self.url or not self.keys:
             sys.exit(missing)
 
