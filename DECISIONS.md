@@ -887,6 +887,17 @@ longer needed. Kept: `places.google_place_id` and the weekly hours the server ta
 (MEMORY 2026-10-26). This supersedes the Google photo decisions above (Locked Rule A,
 `photos(placeId:)`).
 
+## Decided 2026-11-02 — GitHub skips the iPhone tests when no app file changes (BP app ci-skip 01)
+
+About 30% of pushes to main changed only the database, sources or docs, yet each waited about
+17 minutes for iPhone tests that could not have changed. CI's first job (`scripts/ci_scope.py`)
+now lists what changed; when every file is on its safe list, the iPhone tests job shows as
+skipped and the run is green in about 3 minutes. Anything else, a push to another branch, a run
+started by hand, or any doubt about what changed runs them. A skipped run means "no app file
+changed", not "the app is fine". The deliberate exception: `docs/debug-flags.md` runs them, as
+`LaunchFlagsTests` reads it. When the app or a test starts reading another file outside the app
+folders, `scripts/test_ci_scope.py` fails until that file joins `TESTS_READ`.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the
