@@ -1,0 +1,196 @@
+import io
+import os
+import re
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import ci_scope
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class RuleTests(unittest.TestCase):
+    def test_docs_only_skips(self):
+        self.assertFalse(ci_scope.needs_tests(["docs/plans/x.md", "MEMORY.md", "supabase/migrations/1.sql",
+                                               "sources/st-joseph-mn.md", ".claude/hooks/a.sh"]))
+
+    def test_the_docs_file_a_test_reads_runs(self):
+        self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "docs/debug-flags.md"]))
+        self.assertTrue(ci_scope.needs_tests(["docs/Debug-Flags.md"]))  # a Mac checkout ignores case
+
+    def test_a_swift_file_runs(self):
+        self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "BlockParty/App/RootView.swift"]))
+
+    def test_an_unknown_top_level_folder_runs(self):
+        self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "newthing/a.md"]))
+
+    def test_app_project_and_ci_files_run(self):
+        for f in ["BlockPartyTests/A.swift", "BlockPartyUITests/A.swift", "BlockParty.xcodeproj/project.pbxproj",
+                  "BlockParty.xctestplan", ".github/workflows/ci.yml", ".gitignore", ".gitattributes",
+                  "docs", "Docs/a.md", "README.md"]:
+            self.assertTrue(ci_scope.needs_tests([f]), f)
+
+    def test_unknown_or_empty_change_runs(self):
+        self.assertTrue(ci_scope.needs_tests(None))
+        self.assertTrue(ci_scope.needs_tests([]))
+
+
+class ChangesTests(unittest.TestCase):
+    """The git half, on a throwaway repo: what counts as changed, and when it can't be known."""
+
+    def setUp(self):
+        # A git hook exports GIT_DIR and friends: left in, every git call here (and in ci_scope.py)
+        # acts on the real repo. On 2026-11-02 the pre-push hook's run reset its core.bare.
+        clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        patcher = mock.patch.dict(os.environ, clean, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.git("init", "-q")
+        self.shas = [self.commit({"BlockParty/A.swift": "a", "docs/a.md": "a"})]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+                               *args], cwd=self.repo, check=True, capture_output=True, text=True).stdout
+
+    def commit(self, files):
+        for name, text in files.items():
+            p = Path(self.repo, name)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "c")
+        return self.git("rev-parse", "HEAD").strip()
+
+    def needs(self, event="push", ref="refs/heads/main", before=None):
+        before = self.shas[0] if before is None else before
+        return ci_scope.needs_tests(ci_scope.changes(event, ref, before, cwd=self.repo))
+
+    def test_docs_only_push_to_main_skips(self):
+        self.commit({"docs/a.md": "b"})
+        self.assertFalse(self.needs())
+
+    def test_every_commit_since_before_counts(self):
+        self.commit({"BlockParty/A.swift": "b"})
+        self.commit({"docs/a.md": "b"})
+        self.assertTrue(self.needs())
+
+    def test_a_missing_before_commit_runs(self):
+        self.commit({"docs/a.md": "b"})
+        self.assertTrue(self.needs(before="1234567" * 5 + "12345"))
+        self.assertTrue(self.needs(before="0" * 40))
+        self.assertTrue(self.needs(before=""))
+
+    def test_other_branches_and_hand_started_runs_run(self):
+        self.commit({"docs/a.md": "b"})
+        self.assertTrue(self.needs(ref="refs/heads/integration/block-party"))
+        self.assertTrue(self.needs(event="workflow_dispatch"))
+
+    def test_moving_an_app_file_into_docs_runs(self):
+        self.git("mv", "BlockParty/A.swift", "docs/A.swift")
+        self.git("commit", "-q", "-m", "mv")
+        self.assertTrue(self.needs())
+
+    def test_a_pr_counts_its_whole_change_against_the_base(self):
+        self.git("checkout", "-q", "-b", "pr")
+        self.commit({"BlockParty/A.swift": "b"})
+        self.commit({"docs/a.md": "b"})
+        self.git("checkout", "-q", "-")
+        self.commit({"docs/b.md": "b"})  # the base moved on
+        self.git("merge", "-q", "--no-ff", "--no-edit", "pr")
+        self.assertTrue(self.needs(event="pull_request", ref="refs/pull/1/merge"))
+
+    def test_a_docs_only_pr_skips(self):
+        self.git("checkout", "-q", "-b", "pr")
+        self.commit({"docs/a.md": "b"})
+        self.git("checkout", "-q", "-")
+        self.commit({"BlockParty/A.swift": "b"})  # the base's own app change is not the PR's
+        self.git("merge", "-q", "--no-ff", "--no-edit", "pr")
+        self.assertFalse(self.needs(event="pull_request", ref="refs/pull/1/merge"))
+
+    def test_a_pr_that_is_not_a_merge_commit_runs(self):
+        self.commit({"docs/a.md": "b"})
+        self.assertTrue(self.needs(event="pull_request", ref="refs/pull/1/merge"))
+
+
+class HookTests(unittest.TestCase):
+    def test_a_hooks_git_dir_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as decoy:
+            clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+            subprocess.run(["git", "init", "-q", decoy], check=True, env=clean)
+            config = Path(decoy, ".git/config").read_text()
+            with mock.patch.dict(os.environ, {"GIT_DIR": f"{decoy}/.git", "GIT_WORK_TREE": decoy}):
+                run = unittest.TextTestRunner(stream=io.StringIO()).run(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(ChangesTests))
+            self.assertTrue(run.wasSuccessful(), run.errors[:1] + run.failures[:1])
+            self.assertEqual(Path(decoy, ".git/config").read_text(), config)
+
+
+APP_FOLDERS = ("BlockParty", "BlockPartyTests", "BlockPartyUITests")
+
+
+def repo_paths(swift_text, tops):
+    """Every repo path a Swift file names in a string: from the first part that names a top-level
+    entry on, so "\\(root)/sources/a.md", "/sources/a.md" and "../sources/a.md" all give sources/a.md."""
+    found = set()
+    for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', swift_text):
+        parts = lit.split("/")
+        for i, part in enumerate(parts):
+            if part in tops:
+                found.add("/".join(parts[i:]))
+                break
+    return found
+
+
+class DriftGuardTests(unittest.TestCase):
+    """Whatever the app and its tests can read must run the tests when it changes: a test that
+    starts reading, say, a sources/ file would otherwise be skipped when that file changes.
+    ponytail: a test that walks the whole repo, or builds a path from pieces with no slash in a
+    string, isn't seen; nothing does either today."""
+
+    def test_the_scan_sees_each_way_of_writing_a_path(self):
+        tops = {"sources", "docs", "BlockParty"}
+        text = """root.appendingPathComponent("sources/a.md") "\\(root)/sources/b.md" root + "/sources/c.md"
+                  "BlockParty" "../sources/d.md" "./docs/e.md" "sources" "Could not read \\(sources.path)"
+                  """
+        self.assertEqual(repo_paths(text, tops),
+                         {"sources/a.md", "sources/b.md", "sources/c.md", "sources/d.md", "docs/e.md", "sources",
+                          "BlockParty"})
+
+    def test_no_file_the_app_or_a_test_reads_is_skipped(self):
+        tops = {p.name for p in ROOT.iterdir()}
+        read = set()
+        for folder in APP_FOLDERS:
+            for swift in (ROOT / folder).rglob("*.swift"):
+                read |= repo_paths(swift.read_text(encoding="utf-8"), tops)
+        outside = sorted(p for p in read if p.split("/")[0] not in APP_FOLDERS)
+        self.assertIn("docs/debug-flags.md", outside, "the scan found nothing it should: is it broken?")
+        for p in outside:
+            self.assertTrue(ci_scope.needs_tests([p]), f"{p} is read, but changing it skips the tests")
+            if (ROOT / p).is_dir():
+                self.assertTrue(ci_scope.needs_tests([p + "/x"]), f"{p}/ is read, but it's skipped")
+
+    def test_no_link_in_the_app_or_test_folders(self):
+        links = [str(p.relative_to(ROOT)) for f in APP_FOLDERS for p in (ROOT / f).rglob("*") if p.is_symlink()]
+        self.assertEqual(links, [], "a link can pull a file the rule skips into the app or its tests")
+
+    def test_the_project_reads_nothing_the_rule_skips(self):
+        safe = "|".join(re.escape(n) for n in (*ci_scope.SAFE_FOLDERS, *ci_scope.SAFE_FILES))
+        for f in [ROOT / "BlockParty.xcodeproj/project.pbxproj", ROOT / "BlockParty.xctestplan",
+                  *ROOT.glob("BlockParty.xcodeproj/**/*.xcscheme")]:
+            text = f.read_text(encoding="utf-8")
+            m = re.search(r"shellScript|scriptText", text)
+            self.assertIsNone(m, f"{f.name} runs a script: what it reads must run the tests (ci_scope.py)")
+            m = re.search(rf"(?<![\w.-])(?:{safe})\S*", text)
+            self.assertIsNone(m, f"{f.name} names {m and m.group()}, which the rule skips")
+
+
+if __name__ == "__main__":
+    unittest.main()

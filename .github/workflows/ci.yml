@@ -18,8 +18,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides, before a Mac is asked for, whether this change can touch the iPhone tests. They are
+  # skipped only when every changed file is on scripts/ci_scope.py's safe list (docs, database,
+  # sources...); any other file, or any doubt about what changed, runs them (BP app ci-skip 01).
+  # A skipped run means "no app file changed", not "the app is fine".
+  scope:
+    name: Changed files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.scope.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # a PR's test merge and its base, its first parent
+      - id: scope
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python3 scripts/ci_scope.py >> "$GITHUB_OUTPUT"
+
   ios-tests:
     name: iOS tests
+    needs: scope
+    # Runs unless the scope job said skip, so a failed scope job still runs the tests.
+    if: ${{ !cancelled() && needs.scope.outputs.tests != 'skip' }}
     runs-on: macos-latest
     timeout-minutes: 30
 
