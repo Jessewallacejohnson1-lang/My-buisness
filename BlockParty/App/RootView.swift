@@ -548,9 +548,7 @@ struct MainTabsView: View {
             createAfterLogin = false
         }
         .sheet(isPresented: $creating) {
-            NewEventSheet(places: searchModel.places.filter { [.business, .restaurant, .coffee, .park].contains($0.kind) }
-                              .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending },
-                          onShared: shared)
+            NewEventSheet(places: NewEventPlaces.ordered(searchModel.items), onShared: shared)
                 .presentationDragIndicator(.visible)
         }
         // Logged in from that ask: the neighbour whose code it was.
