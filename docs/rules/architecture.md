@@ -37,11 +37,16 @@ This is the **native iOS / map** codebase and the **spec** the Android app is po
 
 `BlockPartyApp` (`@main`) registers fonts, sets the Mapbox token, installs the
 unauthorized-response handler, injects `AuthStore.shared`, optionally runs the DEBUG place
-seeder, and mounts `RootView` directly.
+seeder, and mounts `RootView` inside `LaunchHost`.
 
-- **There is no splash** (Jesse, 2026-09-18). `LaunchScreen.storyboard` is bare `Hue.paper`
-  with no mark, so frame zero and the app's first real frame are the same colour and the
-  hand-off is invisible.
+- **The launch** (Jesse, 2026-11-01, reversing 2026-09-18's no splash; BP app
+  `references/launch-ball/`): on a fresh process start the Town's round logo bounces off Bp,
+  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
+  (or zooms through over Welcome). `LaunchScreen.storyboard` is its first frame: BP yellow with
+  "Bp" at 90%. The app loads underneath from the first frame and never waits on it; a tap
+  skips it, Reduce Motion fades it, UI tests skip it (`-ui-tests`) unless they ask
+  (`-launch-play`), and the app shows within 6 s whatever happens. The math is
+  `LaunchMotion`, the drawing `LaunchBall`.
 - **Sign-in is switched OFF** (Jesse, 2026-09-18, "for now"): `RootView.requiresSignIn =
   false`, so the gate hands straight to `MainTabsView` with or without a session. **It is a
   switch, not a deletion** `[prose]` — `LoginView`, `AuthStore`, the keychain session and

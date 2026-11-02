@@ -1308,6 +1308,8 @@ struct BlockPartyTabBar: View {
                 } else if tab == .daily {
                     DailyMarkGlyph(hops: dailyHops)
                         .frame(width: TabBarMetric.dailyMarkWidth)
+                        // The launch's Bp! lands here: hidden till it does (`LaunchBall`).
+                        .launchLanding()
                 } else {
                     Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
                         .font(.glyph(TabBarMetric.iconSize))
