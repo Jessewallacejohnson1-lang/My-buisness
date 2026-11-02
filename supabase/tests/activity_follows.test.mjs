@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -50,7 +51,7 @@ await db.exec(`set check_function_bodies = off`);
 await db.exec(one('_activity_follow_lift.sql'));
 await db.exec(`reset check_function_bodies`);
 
-const soon = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+const soon = townDay;
 const apollo = (await db.query(`select uuid from public.teams where id = 'apollo'`)).rows[0].uuid;
 const id = async (team, name) =>
   (await db.query(`select id from public.team_activities where team_id = $1 and name = $2`, [team, name])).rows[0].id;

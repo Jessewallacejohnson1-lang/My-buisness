@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { creating } from './migrations.mjs';
+import { townDay } from './town_day.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
@@ -67,8 +68,7 @@ for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql
 
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, ANON] = [1, 2, 3, 4].map(id);
-// The Town's own day, as the database counts it: after 7 PM CDT the UTC date is already tomorrow.
-const soon = (days) => new Date(Date.now() + days * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const soon = townDay;
 const page = async (slug) => (await db.query(`select id from public.town_pages where town = 'st-joseph-mn' and slug = $1`,
                                              [slug])).rows[0].id;
 const board = async (name) => (await db.query(`select id from public.city_boards where name = $1`, [name])).rows[0].id;
