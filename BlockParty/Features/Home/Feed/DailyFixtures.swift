@@ -101,12 +101,30 @@ enum DailyFixtures {
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
         let games = LaunchFlags.has(.townGames) ? gameSamples(now: now) : []
-        let events = games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        var events = games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        // `-town-posts`: two neighbours' posts among the events (town-feed 29), a photo one second.
+        if LaunchFlags.has(.townPosts) { events.insert(contentsOf: postSamples(now: now), at: min(1, events.count)) }
         guard LaunchFlags.has(.townNews) else { return events }
         // `-town-news`: tonight's social watch posts as the feed places them (town-feed 35): one that
         // shares your interests among the events, the rest after the last one. Logos read from Storage.
         let news = newsSamples(now: now)
         return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
+    }
+
+    /// Two invented neighbours' posts (town-feed 29): a photo with words, and words alone, tagged.
+    private static func postSamples(now: Date) -> [TownFeedEntry] {
+        let photo = Bundle.main.url(forResource: "downtown", withExtension: "jpg")
+        let posts = [
+            TownPost(id: "sample-post-1", poster: .init(id: "sample:Marlene Ostendorf", name: "Marlene Ostendorf"),
+                     posterPhoto: avatarURL("p1"), words: "Downtown was packed tonight. Thanks to everyone who came out!",
+                     photo: photo, aspect: 4.0 / 3.0, posted: now.addingTimeInterval(-2 * 3600),
+                     leavesAt: now.addingTimeInterval(5 * 86_400), heartCount: 12),
+            TownPost(id: "sample-post-2", poster: .init(id: "sample:Sam Rivera", name: "Sam Rivera"),
+                     words: "Anyone up for sledding after school?", place: "Millstream Park",
+                     tagged: [.init(id: "sample:Ana Nguyen", name: "Ana Nguyen")], friendsOnly: true,
+                     posted: now.addingTimeInterval(-40 * 60), leavesAt: now.addingTimeInterval(6 * 86_400)),
+        ]
+        return posts.map { TownFeedEntry(item: .post($0), leavesAt: $0.leavesAt) }
     }
 
     /// The places' saved logos in Storage, read from the network.

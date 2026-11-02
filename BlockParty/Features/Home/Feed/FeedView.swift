@@ -12,6 +12,8 @@ import SwiftUI
 @MainActor @Observable
 final class TodayHeaderProfileModel {
     private(set) var avatarUrl: String?
+    /// Your name, for New post's name line (town-feed 29).
+    private(set) var displayName: String?
 
     private let loadProfile: () async throws -> TownProfile?
     /// Numbers each read, so one an account change overtook never lands.
@@ -32,12 +34,14 @@ final class TodayHeaderProfileModel {
         let mine = latestRead
         guard let profile = try? await loadProfile(), mine == latestRead else { return }
         avatarUrl = profile.avatarUrl
+        displayName = profile.displayName
     }
 
     /// Another account, or none: the last one's photo goes until this one's is read.
     func accountChanged() {
         latestRead += 1
         avatarUrl = nil
+        displayName = nil
     }
 }
 
@@ -46,7 +50,7 @@ struct FeedView: View {
     /// only forwards the taps.
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
-    /// The bar's + → New event (BP app references/town-plus).
+    /// The bar's + → New post (BP app references/post-screen).
     var onCreate: () -> Void = {}
     /// The wordmark's menu: the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
@@ -146,6 +150,15 @@ struct FeedView: View {
         #endif
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                // Your post on its way, faded on top until it's up (town-feed 29).
+                if let sent = PostOutbox.shared.sent {
+                    PostingPostCard(sent: sent) {
+                        PostOutbox.shared.reopen()
+                        onCreate()
+                    }
+                    .padding(.top, 12)
+                    .transition(.opacity)
+                }
                 // The social feed.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
@@ -198,6 +211,8 @@ struct FeedView: View {
                 Color.clear.frame(height: 96)
             }
             .tint(Hue.ink)
+            // Your post comes in on top and goes once it's up; the cards make room (town-feed 29).
+            .animation(Motion.smooth, value: PostOutbox.shared.sent?.id)
         }
         // The top bar's come-and-go, off the scroll's DIRECTION. The old value this
         // hands back is the previous offset; the one other thing stored is

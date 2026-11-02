@@ -317,6 +317,12 @@ final class RealLifeActions {
         return Heart(isHearted: tally.on, count: tally.count)
     }
 
+    /// A neighbour's post's Heart (town-feed 29): an Event's, by its `club_events` id.
+    func heart(_ post: TownPost) -> Heart {
+        let tally = tally(Key(kind: .heart, id: post.id), else: Tally(on: post.hearted, count: post.heartCount))
+        return Heart(isHearted: tally.on, count: tally.count)
+    }
+
     /// What the card's RSVP area says (`RSVPWords`): only for someone who may act, as Join
     /// never showed without an account.
     /// `bar`: the Event page's, in fewer words. `town`: the Town card's and poster's, whose pill
@@ -392,6 +398,11 @@ final class RealLifeActions {
         toggle(Key(kind: .heart, id: item.id), from: heart(item).isHearted)
     }
 
+    /// A post's heart, shown at once, turned back the same way.
+    func toggleHeart(_ post: TownPost) {
+        toggle(Key(kind: .heart, id: post.id), from: heart(post).isHearted)
+    }
+
     /// Save or unsave (the bookmark), shown at once, turned back the same way as Join.
     func toggleSave(_ item: FeedCardItem) {
         if canAct { savedTapped[item.id] = item }
@@ -460,6 +471,12 @@ final class RealLifeActions {
             if writers[Key(kind: .save, id: card.id)] != nil { savedTapped[card.id] = card }
         }
         settle(Self.eventKinds)
+    }
+
+    /// A Town feed read's posts (town-feed 29): each one's hearts, settled as an Event's.
+    func read(posts: [TownPost]) {
+        for post in posts { base[Key(kind: .heart, id: post.id)] = Tally(on: post.hearted, count: post.heartCount) }
+        settle([.heart])
     }
 
     /// A groups read (`get_groups`): each group's base membership, settled the same way.

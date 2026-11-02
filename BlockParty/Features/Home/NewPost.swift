@@ -1,18 +1,19 @@
 //
-//  NewEvent.swift
-//  Block Party — New event, from the Town bar's + (BP app references/town-plus, Jesse 2026-11-01):
-//  Instagram's New post, step for step. A photo from Apple's own picker (or none), then the name,
-//  the day and time and the place, then Share. Share posts it pending and runs the instant check
-//  (`moderate-post` `submit`): live, declined with the reason under Share, or, when the check
-//  can't answer, waiting for Jesse's Review.
+//  NewPost.swift
+//  Block Party — New post, from the Town bar's + (BP app references/post-screen, town-feed 29; Jesse
+//  2026-11-01: draft 1, Facebook's, "yes to all and start"). A neighbour's own words, maybe one photo,
+//  a Place and the friends they're with, for the Town or only their Friends. Post saves it pending and
+//  the sheet closes; the instant check (`moderate-post` `submit`) answers on Town, where it waits faded
+//  until it's up. The Event chip makes it town-plus's New event instead: a name, a day and time and a
+//  Place, shared as an Event, the sheet waiting for the check.
 //
 
 import PhotosUI
 import SwiftUI
 
-// MARK: - What Share sends
+// MARK: - What an Event sends
 
-/// The form as Share reads it. Pure, so a test reads what goes out without a network.
+/// New post's Event (the Event chip) as Post reads it, town-plus's New event. Pure, so a test reads what goes out without a network.
 nonisolated struct NewEventDraft: Equatable {
     /// A name is a line on a card; a place, a line under it.
     static let nameLimit = 100
@@ -21,6 +22,8 @@ nonisolated struct NewEventDraft: Equatable {
     var name = ""
     var when: Date
     var place = ""
+    /// New post's words, as its description.
+    var about = ""
 
     init(now: Date = Date()) { when = Self.defaultWhen(now: now) }
 
@@ -43,8 +46,10 @@ nonisolated struct NewEventDraft: Equatable {
     }
 
     func input(id: String, imageURL: String?) -> NewEventInput {
-        NewEventInput(id: id, title: title, eventDate: Town.day(when), startTime: Self.clock(when),
-                      location: location, imageUrl: imageURL)
+        let about = about.trimmingCharacters(in: .whitespacesAndNewlines)
+        return NewEventInput(id: id, title: title, eventDate: Town.day(when), startTime: Self.clock(when),
+                             location: location, description: about.isEmpty ? nil : String(about.prefix(NewPostDraft.wordsLimit)),
+                             imageUrl: imageURL)
     }
 }
 
@@ -59,19 +64,12 @@ nonisolated enum NewEventCheck: Equatable {
 }
 
 enum NewEventCopy {
-    static let title = "New event"
-    static let next = "Next"
-    static let name = "Name your event…"
     static let when = "Day and time"
     static let place = "Place"
     static let addPlace = "Add"
-    static let share = "Share"
     static let offline = "Couldn't share. Check your connection and try again."
     static let live = "Your event is live"
     static let waiting = "Shared. It goes up once it's checked."
-    static let discard = "Discard event?"
-    static let discardWhy = "If you leave now, you'll lose what you've added."
-    static let discardButton = "Discard"
 }
 
 /// Place's list (Jesse, 2026-11-01: "Parks and places to eat or drink, then the rest"): Search's
@@ -95,7 +93,7 @@ enum NewEventPlaces {
     private static let drink: Set<String> = ["bar", "brewery", "brewpub", "pub", "taproom", "winery", "distillery"]
 }
 
-// MARK: - The model
+// MARK: - The Event's model
 
 @MainActor @Observable
 final class NewEventModel {
@@ -149,7 +147,7 @@ final class NewEventModel {
 
     /// A send that may already have landed: an answer lost on the way back leaves the photo or
     /// the Event saved, and the retry is told it already exists. That counts as sent; nil then.
-    private static func once<T>(_ send: () async throws -> T) async throws -> T? {
+    static func once<T>(_ send: () async throws -> T) async throws -> T? {
         do { return try await send() } catch let error as SupabaseError where error.alreadyThere { return nil }
     }
 
@@ -173,206 +171,858 @@ final class NewEventModel {
     }
 }
 
-// MARK: - The sheet
 
-struct NewEventSheet: View {
+// MARK: - What Post sends
+
+/// New post's words, who sees it, who it's with and where, as Post reads them (BP app town-feed 29).
+/// Pure, so a test reads what goes out without a network.
+struct NewPostDraft: Equatable {
+    /// As much as the check reads (claim_submit's 2,000).
+    nonisolated static let wordsLimit = 2000
+    /// Facebook's big words: while short, with no photo.
+    static let bigUntil = 85
+    /// claim_submit keeps 20.
+    static let tagLimit = 20
+
+    var words = ""
+    var friendsOnly = false
+    var tagged: [Neighbor] = []
+    var place = ""
+
+    var text: String { String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.wordsLimit)) }
+    var location: String? {
+        let place = String(place.trimmingCharacters(in: .whitespacesAndNewlines).prefix(NewEventDraft.placeLimit))
+        return place.isEmpty ? nil : place
+    }
+
+    /// Words or a photo: Post lights up.
+    func ready(photo: Bool) -> Bool { photo || !text.isEmpty }
+
+    /// 24 pt while short with no photo, 17 once longer or with one (round 2).
+    func big(photo: Bool) -> Bool { !photo && words.count <= Self.bigUntil }
+
+    /// The name line, Facebook's: "Jesse is with Sam Lee at Sal's."
+    func line(name: String) -> String { TownPost.line(name: name, with: tagged.map(\.displayName), at: location) }
+
+    func input(id: String, imageURL: String?, aspect: Double?) -> NewPostInput {
+        NewPostInput(id: id, words: text, imageURL: imageURL, aspect: imageURL == nil ? nil : aspect, place: location,
+                     friendsOnly: friendsOnly, tagged: friendsOnly ? [] : tagged.map(\.userId))
+    }
+
+    /// A photo's shape inside Instagram's limits: 4:5 tall to 1.91:1 wide.
+    static func aspect(_ size: CGSize) -> Double {
+        guard size.width > 0, size.height > 0 else { return 1 }
+        return min(max(Double(size.width / size.height), 4.0 / 5.0), 1.91)
+    }
+
+    /// The part of a photo inside those limits, cut from its middle, as the card will show it.
+    static func cropRect(_ size: CGSize) -> CGRect {
+        let aspect = CGFloat(aspect(size))
+        guard size.width > 0, size.height > 0 else { return CGRect(origin: .zero, size: size) }
+        if size.width / size.height > aspect {
+            let width = (size.height * aspect).rounded(.down)
+            return CGRect(x: ((size.width - width) / 2).rounded(.down), y: 0, width: width, height: size.height)
+        }
+        let height = (size.width / aspect).rounded(.down)
+        return CGRect(x: 0, y: ((size.height - height) / 2).rounded(.down), width: size.width, height: height)
+    }
+}
+
+// MARK: - New post's model
+
+@MainActor @Observable
+final class NewPostModel {
+    var draft = NewPostDraft()
+    /// The photo, already cut to its card's shape.
+    private(set) var photo: UIImage?
+    /// The Event chip: Post shares an Event exactly as town-plus's Share did.
+    var event = false
+    /// The Event's name, day and time; its Place and photo are New post's own.
+    let eventModel = NewEventModel()
+    private(set) var saving = false
+    /// Why it couldn't send, over Post.
+    var problem: String?
+    private(set) var failures = 0
+
+    /// One id for every try at one post, so a retry finishes it rather than posting it twice.
+    private(set) var id = UUID().uuidString.lowercased()
+
+    var edited: Bool {
+        photo != nil || !draft.text.isEmpty || !draft.tagged.isEmpty || draft.location != nil
+            || (event && !eventModel.draft.title.isEmpty)
+    }
+
+    var ready: Bool {
+        event ? eventModel.draft.ready : draft.ready(photo: photo != nil)
+    }
+
+    var busy: Bool { saving || eventModel.sharing }
+    var shownProblem: String? { event ? eventModel.problem : problem }
+    var shownFailures: Int { failures + eventModel.failures }
+
+    func pick(_ image: UIImage?) {
+        photo = image.map(Self.cut)
+        eventModel.pick(photo)
+        problem = nil
+    }
+
+    /// Event on: the Town's, never Friends-only, nobody tagged (Events are the Town's).
+    func setEvent(_ on: Bool) {
+        event = on
+        if on { draft.friendsOnly = false }
+    }
+
+    /// A post that came back "Not posted": its words and photo, and why, with a new id (a declined post
+    /// stays declined).
+    func restore(_ back: PostOutbox.Back) {
+        draft = back.draft
+        photo = back.photo
+        eventModel.pick(back.photo)
+        problem = back.reason
+    }
+
+    /// Saves the post: the photo up, the row in, pending. nil while it couldn't (the words stay).
+    func save(api: CommunityAPI) async -> NewPostInput? {
+        guard ready, !saving else { return nil }
+        saving = true
+        problem = nil
+        defer { saving = false }
+        do {
+            var url: String?
+            if let photo {
+                guard let data = ProfileModel.coverJPEG(photo) else { throw CocoaError(.fileReadCorruptFile) }
+                url = try await NewEventModel.once { try await api.uploadEventPhoto(data, id: id) }?.absoluteString
+                    ?? api.eventPhotoURL(id: id)?.absoluteString
+            }
+            let input = draft.input(id: id, imageURL: url, aspect: photo.map { NewPostDraft.aspect($0.size) })
+            try await NewEventModel.once { try await api.addPost(input) }
+            return input
+        } catch {
+            problem = NewEventCopy.offline
+            failures += 1
+            Haptics.error()
+            AccessibilityNotification.Announcement(NewEventCopy.offline).post()
+            return nil
+        }
+    }
+
+    /// Event on: town-plus's Share, with New post's words as its description.
+    func shareEvent(api: CommunityAPI) async -> NewEventCheck? {
+        eventModel.draft.place = draft.place
+        eventModel.draft.about = draft.words
+        return await eventModel.share(api: api)
+    }
+
+    /// The photo cut to its card's shape, so what goes up is what the card shows.
+    private static func cut(_ image: UIImage) -> UIImage {
+        let rect = NewPostDraft.cropRect(image.size)
+        guard rect.size != image.size else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: rect.size, format: format).image { _ in
+            image.draw(at: CGPoint(x: -rect.minX, y: -rect.minY))
+        }
+    }
+}
+
+// MARK: - Posting…
+
+/// A post on its way (round 2, step 9): saved, waiting on the instant check, faded at the top of Town.
+/// A yes and it's the feed's own card; a no turns it "Not posted", and a tap reopens New post with the
+/// words kept and why; no answer (the day's 10, the check down) leaves it "Waiting for review". Nothing
+/// pops up (taste.md: updates never pop up).
+@MainActor @Observable
+final class PostOutbox {
+    static let shared = PostOutbox()
+
+    enum State: Equatable { case posting, notPosted(String), waiting }
+
+    struct Sent: Identifiable, Equatable {
+        let id: String
+        let draft: NewPostDraft
+        let photo: UIImage?
+        let name: String
+        let picture: URL?
+        var state = State.posting
+    }
+
+    /// What a tapped "Not posted" hands back to New post.
+    struct Back {
+        let draft: NewPostDraft
+        let photo: UIImage?
+        let reason: String
+    }
+
+    private(set) var sent: Sent?
+    /// Picked up by New post as it opens.
+    var back: Back?
+
+    /// The check on a saved post. `live`: the Town reads again, and the faded card goes once it has.
+    func check(_ sent: Sent, api: CommunityAPI, live: @escaping () async -> Void) {
+        self.sent = sent
+        Task {
+            let answer = await api.checkNewEvent(sent.id)
+            guard self.sent?.id == sent.id else { return }
+            switch answer {
+            case .live:
+                Haptics.success()
+                await live()
+                if self.sent?.id == sent.id { self.sent = nil }
+            case .declined(let reason):
+                self.sent?.state = .notPosted(reason)
+                AccessibilityNotification.Announcement("Not posted").post()
+            case .waiting:
+                self.sent?.state = .waiting
+            }
+        }
+    }
+
+    /// "Not posted" tapped: back into New post.
+    func reopen() {
+        guard let sent, case .notPosted(let reason) = sent.state else { return }
+        back = Back(draft: sent.draft, photo: sent.photo, reason: reason)
+        self.sent = nil
+    }
+
+    #if DEBUG
+    /// `-new-post-state posting|notposted|waiting`: the faded card as it is in each, for a screenshot.
+    func sample(_ state: String) {
+        var draft = NewPostDraft()
+        draft.words = "Burger night at Sal's. Who's in?"
+        sent = Sent(id: "sample-post", draft: draft, photo: UIImage(named: "rocktoberfest.jpg"), name: "Jesse", picture: nil,
+                    state: state == "notposted" ? .notPosted("Keep it kind.") : state == "waiting" ? .waiting : .posting)
+    }
+    #endif
+}
+
+/// The faded card at the top of Town while a post is on its way: Card A's top (picture, name, words,
+/// photo) with "Posting…", "Not posted" or "Waiting for review" under the name.
+struct PostingPostCard: View {
+    let sent: PostOutbox.Sent
+    let reopen: () -> Void
+
+    private var notPosted: Bool { if case .notPosted = sent.state { true } else { false } }
+
+    var body: some View {
+        Button(action: reopen) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    Avatar(sent.picture, size: 40)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(sent.name).font(.sansSemibold(15)).foregroundStyle(Hue.ink)
+                        HStack(spacing: 6) {
+                            // The one spinner a control may carry: its own action in flight (design.md).
+                            if sent.state == .posting { ProgressView().controlSize(.mini) }
+                            Text(status)
+                                .font(.sans(13))
+                                .foregroundStyle(notPosted ? Hue.declined : Hue.inkSecondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                if !sent.draft.text.isEmpty {
+                    Text(sent.draft.text)
+                        .font(.sans(16))
+                        .lineSpacing(3)
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                }
+                if let photo = sent.photo {
+                    Image(uiImage: photo)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 120)
+                        .clipped()
+                        .padding(.top, 10)
+                }
+            }
+            .opacity(notPosted ? 1 : 0.5)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: notPosted ? 0.98 : 1, haptic: notPosted))
+        .disabled(!notPosted)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(notPosted ? "Opens your post again" : "")
+    }
+
+    private var status: String {
+        switch sent.state {
+        case .posting: "Posting…"
+        case .notPosted: "Not posted · Tap to edit"
+        case .waiting: "Waiting for review"
+        }
+    }
+}
+
+// MARK: - New post
+
+/// Facebook's New post, draft 1 round 2 (BP app references/post-screen, Figma node 10:2; Jesse 2026-11-01:
+/// "yes to all and start"): your picture and name line, who can see it, the Tag friends / Place / Event
+/// chips, the words big while short, one photo in its own shape, and Post over the keyboard, lit once
+/// there's something to post. Post saves it and the sheet closes; the check answers on Town (`PostOutbox`).
+/// Event on makes it a plain Event through town-plus's Share, which waits here for the check.
+struct NewPostSheet: View {
     /// The town's places, from Search's read, for Place.
     let places: [SearchItem]
-    /// What Share left: the shell's pill says it, and Town reads again.
+    let name: String
+    let picture: URL?
+    /// An Event shared: the shell's pill says it, and Town reads again (town-plus).
     var onShared: (HelloItem.Posted) -> Void = { _ in }
+    /// A post saved: the check runs from the shell.
+    var onPosted: (PostOutbox.Sent) -> Void = { _ in }
 
-    @State private var model = NewEventModel()
+    @State private var model = NewPostModel()
     @State private var pick: PhotosPickerItem?
+    @State private var picking = false
     @State private var path: [Step] = []
     @State private var discarding = false
+    @FocusState private var focus: Field?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    enum Step: Hashable { case details, place }
+    enum Step: Hashable { case tag, place }
+    private enum Field: Hashable { case words, name }
 
     var body: some View {
         NavigationStack(path: $path) {
-            // Apple's own picker, inside the sheet as Instagram's grid is; its own Cancel and Add
-            // are off, so the bar's X and Next are the only buttons.
-            PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { EmptyView() }
-                .photosPickerStyle(.inline)
-                .photosPickerDisabledCapabilities(.selectionActions)
-                .photosPickerAccessoryVisibility(.hidden, edges: .all)
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle(NewEventCopy.title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { if model.edited { discarding = true } else { dismiss() } } label: { Image(systemName: "xmark") }
-                            .accessibilityLabel("Close")
-                            // Instagram asks before a post with edits goes.
-                            .confirmationDialog(NewEventCopy.discard, isPresented: $discarding, titleVisibility: .visible) {
-                                Button(NewEventCopy.discardButton, role: .destructive) { dismiss() }
-                            } message: { Text(NewEventCopy.discardWhy) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    who
+                        .padding(.horizontal, NewPostMetric.side)
+                        .padding(.top, NewPostMetric.whoTop)
+                    chips
+                        .padding(.top, NewPostMetric.chipsTop)
+                    if model.event {
+                        eventFields
+                            .padding(.top, NewPostMetric.wordsTop)
+                            .transition(.opacity)
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(NewEventCopy.next) { path.append(.details) }
-                            .fontWeight(.semibold)
+                    words
+                        .padding(.horizontal, NewPostMetric.side)
+                        .padding(.top, NewPostMetric.wordsTop)
+                    if let photo = model.photo {
+                        photoView(photo)
+                            .padding(.top, NewPostMetric.photoTop)
+                            .transition(.opacity)
                     }
                 }
-                .navigationDestination(for: Step.self) { step in
-                    switch step {
-                    case .details: NewEventDetails(model: model, share: share, choosePlace: { path.append(.place) })
-                    case .place: NewEventPlace(places: places, place: $model.draft.place)
-                    }
+                .padding(.bottom, NewPostMetric.side)
+                .animation(reduceMotion ? nil : Motion.smooth, value: model.event)
+                .animation(reduceMotion ? nil : Motion.smooth, value: model.photo)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) { bar }
+            .background(Hue.paper)
+            .navigationTitle(NewPostCopy.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { if model.edited { discarding = true } else { dismiss() } } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Close")
+                        .confirmationDialog(NewPostCopy.discard, isPresented: $discarding, titleVisibility: .visible) {
+                            Button(NewPostCopy.discardButton, role: .destructive) { dismiss() }
+                            Button(NewPostCopy.keepEditing, role: .cancel) {}
+                        } message: { Text(NewPostCopy.discardWhy) }
                 }
+            }
+            .navigationDestination(for: Step.self) { step in
+                switch step {
+                case .tag: NewPostTag(tagged: $model.draft.tagged)
+                case .place: NewEventPlace(places: places, place: $model.draft.place)
+                }
+            }
+            .photosPicker(isPresented: $picking, selection: $pick, matching: .images, photoLibrary: .shared())
         }
         .tint(Hue.ink)
         .onChange(of: pick) { _, item in
             Task {
                 let data = try? await item?.loadTransferable(type: Data.self)
-                model.pick(data.flatMap(UIImage.init(data:)))
+                if let image = data.flatMap(UIImage.init(data:)) { model.pick(image) }
             }
         }
         // A swipe down can't throw away what's typed or picked; the X asks first.
-        .interactiveDismissDisabled(model.sharing || model.edited)
-        #if DEBUG
-        // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
-        .onAppear { if let name = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: name)) } }
-        #endif
+        .interactiveDismissDisabled(model.busy || model.edited)
+        .onAppear {
+            if let back = PostOutbox.shared.back {
+                model.restore(back)
+                PostOutbox.shared.back = nil
+            }
+            #if DEBUG
+            // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
+            if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
+            // `-new-post-words <words>`: typed, as AXe can't type on BP Build.
+            if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+            #endif
+            focus = .words
+        }
     }
 
-    private func share() {
+    // MARK: Who
+
+    /// Your picture, the name line, and who can see it.
+    private var who: some View {
+        HStack(spacing: NewPostMetric.whoGap) {
+            Avatar(picture, size: NewPostMetric.picture)
+            VStack(alignment: .leading, spacing: NewPostMetric.pillTop) {
+                Text(nameLine)
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .animation(nil, value: model.draft.tagged)
+                audience
+            }
+        }
+    }
+
+    private var nameLine: AttributedString {
+        var line = AttributedString(model.draft.line(name: name))
+        line.font = .sans(17)
+        let tagged = model.draft.tagged.map(\.displayName)
+        let named = tagged.count > 2 ? [tagged[0], "\(tagged.count - 1) others"] : tagged
+        for bold in [name] + named + [model.draft.location ?? ""] where !bold.isEmpty {
+            if let range = line.range(of: bold) { line[range].font = .sansSemibold(17) }
+        }
+        return line
+    }
+
+    /// Facebook's audience pill: the Town or Friends, from Apple's menu. Event on locks it to the Town.
+    private var audience: some View {
+        Menu {
+            Picker(NewPostCopy.who, selection: $model.draft.friendsOnly) {
+                Label(Town.everyday, systemImage: "house").tag(false)
+                Label(NewPostCopy.friends, systemImage: "person.2").tag(true)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: model.draft.friendsOnly ? "person.2.fill" : "house.fill")
+                    .font(.glyph(12, weight: .semibold))
+                Text(model.draft.friendsOnly ? NewPostCopy.friends : Town.everyday)
+                    .font(.apple(13, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.glyph(10, weight: .bold))
+                    .opacity(model.event ? 0 : 1)
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(Hue.ink)
+            .padding(.leading, 9)
+            .padding(.trailing, 8)
+            .frame(height: NewPostMetric.pill)
+            .background(Hue.fill, in: Capsule())
+        }
+        .disabled(model.event)
+        .accessibilityLabel(NewPostCopy.who)
+        .accessibilityValue(model.draft.friendsOnly ? NewPostCopy.friends : Town.everyday)
+    }
+
+    // MARK: Chips
+
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: NewPostMetric.chipGap) {
+                if !model.event {
+                    let tagged = model.draft.tagged
+                    chip(on: !tagged.isEmpty, label: tagged.isEmpty ? NewPostCopy.tag
+                                                     : tagged.count == 1 ? tagged[0].displayName
+                                                     : "\(tagged[0].firstName) +\(tagged.count - 1)") {
+                        if let first = tagged.first {
+                            Avatar(first.avatarUrl.flatMap(URL.init(string:)), size: NewPostMetric.chipFace)
+                        } else {
+                            Image(systemName: "tag").font(.glyph(15))
+                        }
+                    } action: { focus = nil; path.append(.tag) }
+                    .transition(.opacity)
+                }
+                chip(on: model.draft.location != nil, label: model.draft.location ?? NewEventCopy.place) {
+                    MapPinGlyph(size: NewPostMetric.chipIcon)
+                } action: { focus = nil; path.append(.place) }
+                chip(on: model.event, label: NewPostCopy.event) {
+                    Image(systemName: "calendar").font(.glyph(15))
+                } action: {
+                    withAnimation(reduceMotion ? nil : Motion.smooth) { model.setEvent(!model.event) }
+                    focus = model.event ? .name : .words
+                }
+                .accessibilityAddTraits(model.event ? .isSelected : [])
+            }
+            .padding(.horizontal, NewPostMetric.side)
+        }
+        .scrollClipDisabled()
+    }
+
+    /// 34 pt drawn, 44 pt to tap; picked ones fill grey with the pick inside.
+    private func chip<Icon: View>(on: Bool, label: String, @ViewBuilder icon: () -> Icon,
+                                  action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                icon().frame(width: NewPostMetric.chipFace, height: NewPostMetric.chipFace)
+                Text(label).font(.sansMedium(14)).lineLimit(1)
+            }
+            .foregroundStyle(Hue.ink)
+            .padding(.leading, on ? 6 : 10)
+            .padding(.trailing, 14)
+            .frame(height: NewPostMetric.chip)
+            .background {
+                Capsule().fill(on ? Hue.fill : Hue.surface)
+                    .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: on ? 0 : 1) }
+            }
+            .padding(.vertical, (NewPostMetric.tap - NewPostMetric.chip) / 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.96))
+        .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.chip) / 2)
+    }
+
+    // MARK: Words
+
+    private var words: some View {
+        let big = !model.event && model.draft.big(photo: model.photo != nil)
+        return TextField(model.event ? NewPostCopy.about : NewPostCopy.placeholder, text: $model.draft.words, axis: .vertical)
+            .font(.sans(big ? NewPostMetric.bigWords : NewPostMetric.words))
+            .foregroundStyle(Hue.ink)
+            .focused($focus, equals: .words)
+            .onChange(of: model.draft.words) { _, words in
+                if words.count > NewPostDraft.wordsLimit { model.draft.words = String(words.prefix(NewPostDraft.wordsLimit)) }
+                model.problem = nil
+            }
+    }
+
+    /// Event on: its name, day and time and Place, town-plus's rows.
+    private var eventFields: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField(NewPostCopy.eventName, text: Bindable(model.eventModel).draft.name, axis: .vertical)
+                .font(.eventDisplay(NewPostMetric.eventName))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1...3)
+                .focused($focus, equals: .name)
+                .submitLabel(.next)
+                .onChange(of: model.eventModel.draft.name) { _, name in
+                    if name.contains("\n") { model.eventModel.draft.name = name.replacingOccurrences(of: "\n", with: ""); focus = .words }
+                    if name.count > NewEventDraft.nameLimit { model.eventModel.draft.name = String(name.prefix(NewEventDraft.nameLimit)) }
+                    model.eventModel.problem = nil
+                }
+                .padding(.horizontal, NewPostMetric.side)
+                .padding(.bottom, NewPostMetric.nameBottom)
+            row(NewEventCopy.when, icon: { Image(systemName: "calendar").font(.glyph(NewPostMetric.symbol)) }) {
+                DatePicker(NewEventCopy.when, selection: Bindable(model.eventModel).draft.when, in: Date()...,
+                           displayedComponents: [.date, .hourAndMinute])
+                    .labelsHidden()
+                    // The town's clock, as Share sends it.
+                    .environment(\.timeZone, Town.timeZone)
+            }
+            Button { focus = nil; path.append(.place) } label: {
+                row(NewEventCopy.place, icon: { MapPinGlyph(size: NewPostMetric.icon) }) {
+                    HStack(spacing: 8) {
+                        Text(model.draft.location ?? NewEventCopy.addPlace)
+                            .font(.sans(16))
+                            .foregroundStyle(model.draft.location == nil ? Hue.inkSecondary : Hue.ink)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(15, weight: .semibold))
+                            .foregroundStyle(Hue.control)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.98))
+        }
+    }
+
+    private func row<Icon: View, Trailing: View>(_ label: String, @ViewBuilder icon: () -> Icon,
+                                                 @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 12) {
+            icon()
+                .frame(width: NewPostMetric.icon, height: NewPostMetric.icon)
+                .accessibilityHidden(true)
+            Text(label).font(.sans(16))
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .foregroundStyle(Hue.ink)
+        .padding(.horizontal, NewPostMetric.side)
+        .frame(minHeight: NewPostMetric.row)
+        .overlay(alignment: .bottom) { Rectangle().fill(Hue.hairline).frame(height: 0.5) }
+    }
+
+    // MARK: Photo
+
+    /// Edge to edge in its own shape, with Change photo and the trash on it.
+    private func photoView(_ photo: UIImage) -> some View {
+        Image(uiImage: photo)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("Your photo")
+            .overlay(alignment: .topLeading) {
+                Button { picking = true } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle").font(.glyph(14, weight: .semibold))
+                        Text(NewPostCopy.change).font(.sansSemibold(14))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.leading, 9)
+                    .padding(.trailing, 11)
+                    .frame(height: NewPostMetric.onPhoto)
+                    .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: Radius.searchField - 1, style: .continuous))
+                    .frame(minHeight: NewPostMetric.tap)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.96))
+                .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button { withAnimation(reduceMotion ? nil : Motion.smooth) { model.pick(nil) } } label: {
+                    Image(systemName: "trash")
+                        .font(.glyph(17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: NewPostMetric.onPhoto, height: NewPostMetric.onPhoto)
+                        .background(.black.opacity(0.62), in: Circle())
+                        .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                .accessibilityLabel("Remove photo")
+                .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
+            }
+    }
+
+    // MARK: Over the keyboard
+
+    /// The photo button, then Post: the charcoal Attend pill in SF Pro Semibold, grey until there's
+    /// something to post. Why it couldn't go sits over it in red (town-plus's line).
+    private var bar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let problem = model.shownProblem {
+                Text(problem)
+                    .font(.apple(15))
+                    .foregroundStyle(Hue.declined)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, NewPostMetric.side)
+                    .padding(.vertical, 10)
+                    .transition(.opacity)
+            }
+            HStack {
+                Button { focus = nil; picking = true } label: {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.glyph(22))
+                        .foregroundStyle(Hue.ink)
+                        .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                .accessibilityLabel(model.photo == nil ? "Add a photo" : NewPostCopy.change)
+                Spacer()
+                Button(action: post) {
+                    ZStack {
+                        Text(NewPostCopy.post).opacity(model.busy ? 0 : 1)
+                        if model.busy { ProgressView().tint(.white) }
+                    }
+                    .font(.apple(16, weight: .semibold))
+                    .foregroundStyle(model.ready ? .white : Hue.control)
+                }
+                .buttonStyle(MeetupPillStyle(height: NewPostMetric.post, minWidth: NewPostMetric.postWidth, grey: !model.ready))
+                .turnBackShake(failures: model.shownFailures, shakes: !reduceMotion)
+                .disabled(!model.ready || model.busy)
+                .accessibilityLabel(model.busy ? "Posting" : NewPostCopy.post)
+            }
+            .padding(.leading, NewPostMetric.side - (NewPostMetric.tap - 26) / 2 + 2)
+            .padding(.trailing, NewPostMetric.side)
+            .frame(height: NewPostMetric.bar)
+        }
+        .animation(.easeOut(duration: 0.18), value: model.shownProblem)
+        .background(Hue.paper)
+        .overlay(alignment: .top) { Rectangle().fill(Hue.hairline).frame(height: 0.5) }
+    }
+
+    private func post() {
+        let api = CommunityAPI(auth: AuthStore.shared)
         Task {
-            guard let check = await model.share(api: CommunityAPI(auth: AuthStore.shared)) else { return }
-            switch check {
-            case .declined: return
-            case .live, .waiting:
-                onShared(model.posted(live: check == .live))
+            if model.event {
+                guard let check = await model.shareEvent(api: api) else { return }
+                switch check {
+                case .declined: return
+                case .live, .waiting:
+                    onShared(model.eventModel.posted(live: check == .live))
+                    dismiss()
+                }
+            } else if let input = await model.save(api: api) {
+                onPosted(PostOutbox.Sent(id: input.id, draft: model.draft, photo: model.photo, name: name, picture: picture))
                 dismiss()
             }
         }
     }
 }
 
-/// Instagram's New post, after the photo: the photo, the name, the rows, Share at the foot.
-private struct NewEventDetails: View {
-    @Bindable var model: NewEventModel
-    let share: () -> Void
-    let choosePlace: () -> Void
-    @FocusState private var naming: Bool
+enum NewPostCopy {
+    static let title = "New post"
+    static let placeholder = "What's on your mind?"
+    static let about = "Say something about it…"
+    static let eventName = "Name your event"
+    static let who = "Who can see this"
+    static let friends = "Friends"
+    static let tag = "Tag friends"
+    static let event = "Event"
+    static let change = "Change photo"
+    static let post = "Post"
+    static let discard = "Discard post?"
+    static let discardWhy = "If you leave now, you'll lose this post."
+    static let discardButton = "Discard"
+    static let keepEditing = "Keep editing"
+    static let done = "Done"
+    static let search = "Search friends"
+    static let noFriends = "Add friends to tag them here."
+}
+
+// MARK: - Tag friends
+
+/// Facebook's Tag people: your Friends, a search, the picked ones' faces on top, Done (round 2, step 5).
+private struct NewPostTag: View {
+    @Binding var tagged: [Neighbor]
+    @State private var words = ""
+    @Environment(FriendsBook.self) private var book
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var friends: [Neighbor] {
+        let typed = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        return typed.isEmpty ? book.friends : book.friends.filter { $0.displayName.localizedStandardContains(typed) }
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if let photo = model.photo {
-                    Image(uiImage: photo)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: NewEventMetric.photoWidth(photo.size), height: NewEventMetric.photoHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.newEventPhoto, style: .continuous))
-                        .padding(.top, NewEventMetric.photoTop)
-                        .accessibilityLabel("Your photo")
-                }
-                TextField(NewEventCopy.name, text: $model.draft.name, axis: .vertical)
-                    .font(.apple(16))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1...3)
-                    .focused($naming)
-                    .submitLabel(.done)
-                    .onChange(of: model.draft.name) { _, name in
-                        if name.contains("\n") { model.draft.name = name.replacingOccurrences(of: "\n", with: ""); naming = false }
-                        if name.count > NewEventDraft.nameLimit { model.draft.name = String(name.prefix(NewEventDraft.nameLimit)) }
-                        model.problem = nil
-                    }
-                    .padding(.top, NewEventMetric.nameTop)
-                    .padding(.bottom, NewEventMetric.nameBottom)
-                row(label: NewEventCopy.when, icon: {
-                    Image(systemName: "calendar").font(.glyph(NewEventMetric.symbol))
-                }) {
-                    DatePicker(NewEventCopy.when, selection: $model.draft.when, in: Date()...,
-                               displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
-                        // The town's clock, as Share sends it: a phone away from home picks St. Joseph's 7 PM.
-                        .environment(\.timeZone, Town.timeZone)
-                }
-                Button { naming = false; choosePlace() } label: {
-                    row(label: NewEventCopy.place, icon: { MapPinGlyph(size: NewEventMetric.icon) }) {
-                        HStack(spacing: 8) {
-                            Text(model.draft.location.isEmpty ? NewEventCopy.addPlace : model.draft.location)
-                                .font(.apple(17))
-                                .foregroundStyle(model.draft.location.isEmpty ? Hue.inkSecondary : Hue.ink)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(.apple(15, weight: .semibold))
-                                .foregroundStyle(Hue.control)
+        List {
+            if !tagged.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(tagged) { friend in
+                            Button { toggle(friend) } label: { face(friend) }
+                                .buttonStyle(PressableStyle(scale: 0.94))
+                                .accessibilityLabel("Untag \(friend.displayName)")
+                                .transition(.scale(scale: 0.6).combined(with: .opacity))
                         }
                     }
+                    .padding(.horizontal, NewPostMetric.side)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                .listRowSeparator(.hidden)
+            }
+            ForEach(friends) { friend in
+                let on = tagged.contains { $0.id == friend.id }
+                Button { toggle(friend) } label: {
+                    HStack(spacing: 12) {
+                        Avatar(friend.avatarUrl.flatMap(URL.init(string:)), size: NewPostMetric.friendFace)
+                        Text(friend.displayName)
+                            .font(.sansMedium(16))
+                            .foregroundStyle(Hue.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                            .font(.glyph(24))
+                            .foregroundStyle(on ? Hue.ink : Hue.edge)
+                            .contentTransition(.symbolEffect(.replace))
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: NewPostMetric.friendRow)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle(scale: 0.98))
+                .buttonStyle(RowPressStyle())
+                .accessibilityAddTraits(on ? .isSelected : [])
+                .listRowInsets(NewEventMetric.placeInsets)
+                .listRowSeparator(.hidden)
             }
-            .padding(.horizontal, NewEventMetric.side)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if book.loaded && book.friends.isEmpty {
+                Text(NewPostCopy.noFriends)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .listRowSeparator(.hidden)
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom, spacing: 0) { foot }
-        .navigationTitle(NewEventCopy.title)
+        .listStyle(.plain)
+        .scrollDismissesKeyboard(.immediately)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            FriendsSearchField(words: $words)
+                .padding(.horizontal, NewPostMetric.side)
+                .padding(.vertical, 8)
+                .background(Hue.surface)
+        }
+        .animation(reduceMotion ? nil : Motion.smooth, value: tagged)
+        .navigationTitle(NewPostCopy.tag)
         .navigationBarTitleDisplayMode(.inline)
-        .background(Hue.surface)
-        .onAppear { if model.draft.name.isEmpty { naming = true } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(NewPostCopy.done) { dismiss() }.fontWeight(.semibold)
+            }
+        }
+        .task { if !book.loaded { await book.refresh() } }
     }
 
-    /// The check's no sits over Share, where the eye already is.
-    private var foot: some View {
-        VStack(alignment: .leading, spacing: NewEventMetric.problemGap) {
-            if let problem = model.problem {
-                Text(problem)
-                    .font(.apple(15))
-                    .foregroundStyle(Hue.declined)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
-            }
-            Button(action: share) {
-                ZStack {
-                    Text(NewEventCopy.share).opacity(model.sharing ? 0 : 1)
-                    // The one spinner a control may carry: its own action in flight (design.md).
-                    if model.sharing { ProgressView().tint(Hue.paper) }
+    private func face(_ friend: Neighbor) -> some View {
+        VStack(spacing: 6) {
+            Avatar(friend.avatarUrl.flatMap(URL.init(string:)), size: NewPostMetric.pickedFace)
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "xmark")
+                        .font(.glyph(9, weight: .heavy))
+                        .foregroundStyle(Hue.paper)
+                        .frame(width: 20, height: 20)
+                        .background(Hue.ink, in: Circle())
+                        .overlay { Circle().strokeBorder(Hue.paper, lineWidth: 2) }
+                        .offset(x: 2)
                 }
-                .font(.apple(15, weight: .semibold))
-                .foregroundStyle(model.draft.ready ? Hue.paper : Hue.inkSecondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: NewEventMetric.shareHeight)
-                .background(model.draft.ready ? Hue.ink : Hue.fill,
-                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle(scale: 0.97, haptic: model.draft.ready))
-            .turnBackShake(failures: model.failures, shakes: !reduceMotion)
-            .disabled(!model.draft.ready || model.sharing)
-            .accessibilityLabel(model.sharing ? "Sharing" : NewEventCopy.share)
+            Text(friend.firstName)
+                .font(.sansMedium(12))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
         }
-        .animation(.easeOut(duration: 0.18), value: model.problem)
-        .padding(.horizontal, NewEventMetric.side)
-        .padding(.top, NewEventMetric.problemGap)
-        .padding(.bottom, NewEventMetric.shareBottom)
-        .background(Hue.surface)
+        .frame(width: 64)
     }
 
-    /// Instagram's row: a 24 pt outline icon, the label, what it's set to at the right.
-    private func row<Icon: View, Trailing: View>(label: String, @ViewBuilder icon: () -> Icon,
-                                                 @ViewBuilder trailing: () -> Trailing) -> some View {
-        HStack(spacing: NewEventMetric.iconGap) {
-            icon()
-                .frame(width: NewEventMetric.icon, height: NewEventMetric.icon)
-                .accessibilityHidden(true)
-            Text(label).font(.apple(17))
-            Spacer(minLength: 8)
-            trailing()
+    private func toggle(_ friend: Neighbor) {
+        Haptics.light()
+        if let i = tagged.firstIndex(where: { $0.id == friend.id }) {
+            tagged.remove(at: i)
+        } else if tagged.count < NewPostDraft.tagLimit {
+            tagged.append(friend)
         }
-        .foregroundStyle(Hue.ink)
-        .frame(minHeight: NewEventMetric.row)
     }
 }
 
-/// Facebook's Add location: Search's field over the town's places; a name not among them is used
-/// as typed. Not `.searchable`: chosen while its field was still active, the search stayed up as a
-/// bar over Share on the page underneath (recorded 2026-11-01).
+/// Round 2's measurements (BP app references/post-screen/round2.py), at 1 CSS px = 1 pt.
+private nonisolated enum NewPostMetric {
+    static let side: CGFloat = 16
+    /// Under the bar to your picture.
+    static let whoTop: CGFloat = 4
+    static let picture: CGFloat = 60
+    static let whoGap: CGFloat = 12
+    static let pillTop: CGFloat = 5
+    static let pill: CGFloat = 26
+    static let chipsTop: CGFloat = 18
+    static let chip: CGFloat = 34
+    static let chipGap: CGFloat = 8
+    static let chipIcon: CGFloat = 17
+    static let chipFace: CGFloat = 22
+    /// Apple's tap target.
+    static let tap: CGFloat = 44
+    static let wordsTop: CGFloat = 16
+    static let bigWords: CGFloat = 24
+    static let words: CGFloat = 17
+    static let photoTop: CGFloat = 14
+    static let onPhoto: CGFloat = 32
+    static let onPhotoInset: CGFloat = 12
+    static let eventName: CGFloat = 26
+    static let nameBottom: CGFloat = 8
+    static let row: CGFloat = 54
+    static let icon: CGFloat = 22
+    static let symbol: CGFloat = 19
+    static let bar: CGFloat = 54
+    static let post: CGFloat = 38
+    static let postWidth: CGFloat = 74
+    static let friendFace: CGFloat = 44
+    static let friendRow: CGFloat = 60
+    static let pickedFace: CGFloat = 56
+}
+
 private struct NewEventPlace: View {
     let places: [SearchItem]
     @Binding var place: String
@@ -446,28 +1096,10 @@ private struct NewEventPlace: View {
     }
 }
 
-/// Instagram's New post, MEASURED on Mobbin (2026-11-01, BP app references/town-plus/ig-new-post.jpg):
-/// 16 pt sides, the photo 140 pt tall 20 pt under the bar, rows 48 pt with a 24 pt icon and the
-/// label at 52, Share 43 pt tall. Facebook's Add location rows for Place.
+/// Facebook's Add location rows for Place (town-plus).
 private nonisolated enum NewEventMetric {
     static let side: CGFloat = 16
-    static let photoTop: CGFloat = 20
-    static let photoHeight: CGFloat = 140
-    /// The photo keeps its shape at 140 tall, as Instagram's does, no wider than the page.
-    static func photoWidth(_ size: CGSize) -> CGFloat {
-        guard size.height > 0 else { return photoHeight }
-        return min(photoHeight * size.width / size.height, 361)
-    }
-    static let nameTop: CGFloat = 24
-    static let nameBottom: CGFloat = 28
-    static let row: CGFloat = 48
-    static let icon: CGFloat = 24
-    /// SF's calendar at 21 fills the same 24 pt box the pin does.
-    static let symbol: CGFloat = 21
     static let iconGap: CGFloat = 12
-    static let shareHeight: CGFloat = 43
-    static let shareBottom: CGFloat = 8
-    static let problemGap: CGFloat = 12
     static let placeMark: CGFloat = 40
     static let placeRow: CGFloat = 56
     static let searchPad: CGFloat = 8
