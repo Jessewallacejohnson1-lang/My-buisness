@@ -76,12 +76,12 @@ THE RULES
   Goes live: every kept item is published (events `approved`, news `published`), official or
     secondhand, on its first mention (Jesse, 2026-10-26: "only hold back if its the exact same").
     Nothing waits for review; the only thing kept out is a repeat.
-  News repeats: one News is one link (smooth-mornings 05). News from the same source with the
-    same link of its own (a post's address, a feed item's link; own_link) as a live News of the
-    last 7 days is a repeat however its title is worded: apply_judged leaves it out. This
-    morning's News from one post fold into the first one, whose blurb names the others ("Also:
-    ..."). Links compare without tracking, a trailing slash, or Facebook's and Instagram's m.
-    (clean_link). A site's home page or a page the registry or the social watch reads is no link
+  News repeats, decided here before anything is sent (BP app codebase-health-2 04): one News is one
+    link (smooth-mornings 05). News from the same source with the same link of its own (a post's
+    address, a feed item's link; own_link) as a published News of the last 7 days is a repeat
+    however its title is worded. This morning's News from one post fold into the first one, whose
+    blurb names the others ("Also: ..."). Links compare without tracking, a trailing slash, or
+    Facebook's and Instagram's m. (clean_link). A site's home page or a page the registry or the social watch reads is no link
     of its own, since every News read from it shares it. And News from the same place in the last
     7 days (as long as the Town feed shows it) with much the same title (two shared words at
     least, two thirds of the shorter title's, the place's own name, weekdays, free and new not
@@ -715,8 +715,7 @@ def news_of(it, interests, notes):
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
             "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
             # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
-            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"]),
-            "own_link": own_link(url)}, None
+            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
 
 
 TRACKING = re.compile(r"igsh|img_index|utm_.*|fbclid", re.I)
@@ -746,7 +745,7 @@ _PAGES = None
 
 def own_link(url):
     """Whether a News item's link is its own (a post's address, a feed item's link), so the same link
-    from the same source again is a repeat (apply_judged). A site's home page, or a page the registry
+    from the same source again is a repeat (repeat_of). A site's home page, or a page the registry
     or the social watch reads, is the link of every News read from it: Stearns County gives its home
     page for all its news, Kennedy its calendar's ?cal_date=2026-11-01 for each day off in November.
     Those keep the title rule alone."""
@@ -766,7 +765,12 @@ def mention(it, uid):
 
 
 def repeat_of(n, recent):
-    """News already in the app from the same place this week, under much the same title
+    """News already in the app from the same source this week with the same link of its own (own_link), whatever
+    its title says: The North Table's brunch post (instagram.com/p/De3AnqRDaIV) was written twice on Oct 23 and
+    24 under two wordings. Only a published one created in the last 7 days counts (the Town feed's week, Chicago's
+    now): a landing page (legion.org/sweepstakes) can carry a different News next month, and this morning's News
+    from one post fold into one instead (plan).
+    Or News already in the app from the same place this week, under much the same title
     (Flour & Flower's Thanksgiving orders went up three times in three days, 2026-10-26).
     The place's own name doesn't count, and two shared words at least: "Flavor of the Week:
     Malt Amore" is not last week's "Flavor of the Week: Pumpkin Pie". A different number or
@@ -778,7 +782,11 @@ def repeat_of(n, recent):
     "Build Your Own Boo Baskets" were one offer posted three times (Oct 26 and 27). Weekdays and words
     like free and new say nothing of which offer: "FREE coffee Friday" is not "Free cookie Friday"."""
     stop = STOP | FILLER
+    since, linked = datetime.now(LOCAL) - timedelta(7), own_link(n["source_url"])
     for old in recent:
+        if (linked and old["source_name"] == n["source_name"] and same_link(old.get("source_url"), n["source_url"])
+                and old.get("status") == "published" and old.get("created_at") and local(old["created_at"]) >= since):
+            return old
         if (old.get("place_entry_id") or old["source_name"]) != (n["place_entry_id"] or n["source_name"]):
             continue
         (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"], n["title"]), marks(n["title"], old["title"])
@@ -859,8 +867,8 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 continue
             # One post is one News (smooth-mornings 05): a second News from the same post joins the first's
             # blurb by its title (Well & Company's one post was three News on Oct 23).
-            post = n["own_link"] and next((m for m in news.values() if m["own_link"] and m["source_name"] == n["source_name"]
-                                           and same_link(m["source_url"], n["source_url"])), None)
+            post = own_link(n["source_url"]) and next((m for m in news.values() if m["source_name"] == n["source_name"]
+                                                       and same_link(m["source_url"], n["source_url"])), None)
             if post:
                 also.setdefault(id(post), (post, []))[1].append(n["title"])
                 out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
@@ -1031,9 +1039,9 @@ def listed_in_db():
 
 def news_in_db(now=None):
     """The News already in the app from the 7 days the Town feed shows it (Chicago's now minus 7 days),
-    for repeat_of."""
+    with each one's link, status and created time, for repeat_of."""
     since = ((now or datetime.now(LOCAL)) - timedelta(7)).replace(microsecond=0).isoformat()
-    return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id"
+    return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at"
                                   f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
 
 
@@ -1555,7 +1563,7 @@ def t_past_and_invalid_skipped():
 
 def t_one_news_one_link():
     """One News is one link (smooth-mornings 05): a post's address or a feed item's link is its own, so
-    apply_judged takes it again from the same source as a repeat. A home page, or a page the registry
+    repeat_of takes it again from the same source as a repeat. A home page, or a page the registry
     or the social watch reads, is shared by every News read from it, so it keeps the title rule alone."""
     own = [own_link(u) for u in ("https://www.instagram.com/p/DeBoo/",
                                  "https://thenewsleaders.com/where-do-i-vote-on-election-day-nov-3/",
@@ -1571,7 +1579,34 @@ def t_one_news_one_link():
     assert not own_link("https://m.facebook.com/BoDiddleysDeli")
     assert same_link("https://www.instagram.com/p/DeBoo", "https://m.instagram.com/p/DeBoo/?igsh=MW1")
     r = run([item(kind="news", title="Boo baskets", start=None, source_url="https://m.instagram.com/p/DeBoo/?igsh=MW1")])
-    assert [(n["source_url"], n["own_link"]) for n in payloads(r)["p_news"]] == [("https://www.instagram.com/p/DeBoo/", True)]
+    assert [n["source_url"] for n in payloads(r)["p_news"]] == ["https://www.instagram.com/p/DeBoo/"]
+
+
+def t_news_same_link_this_week():
+    """The plan decides the link rule (codebase-health-2 04; it was apply_judged's): The North Table's brunch post,
+    written again under another title, is a repeat while a published News of the last 7 days from the same source
+    has it. Older than 7 days, archived, or from another source, it is not. The same title under another link is
+    a repeat by title, and an item with no link of its own (a home page) keeps the title rule alone."""
+    post, home = "https://www.instagram.com/p/De3AnqRDaIV/", "https://www.thenorthtable.com/"
+    table = dict(kind="news", start=None, category="business", source_name="The North Table", source_url=post)
+
+    def live(url=post, days=2, status="published", source="The North Table"):
+        return {"title": "Sunday brunch is back", "source_name": source, "place_entry_id": where(None, source),
+                "source_url": url, "status": status, "created_at": (datetime.now(LOCAL) - timedelta(days)).isoformat()}
+
+    def outcome_of(title, old, url=post):
+        r = plan([item(title=title, **dict(table, source_url=url))], [], TODAY, INTERESTS, recent_news=[old])
+        return r["outcomes"][0][0]
+
+    reworded = "Bottomless mimosas with brunch"
+    assert outcome_of(reworded, live()) == "repeat"
+    assert outcome_of(reworded, live(), "https://m.instagram.com/p/De3AnqRDaIV?igsh=MW1") == "repeat", "one link shared two ways"
+    assert outcome_of(reworded, live(days=8)) == "news", "older than the Town feed's week"
+    assert outcome_of(reworded, live(status="archived")) == "news"
+    assert outcome_of(reworded, live(source="Newsleaders")) == "news", "only the same source's"
+    assert outcome_of("Sunday brunch is back", live(), "https://www.instagram.com/p/DfOther/") == "repeat", "by title"
+    assert outcome_of(reworded, live(url=home), home) == "news", "a home page is no link of its own"
+    assert outcome_of("Sunday brunch is back", live(url=home), home) == "repeat", "the title rule still holds"
 
 
 def t_one_post_is_one_news():
@@ -1591,8 +1626,8 @@ def t_one_post_is_one_news():
 
 
 def t_news_look_back_is_the_feeds_week():
-    """The title rule looks back over the 7 days the Town feed shows News (smooth-mornings 05), not 6,
-    counted from Chicago's now rather than a midnight."""
+    """Both rules look back over the 7 days the Town feed shows News (smooth-mornings 05), not 6,
+    counted from Chicago's now rather than a midnight, and the link rule needs each one's link."""
     global Supabase
     asked, saved = [], Supabase
     Supabase = lambda: type("Db", (), {"rest": lambda self, method, path: asked.append(path) or []})()
@@ -1601,6 +1636,7 @@ def t_news_look_back_is_the_feeds_week():
     finally:
         Supabase = saved
     assert asked[0].endswith("&created_at=gte.2026-10-22T21:40:12-05:00"), asked
+    assert "select=title,source_name,place_entry_id,source_url,status,created_at&" in asked[0], asked
 
 
 def t_writes_are_one_safe_call():
@@ -1923,7 +1959,7 @@ def t_one_host_two_names():
 
 TESTS = [t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_one_news_one_link, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
+         t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,

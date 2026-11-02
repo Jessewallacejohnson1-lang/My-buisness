@@ -92,7 +92,7 @@ const game = (date, more = {}) => ({ status: 'approved', title: 'Sartell Volleyb
   team_ids: ['rocori', 'sartell'], team_names: ['ROCORI', 'Sartell'], occasion: 'Senior Night', ...more });
 const news = { title: 'Flight Friday', blurb: 'Four scoops for $5 on Fridays.', category: 'business',
   source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/x/', tier: 1, status: 'published',
-  starts_at: null, interests: ['breweries'], place_entry_id: 'cow-wandering', own_link: true };
+  starts_at: null, interests: ['breweries'], place_entry_id: 'cow-wandering' };
 // write_judged.payloads' six lists.
 const apply = (events, mentions, news, cancelled = [], restored = []) => asJob('apply_judged',
   'select public.apply_judged($1, $2, $3, $4, $5, $6) as r',
@@ -129,10 +129,10 @@ test('prepare and write: the registry sync, the listed events, apply_judged and 
   assert.deepEqual([first.events, first.mentions, first.news, first.added], [1, 1, 1, { events: [0], news: [0] }]);
   const [{ id }] = await asJob('read back', 'select id from public.club_events');
   // The next morning it moved a day and its schedule dropped it, then another school listed it again. The
-  // same post came back reworded: one News is one link.
+  // same News came back: written over the one there, not added (a reworded repeat the plan leaves out).
   const next = await apply([game(day(8), { description: 'Senior night: the Storm honors its seniors before the game.' })],
-    [], [{ ...news, title: 'Four scoops for $5 every Friday' }]);
-  assert.deepEqual([next.events, next.news, next.added], [1, 0, { events: [], news: [] }]);
+    [], [{ ...news, blurb: 'Four scoops for $5 every Friday.' }]);
+  assert.deepEqual([next.events, next.news, next.added], [1, 1, { events: [], news: [] }]);
   assert.equal((await apply([], [], [], [id])).cancelled, 1);
   assert.equal((await apply([], [], [], [], [id])).restored, 1);
   await asJob('write: fingerprints', `update public.sources set last_hash = $3, last_changed_at = now()
@@ -184,7 +184,8 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     (select count(*) from public.event_rsvps r where r.event_id = e.id) as going,
     (select count(*) from public.event_likes l where l.event_id = e.id) as likes
     from public.club_events e left join public.clubs c on c.id = e.club_id`);
-  await asJob('reads: News', 'select title, source_name, place_entry_id from public.board_items');
+  await asJob('reads: News', `select title, source_name, place_entry_id, source_url, status, created_at
+    from public.board_items`);
   await asJob('reads: teams', 'select id, name, short_name, aliases from public.teams');
   await asJob('event_picture', 'select public.event_picture($1)', [id]);
   await asJob('photos: what each place has', 'select id, entry_id, position, url, source_url, credit, added_at, kind, status from public.place_photos');
