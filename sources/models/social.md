@@ -69,7 +69,7 @@ carry on with the rest.
    "Read `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with
    the JSON lines only." Write their lines to `.runs/morning/event_photos.jsonl`, then run
    `python3 sources/scripts/event_photos.py keep`. Each new Event that isn't a game gets the real photo of
-   it a helper picked from its post or its place's other posts, or none (event-photos 09).
+   it a helper picked from its post or its place's other posts, else its own flyer, or none (event-photos 09).
 
 **Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next

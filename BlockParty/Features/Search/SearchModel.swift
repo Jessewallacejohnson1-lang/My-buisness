@@ -201,11 +201,14 @@ final class SearchModel {
     private let defaults: UserDefaults
     /// Told every groups read, so a Group page knows who is in what (rsvp-and-groups 06).
     private let actions: RealLifeActions?
+    /// Every read goes through the session's one client (`AppSession`).
+    private let api: CommunityAPI
     private var fixed = SearchModel.parks() + SearchModel.samples()
     static let recentsKey = "search.recents"
     static let recentsMax = 8
 
-    init(defaults: UserDefaults = .standard, actions: RealLifeActions? = nil) {
+    init(supabase: Supabase, defaults: UserDefaults = .standard, actions: RealLifeActions? = nil) {
+        api = CommunityAPI(supabase)
         self.defaults = defaults
         self.actions = actions
         recentIDs = defaults.stringArray(forKey: Self.recentsKey) ?? Self.sampleRecents
@@ -218,7 +221,6 @@ final class SearchModel {
     /// (2 s, 4 s, … 30 s apart) until all are in: offline, the rows wait as skeletons rather than
     /// vanish, and places read without their photos show their logos until a retry brings the photos.
     func load() async {
-        let api = CommunityAPI(auth: AuthStore.shared)
         var wait = 2.0
         while !(placesLoaded && photosLoaded && groupsLoaded) && !Task.isCancelled {
             let needPlaces = !placesLoaded, needPhotos = !photosLoaded, needGroups = !groupsLoaded
@@ -258,7 +260,7 @@ final class SearchModel {
     /// The groups again for a new account, so whether you're in is this one's. The shelf keeps
     /// the last read meanwhile, and keeps it if this one fails.
     func readGroupsAgain() async {
-        if let groups = try? await CommunityAPI(auth: AuthStore.shared).getGroups() { show(groups) }
+        if let groups = try? await api.getGroups() { show(groups) }
     }
 
     // MARK: Rows

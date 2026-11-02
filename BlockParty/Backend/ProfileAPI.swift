@@ -12,6 +12,8 @@ struct ProfileAPI {
     let db: Supabase
 
     init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
+    /// Through a client already made: the session's one (`AppSession`).
+    init(_ db: Supabase) { self.db = db }
 
     /// The signed-in user's row, or nil if they have none yet. RLS scopes the
     /// select to the caller, so no explicit user_id filter is needed.
@@ -49,9 +51,7 @@ struct ProfileAPI {
                 bio: String? = nil, coverUrl: String? = nil) async throws {
         let uid = try db.userID
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        let now = iso.string(from: Date())
+        let now = DateHelpers.timestampString(Date())
 
         var b: [String: Any] = [
             "user_id": uid,
@@ -73,9 +73,7 @@ struct ProfileAPI {
     /// is left alone (BP app onboarding 16).
     func markOnboarded(birthday: Date? = nil, interests: [String] = []) async throws {
         let uid = try db.userID
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        var row: [String: Any] = ["user_id": uid, "onboarded_at": iso.string(from: Date())]
+        var row: [String: Any] = ["user_id": uid, "onboarded_at": DateHelpers.timestampString(Date())]
         // Onboarding's birthday (ticket 19), private to this account, and its picks (20): the two
         // answers the Town feed sorts by, in the same write, so its first read has them (24).
         if let birthday { row["birthday"] = OnboardingAge.day.format(birthday) }

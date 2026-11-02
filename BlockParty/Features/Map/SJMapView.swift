@@ -50,12 +50,12 @@ struct SJMapView: View {
     @State private var zoom = MapZoom()
     /// Today's bubbles as drawn: merged where they touch at the zoom the camera last settled at.
     @State private var shown: [TodayBubble] = []
-    @State private var selectedID: String?
-    @State private var page = 0
+    /// The open card and the camera moves it makes (MapFocus.swift).
+    @State private var focus = MapFocus()
     @State private var path: [FeedCardItem] = []
     @State private var mapSize: CGSize = .zero
 
-    private var selected: TodayBubble? { shown.first { $0.id == selectedID } }
+    private var selected: TodayBubble? { shown.first { $0.id == focus.selectedID } }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -63,7 +63,7 @@ struct SJMapView: View {
                 MapReader { proxy in mapLayer(proxy) }
                 chrome
                 if let bubble = selected {
-                    MapEventCard(events: bubble.events, page: $page,
+                    MapEventCard(events: bubble.events, page: $focus.page,
                                  onOpen: { open($0) }, onClose: { select(nil) })
                         .id(bubble.id)
                         .padding(.horizontal, MapEventCard.sideInset)
@@ -100,17 +100,17 @@ struct SJMapView: View {
         Map(viewport: $viewport) {
             ForEvery(shown) { bubble in
                 MapViewAnnotation(coordinate: bubble.coordinate) {
-                    TodayEventBubble(bubble: bubble, zoom: zoom, selected: bubble.id == selectedID) {
+                    TodayEventBubble(bubble: bubble, zoom: zoom, selected: bubble.id == focus.selectedID) {
                         select(bubble)
                     }
                 }
                 .allowOverlap(true)
                 // The tapped one sits on top.
-                .priority(bubble.id == selectedID ? 1 : 0)
+                .priority(bubble.id == focus.selectedID ? 1 : 0)
             }
             // A tap on the map itself, past any bubble, closes the card.
             TapInteraction { _ in
-                if selectedID != nil { select(nil) }
+                select(nil)
                 return false
             }
         }
@@ -168,7 +168,7 @@ struct SJMapView: View {
         #endif
         guard let wasOpen, selected == nil else { return }
         if let into = merged.first(where: { $0.events.contains { $0.id == wasOpen.event.id } }) {
-            selectedID = into.id
+            focus.follow(into)
         } else {
             select(nil)
         }
@@ -248,23 +248,14 @@ struct SJMapView: View {
     // MARK: Actions
 
     /// Open a bubble's card and lift the bubble into the map above it; nil closes the card and
-    /// lets the map settle level again.
+    /// lets the map settle level again (no move when no card is up).
     private func select(_ bubble: TodayBubble?) {
-        let center = bubble?.coordinate ?? compass.center
-        var camera = Viewport.camera(center: center, zoom: compass.zoom)
-        if bubble != nil {
-            Haptics.light()
-            let photo = (mapSize.width - 2 * MapEventCard.sideInset) * 198.6 / 352.7
-            camera.padding = EdgeInsets(top: 110, leading: 0,
-                                        bottom: photo + 110 + MapEventCard.bottomInset, trailing: 0)
+        if bubble != nil { Haptics.light() }
+        let move: MapFocus.Move? = withAnimation(cardSpring) {
+            guard let bubble else { return focus.close(from: camera) }
+            return focus.open(bubble, from: camera, mapWidth: mapSize.width)
         }
-        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)) {
-            selectedID = bubble?.id
-            page = 0
-        }
-        if bubble != nil || selectedID == nil {
-            if reduceMotion { viewport = camera } else { withViewportAnimation(.easeOut(duration: 0.45)) { viewport = camera } }
-        }
+        if let move { fly(move) }
     }
 
     private func open(_ item: FeedCardItem) {
@@ -275,17 +266,29 @@ struct SJMapView: View {
     /// Back to the opening view over the Town, card closed.
     private func flyHome() {
         Haptics.light()
-        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)) { selectedID = nil }
-        let home = { viewport = .camera(center: MapSpots.center, zoom: Self.openZoom) }
-        if reduceMotion { home() } else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
+        fly(withAnimation(cardSpring) { focus.home() })
     }
 
     /// The compass's tap: face north and level, in place.
     private func resetNorth() {
         Haptics.light()
-        let level = { viewport = .camera(center: compass.center, zoom: compass.zoom, bearing: 0, pitch: 0) }
-        if reduceMotion { level() } else { withViewportAnimation(.easeOut(duration: 0.4)) { level() } }
+        fly(focus.level(from: camera))
     }
+
+    /// The one camera move: animated as the move says, or a jump when Reduce Motion is on.
+    private func fly(_ move: MapFocus.Move) {
+        if reduceMotion {
+            viewport = move.viewport
+        } else {
+            withViewportAnimation(move.animation) { viewport = move.viewport }
+        }
+    }
+
+    /// Where the camera is now, as the map last reported it.
+    private var camera: MapFocus.Camera { MapFocus.Camera(center: compass.center, zoom: compass.zoom) }
+
+    /// The card's rise and fall.
+    private var cardSpring: Animation? { reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86) }
 
     /// Tilt stops at 70°: past it the horizon smears. `setCameraBounds` throws, so the failure
     /// is logged rather than swallowed.
@@ -332,7 +335,7 @@ struct SJMapView: View {
     /// `-map-open-bubble <n>` opens the card of the nth bubble (0 the soonest) once there is
     /// one, for screenshots of the card.
     private func debugOpenBubble() {
-        guard selectedID == nil, !Self.debugOpened,
+        guard focus.selectedID == nil, !Self.debugOpened,
               let n = LaunchFlags.value(.mapOpenBubble).flatMap(Int.init), shown.indices.contains(n) else { return }
         Self.debugOpened = true
         select(shown[n])

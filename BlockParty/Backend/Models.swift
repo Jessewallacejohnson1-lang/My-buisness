@@ -357,7 +357,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
             let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
             self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
-            at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
+            at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap { DateHelpers.timestamp($0) }
             // One that doesn't read is none: it never costs the score.
             drive = (try? c.decodeIfPresent(Drive.self, forKey: .drive)) ?? nil
             let int = { (key: CodingKeys) in ((try? c.decodeIfPresent(Int.self, forKey: key)) ?? nil).flatMap { $0 > 0 ? $0 : nil } }
@@ -369,15 +369,6 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             // A count the server hasn't started over for this period yet is none, so no stale Bonus shows.
             let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
             self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
-        }
-
-        /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".
-        private static func parse(_ text: String) -> Date? {
-            let f = ISO8601DateFormatter()
-            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let d = f.date(from: text) { return d }
-            f.formatOptions = [.withInternetDateTime]
-            return f.date(from: text)
         }
     }
 

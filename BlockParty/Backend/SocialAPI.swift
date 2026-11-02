@@ -14,6 +14,8 @@ struct SocialAPI {
     let db: Supabase
 
     init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
+    /// Through a client already made: the session's one (`AppSession`).
+    init(_ db: Supabase) { self.db = db }
 
     // MARK: - Likes
 
