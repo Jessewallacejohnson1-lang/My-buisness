@@ -74,6 +74,27 @@ enum NewEventCopy {
     static let discardButton = "Discard"
 }
 
+/// Place's list (Jesse, 2026-11-01: "Parks and places to eat or drink, then the rest"): Search's
+/// parks, food, coffee and businesses, the likely ones first, A–Z inside each.
+enum NewEventPlaces {
+    static func ordered(_ items: [SearchItem]) -> [SearchItem] {
+        items.filter { [.business, .restaurant, .coffee, .park].contains($0.kind) }
+            .sorted { a, b in
+                let (ea, eb) = (likely(a), likely(b))
+                return ea != eb ? ea : a.name.localizedStandardCompare(b.name) == .orderedAscending
+            }
+    }
+
+    /// A park, somewhere to eat, coffee, or a business Google calls a bar, brewery, pub, winery or
+    /// distillery.
+    // ponytail: drink places are read off Google's type words; one typed otherwise sorts with the rest.
+    static func likely(_ item: SearchItem) -> Bool {
+        item.kind != .business || item.keywords.contains { !Set($0.split(separator: " ").map(String.init)).isDisjoint(with: drink) }
+    }
+
+    private static let drink: Set<String> = ["bar", "brewery", "brewpub", "pub", "taproom", "winery", "distillery"]
+}
+
 // MARK: - The model
 
 @MainActor @Observable
@@ -269,9 +290,6 @@ private struct NewEventDetails: View {
                         .labelsHidden()
                         // The town's clock, as Share sends it: a phone away from home picks St. Joseph's 7 PM.
                         .environment(\.timeZone, Town.timeZone)
-                        // Opening the calendar puts the keyboard away first, so it doesn't come back
-                        // when the calendar closes (recorded 2026-11-01).
-                        .simultaneousGesture(TapGesture().onEnded { naming = false })
                 }
                 Button { naming = false; choosePlace() } label: {
                     row(label: NewEventCopy.place, icon: { MapPinGlyph(size: NewEventMetric.icon) }) {

@@ -62,6 +62,22 @@ final class NewEventTests: XCTestCase {
         XCTAssertEqual(draft.location.count, NewEventDraft.placeLimit)
     }
 
+    func testPlaceListsParksAndPlacesToEatOrDrinkFirst() {
+        let items = [
+            SearchItem(id: "1", kind: .business, name: "Autobody 2000", keywords: ["car repair"]),
+            SearchItem(id: "2", kind: .business, name: "Bad Habit Brewing", keywords: ["brewery"]),
+            SearchItem(id: "3", kind: .park, name: "Millstream Park"),
+            SearchItem(id: "4", kind: .restaurant, name: "Bello Cucina", keywords: ["italian restaurant"]),
+            SearchItem(id: "5", kind: .business, name: "Barber Bros", keywords: ["barber shop"]),
+            SearchItem(id: "6", kind: .coffee, name: "The Local Blend", keywords: ["coffee shop"]),
+            SearchItem(id: "7", kind: .event, name: "Rocktoberfest"),
+            SearchItem(id: "8", kind: .business, name: "Sal's", keywords: ["bar and grill"]),
+        ]
+        XCTAssertEqual(NewEventPlaces.ordered(items).map(\.name),
+                       ["Bad Habit Brewing", "Bello Cucina", "Millstream Park", "Sal's", "The Local Blend",
+                        "Autobody 2000", "Barber Bros"])
+    }
+
     func testTheChecksAnswerReads() {
         XCTAssertEqual(CommunityAPI.check(ok: true, reason: ""), .live)
         XCTAssertEqual(CommunityAPI.check(ok: false, reason: "This reads like an ad."), .declined("This reads like an ad."))
