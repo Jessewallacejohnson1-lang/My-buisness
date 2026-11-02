@@ -482,7 +482,7 @@ as $$
   -- news: an older app can't read a row without a date. A Friends-only post reaches only the poster and
   -- their friends: the read rule on club_events keeps it from everyone else, here too (security invoker).
   posts as (
-    select e.id, e.title, e.location, e.image_url, e.created_at, e.submitted_by, e.tagged,
+    select e.id, e.title, e.location, e.image_url, e.image_aspect, e.friends_only, e.created_at, e.submitted_by, e.tagged,
            e.submitted_by = auth.uid() as mine
     from public.club_events e
     where p_news and not p_later
@@ -631,7 +631,12 @@ as $$
          exists (select 1 from public.event_likes h where h.event_id = p.id and h.user_id = auth.uid()),
          false, false, '[]'::jsonb, null::jsonb,
          null::text, null::uuid, false, null::jsonb, null::text,
-         'post'::text, null::text, null::jsonb, private.post_poster(p.submitted_by, p.tagged), s.spot
+         'post'::text, null::text, null::jsonb,
+         -- and the post's own: its photo's shape, which sets the card's before the photo loads, and whether
+         -- only friends see it, which its card says.
+         private.post_poster(p.submitted_by, p.tagged)
+           || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only)),
+         s.spot
   from posts_scored p
   join spots s on s.id = p.id
   )

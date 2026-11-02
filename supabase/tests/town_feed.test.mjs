@@ -58,7 +58,7 @@ await db.exec(`
     source_name text, shows_from date, place_entry_id text, description text,
     sport text, team_ids text[], occasion text, source_url text,
     -- A post (town-feed 29): who may see it and who it's with.
-    friends_only boolean not null default false, tagged uuid[]);
+    friends_only boolean not null default false, tagged uuid[], image_aspect real);
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
@@ -2733,11 +2733,11 @@ test('a later round: unopened places first, a new order each round, one repeat u
 // days once the check said yes. The app asks with p_news, as it does for news.
 async function post(by, words, more = {}) {
   await db.exec('reset role');
-  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, ...more };
+  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, aspect: null, ...more };
   const { rows } = await db.query(
-    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url)
-     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7) returning id`,
-    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo]);
+    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url, image_aspect)
+     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7, $8) returning id`,
+    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo, row.aspect]);
   return rows[0].id;
 }
 async function posts(at, news = true) {
@@ -2756,7 +2756,7 @@ test('a neighbour\'s post shows for 7 days with who posted it, and only to an ap
   const [row] = await posts('2026-10-08 12:00');
   assert.equal(row.title, 'Anyone up for sledding?');
   assert.equal(row.event_date, null);
-  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [] });
+  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [], friends_only: false });
   assert.deepEqual(await posts('2026-10-08 12:00', false), [], 'an older app never gets a row with no date');
   assert.deepEqual(await postTitles('2026-10-15 08:59'), ['Anyone up for sledding?']);
   assert.deepEqual(await postTitles('2026-10-15 09:01'), [], 'gone after 7 days');
@@ -2789,6 +2789,8 @@ test('a Friends-only post reaches the poster and their friends, and no one else'
   assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
   await signIn(ANNA);
   assert.deepEqual((await postTitles('2026-10-08 12:00')).sort(), ['For the Town', 'Just for friends']);
+  assert.deepEqual((await posts('2026-10-08 12:00')).map((r) => [r.title, r.poster.friends_only]).sort(),
+                   [['For the Town', false], ['Just for friends', true]], 'and its card says who can see it');
   await signIn(BEN);
   assert.deepEqual(await postTitles('2026-10-08 12:00'), ['For the Town']);
   await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
@@ -2859,4 +2861,13 @@ test('the poster names the friends they tagged, in their order', async () => {
   await signIn(ME);
   const [row] = await posts('2026-10-08 12:00');
   assert.deepEqual(row.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }]);
+});
+
+test('a post with a photo sends its shape, so the card is the right size before the photo loads', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await post(ANNA, 'Burger night', { photo: 'https://example.com/p.jpg', aspect: 0.8 });
+  await signIn(ME);
+  const [row] = await posts('2026-10-08 12:00');
+  assert.ok(Math.abs(row.poster.aspect - 0.8) < 1e-6);
 });

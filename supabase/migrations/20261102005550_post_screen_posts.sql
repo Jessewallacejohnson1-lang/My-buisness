@@ -12,6 +12,10 @@ alter table public.club_events add constraint club_events_kind_check
   check (kind in ('event', 'trail', 'post'));
 alter table public.club_events add column if not exists friends_only boolean not null default false;
 alter table public.club_events add column if not exists tagged uuid[];
+-- The photo's shape, width over height, so its card is the right size before the photo loads. New post
+-- crops a photo into Instagram's limits (4:5 tall to 1.91:1 wide) first.
+alter table public.club_events add column if not exists image_aspect real
+  constraint club_events_image_aspect_check check (image_aspect is null or image_aspect between 0.79 and 1.92);
 
 -- 2. Friends only, kept in the read rule itself, so neither a plain read nor the Town feed's live
 -- updates hand a Friends-only post to anyone but the poster and their friends.

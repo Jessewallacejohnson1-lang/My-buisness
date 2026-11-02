@@ -173,3 +173,8 @@ test('the poster deletes their own post, live or not, and its photo; never anyon
 test('a kind the app doesn\'t know is refused', async () => {
   await assert.rejects(posted(ME, { kind: 'poll' }), /club_events_kind_check/);
 });
+
+test('a photo\'s shape stays inside Instagram\'s limits, 4:5 tall to 1.91:1 wide', async () => {
+  for (const aspect of [0.8, 1, 1.91]) assert.ok(await posted(ME, { image_aspect: aspect }));
+  for (const aspect of [0.5, 2.5]) await assert.rejects(posted(ME, { image_aspect: aspect }), /club_events_image_aspect_check/);
+});
