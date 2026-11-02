@@ -286,6 +286,8 @@ struct FeedView: View {
                         chromeFloating: chromeFloating,
                         travel: barTravel,
                         offline: offline)
+                // Rises into place as the launch's yellow clears (Jesse, 2026-11-02).
+                .launchSettle()
         }
         // The tab bar shrinks on the same signal, as Instagram's does.
         .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)
