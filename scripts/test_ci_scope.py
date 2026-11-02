@@ -1,8 +1,11 @@
+import io
+import os
 import re
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import ci_scope
 
@@ -39,6 +42,12 @@ class ChangesTests(unittest.TestCase):
     """The git half, on a throwaway repo: what counts as changed, and when it can't be known."""
 
     def setUp(self):
+        # A git hook exports GIT_DIR and friends: left in, every git call here (and in ci_scope.py)
+        # acts on the real repo. On 2026-11-02 the pre-push hook's run reset its core.bare.
+        clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        patcher = mock.patch.dict(os.environ, clean, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = self.tmp.name
         self.git("init", "-q")
@@ -109,6 +118,19 @@ class ChangesTests(unittest.TestCase):
     def test_a_pr_that_is_not_a_merge_commit_runs(self):
         self.commit({"docs/a.md": "b"})
         self.assertTrue(self.needs(event="pull_request", ref="refs/pull/1/merge"))
+
+
+class HookTests(unittest.TestCase):
+    def test_a_hooks_git_dir_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as decoy:
+            clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+            subprocess.run(["git", "init", "-q", decoy], check=True, env=clean)
+            config = Path(decoy, ".git/config").read_text()
+            with mock.patch.dict(os.environ, {"GIT_DIR": f"{decoy}/.git", "GIT_WORK_TREE": decoy}):
+                run = unittest.TextTestRunner(stream=io.StringIO()).run(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(ChangesTests))
+            self.assertTrue(run.wasSuccessful(), run.errors[:1] + run.failures[:1])
+            self.assertEqual(Path(decoy, ".git/config").read_text(), config)
 
 
 APP_FOLDERS = ("BlockParty", "BlockPartyTests", "BlockPartyUITests")
