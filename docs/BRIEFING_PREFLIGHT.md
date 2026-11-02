@@ -51,12 +51,11 @@ Untested. Run the Animation Hitches template while scrolling Today top to bottom
 - Verify the **Release** configuration builds clean — everything so far has been
   Debug. The DEBUG-only preview gates (`-briefing-preview`, `-briefing-gallery`,
   `BriefingSample`) compile out, but confirm rather than assume.
-- Confirm `BlockParty/Config/MapboxConfig.swift` and `GooglePlacesConfig.swift`
-  exist in whichever checkout you archive from. They are gitignored, and a fresh
-  worktree will not have them.
+- Confirm `BlockParty/Config/MapboxConfig.swift` exists in whichever checkout you
+  archive from, and that no old `GooglePlacesConfig.swift` is left there (it would
+  compile the dead Google key into the app). Both are gitignored.
 - The bundle id is `Jesse.BlockParty`. Before archiving, verify the new App Store
-  Connect record exists and the Google Places key allows this bundle id; otherwise
-  the build can install while every venue photo remains blank.
+  Connect record exists.
 
 ## Tester notes — suggested
 

@@ -76,12 +76,11 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   them to `DynamicTypeAuditTests`' walk — which is exactly the reason their ledger entries say
   `notYetAudited`. Pair either with `-open-tab town`.
 - **Appearance** (System/Light/Dark; its switch went with the town menu on 2026-10-25, so these flags are the only way to set it): `-appearance system|light|dark` makes the persisted write — relaunch WITHOUT the flag to prove it stuck; `-appearance-demo` walks the three states on a timer so the live, no-relaunch repaint can be recorded.
-- **Data mutation:** `-seed-places` runs the DEBUG place seeder. Treat it as a backend write, not a harmless screenshot flag.
 
 ## Dead flags, for grep
 
 These parse to nothing or no longer exist. Listed so a search for one lands here instead of
-in a confusing silence: `-open-tab map`, `-profile-autoclose` (the Profile sheet, gone with five-tabs 03), `-briefing-gallery`, `-gallery-state`, `-feed-gallery`,
+in a confusing silence: `-seed-places` (the Google place seeder, removed 2026-11-01), `-open-tab map`, `-profile-autoclose` (the Profile sheet, gone with five-tabs 03), `-briefing-gallery`, `-gallery-state`, `-feed-gallery`,
 `-feed-state`, `-townnotes-gallery`, `-townnotes-gallery-page`, `-foryou-sample`,
 `-foryou-no-tags`, `-foryou-empty`, `-almanac-write`, `-almanac-static`, `-almanac-fail`,
 `-almanac-part`, `-almanac-demo-line`, `-horizon-press-card`, `-horizon-press-seeall`,

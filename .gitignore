@@ -29,7 +29,8 @@ graphify-out/
 # Mapbox token — never commit
 BlockParty/Config/MapboxConfig.swift
 
-# Google Places API key — never commit
+# Google Places API key: the app has used none since 2026-11-01. Still ignored so an old
+# local copy never gets committed.
 BlockParty/Config/GooglePlacesConfig.swift
 
 # graphify knowledge-graph output — generated artifact, never commit
