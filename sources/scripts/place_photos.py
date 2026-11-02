@@ -773,7 +773,7 @@ def propose(key, n):
                          entry_id=v['entry_id'], replaces=int(key) if stale else None, status='proposed',
                          credit=credit(c), proposed_by='the monthly refresh')
     if not saved:
-        sys.exit(f"{v['entry_id']}: candidate {n} is already one of its photos")
+        sys.exit(f"{v['entry_id']}: candidate {n} is already saved for it (live, proposed or retired: a declined one stays down)")
     print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if stale else ' as its first photo')
           + f" (position {saved[0]['position']})")
 
