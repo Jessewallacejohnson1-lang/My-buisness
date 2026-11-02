@@ -79,8 +79,7 @@ allowlist of the palettes named below). A call split across lines is still caugh
   - **Jost's PostScript names are inconsistent upstream and must be used exactly** `[prose]`
     — `Jost-Regular`, but `JostRoman-Medium`/`-SemiBold`/`-Bold`. A wrong name falls back to
     the system font **silently**. `Font.logo` is `JostRoman-SemiBold`.
-    `registerBlockPartyFonts()` registers every bundled ttf, so Jost self-registers;
-    `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
+    `registerBlockPartyFonts()` registers every bundled ttf, so Jost self-registers.
 - **Brand artwork** `[prose]` — the app icon is Jesse's Icon Composer file
   `BlockParty/AppIcon.icon` (2026-10-29): **"Bp!" in black on solid BP yellow (the logo's own B, a p at the logo's small-letter height, a `!` leaning 12°), flat
   like Spotify's**, letters lifted slightly (edge highlight, 25% neutral shadow), with dark, tinted and clear looks. Edit it in Icon Composer, never by hand;
@@ -204,7 +203,7 @@ and `DECISIONS.md` win wherever they disagree.
   photos above. Every logo lives in Storage, one folder per business:
   `places/<town>/<place_id>/logo-<hash>.webp` (Search's cut-out or 3D render, via
   `places.search_logo`) and `pin-<hash>.png` (the same logo on a white 256 px square, via
-  `places.logo_url`, for the map's pins and the town rain); a pin with none falls back to its
-  category glyph. BP app's `logo-3d` skill makes them and `logo3d.py publish` uploads them,
+  `places.logo_url`, which onboarding's follow list falls back to when a place has no Search
+  logo). BP app's `logo-3d` skill makes them and `logo3d.py publish` uploads them,
   points the rows at them and deletes the versions they replace. Don't bundle logos in the
   app (`DECISIONS.md` 2026-10-02, moved 2026-10-08).

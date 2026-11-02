@@ -132,8 +132,7 @@ final class ProfileModel: ObservableObject {
 
     // MARK: - Edit / save
 
-    /// Persist an edit (same shape as OnboardingView.finishData, minus the onboarded
-    /// stamp). Writes to the server FIRST and returns whether it succeeded — the
+    /// Persist an edit. Writes to the server FIRST and returns whether it succeeded — the
     /// local mirror + published state are committed only on success, so the editor
     /// can surface a real failure instead of falsely reporting "saved" and then
     /// silently reverting on the next load.

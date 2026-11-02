@@ -170,10 +170,6 @@ enum Interests {
     private static let legacyOnboardedKey = "bp.onboarded"   // pre-per-user, un-scoped
     private static let nameKey      = "bp.displayName"
 
-    /// Onboarded flag is scoped per signed-in user id, so a second account on the
-    /// same device is never treated as onboarded just because a prior user was.
-    private static func onboardedKey(_ uid: String) -> String { "bp.onboarded.\(uid)" }
-
     /// Old saved picks come back in today's ids.
     static func get() -> [String] { migrate(UserDefaults.standard.stringArray(forKey: interestsKey) ?? []) }
     static func set(_ ids: [String]) { UserDefaults.standard.set(ids, forKey: interestsKey) }
@@ -187,17 +183,6 @@ enum Interests {
         get { UserDefaults.standard.string(forKey: nameKey) }
         set { UserDefaults.standard.set(newValue, forKey: nameKey) }
     }
-
-    static func isOnboarded(uid: String) -> Bool {
-        let d = UserDefaults.standard
-        if d.string(forKey: onboardedKey(uid)) == "1" { return true }
-        // Legacy fallback: a pre-per-user install stored one un-scoped flag for the
-        // single signed-in user. Honor it for the current user until the next
-        // sign-out clears it, so an existing user isn't bounced back into onboarding.
-        return d.string(forKey: legacyOnboardedKey) == "1"
-    }
-
-    static func setOnboarded(uid: String) { UserDefaults.standard.set("1", forKey: onboardedKey(uid)) }
 
     /// Wipe the per-session identity mirror (interests + name) and the legacy
     /// un-scoped onboarded flag on sign-out, so a different account on the same

@@ -134,7 +134,6 @@ nonisolated enum DailyMetric {
     /// Airbnb's trips page (the gap between one trip's card and the next city's heading,
     /// and from that heading to its card), Daily's first Reference.
     static let eventSectionTop: CGFloat = 38
-    static let eventLabelToCard: CGFloat = 15
     /// Between Event of the day's posters on a busy day; the next one's edge shows by this
     /// much less than the page margin. Picked.
     static let eventGap: CGFloat = 10
@@ -149,8 +148,6 @@ nonisolated enum DailyMetric {
     static let followingGap: CGFloat = 13
     /// Above and below each row's 44pt photos, for Instagram's 64pt rows.
     static let followingRowInset: CGFloat = 10
-    /// The label sits 15pt over the first photo, as over every Daily section's content.
-    static let followingLabelToRows: CGFloat = eventLabelToCard - followingRowInset
 }
 
 /// The low sun over the page: morning light from the east throws the Spotlight's

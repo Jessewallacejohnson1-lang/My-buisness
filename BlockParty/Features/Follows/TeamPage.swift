@@ -99,7 +99,7 @@ struct TeamPage: View {
         // Light words on the school's colour.
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $opened) { ActivityEvents(activity: $0, school: title) }
+        .sheet(item: $opened) { ActivityEvents(activity: $0) }
         .task { await load() }
         // The clock goes white over the school's colour, as iOS inks it over any dark page (Jesse,
         // 2026-10-25: this page only). The Town feed's hold on a black clock (`holdsClock`) is let go
@@ -398,7 +398,6 @@ private struct ActivityStar: View {
 /// An activity's coming events, from its row's arrow: a plain list.
 private struct ActivityEvents: View {
     let activity: TeamProfile.Activity
-    let school: String
 
     @State private var events: [TeamProfile.ActivityEvent]?
     @State private var failed = false

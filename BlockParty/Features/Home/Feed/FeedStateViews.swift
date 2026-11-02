@@ -1,11 +1,10 @@
 //
 //  FeedStateViews.swift
-//  Block Party — the ONE shape of "loading" and "didn't load" in the Today feed.
+//  Block Party — the ONE shape of "loading" and "didn't load" in the Town feed.
 //
-//  Your Day and Town Notes each fetched on their own, so before this file
-//  each had invented its own failure card: different background, different radius,
-//  different button, different sentence. Three ways to say the same thing on one
-//  screen reads as three unfinished features. They now share this.
+//  Every read that can fail says so the same way: one background, one radius, one
+//  button, one sentence. Three ways to say the same thing on one screen read as three
+//  unfinished features.
 //
 //  Rules encoded here:
 //   • A section HEADING is chrome, not data. It is known before the fetch, so the

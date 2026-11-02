@@ -79,7 +79,7 @@ struct SearchItem: Identifiable, Hashable {
 /// pipeline, and 3D for the ones the `logo-3d` skill has made and checked. The file lives in
 /// Storage (`places/<town>/<place_id>/logo-<hash>.webp`) and `places.search_logo` points at
 /// it with its hue and row order, both written by BP app's `logo3d.py publish`. Images load
-/// through `POILogoCache`, the map pins' cache, so a logo is fetched once and kept on disk.
+/// through `POILogoCache`, so a logo is fetched once and kept on disk.
 struct SearchLogo: Hashable {
     /// `places.search_logo` as stored.
     struct Row: Decodable, Hashable {

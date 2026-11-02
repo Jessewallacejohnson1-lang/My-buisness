@@ -2,8 +2,7 @@
 //  AuthStore.swift
 //  Block Party — session state + GoTrue auth flows. The app's single auth source.
 //
-//  Mirrors apps/mobile/src/lib/auth.tsx: email + password, confirmation ON,
-//  persisted session, proactive token refresh.
+//  Email + password, confirmation ON, persisted session, proactive token refresh.
 //
 
 import Foundation
@@ -127,7 +126,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     }
 
     /// Send a password-reset email via GoTrue's recover endpoint. Returns a
-    /// user-facing error string, nil on success. Mirrors @hygge/core's reset flow.
+    /// user-facing error string, nil on success.
     func resetPassword(email: String) async -> String? {
         do {
             _ = try await SupabaseHTTP.auth("recover", body: ["email": email])
@@ -171,18 +170,6 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// A guaranteed-fresh access token for API calls. Refreshes if needed.
     func validAccessToken() async throws -> String {
         guard let s = session else {
-            #if DEBUG
-            // `-anon-data`: with NO session, hand back the shipped PUBLIC anon
-            // key so a signed-out simulator can still photograph data-bearing
-            // states (the map's `places` / `club_events` allow anon SELECT under
-            // RLS — verified 2026-08-14). Reads succeed exactly as far as RLS
-            // lets the anon role; any write is refused server-side the same as
-            // it would be for any anonymous caller. Compiles out in release,
-            // no effect without the flag or once a real session exists.
-            if LaunchFlags.has(.anonData) {
-                return SupabaseConfig.anonKey
-            }
-            #endif
             throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
         }
         if s.isExpired { try await refresh() }
