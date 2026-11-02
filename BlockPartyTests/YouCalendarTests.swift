@@ -83,6 +83,27 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(YouCalendar.event(from: row("c", "someday", "9 AM")))
     }
 
+    /// The Agenda card's and Saved's square photo is the Town card's pick (`FeedCardItem.image`):
+    /// an Event whose only photo is its place's (`place_picture`, `image_url` null) shows that
+    /// photo, not the grey square. Its own photo still comes first; a logo has no photo.
+    func testTheAgendaPhotoIsTheTownCardsPick() {
+        let hall = URL(string: "https://example.com/place-photos/hall.jpg")!
+        var placeOnly = row("dogs", "2026-10-31", "1 PM", title: "Annual Dog Costume Contest")
+        placeOnly.placePicture = PlacePicture(url: hall, kind: .photo)
+        let event = YouCalendar.event(from: placeOnly)!
+        XCTAssertEqual(event.photo, hall)
+        XCTAssertEqual(event.photo, event.item.image.url, "the Town card's photo")
+
+        var both = placeOnly
+        both.imageUrl = "https://example.com/own.jpg"
+        XCTAssertEqual(YouCalendar.event(from: both)!.photo?.absoluteString, "https://example.com/own.jpg")
+
+        var logo = placeOnly
+        logo.placePicture = PlacePicture(url: hall, kind: .logo)
+        XCTAssertNil(YouCalendar.event(from: logo)!.photo)
+        XCTAssertNil(YouCalendar.event(from: row("none", "2026-10-31", "1 PM", at: nil))!.photo)
+    }
+
     /// The card says "Now" only while the Event is on; on an earlier day, or once it's
     /// over, it says when it started.
     func testTheCardSaysNowOnlyWhileItsOn() {

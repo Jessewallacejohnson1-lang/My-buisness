@@ -24,7 +24,7 @@ struct EditProfileView: View {
     @State private var coverPick: PhotosPickerItem?
     @State private var showInterests = EditProfileView.debugOpenInterests()
     @State private var saving = false
-    @State private var saveFailed = false
+    @State private var saveProblem: ProfileModel.SaveProblem?
 
     /// DEBUG-only: `-profile-edit-interests` auto-opens the interest picker so its
     /// (non-onboarding) chrome can be screenshotted headlessly. No effect in release.
@@ -112,8 +112,8 @@ struct EditProfileView: View {
     private var footer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Hue.hairline).frame(height: 1)
-            if saveFailed {
-                Text("Couldn't save your profile. Check your connection and try again.")
+            if let saveProblem {
+                Text(saveProblem.line)
                     .font(.sansBold(13))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.center)
@@ -124,18 +124,20 @@ struct EditProfileView: View {
             }
             Button {
                 guard !saving else { return }
-                saveFailed = false
+                saveProblem = nil
                 saving = true
                 Task {
-                    let ok = await model.save(name: name, image: image, interests: interests,
-                                              bio: model.canDescribe ? bio : nil, cover: cover)
+                    let problem = await model.save(name: name, image: image, interests: interests,
+                                                   bio: model.canDescribe ? bio : nil, cover: cover)
                     saving = false
-                    if ok {
+                    if let problem {
+                        Haptics.error()
+                        withAnimation(.easeOut(duration: 0.2)) { saveProblem = problem }
+                        // The line fades in silently; this reads it to VoiceOver as it appears.
+                        AccessibilityNotification.Announcement(problem.line).post()
+                    } else {
                         Haptics.success()
                         dismiss()
-                    } else {
-                        Haptics.error()
-                        withAnimation(.easeOut(duration: 0.2)) { saveFailed = true }
                     }
                 }
             } label: {
