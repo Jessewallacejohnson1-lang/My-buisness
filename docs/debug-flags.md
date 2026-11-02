@@ -67,8 +67,7 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   fail. With `-town-samples`, `-friends-fail` makes every Add friend, Cancel, Confirm and
   Delete fail (the hold, flip back and shake) and `-friends-limit` makes Add friend hit the
   daily limit (Apple's alert) (2026-10-13, friends 03).
-  `-open-friends-chat` pushes the sample inbox and then its newest chat (2026-10-06), the one
-  way left into the sample chats. `-open-notifications` raises the screen behind the bell, and
+  `-open-notifications` raises the screen behind the bell, and
   `-notice-samples` fills it (and the hello pill's memory) with the sample changes. Their only
   real trigger is a tap, so without these there is no way to screenshot them and no way to add
   them to `DynamicTypeAuditTests`' walk — which is exactly the reason their ledger entries say
@@ -88,7 +87,7 @@ in a confusing silence: `-open-tab map`, `-profile-autoclose` (the Profile sheet
 `-BPMockNowSpeed`, `-map-sheet`, `-map-detent`, `-map-open`, `-map-open-poi`,
 `-map-detail-expanded`, `-map-filter`, `-map-search`, `-map-search-open`, `-map-search-committed`,
 `-map-save`, `-map-force-live`, `-map-autozoom`, `-town-rain`, `-town-rain-preview`, `-show-map-intro`
-(the map reset, 2026-10-30), `-poi-logo-stub`, `-anon-data`, `-show-home` (2026-11-01),
+(the map reset, 2026-10-30), `-poi-logo-stub`, `-anon-data`, `-show-home` (2026-11-01), `-open-friends-chat` (2026-11-02),
 `-yourday-*`, `-header-hairline`, `-open-speeddial`, `-speeddial-loop`, `-show-loader`,
 `-show-loading-cover`, `-launch-splash-hold`, `-launch-splash-skip`, `-open-search` (now
 `-open-notifications`), `-profile-expand`, `-show-onboarding`, the old `-onboarding-*` and `-bp-*`

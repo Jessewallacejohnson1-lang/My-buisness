@@ -3,8 +3,7 @@
 //  Block Party — Supabase project coordinates.
 //
 //  The anon key is public by design (it only grants what Row-Level Security
-//  allows), so it's safe to ship in the app. Same project as the Expo app —
-//  values mirror apps/mobile/.env.
+//  allows), so it's safe to ship in the app.
 //
 
 import Foundation

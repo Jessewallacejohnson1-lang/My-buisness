@@ -6,18 +6,16 @@ belongs.
 ## Project
 
 **Block Party** — a native **SwiftUI + Mapbox** iOS app for the real town of **St. Joseph,
-MN**. It is a **native port of the Expo / React Native app** in a separate repo at
-`~/Documents/my-business/apps/mobile`.
+MN**. It began as a port of an Expo / React Native app, retired on 2026-11-02 (Jesse); nothing
+is kept in sync with it any more.
 
 > **Something missing?** `docs/archive/GUTTING-LEDGER.md` records every surface that was deleted,
 > why, and how to get it back. Open it when something is missing, not as background.
 
 - **Project, scheme, bundle id and deployment target:** `docs/rules/identifiers.md`.
 - **Only SPM dependency:** [`mapbox-maps-ios`](https://github.com/mapbox/mapbox-maps-ios).
-- **Shared backend:** the same Supabase project as the Expo app. The two apps are
-  backend-twins — schema, RLS and query semantics match `@hygge/core` in the Expo repo.
-  **Keep design tokens and query behaviour in sync with that repo** `[prose]`; each Swift
-  source that ports a JS file says so in its header.
+- **Backend:** one Supabase project (`docs/rules/identifiers.md`), shared with the Android
+  port to come.
 - **A migration file is made with `supabase migration new <name>`** `[script]`, which stamps the
   version to the second; `apply_migration.py` refuses a new round or future version, and a version
   another worktree already holds (2026-10-25, two chats both took 20261025235000).
@@ -26,35 +24,14 @@ MN**. It is a **native port of the Expo / React Native app** in a separate repo 
   live from main's newest copy: another chat applied a change that isn't on main, and remaking
   the function from the repo would undo it (2026-10-17, the friends lift).
 
-### Three-repo rule
+### Other repos
 
-This is the **native iOS / map** codebase, and it is the **spec** the other two are ported
-from. Map, Mapbox and native-iOS work happens **here**.
+This is the **native iOS / map** codebase and the **spec** the Android app is ported from.
 
-- **Expo / React-Native / web** — `~/Documents/my-business`. RN and web work happens there.
-  The two look nearly identical on the simulator; this app's first tab is **Town**, the Expo
-  app's is **Home**.
-- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. Port target.
-
-### Android port rule — do it without being asked
-
-**After changing any SwiftUI screen in this repo, port the change to the Android repo in the
-same session.** `[prose]` Do not wait for a request and do not ask whether the port is
-wanted; it is. Treat an un-ported iOS change as unfinished work, and report the port in the
-same summary as the iOS change: which screen, which Kotlin files, and whether the
-side-by-side screenshot check was run.
-
-Before writing Kotlin, read `~/Documents/block-party-android/CLAUDE.md` — it holds the stack,
-the Swift→Kotlin translation rules (spring-curve conversion, `matchedGeometryEffect` →
-`SharedTransitionLayout`, blur → Haze) and the screenshot verify loop. Follow it rather than
-improvising a translation.
-
-Two things are never ported:
-- **Server-side logic.** `[prose]` Both apps call the same Supabase project and the same edge
-  functions. Kotlin calls them; it never re-implements them.
-- **Screens that are mid-rebuild.** `[prose]` A surface being actively gutted or rebuilt is
-  ported once it settles, not on every intermediate commit. Note the skip in your summary so
-  it is visible rather than silent. *(Delete this bullet to make the rule unconditional.)*
+- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. **The port waits
+  until iOS is done (Jesse, 2026-11-02): don't port iOS changes to it as you go.** `[prose]`
+  When it resumes, read that repo's `CLAUDE.md` first. Server-side logic is never ported:
+  Kotlin calls the same Supabase functions; it never re-implements them.
 
 ## The shell
 
@@ -170,8 +147,8 @@ Business has no slot.
 
 ### Backend — hand-rolled, no Supabase SDK (`BlockParty/Backend/`)
 
-The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is
-**no `supabase-swift` dependency**. `[prose]`
+The entire backend is written by hand over `URLSession` — there is **no `supabase-swift`
+dependency**. `[prose]`
 
 - **`Supabase`** (in `SupabaseHTTP.swift`) — the one client for PostgREST (`rest`, `rpc`),
   Storage (`upload`) and edge functions (`invoke`) (BP app codebase-health 16). It holds the
@@ -184,8 +161,8 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
   password, **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates
   the refresh token, so concurrent refreshes funnel through one in-flight task). **Always get
   tokens via `validAccessToken()`.** `[prose]`
-- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the
-  Expo `createCommunityApi`, plus the per-user "My activity" reads behind the profile.
+- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), plus the
+  per-user "My activity" reads behind the profile.
 - **`ProfileAPI`** — the community-profile layer over **`town_profiles`** (own-row RLS).
   **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table**
   `[prose]` — the shared Supabase project backs two apps, and `profiles` belongs to the other
@@ -392,5 +369,5 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   adopt that branch. Two decided rules wait on data: City meetings stay in until people
   can follow the City, and the ZIP check waits until events carry a ZIP or a Place.
 - **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
-  `DateHelpers.swift`. Self-approved events are an intentional product decision shared with
-  the Expo app. **RLS is the real boundary.**
+  `DateHelpers.swift`. Self-approved events are an intentional product decision. **RLS is the real
+  boundary.**

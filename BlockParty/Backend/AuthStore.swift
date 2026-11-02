@@ -2,8 +2,7 @@
 //  AuthStore.swift
 //  Block Party — session state + GoTrue auth flows. The app's single auth source.
 //
-//  Mirrors apps/mobile/src/lib/auth.tsx: email + password, confirmation ON,
-//  persisted session, proactive token refresh.
+//  Email + password, confirmation ON, persisted session, proactive token refresh.
 //
 
 import Foundation
@@ -127,7 +126,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     }
 
     /// Send a password-reset email via GoTrue's recover endpoint. Returns a
-    /// user-facing error string, nil on success. Mirrors @hygge/core's reset flow.
+    /// user-facing error string, nil on success.
     func resetPassword(email: String) async -> String? {
         do {
             _ = try await SupabaseHTTP.auth("recover", body: ["email": email])

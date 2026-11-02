@@ -6,8 +6,7 @@
 //  ("Millstream Park" returns nothing) or lands blocks away ("East Minnesota
 //  Street" resolved ~900 m east of downtown). Known venues resolve here first,
 //  verified 2026-07-04 against OpenStreetMap building footprints and the
-//  venues' published street addresses. Mirrors apps/mobile/src/lib/geo.ts in
-//  the Expo repo — keep the two tables in sync when adding a venue.
+//  venues' published street addresses.
 //
 //  Order matters: specific venues before broad areas, so "Church of St.
 //  Joseph, Minnesota St & College Ave" never falls through to plain downtown.

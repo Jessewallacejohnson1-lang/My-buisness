@@ -46,7 +46,6 @@ nonisolated enum LaunchFlags {
         case openBusiness = "-open-business"
         case openEvent = "-open-event"
         case openFriends = "-open-friends"
-        case openFriendsChat = "-open-friends-chat"
         case openMap = "-open-map"
         case openNotifications = "-open-notifications"
         case openPage = "-open-page"

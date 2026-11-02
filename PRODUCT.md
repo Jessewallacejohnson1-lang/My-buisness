@@ -12,7 +12,7 @@ Residents of the real town of **St. Joseph, Minnesota** — neighbors of every a
 
 One calm place for everything happening in St. Joseph: a daily timeline (Today), a shared calendar anyone can add to, a live town map, and a daily quest. It is a community social network for one town at a time, and it exists to make a small town feel legible and connected. Success is a neighbor opening it, seeing something real and local, and stepping out the door — not streaks or engagement bait.
 
-This is the **native SwiftUI + Mapbox iOS port** of an Expo/React-Native twin app; the two share one Supabase backend and must keep design tokens and query semantics in sync.
+This is the **native SwiftUI + Mapbox iOS app**. It began as a port of an Expo/React-Native app, retired on 2026-11-02; the Android port follows once iOS is done.
 
 ## Brand Personality
 
@@ -32,7 +32,6 @@ Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a bra
 2. **Live-glow is for *now*, not "today".** The accent pulse is reserved for events actually happening (`start ≤ now ≤ start + 2h`). The accent is for live + tappable, nothing decorative.
 3. **Weight carries hierarchy.** The UI is the platform system font everywhere (one custom face: the logo). Size and weight do the work; numbers stay tabular.
 4. **Warm restraint.** One soft shadow, hairline borders, generous calm spacing. Quiet by default so the few accent moments land.
-5. **Backend-twin parity.** Behavior, tokens, and query semantics track the Expo/RN twin and `@hygge/core` 1:1; divergence is a bug, not a feature.
 
 ## Accessibility & Inclusion
 

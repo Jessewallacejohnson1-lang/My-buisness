@@ -404,10 +404,7 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The sample friends inbox and its chats, unreached until messaging (BP app
-    /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
-    @State private var friendsModel = FriendsModel()
-    /// The shell stack's path, so the Town bar's friends mark can push the Friends page.
+    /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
     /// over its tab.
@@ -495,17 +492,12 @@ struct MainTabsView: View {
                     DailyPostPage(posting: posting)
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in
-                    Group {
-                        switch route {
-                        case .home: FriendsHomePage()
-                        case .contacts: FriendsContactsPage()
-                        case .allFriends: FriendsAllPage(groups: false)
-                        case .groups: FriendsAllPage(groups: true)
-                        case .inbox: FriendsPage()
-                        case .chat(let id): FriendChatPage(id: id)
-                        }
+                    switch route {
+                    case .home: FriendsHomePage()
+                    case .contacts: FriendsContactsPage()
+                    case .allFriends: FriendsAllPage(groups: false)
+                    case .groups: FriendsAllPage(groups: true)
                     }
-                    .environment(friendsModel)
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
                 .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
@@ -637,14 +629,9 @@ struct MainTabsView: View {
     /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own
     /// function, out of `body`: Xcode 26.6 couldn't type-check the body with it inside in time.
     private func openLaunchPages() {
-        // DEBUG: `-open-friends` lands on the Friends tab; `-open-friends-chat` on the
-        // sample inbox's newest chat, the one way left into the sample chats.
+        // DEBUG: `-open-friends` lands on the Friends tab.
         if LaunchFlags.has(.openFriends) { tab = .friends }
         if LaunchFlags.has(.openNotifications) { path.append(NotificationsRoute()) }
-        if LaunchFlags.has(.openFriendsChat), let newest = friendsModel.visible().first {
-            path.append(FriendsRoute.inbox)
-            path.append(FriendsRoute.chat(newest.id))
-        }
         #if DEBUG
         // `-open-team <uuid>` pushes that local school's page (school-activities 02).
         if let id = LaunchFlags.value(.openTeam),

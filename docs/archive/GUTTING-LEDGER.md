@@ -283,6 +283,17 @@ Nothing a neighbour sees changed. **Recover any of it:** `git checkout ad08d079 
 | Files | 8 weather photos (`clear-day` … `storm`), 13 of 14 `Lucide/` icons (`ellipsis` stays), `AtkinsonHyperlegible-Bold.ttf`, `screens/` (Horizon card proofs), `refs/your-day/`, `refs/chrome/create-6x.png`, `docs/reviews/`, `docs/feed-pattern-brief.md`, `docs/place-logos-manifest.json`, `scripts/fit_rain.py`, `track_rain.swift`, `rank_rain_roster.py` | The weather photos went unread with `WeatherBackground` (2026-10-25); the rain scripts with the town rain (2026-10-30) |
 | Moved | `docs/BRIEFING_PREFLIGHT.md`, `BRIEFING_ROUTINE.md`, `UTILITY_ROW.md`, `ST-JOSEPH-ALMANAC-ARCHIVE.md` | Now in `docs/archive/` |
 
+**Second round, 2026-11-02, Jesse's yes to all three questions.** Recover the files with
+`git checkout f5a3c1f0 -- <path>`.
+
+| Area | Deleted | Notes |
+| --- | --- | --- |
+| Sample friend chats | `FriendsPage.swift` (the inbox; its shared `FriendsMetric`, `FriendsTitleBar` and `FriendsSearchField` moved to `FriendsChrome.swift`), `FriendChatPage.swift`, `FriendsModel.swift` (its `FriendsRoute` moved too), `FriendsModelTests`, `-open-friends-chat` | DEBUG samples only that flag reached. Real messaging's plan: BP app `references/friends-inbox/plan-draft.md` |
+| Files | `refs/onboarding/shots/` (all but the two motion strips), `refs/onboarding/duolingo/_raw/` (Mobbin originals), `scripts/harvest_candidates.py`, `docs/archive/HARVEST-LEDGER.md` | The July onboarding proofs. The harvest was a rules proposal from 2026-09-23 never approved; its sources (`REVIEW.md`, `DECISIONS.md`) stay |
+| Agent log | `.claude/hooks/log-event.sh` and `.py`, their five hook entries, `supabase/functions/log-agent-event` (deleted live too) | Every prompt in an iOS chat went to `agent_events`, which nothing read. The table itself stays |
+| Database | `daily_briefings`, `briefing_featured`, `daily_touches`, `touch_votes` and their 14 functions (`20261102142710_drop_briefing_and_touch.sql`) | The old Today briefing and its poll/history/trivia card. Rows saved off git first: `~/Documents/backups/2026-11-02-briefing-and-touch-tables.json` |
+| Expo twin | The rule to keep iOS 1:1 with `~/Documents/my-business` and to port every change to Android in the same chat | Expo retired (the folder is gone); Android follows once iOS is done (`docs/rules/architecture.md`) |
+
 ---
 
 ## Recovering something from a round

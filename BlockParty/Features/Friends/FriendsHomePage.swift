@@ -17,7 +17,7 @@
 import SwiftUI
 
 extension FriendsMetric {
-    /// Facebook's friends-list photo, measured; its row is the inbox's 76 (`row`).
+    /// Facebook's friends-list photo, measured; its row is 76 (`row`).
     static let neighborFace: CGFloat = 60
     static let resultsTop: CGFloat = 8
     static let noteTop: CGFloat = 18
