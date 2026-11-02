@@ -600,6 +600,8 @@ final class TownFeed {
             (quarter("[44,44]", 4, 0, fouls: (4, 2, 5)), nil),
             (quarter("[44,44]", 5, 300, fouls: (4, 2, 5)), nil),
             (quarter("[48,46]", 5, 151, fouls: (4, 3, 5)), basket(5, "5 Jo Rohe LAYUP GOOD (19 Pt)", "OT", "2:31", 0, "[48,46]")),
+            // A sixth basket: the list keeps the newest 5.
+            (quarter("[50,46]", 5, 64, fouls: (4, 3, 5)), basket(6, "21 Anna Moore LAYUP GOOD (10 Pt)", "OT", "1:04", 0, "[50,46]")),
         ]
         let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : football
         let live = { (score: String, complete: Bool) in

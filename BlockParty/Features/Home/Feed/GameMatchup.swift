@@ -864,7 +864,10 @@ struct GameScoring: View {
                 // Jesse, 2026-11-01: yes to the mock's pick).
                 ForEach(game.isBasketball ? Array(game.plays.suffix(5).reversed()) : game.plays.reversed()) { play in
                     row(play)
-                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        // A new play slides in on top; basketball's oldest of the 5 fades where it is, not
+                        // sliding up over the rest.
+                        .transition(reduceMotion ? .opacity
+                                    : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
                 }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
