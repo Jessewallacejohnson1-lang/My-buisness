@@ -9,10 +9,8 @@ belongs.
 MN**. It is a **native port of the Expo / React Native app** in a separate repo at
 `~/Documents/my-business/apps/mobile`.
 
-> **The app is mid-rebuild.** The 2026-09-17 strip-down emptied Today, gutted two tabs to
-> reserved blank slots, and moved the map off the tab bar. Parts of these rule files describe
-> surfaces that no longer render. **`docs/archive/GUTTING-LEDGER.md`** is the record of what went,
-> why, and how to recover it — open it when something is missing, not as background.
+> **Something missing?** `docs/archive/GUTTING-LEDGER.md` records every surface that was deleted,
+> why, and how to get it back. Open it when something is missing, not as background.
 
 - **Project, scheme, bundle id and deployment target:** `docs/rules/identifiers.md`.
 - **Only SPM dependency:** [`mapbox-maps-ios`](https://github.com/mapbox/mapbox-maps-ios).
@@ -103,12 +101,14 @@ seeder, and mounts `RootView` directly.
 
 ### The tab bar
 
-`MainTabsView` owns **four** tabs (`Tab`: town/daily/search/you), the custom
-`BlockPartyTabBar` and the full-screen map cover. **Town** (`house`) is the town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is the personalised paper
-(town feed ∩ what the neighbour follows), **Search** is BP's traced magnifier (`MagnifierGlyph`,
-thicker when selected, as Instagram's is) — it took Business's slot on 2026-09-29, when the
-Town bar's leading control became a friends mark — and **You** mounts
-`ProfileView(showsClose: false)`, since a tab has no close. Business has no slot for now.
+`MainTabsView` owns **five** tabs (`Tab`: town/daily/friends/search/you), the custom
+`BlockPartyTabBar` and the full-screen map cover. **Town** (BP's house, `HouseGlyph`) is the
+town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is
+the personalised paper (town feed ∩ what the neighbour follows), **Friends** (`person.2`) is
+neighbours, requests and Groups (`FriendsHomePage`; a page pushed from the Town bar until
+2026-11-01), **Search** is BP's traced magnifier (`MagnifierGlyph`, thicker when selected, as
+Instagram's is), and **You** mounts `ProfileView`, your own Profile (BP app five-tabs 03).
+Business has no slot.
 
 - **Search** (`Features/Search/`, 2026-10-02) is Jesse's Search mockup v7 and its Figma
   frames: a field and filter pills over sideways rows (People, Businesses, Restaurants,
@@ -128,9 +128,10 @@ Town bar's leading control became a friends mark — and **You** mounts
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
-- **The bar is four slots built from `Tab.allCases`** `[test]`, pinned by
-  `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
-  so **there is no compose entry anywhere in the app** — not in the bar, not on the map. Do not add one back without Jesse saying posting is on again.
+- **The bar is five slots built from `Tab.allCases`** `[test]`, pinned by
+  `TabBarTests`. The centre Create disc was removed on 2026-09-24. Posting came back on
+  2026-11-01 through the Town bar's + (New event, BP app town-plus); there is no compose
+  entry in the tab bar or on the map.
 - **It is BP's own bar, not Apple's `TabView`, copying Instagram's iOS 26 bar with BP's
   icons** (2026-09-27; Apple's `TabView` was rejected on 2026-09-25, the why is in
   `DECISIONS.md`). One floating glass capsule, the same gap from each side and from the
@@ -192,9 +193,9 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 - **`RealtimeClient`** (`@MainActor`) — a hand-written Phoenix-channel client over
   `URLSessionWebSocketTask`. Joins `postgres_changes` on `club_events` with the user's JWT
   (RLS still filters what arrives), heartbeats, and reconnects with capped exponential
-  backoff. **One production subscriber** since the strip-down: `MapModel`, which asks
-  `ClubEventRelevance.matters` whether a change is worth a re-read; a subscriber that comes
-  back passes its own days to the same rule.
+  backoff. **Two production subscribers:** `MapModel`, which asks
+  `ClubEventRelevance.matters` whether a change is worth a re-read (a new subscriber passes
+  its own days to the same rule), and `TownFeed`, for a live game's score.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,
@@ -203,18 +204,19 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 ## Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
 
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
-class … ObservableObject`) that owns state and API calls. Top-level folders: `Home`, `Add`,
-`Auth`, `Board`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, `Share`.
+class … ObservableObject`) that owns state and API calls. Top-level folders: `Auth`,
+`Components`, `Daily`, `Follows`, `Friends`, `Groups`, `Home` (the Town tab), `Map`,
+`Notifications`, `Onboarding`, `Place`, `Profile`, `Search`, `Share`, `You`.
 
 - **The parked utility row (`Civic/Parked/`) was deleted on 2026-10-25** (BP app
   codebase-health 09). `user_utility_prefs` still holds real per-user configuration: a Civic
   tab built later must re-hydrate it rather than start from defaults.
   `docs/archive/GUTTING-LEDGER.md` says how to get the code back.
-- **If onboarding is rebuilt, `ONBOARDING.md` is the spec — read it first.** `[prose]` Its
-  locked rule: the primary CTA occupies one fixed position for the whole flow and never moves
-  between steps (only its title and enabled state change), with the shell owning the chrome
-  and footer so step views cannot draw their own button. `Onboarding/` survives today only
-  because `MapIntroView`, `InterestPickerView` and `OnboardingChrome.swift` live there.
+- **Onboarding is on** (BP app onboarding 24, 2026-10-30): a first launch walks its steps
+  (`OnboardingFlow`). **`ONBOARDING.md` is the spec — read it before changing it.** `[prose]`
+  Its locked rule: the primary CTA occupies one fixed position for the whole flow and never
+  moves between steps (only its title and enabled state change), with the shell owning the
+  chrome and footer so step views cannot draw their own button.
 
 ### Town feed (`Features/Home/Feed/`)
 
@@ -272,7 +274,8 @@ which holds `TodayTopBar` and the feed.
 `FeedRegistry`, `FeedController`, `FeedModule*`, `FeedRoute` and the `Briefing*` stack are
 gone: the Town tab is the top bar over the Town feed, and a load makes no
 `rpc/get_today_briefing` call and logs no `briefingOpen`. The server side (`daily_briefings`,
-`compose_briefing`, `get_today_briefing`) was left as it was. `docs/archive/GUTTING-LEDGER.md`
+`compose_briefing`, `get_today_briefing`) is still in the database; its hourly
+`briefing-reconcile` job was switched off on 2026-10-30. `docs/archive/GUTTING-LEDGER.md`
 says how to get the client back.
 
 ### Town top bar (`Features/Home/TodayTopBar.swift`)
@@ -353,24 +356,21 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   in `Features/Home/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
   as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
-  **The bell has no badge**, because the app has no notifications feature to badge honestly.
-  The friends mark does carry one: a new friend request puts Instagram's unread dot on it, in
-  exact BP yellow (`FriendsBook.dot`, BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
-  The one exception is the friends mark: it is Apple's `person.2.fill` itself, because Jesse's
-  Reference is that symbol (they differ by ~1px of antialiasing), so there is nothing to trace.
+  The + is `PlusGlyph`, in the same file. **The bell carries a dot** while Notifications or the
+  hello pill hold something unseen (`TodayTopBar.bellButton`); no number. A new friend
+  request puts Instagram's unread dot on the Friends tab, in exact BP yellow (`FriendsBook.dot`,
+  BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
 
 ### Other surfaces
 
 - **Town menu** — deleted on 2026-10-25 (`TownMenuView`, `GlassShowcaseOverlay`,
   `-open-menu`); only that flag reached it. Its appearance switch went with it: a saved
   System / Light / Dark choice still applies (`AppearanceStore`), and nothing sets one now.
-- **You** (`Features/You/`) — the fourth tab: the neighbour's three weeks of Going on a
-  Lapse-style Calendar, with the Agenda for the picked day under it, read by
-  `get_my_going` and kept in the shell (`YouModel`) like the Town feed (BP app
-  `docs/plans/you-tab`).
-- **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You:
-  identity and settings, **no fabricated counts** `[prose]`. Its Saved
-  row pushes the saved Events inside the sheet's own stack (`SavedPage`), read by
+- **You** (`Features/Profile/`, `Features/You/`) — the fifth tab is your own Profile
+  (`ProfileView`, BP app five-tabs 03): identity and settings, **no fabricated counts**
+  `[prose]`, over your three weeks of Going on a Lapse-style Calendar with the picked day's
+  Agenda (`YouPage`), read by `get_my_going` and kept in the shell (`YouModel`) like the
+  Town feed (BP app `docs/plans/you-tab`). Its Saved row pushes the saved Events (`SavedPage`), read by
   `get_my_saves` and kept in the shell (`YouModel.saves()`), with this session's saves laid
   over it from `RealLifeActions` (BP app `docs/plans/you-tab`, ticket 04). `EditProfileView` writes
   **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
@@ -389,8 +389,7 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **The Town feed's rules live in `get_town_feed`, not in the app.** `[prose]` They are BP app
   `docs/plans/town-feed/issues/05-eligible.md` (Jesse, 2026-10-08), and they replace the old
   "one-time news, not a standing calendar" rule and `feat/tab-town`'s `townSurfacing`: do not
-  adopt that branch. `dedupeRecurring` and `FeedSectioning` are the old posting pipeline, used
-  only by DEBUG previews. Two decided rules wait on data: City meetings stay in until people
+  adopt that branch. Two decided rules wait on data: City meetings stay in until people
   can follow the City, and the ZIP check waits until events carry a ZIP or a Place.
 - **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
   `DateHelpers.swift`. Self-approved events are an intentional product decision shared with

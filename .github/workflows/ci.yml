@@ -73,8 +73,8 @@ jobs:
       # cannot compile: BlockPartyApp.swift references MAPBOX_ACCESS_TOKEN and
       # GooglePlacesService.swift references GOOGLE_PLACES_API_KEY.
       #
-      # The suite is pure logic (dates, garbage schedule, timezone, utility row,
-      # onboarding) and never renders a map or calls Places, so placeholders are
+      # The suite is pure logic (dates, the town clock, the Town feed, Going and
+      # Heart, onboarding) and never renders a map or calls Places, so placeholders are
       # enough to compile and test. Do NOT put real keys here — if a future test
       # genuinely needs one, use a repo secret and keep the placeholder fallback.
       #

@@ -28,7 +28,7 @@ deterministically by date — no AI call, no outbound request. The line each
 neighbour reads. **The almanac was removed entirely on 2026-09-25** — app card,
 `almanac_daily`, `town_almanac`, the `almanac_md` column, `town_almanac_line()` and
 the `daily-almanac` edge function. Its content is archived in
-`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`.
+`docs/archive/ST-JOSEPH-ALMANAC-ARCHIVE.md`.
 
 Weather is left null. The utility row fetches live
 weather through WeatherService's 15-minute cache, which is fresher all day than
