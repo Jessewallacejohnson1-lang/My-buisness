@@ -749,11 +749,12 @@ struct CommunityAPI {
             private enum Keys: String, CodingKey { case card, going }
             init(from decoder: Decoder) throws {
                 let c = try decoder.container(keyedBy: Keys.self)
-                if let card = try c.decodeIfPresent(UpcomingEvent.self, forKey: .card) {
+                if let card = try? c.decodeIfPresent(UpcomingEvent.self, forKey: .card) {
                     event = card
                 } else {
                     // ponytail: a read with no `card` yet (Saved and the bell until codebase-health-2 02, the
-                    // Going read until its migration is live) decodes its own row; 03 deletes this.
+                    // Going read until its migration is live), or one that doesn't decode, reads its own row;
+                    // 03 deletes this.
                     var row = try UpcomingEvent(from: decoder)
                     row.rsvpd = try c.decodeIfPresent(Bool.self, forKey: .going) ?? true
                     event = row

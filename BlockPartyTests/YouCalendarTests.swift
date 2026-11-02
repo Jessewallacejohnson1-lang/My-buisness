@@ -447,7 +447,8 @@ final class YouCalendarTests: XCTestCase {
 
     /// The Going read's Event card (BP app codebase-health-2 01): a full one carries everything the Town
     /// card and the Event page show, its found link under About included, over the old columns beside it;
-    /// a bare one reads with empties.
+    /// a bare one reads with empties; one that doesn't decode leaves the row's old columns; one not Going
+    /// says so.
     func testTheGoingReadsEventCardDecodesFullAndBare() throws {
         let json = """
         [{"id":"e1","title":"SJU Football vs Concordia","event_date":"2026-11-05","start_time":"1 PM",
@@ -477,7 +478,16 @@ final class YouCalendarTests: XCTestCase {
             "image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,
             "created_at":"2026-10-01T12:00:00+00:00","going_count":1,"going":true,"cancelled":false,
             "place_picture":null,"host_picture":null,"description":null,"what":null,"source_url":null,"game":null,
-            "friends_going":[]}}]
+            "friends_going":[]}},
+         {"id":"e3","title":"Quiz night","event_date":"2026-11-06","start_time":"7 PM","location":null,
+          "image_url":null,"category":null,"club_name":null,"source_name":"Bad Habit Brewing","end_at":null,
+          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":5,"cancelled":false,
+          "card":{"title":"Quiz night","source_url":"https://x/quiz"}},
+         {"id":"e4","title":"Fall market","event_date":"2026-11-07","start_time":null,"location":null,
+          "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph","end_at":null,
+          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":4,"cancelled":false,
+          "card":{"id":"e4","title":"Fall market","event_date":"2026-11-07","going_count":4,"going":false,
+            "created_at":"2026-10-01T12:00:00+00:00"}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8))
         let full = rows[0]
@@ -510,6 +520,15 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(bare.sourceURL)
         XCTAssertTrue(bare.friendsGoing.isEmpty)
         XCTAssertFalse(bare.cancelled)
+
+        let broken = rows[2]
+        XCTAssertEqual([broken.id, broken.title], ["e3", "Quiz night"], "a card that doesn't decode reads the row")
+        XCTAssertEqual(broken.goingCount, 5)
+        XCTAssertTrue(broken.rsvpd)
+        XCTAssertNil(broken.sourceURL, "nothing is taken from a card that doesn't decode")
+
+        XCTAssertFalse(rows[3].rsvpd, "a card that says not Going is not Going")
+        XCTAssertEqual(rows.count, 4)
     }
 
     // MARK: Friends going with you (ticket 07)
