@@ -16,8 +16,10 @@ The pictures are the ones each Event came with, so nothing paid starts and no ne
 - a CSB SJU campus listing: its banner picture, one call to the campus calendar for every listing
 - any other page: its share picture (og:image), read politely
 Each is downloaded once, at least MIN_WIDTH wide, and drawn numbered on .runs/morning/photos/sheet-N.png; a
-helper on the cheap model picks one per Event by sources/models/event-photo.md, or none. `keep` uploads each
-pick to the places bucket as a place_photos row of kind 'event' for that Event (one row per Event when one
+helper on the cheap model picks one per Event by sources/models/event-photo.md: a real photo, else the Event's own
+flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the bakery's pastry photo), or none.
+`keep` uploads each pick to the places bucket as a place_photos row of kind 'event' for that Event ('flyer' for a
+flyer, which the card shows only when no scene fits) (one row per Event when one
 post names several), credited to its place (a post) or its site (a page), and marks every Event laid out as
 looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game, a meet or any
 sport has no photo of its own for now, and a sport's card shows the scene pool (event-photos 07).
@@ -281,15 +283,15 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 
 
 def plan(lines, groups):
-    """The helpers' lines as picks: {group key: (candidate, what it shows)}, only a group laid out and one of its
-    own pictures, each group once."""
+    """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
+    of its own pictures, each group once; a flyer only from the Event's own post or page."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
-        if c:
-            picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None)
+        if c and not (ln.get("flyer") and c["from"] == "other post"):
+            picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None, bool(ln.get("flyer")))
     return picks
 
 
@@ -312,7 +314,7 @@ def keep(out, dry_run=False, db=None, put=None, now=None):
     kept = []
     for g in groups:
         if g["key"] in picks and not dry_run:
-            c, shows = picks[g["key"]]
+            c, shows, flyer = picks[g["key"]]
             data = place_photos.webp(Image.open(c["file"]))
             w, h = Image.open(io.BytesIO(data)).size
             path = f"{TOWN}/events/{hashlib.sha1(data).hexdigest()[:12]}.webp"
@@ -324,7 +326,8 @@ def keep(out, dry_run=False, db=None, put=None, now=None):
             url = f"{db.url}/storage/v1/object/public/places/{quote(path)}"
             for e in g["events"]:
                 db.rest("POST", "place_photos", [{
-                    "entry_id": entry_of(e), "town": TOWN, "url": url, "source_url": c["page"], "kind": "event",
+                    "entry_id": entry_of(e), "town": TOWN, "url": url, "source_url": c["page"],
+                    "kind": "flyer" if flyer else "event",
                     "event_id": e["id"], "status": "live", "width": w, "height": h, "description": shows,
                     "credit": e.get("source_name") if POST.search(c["page"]) else None,
                     "proposed_by": "event photos"}], "return=minimal")
@@ -336,9 +339,10 @@ def keep(out, dry_run=False, db=None, put=None, now=None):
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
+    flyers = sum(len(g["events"]) for g in kept if picks[g["key"]][2])
     none = [g["title"] for g in groups if g["key"] not in picks]
     line = (f"[photos] {got} of {events} new Events got a photo of their own ({own} from their own post or page, "
-            f"{got - own} from their place's other posts)" + (f"; none for {len(none)}: " + "; ".join(none[:20])
+            f"{got - own} from their place's other posts; {flyers} of them their own flyer)" + (f"; none for {len(none)}: " + "; ".join(none[:20])
                                                                if none else "")
             + (" (dry run: nothing written)" if dry_run else ""))
     print(line)
@@ -418,8 +422,11 @@ def selftest():
 
         picks = plan([{"event": "e1", "pick": "c2", "shows": "The cast on stage"}, {"event": "e1", "pick": "c1"},
                       {"event": "e2", "pick": "c9"}, {"event": "e9", "pick": "c1"}, "unreadable line: x"], gs)
-        check(list(picks) == ["e1"] and picks["e1"][0]["n"] == 2 and picks["e1"][1] == "The cast on stage",
+        check(list(picks) == ["e1"] and picks["e1"][0]["n"] == 2 and picks["e1"][1:] == ("The cast on stage", False),
               "only a block laid out, once, and only one of its own pictures")
+        own, other = (next(f"c{c['n']}" for c in gs[0]["cands"] if c["from"] == w) for w in ("post", "other post"))
+        flyers = plan([{"event": "e1", "pick": own, "flyer": True}], gs), plan([{"event": "e1", "pick": other, "flyer": True}], gs)
+        check(flyers[0]["e1"][2] is True and flyers[1] == {}, "a flyer from the Event's own post, never another post's")
 
         (folder / "events.json").write_text(json.dumps(gs))
         (out / "photos").mkdir(parents=True)
@@ -448,6 +455,10 @@ def selftest():
               "every Event laid out is marked looked at, found or not")
         check(line.startswith("[photos] 2 of 4 new Events got a photo of their own (0 from their own post or page, 2 from")
               and "none for 2: Reflection; Give to the Max" in line, f"the line says what it did: {line}")
+        (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": own, "flyer": True}) + "\n")
+        fake = FakeDb()
+        keep(out, db=fake, put=lambda *a: None, now=datetime(2026, 11, 2, 11, tzinfo=timezone.utc))
+        check({b[0]["kind"] for m, p, b in fake.calls if p == "place_photos"} == {"flyer"}, "a flyer is saved as kind flyer")
         dry = keep(out, dry_run=True)
         check("dry run" in dry, "a dry run writes nothing")
     print(f"{ok} passed, {bad} failed")
