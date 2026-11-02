@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Place photos: is each live place photo still on the page it came from, and what could replace a
 stale one. The monthly photo refresh (sources/models/photos.md) runs it in the cloud; BP app's
-place-photos skill imports its picture-finding from here, so there is one copy.
+place-photos skill imports its picture-finding and an Event's picture subjects from here, so there
+is one copy.
 
     python3 sources/scripts/place_photos.py check [--logos]      every live photo (or logo) against its page:
                                                                   .runs/photos/check-<kind>.json, stale ones printed
@@ -15,6 +16,9 @@ place-photos skill imports its picture-finding from here, so there is one copy.
                                                                   first photo); the app shows none until Jesse's yes
     python3 sources/scripts/place_photos.py takedown <row id> "<reason>"   a live photo that isn't a real one, saved
                                                                   as a take-down pick; it stays up until Jesse's yes
+    python3 sources/scripts/place_photos.py sql                  the database's private.event_subject and
+                                                                  private.season_of, from SUBJECTS and SEASONS: a
+                                                                  change to either goes in a new migration
     python3 sources/scripts/place_photos.py --selftest
 
 Any of them takes --town T (a sources/towns/ file's name): a proposal goes in that town's photo folder.
@@ -283,6 +287,116 @@ def label(d, xy, text, f, width, fill=(30, 30, 30)):
     while f.getlength(text) > width and len(text) > 4:
         text = text[:-2] + '…'
     d.text(xy, text, fill=fill, font=f)
+
+
+# --- What an Event is about: its scene's subject and season ------------------------------------------
+# An Event's card shows a scene photo of its place made for its subject (a hockey game, a lecture, a sauna
+# night) and season (BP app event-photos). The database picks with private.event_subject and
+# private.season_of, made from these by `sql`; the self-test fails when the newest migration making them
+# differs. BP app's place-photos skill (scenes.py) imports them.
+
+SEASONS = ('winter', 'spring', 'summer', 'fall')
+# An event's subject: the first pattern its sport and title match, else its category's. Order matters
+# (a "Sauna, Yoga, Ice Bath" night is sauna; a "Jazz Festival" is band).
+SUBJECTS = [
+    ('hockey', r'hockey'), ('basketball', r'basketball'), ('wrestling', r'wrestl|matness'),
+    ('swimming', r'swim|diving'), ('gymnastics', r'gymnast'), ('volleyball', r'volleyball'),
+    ('football', r'football'), ('cross-country', r'cross country'), ('track', r'track and field|track & field'),
+    ('running', r'\b5k\b|\b10k\b|fun run|marathon|turkey trot|\bshuffle\b'),
+    ('soccer', r'soccer'), ('sauna', r'sauna|ice bath|plunge'), ('yoga', r'yoga|pilates|chi kung|qigong|tai chi'),
+    ('dance', r'\bdance|high kick'), ('choir', r'choir|vocal|chorale|singers'),
+    ('band', r'\bband\b|jazz|orchestra|ensemble|\borgan\b|symphony|informance|drumming'), ('concert', r'concert'),
+    ('academic', r'knowledge bowl|math league|robotics'), ('film', r'\bfilm'),
+    ('festival', r'powwow|festival|fashion show'),
+    ('theater', r'theat|\bplay\b|musical|mamma mia|mermaid|fall show'),
+    ('art-gallery', r'gallery|exhibit|reception|selected works|bible prints'),
+    ('worship', r'\bmass\b|prayer|retreat|adoration|sacred|pilgrimage|contemplative|vespers|spirituality'),
+    ('meeting', r'council|board meeting|commission|planning board|authority|monthly meeting|work session'),
+    ('talk', r'lecture|\btalk|webinar|speaker|poet|keynote|panel|workshop|training|certificate|class\b'),
+    ('market', r'\bmarkets?\b'), ('crafts', r'paint|stitch|craft|arrangement|porch pot|art club|wreath'),
+    ('games', r'trivia|bingo|raffle|puzzle|board game|game night|game competition|keys for cash'),
+    ('blood-drive', r'blood drive'), ('outdoors', r'hike|tracking|arboretum|conservation|luminary'),
+    ('shopping', r'black friday|pink friday|days of giving|holiday launch|holiday collection|open house|boo-tique|twinkle'),
+    ('library', r'learning commons|popcorn|paws for'), ('dinner', r'gala|dinner|fare for all|banquet'),
+    ('party', r'party|haunted'),
+]
+BY_CATEGORY = {'watch_sports': 'sports', 'play_sports': 'sports', 'live_music': 'concert', 'art_theater': 'theater',
+               'faith': 'worship', 'books': 'library', 'health': 'health', 'festivals': 'festival',
+               'markets': 'market', 'families_kids': 'kids', 'outdoors': 'outdoors', 'dining': 'dinner',
+               'crafts': 'crafts', 'games': 'games', 'town_meetings': 'meeting', 'campus': 'campus', 'bars': 'bar',
+               'volunteering': 'volunteer'}
+MIGRATIONS = Path(__file__).resolve().parents[2] / 'supabase' / 'migrations'
+
+
+def subject(title, sport=None, category=None):
+    text = f'{sport or ""} {title or ""}'.lower()
+    return next((s for s, pat in SUBJECTS if re.search(pat, text)), BY_CATEGORY.get(category or '', 'place'))
+
+
+def season(d):
+    """Minnesota's seasons by month: December to February is winter."""
+    return SEASONS[(date.fromisoformat(str(d)[:10]).month % 12) // 3]
+
+
+def _q(s):
+    return "'" + s.replace("'", "''") + "'"
+
+
+def subject_sql():
+    """SUBJECTS as the database's private.event_subject, so the picker and the skill agree.
+    Postgres regex spells a word edge \\y (its \\b is a backspace)."""
+    whens = '\n'.join(f"    when t.x ~ {_q(pat.replace(chr(92) + 'b', chr(92) + 'y'))} then {_q(s)}" for s, pat in SUBJECTS)
+    cats = ', '.join(f'{_q(k)}, {_q(v)}' for k, v in BY_CATEGORY.items())
+    return f"""create or replace function private.event_subject(p_title text, p_sport text, p_category text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select case
+{whens}
+    else coalesce(jsonb_build_object({cats}) ->> p_category, 'place')
+  end
+  from (select lower(coalesce(p_sport, '') || ' ' || coalesce(p_title, '')) as x) t
+$$;"""
+
+
+def season_sql():
+    """season() as the database's private.season_of."""
+    return f"""create or replace function private.season_of(p_date date)
+returns text
+language sql
+immutable
+as $$
+  select (array[{', '.join(map(_q, SEASONS))}])[(extract(month from p_date)::int % 12) / 3 + 1]
+$$;"""
+
+
+def made_by_migrations(name, folder=MIGRATIONS):
+    """The SQL the database runs today for function <name>: the last create, drop or alter of it in the
+    newest migration that has one. A drop, a rename, or a create in another shape (a $function$ tag, a
+    language after the body) is an error, never a quiet fall back to an older copy."""
+    schema, fn = name.split('.')
+    who = rf'"?{schema}"?\s*\.\s*"?{fn}"?(?![\w"])'
+    said = re.compile(rf'\b(create|drop|alter)\s+(?:or\s+replace\s+)?function\s+(?:if\s+exists\s+)?{who}', re.I)
+    made = re.compile(rf'create\s+(?:or\s+replace\s+)?function\s+{who}\s*\(.*?(\$\w*\$).*?\1[^;]*;', re.I | re.S)
+    last = None
+    for p in sorted(folder.glob('*.sql')):
+        text = p.read_text()
+        for m in said.finditer(text):
+            last = p, text, m
+    if last is None:
+        raise FileNotFoundError(f'no migration in {folder} makes {name}: run from a whole checkout, not sources/ alone')
+    p, text, m = last
+    whole = made.match(text, m.start())
+    if m.group(1).lower() != 'create' or not whole:
+        raise ValueError(f'{p.name} ends with a {m.group(1)} of {name} this check cannot read: '
+                         'write it as `place_photos.py sql` prints it')
+    return whole.group(0)
+
+
+def same_sql(a, b):
+    return a.strip() == b.strip()
 
 
 # --- The database ------------------------------------------------------------------------------------
@@ -623,6 +737,23 @@ def takedown(row_id, reason):
 
 # --- Self-test ------------------------------------------------------------------------------------
 
+def _later_migration_fails(sql, changed=False):
+    """The real migrations plus one newer file holding `sql`: does the drift check refuse it? With
+    `changed`, the newer file is readable and the check must see that it differs from the generator."""
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        for p in MIGRATIONS.glob('*.sql'):
+            shutil.copy(p, folder)
+        (folder / '99991231235959_later.sql').write_text(sql + '\n')
+        try:
+            differs = not same_sql(made_by_migrations('private.event_subject', folder), subject_sql())
+            return changed and differs
+        except ValueError:
+            return not changed
+
+
 def selftest():
     page = ('<meta property="og:image" content="/share.jpg"><img src="/a/storefront.jpg">'
             '<img srcset="/s-300.jpg 300w, /s-1200.jpg 1200w"><div style="background:url(\'/bg.webp\')"></div>'
@@ -680,6 +811,30 @@ def selftest():
          and not new_photo(dhash(red), 800, 100, []) and new_photo(dhash(noise), 800, 800, [dhash(red)])),
         ('a Facebook or Instagram page is skipped, a website is not',
          bool(SOCIAL.search('www.facebook.com')) and bool(SOCIAL.search('instagram.com')) and not SOCIAL.search('myfacebookfan.com')),
+        ('a sauna night with yoga in its title is sauna', subject('Sauna, Yoga, Ice Bath, Cider', None, 'health') == 'sauna'),
+        ('the sport field names the subject', subject('Cathedral vs Foley · JV', 'Boys Basketball') == 'basketball'),
+        ('a game with no sport is read from its title', subject('Albany Gymnastics vs Annandale', None, 'watch_sports') == 'gymnastics'),
+        ('a jazz festival is band, a powwow is festival', subject('Central Lakes Jazz Festival') == 'band'
+         and subject('Ptanyetu Powwow', None, 'festivals') == 'festival'),
+        ('organic is not an organ, marketing not a market, attendance not a dance',
+         subject('Organic Gardening Workshop') == 'talk' and subject('Holiday Market') == 'market'
+         and subject('Marketing 101') == 'place' and subject('Attendance Day') == 'place'
+         and subject('An Afternoon of Organ and Voice') == 'band'),
+        ('a lecture is talk; a council meeting is meeting', subject('The Nolan Lecture', None, 'faith') == 'talk'
+         and subject('City Council Work Session') == 'meeting'),
+        ('nothing matched falls to the category, then the place', subject('7th Grade', None, 'watch_sports') == 'sports'
+         and subject('Fall Picture Retakes') == 'place'),
+        ('December to February is winter, November fall', season('2026-12-01') == 'winter'
+         and season('2027-02-28') == 'winter' and season('2026-11-30') == 'fall'),
+        ("the database's private.event_subject and private.season_of are made from these, as their newest "
+         "migrations say; one changed word is a difference",
+         same_sql(made_by_migrations('private.event_subject'), subject_sql())
+         and same_sql(made_by_migrations('private.season_of'), season_sql())
+         and not same_sql(made_by_migrations('private.event_subject'), subject_sql().replace("'hockey'", "'hokey'"))),
+        ('a later drop, or a create in another shape, fails instead of reading an older copy',
+         _later_migration_fails('drop function private.event_subject(text, text, text);')
+         and _later_migration_fails(subject_sql().replace('$$', '$function$'), changed=True)
+         and _later_migration_fails(subject_sql() + '\n' + subject_sql().replace("'hockey'", "'hokey'"), changed=True)),
     ]
     failed = [name for name, ok in checks if not ok]
     for name in failed:
@@ -706,5 +861,7 @@ if __name__ == '__main__':
         propose(a[1], int(a[2]))
     elif a[:1] == ['takedown'] and len(a) == 3 and a[2].strip():
         takedown(a[1], a[2])
+    elif a == ['sql']:
+        print(subject_sql() + '\n\n' + season_sql())
     else:
         sys.exit(__doc__)
