@@ -1548,6 +1548,73 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
                                    [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
 });
 
+// CSB 79-57 Augsburg, 2026-02-21: SIDEARM's game file once it was over, with every foul and a few baskets from its
+// full play list (game-card 09). SIDEARM's own Personal Fouls per quarter: Saint Benedict 3, 3, 6, 5; Augsburg 3, 3, 10, 5.
+const csbHoops = JSON.parse(readFileSync(join(here, 'sidearm-final-csb-wbball.json'), 'utf8'));
+
+test("a live basketball score carries the period being played, how many make the game and its length (game-card 09)", async () => {
+  const bar = async (game, file = 'csb/wbball') => {
+    const l = await sidearmLiveAll(game, '2026-02-21', 'benedict', file);
+    return [l.period, l.clock, l.period_n, l.regulation, l.period_s];
+  };
+  assert.deepEqual(await bar(csbHoops), ['Q4', '0:00', 4, 4, 600], "CSB's women: four 10-minute quarters");
+  assert.deepEqual(await bar({ Game: { ...csbHoops.Game, Period: 5, ClockSeconds: 151 } }), ['OT', '2:31', 5, 4, 300],
+                   'overtime is 5 minutes');
+  const men = { Game: { ...csbHoops.Game, PeriodsRegulation: 2, Period: 2, ClockSeconds: 372,
+                        Rules: { ...csbHoops.Game.Rules, PeriodMinutes: 20, PeriodName: 'Half' } } };
+  assert.deepEqual(await bar(men, 'csbsju/mbball'), ['2nd half', '6:12', 2, 2, 1200], "SJU's men: two 20-minute halves");
+  const l = await sidearmLiveAll(sjuFootball, '2026-10-31', 'john', 'csbsju/football');
+  assert.deepEqual([l.period_n, l.regulation, l.period_s], [undefined, undefined, undefined], 'only basketball');
+});
+
+test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts them, however the plays come (game-card 09)", async () => {
+  await reset();
+  const game = await add('CSB Basketball vs Augsburg', '2026-02-21', { start_time: '1 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Basketball', team_ids = array['saint-benedict', 'augsburg']
+    where id = $1`, [game]);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const live = async () => (await db.query('select live_score from public.club_events where id = $1', [game])).rows[0].live_score;
+  const fouls = async () => { const f = (await live()).fouls; return [f.period, f.ids[0].length, f.ids[1].length]; };
+  // A Game push while it's on: that period, the clock mid-quarter, its newest plays.
+  const at = (period, plays = []) => ({ Game: { ...csbHoops.Game, IsComplete: false, Period: period, ClockSeconds: 300,
+                                                LastPlays: plays } });
+  // Game pushes walking the game's plays in order, each with the newest five, as SIDEARM's LastPlays: at each
+  // quarter's end the count is SIDEARM's own.
+  const plays = csbHoops.Plays, ends = [];
+  for (let i = 0; i < plays.length; i++) {
+    await record(at(plays[i].Period, plays.slice(Math.max(0, i - 4), i + 1).reverse()));
+    if (plays[i + 1]?.Period !== plays[i].Period) ends.push(await fouls());
+  }
+  assert.deepEqual(ends, [[1, 3, 3], [2, 3, 3], [3, 6, 10], [4, 5, 5]], "the host's and Augsburg's, each quarter");
+  // A new quarter starts empty; a plays push of the whole list counts the same, and again changes nothing.
+  await record(at(3));
+  assert.deepEqual(await fouls(), [4, 5, 5], 'the period never goes back');
+  await db.query('update public.club_events set live_score = null, scoring_plays = null where id = $1', [game]);
+  assert.equal(await record(plays), 'ignored', 'no score yet: whose side a play is on is unknown');
+  assert.equal(await live(), null, 'no score yet: the fouls wait for one');
+  await record(at(3));
+  assert.deepEqual(await fouls(), [3, 0, 0]);
+  // Late in the 3rd: the plays so far.
+  const sofar = plays.filter((p) => p.Period <= 3), before = (await live()).at;
+  assert.equal(await record(sofar), 'live');
+  assert.deepEqual(await fouls(), [3, 6, 10]);
+  assert.equal((await live()).at, before, "a plays push keeps the score's time");
+  assert.equal(await record({ Plays: sofar }), 'ignored', 'the same fouls again');
+  // Overtime counts with the 4th quarter (the NCAA's rule).
+  await record(at(4, plays.filter((p) => p.Period === 4)));
+  const foul = plays.find((p) => p.Type === 'FOUL' && p.Team === 'VisitingTeam');
+  await record(at(5, [{ ...foul, Id: 'ot-1', Period: 5 }]));
+  assert.deepEqual(await fouls(), [4, 5, 6]);
+  // The feed sends them inside the live score.
+  await db.exec('set role anon');
+  const [row] = (await db.query(`select game from public.get_town_feed(('2026-02-21 14:30'::timestamp at time zone 'America/Chicago'))
+    where game is not null`)).rows;
+  await db.exec('reset role');
+  assert.deepEqual(row.game.live.fouls.ids.map((s) => s.length), [5, 6]);
+  assert.deepEqual([row.game.live.period_n, row.game.live.regulation, row.game.live.period_s], [5, 4, 300]);
+});
+
 test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {
   await db.exec('delete from private.live_listener');
   const start = async () => (await db.query('select count(*)::int as n from public.start_live_scores()')).rows[0].n;
