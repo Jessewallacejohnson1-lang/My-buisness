@@ -31,7 +31,6 @@ struct BlockPartyApp: App {
                     // there is no stored session.
                     await auth.ensureAccount()
                 }
-                .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed
         }
         .onChange(of: scenePhase) { _, phase in
             // Offline at first launch: try again when the app comes back.

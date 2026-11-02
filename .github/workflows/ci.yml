@@ -68,14 +68,13 @@ jobs:
           echo "Using simulator $udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      # MapboxConfig.swift and GooglePlacesConfig.swift are gitignored so the real
-      # keys never land in this public repo — correct, but it means a fresh clone
-      # cannot compile: BlockPartyApp.swift references MAPBOX_ACCESS_TOKEN and
-      # GooglePlacesService.swift references GOOGLE_PLACES_API_KEY.
+      # MapboxConfig.swift is gitignored so the real token never lands in this
+      # public repo — correct, but it means a fresh clone cannot compile:
+      # BlockPartyApp.swift references MAPBOX_ACCESS_TOKEN.
       #
       # The suite is pure logic (dates, garbage schedule, timezone, utility row,
-      # onboarding) and never renders a map or calls Places, so placeholders are
-      # enough to compile and test. Do NOT put real keys here — if a future test
+      # onboarding) and never renders a map, so a placeholder is enough to
+      # compile and test. Do NOT put a real token here — if a future test
       # genuinely needs one, use a repo secret and keep the placeholder fallback.
       #
       # BlockParty/ is an Xcode file-system-synchronized group, so files written
@@ -88,11 +87,6 @@ jobs:
             echo 'let MAPBOX_ACCESS_TOKEN = "pk.ci-placeholder-not-a-real-token"' \
               > BlockParty/Config/MapboxConfig.swift
             echo "wrote placeholder MapboxConfig.swift"
-          fi
-          if [ ! -f BlockParty/Config/GooglePlacesConfig.swift ]; then
-            echo 'let GOOGLE_PLACES_API_KEY = "ci-placeholder-not-a-real-key"' \
-              > BlockParty/Config/GooglePlacesConfig.swift
-            echo "wrote placeholder GooglePlacesConfig.swift"
           fi
 
       # No -testPlan flag: the shared scheme already points at BlockParty.xctestplan,

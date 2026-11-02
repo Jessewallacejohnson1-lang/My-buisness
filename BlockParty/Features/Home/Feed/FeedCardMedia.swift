@@ -221,9 +221,7 @@ final class FeedCardImageLoader {
 
     private nonisolated static func remoteData(from url: URL) async -> Data? {
         do {
-            // Through `mediaRequest`, so a Google Places photo carries the bundle-id
-            // header its key checks. Every other URL goes out as before.
-            let (data, response) = try await URLSession.shared.data(for: GooglePlacesService.mediaRequest(for: url))
+            let (data, response) = try await URLSession.shared.data(from: url)
             if let response = response as? HTTPURLResponse,
                !(200..<300).contains(response.statusCode) {
                 return nil

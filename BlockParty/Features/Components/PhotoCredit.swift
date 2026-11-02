@@ -1,9 +1,9 @@
 //
 //  PhotoCredit.swift
-//  Block Party — the ONE Google-required photographer credit treatment, shared by
-//  every place a Places photo is rendered (the feed hero, the event page, VenueInfoView).
+//  Block Party — the ONE photo credit treatment, shared by every place a credited
+//  photo is rendered (the feed hero, the Event page, business and group pages).
 //
-//  It lives in one file on purpose: the credit is a ToS obligation, not decoration, so
+//  It lives in one file on purpose: the credit is an obligation, not decoration, so
 //  it must never fork into a second, weaker treatment. It previously had — a 9pt
 //  white-on-40%-black chip shipped on the feed hero while this component was being
 //  rewritten to abandon exactly that chip as illegible; promoting it here closes that
@@ -16,7 +16,7 @@
 
 import SwiftUI
 
-/// The Google-required photographer credit, sized to be READ rather than merely
+/// The photo credit, sized to be READ rather than merely
 /// present. It has to survive the smallest photo box in the app — the 232x132
 /// "Happening this week" shelf card — where the previous 9pt white-on-40%-black
 /// chip scanned as a smudge in the corner.
@@ -25,8 +25,8 @@ import SwiftUI
 /// in the type scale that still holds a serif-free name), a hair of tracking, a
 /// darker and slightly taller capsule so it reads as a caption chip instead of a
 /// stray mark, and a soft drop shadow so it separates from a busy photograph rather
-/// than dissolving into one. It is never suppressed — Google's terms require the
-/// attribution wherever the image appears, so there is no "too small to bother"
+/// than dissolving into one. It is never suppressed — a credited photo carries its
+/// credit wherever the image appears, so there is no "too small to bother"
 /// case; if the photo is on screen, so is its credit. Callers must therefore only
 /// place it over a photo that is actually shown (a `.success` phase), never over a
 /// loading/failed placeholder.

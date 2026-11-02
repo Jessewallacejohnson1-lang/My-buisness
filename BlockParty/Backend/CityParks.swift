@@ -7,14 +7,11 @@
 //  transcribed 2026-07-11). Lake Wobegon Trailhead is deliberately omitted —
 //  it's already represented as a trail (see WobegonExploreCard).
 //
-//  Each park carries a building-accurate `coordinate` used to anchor Rule A's
-//  Google-Places photo confidence check (`confidentPhoto(name:coordinate:)`). Five were
+//  Each park carries a building-accurate `coordinate`. Five were
 //  cross-validated against OSM leisure=park polygon centers to within ~2 m
 //  (Centennial, Klinefelter, Memorial, Millstream, Northland — they also live
 //  in KnownVenues); the other four are address-level geocodes (Cloverdale,
-//  Hollow, Monument) or, for Rivers Bend, a triangulated estimate — a wrong
-//  coordinate only makes the 75 m confidence gate skip a photo (fail-safe),
-//  never shows a wrong one.
+//  Hollow, Monument) or, for Rivers Bend, a triangulated estimate.
 //
 
 import Foundation

@@ -73,7 +73,7 @@ struct CommunityAPI {
 
     // MARK: - Places (permanent food/business POI markers)
 
-    /// The town's permanent venues, seeded once into Supabase (see PlaceSeeder). Read
+    /// The town's permanent venues, seeded once into Supabase. Read
     /// once by the map — no live Google Places call per map load. RLS opens reads, to
     /// the anon role too, so signed out (sign-in is switched off) they are read with the
     /// app's public key instead of failing into an empty map and an empty Search.

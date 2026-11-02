@@ -66,7 +66,6 @@ nonisolated enum LaunchFlags {
         case searchChip = "-search-chip"
         case searchFocus = "-search-focus"
         case searchWords = "-search-words"
-        case seedPlaces = "-seed-places"
         case shareDemo = "-share-demo"
         case showHome = "-show-home"
         case showSkeletons = "-show-skeletons"
