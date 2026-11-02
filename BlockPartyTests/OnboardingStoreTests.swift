@@ -237,25 +237,55 @@ final class OnboardingStoreTests: XCTestCase {
                      UpcomingTags(interests: ["town_meetings"], source: "City")])
     }
 
-    func testFollowThreeShowsWhatFitsThePickedInterestsFirst() {
+    func testFollowThreeShowsWhatFitsThePickedInterestsFirstBusiestFirst() {
         let names = { (picked: [String]) in FollowSuggestions.ordered(self.town, picked: picked).map(\.name) }
         XCTAssertEqual(names(["coffee"]).first, "The Local Blend")
-        XCTAssertEqual(Array(names(["bars"]).prefix(2)), ["The Middy", "Bad Habit"], "busiest first within an interest")
+        XCTAssertEqual(Array(names(["bars"]).prefix(2)), ["The Middy", "Bad Habit"], "busiest first within what fits")
         // A place's Events add what its kind doesn't say: trivia makes The Middy a Games place.
         XCTAssertEqual(names(["games"]).first, "The Middy")
         XCTAssertEqual(names(["live_music"]).first, "Kennedy")
         XCTAssertEqual(names(["town_meetings"]).first, "City")
-        // Picks take turns, in the order picked, so each shows near the top.
-        XCTAssertEqual(Array(names(["coffee", "families_kids", "bars"]).prefix(3)),
-                       ["The Local Blend", "Little Saints", "The Middy"])
+        // Popular first (onboarding 26): whatever fits, busiest first, then A to Z.
+        XCTAssertEqual(Array(names(["coffee", "families_kids", "bars"]).prefix(4)),
+                       ["The Middy", "Bad Habit", "Little Saints", "The Local Blend"])
+        XCTAssertEqual(names(["coffee"])[1], "Kennedy", "then the rest, busiest first")
         XCTAssertNotEqual(names(["coffee"]), names(["bars"]))
     }
 
-    func testFollowThreeFillsToEightAndSearchesEverything() {
-        XCTAssertEqual(FollowSuggestions.ordered(town, picked: ["coffee"]).count, 7, "all 7 when the town has fewer than 8")
+    func testFollowThreeShowsEveryPlaceAndSearchesEverything() {
+        XCTAssertEqual(FollowSuggestions.ordered(town, picked: ["coffee"]).count, 7, "every place, school and page")
         XCTAssertEqual(FollowSuggestions.search(town, "brew").map(\.name), ["Bad Habit"])
         XCTAssertEqual(FollowSuggestions.search(town, "school").map(\.name), ["Kennedy"], "kinds are searched too")
         XCTAssertTrue(FollowSuggestions.search(town, "zzz").isEmpty)
+    }
+
+    func testFollowingAPlacePullsPlacesOfItsKindUpToRightAfterIt() {
+        let grid = FollowSuggestions.build(
+            places: [poi("c1", "Local Blend", "coffee_shop"), poi("r1", "Krewe", "cajun_restaurant"),
+                     poi("b1", "Middy", "bar"), poi("k1", "Flour", "bakery"), poi("c2", "Brew Two", "coffee_shop"),
+                     poi("r2", "Kay's", "restaurant"), poi("c3", "Brew Three", "coffee_shop"), poi("v1", "Vet", "veterinary_care"),
+                     poi("c4", "Brew Four", "coffee_shop"), poi("c5", "Brew Five", "coffee_shop", entry: "five")],
+            schools: [LocalSchool(id: "sju", uuid: "s1", name: "SJU", schoolName: nil, logoUrl: nil),
+                      LocalSchool(id: "csb", uuid: "s2", name: "CSB", schoolName: nil, logoUrl: nil)],
+            pages: [], events: [UpcomingTags(interests: [], place: "five")])
+        let names = { (order: [FollowSuggestion]) in order.map(\.name) }
+        let id = { (name: String) in grid.first { $0.name == name }!.target }
+
+        // Coffee shops first (two in common), the busiest first; then the bakery (coffee only); 3 at most.
+        let (once, moved) = FollowSuggestions.pull(grid, after: id("Local Blend"), follows: [id("Local Blend")])
+        XCTAssertEqual(Array(names(once).prefix(4)), ["Local Blend", "Brew Five", "Brew Two", "Brew Three"])
+        XCTAssertEqual(moved, [id("Brew Five"), id("Brew Two"), id("Brew Three")])
+        XCTAssertEqual(Set(names(once)), Set(names(grid)), "pulled, never added or lost")
+        XCTAssertEqual(names(once)[4...6], ["Krewe", "Middy", "Flour"], "the rest keep their order")
+
+        // Places above the one followed, and followed ones, stay put; a school brings schools.
+        let (twice, _) = FollowSuggestions.pull(once, after: id("Brew Two"), follows: [id("Local Blend"), id("Brew Two"), id("Brew Four")])
+        XCTAssertEqual(names(twice).firstIndex(of: "Brew Five"), 1)
+        XCTAssertEqual(names(twice)[names(twice).firstIndex(of: "Brew Two")! + 1], "Brew Three", "already right after: stays")
+        let (schools, sMoved) = FollowSuggestions.pull(grid, after: id("SJU"), follows: [id("SJU")])
+        XCTAssertEqual(names(schools).suffix(2), ["SJU", "CSB"])
+        XCTAssertTrue(sMoved.isEmpty, "CSB already sits right after SJU")
+        XCTAssertTrue(FollowSuggestions.pull(grid, after: id("Vet"), follows: [id("Vet")]).moved.isEmpty, "nothing of its kind below")
     }
 
     func testFollowsWaitOnThePhoneUntilTheFlowIsDoneAndAreTakenOnce() {

@@ -112,8 +112,10 @@ final class OnboardingNextBarTests: XCTestCase {
                 XCTAssertEqual(next.label, "Next")
                 next.tap()
             case 6:
-                // Follow 3 asks for 3 once its places are read (ticket 22); a failed read lets Next on.
-                if app.staticTexts["Suggested for you"].waitForExistence(timeout: 10) {
+                // Follow 3 asks for 3 once its places are read (ticket 22, a grid since 26); a failed read
+                // lets Next on.
+                if app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)
+                    .waitForExistence(timeout: 10) {
                     XCTAssertEqual(next.label, "Follow 3 more")
                     for followed in 1...3 {
                         let pill = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)

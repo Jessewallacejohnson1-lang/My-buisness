@@ -144,6 +144,9 @@ struct OnboardingNextBar: View {
                 .font(.sansSemibold(17))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                // "Follow 3 more" rolls to 2 (onboarding 26): Apple's number roll, the bar holding still.
+                .contentTransition(.numericText(countsDown: true))
+                .animation(.snappy, value: title)
         }
         .buttonStyle(NextBarStyle(allowed: allowed, yellow: yellow))
         // Yellow to charcoal at once, as the mock does: a cross-fade passed through olive.

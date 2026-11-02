@@ -371,28 +371,41 @@ struct OnboardingFlow: View {
     }
 
     private var question: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            BlockPartyWordmark(height: 33)
-                .foregroundStyle(Hue.ink)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(firstHere ? "You're one of the first here" : store.step.question)
-                    .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.2), value: firstHere)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($questionFocused)
-                answer
+        Group {
+            if store.step == .follow {
+                // Follow 3's question scrolls away with its grid (onboarding 26).
+                OnboardingFollowGrid(suggestions: suggestions, interests: store.interests, follows: store.follows,
+                                     toggle: { [store] in store.toggleFollow($0) }) { heading }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    heading
+                    answer
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 32)
+                .padding(.top, 128)
+                .ignoresSafeArea(.container)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 32)
-        .padding(.top, 128)
-        .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
         .onChange(of: firstHere) { _, now in
             if now { AccessibilityNotification.Announcement("You're one of the first here").post() }
+        }
+    }
+
+    /// The wordmark and the question under it.
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            BlockPartyWordmark(height: 33)
+                .foregroundStyle(Hue.ink)
+            Text(firstHere ? "You're one of the first here" : store.step.question)
+                .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: firstHere)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($questionFocused)
         }
     }
 
@@ -426,9 +439,6 @@ struct OnboardingFlow: View {
                 .padding(.top, 8)
             InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
                           popular: popular)
-        case .follow:
-            OnboardingFollowList(suggestions: suggestions, interests: store.interests, follows: store.follows,
-                                 toggle: { [store] in store.toggleFollow($0) })
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
