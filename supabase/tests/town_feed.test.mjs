@@ -1249,6 +1249,38 @@ test("an Event's own photo shows before any scene, credited, and is never its pl
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test("an Event's own flyer shows after the scene of what it is, before its place's photo (Jesse, 2026-11-02)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons) values
+      ('bakery', 'https://x/pastry.webp', 'https://bakery.example/', 0, 'photo', 'live', 1307, 1600, '{}', '{}'),
+      ('bakery', 'https://x/tasting.webp', 'https://bakery.example/t', 1, 'scene', 'live', 1600, 1067, '{talk}', '{}');`);
+  const add = async (title) => (await db.query(
+    `insert into public.club_events (title, event_date, category, source_name, place_entry_id, created_at)
+     values ($1, '2026-10-09', 'dining', 'Bakery', 'bakery', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
+  const flyer = (event) => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, credit, width, height)
+     values ('bakery', 'https://x/flyer.webp', 'https://www.facebook.com/bakery/posts/1', 'flyer', 'live', $1, 'Bakery', 1080, 1080)`,
+    [event]);
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+  const pizza = await add('Pizza night');
+  const talk = await add('Bread baking workshop');
+  await flyer(pizza);
+  await flyer(talk);
+
+  const p = await pic(pizza);
+  assert.deepEqual([p.url, p.credit, p.site], ['https://x/flyer.webp', 'Bakery', 'https://www.facebook.com/bakery/posts/1'],
+                   'no scene fits: its own flyer, credited to its post, not the pastry photo');
+  assert.deepEqual(p.more.map((m) => m.url), ['https://x/pastry.webp'], "the Event page's more: the place's photos");
+  assert.equal((await pic(talk)).url, 'https://x/tasting.webp', 'a scene of what it is beats its flyer');
+  assert.equal((await db.query("select public.place_picture('bakery') as p")).rows[0].p.url, 'https://x/pastry.webp',
+               "a flyer is never the place's cover");
+  await assert.rejects(flyer(pizza), /place_photos_one_per_event/, 'one live picture per Event, flyer or photo');
+  await assert.rejects(db.query(`insert into public.place_photos (entry_id, url, source_url, kind, status) values
+    ('bakery', 'https://x/loose.webp', 'https://bakery.example/', 'flyer', 'live')`), /place_photos_event_kind/, 'a flyer names its Event');
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
 test('a Christmas photo shows on a holiday event from November 1, on any from December 1 to January 6 (event-photos 07)', async () => {
   await reset();
   await db.exec(`delete from public.place_photos;

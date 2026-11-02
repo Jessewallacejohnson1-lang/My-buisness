@@ -36,20 +36,25 @@ final class ProfileModel: ObservableObject {
     @Published var loading = false
     @Published var loaded = false
 
-    private let auth: AuthStore
-    private var profiles: ProfileAPI { ProfileAPI(auth: auth, send: send) }
-    private var send = Supabase.Send.live
+    /// The one client every read and write goes through, and the account it goes as.
+    private var supabase: Supabase
+    private var auth: any TokenProviding { supabase.auth }
+    private var profiles: ProfileAPI { ProfileAPI(supabase) }
+    private let endSession: () async -> Void
     private var writePlans: ((Bool) async throws -> Void)?
     private var writeSuggest: ((Bool) async throws -> Void)?
     /// The switches with a write out, so taps queue behind it.
     private var writing: Set<PartialKeyPath<ProfileModel>> = []
 
-    // Default arg is nil (not `.shared`) so the main-actor singleton is only
+    // Default args are nil (not `.app`, `.shared`) so the main-actor singletons are only
     // touched inside this @MainActor init body — no cross-isolation warning.
-    // `writePlans` stands in for the server in tests.
-    init(auth: AuthStore? = nil, writePlans: ((Bool) async throws -> Void)? = nil,
+    // `supabase` is the app's one client unless a test hands a fake (BP app codebase-health 22);
+    // `signOut` ends the session; `writePlans` stands in for the server in tests.
+    init(supabase: Supabase? = nil, signOut: (() async -> Void)? = nil,
+         writePlans: ((Bool) async throws -> Void)? = nil,
          writeSuggest: ((Bool) async throws -> Void)? = nil) {
-        self.auth = auth ?? .shared
+        self.supabase = supabase ?? .app
+        endSession = signOut ?? { await AuthStore.shared.signOut() }
         self.writePlans = writePlans
         self.writeSuggest = writeSuggest
         // The name at once, so the sheet never opens on "Add your name" and fades to it.
@@ -58,7 +63,7 @@ final class ProfileModel: ObservableObject {
         // `-town-samples`: the switches show on and their taps write nowhere, as Join's do;
         // `-town-offline`: every tap fails, as with no network.
         // `-town-offline`: Save fails as with no signal too, and sends nothing.
-        if LaunchFlags.backend == .offline { send = .offline }
+        if LaunchFlags.backend == .offline { self.supabase.send = .offline }
         if writePlans == nil, LaunchFlags.backend != .live {
             let offline = LaunchFlags.backend == .offline
             plansToFriends = true
@@ -136,8 +141,30 @@ final class ProfileModel: ObservableObject {
     /// local mirror + published state are committed only on success, so the editor
     /// can surface a real failure instead of falsely reporting "saved" and then
     /// silently reverting on the next load.
+    /// Why a save didn't go through, as the line Edit profile shows and VoiceOver reads.
+    nonisolated enum SaveProblem: Equatable {
+        /// No session, or the server refused the token (a 401): only logging in fixes it.
+        case signedOut
+        /// Anything else: no signal, the server down, or its no.
+        case other
+
+        /// The save's own error, sorted. A 401 is the session, whoever said it: the app's own
+        /// "Your session ended" before anything is sent, or the server's.
+        static func of(_ error: Error) -> SaveProblem {
+            (error as? SupabaseError)?.status == 401 ? .signedOut : .other
+        }
+
+        var line: String {
+            switch self {
+            case .signedOut: "Couldn't save. Log in and try again."
+            case .other: "Couldn't save your profile. Check your connection and try again."
+            }
+        }
+    }
+
+    /// Saves the edit; nil when the server took it, else why it didn't.
     func save(name: String, image: UIImage?, interests: [String],
-              bio: String? = nil, cover: UIImage? = nil) async -> Bool {
+              bio: String? = nil, cover: UIImage? = nil) async -> SaveProblem? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         var newUrl = avatarUrl
@@ -155,7 +182,7 @@ final class ProfileModel: ObservableObject {
                                       bio: canDescribe ? newBio : nil, coverUrl: canDescribe ? newCover : nil)
         } catch {
             Log.network("Profile.save: \(error)")
-            return false
+            return SaveProblem.of(error)
         }
 
         // Commit only after the server accepted the write.
@@ -166,7 +193,7 @@ final class ProfileModel: ObservableObject {
         interestIds = interests
         if canDescribe, let newBio { self.bio = newBio }
         if let newCover { coverUrl = newCover }
-        return true
+        return nil
     }
 
     /// Nextdoor's 150 letters; the database holds the same line.
@@ -221,7 +248,7 @@ final class ProfileModel: ObservableObject {
         return square.jpegData(compressionQuality: 0.85)
     }
 
-    func signOut() async { await auth.signOut() }
+    func signOut() async { await endSession() }
 
     /// The switch answers at once. One write at a time: taps made while one is out are sent
     /// as their latest value when it returns, so the server ends where the switch does. A
@@ -271,9 +298,7 @@ final class ProfileModel: ObservableObject {
     /// "July 2026" from an ISO onboarded_at (with or without fractional seconds).
     static func since(from iso: String?) -> String? {
         guard let iso, !iso.isEmpty else { return nil }
-        let plain = ISO8601DateFormatter(); plain.formatOptions = [.withInternetDateTime]
-        let frac  = ISO8601DateFormatter(); frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = plain.date(from: iso) ?? frac.date(from: iso) else { return nil }
+        guard let date = DateHelpers.timestamp(iso) else { return nil }
         let out = DateFormatter()
         out.locale = Locale(identifier: "en_US")
         out.dateFormat = "MMMM yyyy"

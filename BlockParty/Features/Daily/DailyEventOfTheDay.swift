@@ -22,10 +22,10 @@ struct DailyEvent: Identifiable {
 
     var id: String { item.id }
 
-    var photo: URL? {
-        if case .eventPhoto(let url) = item.image { return url }
-        return nil
-    }
+    /// Its square's photo: the Town card's pick (`FeedCardItem.image`, its own photo first, else
+    /// its place's), so an Event whose only photo is its place's never shows the grey square on
+    /// the Agenda or in Saved. nil for a logo and for none.
+    var photo: URL? { item.image.url }
 
     /// The card's time: "Now" while it's on (a run over days too, as the Town card), else when
     /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
@@ -104,10 +104,6 @@ struct DailyEvent: Identifiable {
                                category: EventCategory, what: String? = nil, description: String) -> DailyEvent {
         let url = Bundle.main.url(forResource: photo, withExtension: "jpg")
         // The event page's when line reads these, so it shows the day and the time.
-        let day = DateFormatter()
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.timeZone = Town.timeZone
-        day.dateFormat = "yyyy-MM-dd"
         let time = DateFormatter()
         time.locale = Locale(identifier: "en_US")
         time.timeZone = Town.timeZone
@@ -117,7 +113,7 @@ struct DailyEvent: Identifiable {
             image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
-            eventDate: day.string(from: starts), startTime: time.string(from: starts),
+            eventDate: Town.day(starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )
         item.what = what
@@ -166,8 +162,9 @@ final class EventOfTheDay {
         self.kept = kept
     }
 
-    /// The live read, or under DEBUG `-daily-samples` the three samples.
-    convenience init() {
+    /// The live read through `supabase`, the session's one client (`AppSession`), or under DEBUG
+    /// `-daily-samples` the three samples.
+    convenience init(supabase: Supabase) {
         #if DEBUG
         if DailySamples.on {
             self.init(read: { DailyEvent.samples(on: DailyClock.now(Date())) })
@@ -175,7 +172,7 @@ final class EventOfTheDay {
         }
         #endif
         self.init(read: {
-            try await CommunityAPI(auth: AuthStore.shared).getEventOfTheDay().compactMap(DailyEvent.init(row:))
+            try await CommunityAPI(supabase).getEventOfTheDay().compactMap(DailyEvent.init(row:))
         }, kept: {
             guard let data = TownFeedCache.load(.eventOfTheDay),
                   let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }

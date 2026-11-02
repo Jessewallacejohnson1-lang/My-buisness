@@ -53,6 +53,8 @@ struct CommunityAPI {
     let db: Supabase
 
     init(auth: any TokenProviding, send: Supabase.Send = .live) { db = Supabase(auth: auth, send: send) }
+    /// Through a client already made: the session's one (`AppSession`).
+    init(_ db: Supabase) { self.db = db }
 
     /// "Real events only" guard, appended to every event *display* query.
     /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail), and a
@@ -208,7 +210,7 @@ struct CommunityAPI {
     /// Given a moment (Daily's week, daily-tab 16), it reads that moment's Town day instead:
     /// with no morning picks written ahead, the Town's top pick there. Only today's go on disk.
     func getEventOfTheDay(at moment: Date? = nil) async throws -> [TownFeedRow] {
-        let args = moment.map { ["p_now": ISO8601DateFormatter().string(from: $0)] } ?? [:]
+        let args = moment.map { ["p_now": DateHelpers.timestampString($0)] } ?? [:]
         let data = try await db.rpc("get_event_of_the_day", args, anon: true)
         let rows = try Self.townFeedRows(from: data)
         if moment == nil { TownFeedCache.save(data, .eventOfTheDay) }
@@ -652,7 +654,7 @@ struct CommunityAPI {
     /// Finals your followed teams played, read since `since`, newest first: the hello pill's
     /// "Johnnies beat Gustavus 33–23".
     func myTeamFinals(since: Date) async throws -> [TeamFinal] {
-        try Supabase.decode(await db.rpc("my_team_finals", ["p_since": ISO8601DateFormatter().string(from: since)]))
+        try Supabase.decode(await db.rpc("my_team_finals", ["p_since": DateHelpers.timestampString(since)]))
     }
 
     /// Everyone and everything you follow, A to Z: Profile's Following list.

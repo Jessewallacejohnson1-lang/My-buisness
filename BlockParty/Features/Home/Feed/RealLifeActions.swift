@@ -214,7 +214,8 @@ final class RealLifeActions {
         case offline
     }
 
-    convenience init() {
+    /// Writes through `supabase`, the session's one client (`AppSession`).
+    convenience init(supabase: Supabase) {
         let backend = LaunchFlags.backend
         let setGoing: (String, Bool) async throws -> Void
         let setHeart: (String, Bool) async throws -> Void
@@ -226,26 +227,26 @@ final class RealLifeActions {
         switch backend {
         case .live:
             setGoing = { eventID, going in
-                let api = CommunityAPI(auth: AuthStore.shared)
+                let api = CommunityAPI(supabase)
                 if going { try await api.rsvpEvent(eventID) } else { try await api.unRsvpEvent(eventID) }
             }
             setHeart = { eventID, hearted in
-                let api = SocialAPI(auth: AuthStore.shared)
+                let api = SocialAPI(supabase)
                 if hearted { try await api.likeEvent(eventID) } else { try await api.unlikeEvent(eventID) }
             }
             setSave = { eventID, saved in
                 // Daily's sample Suggestions ("daily-s1") are saved on this run only.
                 guard UUID(uuidString: eventID) != nil else { return }
-                let api = SocialAPI(auth: AuthStore.shared)
+                let api = SocialAPI(supabase)
                 if saved { try await api.saveEvent(eventID) } else { try await api.unsaveEvent(eventID) }
             }
             setMember = { groupID, member in
-                let api = CommunityAPI(auth: AuthStore.shared)
+                let api = CommunityAPI(supabase)
                 if member { try await api.joinClub(groupID) } else { try await api.leaveClub(groupID) }
             }
-            setFollow = { try await CommunityAPI(auth: AuthStore.shared).followWrite($0, $1) }
-            readFollow = { try await CommunityAPI(auth: AuthStore.shared).followCard($0) }
-            knownEvents = { try await CommunityAPI(auth: AuthStore.shared).knownEventIDs($0) }
+            setFollow = { try await CommunityAPI(supabase).followWrite($0, $1) }
+            readFollow = { try await CommunityAPI(supabase).followCard($0) }
+            knownEvents = { try await CommunityAPI(supabase).knownEventIDs($0) }
         case .samples:
             // With `-town-refuse` the server says no to every Join and Join group, so the hold,
             // the turn back and the shake can be recorded on the card and the pages.
@@ -274,9 +275,10 @@ final class RealLifeActions {
         // Waiting taps are kept only for real ones: never a sample's, and never in a test
         // run, which could otherwise send a tap left on the simulator.
         let keeps = backend == .live && !AuthStore.isTestRun
-        self.init(signedIn: AuthStore.shared.isSignedIn, needsAccount: backend == .live,
-                  isAnonymous: { AuthStore.shared.isAnonymous }, hold: Self.hold, flip: .seconds(Self.flip),
-                  keep: keeps ? .standard : nil, owner: { AuthStore.shared.userId },
+        let auth = supabase.auth
+        self.init(signedIn: auth.isSignedIn, needsAccount: backend == .live,
+                  isAnonymous: { auth.isAnonymous }, hold: Self.hold, flip: .seconds(Self.flip),
+                  keep: keeps ? .standard : nil, owner: { auth.userId },
                   setGoing: setGoing, setHeart: setHeart, setSave: setSave, setMember: setMember,
                   setFollow: setFollow, readFollow: readFollow, knownEvents: knownEvents)
     }
