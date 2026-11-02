@@ -143,13 +143,13 @@ await db.exec(findable);
 for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
   await db.exec(readFileSync(join(migrations, f), 'utf8'));
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-// The two functions as they were before feed-load (20261101200821_feed_once_per_open.sql), kept under
+// The two functions as they were before feed-load (20261102155729_feed_once_per_open.sql), kept under
 // other names so the stories can hold the new ones to them: the whole feed with its own body, and the
 // Event of the day that worked it all out.
 const before = (file, fn, as) => readFileSync(join(migrations, file), 'utf8')
   .match(new RegExp(`create or replace function public\\.${fn}\\([\\s\\S]*?\\n\\$\\$;`))[0]
   .replace(`public.${fn}(`, `public.${as}(`).replaceAll('public.get_town_feed(', 'public.old_town_feed(');
-await db.exec(before('20261101195802_game_team_host.sql', 'get_town_feed', 'old_town_feed'));
+await db.exec(before('20261102005713_post_screen_feed.sql', 'get_town_feed', 'old_town_feed'));
 await db.exec(before('20261026132204_activity_follow_lift.sql', 'get_event_of_the_day', 'old_event_of_the_day'));
 // The stories empty teams between them; the activities stay, matched by their ids.
 await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
@@ -2792,7 +2792,7 @@ test('a later round: unopened places first, a new order each round, one repeat u
   await noPlaces();
 });
 
-// Feed load (20261101200821_feed_once_per_open.sql): Event of the day reads only its slice of the Town
+// Feed load (20261102155729_feed_once_per_open.sql): Event of the day reads only its slice of the Town
 // feed, never the whole of it, and gives exactly what it gave when it read the whole feed.
 const SHE = '00000000-0000-0000-0000-0000000000c1';
 async function busyWeekend() {

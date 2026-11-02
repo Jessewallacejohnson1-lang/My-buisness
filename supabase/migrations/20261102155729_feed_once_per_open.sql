@@ -6,8 +6,8 @@
 --
 -- What goes live:
 --   private.town_feed(p_now, p_news, p_only, p_later)  the Town feed's body, moved here from
---     20261101195802_game_team_host.sql line for line (after-the-best's p_later and town-feed 39's
---     team hosts included), but for one filter: given p_only, it works out only
+--     20261102005713_post_screen_feed.sql line for line (after-the-best's p_later, town-feed 39's team
+--     hosts and town-feed 29's posts included), but for one filter: given p_only, it works out only
 --     those Events and every other Event of their hosts (an Event's points, series and spacing read
 --     nothing else, so they come out exactly as in the whole feed). Null works out everything. Also the
 --     last_visit comment now says what town-feed 38 made it: none yet means the last 24 hours.
@@ -24,7 +24,10 @@
 -- after 10 minutes from 2 to 1, and opening Daily's week from 6 more to 6 small slices. Old apps get it
 -- at once: nothing they send changes.
 --
--- Roll back: re-run get_town_feed from 20261101195802_game_team_host.sql (its own body) and
+-- Rebuilt 2026-11-02 on post-screen's feed, which went live first: written on 2026-11-01 as
+-- 20261101200821, it would have taken posts out of the live feed (apply_migration.py stopped it).
+--
+-- Roll back: re-run get_town_feed from 20261102005713_post_screen_feed.sql (its own body) and
 -- get_event_of_the_day from 20261026132204_activity_follow_lift.sql, then
 -- `drop function private.town_feed(timestamptz, boolean, uuid[], boolean);`.
 
@@ -63,7 +66,9 @@ returns table (
   what text,
   kind text,
   source_url text,
-  host_picture jsonb
+  host_picture jsonb,
+  -- A post's neighbour: name, photo and the friends they tagged (town-feed 29); null for the rest.
+  poster jsonb
 )
 language sql
 stable
@@ -477,6 +482,36 @@ as $$
     from news n, weights
     where n.leaves_at > p_now
   ),
+  -- A neighbour's post (town-feed 29, BP app references/post-screen): their own words, maybe a photo and a
+  -- Place, from the last 7 days, once the instant check said yes. Only for an app that asks (p_news), as
+  -- news: an older app can't read a row without a date. A Friends-only post reaches only the poster and
+  -- their friends: the read rule on club_events keeps it from everyone else, here too (security invoker).
+  posts as (
+    select e.id, e.title, e.location, e.image_url, e.image_aspect, e.friends_only, e.created_at, e.submitted_by, e.tagged,
+           e.submitted_by = auth.uid() as mine
+    from public.club_events e
+    where p_news and not p_later
+      and e.kind = 'post' and e.status = 'approved'
+      and e.created_at > p_now - interval '7 days' and e.created_at <= p_now
+      -- Yours, or a real, named neighbour's, neither of you blocking the other.
+      and private.shows_poster(e.submitted_by)
+      and not exists (select 1 from muted m where m.host = e.submitted_by::text)
+      -- Not interested or a report keeps out that post alone, by its id: photo-only posts share an
+      -- empty title, so the series key would hide them all.
+      and not exists (select 1 from private.my_not_interested() n where n.item_id = e.id)
+  ),
+  posts_scored as (
+    -- An Event's recipe by age instead of day (town-feed 29): 1, plus Yours for your own post or one from
+    -- someone you follow (friends follow each other), plus New, the whole halving every 24 hours.
+    select p.*,
+           (1 + case when p.mine or exists (select 1 from my_people mp where mp.id = p.submitted_by)
+                     then (w->>'yours')::float8 else 0 end
+              + case when not p.mine and p.created_at > least(lv.at, p_now - interval '24 hours')
+                          and not exists (select 1 from my_views v where v.item_id = p.id)
+                     then (w->>'new')::float8 else 0 end)
+             * power(0.5, extract(epoch from p_now - p.created_at) / 3600 / (w->>'newHalf')::float8) as base
+    from posts p, weights, last_visit lv
+  ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
     -- dozen calendars can't fill the top of the feed between them.
@@ -490,6 +525,11 @@ as $$
     -- each day).
     select n.id, n.source_name, n.base, n.published_at, n.title, 1
     from news_scored n where n.matched is null
+    union all
+    -- Posts among the Events, their poster as their host, so a second one from the same neighbour
+    -- counts half (the spacing rule below).
+    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, 0
+    from posts_scored p
   ),
   -- The one spacing rule (town-feed 36): each further item from a host counts half. A host's items
   -- are always placed best first, so this is its place among them.
@@ -507,7 +547,7 @@ as $$
                                        s.title, s.id)::int as spot
     from spaced s
   ),
-  feed_rows (id, title, event_date, start_time, location, image_url, category, club_name, source_name, end_at, all_day, created_at, going_count, rsvpd, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, cancelled, friends_going, place_picture, description, club_id, in_club, game, what, kind, source_url, host_picture, spot) as (
+  feed_rows (id, title, event_date, start_time, location, image_url, category, club_name, source_name, end_at, all_day, created_at, going_count, rsvpd, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, cancelled, friends_going, place_picture, description, club_id, in_club, game, what, kind, source_url, host_picture, poster, spot) as (
   select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
          c.name, e.source_name, e.end_at, e.all_day, e.created_at,
          e.going_n,
@@ -564,6 +604,7 @@ as $$
          -- Who puts it on, as a picture beside its name: the registry place that posted it (found
          -- Events) or the group's own place, its logo first (Jesse, 2026-10-23).
          private.host_picture(e.source_name, c.own_entry_id),
+         null::jsonb,
          p.spot
   from totals e
   join spots p on p.id = e.id
@@ -581,14 +622,34 @@ as $$
          -- photo (place_picture).
          private.entry_picture(n.place_entry_id),
          n.blurb, null::uuid, false, null::jsonb, null::text,
-         'news'::text, n.source_url, null::jsonb, s.spot
+         'news'::text, n.source_url, null::jsonb, null::jsonb, s.spot
   from news_scored n
   join spots s on s.id = n.id
+  union all
+  -- A post's row (town-feed 29): its words as the title, its Place and photo, its hearts, and who
+  -- posted it; nulls and zeros for the rest.
+  select p.id, p.title, null::date, null::text, p.location, p.image_url, null::text,
+         null::text, null::text, null::timestamptz, false, p.created_at,
+         0, false, null::text, p.created_at + interval '7 days',
+         null::text, null::text, null::jsonb,
+         private.heart_count(p.id),
+         exists (select 1 from public.event_likes h where h.event_id = p.id and h.user_id = auth.uid()),
+         false, false, '[]'::jsonb, null::jsonb,
+         null::text, null::uuid, false, null::jsonb, null::text,
+         'post'::text, null::text, null::jsonb,
+         -- and the post's own: its photo's shape, which sets the card's before the photo loads, and whether
+         -- only friends see it, which its card says.
+         private.post_poster(p.submitted_by, p.tagged)
+           || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only)),
+         s.spot
+  from posts_scored p
+  join spots s on s.id = p.id
   )
   select r.id, r.title, r.event_date, r.start_time, r.location, r.image_url, r.category, r.club_name,
          r.source_name, r.end_at, r.all_day, r.created_at, r.going_count, r.rsvpd, r.recurrence, r.leaves_at,
          r.reason, r.reason_name, r.score, r.heart_count, r.hearted, r.saved, r.cancelled, r.friends_going,
-         r.place_picture, r.description, r.club_id, r.in_club, r.game, r.what, r.kind, r.source_url, r.host_picture
+         r.place_picture, r.description, r.club_id, r.in_club, r.game, r.what, r.kind, r.source_url, r.host_picture,
+         r.poster
   from feed_rows r
   order by r.spot;
 $$;
@@ -631,7 +692,9 @@ returns table (
   what text,
   kind text,
   source_url text,
-  host_picture jsonb
+  host_picture jsonb,
+  -- A post's neighbour: name, photo and the friends they tagged (town-feed 29); null for the rest.
+  poster jsonb
 )
 language sql
 stable
