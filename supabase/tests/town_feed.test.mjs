@@ -1492,6 +1492,13 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   const at = live.at;
   await record(sjuLive);
   assert.equal((await row()).live_score.at, at, 'a push that changed nothing writes nothing, so realtime stays quiet');
+  // A clock standing still (2026-10-31: football's, between plays): once 'at' is a minute old, the same push writes
+  // it again, so the app doesn't hide a clock SIDEARM still shows as stale.
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await row()).live_score.at;
+  await record(sjuLive);
+  assert.ok(new Date((await row()).live_score.at) > new Date(old), 'a minute-old score SIDEARM confirms is written again');
   // The feed sends it in the game and keeps a game being played two more hours: still there at 5:30.
   await db.exec('set role anon');
   const feed = async (t) => (await db.query(`select game from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))
@@ -1537,12 +1544,19 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
   await record(first);
   assert.equal(await record([play('12', 'A. Moen 7 yd TD run (T. Lund kick)', 'VisitingTeam', 1, 175, 7, 7)]), 'live');
   assert.deepEqual((await plays()).map((p) => [p.id, p.side, p.score]), [['9', 0, [7, 0]], ['12', 1, [7, 7]]], 'once each, oldest first');
+  // SIDEARM corrects a play it already sent (2026-10-31: a field goal first sent with the score before it): the
+  // correction takes the play's place, and a push that changes nothing writes nothing.
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 7, 7)]), 'live');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'live');
+  assert.deepEqual((await plays()).map((p) => [p.id, p.score]), [['9', [7, 0]], ['12', [7, 7]], ['14', [10, 7]]],
+                   'the correction, in its place');
+  assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'ignored', 'nothing new');
   // The feed sends them inside the game.
   await db.exec('set role anon');
   const [row] = (await db.query(`select game from public.get_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
     where game is not null`)).rows;
   await db.exec('reset role');
-  assert.equal(row.game.plays.length, 2);
+  assert.equal(row.game.plays.length, 3);
   // Volleyball keeps none: every point carries a score; its sets show instead.
   assert.deepEqual((await db.query(`select private.sidearm_scoring($1::jsonb, true, 'csb/wvball') as s`,
                                    [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
@@ -1613,6 +1627,29 @@ test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts
   await db.exec('reset role');
   assert.deepEqual(row.game.live.fouls.ids.map((s) => s.length), [5, 6]);
   assert.deepEqual([row.game.live.period_n, row.game.live.regulation, row.game.live.period_s], [5, 4, 300]);
+});
+
+test("a minute-old basketball score SIDEARM confirms is written again with its fouls and bar, so Bonus keeps counting", async () => {
+  await reset();
+  const game = await add('CSB Basketball vs Augsburg', '2026-02-21', { start_time: '1 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Basketball', team_ids = array['saint-benedict', 'augsburg']
+    where id = $1`, [game]);
+  const live = async () => (await db.query('select live_score from public.club_events where id = $1', [game])).rows[0].live_score;
+  // Mid-1st, the quarter's fouls so far: the clock then stands still (a timeout), and SIDEARM pushes the same Game.
+  const push = { Game: { ...csbHoops.Game, IsComplete: false, Period: 1, ClockSeconds: 300,
+                         LastPlays: csbHoops.Plays.filter((p) => p.Period === 1 && p.Type === 'FOUL') } };
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const before = await live();
+  assert.deepEqual(before.fouls.ids.map((s) => s.length), [3, 3]);
+  await db.query(`update public.club_events set live_score = jsonb_set(live_score, '{at}', to_jsonb(now() - interval '61 seconds'))
+    where id = $1`, [game]);
+  const old = (await live()).at;
+  await db.query('select public.record_live_score($1, $2::jsonb)', [game, JSON.stringify(push)]);
+  const after = await live();
+  // Against the minute-old time, not the first push's: two pushes can land in the same millisecond.
+  assert.ok(new Date(after.at) > new Date(old), 'written again');
+  const { at: _a, ...kept } = before, { at: _b, ...now } = after;
+  assert.deepEqual(now, kept, 'the fouls, period_n, regulation and period_s all kept');
 });
 
 test('one listener at a time: the games are handed out at most once in 50 seconds', async () => {
