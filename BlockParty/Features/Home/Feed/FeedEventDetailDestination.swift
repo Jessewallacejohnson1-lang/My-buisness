@@ -47,9 +47,6 @@ struct FeedEventDetailDestination: View {
     @State private var failedPhotos: Set<URL> = []
     /// The Event's place's name in its own lettering, once read (follows 02).
     @State private var placeName: PlaceName?
-    /// A found Event's page, read here when the screen that opened it didn't send it: only the
-    /// Town feed does (You, Saved, Daily's Event of the day and Notifications don't).
-    @State private var foundURL: URL?
     /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
     /// called off or ending while the sheet is up keeps its sheet, and Cancel.
     @State private var calendarShown = false
@@ -222,10 +219,6 @@ struct FeedEventDetailDestination: View {
             live?.hold(liveHolder, [])
         }
         .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
-        .task(id: item.id) {
-            if item.found, item.sourceURL == nil { foundURL = await Self.readSourceURL(item.id) }
-        }
-        .animation(Motion.smooth, value: foundURL)
     }
 
     /// `event_place_name`; nothing under DEBUG samples or offline.
@@ -235,15 +228,8 @@ struct FeedEventDetailDestination: View {
         return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
     }
 
-    /// `club_events.source_url`, as `readPlaceName` reads.
-    private static func readSourceURL(_ eventID: String) async -> URL? {
-        guard LaunchFlags.backend == .live,
-              UUID(uuidString: eventID) != nil else { return nil }
-        return try? await CommunityAPI(auth: AuthStore.shared).eventSourceURL(eventID)
-    }
-
-    /// Where it was found, sent with the item or read on opening.
-    private var link: BusinessPage.LinkRow? { Self.sourceLink(item.sourceURL ?? foundURL) }
+    /// Where it was found: every read sends it with the Event card (BP app codebase-health-2).
+    private var link: BusinessPage.LinkRow? { Self.sourceLink(item.sourceURL) }
 
     // MARK: A game (game-card 05)
 
