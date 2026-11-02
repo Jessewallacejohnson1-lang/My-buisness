@@ -33,4 +33,24 @@ final class LaunchBallTests: XCTestCase {
         card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 120)).tap()
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 15), "Town's card didn't open after the launch")
     }
+
+    /// Once the yellow is mostly gone, a tap goes through to Town under the glide; before that the
+    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 1700 is
+    /// late in the glide with the yellow gone, 1000 is the ! hopping on full yellow.
+    func testATapLateInTheGlideReachesTown() {
+        continueAfterFailure = false
+        for (moment, opens) in [("1700", true), ("1000", false)] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
+                                   "-launch-at", moment, "-daily-samples", "-daily-hour", "12"]
+            app.launch()
+            let card = app.buttons["event-card-link"].firstMatch
+            XCTAssertTrue(card.waitForExistence(timeout: 10), "no event card on Town")
+            Thread.sleep(forTimeInterval: 2)
+            card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 120)).tap()
+            XCTAssertEqual(app.buttons["Back"].waitForExistence(timeout: opens ? 15 : 4), opens,
+                           opens ? "a tap late in the glide didn't reach Town" : "a tap on the yellow went through to Town")
+            app.terminate()
+        }
+    }
 }
