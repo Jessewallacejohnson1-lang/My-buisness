@@ -242,7 +242,7 @@ struct GameMatchup: View {
 
     /// Hues closer than this read as one color once both are deepened (Saint Ben's red and Macalester's
     /// orange-red sit 24° apart).
-    static let closeHue = 30.0
+    private static let closeHue = 30.0
     /// A grey, which `tone` keeps grey: charcoal on the page, a grey mark.
     static let charcoal: UInt32 = 0x808080
 
