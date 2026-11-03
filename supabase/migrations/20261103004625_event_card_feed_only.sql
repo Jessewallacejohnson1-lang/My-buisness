@@ -755,7 +755,7 @@ as $$
   fallback as (
     select p.* from parts p
     where p.draw > 1 and not exists (select 1 from written)
-    order by (p.card->>'going')::boolean desc, p.ordinality
+    order by coalesce((p.card->>'going')::boolean, false) desc, p.ordinality
     limit 1
   ),
   picked as (
