@@ -743,6 +743,26 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"##)))
     }
 
+    /// Two teams in one color take two (game-card 10): Tuesday 2026-11-03's games came out one deep red. The
+    /// away team takes its next color that isn't close; with none, the home team its own; with neither, the
+    /// away side goes charcoal. Teams far apart keep their own.
+    func testTwoTeamsInOneColorTakeTwoColors() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        let sju = try team(##"{"name":"Saint John's","color":"#C20430","colors":["#BC0E33","#02A2E2"]}"##)
+        let augsburg = try team(##"{"name":"Augsburg","color":"#702038","colors":["#74243D","#A9AAAB"]}"##)
+        let csb = try team(##"{"name":"Saint Benedict","color":"#BD0F34","colors":["#BB2037","#0F9CD7"]}"##)
+        let macalester = try team(##"{"name":"Macalester","color":"#D04828","colors":["#E44924","#315371","#AF4734"]}"##)
+        XCTAssertEqual(GameMatchup.colors([csb, macalester]), [0xBD0F34, 0x315371], "the away team takes its navy")
+        XCTAssertEqual(GameMatchup.colors([sju, augsburg]), [0x02A2E2, 0x702038], "Augsburg has only grey: Saint John's takes its blue")
+        let rocori = try team(##"{"name":"ROCORI","color":"#D82008"}"##)
+        let detroitLakes = try team(##"{"name":"Detroit Lakes","color":"#C02020"}"##)
+        XCTAssertEqual(GameMatchup.colors([rocori, detroitLakes]), [0xD82008, GameMatchup.charcoal], "neither has another: charcoal")
+        XCTAssertEqual(GameMatchup.tone(GameMatchup.charcoal, lightness: 0.21), 0x363636, "charcoal stays grey at the page's depth")
+        let scholastica = try team(##"{"name":"St. Scholastica","color":"#004070"}"##)
+        XCTAssertEqual(GameMatchup.colors([sju, scholastica]), [0xC20430, 0x004070], "red and blue keep their own")
+        XCTAssertEqual(GameMatchup.colors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
+    }
+
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
     /// field goal and safety and a goal, each with its scorer when SIDEARM's words name one, in its
     /// summary's words or its live ones; an extra point, a basket, the first read and the final are quiet.
