@@ -71,7 +71,7 @@ struct OnboardingContactsList: View {
     @ViewBuilder private var rows: some View {
         switch model.state {
         case .asking:
-            OnboardingLoadingRows(round: true)
+            OnboardingLoadingRows()
         case .off:
             line("Contacts are off.")
         case .failed:

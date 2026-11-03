@@ -415,28 +415,41 @@ struct OnboardingFlow: View {
     }
 
     private var question: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            BlockPartyWordmark(height: 33)
-                .foregroundStyle(Hue.ink)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question))
-                    .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.2), value: firstHere)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($questionFocused)
-                answer
+        Group {
+            if store.step == .follow {
+                // Follow 3's question scrolls away with its grid (onboarding 26).
+                OnboardingFollowGrid(suggestions: suggestions, interests: store.interests, follows: store.follows,
+                                     toggle: { [store] in store.toggleFollow($0) }) { heading }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    heading
+                    answer
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 32)
+                .padding(.top, 128)
+                .ignoresSafeArea(.container)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 32)
-        .padding(.top, 128)
-        .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
         .onChange(of: firstHere) { _, now in
             if now { AccessibilityNotification.Announcement("You're one of the first here").post() }
+        }
+    }
+
+    /// The wordmark and the question under it.
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            BlockPartyWordmark(height: 33)
+                .foregroundStyle(Hue.ink)
+            Text(store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question))
+                .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: firstHere)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($questionFocused)
         }
     }
 
@@ -478,9 +491,6 @@ struct OnboardingFlow: View {
                 .padding(.top, 8)
             InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
                           popular: popular)
-        case .follow:
-            OnboardingFollowList(suggestions: suggestions, interests: store.interests, follows: store.follows,
-                                 toggle: { [store] in store.toggleFollow($0) })
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
@@ -495,7 +505,8 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, yellow: store.step == .friends && store.account == nil,
+            OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
+                              yellow: store.step == .friends && store.account == nil,
                               busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
@@ -524,6 +535,15 @@ struct OnboardingFlow: View {
         if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
+    }
+
+    /// Picks or follows the title still asks for, for its number's roll.
+    private var stillToPick: Int {
+        switch store.step {
+        case .interests: max(0, 3 - store.interests.count)
+        case .follow: followsNeeded
+        default: 0
+        }
     }
 
     /// Follows still to make on step 8; none while the read is out, when it failed or when it found

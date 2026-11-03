@@ -763,6 +763,8 @@ struct CastLogo: View {
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
+                    // Search's logos are square; a school's crest isn't, and kept its shape.
+                    .scaledToFit()
                     .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
                     .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
                     .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)

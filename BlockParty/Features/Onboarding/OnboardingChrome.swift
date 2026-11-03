@@ -109,6 +109,8 @@ struct OnboardingProgressBar: View {
 /// yellow share is, on the same yellow under a shade (mock v7).
 struct OnboardingNextBar: View {
     let title: String
+    /// What's still to pick or follow, so the title's number rolls the way it goes.
+    var count = 0
     var allowed = true
     var yellow = false
     /// Log in or Create account is waiting on the server: a spinner for the words, taps ignored.
@@ -131,6 +133,10 @@ struct OnboardingNextBar: View {
                     .font(.displaySemi(17))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
+                    // roll, the bar holding still.
+                    .contentTransition(.numericText(value: Double(count)))
+                    .animation(.snappy, value: title)
             }
         }
         .buttonStyle(NextBarStyle(allowed: allowed, yellow: yellow))
