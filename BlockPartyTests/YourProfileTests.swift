@@ -213,17 +213,104 @@ final class YourProfileTests: XCTestCase {
     /// Onboarding's finish hands its name and picks over before any save, and the stamp shows the
     /// date it landed.
     func testOnboardingAnswersAreYoursAtOnce() async {
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.firstName = "Avery"
+        onboarding.interests = ["faith", "coffee"]
+        onboarding.finish()
         let profile = model()
-        profile.answered(name: "Avery", interests: ["faith", "coffee"])
 
-        XCTAssertEqual(profile.displayName, "Avery")
+        let finishing = profile.finished(onboarding)
+        XCTAssertEqual(profile.displayName, "Avery", "at once, before anything lands")
         XCTAssertEqual(Interests.get(phone), ["faith", "coffee"])
         XCTAssertEqual(Interests.displayName(phone), "Avery")
 
-        let stamped = await profile.stampOnboarded(birthday: nil, interests: ["faith", "coffee"])
-        XCTAssertTrue(stamped)
+        await finishing.value
         XCTAssertNotNil(profile.onboardedAt)
         XCTAssertEqual(reads, 0)
+    }
+
+    // MARK: - Onboarding's hand-off (codebase-health-2 10)
+
+    private var stamps: [[String: Any]] {
+        server.requests.filter { $0.httpMethod == "POST" && $0.url!.path.hasSuffix("town_profiles") }
+            .compactMap { $0.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+            .filter { $0["onboarded_at"] != nil }
+    }
+
+    /// Onboarding finished before the quiet account existed (or offline): nothing goes, the tabs come
+    /// up, and the account's arrival stamps it with the picks and takes the birthday off the phone.
+    /// Landing after the tabs came up, it reads the Town feed again once, and the tabs stay up.
+    func testAFinishMadeOfflineIsStampedWhenAnAccountArrives() async throws {
+        auth.userId = nil
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.interests = ["coffee", "faith"]
+        onboarding.birthday = try OnboardingAge.day.parse("2001-10-24")
+        onboarding.finish()
+        let profile = model()
+
+        await profile.finished(onboarding).value
+        XCTAssertTrue(server.requests.isEmpty, "no account: nothing goes")
+        XCTAssertTrue(profile.answersLanded, "the tabs come up")
+        XCTAssertEqual(profile.lateLandings, 0)
+
+        auth.userId = "a"
+        profile.accountChanged()
+        await profile.arrived(onboarding)
+
+        XCTAssertEqual(stamps.count, 1)
+        XCTAssertEqual(stamps.first?["interests"] as? [String], ["coffee", "faith"])
+        XCTAssertEqual(stamps.first?["birthday"] as? String, "2001-10-24")
+        XCTAssertNil(onboarding.birthday, "on the account, off the phone")
+        XCTAssertEqual(profile.lateLandings, 1, "the Town feed reads again, sorted by them")
+        XCTAssertTrue(profile.answersLanded, "the tabs stay up")
+
+        await profile.arrived(onboarding)
+        XCTAssertEqual(stamps.count, 1, "stamped once")
+        XCTAssertEqual(profile.lateLandings, 1, "read again once")
+    }
+
+    /// Finished here with an account: the tabs wait for the stamp, which lands in time and isn't late.
+    func testAFinishHereWaitsForTheStamp() async {
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.interests = ["coffee"]
+        onboarding.finish()
+        XCTAssertTrue(onboarding.welcoming, "the Done island")
+        let profile = model(savesHeld: true)
+
+        let finishing = profile.finished(onboarding)
+        while saves.held == 0 { await Task.yield() }
+        XCTAssertFalse(profile.answersLanded, "the last screen stays up under the island")
+        saves.open()
+        await finishing.value
+
+        XCTAssertTrue(profile.answersLanded)
+        XCTAssertEqual(stamps.count, 1)
+        XCTAssertEqual(profile.lateLandings, 0, "in time for the Town feed's first read")
+    }
+
+    /// A first launch, before the quiet account exists: nothing is read or stamped, so the launch's
+    /// one read is the account's.
+    func testNothingGoesBeforeAnAccountExists() async {
+        auth.userId = nil
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.finish()
+        await model().arrived(onboarding)
+        XCTAssertTrue(server.requests.isEmpty)
+    }
+
+    /// A reinstall: the account was stamped on another install, so onboarding finishes from the
+    /// server's word on the Welcome and nothing is stamped again.
+    func testAnAccountStampedElsewhereSkipsOnboarding() async {
+        server.answers["town_profiles"] = row("a", photo: "photo-a")
+        let onboarding = OnboardingStore(defaults: phone)
+        let profile = model()
+
+        await profile.arrived(onboarding)
+
+        XCTAssertTrue(onboarding.finished)
+        XCTAssertFalse(onboarding.finishedHere, "no Done island, no wait")
+        XCTAssertEqual(stamps.count, 0)
+        XCTAssertEqual(profile.lateLandings, 0)
     }
 }
 
