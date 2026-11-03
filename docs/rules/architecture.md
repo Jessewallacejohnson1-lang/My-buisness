@@ -371,6 +371,13 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   and one that an account change or a save overtook never lands. **Only it writes the phone's
   copy** (`Interests`' keys) `[prose]`: never make a second `ProfileModel` or write those keys
   elsewhere.
+- **Onboarding hands its answers to Your profile** (BP app codebase-health-2 10) `[test]`:
+  `OnboardingStore` keeps them on the phone; its finish here calls `ProfileModel.finished`
+  (the stamp first, which the tabs wait up to 2.5 s for, then name and photo, then Contacts'
+  requests), and each account's arrival calls `ProfileModel.arrived` (the read, then the stamp a
+  finish never got, a reinstall's skip, and waiting answers). `RootView` only shows what they say:
+  the Done island while `welcoming`, the tabs once `answersLanded`, and the shell reads the Town
+  feed again on each of `lateLandings`.
 - **Share** (`Features/Share/`) — the app-wide **share reveal**. Any share calls
   **`ShareCenter.shared.present(SharePayload(...))`**: a preview card of *exactly what's being
   shared* springs up over a dimmed backdrop in a dedicated overlay **`UIWindow`** (above the

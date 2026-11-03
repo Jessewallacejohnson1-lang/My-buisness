@@ -38,6 +38,15 @@ final class ProfileModel {
 
     /// This account's row has been read, landed or failed: a sheet waiting on it opens, offline too.
     var loaded = false
+    /// After a finish here, the answers the Town feed sorts by are on the account, or `answersWait`
+    /// has passed: till then the flow's last screen stays up under the Done island, so the feed's
+    /// first read has them (BP app onboarding 24). An account change leaves it: tabs that came up stay.
+    private(set) var answersLanded = false
+    /// Onboarding's answers that reached the account after the tabs came up (a slow signal, or the
+    /// account came later): the Town feed reads again on each, sorted by them.
+    private(set) var lateLandings = 0
+    /// ponytail: a fixed wait; a slower signal gets the feed's second read instead.
+    nonisolated static let answersWait: Duration = .seconds(2.5)
 
     /// The one client every read and write goes through, and the account it goes as.
     @ObservationIgnored private var supabase: Supabase
@@ -184,7 +193,7 @@ final class ProfileModel {
 
     /// Onboarding's name, photo and Interests on your row (BP app onboarding 18, 20): only the
     /// answers given travel. Throws, keeping nothing, when the photo or the row is refused.
-    func saveAnswers(name: String?, photo: Data?, interests: [String]) async throws {
+    private func saveAnswers(name: String?, photo: Data?, interests: [String]) async throws {
         turn += 1
         var url: String?
         if let photo { url = try await profiles.uploadPhoto(photo) }
@@ -209,6 +218,65 @@ final class ProfileModel {
             keep()
         }
         return true
+    }
+
+    // MARK: - Onboarding's hand-off (BP app codebase-health-2 10)
+
+    /// Onboarding finished here: its name and Interests are yours at once; then the stamp, which the
+    /// tabs wait for (at most `answersWait`), then the name and photo, then Contacts' requests. A
+    /// finish from the server's word needs nothing here: `arrived` saves what waits.
+    @discardableResult
+    func finished(_ onboarding: OnboardingStore) -> Task<Void, Never> {
+        answered(name: onboarding.displayName, interests: onboarding.interests)
+        return Task {
+            if onboardedAt == nil {
+                let wait = Task {
+                    guard (try? await Task.sleep(for: Self.answersWait)) != nil else { return }
+                    answersLanded = true
+                }
+                await stamp(onboarding)
+                wait.cancel()
+            }
+            answersLanded = true
+            await sendAnswers(onboarding)
+        }
+    }
+
+    /// A launch's account, or a new one (`RootView`): your row, then what onboarding owes it: the
+    /// stamp for a finish that never reached an account (offline, or before the quiet account), the
+    /// server's word for a finish on another install (a reinstall skips onboarding), and the answers
+    /// still waiting on the phone. Nothing before an account exists.
+    func arrived(_ onboarding: OnboardingStore) async {
+        guard auth.userId != nil, await read() else { return }
+        if onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
+            await stamp(onboarding)
+        } else if onboardedAt != nil {
+            onboarding.serverSaysFinished()
+        }
+        // After the read, so a name typed in onboarding beats the one read before it saved.
+        await sendAnswers(onboarding)
+    }
+
+    /// The onboarded stamp with the birthday and the picks. On the account, the birthday leaves the
+    /// phone, so another account signing in here later can't take it.
+    private func stamp(_ onboarding: OnboardingStore) async {
+        guard await stampOnboarded(birthday: onboarding.birthday, interests: onboarding.interests) else { return }
+        onboarding.birthday = nil
+        if !onboarding.finishedHere || answersLanded { lateLandings += 1 }
+    }
+
+    /// The name, photo and picks once the flow is done and an account exists; till then they wait
+    /// on the phone (BP app onboarding 18, 20). Then Contacts' Add friend picks, after the name: the
+    /// server refuses a request without one (onboarding 23). A quiet account can't send them; a real
+    /// one later can.
+    private func sendAnswers(_ onboarding: OnboardingStore) async {
+        guard onboarding.finished else { return }
+        await onboarding.saveAnswers { name, photo in
+            try await saveAnswers(name: name, photo: photo, interests: onboarding.interests)
+        }
+        guard auth.isSignedIn, !auth.isAnonymous else { return }
+        let community = CommunityAPI(supabase)
+        await onboarding.sendRequests { _ = try await community.friendWrite(.add, $0) }
     }
 
     // MARK: - The phone's copy
