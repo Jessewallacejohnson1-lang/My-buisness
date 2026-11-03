@@ -12,7 +12,7 @@
 -- and reads its day, time, all-day and called-off from the club_events row it already joins, and Going from the
 -- card.
 --
--- Only builds from iOS main <app sha> on read this (CommunityAPI.townFeedLines): earlier ones need an Event row's
+-- Only builds from iOS main a1e3d4ba on read this (CommunityAPI.townFeedLines): earlier ones need an Event row's
 -- title, all_day, created_at, going_count, rsvpd and event_date, and fail the whole answer without them. Apply it
 -- once Jesse's phone and every open branch run that build.
 --
