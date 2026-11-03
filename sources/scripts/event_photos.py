@@ -22,7 +22,8 @@ flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the
 place_photos row of kind 'event' for that Event ('flyer' for a flyer, which the card shows only when no scene fits)
 (one row per Event when one post names several), credited to its place (a post) or its site (a page). It marks
 every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game,
-a meet or any sport has no photo of its own for now, and a sport's card shows the scene pool (event-photos 07).
+a meet or any sport has no photo of its own for now (place_photos.is_sport, the skill's review page's rule too), and a
+sport's card shows the scene pool (event-photos 07).
 """
 import argparse, json, re, sys
 from datetime import date, datetime, timedelta, timezone
@@ -47,20 +48,11 @@ TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos
 CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
-GAME_PAGE = re.compile(r"mshsl\.org|gobound\.com|gojohnnies\.com|gobennies\.com|athletics", re.I)
-SPORT = re.compile(r"hockey|basketball|wrestl|swim|diving|gymnast|volleyball|football|cross country|\btrack\b|soccer|"
-                   r"nordic|\bski(ing)?\b|tennis|golf|softball|baseball|lacrosse|bowling|\bvs\.?\b", re.I)
 TEXT = re.compile(r"\btext\b", re.I)  # Meta's own description: "May be an image of text that says ..."
 
 
 def out_dir():
     return find_root() / ".runs" / "morning"
-
-
-def sport(e):
-    """A game, a meet or any sport: no photo of its own yet (Jesse: "dont worry about games for now")."""
-    return bool(write_judged.is_game(e) or e.get("sport") or e.get("category") == "watch_sports"
-                or SPORT.search(e.get("title") or "") or GAME_PAGE.search(f"{e.get('source_url')} {e.get('source_name')}"))
 
 
 def todo(db, now):
@@ -70,7 +62,8 @@ def todo(db, now):
                           "source_name,source_url,place_entry_id"
                           f"&status=eq.approved&kind=eq.event&photo_checked_at=is.null&created_at=gte.{quote(since)}"
                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
-    return [r for r in rows if not sport(r)]
+    import place_photos
+    return [r for r in rows if not place_photos.is_sport(r)]
 
 
 def post_key(url):
@@ -353,11 +346,11 @@ def selftest():
     check(post_key("https://www.facebook.com/SJUJohnnies/posts/pfbid0LVC?x=1") == "pfbid0LVC"
           and post_key("https://www.instagram.com/p/DfFG3nHkVH3/") == "DfFG3nHkVH3"
           and post_key("https://www.facebook.com/events/2380009089072052") == "2380009089072052", "one post however it's written")
-    check(sport({"title": "Boys Swim vs Brainerd · JV"}) and sport({"title": "Fall Play", "source_url": "https://www.mshsl.org/x"})
-          and sport({"title": "Pep fest", "category": "watch_sports"}) and not sport({"title": "Annual Dog Costume Contest"})
-          and not sport({"title": "Yoga and Pelvic Floor Health", "category": "health"})
-          and not sport({"title": "Fresh Skin Tattoos Fundraiser"}) and sport({"title": "Nordic Skiing Invite"}),
-          "games, meets and sports left out; a tattoo shop's Skin is no ski")
+    listed = [{"title": "Boys Swim vs Brainerd · JV", "category": "watch_sports"},
+              {"title": "The Little Mermaid", "category": "art_theater", "source_url": "https://gobound.com/direct/x"}]
+    seen = type("Db", (), {"rest": lambda self, *a, **k: listed})()
+    check([r["title"] for r in todo(seen, datetime(2026, 11, 3, tzinfo=timezone.utc))] == ["The Little Mermaid"],
+          "a meet is left out, a school's play is looked at (place_photos.is_sport)")
 
     post = lambda url, owner_, pics, **more: {"_task": "bp-busy-facebook", "url": url, "pageName": owner_,
                                               "media": [{"__typename": "Photo", "image": {"uri": u}, "photo_image": {"uri": u},

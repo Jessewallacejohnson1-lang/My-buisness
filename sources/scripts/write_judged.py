@@ -464,7 +464,8 @@ def is_game(e):
     for the describe layout: two teams playing a sport. A `game` that names a sport and two teams says so, and so does the
     sport the writer gave a row; else Watch sports and a title in the readers' form, a team after
     its "vs" (or one still to come), not a meet. A game's About is its reader's (read_events.game_about),
-    so there is nothing to research."""
+    so there is nothing to research. Not the game card's rule (place_photos.game_card), on purpose: a game whose
+    other team isn't in `teams` is a game here and a plain card there (codebase-health-2 07)."""
     if not isinstance(e, dict):
         return False
     if e.get("sport") or isinstance(e.get("game"), dict) and game_of(e, ""):
