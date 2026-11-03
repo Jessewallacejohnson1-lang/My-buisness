@@ -134,7 +134,7 @@ final class AppSession {
         Task { await friendsBook.refreshDot() }
         Task { await notices.refresh() }
         // Back the next morning on Daily: today's picks, not yesterday's.
-        if tab == .daily { Task { await eventOfTheDay.refresh() } }
+        if tab == .blockParty { Task { await eventOfTheDay.refresh() } }
     }
 
     /// Off to the background: the Town feed's views and opens go up now.

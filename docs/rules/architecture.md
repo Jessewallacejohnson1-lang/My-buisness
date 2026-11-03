@@ -80,30 +80,32 @@ seeder, and mounts `RootView` inside `LaunchHost`.
 
 ### The tab bar
 
-`MainTabsView` owns **five** tabs (`Tab`: town/daily/friends/search/you), the custom
+`MainTabsView` owns **five** tabs (`Tab`: town/blockParty/friends/search/you), the custom
 `BlockPartyTabBar` and the full-screen map cover. **Town** (BP's house, `HouseGlyph`) is the
-town feed, **Daily** (the app icon's Bp!, `DailyMark`, solid picked or not: Jesse, 2026-10-29) is
-the personalised paper (town feed ∩ what the neighbour follows), **Friends** (`person.2`) is
+town feed, **Block Party** (Daily until BP app five-tabs 04; the app icon's Bp!, `DailyMark`, solid picked or
+not: Jesse, 2026-10-29) is the personalised paper (town feed ∩ what the neighbour follows), **Friends** (`person.2`) is
 neighbours, requests and Groups (`FriendsHomePage`; a page pushed from the Town bar until
 2026-11-01), **Search** is BP's traced magnifier (`MagnifierGlyph`, thicker when selected, as
 Instagram's is), and **You** mounts `ProfileView`, your own Profile (BP app five-tabs 03).
 Business has no slot.
 
 - **Search** (`Features/Search/`, 2026-10-02) is Jesse's Search mockup v7 and its Figma
-  frames: a field and filter pills over sideways rows (People, Businesses, Restaurants,
-  Coffee, Clubs) of the Town's places from Supabase `places`. Its model lives in
-  `MainTabsView` so the places aren't fetched again on every visit. A row's title pushes
+  frames: a field and filter pills (All, Businesses, Events, Parks: BP app five-tabs 04). With
+  nothing typed under All it shows `SearchAtRest`: a row for the part of the day (today's Events
+  and the places open now), New in St. Joseph (the week's new Events) and Around town, Instagram's
+  Explore grid dealt again each visit. Its Events are the Town feed's cards (`TownFeed.cards`,
+  read there when Search opens first), its places Supabase `places`. Its model lives in
+  `AppSession` so the places aren't fetched again on every visit. A row's title pushes
   its whole list onto the shell's stack (`SearchShelf`, declared in `SearchPage`). A
   business logo opens `BusinessPage`, an overlay inside the tab, under the tab bar,
   driven by one spring value (`LiveSpring`) so a drag can grab it mid-flight. Logos come
   from Storage through `places.search_logo` (`DECISIONS.md` 2026-10-02, moved 2026-10-08)
   and load through `POILogoCache`, the map pins' cache; restaurant and business
-  photos are Google's, each with its `PhotoCredit`. Events and clubs are DEBUG
-  samples until their reads exist; a release build leaves those rows and pills out. People
-  are real: typed words find neighbours with a real account and a name (`search_neighbors`),
-  listed after the places and never saved to Recent; the People row and pill wait for build
-  13's suggestions (BP app docs/plans/friends).
-- **Daily** (`Features/Daily/DailyPage.swift`) shows its page
+  photos are Block Party's own (`place_photos`), each with its `PhotoCredit`. Groups and
+  people have no row or pill (they live on Friends), but typing under All finds the Town's
+  Groups (`get_groups`) and neighbours with a real account and a name (`search_neighbors`),
+  listed after the places and never saved to Recent.
+- **The Block Party tab** (`Features/Daily/DailyPage.swift`) shows its page
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.

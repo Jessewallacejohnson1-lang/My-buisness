@@ -1,6 +1,7 @@
 //
 //  DailyPeople.swift
-//  Block Party — Daily's People you may know: Instagram's suggestion cards in a sideways row,
+//  Block Party — People you may know, on the Friends tab (Daily's until five-tabs 04): Instagram's
+//  suggestion cards in a sideways row,
 //  rounder as on the Daily drafts (BP app docs/plans/daily-tab, ticket 22; Check-in 1
 //  https://claude.ai/artifact/8PiBVH6VNCtHbj7MemN6pS). The face and name open their page, Add
 //  friend is the Friends page's own button, and the X hides them for good.

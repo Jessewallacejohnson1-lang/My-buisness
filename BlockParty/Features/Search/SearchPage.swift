@@ -1,9 +1,10 @@
 //
 //  SearchPage.swift
-//  Block Party — the Search tab: a search field and filter pills over sideways rows of
-//  the Town's people, businesses, food places and clubs. Tapping the field shows the
-//  recent searches; typing shows results. A row's title ("Restaurants ›") opens the
-//  whole list, and a logo opens its business (`BusinessPage`).
+//  Block Party — the Search tab: a search field and filter pills (All, Businesses, Events, Parks)
+//  over, with nothing typed, the part of the day's row, New in St. Joseph and Around town
+//  (`SearchAtRest`, BP app five-tabs 04). Tapping the field shows the recent searches; typing shows
+//  results, Groups and neighbours too. A row's title ("Restaurants ›") opens the whole list, a logo
+//  opens its business (`BusinessPage`) and an Event its Event page.
 //
 //  Reference: Jesse's Search mockup v7 with all six of its tweaks on, and its Figma
 //  frames (2026-10-02). The sizes in `SearchMetric` are the mockup's, which it measured
@@ -57,11 +58,6 @@ nonisolated enum SearchMetric {
     static let cardPhoto: CGFloat = 157
     static let cardGap: CGFloat = 12
     static let cardTextTop: CGFloat = 8
-    /// Instagram's round faces, 105 apart.
-    static let face: CGFloat = 79
-    static let faceGap: CGFloat = 26
-    static let faceLabel: CGFloat = 96
-    static let faceLabelTop: CGFloat = 6
 
     // The logo wall and the pushed pages.
     static let wallTop: CGFloat = 14
@@ -82,7 +78,6 @@ nonisolated enum SearchMetric {
     static let removeTrail: CGFloat = 2
     static let sectionTop: CGFloat = 14
     static let sectionBottom: CGFloat = 6
-    static let peopleTop: CGFloat = 6
     static let noneTop: CGFloat = 90
 
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
@@ -150,6 +145,11 @@ struct SearchShelf: Hashable {
 
 struct SearchPage: View {
     @Bindable var model: SearchModel
+    /// The Town feed's cards once it has read them, nil before: Search's Events (five-tabs 04).
+    let cards: [FeedCardItem]?
+    /// Around town's shuffle: a new one each visit, since the shell builds the tab again on every
+    /// switch, and the same one back from an Event page, so the grid never moves under the thumb.
+    @State private var seed = UInt64.random(in: 0 ... .max)
     @State private var opener = BusinessOpener()
     /// Each page follows the tilt on its own: a pushed row's page has its own.
     @State private var tilt = PhoneTilt()
@@ -162,15 +162,14 @@ struct SearchPage: View {
     @State private var signingIn = false
 
     private enum Mode: Hashable {
-        case shelves, people, wall, groups(SearchItem.Kind), recents, results(SearchChip)
+        case rest, wall, groups(SearchItem.Kind), recents, results(SearchChip)
     }
 
     private var mode: Mode {
         if !model.words.trimmingCharacters(in: .whitespaces).isEmpty { return .results(model.chip) }
         if model.searching { return .recents }
         switch model.chip {
-        case .all: return .shelves
-        case .people: return .people
+        case .all: return .rest
         case .businesses: return .wall
         default: return .groups(model.chip.kind ?? .park)
         }
@@ -210,14 +209,11 @@ struct SearchPage: View {
             if id != nil { fieldFocused = false }
         }
         // Neighbours are asked for as the words change, and again once an account logs in;
-        // only under the pills that show them.
+        // only under All, the pill that shows them.
         .onChange(of: model.words, initial: true) { searchPeople() }
         .onChange(of: model.chip) { searchPeople() }
-        .onChange(of: auth.accountKey) {
-            searchPeople()
-            Task { await book.refreshSuggestions() }
-        }
-        .task { await book.refreshSuggestions() }
+        .onChange(of: auth.accountKey) { searchPeople() }
+        .onChange(of: cards, initial: true) { model.show(events: cards) }
         .signInSheet(isPresented: $signingIn)
         // People rows carry the friend button; a failed tap shakes only while Search is open.
         .onAppear { book.screenOpened() }
@@ -366,17 +362,8 @@ struct SearchPage: View {
 
     @ViewBuilder private var modeBody: some View {
         switch mode {
-        case .shelves:
-            // Friend suggestions (town-feed 28); hidden with nobody to suggest.
-            let people = book.suggested
-            if !people.isEmpty { PeopleShelf(people: people) }
-            shelf(.business, "Businesses")
-            shelf(.restaurant, "Restaurants")
-            shelf(.coffee, "Coffee")
-            shelf(.club, "Groups")
-        case .people:
-            Color.clear.frame(height: SearchMetric.peopleTop)
-            ForEach(model.row(.person)) { ItemRow(item: $0) }
+        case .rest:
+            SearchAtRest(seed: seed)
         case .wall:
             LogoWall(items: model.row(.business))
         case .groups(let kind):
@@ -401,7 +388,7 @@ struct SearchPage: View {
         case .results(let chip):
             let sections = model.results(for: model.words, in: chip)
             // Less anyone you just blocked (ticket 04).
-            let people = book.visible(chip == .all || chip == .people ? model.people.state : .idle)
+            let people = book.visible(chip == .all ? model.people.state : .idle)
             if sections.isEmpty && !people.hasRows {
                 // Nothing here yet: wait for the neighbours' answer before saying so.
                 if people != .loading { NothingFound() }
@@ -455,7 +442,7 @@ struct SearchPage: View {
     }
 
     private func searchPeople() {
-        model.people.search(model.chip == .all || model.chip == .people ? model.words : "")
+        model.people.search(model.chip == .all ? model.words : "")
     }
 
     private func cancel() {
@@ -486,7 +473,7 @@ struct SearchPage: View {
     private static var debugSearching: Bool {
         LaunchFlags.has(.searchFocus) || debugWords != nil
     }
-    /// `-search-chip <all|people|businesses|events|groups|parks>`: opens on that filter.
+    /// `-search-chip <all|businesses|events|parks>`: opens on that filter.
     private static var debugChip: SearchChip? {
         LaunchFlags.value(.searchChip).flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
     }
@@ -495,9 +482,11 @@ struct SearchPage: View {
 
 // MARK: - Rows
 
-private struct ShelfTitle: View {
+struct ShelfTitle: View {
     let title: String
     let shelf: SearchShelf?
+    /// The ›, real while a row loads; off for a row with no list of its own (`SearchAtRest`).
+    var chevron = true
 
     var body: some View {
         if let shelf {
@@ -512,9 +501,11 @@ private struct ShelfTitle: View {
         HStack(spacing: SearchMetric.titleGap) {
             Text(title)
                 .font(.displaySemi(17))
-            Image(systemName: "chevron.right")
-                .font(.glyph(12, weight: .bold))
-                .accessibilityHidden(true)
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.glyph(12, weight: .bold))
+                    .accessibilityHidden(true)
+            }
         }
         .foregroundStyle(Hue.ink)
         .padding(.top, SearchMetric.titleTop)
@@ -525,9 +516,11 @@ private struct ShelfTitle: View {
     }
 }
 
-private struct Shelf: View {
+struct Shelf: View {
     let kind: SearchItem.Kind
     let items: [SearchItem]
+    /// New in St. Joseph's cards wear the New tag.
+    var new = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -537,7 +530,7 @@ private struct Shelf: View {
                     case .business:
                         if let logo = item.logo { RowLogo(item: item, logo: logo) }
                     default:
-                        PhotoCard(item: item)
+                        PhotoCard(item: item, new: new)
                     }
                 }
             }
@@ -558,7 +551,7 @@ private struct Shelf: View {
 }
 
 /// A row still waiting on the places: its tiles' shapes, in their places.
-private struct ShelfSkeleton: View {
+struct ShelfSkeleton: View {
     let kind: SearchItem.Kind
 
     var body: some View {
@@ -582,46 +575,6 @@ private struct ShelfSkeleton: View {
         .clipped()
         .shimmering()
         .accessibilityLabel("Loading")
-    }
-}
-
-/// The People row: the people Block Party suggests you add as a friend, as the mockup's round
-/// faces (town-feed 28). Its title opens the Friends page, where the whole list is, with Add
-/// friend and the ✕: Instagram's "See all". A face opens their page; never saved to Recent.
-private struct PeopleShelf: View {
-    let people: [Neighbor]
-
-    var body: some View {
-        NavigationLink(value: FriendsRoute.home) { ShelfTitle(title: "People", shelf: nil) }
-            .buttonStyle(DimStyle())
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: SearchMetric.faceGap) {
-                ForEach(people) { NeighborFace(person: $0) }
-            }
-            .scrollTargetLayout()
-        }
-        .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
-        .scrollTargetBehavior(.viewAligned)
-    }
-}
-
-private struct NeighborFace: View {
-    let person: Neighbor
-
-    var body: some View {
-        NavigationLink(value: person) {
-            VStack(spacing: SearchMetric.faceLabelTop) {
-                Avatar(avatarUrl: person.avatarUrl, size: SearchMetric.face, outlined: true)
-                Text(person.firstName)
-                    .font(.sans(12))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
-                    .frame(width: SearchMetric.faceLabel)
-            }
-            .frame(width: SearchMetric.face)
-        }
-        .buttonStyle(SquishStyle())
-        .accessibilityLabel("\(person.displayName), \(person.suggestLine)")
     }
 }
 
@@ -709,6 +662,8 @@ struct PhotoCard: View {
     let item: SearchItem
     /// nil fills a grid column.
     var width: CGFloat? = SearchMetric.cardWidth
+    /// New in St. Joseph's cards wear the mock's yellow New tag (five-tabs 04).
+    var new = false
     @Environment(SearchModel.self) private var model
     @Environment(BusinessOpener.self) private var opener
     @State private var photoFrame = FrameBox()
@@ -719,6 +674,7 @@ struct PhotoCard: View {
                 SearchPhoto(item: item)
                     .frame(maxWidth: .infinity)
                     .frame(height: SearchMetric.cardPhoto)
+                    .overlay(alignment: .topLeading) { if new { NewTag() } }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.photoCard, style: .continuous))
                     .trackFrame(photoFrame)
                 Text(item.name)
@@ -736,6 +692,8 @@ struct PhotoCard: View {
             .frame(width: width)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         }
+        // New in St. Joseph's say so first; the tag itself is hidden from VoiceOver.
+        .accessibilityLabel([new ? "New" : nil, item.name, item.sub].compactMap { $0 }.joined(separator: ", "))
     }
 
     /// A restaurant or coffee shop with a logo opens its page from the photo: the
@@ -795,9 +753,9 @@ private struct SectionTitle: View {
     }
 }
 
-/// What a card or row does when tapped: a group's pushes its Group page and is remembered as a
-/// recent; anything else runs `tap`, which remembers it itself.
-private struct OpenButton<Label: View, Style: ButtonStyle>: View {
+/// What a card, row or tile does when tapped: a group's pushes its Group page and an Event's its
+/// Event page, each remembered as a recent; anything else runs `tap`, which remembers it itself.
+struct OpenButton<Label: View, Style: ButtonStyle>: View {
     let item: SearchItem
     let style: Style
     let tap: () -> Void
@@ -807,6 +765,10 @@ private struct OpenButton<Label: View, Style: ButtonStyle>: View {
     var body: some View {
         if let group = item.townGroup {
             NavigationLink(value: group, label: label)
+                .buttonStyle(style)
+                .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else if let card = item.card {
+            NavigationLink(value: card, label: label)
                 .buttonStyle(style)
                 .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
         } else {
@@ -967,6 +929,16 @@ struct SearchPhoto: View {
                     if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
                 case .saved(let picture):
                     SavedPhoto(item: item, picture: picture)
+                case .card(let source):
+                    if let url = source.url {
+                        FeedCardURLPhoto(url: url, loadingFill: .clear)
+                        if let credit = source.attribution {
+                            PhotoCredit(names: [credit])
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        }
+                    } else {
+                        NoPhoto(item: item)
+                    }
                 case nil:
                     NoPhoto(item: item)
                 }

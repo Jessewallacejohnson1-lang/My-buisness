@@ -255,7 +255,7 @@ final class DynamicTypeAuditTests: XCTestCase {
         //
         // NOTE this matches by LABEL, app-wide, not by position in the bar, so any
         // other element labelled exactly one of these words is suppressed too.
-        if ["Town", "Daily", "Friends", "Friends, new friend request", "Search", "You"].contains(label) { return true }
+        if ["Town", "Block Party", "Friends", "Friends, new friend request", "Search", "You"].contains(label) { return true }
 
         // The wordmark. A logo is a mark, not text — it holds its proportions
         // against the artwork beside it at every content size.

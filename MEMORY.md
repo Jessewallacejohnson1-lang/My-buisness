@@ -26,17 +26,17 @@ or its `docs/rules/` file and leaves here.
 - It is NOT a wellness or health app. Diet scores, fitness metrics, health content and progress
   rings are dead code from the Hygge/Korina era: delete them, never extend them, flag them.
   Hygge, Hygge Health, Korina and Grove are retired names.
-- 2026-11-01 — **Five tabs: Town, Daily, Friends, Search, You** (Jesse, BP app
+- 2026-11-03 — **Five tabs: Town, Block Party, Friends, Search, You** (Jesse, BP app
   `docs/plans/five-tabs/SPEC.md`). **Town**: everything coming up in the Town, today included.
-  **Daily**: your today (Event of the day, Suggestions). **Friends**: neighbours and Groups.
-  **You**: your own three weeks, seen only by you: a Calendar of what you're Going to, the
-  picked day's Agenda under it, and your Profile in Apple's sheet from your photo at the top
-  left. Ordered per person: the Town feed, friend suggestions, and Daily's Event of the day and
-  Suggestions; every other list keeps a fixed order (BP app town-feed 14). The map is not a
-  tab: it opens full-screen from the yellow disc in the Town top bar. Business has no tab.
-  Coming: You becomes your Profile with the full Calendar (five-tabs 03); Daily is renamed the
-  Block Party tab and Search drops Groups and people (five-tabs 04). **Supersedes** the Town top
-  bar's friends mark and You as "the fourth tab" in `docs/rules/architecture.md`.
+  **Block Party** (Daily until five-tabs 04; its code keeps the `Daily` names): your today (Event
+  of the day, Suggestions). **Friends**: neighbours, Groups and People you may know, whose only
+  other home is a Profile. **Search**: places, businesses and the Town feed's Events; typing still
+  finds Groups and neighbours. **You**: your Profile, with your full Calendar and Agenda seen only
+  by you (five-tabs 03). Ordered per person: the Town feed, friend suggestions, and the Block Party
+  tab's Event of the day and Suggestions; every other list keeps a fixed order (BP app town-feed
+  14). The map is not a tab: it opens full-screen from the yellow disc in the Town top bar.
+  Business has no tab. **Supersedes** the Town top bar's friends mark and You as "the fourth
+  tab" in `docs/rules/architecture.md`.
 - App Store target is spring 2027. The months before that are networking and local
   partnerships, not features.
 - 2026-11-01 — **Users never pay** (Jesse). Block Party is a passion project, not a

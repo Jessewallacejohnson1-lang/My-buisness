@@ -2,8 +2,9 @@
 //  SearchModel.swift
 //  Block Party — what the Search tab holds: the Town's places from Supabase with their
 //  logos and the photos Block Party saved of them, the city's parks and trails, the neighbour's recent searches, the
-//  neighbours found by name (`NeighborSearch`), the Town's groups (`get_groups`), and, in DEBUG
-//  until their read exists, sample events.
+//  neighbours found by name (`NeighborSearch`), the Town's groups (`get_groups`), and the Town feed's
+//  Events (BP app five-tabs 04). With nothing typed it builds the resting page: the part of the
+//  day's row, New in St. Joseph and Around town (`SearchAtRest`).
 //
 //  Reference: Jesse's Search mockup v7 (claude.ai/artifact/Vqb74LLMXipRV8uhpefTo9) and
 //  its five Figma frames, 2026-10-02. Row orders, names and labels follow the mockup.
@@ -25,10 +26,16 @@ struct SearchItem: Identifiable, Hashable {
         case bundled(String)
         /// One Block Party saved of the place (`public.place_photos`), drawn with its credit.
         case saved(PlacePicture)
+        /// An Event's, as its Town card picks it: its own photo, else its place's with that credit.
+        case card(FeedCardImageSource)
 
         /// A saved photo carries its credit wherever it shows (MEMORY.md, 2026-11-01).
         var credited: Bool {
-            if case .saved = self { true } else { false }
+            switch self {
+            case .saved: true
+            case .card(let source): source.attribution != nil
+            case .bundled: false
+            }
         }
     }
 
@@ -57,6 +64,8 @@ struct SearchItem: Identifiable, Hashable {
     var placeID: String? = nil
     /// Its name over its page's photos (`public.place_names`): lettering, or its logo landing there.
     var nameArt: PlaceName? = nil
+    /// An Event's Town card: it opens the Event page (five-tabs 04).
+    var card: FeedCardItem? = nil
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
@@ -70,6 +79,7 @@ struct SearchItem: Identifiable, Hashable {
         case .coffee: "cup.and.saucer"
         case .restaurant: "fork.knife"
         case .club: "person.2"
+        case .event: "calendar"
         default: "photo"
         }
     }
@@ -123,17 +133,16 @@ struct SearchLogo: Hashable {
     var shadow: Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
 }
 
-/// The filter pills, in the mockup's order.
+/// The filter pills: places, businesses and events (BP app five-tabs 04). Groups and people moved to
+/// the Friends tab; typing still finds them under All.
 enum SearchChip: CaseIterable, Hashable {
-    case all, people, businesses, events, clubs, parks
+    case all, businesses, events, parks
 
     var title: String {
         switch self {
         case .all: "All"
-        case .people: "People"
         case .businesses: "Businesses"
         case .events: "Events"
-        case .clubs: "Groups"
         case .parks: "Parks"
         }
     }
@@ -141,10 +150,8 @@ enum SearchChip: CaseIterable, Hashable {
     var kind: SearchItem.Kind? {
         switch self {
         case .all: nil
-        case .people: .person
         case .businesses: .business
         case .events: .event
-        case .clubs: .club
         case .parks: .park
         }
     }
@@ -187,6 +194,9 @@ final class SearchModel {
     /// The Town's groups, in `get_groups`' order, and whether they have been read.
     private(set) var groups: [SearchItem] = []
     private(set) var groupsLoaded = false
+    /// The Town feed's Events still to come, soonest first, and whether the feed has been read.
+    private(set) var events: [SearchItem] = []
+    private(set) var eventsLoaded = false
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -203,7 +213,7 @@ final class SearchModel {
     private let actions: RealLifeActions?
     /// Every read goes through the session's one client (`AppSession`).
     private let api: CommunityAPI
-    private var fixed = SearchModel.parks() + SearchModel.samples()
+    private var fixed = SearchModel.parks()
     static let recentsKey = "search.recents"
     static let recentsMax = 8
 
@@ -214,7 +224,7 @@ final class SearchModel {
         recentIDs = defaults.stringArray(forKey: Self.recentsKey) ?? Self.sampleRecents
     }
 
-    var items: [SearchItem] { places + groups + fixed }
+    var items: [SearchItem] { places + groups + events + fixed }
 
     /// Reads the Town's places and the photos saved of them, together, so a card's photo never
     /// lands after its logo, and the Town's groups beside them; tries again while the tab is open
@@ -243,7 +253,7 @@ final class SearchModel {
     /// `photos` by registry entry; nil when they couldn't be read.
     func show(_ pois: [POI], photos: [String: [PlacePicture]]? = [:]) {
         places = Self.places(from: pois, photos: photos ?? [:], names: names)
-        fixed = Self.parks(photos: photos ?? [:]) + Self.samples()
+        fixed = Self.parks(photos: photos ?? [:])
         placesLoaded = true
         photosLoaded = photos != nil
         let logos = places.compactMap(\.logo?.url)
@@ -255,6 +265,14 @@ final class SearchModel {
         self.groups = Self.groups(from: groups)
         groupsLoaded = true
         actions?.read(groups)
+    }
+
+    /// The Town feed's cards once it has read them (nil before): Search's Events. The Town feed
+    /// already leaves out what you hid or muted.
+    func show(events cards: [FeedCardItem]?, now: Date = .now) {
+        guard let cards else { return }
+        events = Self.events(from: cards, now: now)
+        eventsLoaded = true
     }
 
     /// The groups again for a new account, so whether you're in is this one's. The shelf keeps
@@ -274,6 +292,7 @@ final class SearchModel {
     /// Whether a kind's row is still waiting on Supabase.
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
         (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
+            || (!eventsLoaded && kind == .event)
     }
 
     /// The pills worth showing: All, and every filter with something behind it.
@@ -428,26 +447,131 @@ final class SearchModel {
         }
     }
 
-    #if DEBUG
-    /// INVENTED, as Jesse asked (2026-10-02, "just mock it up"): events, until their read
-    /// exists. Names and photos are the mockup's. People and groups are real now.
-    static func samples() -> [SearchItem] {
-        let events = [("Rocktoberfest", "rocktoberfest", "Festivals"), ("Millstream Arts Festival", "millstream-arts-festival", "Festivals"),
-                      ("Farmers Market", "farmers-market", "Markets")]
-            .map { name, photo, group in
-                SearchItem(id: "e:\(name)", kind: .event, name: name, sub: "Event", photo: .bundled(photo),
-                           group: group, keywords: ["event", "festival", group.lowercased()])
-            }
-        return ranked(events)
+    /// The Town feed's Events as Search shows them (five-tabs 04): what's on or still to come, not
+    /// called off, soonest first, each opening its Event page. Under the Events pill they sit in
+    /// Today, This week and Later.
+    static func events(from cards: [FeedCardItem], now: Date) -> [SearchItem] {
+        let timed = cards.compactMap { card in
+            YouCalendar.event(from: card).flatMap { !card.cancelled && $0.ends > now ? $0 : nil }
+        }
+        return ranked(timed.sorted { $0.starts < $1.starts }.map { event in
+            let card = event.item, days = Town.days(from: now, to: event.starts)
+            return SearchItem(id: "e:\(card.id)", kind: .event, name: card.title,
+                              // No photo: its place's logo bare on the page, as Search shows every logo.
+                              sub: event.dayLine(now: now) ?? event.startTime(now: now), logo: card.image.logo,
+                              photo: card.image.isPhoto ? .card(card.image) : nil,
+                              group: days <= 0 ? "Today" : days < 7 ? "This week" : "Later",
+                              keywords: ["event", card.what, card.hostName, card.location].compactMap { $0 },
+                              card: card)
+        })
     }
 
+    // MARK: Search at rest (five-tabs 04, the mock's round 2)
+
+    /// Most cards on a resting row, and tiles in Around town.
+    static let restRowMax = 10
+    static let aroundMax = 60
+
+    /// The part of the day the first row is named for, and when it ends: morning from 5 to noon,
+    /// afternoon to 5 PM, then tonight until 5 the next morning. Working words.
+    static func dayPart(_ now: Date) -> (title: String, ends: Date) {
+        let cal = Town.gregorian, hour = cal.component(.hour, from: now)
+        func at(_ hour: Int, daysOn: Int = 0) -> Date {
+            let day = cal.date(byAdding: .day, value: daysOn, to: now) ?? now
+            return cal.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? now
+        }
+        switch hour {
+        case 5..<12: return ("This morning", at(12))
+        case 12..<17: return ("This afternoon", at(17))
+        case 17...: return ("Tonight", at(5, daysOn: 1))
+        default: return ("Tonight", at(5))
+        }
+    }
+
+    /// The first row: today's Events with a photo on now or starting before this part of the day
+    /// ends, those on now first and the all-day ones last, then the places open now that have a page
+    /// and a photo, `restRowMax` in all. Each says when: "Now", "6:30 PM", or how long the place
+    /// stays open. A row of photos: an Event with none waits under the Events pill (picked).
+    func happening(at now: Date) -> [SearchItem] {
+        let ends = Self.dayPart(now).ends
+        let on = events.compactMap { item -> (SearchItem, EventWhen)? in
+            guard item.card?.image.isPhoto == true, let when = item.card?.when, when.end > now, when.start < ends
+            else { return nil }
+            var item = item
+            item.sub = when.isOn(now) ? "Now" : when.timed ? Town.clock(when.start) : "All day"
+            return (item, when)
+        }
+        .sorted { a, b in
+            let order = { (w: EventWhen) in (w.timed ? 0 : 1, w.isOn(now) ? 0 : 1, w.start) }
+            return order(a.1) < order(b.1)
+        }
+        .map(\.0)
+        let open = places.filter { $0.opens && !$0.photos.isEmpty }.compactMap { place -> SearchItem? in
+            guard let status = place.hours?.status(at: now) else { return nil }
+            switch status {
+            case .open, .closesSoon, .always:
+                var place = place
+                place.sub = PlaceHours.words(status)
+                place.photo = place.photo ?? place.photos.first.map { .saved($0) }
+                return place
+            case .closed, .offSeason: return nil
+            }
+        }
+        return Array((on + Self.ordered(open)).prefix(Self.restRowMax))
+    }
+
+    /// New in St. Joseph: the Events with a photo Block Party added in the last 7 days, newest first,
+    /// leaving out games, repeating series (a school's season or a weekly class isn't news) and what
+    /// the row above already shows (`without`), `restRowMax` at most; `all` gives every one, for the
+    /// row's own page. Not places: the one added in October was new to Block Party, not new in town
+    /// (ticket 04's comments).
+    func fresh(at now: Date, without shown: [SearchItem] = [], all: Bool = false) -> [SearchItem] {
+        let since = now.addingTimeInterval(-7 * 24 * 3600), shownIDs = Set(shown.map(\.id))
+        let new = events.filter { item in
+            guard let card = item.card, let added = card.createdAt, card.image.isPhoto else { return false }
+            return added > since && card.game == nil && card.recurrence == nil && !shownIDs.contains(item.id)
+        }
+        .sorted { ($0.card?.createdAt ?? .distantPast) > ($1.card?.createdAt ?? .distantPast) }
+        return all ? new : Array(new.prefix(Self.restRowMax))
+    }
+
+    /// Around town: Instagram's Explore of what's around town, every Event with a photo and every
+    /// place with a page, by its cover, shuffled by `seed` (a new one each time Search opens),
+    /// `aroundMax` at most and whole blocks of five. Only what opens: a tile never does nothing.
+    func aroundTown(seed: UInt64) -> [SearchItem] {
+        let shown = events.filter { $0.card?.image.isPhoto == true }
+            + places.filter { $0.opens && !$0.photos.isEmpty }.map { place in
+                var place = place
+                place.photo = place.photos.first.map { .saved($0) }
+                return place
+            }
+        var random = SeededRandom(seed: seed)
+        let tiles = shown.shuffled(using: &random).prefix(Self.aroundMax)
+        return Array(tiles.prefix(tiles.count - tiles.count % ExploreBlock.tiles))
+    }
+
+    #if DEBUG
     /// INVENTED: the mockup's starting recents (The Local Blend, "pumpkin", Lee's Ace
-    /// Hardware, Rocktoberfest), so the recents screen can be seen before any searching.
+    /// Hardware), so the recents screen can be seen before any searching.
     /// Only when nothing was ever saved.
-    static let sampleRecents = ["p:ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "q:pumpkin",
-                                "p:ChIJPZImC8ZZtFIR9_fV1pe_1B8", "e:Rocktoberfest"]
+    static let sampleRecents = ["p:ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "q:pumpkin", "p:ChIJPZImC8ZZtFIR9_fV1pe_1B8"]
     #else
-    static func samples() -> [SearchItem] { [] }
     static let sampleRecents: [String] = []
     #endif
+}
+
+/// The same shuffle for the same seed (SplitMix64), so Around town holds still while Search is open
+/// and through a trip to an Event page, and deals again on the next visit.
+nonisolated struct SeededRandom: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) { state = seed }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
 }

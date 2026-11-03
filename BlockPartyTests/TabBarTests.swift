@@ -32,7 +32,7 @@ private typealias Tab = BlockParty.Tab
 final class TabBarTests: XCTestCase {
 
     func testTheBarHasExactlyFiveDestinationsInOrder() {
-        XCTAssertEqual(Tab.allCases, [.town, .daily, .friends, .search, .you])
+        XCTAssertEqual(Tab.allCases, [.town, .blockParty, .friends, .search, .you])
     }
 
     func testTheBarDrawsOneSlotPerTab() throws {
@@ -115,7 +115,7 @@ final class TabBarTests: XCTestCase {
     /// filled house covers far more of its box than the outline does.
     func testSelectedIconIsFilledInTheSameInk() throws {
         let selected = try renderedItems(selected: .town)
-        let unselected = try renderedItems(selected: .daily)
+        let unselected = try renderedItems(selected: .blockParty)
         let inkPixels = { (bitmap: TabBarBitmap) in
             bitmap.pixels(in: self.iconBox(.town)).filter { self.isInkDark($0.0, $0.1, $0.2, $0.3) }.count
         }
@@ -128,9 +128,9 @@ final class TabBarTests: XCTestCase {
     /// 2026-10-29). Equal ink both ways fails if an outlined Bp! ever comes back.
     func testDailyMarkIsSolidPickedOrNot() throws {
         let inkPixels = { (bitmap: TabBarBitmap) in
-            bitmap.pixels(in: self.iconBox(.daily)).filter { self.isInkDark($0.0, $0.1, $0.2, $0.3) }.count
+            bitmap.pixels(in: self.iconBox(.blockParty)).filter { self.isInkDark($0.0, $0.1, $0.2, $0.3) }.count
         }
-        let picked = inkPixels(try renderedItems(selected: .daily))
+        let picked = inkPixels(try renderedItems(selected: .blockParty))
         XCTAssertGreaterThan(picked, 0, "Daily's Bp! is not drawn")
         XCTAssertEqual(picked, inkPixels(try renderedItems(selected: .town)), "Daily's Bp! changes when picked")
     }
