@@ -100,7 +100,7 @@ await db.exec(`set check_function_bodies = off`);
 for (const fn of ['private.going_count', 'private.event_group', 'private.entry_picture', 'private.host_picture',
                   'private.event_cards']) await db.exec(cut(fn));
 await db.exec(`reset check_function_bodies`);
-await db.exec(one('_event_card_changes.sql'));
+await db.exec(one('_event_card_changes_only.sql'));
 await db.exec(`grant execute on all functions in schema private to authenticated`);
 
 const soon = townDay;
@@ -118,7 +118,9 @@ const as = async (who, sql, args = []) => {
   await db.exec(`set role authenticated; select set_config('request.jwt.claims', '${JSON.stringify({ sub: who })}', false)`);
   try { return (await db.query(sql, args)).rows; } finally { await db.exec('reset role'); }
 };
-const mine = async (who = ME) => (await as(who, `select * from public.get_my_changes()`));
+// Each row as the app reads it: its Event from the card, beside the bell's own.
+const mine = async (who = ME) => (await as(who, `select * from public.get_my_changes()`))
+  .map(({ card, ...own }) => ({ ...card, ...own }));
 
 test('a start 15 minutes off is no move; 30 minutes, another day or another place is', async () => {
   const id = await game();
@@ -223,8 +225,8 @@ test('a changed Event carries the friends Going, for its Event page (friends-on-
     false, 'still signed in only');
 });
 
-// The Event card (codebase-health-2 02): get_my_changes sends each changed Event's card whole, beside its old
-// columns, read here as PostgREST hands an RPC's rows to the app (json_agg).
+// The Event card (codebase-health-2 02 and 03): get_my_changes sends each changed Event's card whole and only the
+// bell's own beside it, read here as PostgREST hands an RPC's rows to the app (json_agg).
 const asTheAppReads = async () => JSON.parse((await as(ME,
   `select coalesce(json_agg(t), '[]')::text as body from public.get_my_changes() t`))[0].body);
 
@@ -260,9 +262,8 @@ test('the bell sends a full Event card: photo, found link, about, host, its live
   assert.deepEqual(card.game, { sport: 'Volleyball', final: null, plays: null,
                                 live: { score: [2, 1], period: 'Set 4', complete: false } }, 'the bell keeps the live score');
   assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: null }]);
-  // The old columns stay as builds on phones read them (ticket 03 drops them): the old game without its score.
-  assert.deepEqual([row.going_count, row.going, row.place_picture, row.friends_going, row.game],
-                   [2, true, null, [{ name: 'Anna', photo: null }], { sport: 'Volleyball' }]);
+  assert.deepEqual(Object.keys(row).sort(), ['card', 'changed_at', 'followed', 'followed_logo', 'moved_from'],
+                   'the card and the bell\'s own: no Event column copied beside it (ticket 03)');
   await db.exec('delete from public.place_photos; delete from public.sources; delete from public.clubs;');
 });
 

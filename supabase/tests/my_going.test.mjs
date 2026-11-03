@@ -139,11 +139,9 @@ async function going(user, eventId) {
 
 async function mine(from, to, as = ME) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
-  const { rows } = await db.query(
-    `select title, event_date::text as day, club_name, going_count, cancelled
-     from public.get_my_going($1::date, $2::date)`, [from, to]);
+  const { rows } = await db.query(`select card from public.get_my_going($1::date, $2::date)`, [from, to]);
   await db.exec('reset role');
-  return rows;
+  return rows.map((r) => ({ ...r.card, day: r.card.event_date }));
 }
 
 test('only the caller\'s own Going, with every account\'s count', async () => {
@@ -224,10 +222,9 @@ async function save(user, eventId) {
 
 async function saved(from, as = ME) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
-  const { rows } = await db.query(
-    `select title, event_date::text as day, going, going_count, cancelled from public.get_my_saves($1::date)`, [from]);
+  const { rows } = await db.query(`select card from public.get_my_saves($1::date)`, [from]);
   await db.exec('reset role');
-  return rows;
+  return rows.map((r) => ({ ...r.card, day: r.card.event_date }));
 }
 
 test('saves: only the caller\'s own, with every account\'s Going count', async () => {
@@ -320,11 +317,11 @@ test("your Going and your saves carry each event's place picture", async () => {
   await going(ME, id);
   await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const g = (await db.query(`select place_picture from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
-  const s = (await db.query(`select place_picture from public.get_my_saves('2026-10-01')`)).rows;
+  const g = (await db.query(`select card from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
+  const s = (await db.query(`select card from public.get_my_saves('2026-10-01')`)).rows;
   await db.exec('reset role; delete from public.place_photos;');
-  assert.equal(g[0].place_picture.url, 'https://x/food.webp');
-  assert.equal(s[0].place_picture.url, 'https://x/food.webp');
+  assert.equal(g[0].card.place_picture.url, 'https://x/food.webp');
+  assert.equal(s[0].card.place_picture.url, 'https://x/food.webp');
 });
 
 // Friends Going (you-tab 07): the Town feed's helper decides who; its rules (plans off, blocked,
@@ -336,10 +333,9 @@ const soon = () => townDay(3);
 
 async function friendsOn(day) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const { rows } = await db.query(
-    `select title, friends_going from public.get_my_going($1::date, $1::date)`, [day]);
+  const { rows } = await db.query(`select card from public.get_my_going($1::date, $1::date)`, [day]);
   await db.exec('reset role');
-  return rows;
+  return rows.map((r) => r.card);
 }
 
 test('a friend Going to your plan rides it, first name and photo; nobody, an empty list', async () => {
@@ -388,9 +384,9 @@ test('your saves carry friends Going too, never a stranger or a friend hiding pl
   await save(ME, fair);
   for (const who of [FRIEND, HIDING, NEIGHBOUR]) await going(who, quiz);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const { rows } = await db.query(`select title, friends_going from public.get_my_saves($1::date)`, [day]);
+  const { rows } = await db.query(`select card from public.get_my_saves($1::date)`, [day]);
   await db.exec('reset role');
-  assert.deepEqual(rows.map((r) => [r.title, r.friends_going]),
+  assert.deepEqual(rows.map(({ card: r }) => [r.title, r.friends_going]),
                    [['Craft fair', []], ['Quiz night', [{ name: 'Anna', photo: FRIEND_PHOTO }]]]);
 });
 
@@ -401,20 +397,22 @@ test('your Going and your saves carry each event\'s description', async () => {
   await going(ME, id);
   await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const g = (await db.query(`select description from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
-  const s = (await db.query(`select description from public.get_my_saves('2026-10-01')`)).rows;
+  const g = (await db.query(`select card from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
+  const s = (await db.query(`select card from public.get_my_saves('2026-10-01')`)).rows;
   await db.exec('reset role');
-  assert.equal(g[0].description, 'Teams of up to six.');
-  assert.equal(s[0].description, 'Teams of up to six.');
+  assert.equal(g[0].card.description, 'Teams of up to six.');
+  assert.equal(s[0].card.description, 'Teams of up to six.');
 });
 
-// The Event card (BP app codebase-health-2, tickets 01 and 02): get_my_going and get_my_saves send each Event's
-// card whole, as one nested value beside their old columns, read here as PostgREST hands an RPC's rows to the
-// app (json_agg).
+// The Event card (BP app codebase-health-2, tickets 01 to 03): get_my_going and get_my_saves send each Event's
+// card whole, as one nested value and nothing else, read here as PostgREST hands an RPC's rows to the app
+// (json_agg).
 async function asTheAppReads(read, day) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   const call = read === 'going' ? 'public.get_my_going($1::date, $1::date)' : 'public.get_my_saves($1::date)';
-  const { rows } = await db.query(`select coalesce(json_agg(t), '[]')::text as body from ${call} t`, [day]);
+  // From a subquery, so a one-column answer stays an object per row, as PostgREST sends it (its "single-column
+  // TABLE return" spec), never the bare value Postgres gives `json_agg` of the function itself.
+  const { rows } = await db.query(`select coalesce(json_agg(t), '[]')::text as body from (select * from ${call}) t`, [day]);
   await db.exec('reset role');
   return JSON.parse(rows[0].body);
 }
@@ -479,9 +477,7 @@ test('the Going read sends a full Event card: photo, found link, about, host, ga
   const id = await fullEvent(day);
   const [row] = await asTheAppReads('going', day);
   isFullCard(row.card, id, day);
-  // The old columns stay as builds on phones read them (ticket 03 drops them).
-  assert.deepEqual([row.going_count, row.place_picture.url, row.friends_going, row.club_name, row.cancelled],
-                   [2, 'https://x/field.webp', [{ name: 'Anna', photo: FRIEND_PHOTO }], null, true]);
+  assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
 });
 
 test('the Going read sends a bare Event card with empties, never a missing key', async () => {
@@ -489,7 +485,9 @@ test('the Going read sends a bare Event card with empties, never a missing key',
   const day = soon();
   const id = await add('Porch jam', day, { source_name: null, submitted_by: NEIGHBOUR });
   await going(ME, id);
-  const [{ card }] = await asTheAppReads('going', day);
+  const [row] = await asTheAppReads('going', day);
+  const { card } = row;
+  assert.deepEqual(Object.keys(row), ['card']);
   assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
   assert.deepEqual(card, bareCard(card, id, day, true));
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
@@ -502,9 +500,7 @@ test('Saved sends the same full Event card (codebase-health-2 02)', async () => 
   await save(ME, id);
   const [row] = await asTheAppReads('saves', day);
   isFullCard(row.card, id, day);
-  // The old columns stay as builds on phones read them, now taken from the card.
-  assert.deepEqual([row.going_count, row.going, row.place_picture.url, row.friends_going, row.club_name, row.cancelled],
-                   [2, true, 'https://x/field.webp', [{ name: 'Anna', photo: FRIEND_PHOTO }], null, true]);
+  assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
 });
 
 test('Saved sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
@@ -515,5 +511,5 @@ test('Saved sends a bare Event card with empties, saying you are not Going (code
   const [row] = await asTheAppReads('saves', day);
   assert.deepEqual(Object.keys(row.card).sort(), CARD_KEYS);
   assert.deepEqual(row.card, bareCard(row.card, id, day, false));
-  assert.deepEqual([row.going_count, row.going, row.place_picture, row.friends_going], [0, false, null, []]);
+  assert.deepEqual(Object.keys(row), ['card']);
 });
