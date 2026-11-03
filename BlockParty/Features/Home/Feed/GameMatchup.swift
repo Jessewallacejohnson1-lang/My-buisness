@@ -233,7 +233,7 @@ struct GameMatchup: View {
     /// (Macalester's navy); with none, the home team takes its own (Saint John's blue); with neither, the
     /// away side goes charcoal.
     static func colors(_ teams: [Game.Team]) -> [UInt32?] {
-        let own = teams.map(vivid)
+        let own = teams.map { vivid($0) }
         guard own.count == 2, let home = own[0], let away = own[1], close(home, away) else { return own }
         if let second = palette(teams[1]).first(where: { isVivid($0) && !close(home, $0) }) { return [home, second] }
         if let second = palette(teams[0]).first(where: { isVivid($0) && !close($0, away) }) { return [second, away] }
@@ -249,7 +249,7 @@ struct GameMatchup: View {
     /// The team's color, or for a black or grey one (Gustavus, St. Olaf) its logo's first real color; nil
     /// when none is known.
     static func vivid(_ team: Game.Team) -> UInt32? {
-        palette(team).first(where: isVivid)
+        palette(team).first { isVivid($0) }
     }
 
     /// The team's color, then the colors read from its logo.
