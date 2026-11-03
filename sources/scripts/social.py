@@ -86,6 +86,8 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
 }
 SEARCH_EVENTS = 50  # most events one town search reads; Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
+# A family's own day found by the search never reaches a model (a child's first birthday, 2026-11-03)
+PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\bgraduation party|\bcelebration of life|\bfuneral", re.I)
 # Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
 # reaches an hour past the last one, so a post that lands while a run starts is never lost.
 SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
@@ -530,7 +532,8 @@ def post_pages(kind, rows, by_url):
             where = loc.get("name") if loc else r.get("location")
             if kind == "search":
                 hosts = [o["name"] for o in r.get("organizators") or [] if isinstance(o, dict) and o.get("name")]
-                if r.get("isPast") or r.get("isCanceled") or far_away(loc) or not hosts:
+                if (r.get("isPast") or r.get("isCanceled") or far_away(loc) or not hosts
+                        or PRIVATE_DAY.search(r.get("name") or "")):
                     continue
                 who = hosts[0]
             lead = (f"Found by searching Facebook's events for {TOWNS[TOWN]['display']}. Hosted by {', '.join(hosts)}."
@@ -740,11 +743,12 @@ def selftest():
             found("church", {"name": "Church of Saint Joseph of Saint Joseph", "contextualName": "Saint Joseph, MN, United States",
                              "latitude": 31.95, "longitude": -94.3}),
             found("avon", {"name": "Avon Community Church", "contextualName": "Avon, MN", "latitude": 45.609, "longitude": -94.451}),
-            found("old", {}, isPast=True), found("nobody", {}, organizators=[])]
+            found("old", {}, isPast=True), found("nobody", {}, organizators=[]), found("kid", {}, name="Serenity's First Birthday")]
     got, _ = post_pages("search", rows, {canon(sp["url"]): sp})
     check([p["file"] for p in got] == ["search-la", "search-church"] and got[0]["name"] == "Stone Road"
           and "Hosted by Stone Road." in got[0]["text"] and "8:30 PM" in got[0]["text"],
-          "a found event is named for its host; one past, hostless or pinned far from town with no town word is left out")
+          "a found event is named for its host; one past, hostless, a family's own day, or pinned far from town with no "
+          "town word is left out")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
