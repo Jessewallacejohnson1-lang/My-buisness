@@ -265,7 +265,9 @@ def two_hosts(a, b):
     - One place: the same place line (same_place), a registry place both lines name (spots: "25 First
       Ave NW" is both shops in that building, a venue is its place's), or a line the registry doesn't
       know from a host the other copy names, on its own grounds (the sisters' Monastic Cemetery and the
-      campus calendar's Saint Benedict's Monastery). Pairs with no place on one are same_event's.
+      campus calendar's Saint Benedict's Monastery). A pair with no place on one merges only by same_event;
+      here it is "maybe" at one registry place (where(): no place is the poster's own) under names sharing a
+      word (smooth-mornings 13: Sal's "Puzzle Mania" and the City's "Fall Adult Puzzle Competition" at Sal's).
     - The same name: same_title on the words left once filler and the other copy's host's name are
       taken out ("Free Twinkle & Toast at White Peony Friday" from W|R Home is "Twinkle & Toast", inside
       "Twinkle & Toast: Holiday Launch"). Only the other host's name comes out: a host's name in its own
@@ -273,16 +275,18 @@ def two_hosts(a, b):
       Hamline" stay two. On the host's grounds alone, the names must be the very same (the procession):
       most unknown spots are away games, and Apollo's "Girls JV" at Rush City is not Upsala at Apollo.
     - Agreeing times: within an hour, or one all day (within_hour); the Event keeps the time (plan)."""
-    if a["day"] != b["day"] or not (a["place"] and b["place"]) or not within_hour(a, b):
+    if a["day"] != b["day"] or not within_hour(a, b):
         return None
+    mine, theirs = ({w for w in f["title"] if w not in host and w.removesuffix("s") not in host}
+                    - FILLER - {"annual", "event", "vs"} for f, host in ((a, b["names"]), (b, a["names"])))
+    if not (a["place"] and b["place"]):
+        return "maybe" if a["entry"] and a["entry"] == b["entry"] and mine & theirs else None
     named = bool(a["spots"] & b["spots"]) or same_place(a["place"], b["place"])
     # ponytail: an unknown spot is taken for its host's own grounds, so a school's away game reads as at the
     # school, and only the very same name merges on it. Use coordinates if that ever merges wrong.
     grounds = not a["spots"] and a["host"] in b["spots"] or not b["spots"] and b["host"] in a["spots"]
     if not (named or grounds):
         return None
-    mine, theirs = ({w for w in f["title"] if w not in host and w.removesuffix("s") not in host}
-                    - FILLER - {"annual", "event", "vs"} for f, host in ((a, b["names"]), (b, a["names"])))
     if same_title(mine, theirs) and (named or mine == theirs):
         return "one"
     return "maybe" if named and mine & theirs else None
@@ -460,7 +464,8 @@ def is_game(e):
     for the describe layout: two teams playing a sport. A `game` that names a sport and two teams says so, and so does the
     sport the writer gave a row; else Watch sports and a title in the readers' form, a team after
     its "vs" (or one still to come), not a meet. A game's About is its reader's (read_events.game_about),
-    so there is nothing to research."""
+    so there is nothing to research. Not the game card's rule (place_photos.game_card), on purpose: a game whose
+    other team isn't in `teams` is a game here and a plain card there (codebase-health-2 07)."""
     if not isinstance(e, dict):
         return False
     if e.get("sport") or isinstance(e.get("game"), dict) and game_of(e, ""):
@@ -562,6 +567,10 @@ def show_from(day, size, signup_by):
     return shown
 
 
+# A title that names nothing (smooth-mornings 12): Apollo's Bound schedule gave a nameless Willmar JV meet as "Time TBA".
+PLACEHOLDER = re.compile(r"\s*(?:(?:time|date|place|event)\s+)?(?:tba|tbd|to be (?:announced|determined))\W*", re.I)
+
+
 def skip_reason(it, town):
     """Why an item can't be used, or None. Items are model output: one bad item is skipped,
     never the whole morning."""
@@ -570,6 +579,8 @@ def skip_reason(it, town):
     for k in ("title", "source_name", "source_url"):
         if not isinstance(it.get(k), str) or not it[k].strip():
             return f"invalid: no {k}"
+    if PLACEHOLDER.fullmatch(it["title"]):
+        return f"invalid: the title {it['title'].strip()!r} names nothing"
     for k in ("kind", "trust", "area", "start", "end", "place", "town", "blurb", "size",
               "signup_by", "interest", "category", "activity_team", "activity_name"):
         if it.get(k) is not None and not isinstance(it[k], str):
@@ -1554,9 +1565,9 @@ def t_area():
 def t_past_and_invalid_skipped():
     bad = [item(start="2026-10-13T19:00:00-05:00"), item(trust="maybe"), item(start="next Friday"),
            item(end="2026-10-24T18:30:00"), item(area=["town"]), item(place=7), "not an object",
-           item(kind="news", start="next Friday"), item(size=["big"])]
-    r = run(bad + [item()])
-    assert [o[0] for o in r["outcomes"]] == ["skipped"] * len(bad) + ["published"], r["outcomes"]
+           item(kind="news", start="next Friday"), item(size=["big"]), item(title="Time TBA"), item(title="TBD")]
+    r = run(bad + [item(), item(title="Trivia: Theme TBA")])
+    assert [o[0] for o in r["outcomes"]] == ["skipped"] * len(bad) + ["published"] * 2, r["outcomes"]
     news = run([item(kind="news", title="No school", start="2026-10-15")])["news"][0]
     assert news["starts_at"] == "2026-10-15T00:00:00-05:00", news
 
@@ -1893,6 +1904,20 @@ def t_two_hosts_maybe_the_same():
     assert len(r["events"]) == 2 and any("Splintered Harmony" in n for n in r["notes"] if n.startswith("kept apart")), r["notes"]
 
 
+def t_two_hosts_no_place_asked():
+    """Sal's page gave "Puzzle Mania" no place; the City listed its "Fall Adult Puzzle Competition" at Sal's the
+    same day and hour (smooth-mornings 13, 2026-11-03). The names share a word: both stay, and Jesse is asked."""
+    city = listed(title="Fall Adult Puzzle Competition", event_date="2026-11-22", start_time="11 AM",
+                  location="Sal's Bar and Grill", source_name="City of St. Joseph", source_uid="1753692979231258")
+    sals = item(title="Puzzle Mania", start="2026-11-22T11:00:00-06:00", end=None, place="",
+                source_name="Sal's Bar and Grill", source_url="https://salsbarstjoe.com/event/puzzle-mania/")
+    r = run([sals], [city])
+    assert r["events"][0]["id"] is None and any(
+        "kept apart: 'Puzzle Mania' and 'Fall Adult Puzzle Competition'" in n for n in r["notes"]), r["notes"]
+    bingo = run([dict(sals, title="Bingo Night")], [city])
+    assert not any(n.startswith("kept apart") for n in bingo["notes"]), "no word in common, nothing to ask"
+
+
 def t_two_hosts_kept_apart():
     """No two different things at one place on one day become one: Dec 3's two Detroit Mountain Invite races (9 AM
     and 10:30 AM), two Clemens Library events one evening, two colleges' games under their own names, away games,
@@ -1958,7 +1983,7 @@ def t_one_host_two_names():
 
 
 TESTS = [t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
-         t_two_hosts_maybe_the_same, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
+         t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,

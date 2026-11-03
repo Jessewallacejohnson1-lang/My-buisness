@@ -120,6 +120,8 @@ struct RSVPArea: View {
     var size: Size = .card
     /// On a dark ground (a game's Event page), Attend is BP yellow (`AttendPill.yellow`).
     var yellow = false
+    /// A game's Attend in our team's color instead of the yellow (`GameMatchup.attend`, game-card 12).
+    var tint: UInt32?
     /// The card's send: Invite opens the same invite card.
     let onInvite: (() -> Void)?
     /// The Town card: its send leads the line, and once you're going it leaves for the yellow share
@@ -199,7 +201,7 @@ struct RSVPArea: View {
 
             if words.pill != nil {
                 AttendPill(item: item, words: words, size: size, onInvite: onInvite,
-                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp, yellow: yellow)
+                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp, yellow: yellow, tint: tint)
             }
         }
         // The pill's height with no pill too, so a game's "212 went" sits where its Attend did.
@@ -260,6 +262,8 @@ struct AttendPill: View {
     var shareUp: Binding<Bool> = .constant(false)
     /// On a dark ground (the Event of the day poster), Attend is BP yellow (Jesse, attend-yellow).
     var yellow = false
+    /// The yellow in our team's color (`MeetupPillStyle.tint`, game-card 12).
+    var tint: UInt32?
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -295,7 +299,7 @@ struct AttendPill: View {
                     // The X is the pill shrunk to a circle its own height, light grey with an ink X
                     // (Jesse at attend-x's Check-in 1, 2026-10-21).
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: x ? size.pillHeight : size.pillMinWidth,
-                                                 grey: x, yellow: yellow && !x, sidePadding: x ? 0 : 20))
+                                                 grey: x, yellow: yellow && !x, tint: tint, sidePadding: x ? 0 : 20))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
                     // The X reads "Going" with how to leave, not "Can't go, Going" (the review).
                     .accessibilityLabel(shown == .invite ? "Invite" : x ? "Going" : "Attend")

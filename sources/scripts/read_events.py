@@ -490,6 +490,11 @@ def read_finalsite_news(src, entry, today):
 
 # A crime story names a person; it waits in staging for Jesse instead of publishing.
 CRIME = re.compile(r"\b(indicted|charged|arrested|sentenced|convicted|murder|homicide|assault|manslaughter)\b", re.I)
+# Saint John's Outdoor University lists its programs on the county's calendar at SJU's street address,
+# which the registry gives the Abbey; its own page (csbsju.edu) is closed to robots, so the county is
+# how they arrive. Placed at Outdoor U, a copy lands on the listing already there (2026-11-03: eight
+# wreath, print-making, Banff and owl nights doubled under the Abbey's picture).
+OUTDOOR_U = re.compile(r"\bOutdoor U(?:niversity)?\b", re.I)
 
 
 def hcms_token(page):
@@ -527,10 +532,13 @@ def hcms_items(news, events, entry, src, today, town):
         if not ahead(start.date(), today):
             continue
         title = plain(field(d, "title"))
+        place = ", ".join(p for p in (loc.get("address1"), loc.get("city")) if p)
+        if (loc.get("address1") or "").startswith("2850 Abbey Plaza") and OUTDOOR_U.search(plain(field(d, "description"))):
+            place = "Outdoor U, SJU"
         out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=title, all_day=all_day,
                           start=start.date().isoformat() if all_day else start.isoformat(),
                           end=None if all_day or not at.get("endDate") else utc_local(at["endDate"]).isoformat(),
-                          place=", ".join(p for p in (loc.get("address1"), loc.get("city")) if p), area="town",
+                          place=place, area="town",
                           source_url=page, source_uid=f"{x['id']}:{at['startDate']}"))
     return out
 
@@ -1326,6 +1334,17 @@ def t_county():
     assert hcms_items(crime, {}, {"_name": "Stearns County"}, src, TODAY, TOWNS["st-joseph-mn"])[0]["sure"] is False
     older = hcms_items(news, {}, {"_name": "Stearns County"}, src, date(2026, 8, 21), TOWNS["st-joseph-mn"])
     assert "Public Notice of Regional Rail Authority Board Meeting" in [i["title"] for i in older]
+    # Outdoor U's programs at SJU's street address land at Outdoor U (2026-11-03); the address alone stays as read.
+    def at_abbey_plaza(uid, about):
+        return {"id": uid, "data": {"title": {"en": "Animal Tracking"}, "description": {"en": about},
+                "eventdate": {"iv": {"startDate": "2026-10-24T18:00:00Z", "endDate": "2026-10-24T20:00:00Z"}},
+                "location": {"iv": {"address1": "2850 Abbey Plaza", "city": "St Joseph", "zip": "56374"}}}}
+    got = hcms_items({}, {"items": [at_abbey_plaza("u", "<p>Join Saint John&#39;s Outdoor University in the Arboretum.</p>"),
+                                    at_abbey_plaza("a", "<p>Vespers in the Abbey Church.</p>")]},
+                     {"_name": "Stearns County"}, src, TODAY, TOWNS["st-joseph-mn"])
+    assert [i["place"] for i in got] == ["Outdoor U, SJU", "2850 Abbey Plaza, St Joseph"], got
+    from write_judged import plan, interest_ids
+    assert plan(got[:1], [], TODAY, interest_ids())["events"][0]["row"]["place_entry_id"] == "sju"
     url = hcms_url("https://content.civicplus.com/api/content/mn-stearnscounty/", "news", 20, "data/Date/iv desc", "a eq b")
     assert url.endswith("/mn-stearnscounty/news?%24top=20&%24skip=0&%24orderby=data%2FDate%2Fiv%20desc&%24filter=a%20eq%20b"), url
 

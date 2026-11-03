@@ -258,6 +258,12 @@ struct GameMatchup: View {
         let h = high == r ? (g - b) / d + (g < b ? 6 : 0) : high == g ? (b - r) / d + 2 : (r - g) / d + 4
         return (h / 6, l, s)
     }
+
+    /// The page's Attend: our team's own color (Jesse, game-card 12), bright enough to show on the dark, as the
+    /// marks are; nil when it has none, and Attend stays BP yellow.
+    static func attend(_ game: Game) -> UInt32? {
+        game.teams.indices.contains(game.ours) ? vivid(game.teams[game.ours]).map { tone($0, lightness: 0.58, saturationFloor: 0.7) } : nil
+    }
 }
 
 /// A chip between the logos on the page's dark: "Live" behind Apple's red dot, "Final", or the day.

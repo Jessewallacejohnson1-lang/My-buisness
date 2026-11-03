@@ -43,8 +43,24 @@ struct MeetupPillStyle: ButtonStyle {
     /// share is, with ink words (white on this yellow is 1.26:1). It cross-fades with the X on its caller's
     /// timing.
     var yellow = false
+    /// The yellow pill in another color, lit the same way (a game's Attend in our team's color, game-card 12),
+    /// its words ink or white, whichever reads better.
+    var tint: UInt32?
     /// Words (and glyph) in from each end: 20 pt, the Club size's 16.
     var sidePadding: CGFloat = 20
+
+    /// Ink reads better than white on this fill (WCAG contrast), as on BP yellow (1.26:1 in white).
+    nonisolated static func inkReads(on rgb: UInt32) -> Bool {
+        func luminance(_ rgb: UInt32) -> Double {
+            func channel(_ c: UInt32) -> Double {
+                let v = Double(c & 0xFF) / 255
+                return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * channel(rgb >> 16) + 0.7152 * channel(rgb >> 8) + 0.0722 * channel(rgb)
+        }
+        let fill = luminance(rgb)
+        return (fill + 0.05) / (luminance(Hue.onBrandDiscHex) + 0.05) >= 1.05 / (fill + 0.05)
+    }
 
     static let pressedScale: CGFloat = 0.97
     /// The tap area reaches past the pill to Apple's 44 pt (the card's pill is 38 tall).
@@ -59,7 +75,7 @@ struct MeetupPillStyle: ButtonStyle {
         // the spring (the review's frames, 2026-10-17).
         let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
         return configuration.label
-            .foregroundStyle(light || grey ? Hue.ink : yellow ? Hue.onBrandDisc : .white)
+            .foregroundStyle(light || grey ? Hue.ink : yellow && Self.inkReads(on: tint ?? Hue.brandYellowHex) ? Hue.onBrandDisc : .white)
             .padding(.horizontal, sidePadding)
             .frame(minWidth: minWidth)
             .frame(height: height)
@@ -72,7 +88,7 @@ struct MeetupPillStyle: ButtonStyle {
                     .animation(press) { $0.meetupPillDepth(pressed: pressed) }
                     .opacity(light || grey || yellow ? 0 : 1)
                 // Always there too, so the pill fades to the X instead of flashing charcoal between them.
-                YellowDiscStyle.lit(Capsule())
+                YellowDiscStyle.lit(Capsule(), tint.map { Color(hex: $0) } ?? Hue.brandDisc)
                     .animation(press) { $0.meetupPillDepth(pressed: pressed, strength: 0.75) }
                     .opacity(yellow ? 1 : 0)
                 if light {
@@ -128,9 +144,9 @@ struct YellowShareButton: View {
 struct YellowDiscStyle: ButtonStyle {
     /// The exact yellow under a white sheen over its top and a line of light inside the top; the yellow
     /// Attend draws it too.
-    static func lit<S: Shape>(_ shape: S) -> some View {
+    static func lit<S: Shape>(_ shape: S, _ color: Color = Hue.brandDisc) -> some View {
         shape
-            .fill(Hue.brandDisc.shadow(.inner(color: .white.opacity(0.7), radius: 0, x: 0, y: 1)))
+            .fill(color.shadow(.inner(color: .white.opacity(0.7), radius: 0, x: 0, y: 1)))
             .overlay {
                 shape.fill(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0)],
                                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
