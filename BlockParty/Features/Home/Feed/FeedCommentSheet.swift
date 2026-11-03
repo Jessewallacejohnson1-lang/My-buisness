@@ -35,7 +35,7 @@ struct FeedCommentSheet: View {
     private var header: some View {
         HStack {
             Text("Comments")
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
 
             Spacer()

@@ -94,7 +94,7 @@ struct EditProfileView: View {
 
     private var header: some View {
         ZStack {
-            Text("Edit profile").font(.sansSemibold(17)).foregroundStyle(Hue.ink)
+            Text("Edit profile").font(.displaySemi(17)).foregroundStyle(Hue.ink)
             HStack {
                 Button { Haptics.light(); dismiss() } label: {
                     Text("Cancel").font(.sans(16)).foregroundStyle(Hue.inkSecondary)
@@ -144,7 +144,7 @@ struct EditProfileView: View {
                 HStack(spacing: 8) {
                     if saving { ProgressView().tint(.white) }
                     Text(saving ? "Saving changes…" : "Save changes")
-                        .font(.sansSemibold(17)).foregroundStyle(.white)
+                        .font(.displaySemi(17)).foregroundStyle(.white)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
@@ -218,7 +218,7 @@ struct EditProfileView: View {
             }
             .overlay {
                 Label("Change cover", systemImage: "photo")
-                    .font(.sansSemibold(15))
+                    .font(.displaySemi(15))
                     .foregroundStyle(Hue.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
@@ -263,7 +263,7 @@ struct EditProfileView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3").font(.sansSemibold(14))
                     Text(interests.isEmpty ? "Choose interests" : "Edit interests · \(interests.count)")
-                        .font(.sansSemibold(15))
+                        .font(.displaySemi(15))
                 }
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
@@ -284,7 +284,7 @@ private struct InterestsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Interests")
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)

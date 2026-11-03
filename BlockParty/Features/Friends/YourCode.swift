@@ -139,7 +139,7 @@ struct YourCodeSheet: View {
                 .mapFloatShadow()
             // A space until they arrive, so the sheet is as tall from the start.
             Text(owner.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? " ")
-                .font(.eventDisplay(26))
+                .font(.display(26))
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
                 .padding(.top, FriendsMetric.codeNameTop)
@@ -221,7 +221,7 @@ struct YourCodeSheet: View {
 
     private func action(_ word: String, glyph: String, ink: Bool) -> some View {
         Label(word, systemImage: glyph)
-            .font(.sansSemibold(17))
+            .font(.displaySemi(17))
             .foregroundStyle(ink ? Hue.surface : Hue.ink)
             .frame(maxWidth: .infinity)
             .frame(height: FriendsMetric.invite)

@@ -103,7 +103,7 @@ struct FriendsHomePage: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Text("Friends")
-                        .font(.sansBold(34))
+                        .font(.display(34))
                         .foregroundStyle(Hue.ink)
                         .frame(height: FriendsMetric.titleLine)
                         .padding(.horizontal, FriendsMetric.side)
@@ -353,7 +353,7 @@ private struct FriendsSectionTitle: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(text)
-                .font(.sansBold(20))
+                .font(.display(20))
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
@@ -564,7 +564,7 @@ struct RelationButtons: View {
                     if let icon { Image(systemName: icon).font(.glyph(15, weight: .bold)) }
                     Text(title)
                 }
-                .font(.apple(17, weight: .semibold))
+                .font(.displaySemi(17))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
             }
@@ -583,7 +583,7 @@ struct RelationButtons: View {
                 if let icon { Image(systemName: icon).font(.glyph(13, weight: .bold)) }
                 Text(title)
             }
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(ink ? Hue.surface : Hue.ink)
                 .lineLimit(1)
                 .padding(.horizontal, FriendsMetric.buttonPad)

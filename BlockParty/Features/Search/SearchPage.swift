@@ -511,7 +511,7 @@ private struct ShelfTitle: View {
     private var label: some View {
         HStack(spacing: SearchMetric.titleGap) {
             Text(title)
-                .font(.sansSemibold(18))
+                .font(.displaySemi(17))
             Image(systemName: "chevron.right")
                 .font(.glyph(12, weight: .bold))
                 .accessibilityHidden(true)
@@ -786,7 +786,7 @@ private struct SectionTitle: View {
 
     var body: some View {
         Text(text)
-            .font(.sansBold(16))
+            .font(.display(16))
             .foregroundStyle(Hue.ink)
             .padding(.top, SearchMetric.sectionTop)
             .padding(.bottom, SearchMetric.sectionBottom)

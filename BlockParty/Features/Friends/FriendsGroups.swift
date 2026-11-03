@@ -22,7 +22,7 @@ struct FriendsGroups: View {
             if !mine.isEmpty { GroupCircles(groups: mine) }
             if !mine.isEmpty, !open.isEmpty {
                 Text("Groups to join")
-                    .font(.sansSemibold(13))
+                    .font(.displaySemi(13))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, FriendsMetric.side)
                     .padding(.top, FriendsMetric.subTop)
@@ -95,7 +95,7 @@ struct GroupJoinRow: View {
                     Text("Join").opacity(member.isMember ? 0 : 1)
                     Text("Joined").opacity(member.isMember ? 1 : 0)
                 }
-                .font(.apple(15, weight: .semibold))
+                .font(.displaySemi(15))
             }
             .buttonStyle(MeetupPillStyle(height: FriendsMetric.joinPill, minWidth: 0, light: member.isMember,
                                          sidePadding: FriendsMetric.joinSide))

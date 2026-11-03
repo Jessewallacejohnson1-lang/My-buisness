@@ -49,6 +49,8 @@ final class OnboardingStore {
     /// Finished through the flow in this launch, not from the server's stamp: the Done island and
     /// the wait for the answers are for this one (onboarding 24). Never saved.
     private(set) var finishedHere = false
+    /// The Done island is up: from a finish here until it closes. Never saved.
+    var welcoming = false
     /// Had the app before onboarding was switched on: in without it, so nothing to stamp (24).
     private(set) var arrivedBefore = false
     /// The way the last move went, so the next question slides in from the right side.
@@ -219,6 +221,7 @@ final class OnboardingStore {
 
     func finish() {
         finishedHere = true
+        welcoming = true
         markFinished()
     }
 
@@ -371,28 +374,41 @@ struct OnboardingFlow: View {
     }
 
     private var question: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            BlockPartyWordmark(height: 33)
-                .foregroundStyle(Hue.ink)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(firstHere ? "You're one of the first here" : store.step.question)
-                    .font(.sansHeadline(30))   // BP Body, as the Welcome (Jesse, 2026-10-25)
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.2), value: firstHere)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($questionFocused)
-                answer
+        Group {
+            if store.step == .follow {
+                // Follow 3's question scrolls away with its grid (onboarding 26).
+                OnboardingFollowGrid(suggestions: suggestions, interests: store.interests, follows: store.follows,
+                                     toggle: { [store] in store.toggleFollow($0) }) { heading }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    heading
+                    answer
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 32)
+                .padding(.top, 128)
+                .ignoresSafeArea(.container)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 32)
-        .padding(.top, 128)
-        .ignoresSafeArea(.container)
         .onAppear { questionFocused = true }
         .onChange(of: firstHere) { _, now in
             if now { AccessibilityNotification.Announcement("You're one of the first here").post() }
+        }
+    }
+
+    /// The wordmark and the question under it.
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            BlockPartyWordmark(height: 33)
+                .foregroundStyle(Hue.ink)
+            Text(firstHere ? "You're one of the first here" : store.step.question)
+                .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: firstHere)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($questionFocused)
         }
     }
 
@@ -426,9 +442,6 @@ struct OnboardingFlow: View {
                 .padding(.top, 8)
             InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
                           popular: popular)
-        case .follow:
-            OnboardingFollowList(suggestions: suggestions, interests: store.interests, follows: store.follows,
-                                 toggle: { [store] in store.toggleFollow($0) })
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
@@ -443,7 +456,7 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, yellow: store.step == .friends,
+            OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed, yellow: store.step == .friends,
                               action: store.step == .friends ? askContacts : go { [store] in store.next() })
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
@@ -471,6 +484,15 @@ struct OnboardingFlow: View {
         if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
+    }
+
+    /// Picks or follows the title still asks for, for its number's roll.
+    private var stillToPick: Int {
+        switch store.step {
+        case .interests: max(0, 3 - store.interests.count)
+        case .follow: followsNeeded
+        default: 0
+        }
     }
 
     /// Follows still to make on step 8; none while the read is out, when it failed or when it found
@@ -554,8 +576,8 @@ struct OnboardingWelcome: View {
                 .foregroundStyle(.white)
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
-                .font(.sansHeadline(36))
-                .lineSpacing(-4)   // BP Body's 44 pt line to the mock's 40
+                .font(.display(36))
+                .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)
@@ -644,7 +666,7 @@ private struct WelcomePill: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 icon.scaledToFit().font(.glyph(19, weight: .medium)).frame(width: 19, height: 19)
-                Text(title).font(.sansSemibold(17))
+                Text(title).font(.displaySemi(17))
             }
             .foregroundStyle(Hue.onBrandDisc)
             .frame(maxWidth: .infinity, minHeight: 48)

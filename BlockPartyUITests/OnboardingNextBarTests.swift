@@ -64,11 +64,12 @@ final class OnboardingNextBarTests: XCTestCase {
         let app = XCUIApplication()
         // A refusal kept from an earlier run would end the flow at step 8.
         app.resetAuthorizationStatus(for: .contacts)
-        // Follow 3's picks stay saved between runs too: `<5b5d>` is "[]", so it starts on none.
+        // Follow 3's picks and step 7's stay saved between runs too: `<5b5d>` is "[]", so it starts on
+        // none, and `()` empties the interests a run before left under their own key.
         app.launchArguments = ["-ui-tests", "-onboarding",
                                "-onboarding.step", "0", "-onboarding.finished", "NO",
                                "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24",
-                               "-bp.interests", "()", "-onboarding.follows", "<5b5d>"]
+                               "-bp.interests", "()", "-onboarding.interests", "()", "-onboarding.follows", "<5b5d>"]
         app.launch()
 
         let phone = app.buttons["Continue with phone"]
@@ -98,7 +99,8 @@ final class OnboardingNextBarTests: XCTestCase {
                 app.buttons["Skip"].tap()
             case 5:
                 // Interests asks for 3 before it lets you on (ticket 20).
-                XCTAssertEqual(next.label, "Pick 3 more")
+                // The title rolls its number (onboarding 26): read it once the roll has landed.
+                XCTAssertTrue(next.wait(for: \.label, toEqual: "Pick 3 more", timeout: 3), "Next bar says \(next.label)")
                 // Popular in St. Joseph slides in when its counts land; let it, so no chip moves mid-tap.
                 _ = app.staticTexts["Popular in St. Joseph"].waitForExistence(timeout: 10)
                 for picked in 1...3 {
@@ -109,12 +111,14 @@ final class OnboardingNextBarTests: XCTestCase {
                     Thread.sleep(forTimeInterval: 0.6)
                     chip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
                 }
-                XCTAssertEqual(next.label, "Next")
+                XCTAssertTrue(next.wait(for: \.label, toEqual: "Next", timeout: 3), "Next bar says \(next.label)")
                 next.tap()
             case 6:
-                // Follow 3 asks for 3 once its places are read (ticket 22); a failed read lets Next on.
-                if app.staticTexts["Suggested for you"].waitForExistence(timeout: 10) {
-                    XCTAssertEqual(next.label, "Follow 3 more")
+                // Follow 3 asks for 3 once its places are read (ticket 22, a grid since 26); a failed read
+                // lets Next on.
+                if app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)
+                    .waitForExistence(timeout: 10) {
+                    XCTAssertTrue(next.wait(for: \.label, toEqual: "Follow 3 more", timeout: 3), "Next bar says \(next.label)")
                     for followed in 1...3 {
                         let pill = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)
                         XCTAssertTrue(pill.waitForExistence(timeout: 3), "no place to follow \(followed)")
@@ -123,7 +127,7 @@ final class OnboardingNextBarTests: XCTestCase {
                         pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
                     }
                 }
-                XCTAssertEqual(next.label, "Next")
+                XCTAssertTrue(next.wait(for: \.label, toEqual: "Next", timeout: 3), "Next bar says \(next.label)")
                 next.tap()
             case 7:
                 next.tap()
