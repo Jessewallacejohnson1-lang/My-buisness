@@ -17,6 +17,10 @@ or its `docs/rules/` file and leaves here.
   the `Hue` tokens so both come back cleanly; their passes wait in `docs/SHIP-CHECKLIST.md`.
 - UI specs and prompts give numbers: spring response and damping, ms, scale, hex, pt. Never
   adjectives like "premium feel".
+- 2026-11-03 — **A wrong Event or News comes out without asking** (Jesse, 2026-10-29; its push too,
+  2026-11-03): junk, a double or a misleading one is hidden by a migration that is applied and
+  pushed to `main` with no yes, an exception to `AGENTS.md` rule 7; tell Jesse after. How: the BP
+  app `source-registry` skill, "Report this morning's run".
 
 ## What this product is
 
