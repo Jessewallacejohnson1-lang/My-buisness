@@ -72,10 +72,6 @@ enum Tab: Int, CaseIterable, Identifiable {
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
-    /// The user id we've already hydrated for. Reset-on-identity-change guard so a
-    /// second account on the same device gets its own profile pulled (not the first
-    /// account's leftover mirror).
-    @State private var hydratedUserId: String?
     /// Your profile (BP app codebase-health-2 09): made here, where it reads while onboarding is up,
     /// and handed to the shell's `AppSession`; every screen finds it in the environment.
     @State private var profile = ProfileModel()
@@ -169,21 +165,9 @@ struct RootView: View {
     /// Onboarding is up: the Welcome with no account, else until the flow is done.
     private var flowUp: Bool { onboardingUp || !hasAccount }
 
+    /// Onboarding's steps and answers on the phone; its finish hands them to Your profile, which
+    /// stamps and saves them once an account exists (BP app codebase-health-2 10).
     @State private var onboarding = OnboardingStore()
-    /// The server already had `onboarded_at`: finishing from it must not re-stamp the date
-    /// Profile shows as "since".
-    @State private var stampedOnServer = false
-    /// Finished through the flow, the answers the Town feed sorts by are on the account, or
-    /// `answersWait` has passed: till then the flow's last screen stays up under the Done island, so
-    /// the feed's first read has them (BP app onboarding 24). Read in the same pass that finishes, so
-    /// the tabs never come up (and read the feed) before `onChange` has started the stamp.
-    @State private var answersLanded = false
-    /// Each answer that landed after the Town feed's first read: the feed reads again.
-    @State private var answersLate = 0
-    /// The Done island's name, while it's up.
-    @State private var welcoming: String?
-    /// ponytail: a fixed wait; a slower signal gets the feed's second read instead.
-    private static let answersWait: Duration = .seconds(2.5)
 
     /// A first launch shows onboarding (BP app docs/plans/onboarding, on since ticket 24). Every
     /// screenshot run reinstalls the app, so DEBUG `-skip-onboarding` skips it for other screens'
@@ -194,7 +178,8 @@ struct RootView: View {
             return false
         }
         #endif
-        return !onboarding.finished || (onboarding.finishedHere && !answersLanded)
+        // Finished here, the last screen stays up under the Done island till the answers land.
+        return !onboarding.finished || (onboarding.finishedHere && !profile.answersLanded)
     }
 
     private var gate: some View {
@@ -206,85 +191,25 @@ struct RootView: View {
                     .allowsHitTesting(!onboarding.finished || !hasAccount)
                     .transition(.opacity)
             } else {
-                MainTabsView(answersLate: answersLate, profile: profile).transition(.opacity)
+                MainTabsView(profile: profile).transition(.opacity)
             }
         }
         .animation(.smooth(duration: 0.35), value: flowUp)
         .overlay {
-            if let welcoming {
-                OnboardingDone(name: welcoming) { self.welcoming = nil }
+            if onboarding.welcoming {
+                OnboardingDone(name: onboarding.displayName ?? "") { onboarding.welcoming = false }
             }
         }
-        .task(id: auth.userId) { await hydrateIfNeeded() }
+        // The launch's account, or a new one: your profile's read, and what onboarding owes it.
+        .task(id: auth.userId) { await profile.arrived(onboarding) }
         // Signed out, or a token the server turned down: the next account starts on a clean Welcome.
-        .onChange(of: signedOut, initial: true) { _, out in if out { onboarding.reset() } }
+        .onChange(of: signedOut, initial: true) { _, out in if out { onboarding.reset(); profile.forgetOnboarding() } }
         .onChange(of: onboarding.finished) { _, done in
-            guard done else { return }
-            profile.answered(name: onboarding.displayName, interests: onboarding.interests)
-            guard onboarding.finishedHere else {
-                Task { await saveOnboardingAnswers() }
-                return
-            }
+            guard done, onboarding.finishedHere else { return }
             // Here, before the tabs come up, so the hello pill doesn't say a second welcome.
             HelloDrop.saidWelcome()
-            welcoming = onboarding.displayName ?? ""
-            Task {
-                if !stampedOnServer {
-                    let wait = Task {
-                        try? await Task.sleep(for: Self.answersWait)
-                        answersLanded = true
-                    }
-                    await stampOnboarded()
-                    wait.cancel()
-                }
-                answersLanded = true
-                await saveOnboardingAnswers()
-            }
+            profile.finished(onboarding)
         }
-    }
-
-    /// The onboarded stamp, with the birthday (onboarding 19) and the interests (24). Once it's on
-    /// the account the birthday leaves the device, so another account signing in here later can't
-    /// take it. Landing after the tabs came up (a slow signal, or the account came later), the Town
-    /// feed reads again with them.
-    private func stampOnboarded() async {
-        guard await profile.stampOnboarded(birthday: onboarding.birthday, interests: onboarding.interests) else { return }
-        onboarding.birthday = nil
-        if !onboardingUp { answersLate += 1 }
-    }
-
-    /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
-    /// account exists; till then they wait on the phone (BP app onboarding 18, 20). The photo uploads to
-    /// the avatar the app already shows.
-    private func saveOnboardingAnswers() async {
-        guard onboarding.finished else { return }
-        await onboarding.saveAnswers { name, photo in
-            try await profile.saveAnswers(name: name, photo: photo, interests: onboarding.interests)
-        }
-        // Contacts' Add friend picks, after the name: the server refuses a request without one
-        // (onboarding 23). A quiet account can't send them; a real one later can.
-        guard auth.isSignedIn, !auth.isAnonymous else { return }
-        await onboarding.sendRequests { _ = try await CommunityAPI(auth: AuthStore.shared).friendWrite(.add, $0) }
-    }
-
-    /// Your profile's one read, once per *account*: the launch's, and each new account's. It honors
-    /// a remote onboarded stamp (a reinstall/new device shouldn't re-run onboarding). Silent on
-    /// failure.
-    private func hydrateIfNeeded() async {
-        guard let uid = auth.userId else { hydratedUserId = nil; return }   // signed out → allow re-hydrate on next sign-in
-        guard hydratedUserId != uid else { return }
-        hydratedUserId = uid
-
-        guard await profile.read() else { return }
-        // Finished here but never stamped (offline at the time, or no account yet): stamp now.
-        if profile.onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
-            await stampOnboarded()
-        } else if profile.onboardedAt != nil {
-            stampedOnServer = true
-            onboarding.serverSaysFinished()
-        }
-        // After the read, so a name typed in onboarding beats the one read before it saved.
-        await saveOnboardingAnswers()
     }
 }
 
@@ -342,15 +267,11 @@ struct MainTabsView: View {
         try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)
     }
 
-    /// Counts onboarding's answers that reached the account after the Town feed's first read
-    /// (BP app onboarding 24): each new count reads the feed again, sorted by them.
-    let answersLate: Int
     @State private var tab: Tab
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
 
-    init(answersLate: Int = 0, profile: ProfileModel) {
-        self.answersLate = answersLate
+    init(profile: ProfileModel) {
         // Town, or a DEBUG `-open-tab` override.
         _tab = State(initialValue: MainTabsView.initialTab())
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
@@ -602,7 +523,7 @@ struct MainTabsView: View {
             for target in OnboardingStore.takeFollows() { actions.followOn(target) }
         }
         // Onboarding's answers landed after the tabs opened: the feed reads again, sorted to them.
-        .onChange(of: answersLate) { Task { await townFeed.reload() } }
+        .onChange(of: profile.lateLandings) { Task { await townFeed.reload() } }
         // Event saves this phone kept before they moved to the server go up once, at
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }

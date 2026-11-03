@@ -115,6 +115,7 @@ final class OnboardingStoreTests: XCTestCase {
         store.finish()
         store.reset()
         XCTAssertFalse(store.finished)
+        XCTAssertFalse(store.welcoming, "no Done island left over for the next account")
         XCTAssertEqual(store.step, .welcome)
         let next = OnboardingStore(defaults: defaults)
         XCTAssertFalse(next.finished, "not taken for an install from before onboarding")

@@ -50,6 +50,8 @@ final class OnboardingStore {
     /// Finished through the flow in this launch, not from the server's stamp: the Done island and
     /// the wait for the answers are for this one (onboarding 24). Never saved.
     private(set) var finishedHere = false
+    /// The Done island is up: from a finish here until it closes. Never saved.
+    var welcoming = false
     /// Had the app before onboarding was switched on: in without it, so nothing to stamp (24).
     private(set) var arrivedBefore = false
     /// The way the last move went, so the next question slides in from the right side.
@@ -238,6 +240,7 @@ final class OnboardingStore {
         answersPending = false
         tooYoung = false
         account = nil
+        welcoming = false
         finished = false
         finishedHere = false
         arrivedBefore = false
@@ -250,6 +253,7 @@ final class OnboardingStore {
 
     func finish() {
         finishedHere = true
+        welcoming = true
         markFinished()
     }
 
