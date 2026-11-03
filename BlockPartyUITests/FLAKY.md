@@ -10,6 +10,10 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-03 · `town_feed.test.mjs` "feed-load: with 5,000 people, Event of the day never works out the
+  whole feed, and reads faster", on the Mac only · red once in fix/morning-1103's `ci_checks.sh db` while
+  another chat was building (load near 120): no picks 76.6 ms against 148.6, half being 74.3; the file
+  alone passed 137 of 137 · a busy Mac · no fix yet (the 100 ms test's busy-Mac skip below would do)
 - 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
   database-only commit (run 41256785507, attempt 1; the rerun passed), after its 2026-10-25 fix
   below · cause not found · no fix yet

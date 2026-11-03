@@ -360,17 +360,18 @@ def photo_lines(today):
     named only the morning's own). Read at finish, after the Helpers saved each Event's photo: none of its own
     (event_photos.py, event-photos 09), no flyer of its own, and no live scene of its place fits its subject
     and season (BP app event-photos 08), so each is a place and subject for the next photo round (the
-    place-photos skill's scenes.py). A game is left out, by the card's own rule (two teams and a sport,
-    private.event_game): the white game card has no photo. A read that fails is one line, never a lost report."""
+    place-photos skill's scenes.py). A game is left out, by the card's own rule (place_photos.game_card): the
+    white game card has no photo. A read that fails is one line, never a lost report."""
     head = "No event photo yet:"
     try:
+        import place_photos  # here, as event_photos does: it loads Pillow, and a failed import is one line
         db = Supabase()
         last = db.rest("GET", f"morning_reports?select=saved_at&day=lt.{today}&order=day.desc&limit=1") or []
         since = last[0]["saved_at"] if last else (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
         rows = [r for r in db.rest("GET", "club_events?select=id,event_date,end_at,all_day,start_time,title,location,"
                                           "source_name,sport,team_ids&status=eq.approved&kind=eq.event&cancelled_at=is.null"
                                           f"&created_at=gt.{quote(since)}&event_date=gte.{today}") or []
-                if not (r.get("sport") and len(r.get("team_ids") or []) == 2)]
+                if not place_photos.game_card(r)]
         # An Event with its own live photo (kind 'event', event-photos 09) is done, whatever URL its card read; a
         # retired one doesn't count.
         done = {p["event_id"] for p in db.rest("GET", "place_photos?select=event_id&kind=eq.event&status=eq.live"

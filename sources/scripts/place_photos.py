@@ -338,6 +338,28 @@ def season(d):
     return SEASONS[(date.fromisoformat(str(d)[:10]).month % 12) // 3]
 
 
+# Which Events the picture steps leave out (BP app codebase-health-2 07). Not write_judged.is_game, the writer's
+# "a game between two teams": a game whose other team isn't in `teams` is a game there and a plain card here.
+# The game card: a sport and both teams known, as private.event_game decides (the self-test fails when its newest
+# migration says otherwise). It is white and shows no photo. The read-only query role can't call private.event_game,
+# so the skill's SQL says GAME_CARD_SQL, for a club_events row named e.
+GAME_CARD_SQL = 'coalesce(cardinality(e.team_ids) = 2 and e.sport is not null, false)'
+GAME_CARD_RULE = 'cardinality(p_team_ids) = 2 and p_sport is not null'  # private.event_game's own words
+# A sport, a game card or a meet has no photo of its own yet (Jesse, 2026-10-30: "dont worry about games for now"),
+# dance teams included (Jesse, 2026-11-02); its card shows the scene pool. `sports` is a sports category's fallback.
+SPORTS = ('hockey', 'basketball', 'wrestling', 'swimming', 'gymnastics', 'volleyball', 'football', 'cross-country',
+          'track', 'soccer', 'dance', 'sports')
+
+
+def game_card(e):
+    return e.get('sport') is not None and len(e.get('team_ids') or []) == 2
+
+
+def is_sport(e):
+    """No photo of its own: the morning's photo step (event_photos.py) and the skill's review page (check.py)."""
+    return game_card(e) or subject(e.get('title'), e.get('sport'), e.get('category')) in SPORTS
+
+
 def _q(s):
     return "'" + s.replace("'", "''") + "'"
 
@@ -985,6 +1007,20 @@ def selftest():
          same_sql(made_by_migrations('private.event_subject'), subject_sql())
          and same_sql(made_by_migrations('private.season_of'), season_sql())
          and not same_sql(made_by_migrations('private.event_subject'), subject_sql().replace("'hockey'", "'hokey'"))),
+        ("the game card is private.event_game's rule, as its newest migration says",
+         GAME_CARD_RULE in made_by_migrations('private.event_game')
+         and game_card({'sport': 'Girls Hockey', 'team_ids': ['sartell', 'buffalo']})
+         and not game_card({'sport': None, 'team_ids': None}) and not game_card({'sport': 'Football', 'team_ids': ['a']})),
+        ("a game, a meet or a dance team has no photo of its own; a play, a concert or Knowledge Bowl from a school's "
+         "activities page does, and so does a Skin tattoo shop",
+         is_sport({'title': 'Brainerd Football vs Sartell', 'category': 'watch_sports'})
+         and is_sport({'title': 'Nordic Skiing Invite', 'category': 'watch_sports'})
+         and is_sport({'title': 'Varsity Jazz', 'category': 'art_theater'}) and is_sport({'title': 'Youth dodgeball',
+                                                                                         'category': 'play_sports'})
+         and is_sport({'title': 'Cathedral vs Foley', 'sport': 'Boys Tennis', 'team_ids': ['a', 'b']})
+         and not any(is_sport({'title': t, 'category': c}) for t, c in
+                     [('The Little Mermaid', 'art_theater'), ('HS Fall Band Concert', 'live_music'),
+                      ('Knowledge Bowl Meet', None), ('Fresh Skin Tattoos Fundraiser', None)])),
         ('a later drop, or a create in another shape, fails instead of reading an older copy',
          _later_migration_fails('drop function private.event_subject(text, text, text);')
          and _later_migration_fails(subject_sql().replace('$$', '$function$'), changed=True)

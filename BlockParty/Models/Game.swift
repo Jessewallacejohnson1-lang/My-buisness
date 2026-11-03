@@ -263,6 +263,10 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     /// Basketball's page draws its quarters as a bar, the Bonus and a faint court (game-card 09).
     var isBasketball: Bool { sport.localizedCaseInsensitiveContains("basketball") }
 
+    /// Our team, in `teams` order: the one around St. Joseph; when both are, or neither, the home team, first
+    /// (Jesse, game-card 12). Its color is the page's Attend.
+    var ours: Int { teams.count == 2 && !teams[0].local && teams[1].local ? 1 : 0 }
+
     /// Soccer's scorers under each team, in `teams` order (game-card 09): one line per player, in the order
     /// they first scored, their minutes after the name ("Hanson 23', 71'"); a goal SIDEARM names no one
     /// for is "Goal 23'". Kept after the final, as the plays are. None for any other sport.

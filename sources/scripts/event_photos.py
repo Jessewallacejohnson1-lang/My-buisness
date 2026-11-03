@@ -12,7 +12,8 @@ have a photo of event. dont worry about games for now"). A step of the morning j
 The pictures are the ones each Event came with, so nothing paid starts and no new page is read but its own:
 - a Facebook or Instagram post: its own pictures, full size, from the social watch's Apify runs of the last
   LOOKBACK days, read again (reading a finished run is free); with them, up to PLACE_MORE photos from the
-  same page's other posts, for an Event whose own post is only a flyer
+  same page's other posts, for an Event whose own post is only a flyer; a post that shares a link to a story
+  also offers that story's share picture (og:image), since Facebook hands over only a 139 px preview of it
 - a CSB SJU campus listing: its banner picture, one call to the campus calendar for every listing
 - any other page: its share picture (og:image), read politely
 Each is downloaded once, at least MIN_WIDTH wide, and drawn numbered on .runs/morning/photos/sheet-N.png; a
@@ -22,7 +23,8 @@ flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the
 place_photos row of kind 'event' for that Event ('flyer' for a flyer, which the card shows only when no scene fits)
 (one row per Event when one post names several), credited to its place (a post) or its site (a page). It marks
 every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game,
-a meet or any sport has no photo of its own for now, and a sport's card shows the scene pool (event-photos 07).
+a meet or any sport has no photo of its own for now (place_photos.is_sport, the skill's review page's rule too), and a
+sport's card shows the scene pool (event-photos 07).
 """
 import argparse, json, re, sys
 from datetime import date, datetime, timedelta, timezone
@@ -47,20 +49,10 @@ TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos
 CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
-GAME_PAGE = re.compile(r"mshsl\.org|gobound\.com|gojohnnies\.com|gobennies\.com|athletics", re.I)
-SPORT = re.compile(r"hockey|basketball|wrestl|swim|diving|gymnast|volleyball|football|cross country|\btrack\b|soccer|"
-                   r"nordic|\bski(ing)?\b|tennis|golf|softball|baseball|lacrosse|bowling|\bvs\.?\b", re.I)
-TEXT = re.compile(r"\btext\b", re.I)  # Meta's own description: "May be an image of text that says ..."
 
 
 def out_dir():
     return find_root() / ".runs" / "morning"
-
-
-def sport(e):
-    """A game, a meet or any sport: no photo of its own yet (Jesse: "dont worry about games for now")."""
-    return bool(write_judged.is_game(e) or e.get("sport") or e.get("category") == "watch_sports"
-                or SPORT.search(e.get("title") or "") or GAME_PAGE.search(f"{e.get('source_url')} {e.get('source_name')}"))
 
 
 def todo(db, now):
@@ -70,7 +62,8 @@ def todo(db, now):
                           "source_name,source_url,place_entry_id"
                           f"&status=eq.approved&kind=eq.event&photo_checked_at=is.null&created_at=gte.{quote(since)}"
                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
-    return [r for r in rows if not sport(r)]
+    import place_photos
+    return [r for r in rows if not place_photos.is_sport(r)]
 
 
 def post_key(url):
@@ -121,9 +114,11 @@ def posted(row):
     return datetime.fromtimestamp(t, timezone.utc).isoformat() if isinstance(t, (int, float)) else str(t)
 
 
-def from_posts(group, rows):
+def from_posts(group, rows, share=None):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
-    to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover."""
+    to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
+    link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
+    the story's own share picture goes first."""
     key = post_key(group["source_url"])
     own = [r for r in rows if post_key(r.get("url") or r.get("topLevelUrl")) == key]
     if not own and "/events/" in group["source_url"]:
@@ -132,16 +127,19 @@ def from_posts(group, rows):
     if not own:
         return []
     page = own[0].get("url") or group["source_url"]
-    out = [{**p, "from": "post", "page": page} for p in pictures(own[0])]
+    link = own[0].get("link") or ""
+    story = (share or share_picture)(link) if link.startswith("http") and not POST.search(link) else None
+    out = ([{"url": story, "about": "", "from": "page", "page": link}] if story else []) \
+        + [{**p, "from": "post", "page": page} for p in pictures(own[0])]
+    mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
-        if len(out) >= len(pictures(own[0])) + PLACE_MORE:
+        if len(out) >= mine + PLACE_MORE:
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
-            out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]
-                    if not TEXT.search(p["about"])]
-    return out[:len(pictures(own[0])) + PLACE_MORE]
+            out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]]
+    return out[:mine + PLACE_MORE]
 
 
 def campus_banners(groups, get=fetch):
@@ -183,7 +181,7 @@ def candidates(groups, rows, banners, share=share_picture):
     for g in groups:
         src = g["source_url"]
         if POST.search(src):
-            g["cands"] = from_posts(g, rows)
+            g["cands"] = from_posts(g, rows, share)
         elif CAMPUS_PAGE.search(src):
             pic = banners.get(CAMPUS_PAGE.search(src).group(1))
             g["cands"] = [{"url": pic, "about": "", "from": "listing", "page": src}] if pic else []
@@ -283,13 +281,14 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 
 def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
-    of its own pictures, each group once; a flyer only from the Event's own post or page."""
+    of its own pictures, each group once. A flyer from another post of the place counts too, for the same kind of
+    event (Jesse kept a past show's poster for this year's play, 2026-11-03)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
-        if c and not (ln.get("flyer") and c["from"] == "other post"):
+        if c:
             picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None, bool(ln.get("flyer")))
     return picks
 
@@ -353,11 +352,11 @@ def selftest():
     check(post_key("https://www.facebook.com/SJUJohnnies/posts/pfbid0LVC?x=1") == "pfbid0LVC"
           and post_key("https://www.instagram.com/p/DfFG3nHkVH3/") == "DfFG3nHkVH3"
           and post_key("https://www.facebook.com/events/2380009089072052") == "2380009089072052", "one post however it's written")
-    check(sport({"title": "Boys Swim vs Brainerd · JV"}) and sport({"title": "Fall Play", "source_url": "https://www.mshsl.org/x"})
-          and sport({"title": "Pep fest", "category": "watch_sports"}) and not sport({"title": "Annual Dog Costume Contest"})
-          and not sport({"title": "Yoga and Pelvic Floor Health", "category": "health"})
-          and not sport({"title": "Fresh Skin Tattoos Fundraiser"}) and sport({"title": "Nordic Skiing Invite"}),
-          "games, meets and sports left out; a tattoo shop's Skin is no ski")
+    listed = [{"title": "Boys Swim vs Brainerd · JV", "category": "watch_sports"},
+              {"title": "The Little Mermaid", "category": "art_theater", "source_url": "https://gobound.com/direct/x"}]
+    seen = type("Db", (), {"rest": lambda self, *a, **k: listed})()
+    check([r["title"] for r in todo(seen, datetime(2026, 11, 3, tzinfo=timezone.utc))] == ["The Little Mermaid"],
+          "a meet is left out, a school's play is looked at (place_photos.is_sport)")
 
     post = lambda url, owner_, pics, **more: {"_task": "bp-busy-facebook", "url": url, "pageName": owner_,
                                               "media": [{"__typename": "Photo", "image": {"uri": u}, "photo_image": {"uri": u},
@@ -370,11 +369,20 @@ def selftest():
                  text="Join us! https://www.facebook.com/events/2380009089072052")]
     g = {"source_url": "https://www.facebook.com/prep/posts/pfbidPLAY", "title": "Fall Play", "events": []}
     got = from_posts(g, rows)
-    check([(c["url"], c["from"]) for c in got] == [("https://x.fbcdn.net/flyer.jpg", "post"), ("https://x.fbcdn.net/cast.jpg", "other post")],
-          "its post's flyer, full size, then the same page's photos, never another page's nor a picture Meta reads as text")
+    check([(c["url"], c["from"]) for c in got] == [("https://x.fbcdn.net/flyer.jpg", "post"), ("https://x.fbcdn.net/cast.jpg", "other post"),
+                                                    ("https://x.fbcdn.net/menu.jpg", "other post")],
+          "its post's flyer, full size, then the same page's photos and flyers, never another page's")
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
+    shared = [post("https://www.facebook.com/csbsju/posts/pfbidART", "csbsju", [("https://external.fbcdn.net/emg1/preview.jpg", "")],
+                   link="https://www.csbsju.edu/news/alum-drawings/")]
+    check([(c["url"], c["from"], c["page"]) for c in from_posts({"source_url": "https://www.facebook.com/csbsju/posts/pfbidART",
+                                                                  "events": []}, shared, share=lambda u: "https://www.csbsju.edu/art.jpg")][0]
+          == ("https://www.csbsju.edu/art.jpg", "page", "https://www.csbsju.edu/news/alum-drawings/"),
+          "a post that shares a story takes the story's share picture first")
+    check([c["url"] for c in from_posts(g, rows, share=lambda u: 1 / 0)][0] == "https://x.fbcdn.net/flyer.jpg",
+          "a post with no link reads no other page")
     check(sorted([{"timestamp": 1761800000}, {"timestamp": "2026-10-31T01:00:00.000Z"}], key=posted, reverse=True)[0]
           == {"timestamp": "2026-10-31T01:00:00.000Z"}, "Facebook's seconds and Instagram's times sort together")
 
@@ -394,14 +402,14 @@ def selftest():
     with tempfile.TemporaryDirectory() as tmp:
         folder, out = Path(tmp) / "sheets", Path(tmp) / "out"
         folder.mkdir()
-        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "art": (4568, 3000), "og": (500, 500)}
+        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (500, 500)}
 
         def grab(c, dest):
             name = next(k for k in sizes if k in c["url"])
             Image.effect_noise(sizes[name], 60 + 10 * list(sizes).index(name)).convert("RGB").save(dest)
             return sizes[name]
         failed = download(gs, folder, grab)
-        check(not failed and [c["n"] for c in gs[0]["cands"]] == [1, 2] and gs[2]["cands"] == [],
+        check(not failed and [c["n"] for c in gs[0]["cands"]] == [1, 2, 3] and gs[2]["cands"] == [],
               f"each picture downloaded once and numbered; one under {MIN_WIDTH} px dropped")
         check(sheets(gs, folder) == 1 and (folder / "sheet-1.png").exists(), "one sheet for three blocks")
         batch = (folder / "batch-1.txt").read_text()
@@ -413,7 +421,8 @@ def selftest():
               "only a block laid out, once, and only one of its own pictures")
         own, other = (next(f"c{c['n']}" for c in gs[0]["cands"] if c["from"] == w) for w in ("post", "other post"))
         flyers = plan([{"event": "e1", "pick": own, "flyer": True}], gs), plan([{"event": "e1", "pick": other, "flyer": True}], gs)
-        check(flyers[0]["e1"][2] is True and flyers[1] == {}, "a flyer from the Event's own post, never another post's")
+        check(flyers[0]["e1"][2] is True and flyers[1]["e1"][2] is True,
+              "a flyer from the Event's own post, or from another post of the place (Jesse, 2026-11-03)")
 
         (folder / "events.json").write_text(json.dumps(gs))
         (out / "photos").mkdir(parents=True)
