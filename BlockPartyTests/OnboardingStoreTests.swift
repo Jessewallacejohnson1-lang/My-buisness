@@ -257,6 +257,13 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(FollowSuggestions.search(town, "brew").map(\.name), ["Bad Habit"])
         XCTAssertEqual(FollowSuggestions.search(town, "school").map(\.name), ["Kennedy"], "kinds are searched too")
         XCTAssertTrue(FollowSuggestions.search(town, "zzz").isEmpty)
+        // A page's logo shows bare, as a place's; a photo stays a photo.
+        let pages = FollowSuggestions.build(places: [], schools: [], pages: [
+            TownPageRow(id: "c1", slug: "city", name: "City", kind: "City government", sourceName: nil,
+                        picture: "https://example.com/logo.png", pictureKind: "logo"),
+            TownPageRow(id: "c2", slug: "campus", name: "Campus", kind: "College", sourceName: nil,
+                        picture: "https://example.com/photo.webp", pictureKind: "photo")], events: [])
+        XCTAssertEqual(pages.map { $0.logo?.url.absoluteString }, ["https://example.com/logo.png", nil])
     }
 
     func testFollowingAPlacePullsPlacesOfItsKindUpToRightAfterIt() {

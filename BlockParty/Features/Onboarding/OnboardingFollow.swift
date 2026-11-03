@@ -116,11 +116,14 @@ enum FollowSuggestions {
                         Self.school, byTeam[school.id] ?? [])
         }
         let fromPages = pages.map { page in
-            with(FollowSuggestion(target: .init(type: .page, id: page.id), name: page.name, kind: page.kind,
-                                  picture: page.picture.flatMap(URL.init(string:)),
-                                  isLogo: page.pictureKind == "logo", isTown: page.slug == "town",
-                                  categories: [page.kind == "College" ? "campus" : "town"]),
-                 interests(ofPage: page), page.sourceName.flatMap { bySource[$0] } ?? [])
+            let picture = page.picture.flatMap(URL.init(string:))
+            let logo = page.pictureKind == "logo" ? picture : nil
+            return with(FollowSuggestion(target: .init(type: .page, id: page.id), name: page.name, kind: page.kind,
+                                         // A page's logo (the City's) bare with its shadow, as a place's.
+                                         logo: logo.map { SearchLogo(placeId: "page-\(page.id)", row: .init(url: $0, hue: 0, chroma: false)) },
+                                         picture: picture, isLogo: logo != nil, isTown: page.slug == "town",
+                                         categories: [page.kind == "College" ? "campus" : "town"]),
+                        interests(ofPage: page), page.sourceName.flatMap { bySource[$0] } ?? [])
         }
         return fromPlaces + fromSchools + fromPages
     }
