@@ -154,6 +154,45 @@ const before = (file, fn, as) => readFileSync(join(migrations, file), 'utf8')
   .replace(`public.${fn}(`, `public.${as}(`).replaceAll('public.get_town_feed(', 'public.old_town_feed(');
 await db.exec(before('20261102005713_post_screen_feed.sql', 'get_town_feed', 'old_town_feed'));
 await db.exec(before('20261026132204_activity_follow_lift.sql', 'get_event_of_the_day', 'old_event_of_the_day'));
+// The feed and the Event of the day as they read before codebase-health-2 03, for the stories about what an
+// Event row says: each read's own answer, its Event card unpacked into the columns the card replaced (news' and
+// posts' own as they come, with the old zeros). It reads the answer only; what each read sends beside the card is
+// the card stories' (at the end).
+const CARD_COLUMNS = `title text, event_date date, start_time text, location text, image_url text, category text,
+  club_name text, source_name text, end_at timestamptz, all_day boolean, created_at timestamptz, going_count int,
+  going boolean, cancelled boolean, friends_going jsonb, place_picture jsonb, description text, game jsonb, what text,
+  source_url text, host_picture jsonb`;
+const OLD_COLUMNS = `id uuid, title text, event_date date, start_time text, location text, image_url text, category text,
+  club_name text, source_name text, end_at timestamptz, all_day boolean, created_at timestamptz, going_count int,
+  rsvpd boolean, recurrence text, leaves_at timestamptz, reason text, reason_name text, score jsonb, heart_count int,
+  hearted boolean, saved boolean, cancelled boolean, friends_going jsonb, place_picture jsonb, description text,
+  club_id uuid, in_club boolean, game jsonb, what text`;
+// An Event's from its card, else (news and posts) the row's own.
+const either = (col) => (eotd) => (eotd ? `c.${col}` : `coalesce(c.${col}, f.${col})`);
+const oldRow = (eotd) => `f.id, ${either('title')(eotd)}, c.event_date, c.start_time, ${either('location')(eotd)},
+  ${either('image_url')(eotd)}, c.category, c.club_name, ${either('source_name')(eotd)}, c.end_at,
+  coalesce(c.all_day, false), ${either('created_at')(eotd)}, coalesce(c.going_count, 0), coalesce(c.going, false),
+  f.recurrence, f.leaves_at, f.reason, f.reason_name, f.score, f.heart_count, f.hearted, f.saved,
+  coalesce(c.cancelled, false), coalesce(c.friends_going, '[]'), ${either('place_picture')(eotd)},
+  ${either('description')(eotd)}, f.club_id, f.in_club, c.game, c.what`;
+await db.exec(`
+  create function public.flat_town_feed(p_now timestamptz default now(), p_news boolean default false,
+                                        p_later boolean default false)
+  returns table (${OLD_COLUMNS}, kind text, source_url text, host_picture jsonb, poster jsonb)
+  language sql stable as $$
+    select ${oldRow(false)}, f.kind, coalesce(c.source_url, f.source_url), c.host_picture, f.poster
+    from public.get_town_feed(p_now, p_news, p_later) with ordinality f
+    left join lateral jsonb_to_record(f.card) as c(${CARD_COLUMNS}) on true
+    order by f.ordinality
+  $$;
+  create function public.flat_event_of_the_day(p_now timestamptz default now())
+  returns table (${OLD_COLUMNS})
+  language sql stable as $$
+    select ${oldRow(true)}
+    from public.get_event_of_the_day(p_now) with ordinality f
+    left join lateral jsonb_to_record(f.card) as c(${CARD_COLUMNS}) on true
+    order by f.ordinality
+  $$;`);
 // Posts (town-feed 29): a Friends-only post is kept by the read rule itself, as it is live.
 const postRules = readFileSync(join(migrations, readdirSync(migrations).find((f) => f.endsWith('_post_screen_posts.sql'))), 'utf8');
 await db.exec(postRules.match(/create or replace function private\.sees_post[\s\S]*?\$\$;/)[0]);
@@ -204,7 +243,7 @@ async function feed(at) {
   const { rows } = await db.query(
     `select title, event_date::text as day, recurrence, rsvpd, leaves_at, reason, reason_name, score,
             cancelled, going_count, friends_going
-     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
+     from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
 const titles = async (at) => (await feed(at)).map((r) => r.title);
@@ -331,7 +370,7 @@ test('signed out, the feed reads as the public role with the same counts', async
   await add('Hidden draft', '2026-10-09', { status: 'pending', submitted_by: ME });
   await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [id, ME]);
   const counts = async () => (await db.query(
-    `select title, going_count, rsvpd from public.get_town_feed(
+    `select title, going_count, rsvpd from public.flat_town_feed(
        ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`)).rows;
   await db.exec(`set role anon`);
   assert.deepEqual(await counts(), [{ title: 'Bake sale', going_count: 1, rsvpd: false }]);
@@ -348,7 +387,7 @@ test("every account's hearts are counted, and yours says you hearted it", async 
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2), ($1, $3), ($4, $3)`,
                  [fair, ME, OTHER, quiz]);
   const hearts = async () => (await db.query(
-    `select title, heart_count, hearted from public.get_town_feed(
+    `select title, heart_count, hearted from public.flat_town_feed(
        ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`)).rows;
   await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 2, hearted: true },
@@ -454,7 +493,7 @@ test('the feed says whether you saved each event, and only yours', async () => {
   const OTHER = '00000000-0000-0000-0000-0000000000c3';
   await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [fair, YOU]);
   const saves = async () => (await db.query(
-    `select title, saved from public.get_town_feed(
+    `select title, saved from public.flat_town_feed(
        ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`)).rows;
   await signIn(YOU);
   assert.deepEqual(await saves(), [{ title: 'Fall fair', saved: true }, { title: 'Quiz night', saved: false }]);
@@ -479,7 +518,7 @@ test("nobody reads who is Going, saved or hearted: only their own rows, and the 
     return out;
   };
   const counts = async () => (await db.query(
-    `select going_count, heart_count from public.get_town_feed(
+    `select going_count, heart_count from public.flat_town_feed(
        ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`)).rows;
   await signIn(OTHER);
   assert.deepEqual(await who(), { event_rsvps: [OTHER], event_saves: [OTHER], event_likes: [OTHER] });
@@ -1094,7 +1133,7 @@ test('the feed is read in under 10 yardsticks with 5,000 people', async () => {
     await db.query(YARDSTICK);
     const yard = performance.now() - t0;
     t0 = performance.now();
-    await feed('2026-10-08 12:00');
+    await db.query(`select * from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
     pairs.push({ feed: performance.now() - t0, yard });
   }
   const mid = (xs) => xs.sort((a, b) => a - b)[4];
@@ -1141,7 +1180,7 @@ test("each event carries its place's picture: a photo before a logo, else the pl
                          ('Walk', '2026-10-09', $1, null, '2026-09-01 12:00-05')`, [CITY]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, place_picture
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.place_picture?.url ?? null]),
                    [['Trivia', 'https://x/food.webp'], ['Walk', null]], 'signed out too');
@@ -1202,7 +1241,7 @@ test("an event card shows its place's photo of what the event is, in season, tak
                   values ('Hockey vs Sartell', '2026-10-09', 'Boys Hockey', 'watch_sports', 'Arena', 'arena', '2026-09-01 12:00-05')`);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, place_picture
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
   await db.exec('reset role');
   assert.ok(['https://x/hockey-a.webp', 'https://x/hockey-b.webp'].includes(rows[0].place_picture.url),
             'the Town feed card carries the scene, signed out too');
@@ -1240,7 +1279,7 @@ test("an Event's own photo shows before any scene, credited, and is never its pl
 
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, place_picture
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.place_picture.url]),
                    [['Fall Play', 'https://x/cast.webp'], ['Spring Play', 'https://x/stage.webp']], 'the Town feed card, signed out too');
@@ -1330,7 +1369,7 @@ test('each event carries its own description, for the Event page\'s About', asyn
   await db.query(`update public.club_events set description = 'Apple cider and a hay ride.' where id = $1`, [fair]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, description
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.description]),
                    [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
@@ -1343,7 +1382,7 @@ test('each found event carries the page it was found on, for the Event page\'s l
   await db.query(`update public.club_events set source_url = 'https://www.milkandhoneyciders.com/events' where id = $1`, [found]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, kind, source_url
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.kind, r.source_url]),
                    [['Council meeting', 'event', null], ['Stitch and Sip', 'event', 'https://www.milkandhoneyciders.com/events']]);
@@ -1359,10 +1398,10 @@ test('each event says what it is in a few words, and the Event of the day says i
                        'one to three words, 24 characters at most');
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, what
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   assert.deepEqual(rows.map((r) => [r.title, r.what]), [['Fall fair', null], ['Rev. Daniel Groody: Koch Chair Lecture', 'Lecture']]);
   const day = (await db.query(`select title, what, game
-    from public.get_event_of_the_day(('2026-10-09 18:00'::timestamp at time zone 'America/Chicago'))`)).rows;
+    from public.flat_event_of_the_day(('2026-10-09 18:00'::timestamp at time zone 'America/Chicago'))`)).rows;
   await db.exec('reset role');
   assert.deepEqual(day.map((r) => [r.title, r.what, r.game?.final ?? null]), [['Rev. Daniel Groody: Koch Chair Lecture', 'Lecture', null]]);
 });
@@ -1382,7 +1421,7 @@ test('a game carries its sport, special night and both teams, the host first; an
                  [unseen]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, game
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
   await db.exec('reset role');
   // A team with a row carries its uuid (hello-drop 03); one with none, null. The uuid is random.
   const sju = rows.find((r) => r.title.startsWith('SJU')).game.teams[0];
@@ -1405,7 +1444,7 @@ test("a game's final rides its game, host first, and keeps its card a day past t
   await db.query(`update public.club_events set sport = 'Girls Soccer', team_ids = array['sartell', 'sauk-rapids-rice']
     where id = $1`, [game]);
   const at = async (t) => (await db.query(`select title, game, leaves_at, reason, reason_name
-    from public.get_town_feed(($1::timestamp at time zone 'America/Chicago')) order by title`, [t])).rows;
+    from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago')) order by title`, [t])).rows;
   // A game runs three hours, not two (Jesse at Check-in 2): on at 7:59, gone at 8 PM with no final yet.
   assert.deepEqual((await at('2026-10-06 19:59')).map((r) => r.title), ['Fall fair', 'Sartell Girls Soccer vs Sauk Rapids-Rice']);
   assert.deepEqual((await at('2026-10-06 20:30')).map((r) => r.title), ['Fall fair']);
@@ -1565,7 +1604,7 @@ test('a pushed score lands on its game; two complete reads in a row make the fin
   assert.ok(new Date((await row()).live_score.at) > new Date(old), 'a minute-old score SIDEARM confirms is written again');
   // The feed sends it in the game and keeps a game being played two more hours: still there at 5:30.
   await db.exec('set role anon');
-  const feed = async (t) => (await db.query(`select game from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))
+  const feed = async (t) => (await db.query(`select game from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'))
     where game is not null`, [t])).rows;
   assert.deepEqual((await feed('2026-10-24 13:05'))[0].game.live.score, [0, 0]);
   assert.equal((await feed('2026-10-24 17:30')).length, 1);
@@ -1617,7 +1656,7 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
   assert.equal(await record([play('14', 'M. Hansen 35 yd FG', 'HomeTeam', 2, 314, 10, 7)]), 'ignored', 'nothing new');
   // The feed sends them inside the game.
   await db.exec('set role anon');
-  const [row] = (await db.query(`select game from public.get_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
+  const [row] = (await db.query(`select game from public.flat_town_feed(('2026-10-24 13:30'::timestamp at time zone 'America/Chicago'))
     where game is not null`)).rows;
   await db.exec('reset role');
   assert.equal(row.game.plays.length, 3);
@@ -1686,7 +1725,7 @@ test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts
   assert.deepEqual(await fouls(), [4, 5, 6]);
   // The feed sends them inside the live score.
   await db.exec('set role anon');
-  const [row] = (await db.query(`select game from public.get_town_feed(('2026-02-21 14:30'::timestamp at time zone 'America/Chicago'))
+  const [row] = (await db.query(`select game from public.flat_town_feed(('2026-02-21 14:30'::timestamp at time zone 'America/Chicago'))
     where game is not null`)).rows;
   await db.exec('reset role');
   assert.deepEqual(row.game.live.fouls.ids.map((s) => s.length), [5, 6]);
@@ -1763,7 +1802,7 @@ test("a group's Event names the group and whether you're in it; found ones by it
   await db.query('update public.club_events set club_id = $1 where id = $2', [GROUP, posting]);
 
   const groups = async () => (await db.query(`select title, club_name, source_name, club_id, in_club
-    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))
     order by title, source_name nulls first`)).rows.map((r) => [r.title.trim(), r.club_name, r.club_id, r.in_club]);
   await db.exec('set role anon');
   assert.deepEqual(await groups(), [
@@ -1798,7 +1837,7 @@ async function tagged(id, interests, draw = 2) {
                  [id, interests, draw]);
 }
 const ofTheDay = async (at) => (await db.query(
-  `select title, rsvpd from public.get_event_of_the_day(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+  `select title, rsvpd from public.flat_event_of_the_day(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
 const picks = async (at) => (await ofTheDay(at)).map((r) => r.title);
 
 async function busyFriday() {
@@ -1917,7 +1956,7 @@ async function news(title, published, more = {}) {
 async function withNews(at) {
   const { rows } = await db.query(
     `select title, kind, reason, reason_name, source_url, description, place_picture
-     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true)`, [at]);
+     from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'), true)`, [at]);
   return rows;
 }
 const newsTitles = async (at) => (await withNews(at)).map((r) => r.title);
@@ -2046,7 +2085,7 @@ test('an Event shows who puts it on: the logo of the place it was found on, else
   await add('Bake sale', '2026-10-09', { start_time: '7 PM', source_name: 'Nobody Known' });
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, host_picture
-     from public.get_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
+     from public.flat_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
   const by = Object.fromEntries(rows.map((r) => [r.title, r.host_picture]));
   assert.deepEqual(by['Sundae Social'], { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 },
     'sources has no read rule for neighbours, and the logo still shows');
@@ -2055,7 +2094,7 @@ test('an Event shows who puts it on: the logo of the place it was found on, else
   await db.exec(`reset role; insert into public.host_entries (name, entry_id) values ('Nobody Known', 'cow-wandering')`);
   await db.exec('set role anon');
   const again = await db.query(`select title, host_picture
-     from public.get_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
+     from public.flat_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
   assert.equal(again.rows.find((r) => r.title === 'Bake sale').host_picture.url, 'https://x/cow-logo.webp');
   await db.exec('reset role; delete from public.host_entries;');
   await db.exec('reset role; delete from public.place_photos; delete from public.places; delete from public.sources;');
@@ -2322,7 +2361,7 @@ test('Event of the day is never a followers-only Event, even for its followers',
   await signIn(ME);
   assert.deepEqual(await titles('2026-10-09 12:00'), ['Cathedral Volleyball vs Sartell · JV']);
   const { rows } = await db.query(
-    `select title from public.get_event_of_the_day(('2026-10-09 12:00'::timestamp at time zone 'America/Chicago'))`);
+    `select title from public.flat_event_of_the_day(('2026-10-09 12:00'::timestamp at time zone 'America/Chicago'))`);
   assert.deepEqual(rows, []);
 });
 
@@ -2428,7 +2467,7 @@ async function atPlace(title, date, more = {}) {
 async function lifted(at) {
   const { rows } = await db.query(
     `select title, reason, reason_name, score, friends_going
-     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
+     from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
 const noPlaces = () => db.exec('reset role; delete from public.places; delete from public.sources;');
@@ -2507,7 +2546,7 @@ test("a Group you're in lifts its Events and those found for it", async () => {
   assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.reason_name]), [
     ['Book swap', 'follow', 'Book Club'], ['Author talk', 'follow', 'Book Club'], ['Fall fair', 'tomorrow', null]]);
   const { rows } = await db.query(`select title, club_name, in_club
-     from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
+     from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
   assert.deepEqual(rows.filter((r) => r.club_name).map((r) => [r.title, r.club_name, r.in_club]),
                    [['Book swap', 'Book Club', true], ['Author talk', 'Book Club', true]], "the card's Join reads the same Group");
   await noPlaces();
@@ -2726,7 +2765,7 @@ test("the City's and Joetown's other Events lift for their followers; a Place yo
 // places and repeats past them.
 async function later(at) {
   const { rows } = await db.query(
-    `select title from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), false, true)`, [at]);
+    `select title from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'), false, true)`, [at]);
   return rows.map((r) => r.title);
 }
 async function more(round, opened = [], shown = [], at = '2026-10-08 12:00') {
@@ -2889,11 +2928,11 @@ async function asViewer(who, e) {
 }
 const MOMENTS = ['00:00', '07:00', '10:30', '15:00', '18:30', '21:30', '23:30']
   .flatMap((t) => ['2026-10-09', '2026-10-10', '2026-10-11'].map((d) => `${d} ${t}`));
-// Every column but the Event card (codebase-health-2 02), which the old functions don't send: the card's own
-// stories check it.
-const cardless = (rows) => rows.map(({ card, ...row }) => row);
-const rowsOf = async (fn, at) => cardless((await db.query(
-  `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows);
+// The new functions through the lens (above): an Event's card unpacked into the old columns. A news row's
+// category left the answer with codebase-health-2 03 (no app read it), so the old feed's is read as none.
+const rowsOf = async (fn, at) => (await db.query(
+  `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+const noNewsCategory = (rows) => rows.map((r) => (r.kind === 'news' ? { ...r, category: null } : r));
 
 test('feed-load: Event of the day picks what it did when it read the whole feed: signed out, signed in, admin, every day and time', async () => {
   const e = await busyWeekend();
@@ -2901,7 +2940,7 @@ test('feed-load: Event of the day picks what it did when it read the whole feed:
   for (const who of ['out', 'in', 'admin']) {
     await asViewer(who, e);
     for (const at of MOMENTS) {
-      const now = await rowsOf('get_event_of_the_day', at);
+      const now = await rowsOf('flat_event_of_the_day', at);
       assert.deepEqual(now, await rowsOf('old_event_of_the_day', at), `${who} at ${at}`);
       seen[`${who} ${at}`] = now.map((r) => r.title);
     }
@@ -2933,7 +2972,7 @@ test('feed-load: get_town_feed gives the same rows in the same order as before i
         for (const later of [false, true]) {
           const sql = (fn) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'), $2, $3)`,
                                        [at, n, later]);
-          const [a, b] = [cardless((await sql('get_town_feed')).rows), (await sql('old_town_feed')).rows];
+          const [a, b] = [(await sql('flat_town_feed')).rows, noNewsCategory((await sql('old_town_feed')).rows)];
           if (!later) assert.ok(a.length > 3);
           assert.deepEqual(a, b, `${who} at ${at}, news ${n}, later ${later}`);
         }
@@ -2979,7 +3018,7 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   const out = {};
   out.oldNone = await median('old_event_of_the_day', at);
   out.newNone = await median('get_event_of_the_day', at);
-  assert.deepEqual(cardless((await eotd('get_event_of_the_day')).rows), (await eotd('old_event_of_the_day')).rows);
+  assert.deepEqual((await eotd('flat_event_of_the_day')).rows, (await eotd('old_event_of_the_day')).rows);
   assert.equal((await eotd('get_event_of_the_day')).rows.length, 1);
   // The morning's picks: four of the day's Events.
   await db.exec('reset role');
@@ -2988,7 +3027,7 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   await signIn(READER);
   out.oldPicks = await median('old_event_of_the_day', '2026-10-08 07:00');
   out.newPicks = await median('get_event_of_the_day', '2026-10-08 07:00');
-  const picked = cardless((await eotd('get_event_of_the_day', '2026-10-08 07:00')).rows);
+  const picked = (await eotd('flat_event_of_the_day', '2026-10-08 07:00')).rows;
   assert.deepEqual(picked, (await eotd('old_event_of_the_day', '2026-10-08 07:00')).rows);
   assert.ok(picked.length >= 1);
   console.log(`  get_event_of_the_day with 5,000 people, median: no picks ${out.oldNone.toFixed(1)} ms before, ` +
@@ -3017,7 +3056,7 @@ async function post(by, words, more = {}) {
 }
 async function posts(at, news = true) {
   const { rows } = await db.query(
-    `select title, kind, poster, event_date, leaves_at from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), $2)
+    `select title, kind, poster, event_date, leaves_at from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'), $2)
      where kind = 'post'`, [at, news]);
   return rows;
 }
@@ -3151,9 +3190,13 @@ test('a post with a photo sends its shape, so the card is the right size before 
   assert.ok(Math.abs(row.poster.aspect - 0.8) < 1e-6);
 });
 
-// The Event card (BP app codebase-health-2, ticket 02): the Town feed and Daily's Event of the day send each
-// Event's card whole, beside their old columns, read here as PostgREST hands an RPC's rows to the app
-// (json_agg). Its values are the feed's own: the old columns now come from it.
+// The Event card (BP app codebase-health-2, tickets 02 and 03): the Town feed and Daily's Event of the day send
+// each Event's card whole, beside only their own, read here as PostgREST hands an RPC's rows to the app
+// (json_agg).
+// What every feed row sends: news' and posts' columns, the feed's own, and the card (null on news and posts).
+const FEED_KEYS = ['card', 'club_id', 'created_at', 'description', 'heart_count', 'hearted', 'id', 'image_url', 'in_club',
+  'kind', 'leaves_at', 'location', 'place_picture', 'poster', 'reason', 'reason_name', 'recurrence', 'saved', 'score',
+  'source_name', 'source_url', 'title'];
 const asTheAppReads = async (sql, params = []) => JSON.parse((await db.query(
   `select coalesce(json_agg(t), '[]')::text as body from (${sql}) t`, params)).rows[0].body);
 
@@ -3201,11 +3244,11 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
   assert.deepEqual([card.game.sport, card.game.occasion, card.game.teams.map((t) => t.name), card.game.final],
                    ['Football', 'Homecoming', ["Saint John's", 'Concordia'], null]);
   assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: PHOTO }]);
-  // The feed's own columns say the same, so a build on a phone now sees what it saw.
-  assert.deepEqual([row.title, row.going_count, row.rsvpd, row.cancelled, row.place_picture, row.host_picture, row.game,
-                    row.friends_going, row.club_name, row.source_url, row.description, row.what],
-                   [card.title, card.going_count, card.going, card.cancelled, card.place_picture, card.host_picture,
-                    card.game, card.friends_going, card.club_name, card.source_url, card.description, card.what]);
+  // Beside the card, only the feed's own (codebase-health-2 03): news' and posts' columns are empty on an Event.
+  assert.deepEqual(Object.keys(row).sort(), FEED_KEYS);
+  assert.deepEqual([row.title, row.location, row.image_url, row.source_name, row.created_at, row.place_picture,
+                    row.description, row.source_url, row.poster], [null, null, null, null, null, null, null, null, null]);
+  assert.deepEqual([row.kind, row.heart_count, row.hearted, row.saved], ['event', 1, false, false]);
 });
 
 test('the Town feed sends a bare Event card with empties, and none with news or a post', async () => {
@@ -3230,6 +3273,10 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
   assert.deepEqual([by.news.card, by.post.card], [null, null]);
+  // News and posts keep their own columns; every row sends the same keys.
+  assert.deepEqual(rows.map((r) => Object.keys(r).sort()), [FEED_KEYS, FEED_KEYS, FEED_KEYS]);
+  assert.deepEqual([by.news.title, by.news.source_name, by.post.title], ['Road work on Minnesota St', 'The Wandering Cow', 'Anyone up for sledding?']);
+  assert.equal(by.event.title, null, "an Event's title is its card's");
 });
 
 test("Daily's Event of the day sends the Event card, with the found link and host picture it never had", async () => {
@@ -3244,7 +3291,10 @@ test("Daily's Event of the day sends the Event card, with the found link and hos
   const rows = await asTheAppReads(
     `select * from public.get_event_of_the_day(('2026-10-09 07:00'::timestamp at time zone 'America/Chicago'))`);
   await db.exec('reset role; delete from public.places;');
-  assert.deepEqual(rows.map((r) => r.title), ['Sundae Social']);
+  assert.deepEqual(rows.map((r) => r.card.title), ['Sundae Social']);
+  // Beside the card, only the feed's own (codebase-health-2 03).
+  assert.deepEqual(Object.keys(rows[0]).sort(), ['card', 'club_id', 'heart_count', 'hearted', 'id', 'in_club',
+                                                 'leaves_at', 'reason', 'reason_name', 'recurrence', 'saved', 'score']);
   const { card } = rows[0];
   assert.deepEqual(Object.keys(card).sort(), CARD_KEYS);
   assert.equal(card.source_url, 'https://cow/events/sundae');
