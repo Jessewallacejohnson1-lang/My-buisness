@@ -128,7 +128,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         }
     }
 
-    enum Words {
+    nonisolated enum Words {
         static let wrong = "Wrong email or password. Try again."
         static let taken = "There's already an account with this email. Log in instead."
         static let short = "Use 6 or more characters."
