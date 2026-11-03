@@ -788,7 +788,7 @@ struct NewPostSheet: View {
                 Button { picking = true } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "photo.on.rectangle").font(.glyph(14, weight: .semibold))
-                        Text(NewPostCopy.change).font(.sansSemibold(14))
+                        Text(NewPostCopy.change).font(.displaySemi(15))
                     }
                     .foregroundStyle(.white)
                     .padding(.leading, 9)
@@ -848,7 +848,7 @@ struct NewPostSheet: View {
                         Text(NewPostCopy.post).opacity(model.busy ? 0 : 1)
                         if model.busy { ProgressView().tint(.white) }
                     }
-                    .font(.apple(16, weight: .semibold))
+                    .font(.displaySemi(16))
                     .foregroundStyle(model.ready ? .white : Hue.control)
                 }
                 .buttonStyle(MeetupPillStyle(height: NewPostMetric.post, minWidth: NewPostMetric.postWidth, grey: !model.ready))

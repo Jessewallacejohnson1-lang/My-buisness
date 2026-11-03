@@ -181,7 +181,7 @@ struct OnboardingFollowList: View {
                                   : FollowSuggestions.search(suggestions, q)
             if q.isEmpty {
                 Text("Suggested for you")
-                    .font(.sansSemibold(15))
+                    .font(.displaySemi(15))
                     .foregroundStyle(Hue.ink)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 24)
@@ -273,7 +273,7 @@ private struct SuggestionPicture: View {
                         .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
                 } else {
                     Text(initials)
-                        .font(.sansHeadline(17))
+                        .font(.sansBold(17))
                         .foregroundStyle(Hue.ink)
                 }
             }
@@ -310,7 +310,7 @@ struct OnboardingListPill: View {
             }
         } label: {
             Text(title)
-                .font(.sansSemibold(14))
+                .font(.displaySemi(15))
                 .foregroundStyle(on ? Hue.ink : Hue.surface)
                 .lineLimit(1)
                 .padding(.horizontal, 16)

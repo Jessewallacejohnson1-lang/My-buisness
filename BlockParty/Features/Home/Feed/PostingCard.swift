@@ -162,7 +162,7 @@ struct PostingCard: View {
             onFollow?(true)
         } label: {
             Text("Follow")
-                .font(.sansSemibold(13))
+                .font(.displaySemi(13))
                 .foregroundStyle(.white)
                 .padding(.horizontal, Metric.followInset)
                 .frame(height: Metric.followHeight)

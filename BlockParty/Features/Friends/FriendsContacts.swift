@@ -255,7 +255,7 @@ private struct ContactsSectionTitle: View {
 
     var body: some View {
         Text(text)
-            .font(.sansBold(20))
+            .font(.display(20))
             .foregroundStyle(Hue.ink)
             .padding(.horizontal, FriendsMetric.side)
             .padding(.top, FriendsMetric.sectionTop)
@@ -277,7 +277,7 @@ private struct InviteRow: View {
                 .lineLimit(1)
             Spacer(minLength: 8)
             Button("Invite") { FriendsInvitePresenter.messages(to: contact.phone) }
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(Hue.ink)
                 .frame(minWidth: FriendsMetric.invitePillWidth, minHeight: FriendsMetric.invitePill)
                 .background(Capsule().fill(Hue.fill))
@@ -320,7 +320,7 @@ struct ContactsNote: View {
                     .background(Circle().fill(Hue.fill))
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.sansBold(20))
+                    .font(.display(20))
                     .foregroundStyle(Hue.ink)
                     .padding(.top, FriendsMetric.emptyTitleTop)
                     .accessibilityAddTraits(.isHeader)
@@ -333,7 +333,7 @@ struct ContactsNote: View {
             if let button {
                 Button(action: action) {
                     Text(button)
-                        .font(.sansSemibold(17))
+                        .font(.displaySemi(17))
                         .foregroundStyle(Hue.surface)
                         .frame(maxWidth: .infinity)
                         .frame(height: FriendsMetric.invite)

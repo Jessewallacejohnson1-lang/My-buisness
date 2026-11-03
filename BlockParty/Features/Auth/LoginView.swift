@@ -184,7 +184,7 @@ struct LoginView: View {
                     .foregroundStyle(Hue.ink)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(OnboardingAccount.logIn.title)
-                        .font(.sansHeadline(30))
+                        .font(.display(30))
                         .foregroundStyle(Hue.ink)
                         .accessibilityAddTraits(.isHeader)
                     AccountFields(form: form, way: .logIn, submit: submit)

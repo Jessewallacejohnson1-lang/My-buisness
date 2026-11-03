@@ -72,7 +72,7 @@ struct FeedRetryButton: View {
             action()
         } label: {
             Text(title)
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(Hue.surface)
                 .padding(.horizontal, 18)
                 .frame(minHeight: 44)

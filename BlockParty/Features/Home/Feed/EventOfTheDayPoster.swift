@@ -220,7 +220,7 @@ struct EventOfTheDayPoster: View {
                 FriendFaces(friends: item.friendsGoing, ring: Hue.poster)
             }
             Text(words.top ?? "")
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .contentTransition(.numericText())

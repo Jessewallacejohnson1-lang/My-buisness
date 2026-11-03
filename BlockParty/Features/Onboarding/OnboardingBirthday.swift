@@ -90,7 +90,7 @@ struct OnboardingTooYoung: View {
                     .foregroundStyle(Hue.ink)
                 glow
                 Text("Come back when you're 13")
-                    .font(.sansHeadline(30))
+                    .font(.display(30))
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 32)

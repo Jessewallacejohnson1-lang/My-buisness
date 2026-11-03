@@ -41,7 +41,7 @@ struct PageBar: View {
     var body: some View {
         ZStack {
             Text(title)
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
             HStack {
@@ -108,7 +108,7 @@ struct RowButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(Hue.ink)
                 .padding(.horizontal, FriendsMetric.buttonPad)
                 .frame(minHeight: FriendsMetric.button)

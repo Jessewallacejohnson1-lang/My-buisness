@@ -118,7 +118,7 @@ struct OnboardingContactsList: View {
             invited.insert(contact.id)
             FriendsInvitePresenter.messages(to: contact.phone)
         } label: {
-            Text(done ? "Invited" : "Invite").font(.sansSemibold(14)).lineLimit(1)
+            Text(done ? "Invited" : "Invite").font(.displaySemi(15)).lineLimit(1)
         }
         .buttonStyle(MeetupPillStyle(height: FollowMetric.rowHeight, minWidth: FollowMetric.listWidth,
                                      grey: done, sidePadding: 16))
@@ -127,7 +127,7 @@ struct OnboardingContactsList: View {
 
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.sansSemibold(15))
+            .font(.displaySemi(15))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, 24)
