@@ -85,6 +85,7 @@ struct AccountFields: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .submitLabel(.next)
+                        .accessibilityLabel("Email")
                 }
                 box("Password", .password, filled: !form.password.isEmpty) {
                     HStack(spacing: 0) {
@@ -95,7 +96,9 @@ struct AccountFields: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .submitLabel(.go)
-                        eye
+                        .accessibilityLabel("Password")
+                        // Once there's something to show, as Instagram's.
+                        if !form.password.isEmpty { eye }
                     }
                 }
             }
@@ -140,7 +143,6 @@ struct AccountFields: View {
                 .focused($focus, equals: field)
                 .offset(y: 9)
                 .opacity(up ? 1 : 0)
-                .accessibilityLabel(label)
         }
         .padding(.leading, 16)
         .frame(height: 60)
