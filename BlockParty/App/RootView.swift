@@ -679,7 +679,9 @@ struct MainTabsView: View {
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Places, businesses and the Town feed's Events (five-tabs 04).
                         case .search:
-                            SearchPage(model: searchModel, cards: townFeed.entries == nil ? nil : townFeed.cards)
+                            // A failed read with nothing kept is no Events, not a shimmer for good.
+                            SearchPage(model: searchModel,
+                                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards)
                                 // The Town tab reads the feed; a launch straight onto Search reads it here.
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).

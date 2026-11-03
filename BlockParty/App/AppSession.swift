@@ -135,6 +135,8 @@ final class AppSession {
         Task { await notices.refresh() }
         // Back the next morning on Daily: today's picks, not yesterday's.
         if tab == .blockParty { Task { await eventOfTheDay.refresh() } }
+        // Back the next day on Search: today's Events, not yesterday's (five-tabs 04).
+        if tab == .search { Task { await townFeed.refresh() } }
     }
 
     /// Off to the background: the Town feed's views and opens go up now.

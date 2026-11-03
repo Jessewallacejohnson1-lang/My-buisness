@@ -930,14 +930,13 @@ struct SearchPhoto: View {
                 case .saved(let picture):
                     SavedPhoto(item: item, picture: picture)
                 case .card(let source):
+                    // Only a photo is an Event's `.card` (`SearchModel.events`): a logo is its `logo`.
                     if let url = source.url {
                         FeedCardURLPhoto(url: url, loadingFill: .clear)
                         if let credit = source.attribution {
                             PhotoCredit(names: [credit])
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         }
-                    } else {
-                        NoPhoto(item: item)
                     }
                 case nil:
                     NoPhoto(item: item)

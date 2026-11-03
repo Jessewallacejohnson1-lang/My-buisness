@@ -536,8 +536,10 @@ final class SearchModel {
     }
 
     /// Around town: Instagram's Explore of what's around town, every Event with a photo and every
-    /// place with a page, by its cover, shuffled by `seed` (a new one each time Search opens),
+    /// place with a page, by its cover, dealt by `seed` (a new one each time Search opens),
     /// `aroundMax` at most and whole blocks of five. Only what opens: a tile never does nothing.
+    /// Each tile's spot comes from the seed and its own id, so an Event leaving the feed takes only
+    /// its own tile with it and the rest hold still.
     func aroundTown(seed: UInt64) -> [SearchItem] {
         let shown = events.filter { $0.card?.image.isPhoto == true }
             + places.filter { $0.opens && !$0.photos.isEmpty }.map { place in
@@ -545,8 +547,13 @@ final class SearchModel {
                 place.photo = place.photos.first.map { .saved($0) }
                 return place
             }
-        var random = SeededRandom(seed: seed)
-        let tiles = shown.shuffled(using: &random).prefix(Self.aroundMax)
+        let spot = { (item: SearchItem) in
+            var hasher = Hasher()
+            hasher.combine(seed)
+            hasher.combine(item.id)
+            return hasher.finalize()
+        }
+        let tiles = shown.map { ($0, spot($0)) }.sorted { $0.1 < $1.1 }.map(\.0).prefix(Self.aroundMax)
         return Array(tiles.prefix(tiles.count - tiles.count % ExploreBlock.tiles))
     }
 
@@ -558,20 +565,4 @@ final class SearchModel {
     #else
     static let sampleRecents: [String] = []
     #endif
-}
-
-/// The same shuffle for the same seed (SplitMix64), so Around town holds still while Search is open
-/// and through a trip to an Event page, and deals again on the next visit.
-nonisolated struct SeededRandom: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
 }

@@ -36,8 +36,10 @@ struct SearchAtRest: View {
                 let happening = model.happening(at: now)
                 row(SearchModel.dayPart(now).title, happening, loading: loading)
                 let fresh = model.fresh(at: now, without: happening)
+                let allFresh = model.fresh(at: now, without: happening, all: true)
+                // The › only when its page holds more than the row.
                 row("New in \(Town.everyday)", fresh, loading: loading, new: true,
-                    more: fresh.count < SearchModel.restRowMax ? nil : model.fresh(at: now, without: happening, all: true))
+                    more: allFresh.count > fresh.count ? allFresh : nil)
                 around(loading: loading)
             }
         }
