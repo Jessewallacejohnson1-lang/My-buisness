@@ -7,6 +7,8 @@ label: St. Joseph MN
 # The town's name in words: the cheap model's batches ("The town is St. Joseph,
 # Minnesota") and the social watch's post pages ("A St. Joseph place").
 display: St. Joseph
+# The weekly Facebook events search (social.py; 2026-11-03: 8 events the watch had missed, for 35 cents)
+facebook_events_search: St. Joseph, Minnesota
 # The town's folder in the photo store and its place_photos.town (place_photos.py,
 # event_photos.py). Live data names it: never change it.
 photo_slug: st-joseph
