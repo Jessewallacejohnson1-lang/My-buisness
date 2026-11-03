@@ -54,6 +54,15 @@ final class AuthStore: ObservableObject, TokenProviding {
         if session == nil, let email = env["BP_PROOF_EMAIL"], let password = env["BP_PROOF_PASSWORD"] {
             _ = await signIn(email: email, password: password)
         }
+        // Screenshot runs pass the gate with no account (`-skip-onboarding`, `RootView`) or open one
+        // onboarding step (`-onboarding`): a quiet anonymous one reads the Town feed and Follow 3's
+        // places for them, as every launch did before onboarding 27. The Welcome still shows: it
+        // isn't a real account. Not for tests or sample data, which make no live account.
+        if session == nil, LaunchFlags.has(.skipOnboarding) || LaunchFlags.has(.onboarding), !Self.isTestRun,
+           LaunchFlags.backend == .live,
+           let data = try? await SupabaseHTTP.auth("signup", body: [:]) {
+            try? setSession(from: data)
+        }
         #endif
         booting = false
     }
