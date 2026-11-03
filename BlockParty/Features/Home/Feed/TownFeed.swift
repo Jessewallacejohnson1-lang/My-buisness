@@ -743,7 +743,6 @@ final class TownFeed {
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
         card.isSaved = row.saved
-        card.friendsGoing = row.friendsGoing
         card.groupID = row.groupID
         card.inGroup = row.inGroup
         return card

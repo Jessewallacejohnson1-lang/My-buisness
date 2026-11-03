@@ -31,23 +31,26 @@ final class NoticesTests: XCTestCase {
 
     func testTheReadsSayWhichAreCalledOffAndOlderRowsAreOn() throws {
         let feed = """
-        [{"id":"e1","title":"Sartell Volleyball vs ROCORI","event_date":"2026-10-20","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"ROCORI High School",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-21T02:00:00+00:00","cancelled":true},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00"}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-21T02:00:00+00:00","card":{"id":"e1",
+         "title":"Sartell Volleyball vs ROCORI","event_date":"2026-10-20","start_time":"7 PM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"ROCORI High School",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "cancelled":true,"going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00","card":{"id":"e2",
+         "title":"Bake sale","event_date":"2026-10-21","start_time":null,"location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "going":false}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(feed.utf8))
         XCTAssertEqual(rows.map(\.event.cancelled), [true, false], "a kept list from before says nothing: on")
         XCTAssertEqual(rows.map { TownFeed.card($0).cancelled }, [true, false])
 
         let going = """
-        [{"id":"e1","title":"Sartell Volleyball vs ROCORI","event_date":"2026-10-20","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"ROCORI High School",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":1,"cancelled":true}]
+        [{"card":{"id":"e1","title":"Sartell Volleyball vs ROCORI","event_date":"2026-10-20",
+         "start_time":"7 PM","location":null,"image_url":null,"category":null,"club_name":null,
+         "source_name":"ROCORI High School","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":1,"cancelled":true,"going":true}}]
         """
         XCTAssertEqual(try CommunityAPI.myGoingRows(from: Data(going.utf8)).map(\.cancelled), [true])
     }
@@ -93,16 +96,18 @@ final class NoticesTests: XCTestCase {
 
     func testTheReadSaysWhatChanged() throws {
         let rows = """
-        [{"id":"e1","title":"Kennedy Volleyball vs Sartell","event_date":"2026-10-20","start_time":"7 PM",
-          "location":"Kennedy","image_url":null,"category":null,"club_name":null,"source_name":"Bound",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false,
-          "cancelled":false,"place_picture":null,"game":{"sport":"Volleyball","teams":[{"name":"Kennedy"},{"name":"Sartell"}]},
-          "changed_at":"2026-10-15T15:00:00.123+00:00","moved_from":{"event_date":"2026-10-20","start_time":"6 PM","location":"Kennedy"},
-          "followed":"Kennedy Volleyball","followed_logo":"https://x/k.png"},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,"location":null,"image_url":null,
-          "category":null,"club_name":null,"source_name":"City","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":3,"going":true,"cancelled":true,"place_picture":null,
-          "game":{"oops":1},"changed_at":"2026-10-14T15:00:00+00:00","moved_from":null,"followed":null,"followed_logo":null}]
+        [{"card":{"id":"e1","title":"Kennedy Volleyball vs Sartell","event_date":"2026-10-20",
+         "start_time":"7 PM","location":"Kennedy","image_url":null,"category":null,
+         "club_name":null,"source_name":"Bound","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"going":false,"cancelled":false,"place_picture":null,"game":{"sport":"Volleyball",
+         "teams":[{"name":"Kennedy"},{"name":"Sartell"}]}},"changed_at":"2026-10-15T15:00:00.123+00:00",
+         "moved_from":{"event_date":"2026-10-20","start_time":"6 PM","location":"Kennedy"},
+         "followed":"Kennedy Volleyball","followed_logo":"https://x/k.png"},
+         {"card":{"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":3,
+         "going":true,"cancelled":true,"place_picture":null,"game":{"oops":1}},"changed_at":"2026-10-14T15:00:00+00:00",
+         "moved_from":null,"followed":null,"followed_logo":null}]
         """
         let notices = try CommunityAPI.changeRows(from: Data(rows.utf8))
         XCTAssertEqual(notices.count, 2, "a game that doesn't read costs nothing")

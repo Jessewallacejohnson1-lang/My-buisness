@@ -159,11 +159,13 @@ final class DailyPageTests: XCTestCase {
     func testFollowingIsTheDaysCardsLiftedForAFollow() throws {
         func row(_ id: String, _ title: String, day: String, reason: String, name: String?,
                  game: Any = NSNull()) -> [String: Any] {
-            ["id": id, "title": title, "event_date": day, "start_time": "7 PM", "location": "Cathedral High School",
-             "image_url": NSNull(), "category": "watch_sports", "club_name": NSNull(), "source_name": "Cathedral High School",
-             "end_at": NSNull(), "all_day": false, "created_at": "2026-10-01T12:00:00+00:00", "going_count": 0,
-             "rsvpd": false, "recurrence": NSNull(), "leaves_at": "2026-10-02T03:00:00+00:00",
-             "reason": reason, "reason_name": name ?? NSNull(), "game": game]
+            ["id": id, "recurrence": NSNull(), "leaves_at": "2026-10-02T03:00:00+00:00",
+             "reason": reason, "reason_name": name ?? NSNull(),
+             "card": ["id": id, "title": title, "event_date": day, "start_time": "7 PM",
+                      "location": "Cathedral High School", "image_url": NSNull(), "category": "watch_sports",
+                      "club_name": NSNull(), "source_name": "Cathedral High School", "end_at": NSNull(),
+                      "all_day": false, "created_at": "2026-10-01T12:00:00+00:00", "going_count": 0,
+                      "going": false, "game": game] as [String: Any]]
         }
         let teams = [["name": "Cathedral", "short": "Cathedral", "logo": "https://x/cathedral.png"],
                      ["name": "Sartell", "short": "Sartell", "logo": "https://x/sartell.png"]]
@@ -184,16 +186,18 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(following.first?.event?.item.title, "Cathedral Volleyball vs Sartell", "a tap opens its Event page")
     }
 
-    /// One row as `get_event_of_the_day` sends it (the Town feed's row), read by the feed's decoder.
+    /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
+    /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
                                   leaves: String) throws -> TownFeedRow {
-        let json: [String: Any] = [
-            "id": "11111111-2222-3333-4444-555555555555", "title": "Sartell Boys Soccer vs ROCORI",
+        let id = "11111111-2222-3333-4444-555555555555"
+        let card: [String: Any] = [
+            "id": id, "title": "Sartell Boys Soccer vs ROCORI",
             "event_date": "2026-10-20", "start_time": start ?? NSNull(), "location": "Sartell High School",
             "image_url": NSNull(), "category": "watch_sports", "club_name": NSNull(),
             "source_name": "Sartell High School", "end_at": endAt ?? NSNull(), "all_day": allDay,
-            "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "rsvpd": true,
-            "recurrence": NSNull(), "leaves_at": leaves]
+            "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "going": true]
+        let json: [String: Any] = ["id": id, "recurrence": NSNull(), "leaves_at": leaves, "card": card]
         let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
         return try XCTUnwrap(rows.first)
     }

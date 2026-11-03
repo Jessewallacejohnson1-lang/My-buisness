@@ -254,13 +254,14 @@ final class YouCalendarTests: XCTestCase {
     /// carry the bookmark.
     func testTheSavedReadsRowsDecode() throws {
         let json = """
-        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
-          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
-          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":false},
-         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":"6 PM","location":null,
-          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
-          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,"going":true}]
+        [{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+         "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+         "source_name":"City of St. Joseph","end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00",
+         "going_count":4,"going":false}},
+         {"card":{"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":"6 PM",
+         "location":null,"image_url":null,"category":null,"club_name":"Bike club","source_name":null,
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,
+         "going":true}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8), saved: true)
         XCTAssertEqual(rows.map(\.rsvpd), [false, true])
@@ -427,13 +428,14 @@ final class YouCalendarTests: XCTestCase {
     /// `get_my_going`'s rows decode into Going Events, an all-day one and a club's included.
     func testTheReadsRowsDecode() throws {
         let json = """
-        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
-          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
-          "source_name":"City of St. Joseph","end_at":"2026-10-24T17:00:00+00:00","all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":4},
-         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":null,"location":null,
-          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
-          "all_day":true,"created_at":"2026-10-01T12:00:00+00:00","going_count":1}]
+        [{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+         "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+         "source_name":"City of St. Joseph","end_at":"2026-10-24T17:00:00+00:00","all_day":false,
+         "created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":true}},
+         {"card":{"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":null,
+         "location":null,"image_url":null,"category":null,"club_name":"Bike club","source_name":null,
+         "end_at":null,"all_day":true,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,
+         "going":true}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8))
         XCTAssertEqual(rows.map(\.id), ["e1", "e2"])
@@ -536,11 +538,11 @@ final class YouCalendarTests: XCTestCase {
     /// The read's friends Going ride the Agenda card, first name and photo, newest first.
     func testTheReadsFriendsGoingRideTheCard() throws {
         let json = """
-        [{"id":"e1","title":"Quiz night","event_date":"2026-10-24","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":3,
-          "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"},{"name":"Ben","photo":null}]}]
+        [{"card":{"id":"e1","title":"Quiz night","event_date":"2026-10-24","start_time":"7 PM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":3,
+         "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"},{"name":"Ben",
+         "photo":null}],"going":true}}]
         """
         let row = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(json.utf8)).first)
         let card = try XCTUnwrap(YouCalendar.event(from: row)).item

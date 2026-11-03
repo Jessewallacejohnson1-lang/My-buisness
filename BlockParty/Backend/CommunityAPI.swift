@@ -50,10 +50,16 @@ private struct FriendRow: Decodable {
 }
 
 /// The app's one Event decoder: an Event card (`private.event_cards`, BP app codebase-health-2), everything
-/// one Event shows wherever it appears, as a read sends it in its `card`. A read with no `card` yet hands
-/// its own row here: its old columns carry the card's names (`going` aside: the Going read's rows are all
-/// Going).
+/// one Event shows wherever it appears, as every Event read sends it in its `card` (the Town feed, the Event
+/// of the day, Going, Saved and the bell). A new Event field is one key in the card source and one here.
 extension UpcomingEvent: Decodable {
+    /// A card that doesn't decode is no Event: that row is left out, never the read.
+    struct Lenient: Decodable {
+        let value: UpcomingEvent?
+        init(from decoder: Decoder) { value = try? UpcomingEvent(from: decoder) }
+    }
+
+
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
@@ -248,26 +254,19 @@ struct CommunityAPI {
         }
     }
 
-    /// `get_town_feed`'s rows as Events and news, in its order. A row whose `leaves_at`
+    /// `get_town_feed`'s rows as Events, news and posts, in its order. A row whose `leaves_at`
     /// doesn't parse is dropped: it would have no moment to leave; so is news with no
-    /// post to open.
+    /// post to open, and an Event whose card doesn't decode.
     static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
+        /// An Event row is its card plus the feed's own; news and posts carry their own columns.
         struct Row: Decodable {
             let id: String
-            let title: String
-            /// nil on a news row (town-feed 35).
-            let eventDate: String?
-            let startTime: String?
+            /// News and posts only, as the place, words, photo and dates below: an Event's are its card's.
+            let title: String?
             let location: String?
             let imageUrl: String?
-            let category: String?
-            let clubName: String?
             let sourceName: String?
-            let endAt: String?
-            let allDay: Bool
-            let createdAt: String
-            let goingCount: Int
-            let rsvpd: Bool
+            let createdAt: String?
             let recurrence: String?
             let leavesAt: String
             let reason: String?
@@ -276,32 +275,19 @@ struct CommunityAPI {
             let heartCount: Int?
             let hearted: Bool?
             let saved: Bool?
-            let cancelled: Bool?
-            /// Optional, so a feed kept on disk before town-feed 28 still decodes.
-            let friendsGoing: [FriendRow]?
             let placePicture: PlacePicture.Lenient?
             let description: String?
             /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
             let clubId: String?
             let inClub: Bool?
-            /// A game's teams (game-card 01); one that doesn't decode leaves a photo card.
-            let game: Game.Lenient?
-            /// What it is in one to three words (event-card 05).
-            let what: String?
-            /// "news" for town news, else an Event (town-feed 35), and the post it came from.
+            /// "news" for town news, "post" for a neighbour's post, else an Event (town-feed 35), and the post
+            /// news came from.
             let kind: String?
             let sourceUrl: String?
-            /// Who puts it on, its logo first (Jesse, 2026-10-23).
-            let hostPicture: PlacePicture.Lenient?
             /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29).
             let poster: LenientPoster?
-            /// The Event card (BP app codebase-health-2 02); nil on news and posts.
-            let card: LenientCard?
-        }
-        /// An Event card, or nil when it doesn't decode: that row reads its own columns, never fails the feed.
-        struct LenientCard: Decodable {
-            let value: UpcomingEvent?
-            init(from decoder: Decoder) { value = try? UpcomingEvent(from: decoder) }
+            /// The Event card (BP app codebase-health-2); nil on news and posts.
+            let card: UpcomingEvent.Lenient?
         }
         /// Who posted a post, or nil when it doesn't decode: that post is left out, never the feed.
         struct LenientPoster: Decodable {
@@ -326,10 +312,10 @@ struct CommunityAPI {
         return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
             if row.kind == "post" {
-                guard let poster = row.poster?.value, !poster.name.isEmpty,
+                guard let poster = row.poster?.value, !poster.name.isEmpty, let words = row.title,
                       let posted = DateHelpers.timestamp(row.createdAt) else { return nil }
                 return .post(TownPost(id: row.id, poster: .init(id: poster.id, name: poster.name),
-                                      posterPhoto: poster.photo.flatMap(URL.init(string:)), words: row.title,
+                                      posterPhoto: poster.photo.flatMap(URL.init(string:)), words: words,
                                       photo: row.imageUrl.flatMap(URL.init(string:)), aspect: poster.aspect,
                                       place: row.location,
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
@@ -338,35 +324,19 @@ struct CommunityAPI {
                                       hearted: row.hearted ?? false))
             }
             if row.kind == "news" {
-                guard let post = row.sourceUrl.flatMap(URL.init(string:)) else { return nil }
+                guard let post = row.sourceUrl.flatMap(URL.init(string:)), let title = row.title else { return nil }
                 let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return .news(TownNews(id: row.id, place: row.sourceName ?? "",
-                                      words: words.isEmpty ? row.title : words, post: post,
+                                      words: words.isEmpty ? title : words, post: post,
                                       picture: row.placePicture?.value, leavesAt: leavesAt,
-                                      published: DateHelpers.timestamp(row.createdAt), title: row.title,
+                                      published: DateHelpers.timestamp(row.createdAt), title: title,
                                       interest: row.reason == "interest" ? row.reasonName : nil))
             }
-            guard let eventDate = row.eventDate else { return nil }
-            // ponytail: a row with no card (a feed kept on disk, or read before codebase-health-2 02's migration
-            // is live) or one that doesn't decode reads its own columns; 03 deletes this.
-            let event = row.card?.value ?? UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,
-                                      startTime: row.startTime, location: row.location,
-                                      goingCount: row.goingCount, createdAt: row.createdAt,
-                                      imageUrl: row.imageUrl, rsvpd: row.rsvpd,
-                                      clubName: row.clubName,
-                                      category: EventCategory.from(row.category),
-                                      endAt: DateHelpers.timestamp(row.endAt),
-                                      isAllDay: row.allDay, sourceName: row.sourceName,
-                                      cancelled: row.cancelled ?? false,
-                                      placePicture: row.placePicture?.value,
-                                      hostPicture: row.hostPicture?.value,
-                                      description: row.description, game: row.game?.value,
-                                      what: row.what, sourceURL: row.sourceUrl.flatMap(URL.init(string:)))
+            guard let event = row.card?.value else { return nil }
             return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                       reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
                                       saved: row.saved ?? false,
-                                      friendsGoing: (row.friendsGoing ?? []).map(\.feed),
                                       groupID: row.clubId, inGroup: row.inClub ?? false))
         }
     }
@@ -722,43 +692,30 @@ struct CommunityAPI {
         try Self.changeRows(from: await db.rpc("get_my_changes"))
     }
 
-    /// `get_my_changes`' rows: each an Event card, as `get_my_going` sends one, with what changed.
+    /// `get_my_changes`' rows: each an Event card with what changed, where it moved from and what you follow
+    /// that it is of. A row whose card doesn't decode is left out, never the bell.
     static func changeRows(from data: Data) throws -> [Notice] {
         struct Row: Decodable {
+            let card: UpcomingEvent.Lenient?
             let changedAt: String
             let movedFrom: Notice.Was?
             let followed: String?
             let followedLogo: String?
         }
-        let rows = try Supabase.decode(data, as: [Row].self)
-        return zip(try myGoingRows(from: data), rows).compactMap { event, row in
-            guard let changedAt = DateHelpers.timestamp(row.changedAt) else { return nil }
+        return try Supabase.decode(data, as: [Row].self).compactMap { row in
+            guard let event = row.card?.value, let changedAt = DateHelpers.timestamp(row.changedAt) else { return nil }
             return Notice(event: event, changedAt: changedAt, movedFrom: row.movedFrom, followed: row.followed,
                           followedLogo: row.followedLogo.flatMap(URL.init(string:)))
         }
     }
 
-    /// `get_my_going`'s rows as events, each one the neighbour is Going to, and
-    /// `get_my_saves`' (`saved`), whose `going` says whether they are. Each is its Event card.
+    /// `get_my_going`'s rows as events, each one the neighbour is Going to, and `get_my_saves`' (`saved`),
+    /// whose card says whether they are. Each row is its Event card alone; one that doesn't decode is left
+    /// out, never the read.
     static func myGoingRows(from data: Data, saved: Bool = false) throws -> [UpcomingEvent] {
-        struct Row: Decodable {
-            let event: UpcomingEvent
-            private enum Keys: String, CodingKey { case card, going }
-            init(from decoder: Decoder) throws {
-                let c = try decoder.container(keyedBy: Keys.self)
-                if let card = try? c.decodeIfPresent(UpcomingEvent.self, forKey: .card) {
-                    event = card
-                } else {
-                    // ponytail: a read with no `card` yet (until codebase-health-2 01's and 02's migrations are
-                    // live), or one that doesn't decode, reads its own row; 03 deletes this.
-                    var row = try UpcomingEvent(from: decoder)
-                    row.rsvpd = try c.decodeIfPresent(Bool.self, forKey: .going) ?? true
-                    event = row
-                }
-            }
-        }
-        return try Supabase.decode(data, as: [Row].self).map { row in
-            var event = row.event
+        struct Row: Decodable { let card: UpcomingEvent.Lenient? }
+        return try Supabase.decode(data, as: [Row].self).compactMap { row in
+            guard var event = row.card?.value else { return nil }
             event.saved = saved
             return event
         }
