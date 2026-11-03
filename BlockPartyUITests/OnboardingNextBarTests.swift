@@ -64,11 +64,12 @@ final class OnboardingNextBarTests: XCTestCase {
         let app = XCUIApplication()
         // A refusal kept from an earlier run would end the flow at step 8.
         app.resetAuthorizationStatus(for: .contacts)
-        // Follow 3's picks stay saved between runs too: `<5b5d>` is "[]", so it starts on none.
+        // Follow 3's picks and step 7's stay saved between runs too: `<5b5d>` is "[]", so it starts on
+        // none, and `()` empties the interests a run before left under their own key.
         app.launchArguments = ["-ui-tests", "-onboarding",
                                "-onboarding.step", "0", "-onboarding.finished", "NO",
                                "-onboarding.firstName", "", "-onboarding.birthday", "2001-10-24",
-                               "-bp.interests", "()", "-onboarding.follows", "<5b5d>"]
+                               "-bp.interests", "()", "-onboarding.interests", "()", "-onboarding.follows", "<5b5d>"]
         app.launch()
 
         let phone = app.buttons["Continue with phone"]
