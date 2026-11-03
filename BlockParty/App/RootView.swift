@@ -151,10 +151,13 @@ struct RootView: View {
 
     /// Only an account someone made or logged into gets past the Welcome (Jesse, 2026-11-02: "dont
     /// allow people in app without logged in", BP app onboarding 27). Screenshot runs
-    /// (`-skip-onboarding`) and UI tests reinstall with no account, so DEBUG lets those in without one.
+    /// (`-skip-onboarding`, or `-onboarding` opening one step) and UI tests reinstall with no
+    /// account, so DEBUG lets those in without one; a launch with none of them meets the gate.
     private var hasAccount: Bool {
         #if DEBUG
-        if LaunchFlags.has(.skipOnboarding) || LaunchFlags.has(.uiTests) { return true }
+        if LaunchFlags.has(.skipOnboarding) || LaunchFlags.has(.uiTests) || LaunchFlags.has(.onboarding) {
+            return true
+        }
         #endif
         return auth.hasAccount
     }
