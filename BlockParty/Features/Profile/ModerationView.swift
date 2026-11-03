@@ -290,7 +290,7 @@ struct ModerationView: View {
     private func emptyState(icon: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.sansLight(30)).foregroundStyle(Hue.inkSecondary)
-            Text(title).font(.sansSemibold(16)).foregroundStyle(Hue.ink)
+            Text(title).font(.displaySemi(16)).foregroundStyle(Hue.ink)
             Text(detail).font(.sans(15)).foregroundStyle(Hue.inkSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60).padding(.horizontal, 24)
@@ -340,7 +340,7 @@ struct ReviewQueueRow: View {
             }
 
             Button { Haptics.light(); onApprove() } label: {
-                Text(approveLabel).font(.sansSemibold(15)).foregroundStyle(.white)
+                Text(approveLabel).font(.displaySemi(15)).foregroundStyle(.white)
                     .padding(.horizontal, 16).frame(height: 36)
                     .background(Hue.ink, in: Capsule())
                     .frame(height: 44).contentShape(Rectangle())

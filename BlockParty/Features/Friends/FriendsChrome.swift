@@ -45,7 +45,7 @@ struct FriendsTitleBar<Trailing: View>: View {
     var body: some View {
         ZStack {
             Text(title)
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
                 .opacity(titleUnder ? 1 : 0)
                 .accessibilityHidden(true)

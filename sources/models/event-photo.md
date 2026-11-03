@@ -19,6 +19,10 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
 - A real photo of the Event or of one just like it at this place: people taking part, the place set up for
   it, the thing itself (the art in an exhibit, a dog in costume for a costume contest, the cast on its
   stage, staff dressed up for a Halloween treat day).
+- People taking part before none (Jesse, 2026-11-02: "preferably it shows people"): of two real photos, pick
+  the one with people in it, sharp and wide, over an empty room, a building's outside, a posed lineup or one
+  child close up. A photo with no people still beats none when it shows the thing itself (the art in an
+  exhibit, the wreaths at a wreath-making night).
 - Its own pictures (`post`, `page`, `listing`) before another post's. Take an `other post` picture only when
   it shows this kind of Event at this place: the play's rehearsal for the play, last year's contest for this
   year's, the class in its own studio for the class. Never a different kind of thing (a sports photo for a

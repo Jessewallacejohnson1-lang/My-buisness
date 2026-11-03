@@ -48,7 +48,7 @@ struct NotificationsPage: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Text("Notifications")
-                        .font(.sansBold(34))
+                        .font(.display(34))
                         .foregroundStyle(Hue.ink)
                         .frame(height: FriendsMetric.titleLine)
                         .padding(.horizontal, FriendsMetric.side)
@@ -59,7 +59,7 @@ struct NotificationsPage: View {
                     if notices.list == nil && !notices.failed && items.isEmpty { LoadingNotices() }
                     ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items), now: now), id: \.title) { section in
                         Text(section.title)
-                            .font(.sansBold(16))
+                            .font(.display(16))
                             .foregroundStyle(Hue.ink)
                             .padding(.horizontal, FriendsMetric.side)
                             .padding(.top, NoticeMetric.sectionTop)

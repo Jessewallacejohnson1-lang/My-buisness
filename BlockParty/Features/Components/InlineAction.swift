@@ -91,7 +91,7 @@ struct InlineAction: View {
             case .idle:
                 Button(action: trigger) {
                     Text(actionText)
-                        .font(.sansBold(14))
+                        .font(.display(15))
                         .foregroundStyle(Hue.ink)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())

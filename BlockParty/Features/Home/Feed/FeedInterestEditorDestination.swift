@@ -32,7 +32,7 @@ struct EditProfileSkeleton: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Edit profile")
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)

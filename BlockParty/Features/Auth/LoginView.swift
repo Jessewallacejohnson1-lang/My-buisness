@@ -61,7 +61,7 @@ struct LoginView: View {
                         HStack {
                             if busy { ProgressView().tint(Hue.surface) }
                             Text(mode == .signIn ? "Log in" : "Create account")
-                                .font(.sansSemibold(16))
+                                .font(.displaySemi(16))
                         }
                         .foregroundStyle(Hue.surface)
                         .frame(maxWidth: .infinity)

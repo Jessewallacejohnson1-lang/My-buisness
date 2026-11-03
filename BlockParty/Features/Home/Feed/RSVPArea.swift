@@ -172,7 +172,7 @@ struct RSVPArea: View {
                 if let top = words.top {
                     // A count rolls; "You're going!" cross-fades in, as its own line.
                     Text(top)
-                        .font(.sansBold(size.top))
+                        .font(.display(size.top))
                         .foregroundStyle(Hue.ink)
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -363,8 +363,8 @@ struct AttendPill: View {
                 Text("Attend")
             }
         }
-        // Apple's font, not BP Body (Jesse at attend-font's Check-in 1, 2026-10-31).
-        .font(.apple(size.top, weight: .semibold))
+        // Inter Tight, as every button word (Jesse, 2026-11-02; Apple's font from 2026-10-31 before).
+        .font(.displaySemi(size.top))
     }
 
     /// Attend: Going, and the calendar's check shows before Invite comes up. A write the server

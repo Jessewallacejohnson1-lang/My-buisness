@@ -59,7 +59,7 @@ struct FriendMenu: View {
                 Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.menuFace, outlined: true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(person.displayName)
-                        .font(.sansBold(20))
+                        .font(.display(20))
                         .foregroundStyle(Hue.ink)
                         .lineLimit(1)
                     if let line {

@@ -89,7 +89,7 @@ struct FeedCardMenu: View {
         VStack(spacing: 0) {
             VStack(spacing: 6) {
                 Text("Why you're seeing this")
-                    .font(.sansSemibold(17))
+                    .font(.displaySemi(17))
                     .foregroundStyle(Hue.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text(why)
@@ -197,7 +197,7 @@ struct FeedCardMenu: View {
             reportBar
             VStack(spacing: 8) {
                 Text("Why are you reporting this?")
-                    .font(.sansBold(21))
+                    .font(.display(22))
                     .foregroundStyle(Hue.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("Your report is anonymous.")
@@ -250,14 +250,14 @@ struct FeedCardMenu: View {
                     .background(Hue.fill, in: Circle())
                     .accessibilityHidden(true)
                 Text("Thanks for reporting")
-                    .font(.sansBold(21))
+                    .font(.display(22))
                     .foregroundStyle(Hue.ink)
             }
             .padding(.top, 48)
             Spacer(minLength: 32)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(.sansSemibold(17))
+                    .font(.displaySemi(17))
                     .foregroundStyle(Hue.paper)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .background(Hue.ink, in: Capsule())
@@ -270,7 +270,7 @@ struct FeedCardMenu: View {
     private var reportBar: some View {
         ZStack {
             Text("Report")
-                .font(.sansSemibold(17))
+                .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
             Button { dismiss() } label: {

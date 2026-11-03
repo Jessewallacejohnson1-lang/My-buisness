@@ -296,14 +296,15 @@ def label(d, xy, text, f, width, fill=(30, 30, 30)):
 
 SEASONS = ('winter', 'spring', 'summer', 'fall')
 # An event's subject: the first pattern its sport and title match, else its category's. Order matters
-# (a "Sauna, Yoga, Ice Bath" night is sauna; a "Jazz Festival" is band).
+# (a "Sauna, Yoga, Ice Bath" night is sauna; a "Jazz Festival" is band, a dance team's "Varsity Jazz" is dance).
+# Fare for All sells food boxes: a market, not a dinner (BP app event-photos 13, 2026-11-02).
 SUBJECTS = [
     ('hockey', r'hockey'), ('basketball', r'basketball'), ('wrestling', r'wrestl|matness'),
     ('swimming', r'swim|diving'), ('gymnastics', r'gymnast'), ('volleyball', r'volleyball'),
     ('football', r'football'), ('cross-country', r'cross country'), ('track', r'track and field|track & field'),
     ('running', r'\b5k\b|\b10k\b|fun run|marathon|turkey trot|\bshuffle\b'),
     ('soccer', r'soccer'), ('sauna', r'sauna|ice bath|plunge'), ('yoga', r'yoga|pilates|chi kung|qigong|tai chi'),
-    ('dance', r'\bdance|high kick'), ('choir', r'choir|vocal|chorale|singers'),
+    ('dance', r'\bdance|high kick|\bkick\b|varsity jazz|jazz (?:and|&) kick'), ('choir', r'choir|vocal|chorale|singers'),
     ('band', r'\bband\b|jazz|orchestra|ensemble|\borgan\b|symphony|informance|drumming'), ('concert', r'concert'),
     ('academic', r'knowledge bowl|math league|robotics'), ('film', r'\bfilm'),
     ('festival', r'powwow|festival|fashion show'),
@@ -312,11 +313,11 @@ SUBJECTS = [
     ('worship', r'\bmass\b|prayer|retreat|adoration|sacred|pilgrimage|contemplative|vespers|spirituality'),
     ('meeting', r'council|board meeting|commission|planning board|authority|monthly meeting|work session'),
     ('talk', r'lecture|\btalk|webinar|speaker|poet|keynote|panel|workshop|training|certificate|class\b'),
-    ('market', r'\bmarkets?\b'), ('crafts', r'paint|stitch|craft|arrangement|porch pot|art club|wreath'),
+    ('market', r'\bmarkets?\b|fare for all'), ('crafts', r'paint|stitch|craft|arrangement|porch pot|art club|wreath'),
     ('games', r'trivia|bingo|raffle|puzzle|board game|game night|game competition|keys for cash'),
     ('blood-drive', r'blood drive'), ('outdoors', r'hike|tracking|arboretum|conservation|luminary'),
     ('shopping', r'black friday|pink friday|days of giving|holiday launch|holiday collection|open house|boo-tique|twinkle'),
-    ('library', r'learning commons|popcorn|paws for'), ('dinner', r'gala|dinner|fare for all|banquet'),
+    ('library', r'learning commons|popcorn|paws for'), ('dinner', r'gala|dinner|banquet'),
     ('party', r'party|haunted'),
 ]
 BY_CATEGORY = {'watch_sports': 'sports', 'play_sports': 'sports', 'live_music': 'concert', 'art_theater': 'theater',
@@ -968,6 +969,11 @@ def selftest():
          subject('Organic Gardening Workshop') == 'talk' and subject('Holiday Market') == 'market'
          and subject('Marketing 101') == 'place' and subject('Attendance Day') == 'place'
          and subject('An Afternoon of Organ and Voice') == 'band'),
+        ("a dance team's jazz and kick meets are dance, a jazz band's concert is band; Fare for All is a market",
+         subject('Varsity Jazz', None, 'art_theater') == 'dance' and subject('Junior Varsity Jazz') == 'dance'
+         and subject('GRC Jazz and Kick Championship') == 'dance' and subject('Conference Kick') == 'dance'
+         and subject('Jazz Ensemble', None, 'live_music') == 'band' and subject('Kickoff Party') == 'party'
+         and subject('Fare for All', None, 'markets') == 'market'),
         ('a lecture is talk; a council meeting is meeting', subject('The Nolan Lecture', None, 'faith') == 'talk'
          and subject('City Council Work Session') == 'meeting'),
         ('nothing matched falls to the category, then the place', subject('7th Grade', None, 'watch_sports') == 'sports'

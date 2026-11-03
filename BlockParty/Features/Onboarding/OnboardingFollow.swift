@@ -450,7 +450,7 @@ private struct FollowTileArt: View {
                                 .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
                         } else {
                             Text(initials)
-                                .font(.sansHeadline(22))
+                                .font(.sansBold(22))
                                 .foregroundStyle(Hue.ink)
                         }
                     }
@@ -494,7 +494,7 @@ struct OnboardingPillFace: View {
 
     var body: some View {
         Text(title)
-            .font(.sansSemibold(14))
+            .font(.displaySemi(15))
             .foregroundStyle(on ? Hue.ink : Hue.surface)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
