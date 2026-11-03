@@ -213,15 +213,18 @@ final class YourProfileTests: XCTestCase {
     /// Onboarding's finish hands its name and picks over before any save, and the stamp shows the
     /// date it landed.
     func testOnboardingAnswersAreYoursAtOnce() async {
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.firstName = "Avery"
+        onboarding.interests = ["faith", "coffee"]
+        onboarding.finish()
         let profile = model()
-        profile.answered(name: "Avery", interests: ["faith", "coffee"])
 
-        XCTAssertEqual(profile.displayName, "Avery")
+        let finishing = profile.finished(onboarding)
+        XCTAssertEqual(profile.displayName, "Avery", "at once, before anything lands")
         XCTAssertEqual(Interests.get(phone), ["faith", "coffee"])
         XCTAssertEqual(Interests.displayName(phone), "Avery")
 
-        let stamped = await profile.stampOnboarded(birthday: nil, interests: ["faith", "coffee"])
-        XCTAssertTrue(stamped)
+        await finishing.value
         XCTAssertNotNil(profile.onboardedAt)
         XCTAssertEqual(reads, 0)
     }

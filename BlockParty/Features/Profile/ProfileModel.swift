@@ -185,7 +185,7 @@ final class ProfileModel {
 
     /// Onboarding finished: its name and Interests are yours on this phone at once, before any
     /// save reaches the account.
-    func answered(name: String?, interests: [String]) {
+    private func answered(name: String?, interests: [String]) {
         if let name { displayName = name }
         if !interests.isEmpty { interestIds = interests }
         keep()
@@ -203,21 +203,6 @@ final class ProfileModel {
         if let url { avatarUrl = url }
         if !interests.isEmpty { interestIds = interests }
         keep()
-    }
-
-    /// The onboarded stamp, with the birthday (onboarding 19) and the Interests (24), on your row.
-    /// True when the server took it.
-    func stampOnboarded(birthday: Date?, interests: [String]) async -> Bool {
-        turn += 1
-        guard (try? await profiles.markOnboarded(birthday: birthday, interests: interests)) != nil else { return false }
-        turn += 1   // and a read sent while it was out
-        onboardedAt = DateHelpers.timestampString(Date())
-        sinceLabel = ProfileModel.since(from: onboardedAt)
-        if !interests.isEmpty {
-            interestIds = interests
-            keep()
-        }
-        return true
     }
 
     // MARK: - Onboarding's hand-off (BP app codebase-health-2 10)
@@ -260,7 +245,16 @@ final class ProfileModel {
     /// The onboarded stamp with the birthday and the picks. On the account, the birthday leaves the
     /// phone, so another account signing in here later can't take it.
     private func stamp(_ onboarding: OnboardingStore) async {
-        guard await stampOnboarded(birthday: onboarding.birthday, interests: onboarding.interests) else { return }
+        let interests = onboarding.interests
+        turn += 1
+        guard (try? await profiles.markOnboarded(birthday: onboarding.birthday, interests: interests)) != nil else { return }
+        turn += 1   // and a read sent while it was out
+        onboardedAt = DateHelpers.timestampString(Date())
+        sinceLabel = ProfileModel.since(from: onboardedAt)
+        if !interests.isEmpty {
+            interestIds = interests
+            keep()
+        }
         onboarding.birthday = nil
         if !onboarding.finishedHere || answersLanded { lateLandings += 1 }
     }
