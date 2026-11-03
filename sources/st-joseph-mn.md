@@ -324,6 +324,7 @@ category: college
 place_type: School / college
 added_by: agent:claude
 aka: ["SJU", "Saint John's Campus", "Saint John's School of Theology"]
+address: 2850 Abbey Plaza
 venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
   "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
   "Outdoor U", "Haws Field", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",

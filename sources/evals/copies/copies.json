@@ -1,0 +1,849 @@
+{
+ "about": "Real copies taken out of the Town feed, Oct 17 to Nov 3, 2026: each group is one thing as its copies were written, oldest first. write_judged.py's t_real_copies replays them morning by morning. Built from the live rows (BP app watch-every-place 15).",
+ "events": [
+  {
+   "name": "White Peony's Pink Friday at two times",
+   "rows": [
+    {
+     "id": "c3049c42-2317-4ce3-8b64-373c542700b8",
+     "title": "Pink Friday",
+     "event_date": "2026-11-20",
+     "start_time": "9:30 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-20T0930:friday-pink",
+     "source_url": "https://whitepeonyboutique.com/pages/events",
+     "created_at": "2026-10-17 11:15:31.298872+00",
+     "trust": "official"
+    },
+    {
+     "id": "734cbc1c-c667-4d43-8dd8-014c890859d2",
+     "title": "Pink Friday",
+     "event_date": "2026-11-20",
+     "start_time": "7 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-20T0700:friday-pink",
+     "source_url": "https://whitepeonyboutique.com/pages/events",
+     "created_at": "2026-10-24 11:15:59.400096+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "White Peony's holiday launch weekend under six names",
+   "rows": [
+    {
+     "id": "ca01d3cd-b5ac-40fe-902d-2bfa19d3bb71",
+     "title": "Holiday Launch Weekend",
+     "event_date": "2026-11-07",
+     "start_time": null,
+     "all_day": true,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0900:holiday-launch-peony-white",
+     "source_url": "https://www.instagram.com/p/DfFLBAOGhNY/",
+     "created_at": "2026-10-17 11:15:31.298872+00",
+     "trust": "official"
+    },
+    {
+     "id": "908046be-d9bf-419a-b3ec-eca6e34b202b",
+     "title": "Style Hunt",
+     "event_date": "2026-11-07",
+     "start_time": null,
+     "all_day": true,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0900:holiday-hunt-launch-style",
+     "source_url": "https://www.instagram.com/p/DfI0eLuiYKZ/",
+     "created_at": "2026-10-23 11:17:16.397486+00",
+     "trust": "official"
+    },
+    {
+     "id": "55743264-fb96-4055-b268-349413ef8b2e",
+     "title": "Holiday Launch",
+     "event_date": "2026-11-07",
+     "start_time": null,
+     "all_day": true,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07:holiday-launch",
+     "source_url": "https://www.instagram.com/p/DfAgGHTjzS4/",
+     "created_at": "2026-10-27 02:41:02.059792+00",
+     "trust": "official"
+    },
+    {
+     "id": "b920de95-5d53-45da-8847-1379521bc9c0",
+     "title": "Ladies Weekend: Holiday Edition",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0900:edition-holiday-ladies-weekend",
+     "source_url": "https://whitepeonyboutique.com/pages/events",
+     "created_at": "2026-10-27 11:16:28.137668+00",
+     "trust": "official"
+    },
+    {
+     "id": "fe2fba56-1b6c-44c3-b8fb-58c30b0203e0",
+     "title": "Holiday Collection Weekend",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0800:collection-holiday-weekend",
+     "source_url": "https://www.instagram.com/p/DfNzwXhDzGm/",
+     "created_at": "2026-11-02 00:42:31.396177+00",
+     "trust": "official"
+    },
+    {
+     "id": "de06234e-b081-4277-8555-2150d575f6c1",
+     "title": "Holiday Drop",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "White Peony Boutique, St. Cloud",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0800:drop-holiday",
+     "source_url": "https://www.instagram.com/p/DfQK4YsCmb4/",
+     "created_at": "2026-11-03 00:41:46.021766+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "W|R Home's Holiday Open House, timed and all day",
+   "rows": [
+    {
+     "id": "25cddc6b-7649-42b2-a85f-50c04ed3272a",
+     "title": "Holiday Open House",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "WR Home & Clothing Co.",
+     "source_name": "W|R Home Company",
+     "source_uid": "page:2026-11-07T0800:holiday-house-open",
+     "source_url": "https://wrhomecompany.com/pages/events",
+     "created_at": "2026-10-17 11:15:31.298872+00",
+     "trust": "official"
+    },
+    {
+     "id": "42fb50e5-820b-44de-a6b6-bcec2337e55d",
+     "title": "Holiday Open House",
+     "event_date": "2026-11-07",
+     "start_time": null,
+     "all_day": true,
+     "location": "WR Home Company",
+     "source_name": "W|R Home Company",
+     "source_uid": "page:2026-11-07:holiday-house-open",
+     "source_url": "https://www.instagram.com/p/De0RjxHT6F_/",
+     "created_at": "2026-10-23 16:39:09.444123+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Twinkle & Toast from White Peony, JoeTown and W|R Home",
+   "rows": [
+    {
+     "id": "a85c84a6-11a7-4135-a7b3-81dffa985c9c",
+     "title": "Twinkle & Toast Holiday Launch",
+     "event_date": "2026-11-06",
+     "start_time": "6 PM",
+     "all_day": false,
+     "location": "White Peony & WR Home",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-06T1800:toast-twinkle",
+     "source_url": "https://whitepeonyboutique.com/pages/events",
+     "created_at": "2026-10-17 11:15:31.298872+00",
+     "trust": "official"
+    },
+    {
+     "id": "f559093b-18bc-47e4-9ac7-1d564bc78f1f",
+     "title": "Twinkle & Toast",
+     "event_date": "2026-11-06",
+     "start_time": "6 PM",
+     "all_day": false,
+     "location": "WR Home Company",
+     "source_name": "JoeTown",
+     "source_uid": "page:2026-11-06T1800:toast-twinkle",
+     "source_url": "https://www.facebook.com/events/28423449903970800/",
+     "created_at": "2026-10-23 16:39:09.444123+00",
+     "trust": "official"
+    },
+    {
+     "id": "023dd250-47a0-4ca3-b5a4-54fd1edf09c7",
+     "title": "Twinkle & Toast",
+     "event_date": "2026-11-06",
+     "start_time": null,
+     "all_day": true,
+     "location": "WR Home & Clothing Co.",
+     "source_name": "W|R Home Company",
+     "source_uid": "page:2026-11-06:toast-twinkle",
+     "source_url": "https://wrhomecompany.com/pages/events",
+     "created_at": "2026-10-29 14:28:00.225692+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Milk & Honey's sauna night, Nov 12",
+   "rows": [
+    {
+     "id": "01ff9005-1987-4dc1-8ab8-75e3ef89369a",
+     "title": "Sauna, Yoga, Ice Bath, Cider",
+     "event_date": "2026-11-12",
+     "start_time": "6:30 PM",
+     "all_day": false,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2026-11-12T1830:40-bath-cider-ice-sauna-yoga",
+     "source_url": "https://www.milkandhoneyciders.com/events",
+     "created_at": "2026-10-14 17:37:30.387079+00",
+     "trust": "official"
+    },
+    {
+     "id": "c728235c-8d6f-42bc-bce1-bbc8878693cd",
+     "title": "Yoga, Sauna & Cider",
+     "event_date": "2026-11-12",
+     "start_time": null,
+     "all_day": true,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2026-11-12:cider-sauna-yoga",
+     "source_url": "https://www.facebook.com/MilkandHoneyCiders/posts/pfbid031juQjuirhx942FQ5ZKuq3g1awNvLU8Y3RLvx1biPX7LQe3mJkNG9YQctfAgP2gBhl",
+     "created_at": "2026-10-26 23:42:29.665707+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Milk & Honey's sauna night, Jan 21",
+   "rows": [
+    {
+     "id": "75f125c4-a269-4c65-8cb7-87c4cc460d0d",
+     "title": "Sauna, Yoga, Ice Bath, Cider",
+     "event_date": "2027-01-21",
+     "start_time": "6:30 PM",
+     "all_day": false,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2027-01-21T1830:bath-cider-ice-sauna-yoga",
+     "source_url": "https://www.milkandhoneyciders.com/events",
+     "created_at": "2026-10-23 16:20:01.251891+00",
+     "trust": "official"
+    },
+    {
+     "id": "6c6eb366-6b24-4075-b0a8-43df5bfd041b",
+     "title": "Yoga, Sauna & Cider",
+     "event_date": "2027-01-21",
+     "start_time": null,
+     "all_day": true,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2027-01-21:cider-sauna-yoga",
+     "source_url": "https://www.facebook.com/MilkandHoneyCiders/posts/pfbid031juQjuirhx942FQ5ZKuq3g1awNvLU8Y3RLvx1biPX7LQe3mJkNG9YQctfAgP2gBhl",
+     "created_at": "2026-10-26 23:42:29.665707+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Milk & Honey's sauna night, Feb 18",
+   "rows": [
+    {
+     "id": "543ea789-3444-4c21-8aef-170437280212",
+     "title": "Sauna, Yoga, Ice Bath, Cider",
+     "event_date": "2027-02-18",
+     "start_time": "6:30 PM",
+     "all_day": false,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2027-02-18T1830:bath-cider-ice-sauna-yoga",
+     "source_url": "https://www.milkandhoneyciders.com/events",
+     "created_at": "2026-10-23 16:20:01.251891+00",
+     "trust": "official"
+    },
+    {
+     "id": "b5b981fb-d850-41b7-aff9-3cc0ae815370",
+     "title": "Yoga, Sauna & Cider",
+     "event_date": "2027-02-18",
+     "start_time": null,
+     "all_day": true,
+     "location": "Milk & Honey Ciders",
+     "source_name": "Milk & Honey Ciders",
+     "source_uid": "page:2027-02-18:cider-sauna-yoga",
+     "source_url": "https://www.facebook.com/MilkandHoneyCiders/posts/pfbid031juQjuirhx942FQ5ZKuq3g1awNvLU8Y3RLvx1biPX7LQe3mJkNG9YQctfAgP2gBhl",
+     "created_at": "2026-10-26 23:42:29.665707+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Sunny Mary Meadow's Nov 3 market under three names",
+   "rows": [
+    {
+     "id": "96558630-4f44-4937-bb3a-9d5f2eb8935f",
+     "title": "Indoor Farmers Market",
+     "event_date": "2026-11-03",
+     "start_time": "3 PM",
+     "all_day": false,
+     "location": "The Bloom Room",
+     "source_name": "Sunny Mary Meadow",
+     "source_uid": "page:2026-11-03T1500:farmers-indoor-market",
+     "source_url": "https://www.facebook.com/sunnymarymeadow/posts/pfbid02AqB3ZngRW6zsUR4Z5sMGr9nk7EJFtcqJDHHmSJsRjquhbaX2HoA4uLtqpBnivHcFl",
+     "created_at": "2026-10-22 23:20:35.766316+00",
+     "trust": "official"
+    },
+    {
+     "id": "a1fa3f40-96d8-4a20-8bf9-ef74a91deb41",
+     "title": "Holiday Market",
+     "event_date": "2026-11-03",
+     "start_time": "3 PM",
+     "all_day": false,
+     "location": "Sunny Mary Meadow",
+     "source_name": "Sunny Mary Meadow",
+     "source_uid": "page:2026-11-03T1500:holiday-market",
+     "source_url": "https://www.facebook.com/sunnymarymeadow",
+     "created_at": "2026-10-26 13:39:06.438381+00",
+     "trust": "official"
+    },
+    {
+     "id": "23d45b36-5d02-4c6b-84bf-3484ee48482e",
+     "title": "FARMacy",
+     "event_date": "2026-11-03",
+     "start_time": null,
+     "all_day": true,
+     "location": "Sunny Mary Meadow",
+     "source_name": "Sunny Mary Meadow",
+     "source_uid": "page:2026-11-03:farmacy",
+     "source_url": "https://www.facebook.com/sunnymarymeadow/posts/pfbid02k1EmFdEuMgRdGNspM4d8bLemDimyUt48gMG1MhAVBY4wQaQMyUU4KSBvujkXuqWKl",
+     "created_at": "2026-10-31 23:41:46.121644+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "The sisters' All Hallow's Eve Procession from two hosts",
+   "rows": [
+    {
+     "id": "35bde14d-6338-47c2-8a92-441c7ca65047",
+     "title": "All Hallow's Eve Procession",
+     "event_date": "2026-10-31",
+     "start_time": null,
+     "all_day": true,
+     "location": "Monastic Cemetery",
+     "source_name": "Sisters of the Order of Saint Benedict",
+     "source_uid": "page:2026-10-31:all-eve-hallows-procession",
+     "source_url": "https://sbm.osb.org/2026/10/27/all-hallows-eve-procession-to-the-monastic-cemetery-saturday-october-31/",
+     "created_at": "2026-10-28 11:34:19.465156+00",
+     "trust": "official"
+    },
+    {
+     "id": "0377ce3e-9c7c-4765-9d27-b70de170bc98",
+     "title": "All Hallow's Eve Procession",
+     "event_date": "2026-10-31",
+     "start_time": "4:30 PM",
+     "all_day": false,
+     "location": "Saint Benedict's Monastery",
+     "source_name": "Saint Benedict's Monastery",
+     "source_uid": "4852763",
+     "source_url": "https://my.csbsju.edu/public/events/4852763",
+     "created_at": "2026-10-28 11:34:19.465156+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's print making, from the county",
+   "rows": [
+    {
+     "id": "9267ef80-25d5-4816-ad9c-71896994da29",
+     "title": "Print making with native plants",
+     "event_date": "2026-11-20",
+     "start_time": "10 AM",
+     "all_day": false,
+     "location": "Outdoor U, SJU",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "board:e74eba92-501e-449f-bae1-55ce04b6145e",
+     "source_url": "https://www.csbsju.edu/outdooru/events/",
+     "created_at": "2026-10-14 16:11:54.068551+00",
+     "trust": "official"
+    },
+    {
+     "id": "b03ea030-55d1-4889-b810-1dd1a38b03da",
+     "title": "Print Making Workshop",
+     "event_date": "2026-11-20",
+     "start_time": "10 AM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "5d5327da-73fa-4785-955c-1bacd566d0a6:2026-11-20T16:00:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's wreath making Nov 30, from the county",
+   "rows": [
+    {
+     "id": "aaa92df3-a11f-464c-8d72-4a023f825301",
+     "title": "Wreath making at Outdoor U",
+     "event_date": "2026-11-30",
+     "start_time": "4:30 PM",
+     "all_day": false,
+     "location": "Saint John's Abbey Arboretum",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "board:ed28aca9-b608-4be2-99c6-d979509dd217",
+     "source_url": "https://www.csbsju.edu/outdooru/events/makeandtake/",
+     "created_at": "2026-10-14 16:11:54.068551+00",
+     "trust": "official"
+    },
+    {
+     "id": "e187b6da-e4fe-4480-a4c4-956acbdefdf8",
+     "title": "Christmas Wreath Making Workshop",
+     "event_date": "2026-11-30",
+     "start_time": "4:30 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "65ae18d4-e592-4911-ba36-4ea691fd6dc0:2026-11-30T22:30:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's wreath making Dec 1, from the county",
+   "rows": [
+    {
+     "id": "341c04cf-626e-4fc3-9f6b-56df22485a57",
+     "title": "Wreath making at Outdoor U",
+     "event_date": "2026-12-01",
+     "start_time": "12:30 PM",
+     "all_day": false,
+     "location": "Saint John's Abbey Arboretum, Collegeville",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "page:2026-12-01T1230:making-outdoor-wreath",
+     "source_url": "https://www.csbsju.edu/outdooru/events/",
+     "created_at": "2026-10-14 17:55:13.406692+00",
+     "trust": "official"
+    },
+    {
+     "id": "dc010930-924e-42e0-b8a4-b86cf4a9f917",
+     "title": "Christmas Wreath Making Workshop",
+     "event_date": "2026-12-01",
+     "start_time": "12:30 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "4e0f380e-3a3b-4d9d-aa25-48bae3182510:2026-12-01T18:30:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's wreath making Dec 2 noon, from the county",
+   "rows": [
+    {
+     "id": "58a9d010-17ee-4c3f-a506-5d6ec88ba074",
+     "title": "Wreath making at Outdoor U",
+     "event_date": "2026-12-02",
+     "start_time": "12:30 PM",
+     "all_day": false,
+     "location": "Saint John's Abbey Arboretum, Collegeville",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "page:2026-12-02T1230:making-outdoor-wreath",
+     "source_url": "https://www.csbsju.edu/outdooru/events/",
+     "created_at": "2026-10-14 17:55:13.406692+00",
+     "trust": "official"
+    },
+    {
+     "id": "69cbce4d-b5e2-478d-83f8-cd17eeb466e7",
+     "title": "Christmas Wreath Making Workshop",
+     "event_date": "2026-12-02",
+     "start_time": "12:30 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "f67c8c4f-f1da-4656-9fef-f65d69bf8970:2026-12-02T18:30:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's wreath making Dec 2 evening, from the county",
+   "rows": [
+    {
+     "id": "03c2b9c6-e4fe-4483-bec0-9abf10a81455",
+     "title": "Wreath making at Outdoor U",
+     "event_date": "2026-12-02",
+     "start_time": "4:30 PM",
+     "all_day": false,
+     "location": "Saint John's Abbey Arboretum, Collegeville",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "page:2026-12-02T1630:making-outdoor-wreath",
+     "source_url": "https://www.csbsju.edu/outdooru/events/",
+     "created_at": "2026-10-14 17:55:13.406692+00",
+     "trust": "official"
+    },
+    {
+     "id": "5c2954b1-9e04-4e21-8f22-543c517b9a79",
+     "title": "Christmas Wreath Making Workshop",
+     "event_date": "2026-12-02",
+     "start_time": "4:30 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "b09be0e2-596b-492c-931d-aad0a72f1486:2026-12-02T22:30:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's Banff film festival, from the county",
+   "rows": [
+    {
+     "id": "8459be74-684b-4758-a758-480c679e187e",
+     "title": "Banff Mountain Film Festival",
+     "event_date": "2026-12-04",
+     "start_time": "7 PM",
+     "all_day": false,
+     "location": "SJU",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "board:f2c74d4a-c21c-4ee0-84b3-6296eccdc476",
+     "source_url": "https://www.csbsju.edu/outdooru/events/adventure/banff-mountain-film-festival-sju/",
+     "created_at": "2026-10-14 16:11:54.068551+00",
+     "trust": "official"
+    },
+    {
+     "id": "47f6f6cb-4e7e-4cc9-a7da-6ba8a16b5659",
+     "title": "Banff Mountain Film Festival",
+     "event_date": "2026-12-04",
+     "start_time": "6:30 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "428653bd-213f-4863-a30e-e9ddbe68ad4b:2026-12-05T00:30:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's animal tracking, from the county",
+   "rows": [
+    {
+     "id": "a5594faf-2e09-44c6-ad6a-60beeffc8621",
+     "title": "Animal tracking at Outdoor U",
+     "event_date": "2027-01-09",
+     "start_time": "1 PM",
+     "all_day": false,
+     "location": "Saint John's Abbey Arboretum",
+     "source_name": "CSB SJU Outdoor U",
+     "source_uid": "board:98e4b37f-e5d8-4a59-bf45-e470aa4dc752",
+     "source_url": "https://www.csbsju.edu/outdooru/events/",
+     "created_at": "2026-10-14 16:11:54.068551+00",
+     "trust": "official"
+    },
+    {
+     "id": "0437dd8a-0bc7-4622-972c-c2e078b3ad49",
+     "title": "Animal Tracking",
+     "event_date": "2027-01-09",
+     "start_time": "1 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "72827a5c-0b94-43f5-9242-b01e3d094167:2027-01-09T19:00:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Outdoor U's Owl Hoot, from the City and the county",
+   "rows": [
+    {
+     "id": "eb3b6cb1-5190-492f-87ce-f3d54be1fa37",
+     "title": "The Owl Hoot",
+     "event_date": "2027-01-23",
+     "start_time": "6 PM",
+     "all_day": false,
+     "location": "SJU",
+     "source_name": "City of St. Joseph",
+     "source_uid": "2447",
+     "source_url": "https://www.stjosephmn.gov/Calendar.aspx?EID=2447",
+     "created_at": "2026-10-25 11:19:19.464375+00",
+     "trust": "official"
+    },
+    {
+     "id": "edc733ad-2e32-4001-a28d-5090bc6e7ee5",
+     "title": "The Owl Hoot",
+     "event_date": "2027-01-23",
+     "start_time": "6 PM",
+     "all_day": false,
+     "location": "2850 Abbey Plaza",
+     "source_name": "Stearns County",
+     "source_uid": "0f626df7-1243-4e08-a6c5-2d1b1ecb24a1:2027-01-24T00:00:00Z",
+     "source_url": "https://www.stearnscountymn.gov/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Sal's puzzle contest from Sal's and the City",
+   "rows": [
+    {
+     "id": "b8588e8f-16a1-40b0-b540-aa4be36e550f",
+     "title": "Fall Adult Puzzle Competition",
+     "event_date": "2026-11-22",
+     "start_time": "11 AM",
+     "all_day": false,
+     "location": "Sal's Bar and Grill",
+     "source_name": "City of St. Joseph",
+     "source_uid": "page:2026-11-22T1100:adult-competition-fall-puzzle",
+     "source_url": "https://www.facebook.com/events/1753692979231258/",
+     "created_at": "2026-10-23 16:39:09.444123+00",
+     "trust": "official"
+    },
+    {
+     "id": "c1cb8e68-3100-459e-8455-cf78a5da9622",
+     "title": "Puzzle Mania",
+     "event_date": "2026-11-22",
+     "start_time": "11 AM",
+     "all_day": false,
+     "location": null,
+     "source_name": "Sal's Bar and Grill",
+     "source_uid": "557-1795345200-1795352400@salsbarstjoe.com",
+     "source_url": "https://salsbarstjoe.com/event/puzzle-mania/",
+     "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  }
+ ],
+ "news": [
+  {
+   "name": "Flour & Flower's Thanksgiving orders",
+   "rows": [
+    {
+     "id": "6bee2447-2f05-4f49-a289-be483be9ab98",
+     "title": "Thanksgiving pre-orders are open",
+     "source_name": "Flour & Flower Bakery",
+     "source_url": "https://www.facebook.com/flourandflowerbakery/posts/pfbid062nzUpixHdAPN6xfDeKNEWJbBYLPdFPdDNEWhAJyhn3aDUkAC2BbxvmBeoYYGASZl",
+     "tier": "1",
+     "created_at": "2026-10-22 23:44:07.755414+00"
+    },
+    {
+     "id": "86866912-2188-45fe-a5dd-72c02bd19907",
+     "title": "Thanksgiving orders open",
+     "source_name": "Flour & Flower Bakery",
+     "source_url": "https://www.facebook.com/flourandflowerbakery/posts/pfbid0zt6yumuPSezjM5kK1abGtLn8tb64Ma8gw8unY68mD2QZ5SiV8iBJFVXSQtkfCsNAl",
+     "tier": "1",
+     "created_at": "2026-10-23 23:37:06.025475+00"
+    },
+    {
+     "id": "9a8dc095-2770-4788-b1c2-f6b0afa9a043",
+     "title": "Thanksgiving orders open at Flour & Flower",
+     "source_name": "Flour & Flower Bakery",
+     "source_url": "https://www.facebook.com/flourandflowerbakery/posts/pfbid0ESJsdEnC3bzvGc9eCQEcdQfrAp5h6otUHsx69gmYjeVZfq2jfwvRveUckMA7T1pCl",
+     "tier": "1",
+     "created_at": "2026-10-24 23:40:23.474412+00"
+    }
+   ]
+  },
+  {
+   "name": "Flour & Flower's Thanksgiving orders again",
+   "rows": [
+    {
+     "id": "97013fe9-6aa6-4408-be52-e9737fbbc159",
+     "title": "Thanksgiving orders open at Flour & Flower",
+     "source_name": "Flour & Flower Bakery",
+     "source_url": "https://www.toasttab.com/flourandflower",
+     "tier": "1",
+     "created_at": "2026-10-31 23:41:46.121644+00"
+    },
+    {
+     "id": "67415442-44e3-4e26-9c4c-ab0eb1fb8ca3",
+     "title": "Thanksgiving pre-orders",
+     "source_name": "Flour & Flower Bakery",
+     "source_url": "https://www.facebook.com/reel/4437812916458685/",
+     "tier": "1",
+     "created_at": "2026-11-03 00:41:46.021766+00"
+    }
+   ]
+  },
+  {
+   "name": "Granite City's winter registration",
+   "rows": [
+    {
+     "id": "ed2e2664-6848-4b4c-96f3-4fed868bece7",
+     "title": "Gymnastics winter registration opens Nov 16",
+     "source_name": "Granite City Gymnastics",
+     "source_url": "https://www.granitecitygymnastics.com/schedule.html",
+     "tier": "1",
+     "created_at": "2026-10-23 11:17:16.397486+00"
+    },
+    {
+     "id": "9d2757e2-671d-4ae1-b5c3-43c4b91d8ae9",
+     "title": "Winter gymnastics registration opens Nov 16",
+     "source_name": "Granite City Gymnastics",
+     "source_url": "https://www.granitecitygymnastics.com/",
+     "tier": "1",
+     "created_at": "2026-10-24 11:15:59.400096+00"
+    }
+   ]
+  },
+  {
+   "name": "The North Table's all-day brunch",
+   "rows": [
+    {
+     "id": "4a5511cc-e92c-4db5-8658-4609f522b6ad",
+     "title": "Weekend brunch all day",
+     "source_name": "The North Table",
+     "source_url": "https://www.instagram.com/p/De3AnqRDaIV/",
+     "tier": "1",
+     "created_at": "2026-10-24 02:40:20.610867+00"
+    },
+    {
+     "id": "c0399b4c-fabd-419a-9ed8-90c8345c893b",
+     "title": "Brunch all day at The North Table",
+     "source_name": "The North Table",
+     "source_url": "https://www.instagram.com/p/De3AnqRDaIV/",
+     "tier": "1",
+     "created_at": "2026-10-24 23:40:23.474412+00"
+    }
+   ]
+  },
+  {
+   "name": "The North Table's weekend brunch, Oct 30",
+   "rows": [
+    {
+     "id": "69be02aa-6d0d-43f0-8146-9c09ded938c2",
+     "title": "Weekend brunch, gluten-free",
+     "source_name": "The North Table",
+     "source_url": "https://www.facebook.com/permalink.php?story_fbid=pfbid08H5vWxX6E3yDe4oi5Pn7FM2KsaC9CuNetwQN91vcwwHnDanQNiggeMbrQJEnS6L5l&id=61582164415845",
+     "tier": "1",
+     "created_at": "2026-10-30 02:40:28.927646+00"
+    },
+    {
+     "id": "ef168cc8-a835-498c-8475-bad6c7b2e263",
+     "title": "Brunch Saturdays and Sundays",
+     "source_name": "The North Table",
+     "source_url": "https://www.instagram.com/p/DfIf2oZil8p/",
+     "tier": "1",
+     "created_at": "2026-10-30 23:42:28.690216+00"
+    }
+   ]
+  },
+  {
+   "name": "White Peony's Cloudy collection",
+   "rows": [
+    {
+     "id": "57b94237-79f8-4c92-bbb4-c44d96337905",
+     "title": "Comfort With a Chance of Cloudy collection",
+     "source_name": "White Peony Boutique",
+     "source_url": "https://www.instagram.com/p/De5DHVMDJQp/",
+     "tier": "1",
+     "created_at": "2026-10-24 23:40:23.474412+00"
+    },
+    {
+     "id": "083bfccf-7f07-4f85-97cf-af0a8ae01a42",
+     "title": "Cloudy collection launches Oct 25",
+     "source_name": "White Peony Boutique",
+     "source_url": "https://www.instagram.com/p/De5ejz8DQe4/",
+     "tier": "1",
+     "created_at": "2026-10-25 02:40:52.082337+00"
+    }
+   ]
+  },
+  {
+   "name": "White Peony's boo baskets",
+   "rows": [
+    {
+     "id": "94264e96-5458-4c2a-b0cd-909c70aeae85",
+     "title": "Build-your-own boo basket",
+     "source_name": "White Peony Boutique",
+     "source_url": "https://www.instagram.com/p/De9cyx3FThW/",
+     "tier": "1",
+     "created_at": "2026-10-26 23:42:29.665707+00"
+    },
+    {
+     "id": "4b26c000-c9dc-49f3-8bcf-374728bb955e",
+     "title": "Build-your-own BOO baskets",
+     "source_name": "White Peony Boutique",
+     "source_url": "https://www.instagram.com/p/DfABY7uD_gR/",
+     "tier": "1",
+     "created_at": "2026-10-27 23:42:34.831004+00"
+    },
+    {
+     "id": "e9765cbe-80bd-4606-ad17-138734007f60",
+     "title": "Build Your Own Boo Baskets at White Peony",
+     "source_name": "White Peony Boutique",
+     "source_url": "https://www.instagram.com/p/DfA5sp-gVAT/",
+     "tier": "1",
+     "created_at": "2026-10-28 02:40:44.00043+00"
+    }
+   ]
+  },
+  {
+   "name": "Kennedy's Permanent School Fund",
+   "rows": [
+    {
+     "id": "39157997-d33e-4b7d-bed2-5da45f61a54c",
+     "title": "What You Need to Know About the Permanent School Fund",
+     "source_name": "Kennedy Community School",
+     "source_url": "https://kennedy.isd742.org/kennedy-news/kennedy-news-stories/~board/742-news-st-cloud-area-school-district-742-516/post/what-you-need-to-know-about-the-permanent-school-fund",
+     "tier": "1",
+     "created_at": "2026-10-27 11:16:28.137668+00"
+    },
+    {
+     "id": "c880e7ce-2e27-4c4d-9b2f-9dc98aa72a07",
+     "title": "Permanent School Fund question on the Nov 3 ballot",
+     "source_name": "Kennedy Community School",
+     "source_url": "https://www.facebook.com/isd742.org/posts/pfbid02EqnqWEdH6MbsT9C8cTERTWMHy3HqUWxXHpzNWfZnkqeVujJKnHKihvSqTEvxmgcAl",
+     "tier": "1",
+     "created_at": "2026-10-29 21:44:57.008258+00"
+    }
+   ],
+   "known_miss": "two wordings of one topic share only three words; looser rules joined Kennedy's two different candidate forums"
+  },
+  {
+   "name": "The Wandering Cow's Malt Amore",
+   "rows": [
+    {
+     "id": "efabd37d-a0e8-4fce-8d76-fdbc35317012",
+     "title": "Flavor of the Week: Malt Amore",
+     "source_name": "The Wandering Cow",
+     "source_url": "https://www.facebook.com/Wanderingcowicecream/posts/pfbid0F51D7oeffFByMmuU38hmD7c3n3G4oMtKQPcuMudhAQLXWe3njWKo5Hzq4mDB1s2Pl",
+     "tier": "1",
+     "created_at": "2026-10-26 19:00:23.155092+00"
+    },
+    {
+     "id": "45ffcd8d-2801-49e6-bacd-6526d07f7052",
+     "title": "Malt Amore Flavor of the Week",
+     "source_name": "The Wandering Cow",
+     "source_url": "https://www.facebook.com/Wanderingcowicecream/posts/pfbid02eMAvBHJ8DTHp9erJaAaUUE13rC74GogUcDEq8kbwDwtigtijpccXMp28BquEeKAml",
+     "tier": "1",
+     "created_at": "2026-11-02 00:42:31.396177+00"
+    }
+   ]
+  }
+ ]
+}
