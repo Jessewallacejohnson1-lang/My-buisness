@@ -79,21 +79,22 @@ final class EventDetailPageTests: XCTestCase {
     /// kept from before the place picture still reads.
     func testTheFeedsSendThePlacesPictureAndABadOneCostsNothing() throws {
         let feed = """
-        [{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19","start_time":"6 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T01:00:00+00:00",
-          "place_picture":{"url":"https://example.com/joetown.webp","kind":"logo","hue":24},
-          "description":"Open to the public."},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00",
-          "place_picture":{"kind":"poster"}},
-         {"id":"e3","title":"Fall Festival","event_date":"2026-10-21","start_time":null,
-          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00"}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T01:00:00+00:00","card":{"id":"e1",
+         "title":"City Council Meeting","event_date":"2026-10-19","start_time":"6 PM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "place_picture":{"url":"https://example.com/joetown.webp","kind":"logo","hue":24},
+         "description":"Open to the public.","going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00","card":{"id":"e2",
+         "title":"Bake sale","event_date":"2026-10-21","start_time":null,"location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "place_picture":{"kind":"poster"},"going":false}},
+         {"id":"e3","recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00","card":{"id":"e3",
+         "title":"Fall Festival","event_date":"2026-10-21","start_time":null,"location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "going":false}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(feed.utf8))
         XCTAssertEqual(rows.count, 3)
@@ -105,13 +106,12 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(rows[2].event.description, "a kept feed from before the description still reads")
 
         let going = """
-        [{"id":"e1","title":"Plant Bingo","event_date":"2026-10-24","start_time":"4 PM",
-          "location":"Milk & Honey Ciders","image_url":null,"category":null,"club_name":null,
-          "source_name":"Milk & Honey Ciders","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":1,
-          "place_picture":{"url":"https://example.com/orchard.webp","kind":"photo","credit":null,
-                           "site":"https://www.milkandhoneyciders.com/events"},
-          "description":"Plant bingo for Angel Reins Stable."}]
+        [{"card":{"id":"e1","title":"Plant Bingo","event_date":"2026-10-24","start_time":"4 PM",
+         "location":"Milk & Honey Ciders","image_url":null,"category":null,"club_name":null,
+         "source_name":"Milk & Honey Ciders","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":1,"place_picture":{"url":"https://example.com/orchard.webp",
+         "kind":"photo","credit":null,"site":"https://www.milkandhoneyciders.com/events"},
+         "description":"Plant bingo for Angel Reins Stable.","going":true}}]
         """
         let event = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(going.utf8)).first)
         XCTAssertEqual(FeedCardItem(event).image.attribution, "milkandhoneyciders")

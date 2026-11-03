@@ -155,11 +155,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// nil until it's tagged, and on rows read before the feed sent it.
     var what: String? = nil
     /// The page it was found on (`club_events.source_url`, ADR-021), the Event page's link under
-    /// About. The Town feed's read and the Event card (You's Going) send it; nil for a neighbour's own event.
+    /// About. Every Event read's card sends it; nil for a neighbour's own event.
     var sourceURL: URL? = nil
-    /// Up to three of the caller's friends Going, newest Going first: You's, Saved's and the bell's
-    /// reads send them (`get_my_going`, `get_my_saves`, `get_my_changes`; BP app you-tab 07 and
-    /// friends-on-event-page). The Town feed's ride `TownFeedRow`.
+    /// Up to three of the caller's friends Going, newest Going first: every Event read's card sends them
+    /// (`private.event_cards`; BP app you-tab 07, town-feed 28 and friends-on-event-page).
     var friendsGoing: [FeedFriend] = []
 }
 
@@ -229,7 +228,7 @@ nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
     let url: String
 }
 
-/// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its
+/// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event (its card), how its
 /// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
 /// leaves the Town feed, why it's there (the recipe's top reason and the one name it
 /// needs), for the admin the points behind its place, its hearts (everyone's, and
@@ -245,8 +244,6 @@ nonisolated struct TownFeedRow: Hashable {
     var heartCount = 0
     var hearted = false
     var saved = false
-    /// Up to three of the caller's friends Going, newest Going first (town-feed 28).
-    var friendsGoing: [FeedFriend] = []
     /// The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
     var groupID: String? = nil
     var inGroup = false

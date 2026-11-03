@@ -37,26 +37,28 @@ final class TownFeedEventsTests: XCTestCase {
     /// with no post to open is dropped, and the events' cards never count it.
     func testNewsRowsBecomeTownNewsInTheirPlace() async throws {
         let json = """
-        [{"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM","location":null,
-          "image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event","source_url":null},
+        [{"id":"e1","recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event",
+         "card":{"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM",
+         "location":null,"image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "source_url":null,"going":false}},
          {"id":"n1","title":"Flight Friday","event_date":null,"start_time":null,"location":null,
-          "image_url":null,"category":"business","club_name":null,"source_name":"The Wandering Cow",
-          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","reason":"interest",
-          "reason_name":"dining","description":"Four scoops for $5 at Wandering Cow on Fridays.",
-          "place_picture":{"url":"https://x/cow-logo.webp","kind":"logo","hue":19},
-          "kind":"news","source_url":"https://www.instagram.com/p/Deki5CwgiQG/"},
+         "image_url":null,"category":"business","club_name":null,"source_name":"The Wandering Cow",
+         "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+         "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","reason":"interest",
+         "reason_name":"dining","description":"Four scoops for $5 at Wandering Cow on Fridays.",
+         "place_picture":{"url":"https://x/cow-logo.webp","kind":"logo","hue":19},"kind":"news",
+         "source_url":"https://www.instagram.com/p/Deki5CwgiQG/"},
          {"id":"n2","title":"Happy hour","event_date":null,"start_time":null,"location":null,
-          "image_url":null,"category":"business","club_name":null,"source_name":"Neighbors Route 75",
-          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","description":" ",
-          "place_picture":null,"kind":"news","source_url":"https://www.facebook.com/x/posts/1"},
-         {"id":"n3","title":"No link","event_date":null,"start_time":null,"location":null,"image_url":null,
-          "category":"business","club_name":null,"source_name":"Somewhere","end_at":null,"all_day":false,
-          "created_at":"2026-10-22T23:44:07+00:00","going_count":0,"rsvpd":false,"recurrence":null,
-          "leaves_at":"2099-10-29T23:44:07+00:00","kind":"news","source_url":null}]
+         "image_url":null,"category":"business","club_name":null,"source_name":"Neighbors Route 75",
+         "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+         "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","description":" ",
+         "place_picture":null,"kind":"news","source_url":"https://www.facebook.com/x/posts/1"},
+         {"id":"n3","title":"No link","event_date":null,"start_time":null,"location":null,
+         "image_url":null,"category":"business","club_name":null,"source_name":"Somewhere",
+         "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+         "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","kind":"news",
+         "source_url":null}]
         """
         let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
         XCTAssertEqual(lines.count, 3)
@@ -65,8 +67,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(fish.event.title, "Fish fry")
         XCTAssertNil(fish.event.sourceURL)
         let found = try CommunityAPI.townFeedRows(from: Data(json.replacingOccurrences(
-            of: #""kind":"event","source_url":null"#,
-            with: #""kind":"event","source_url":"https://www.milkandhoneyciders.com/events""#).utf8))
+            of: #""source_url":null,"going":false"#,
+            with: #""source_url":"https://www.milkandhoneyciders.com/events","going":false"#).utf8))
         XCTAssertEqual(TownFeed.card(found[0]).sourceURL?.absoluteString,
                        "https://www.milkandhoneyciders.com/events", "the Event page's link rides the card")
         XCTAssertEqual(flight.place, "The Wandering Cow")
@@ -93,20 +95,23 @@ final class TownFeedEventsTests: XCTestCase {
     /// with no poster to name is left out, never the feed; the events' cards never count a post.
     func testPostRowsBecomeTownPostsInTheirPlace() async throws {
         let json = """
-        [{"id":"p1","title":"Burger night. Who's in?","event_date":null,"start_time":null,"location":"Sal's",
-          "image_url":"https://x/event-images/u/p1.jpg","category":null,"club_name":null,"source_name":null,
-          "end_at":null,"all_day":false,"created_at":"2026-10-07T15:00:00+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2099-10-14T15:00:00+00:00","heart_count":3,"hearted":true,"kind":"post",
-          "source_url":null,"poster":{"id":"u1","name":"Jesse","photo":"https://x/avatars/u1/a.jpg",
-          "tagged":[{"id":"u2","name":"Sam Lee"}],"aspect":0.8,"friends_only":true}},
-         {"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM","location":null,
-          "image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
-          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
-          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event","source_url":null},
-         {"id":"p2","title":"","event_date":null,"start_time":null,"location":null,"image_url":null,
-          "category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,
-          "created_at":"2026-10-07T15:00:00+00:00","going_count":0,"rsvpd":false,"recurrence":null,
-          "leaves_at":"2099-10-14T15:00:00+00:00","kind":"post","source_url":null,"poster":{"id":"u3"}}]
+        [{"id":"p1","title":"Burger night. Who's in?","event_date":null,"start_time":null,
+         "location":"Sal's","image_url":"https://x/event-images/u/p1.jpg","category":null,
+         "club_name":null,"source_name":null,"end_at":null,"all_day":false,"created_at":"2026-10-07T15:00:00+00:00",
+         "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2099-10-14T15:00:00+00:00",
+         "heart_count":3,"hearted":true,"kind":"post","source_url":null,"poster":{"id":"u1",
+         "name":"Jesse","photo":"https://x/avatars/u1/a.jpg","tagged":[{"id":"u2","name":"Sam Lee"}],
+         "aspect":0.8,"friends_only":true}},
+         {"id":"e1","recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event",
+         "card":{"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM",
+         "location":null,"image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "source_url":null,"going":false}},
+         {"id":"p2","title":"","event_date":null,"start_time":null,"location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,
+         "all_day":false,"created_at":"2026-10-07T15:00:00+00:00","going_count":0,"rsvpd":false,
+         "recurrence":null,"leaves_at":"2099-10-14T15:00:00+00:00","kind":"post","source_url":null,
+         "poster":{"id":"u3"}}]
         """
         let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
         XCTAssertEqual(lines.count, 2, "a post whose poster doesn't decode is left out")
@@ -179,12 +184,12 @@ final class TownFeedEventsTests: XCTestCase {
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
         let json = """
-        [{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19","start_time":"6 PM",
-          "location":"City Hall","image_url":null,"category":null,"club_name":null,
-          "source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00","all_day":false,
-          "created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
-          "rsvpd":true,"recurrence":"Every 1st & 3rd Monday",
-          "leaves_at":"2026-10-20T04:59:00+00:00"}]
+        [{"id":"e1","recurrence":"Every 1st & 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
+         "card":{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19",
+         "start_time":"6 PM","location":"City Hall","image_url":null,"category":null,
+         "club_name":null,"source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00",
+         "all_day":false,"created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
+         "going":true}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(json.utf8))
         XCTAssertEqual(rows.count, 1)
@@ -209,12 +214,12 @@ final class TownFeedEventsTests: XCTestCase {
     /// limits (BP app event-card 01): 4:5 at its tallest, 1.91:1 at its widest, 3:2 without a size.
     func testAPlacePhotosSizeShapesItsCard() throws {
         let json = """
-        [{"id":"e1","title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
-          "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
-          "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
-          "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00",
-          "place_picture":{"url":"https://x/hall.webp","kind":"photo","site":"https://csbsju.edu",
-                           "credit":null,"w":1600,"h":1067}}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00","card":{"id":"e1",
+         "title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
+         "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"place_picture":{"url":"https://x/hall.webp","kind":"photo",
+         "site":"https://csbsju.edu","credit":null,"w":1600,"h":1067},"going":false}}]
         """
         let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001)
@@ -237,10 +242,10 @@ final class TownFeedEventsTests: XCTestCase {
     /// logo or nothing at all makes it one; a photo or a game never does. News the same.
     func testACardWithNoPhotoIsTheShortWhiteCard() throws {
         let row = { (id: String, extra: String) in """
-        {"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM","location":"Fire Hall",
-         "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph","end_at":null,
-         "all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-         "recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00"\(extra)}
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
+         "location":"Fire Hall","image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false\(extra)}}
         """ }
         let json = "[" + [
             row("logo", ##","place_picture":{"url":"https://x/logo.webp","kind":"logo","hue":35}"##),
@@ -266,17 +271,15 @@ final class TownFeedEventsTests: XCTestCase {
     /// decode is left out and the cover kept.
     func testAPlacesOtherPhotosReachTheCardAndABadOneCostsNothing() throws {
         let json = """
-        [{"id":"e1","title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
-          "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
-          "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
-          "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00",
-          "place_picture":{"url":"https://x/a.webp","kind":"photo","site":"https://csbsju.edu","credit":null,
-                           "w":1600,"h":1067,
-                           "more":[{"url":"https://x/b.webp","kind":"photo","site":"https://csbsju.edu",
-                                    "credit":"Ada Lovelace · CC BY 4.0","w":1067,"h":1600},
-                                   {"kind":"photo"},
-                                   {"url":"https://x/c.webp","kind":"photo","site":"https://www.sju.edu/x",
-                                    "credit":null}]}}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00","card":{"id":"e1",
+         "title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
+         "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"place_picture":{"url":"https://x/a.webp","kind":"photo","site":"https://csbsju.edu",
+         "credit":null,"w":1600,"h":1067,"more":[{"url":"https://x/b.webp","kind":"photo",
+         "site":"https://csbsju.edu","credit":"Ada Lovelace · CC BY 4.0","w":1067,"h":1600},
+         {"kind":"photo"},{"url":"https://x/c.webp","kind":"photo","site":"https://www.sju.edu/x",
+         "credit":null}]},"going":false}}]
         """
         let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
@@ -289,21 +292,21 @@ final class TownFeedEventsTests: XCTestCase {
     /// unless the title already says it or the card is a game, whose title is already its sport.
     func testWhatItIsReachesTheCardBesideTheTitle() throws {
         let json = """
-        [{"id":"e1","title":"Rev. Daniel Groody: Koch Chair Lecture","event_date":"2026-11-12","start_time":"7 PM",
-          "location":"Gorecki Center","image_url":null,"category":"faith","club_name":null,
-          "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-11-13T03:00:00+00:00","what":"Talk"},
-         {"id":"e2","title":"Christmas Craft Sale","event_date":"2026-11-06","start_time":"9 AM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Saint Benedict's Monastery","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00","what":"Craft sale"},
-         {"id":"e3","title":"Kiln Firing","event_date":"2026-11-06","start_time":"9 AM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00"}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-11-13T03:00:00+00:00","card":{"id":"e1",
+         "title":"Rev. Daniel Groody: Koch Chair Lecture","event_date":"2026-11-12",
+         "start_time":"7 PM","location":"Gorecki Center","image_url":null,"category":"faith",
+         "club_name":null,"source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,
+         "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"what":"Talk","going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00","card":{"id":"e2",
+         "title":"Christmas Craft Sale","event_date":"2026-11-06","start_time":"9 AM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"Saint Benedict's Monastery",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "what":"Craft sale","going":false}},
+         {"id":"e3","recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00","card":{"id":"e3",
+         "title":"Kiln Firing","event_date":"2026-11-06","start_time":"9 AM","location":null,
+         "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU Campus Events",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+         "going":false}}]
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.what), ["Talk", "Craft sale", nil], "a feed read before the words still decodes")
@@ -380,28 +383,24 @@ final class TownFeedEventsTests: XCTestCase {
     /// admin's score comes through whole.
     func testTheRecipesReasonAndScoreReachTheCard() throws {
         let json = """
-        [{"id":"e1","title":"Choir concert","event_date":"2026-10-12","start_time":"3 PM",
-          "location":null,"image_url":null,"category":"live_music","club_name":null,
-          "source_name":"Arts center","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-12T22:00:00+00:00",
-          "reason":"interest","reason_name":"live_music",
-          "score":{"interest":3,"friend":0,"follow":0,"popular":0,"size":1.5,"sizeStep":2,
-                   "daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,"newSpot":false,
-                   "total":1.8236,"spot":2,"of":5,"tapped":2,"draw":1.5,"topicSpacing":0.7,"new":2},
-          "heart_count":4,"hearted":true},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Parish","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
-          "reason":"today","reason_name":null,"score":null},
-         {"id":"e3","title":"Fair","event_date":"2026-10-08","start_time":"1 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Fair board","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-08T20:00:00+00:00",
-          "reason":"today","reason_name":null,"score":{"spot":3,"newSpot":null}}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-12T22:00:00+00:00","reason":"interest",
+         "reason_name":"live_music","score":{"interest":3,"friend":0,"follow":0,"popular":0,
+         "size":1.5,"sizeStep":2,"daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,
+         "newSpot":false,"total":1.8236,"spot":2,"of":5,"tapped":2,"draw":1.5,"topicSpacing":0.7,
+         "new":2},"heart_count":4,"hearted":true,"card":{"id":"e1","title":"Choir concert",
+         "event_date":"2026-10-12","start_time":"3 PM","location":null,"image_url":null,
+         "category":"live_music","club_name":null,"source_name":"Arts center","end_at":null,
+         "all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00","reason":"today",
+         "reason_name":null,"score":null,"card":{"id":"e2","title":"Bake sale","event_date":"2026-10-08",
+         "start_time":"11 AM","location":null,"image_url":null,"category":null,"club_name":null,
+         "source_name":"Parish","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"going":false}},
+         {"id":"e3","recurrence":null,"leaves_at":"2026-10-08T20:00:00+00:00","reason":"today",
+         "reason_name":null,"score":{"spot":3,"newSpot":null},"card":{"id":"e3","title":"Fair",
+         "event_date":"2026-10-08","start_time":"1 PM","location":null,"image_url":null,
+         "category":null,"club_name":null,"source_name":"Fair board","end_at":null,
+         "all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false}}]
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today", "Happening today"])
@@ -429,19 +428,17 @@ final class TownFeedEventsTests: XCTestCase {
     /// a feed kept on disk before the column existed still reads, with none.
     func testFriendsGoingReachTheCardAndAnOlderKeptFeedStillReads() throws {
         let json = """
-        [{"id":"e1","title":"Quiz night","event_date":"2026-10-12","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Bad Habit","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":12,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-13T02:00:00+00:00",
-          "reason":"friend","reason_name":"Anna","score":null,
-          "friends_going":[{"name":"Anna","photo":"https://example.com/anna.jpg"},{"name":"Ben","photo":null}]},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Parish","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":3,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
-          "reason":"today","reason_name":null,"score":null}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-13T02:00:00+00:00","reason":"friend",
+         "reason_name":"Anna","score":null,"card":{"id":"e1","title":"Quiz night","event_date":"2026-10-12",
+         "start_time":"7 PM","location":null,"image_url":null,"category":null,"club_name":null,
+         "source_name":"Bad Habit","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":12,"friends_going":[{"name":"Anna","photo":"https://example.com/anna.jpg"},
+         {"name":"Ben","photo":null}],"going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00","reason":"today",
+         "reason_name":null,"score":null,"card":{"id":"e2","title":"Bake sale","event_date":"2026-10-08",
+         "start_time":"11 AM","location":null,"image_url":null,"category":null,"club_name":null,
+         "source_name":"Parish","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":3,"going":false}}]
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].friendsGoing, [FeedFriend(name: "Anna", photo: URL(string: "https://example.com/anna.jpg")),
@@ -454,18 +451,17 @@ final class TownFeedEventsTests: XCTestCase {
     /// card's Join; a feed kept on disk before the columns existed reads with no group.
     func testAGroupsEventCarriesItsGroupAndAnOlderKeptFeedStillReads() throws {
         let json = """
-        [{"id":"e1","title":"Monthly Meeting","event_date":"2026-10-19","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":"St. Joe Rod and Gun Club",
-          "source_name":"St Joe Rod and Gun Club","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-20T02:00:00+00:00","reason":"today","reason_name":null,
-          "score":null,"club_id":"6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69","in_club":true},
-         {"id":"e2","title":"Bake sale","event_date":"2026-10-19","start_time":"11 AM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"Parish","end_at":null,"all_day":false,
-          "created_at":"2026-10-06T16:08:20+00:00","going_count":3,"rsvpd":false,
-          "recurrence":null,"leaves_at":"2026-10-19T18:00:00+00:00",
-          "reason":"today","reason_name":null,"score":null}]
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T02:00:00+00:00","reason":"today",
+         "reason_name":null,"score":null,"club_id":"6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69",
+         "in_club":true,"card":{"id":"e1","title":"Monthly Meeting","event_date":"2026-10-19",
+         "start_time":"7 PM","location":null,"image_url":null,"category":null,"club_name":"St. Joe Rod and Gun Club",
+         "source_name":"St Joe Rod and Gun Club","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"going":false}},
+         {"id":"e2","recurrence":null,"leaves_at":"2026-10-19T18:00:00+00:00","reason":"today",
+         "reason_name":null,"score":null,"card":{"id":"e2","title":"Bake sale","event_date":"2026-10-19",
+         "start_time":"11 AM","location":null,"image_url":null,"category":null,"club_name":null,
+         "source_name":"Parish","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":3,"going":false}}]
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].groupID, "6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69")
@@ -480,10 +476,11 @@ final class TownFeedEventsTests: XCTestCase {
     /// doesn't name two teams leaves the card a photo card. A feed kept from before reads too.
     func testAGamesTeamsReachTheCardAndABadOneLeavesAPhotoCard() throws {
         let row = { (id: String, game: String) in """
-        {"id":"\(id)","title":"SJU Football vs Concordia: Homecoming","event_date":"2026-10-17","start_time":"1 PM",
-         "location":"Clemens Stadium, Collegeville","image_url":null,"category":null,"club_name":null,
-         "source_name":"SJU Athletics","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
-         "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-17T20:00:00+00:00"\(game)}
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-17T20:00:00+00:00",
+         "card":{"id":"\(id)","title":"SJU Football vs Concordia: Homecoming","event_date":"2026-10-17",
+         "start_time":"1 PM","location":"Clemens Stadium, Collegeville","image_url":null,"category":null,
+         "club_name":null,"source_name":"SJU Athletics","end_at":null,"all_day":false,
+         "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false\(game)}}
         """ }
         let json = "[" + [
             row("e1", ##","game":{"sport":"Football","occasion":"Homecoming","teams":[{"name":"Saint John's","short":"Saint John's","logo":"https://x/sju.png","color":"#C20430"},{"name":"Concordia","short":"Concordia","logo":null,"color":"red"}]}"##),

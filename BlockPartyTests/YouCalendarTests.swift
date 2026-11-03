@@ -254,13 +254,14 @@ final class YouCalendarTests: XCTestCase {
     /// carry the bookmark.
     func testTheSavedReadsRowsDecode() throws {
         let json = """
-        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
-          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
-          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":false},
-         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":"6 PM","location":null,
-          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
-          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,"going":true}]
+        [{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+         "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+         "source_name":"City of St. Joseph","end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00",
+         "going_count":4,"going":false}},
+         {"card":{"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":"6 PM",
+         "location":null,"image_url":null,"category":null,"club_name":"Bike club","source_name":null,
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,
+         "going":true}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8), saved: true)
         XCTAssertEqual(rows.map(\.rsvpd), [false, true])
@@ -427,13 +428,14 @@ final class YouCalendarTests: XCTestCase {
     /// `get_my_going`'s rows decode into Going Events, an all-day one and a club's included.
     func testTheReadsRowsDecode() throws {
         let json = """
-        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
-          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
-          "source_name":"City of St. Joseph","end_at":"2026-10-24T17:00:00+00:00","all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":4},
-         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":null,"location":null,
-          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
-          "all_day":true,"created_at":"2026-10-01T12:00:00+00:00","going_count":1}]
+        [{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+         "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+         "source_name":"City of St. Joseph","end_at":"2026-10-24T17:00:00+00:00","all_day":false,
+         "created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":true}},
+         {"card":{"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":null,
+         "location":null,"image_url":null,"category":null,"club_name":"Bike club","source_name":null,
+         "end_at":null,"all_day":true,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,
+         "going":true}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8))
         XCTAssertEqual(rows.map(\.id), ["e1", "e2"])
@@ -445,17 +447,12 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertTrue(rows[1].isAllDay)
     }
 
-    /// The Going read's Event card (BP app codebase-health-2 01): a full one carries everything the Town
-    /// card and the Event page show, its found link under About included, over the old columns beside it;
-    /// a bare one reads with empties; one that doesn't decode leaves the row's old columns; one not Going
-    /// says so.
+    /// The Going read's Event card (BP app codebase-health-2 01 and 03): a full one carries everything the
+    /// Town card and the Event page show, its found link under About included; a bare one reads with empties;
+    /// one that doesn't decode is left out, never the read; one not Going says so.
     func testTheGoingReadsEventCardDecodesFullAndBare() throws {
         let json = """
-        [{"id":"e1","title":"SJU Football vs Concordia","event_date":"2026-11-05","start_time":"1 PM",
-          "location":"Clemens Field","image_url":null,"category":"sports","club_name":null,
-          "source_name":"SJU Athletics","end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":2,"cancelled":true,
-          "card":{"id":"e1","title":"SJU Football vs Concordia","event_date":"2026-11-05","start_time":"1 PM",
+        [{"card":{"id":"e1","title":"SJU Football vs Concordia","event_date":"2026-11-05","start_time":"1 PM",
             "location":"Clemens Field","image_url":"https://x/flyer.jpg","category":"sports",
             "club_name":"Johnnie Football Boosters","source_name":"SJU Athletics",
             "end_at":"2026-11-05T21:00:00+00:00","all_day":false,"created_at":"2026-10-01T12:00:00.123456+00:00",
@@ -471,27 +468,18 @@ final class YouCalendarTests: XCTestCase {
                              {"name":"Concordia","short":"Concordia","logo":null,"color":null,
                               "id":"7d1f6c1e-0000-4000-8000-000000000002","local":false,"colors":null,"nickname":null}]},
             "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"}]}},
-         {"id":"e2","title":"Porch jam","event_date":"2026-11-05","start_time":null,"location":null,
-          "image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":1,"cancelled":false,
-          "card":{"id":"e2","title":"Porch jam","event_date":"2026-11-05","start_time":null,"location":null,
+         {"card":{"id":"e2","title":"Porch jam","event_date":"2026-11-05","start_time":null,"location":null,
             "image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,
             "created_at":"2026-10-01T12:00:00+00:00","going_count":1,"going":true,"cancelled":false,
             "place_picture":null,"host_picture":null,"description":null,"what":null,"source_url":null,"game":null,
             "friends_going":[]}},
-         {"id":"e3","title":"Quiz night","event_date":"2026-11-06","start_time":"7 PM","location":null,
-          "image_url":null,"category":null,"club_name":null,"source_name":"Bad Habit Brewing","end_at":null,
-          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":5,"cancelled":false,
-          "card":{"title":"Quiz night","source_url":"https://x/quiz"}},
-         {"id":"e4","title":"Fall market","event_date":"2026-11-07","start_time":null,"location":null,
-          "image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph","end_at":null,
-          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":4,"cancelled":false,
-          "card":{"id":"e4","title":"Fall market","event_date":"2026-11-07","going_count":4,"going":false,
+         {"card":{"title":"Quiz night","source_url":"https://x/quiz"}},
+         {"card":{"id":"e4","title":"Fall market","event_date":"2026-11-07","going_count":4,"going":false,
             "created_at":"2026-10-01T12:00:00+00:00"}}]
         """
         let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8))
         let full = rows[0]
-        XCTAssertEqual(full.imageUrl, "https://x/flyer.jpg", "the card wins over the old columns")
+        XCTAssertEqual(full.imageUrl, "https://x/flyer.jpg")
         XCTAssertEqual(full.clubName, "Johnnie Football Boosters")
         XCTAssertEqual(full.endAt, DateHelpers.timestamp("2026-11-05T21:00:00+00:00"))
         XCTAssertTrue(full.rsvpd)
@@ -521,14 +509,8 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertTrue(bare.friendsGoing.isEmpty)
         XCTAssertFalse(bare.cancelled)
 
-        let broken = rows[2]
-        XCTAssertEqual([broken.id, broken.title], ["e3", "Quiz night"], "a card that doesn't decode reads the row")
-        XCTAssertEqual(broken.goingCount, 5)
-        XCTAssertTrue(broken.rsvpd)
-        XCTAssertNil(broken.sourceURL, "nothing is taken from a card that doesn't decode")
-
-        XCTAssertFalse(rows[3].rsvpd, "a card that says not Going is not Going")
-        XCTAssertEqual(rows.count, 4)
+        XCTAssertEqual(rows.map(\.id), ["e1", "e2", "e4"], "e3's card doesn't decode: left out, never the read")
+        XCTAssertFalse(rows[2].rsvpd, "a card that says not Going is not Going")
     }
 
     // MARK: Friends going with you (ticket 07)
@@ -536,11 +518,11 @@ final class YouCalendarTests: XCTestCase {
     /// The read's friends Going ride the Agenda card, first name and photo, newest first.
     func testTheReadsFriendsGoingRideTheCard() throws {
         let json = """
-        [{"id":"e1","title":"Quiz night","event_date":"2026-10-24","start_time":"7 PM",
-          "location":null,"image_url":null,"category":null,"club_name":null,
-          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
-          "created_at":"2026-10-01T12:00:00+00:00","going_count":3,
-          "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"},{"name":"Ben","photo":null}]}]
+        [{"card":{"id":"e1","title":"Quiz night","event_date":"2026-10-24","start_time":"7 PM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":3,
+         "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"},{"name":"Ben",
+         "photo":null}],"going":true}}]
         """
         let row = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(json.utf8)).first)
         let card = try XCTUnwrap(YouCalendar.event(from: row)).item
