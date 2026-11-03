@@ -22,7 +22,8 @@ exception. Posts, their photos and their words still wait for the place's yes.
   Jesse on 2026-10-22: 24 Facebook pages and 13 Instagram accounts) is checked at 6pm and
   9pm Chicago time; every other place on Thursday at 3pm. Both Facebook and Instagram are
   checked where a place has both. Each check asks only for posts since the last one. The
-  busy list's Facebook Events tabs are read weekly, and public town groups weekly for tips.
+  busy list's Facebook Events tabs are read weekly, and public town groups weekly for tips
+  (Events tabs and a town events search widened 2026-11-03, below).
   Estimated $19 a month with real page counts (busy list $9.40, everyone else weekly $8.50,
   Events tabs about $1); a noon check was dropped because it took the total to about $24.
   If the cap is hit early, Jesse rethinks the schedule. Checking every 15 minutes was priced
@@ -79,6 +80,16 @@ storage, credited to the place and taken down on request (`sources/scripts/event
 `docs/plans/event-photos` 09). Flyers and pictures with words are never picked. The pictures come from the
 Apify runs already made, so this costs no extra Apify reads. A post's words, and every picture not picked,
 still wait for the place's yes.
+**Amended 2026-11-03 (Jesse, "yes to all", after a $1.20 search test):** the watch also searches. Every
+Thursday one Apify run searches Facebook's public events for the town ("St. Joseph, Minnesota", at most 50
+events, about 1¢ each): the test found 8 upcoming in-town events Block Party lacked for 35¢, hosted by a
+band, a parish, a paint-and-sip company and shops it never watched. An event pinned more than 10 km from
+town, with no town word in its place, is left out; one hosted only by a private person is dropped by the
+judge. The weekly Events tabs now cover the busy list's Facebook pages and the hidden ones (their posts are
+hidden, their events are not), and every Facebook page's in the first week of each month: Apify bills a cent
+for each tab, empty or not. To pay for it, 13 busy pages that posted twice or less in 23 checks moved to
+the Thursday read. Searching Instagram (hashtags, places) found no events and was dropped; Facebook post
+and page searches were left off the schedule, since the store's tool for them may sign in on its side.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

@@ -9,8 +9,8 @@ sources/models/social.md.
 
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
 check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
-schedules start them, the busy list at 6pm and 9pm Chicago and every other page (plus the busy
-list's Facebook Events tabs) on Thursdays at 3pm. The routines come half an hour or more later
+schedules start them, the busy list at 6pm and 9pm Chicago and every other page (plus Facebook
+Events tabs, and a search of Facebook's events for the town: page_lists) on Thursdays at 3pm. The routines come half an hour or more later
 and read whatever Apify saved since the last check they finished, so one the plan's usage limit
 skipped (the 9pm one on 2026-10-22) is read by the next.
 
@@ -63,7 +63,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
 import argparse, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
@@ -81,8 +81,11 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
     ("busy", "instagram"): ("apify~instagram-post-scraper", 0.20),
     ("weekly", "facebook"): ("apify~facebook-posts-scraper", 2.50),
     ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.75),
-    ("weekly", "events"): ("apify~facebook-events-scraper", 1.00),
+    ("weekly", "events"): ("apify~facebook-events-scraper", 3.00),
+    ("weekly", "search"): ("apify~facebook-events-scraper", 0.60),
 }
+SEARCH_EVENTS = 50  # most events one town search reads; Apify bills each one, a cent apiece
+NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
 # Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
 # reaches an hour past the last one, so a post that lands while a run starts is never lost.
 SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
@@ -114,14 +117,43 @@ def task_name(run, kind):
     return f"bp-{run}-{kind}"
 
 
+def all_pages(root):
+    return json.loads((root / "sources" / "social" / f"{TOWN}.json").read_text())
+
+
 def pages_for(run, root):
     """The pages a run reads: busy or not, and never one Facebook hides from logged-out readers."""
-    pages = json.loads((root / "sources" / "social" / f"{TOWN}.json").read_text())
-    return [p for p in pages if p["busy"] == (run == "busy") and not p.get("hidden")]
+    return [p for p in all_pages(root) if p["busy"] == (run == "busy") and not p.get("hidden")]
 
 
 def events_tab(url):
     return url.rstrip("/") + "/upcoming_hosted_events"
+
+
+def search_page():
+    """The town's Facebook events search as a page of its own (the town file's facebook_events_search),
+    or None. Its events are hosted by places the list may not know (2026-11-03: a band at La Playette, a
+    parish craft fair), so each is named for its host."""
+    q = TOWNS[TOWN].get("facebook_events_search")
+    return q and {"entry_id": "", "name": "Facebook events search", "kind": "search", "busy": False,
+                  "url": "https://www.facebook.com/events/search/?q=" + quote(q)}
+
+
+def far_away(loc):
+    """A found event whose map position is over NEAR_KM from the town and whose place names neither the
+    town nor its ZIP code. Facebook pins some places wrong (the Church of Saint Joseph at 31.95° N), so
+    the words win."""
+    town = TOWNS[TOWN]
+    words = " ".join(str(loc.get(k) or "") for k in ("name", "contextualName", "streetAddress")).lower()
+    name = town["display"].lower()
+    if any(w in words for w in [name, name.replace("st. ", "saint "), *town.get("zips", [])]):
+        return False
+    try:
+        lat, lng, (s, w, n, e) = float(loc["latitude"]), float(loc["longitude"]), town["bbox"]
+    except (KeyError, TypeError, ValueError):
+        return False
+    mid = math.radians((s + n) / 2)
+    return math.hypot((lat - (s + n) / 2) * 111, (lng - (w + e) / 2) * 111 * math.cos(mid)) > NEAR_KM
 
 
 def actor_input(kind, urls, window):
@@ -130,6 +162,8 @@ def actor_input(kind, urls, window):
         return {"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     if kind == "instagram":
         return {"username": urls, "resultsLimit": POSTS, "onlyPostsNewerThan": window}
+    if kind == "search":
+        return {"startUrls": [{"url": u} for u in urls], "maxEvents": SEARCH_EVENTS}
     return {"startUrls": [{"url": events_tab(u)} for u in urls], "maxEvents": 10}
 
 
@@ -235,9 +269,12 @@ def monthly_try(now):
 
 
 def page_lists(root, missed=None, now=None):
-    """{(run, kind): pages} for every task: each list's own pages, and the busy list's Facebook
-    pages again for the weekly Events tabs. A page set aside (`missed`) leaves its list for the
-    Thursday read: a busy page every week, a weekly page in the first week of each month."""
+    """{(run, kind): pages} for every task: each list's own pages; the weekly Events tabs of the busy
+    list's Facebook pages and the hidden ones (their posts are hidden, their events are not: Stone Road
+    at La Playette, 2026-11-03), and every Facebook page's in the first week of each month (Apify bills
+    a cent for each tab read, empty or not); and the town's events search. A page set aside (`missed`)
+    leaves its list for the Thursday read: a busy page every week, a weekly page in the first week of
+    each month."""
     category = {e["id"]: e.get("category") for e in load(root)[0]}
     aside = {u for u, m in (missed or {}).items() if m.get("aside")}
     out = {}
@@ -248,7 +285,11 @@ def page_lists(root, missed=None, now=None):
                 out.setdefault((run, p["kind"]), []).append(p)
             elif run == "busy" or (now and monthly_try(now)):
                 out.setdefault(("weekly", p["kind"]), []).append(p)
-    out[("weekly", "events")] = [p for p in out.get(("busy", "facebook"), [])]
+    month = bool(now) and monthly_try(now)
+    out[("weekly", "events")] = [dict(p, category=category.get(p["entry_id"])) for p in all_pages(root)
+                                 if p["kind"] == "facebook" and (p["busy"] or p.get("hidden") or month)]
+    if search_page():
+        out[("weekly", "search")] = [search_page()]
     # ponytail: a list left empty keeps its task's last pages; give the task no pages if one ever empties
     return {k: v for k, v in out.items() if k in ACTORS}
 
@@ -276,7 +317,7 @@ def setup():
     have = by_name("/schedules")
     for name, cron, run, window in SCHEDULES:
         actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid,
-                    **({} if n.endswith("-events") else {"input": {"onlyPostsNewerThan": window}})}  # merged over the task's own input
+                    **({} if n.endswith(("-events", "-search")) else {"input": {"onlyPostsNewerThan": window}})}  # merged over the task's own input
                    for n, tid in ids.items() if n.startswith(f"bp-{run}-")]
         body = {"name": name, "cronExpression": cron, "timezone": "America/Chicago", "isEnabled": True,
                 "isExclusive": True, "actions": actions}
@@ -483,10 +524,18 @@ def post_pages(kind, rows, by_url):
             if r["error"] not in ("no_items", "no_results"):
                 hidden.append(f"{page['name'] if page else src}: {r['error']}")
             continue
-        if kind == "events":
+        if kind in ("events", "search"):
             text = r.get("description") or ""
-            where = r.get("location", {}).get("name") if isinstance(r.get("location"), dict) else r.get("location")
-            body = (f"{who} lists this event on its Facebook page.\n"
+            loc = r.get("location") if isinstance(r.get("location"), dict) else {}
+            where = loc.get("name") if loc else r.get("location")
+            if kind == "search":
+                hosts = [o["name"] for o in r.get("organizators") or [] if isinstance(o, dict) and o.get("name")]
+                if r.get("isPast") or r.get("isCanceled") or far_away(loc) or not hosts:
+                    continue
+                who = hosts[0]
+            lead = (f"Found by searching Facebook's events for {TOWNS[TOWN]['display']}. Hosted by {', '.join(hosts)}."
+                    if kind == "search" else f"{who} lists this event on its Facebook page.")
+            body = (f"{lead}\n"
                     f"Event: {r.get('name') or r.get('title') or ''}\nWhen: {r.get('dateTimeSentence') or r.get('utcStartDate') or r.get('startDate') or ''}\n"
                     f"Where: {where or ''}\n\n{text}")
             pid, url, pics = r.get("id") or r.get("eventId") or r.get("url"), r.get("url"), []
@@ -502,7 +551,7 @@ def post_pages(kind, rows, by_url):
         if not page or not pid:
             continue
         pages.append({"file": f"{kind}-{pid}", "url": url or page["url"], "entry_id": page["entry_id"],
-                      "name": page["name"], "category": page.get("category"), "trust": "official", "text": body,
+                      "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
                       **({"pictures": pics} if pics else {})})
     return pages, hidden
 
@@ -554,8 +603,9 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         for kind, runs in found.items():
             # Every page of its kind, either list: a run may carry a page set aside or back since.
             by_url = {canon(p["url"]): p for (_, k), ps in lists.items() if k == kind for p in ps}
-            if kind == "events":
-                by_url = {events_tab(u): p for u, p in by_url.items()} | by_url
+            if kind == "events":  # every Facebook page: a first-week run carries them all
+                every = {canon(p["url"]): p for p in all_pages(root) if p["kind"] == "facebook"}
+                by_url = {events_tab(u): p for u, p in every.items()} | every
             for r in runs:
                 cost += float(r.get("usageTotalUsd") or 0)
                 finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
@@ -563,7 +613,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
                 rows = items(r["defaultDatasetId"])
                 got, hidden = post_pages(kind, rows, by_url)
                 posts += got
-                if kind == "events":  # a posts page Apify can't read is named once, set aside (tally)
+                if kind in ("events", "search"):  # a posts page Apify can't read is named once, set aside (tally)
                     failed += [f"{kind}: {h}" for h in hidden]
                 elif r["status"] == "SUCCEEDED" and part.get("missed") is not None:
                     reads.append((r["finishedAt"], run_pages(r["id"]), rows,
@@ -682,6 +732,19 @@ def selftest():
     tab = lambda e: {"error": e, "input": "https://www.facebook.com/krewe/upcoming_hosted_events"}
     _, hidden = post_pages("events", [tab("no_results"), tab("blocked")], {events_tab(u): p for u, p in by_url.items()})
     check(hidden == ["Krewe: blocked"], "an events tab listing none says nothing; another error names its page")
+    sp = search_page()
+    found = lambda eid, loc, **kw: {"inputUrl": sp["url"], "id": eid, "url": f"https://fb/e/{eid}", "name": "Stone Road Live",
+                                    "location": loc, "dateTimeSentence": "Saturday, November 7, 2026 at 8:30 PM CST",
+                                    "organizators": [{"name": "Stone Road"}], **kw}
+    rows = [found("la", {"name": "The La Playette", "latitude": 45.565, "longitude": -94.32}),
+            found("church", {"name": "Church of Saint Joseph of Saint Joseph", "contextualName": "Saint Joseph, MN, United States",
+                             "latitude": 31.95, "longitude": -94.3}),
+            found("avon", {"name": "Avon Community Church", "contextualName": "Avon, MN", "latitude": 45.609, "longitude": -94.451}),
+            found("old", {}, isPast=True), found("nobody", {}, organizators=[])]
+    got, _ = post_pages("search", rows, {canon(sp["url"]): sp})
+    check([p["file"] for p in got] == ["search-la", "search-church"] and got[0]["name"] == "Stone Road"
+          and "Hosted by Stone Road." in got[0]["text"] and "8:30 PM" in got[0]["text"],
+          "a found event is named for its host; one past, hostless or pinned far from town with no town word is left out")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
@@ -747,7 +810,9 @@ def set_aside_reads():
     import contextlib, write_judged
     g = globals()
     sals, krewe, bo, hall = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "bodiddleys", "hallcomponents"))
-    pages = [{"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True},
+    pages = [{"entry_id": "la", "name": "La Playette", "kind": "facebook", "url": "https://www.facebook.com/la", "busy": False,
+              "hidden": True},
+             {"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True},
              {"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": krewe, "busy": True},
              {"entry_id": "bo", "name": "Bo", "kind": "facebook", "url": bo, "busy": True},
              {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": hall, "busy": False}]
@@ -798,7 +863,7 @@ def set_aside_reads():
             (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(pages))
             g.update(fakes, find_root=lambda *a: root)
             write_judged.interest_ids = lambda: ["dining"]
-            sync_tasks(root, {}, date(2026, 10, 26))
+            sync_tasks(root, {}, datetime(2026, 10, 26, tzinfo=LOCAL))
             for i, (day, hour) in enumerate([(26, 23), (27, 2), (27, 23), (28, 2)]):  # 6 and 9 PM Chicago, Mon and Tue
                 ran("bp-busy-facebook", f"2026-10-{day}T{hour:02d}:05:00+00:00", quiet=[krewe, bo])
                 said.append(check("busy", f"2026-10-{day}T{hour:02d}:30:00+00:00"))
@@ -812,6 +877,8 @@ def set_aside_reads():
             wk = lambda *when: page_lists(root, {canon(hall): {"aside": "2026-10-22"}},
                                           datetime(2026, 11, *when, tzinfo=LOCAL)).get(("weekly", "facebook"), [])
             monthly = [len(wk(4, 21, 30)), len(wk(5, 0, 5)), len(wk(5, 15, 45))]
+            ev = lambda *when: sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 11, *when, tzinfo=LOCAL))[("weekly", "events")])
+            events_lists = [ev(4, 21, 30), ev(10, 21, 30)]
     finally:
         g.update(saved[0])
         write_judged.interest_ids = saved[1]
@@ -831,6 +898,10 @@ def set_aside_reads():
                                          "reads in a row; off its paid list, tried with the Thursday read"]
          and sal_lines[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
          "a social page is named the check it is set aside and the check it is back, and no other"),
+        (events_lists == [["bo", "hall", "krewe", "la", "sals"], ["bo", "krewe", "la", "sals"]]
+         and inputs["after"]["bp-weekly-search"] == [search_page()["url"]],
+         "the weekly Events tabs read the busy and hidden Facebook pages, and every one in a month's first week; "
+         "the town's events search is a task of its own"),
         (monthly == [1, 1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week, "
                                "by the clock: a 9:30 PM check that starts past midnight still puts it on"),
         (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],
