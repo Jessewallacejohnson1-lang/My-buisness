@@ -12,7 +12,8 @@ have a photo of event. dont worry about games for now"). A step of the morning j
 The pictures are the ones each Event came with, so nothing paid starts and no new page is read but its own:
 - a Facebook or Instagram post: its own pictures, full size, from the social watch's Apify runs of the last
   LOOKBACK days, read again (reading a finished run is free); with them, up to PLACE_MORE photos from the
-  same page's other posts, for an Event whose own post is only a flyer
+  same page's other posts, for an Event whose own post is only a flyer; a post that shares a link to a story
+  also offers that story's share picture (og:image), since Facebook hands over only a 139 px preview of it
 - a CSB SJU campus listing: its banner picture, one call to the campus calendar for every listing
 - any other page: its share picture (og:image), read politely
 Each is downloaded once, at least MIN_WIDTH wide, and drawn numbered on .runs/morning/photos/sheet-N.png; a
@@ -114,9 +115,11 @@ def posted(row):
     return datetime.fromtimestamp(t, timezone.utc).isoformat() if isinstance(t, (int, float)) else str(t)
 
 
-def from_posts(group, rows):
+def from_posts(group, rows, share=None):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
-    to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover."""
+    to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
+    link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
+    the story's own share picture goes first."""
     key = post_key(group["source_url"])
     own = [r for r in rows if post_key(r.get("url") or r.get("topLevelUrl")) == key]
     if not own and "/events/" in group["source_url"]:
@@ -125,16 +128,20 @@ def from_posts(group, rows):
     if not own:
         return []
     page = own[0].get("url") or group["source_url"]
-    out = [{**p, "from": "post", "page": page} for p in pictures(own[0])]
+    link = own[0].get("link") or ""
+    story = (share or share_picture)(link) if link.startswith("http") and not POST.search(link) else None
+    out = ([{"url": story, "about": "", "from": "page", "page": link}] if story else []) \
+        + [{**p, "from": "post", "page": page} for p in pictures(own[0])]
+    mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
-        if len(out) >= len(pictures(own[0])) + PLACE_MORE:
+        if len(out) >= mine + PLACE_MORE:
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
             out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]
                     if not TEXT.search(p["about"])]
-    return out[:len(pictures(own[0])) + PLACE_MORE]
+    return out[:mine + PLACE_MORE]
 
 
 def campus_banners(groups, get=fetch):
@@ -176,7 +183,7 @@ def candidates(groups, rows, banners, share=share_picture):
     for g in groups:
         src = g["source_url"]
         if POST.search(src):
-            g["cands"] = from_posts(g, rows)
+            g["cands"] = from_posts(g, rows, share)
         elif CAMPUS_PAGE.search(src):
             pic = banners.get(CAMPUS_PAGE.search(src).group(1))
             g["cands"] = [{"url": pic, "about": "", "from": "listing", "page": src}] if pic else []
@@ -368,6 +375,14 @@ def selftest():
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
+    shared = [post("https://www.facebook.com/csbsju/posts/pfbidART", "csbsju", [("https://external.fbcdn.net/emg1/preview.jpg", "")],
+                   link="https://www.csbsju.edu/news/alum-drawings/")]
+    check([(c["url"], c["from"], c["page"]) for c in from_posts({"source_url": "https://www.facebook.com/csbsju/posts/pfbidART",
+                                                                  "events": []}, shared, share=lambda u: "https://www.csbsju.edu/art.jpg")][0]
+          == ("https://www.csbsju.edu/art.jpg", "page", "https://www.csbsju.edu/news/alum-drawings/"),
+          "a post that shares a story takes the story's share picture first")
+    check([c["url"] for c in from_posts(g, rows, share=lambda u: 1 / 0)][0] == "https://x.fbcdn.net/flyer.jpg",
+          "a post with no link reads no other page")
     check(sorted([{"timestamp": 1761800000}, {"timestamp": "2026-10-31T01:00:00.000Z"}], key=posted, reverse=True)[0]
           == {"timestamp": "2026-10-31T01:00:00.000Z"}, "Facebook's seconds and Instagram's times sort together")
 

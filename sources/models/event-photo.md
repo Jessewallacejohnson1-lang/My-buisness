@@ -9,7 +9,7 @@ schedule flyer over the bakery's pastry photo). A real photo of something else i
 Your batch file's first line names a sheet: open it with the Read tool. Each line after it is one Event: its
 `event` key (`e3`), title, host, place, date and About, and its pictures, each with its `pick` number (`c7`),
 where it came from, and Meta's own description when Meta gave one:
-- `post`, `page` or `listing`: the post or page the Event was found on
+- `post`, `page` or `listing`: the post or page the Event was found on, or the story its post links to
 - `other post`: another recent post of the same place
 
 On the sheet each Event is one row, headed by its key and title, its pictures numbered under it.
