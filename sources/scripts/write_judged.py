@@ -83,9 +83,10 @@ THE RULES
     blurb names the others ("Also: ..."). Links compare without tracking, a trailing slash, or
     Facebook's and Instagram's m. (clean_link). A site's home page or a page the registry or the social watch reads is no link
     of its own, since every News read from it shares it. And News from the same place in the last
-    7 days (as long as the Town feed shows it) with much the same title (two shared words at
-    least, two thirds of the shorter title's, the place's own name, weekdays, free and new not
-    counted) is a repeat and is not added (repeat_of).
+    7 days (as long as the Town feed shows it) with much the same title (one title's words all in
+    the other's, or two shared words at least and two thirds of the shorter title's; a plural or
+    "pre-" is the same word; the place's own name, weekdays, free and new not counted) is a repeat
+    and is not added (repeat_of).
   Merging: same place (or two names for one registry place), start within an hour (all-day ones: a day apart; one with no time: the
     same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
@@ -139,6 +140,7 @@ EXISTING (--existing): the events already in the list, from yesterday on (cancel
 
 import argparse, json, re, secrets, sys
 from datetime import date, datetime, time, timedelta
+from itertools import groupby
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
@@ -784,7 +786,9 @@ def repeat_of(n, recent):
     Or News already in the app from the same place this week, under much the same title
     (Flour & Flower's Thanksgiving orders went up three times in three days, 2026-10-26).
     The place's own name doesn't count, and two shared words at least: "Flavor of the Week:
-    Malt Amore" is not last week's "Flavor of the Week: Pumpkin Pie". A different number or
+    Malt Amore" is not last week's "Flavor of the Week: Pumpkin Pie". Or one title's words all
+    inside the other's: The North Table's "Brunch Saturdays and Sundays" is its "Weekend brunch,
+    gluten-free" (Oct 30); over Oct 14 to Nov 3 this joined only News Jesse took out. A different number or
     initials say it's another one: "I-94 eastbound: Crash" and "MN 23 westbound: Crash", "SJU
     Athlete of the Week" and "CSB Athlete of the Week". A date only one title gives doesn't:
     "Cloudy collection launches Oct 25" is the "Comfort With a Chance of Cloudy collection"
@@ -803,12 +807,20 @@ def repeat_of(n, recent):
         (theirs_marks, their_days), (my_marks, my_days) = marks(old["title"], n["title"]), marks(n["title"], old["title"])
         if theirs_marks != my_marks or (their_days and my_days and their_days != my_days):
             continue
-        mine = words(DAY.sub(" ", joined(n["title"], old["title"])), stop) - words(n["source_name"])
-        theirs = words(DAY.sub(" ", joined(old["title"], n["title"])), stop) - words(old["source_name"])
+        mine, theirs = word_forms(words(DAY.sub(" ", joined(n["title"], old["title"])), stop) - words(n["source_name"]),
+                                  words(DAY.sub(" ", joined(old["title"], n["title"])), stop) - words(old["source_name"]))
         shared = mine & theirs
-        if len(shared) >= 2 and len(shared) >= 2 / 3 * min(len(mine), len(theirs)):
+        if mine and theirs and (mine <= theirs or theirs <= mine
+                                or len(shared) >= 2 and len(shared) >= 2 / 3 * min(len(mine), len(theirs))):
             return old
     return None
+
+
+def word_forms(a, b):
+    """Two titles' words with plurals as one ("hours" is "hour") and "pre" off a word the other title has
+    without it: Flour & Flower's "Thanksgiving pre-orders" is its "Thanksgiving orders open" (Nov 2)."""
+    a, b = ({w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w for w in s} for s in (a, b))
+    return ({w[3:] if w.startswith("pre") and w[3:] in other else w for w in s} for s, other in ((a, b), (b, a)))
 
 
 FILLER = set("is are our your its this now free new".split()) | {
@@ -1982,7 +1994,63 @@ def t_one_host_two_names():
         assert len(run(pair)["events"]) == 2, [i["title"] for i in pair]
 
 
-TESTS = [t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+COPIES = Path(__file__).resolve().parents[1] / "evals" / "copies" / "copies.json"
+
+
+def copy_item(row):
+    """A copy's live row as the judged item it came from: its place line's town split off ("Neighbors, Albertville")."""
+    place, _, town = (row["location"] or "").rpartition(", ")
+    if registry.place_key(town) not in registry.TOWN_KEYS:
+        place, town = row["location"] or "", "St. Joseph"
+    at = None if row["all_day"] else parse_clock(row["start_time"])
+    start = row["event_date"] if at is None else \
+        datetime.combine(date.fromisoformat(row["event_date"]), at).replace(tzinfo=LOCAL).isoformat()
+    return item(title=row["title"], start=start, end=None, all_day=at is None, place=place, town=town, area="announced",
+                source_name=row["source_name"], source_url=row["source_url"], interest=None, size="everyday",
+                source_uid=row["source_uid"] if real_uid(row["source_uid"]) else "",
+                trust="secondhand" if row["trust"] == "squishy" else "official")
+
+
+def t_real_copies():
+    """Every copy taken out of the Town feed from Oct 17 to Nov 3 (sources/evals/copies, BP app watch-every-place 15),
+    replayed morning by morning as it was written: each Event's later copies are merged, or named under "Maybe the
+    same" for the morning's review when their names differ; each News's later copies are repeats."""
+    fx = json.loads(COPIES.read_text())
+    missed = []
+    for g in fx["events"]:
+        rows, shown = [], 0
+        for _, batch in groupby(g["rows"], key=lambda r: r["created_at"][:13]):  # one run writes within the hour
+            batch = list(batch)
+            r = plan([copy_item(x) for x in batch], list(rows), date.fromisoformat(batch[0]["created_at"][:10]), INTERESTS)
+            for x, (kind, why) in zip(batch, r["outcomes"]):
+                assert kind in ("published", "merged"), (g["name"], x["title"], kind, why)
+                if kind == "published":
+                    asked = f"kept apart: {tidy_title(x['title'], x['source_name'])!r} and "
+                    shown += not any(n.startswith(asked) for n in r["notes"])
+                    rows.append(listed(**{k: x[k] for k in ("id", "title", "event_date", "start_time", "all_day",
+                                                            "location", "source_name", "source_uid")},
+                                       shows_from=None, mentions=[{"source_name": x["source_name"], "source_url": x["source_url"],
+                                                                   "source_uid": x["source_uid"], "trust": x["trust"], "sure": True}]))
+        if shown != 1:
+            missed.append(f"{g['name']}: {shown} shown")
+    for g in fx["news"]:
+        recent, shown = [], 0
+        for x in g["rows"]:
+            at = datetime.fromisoformat(x["created_at"])
+            recent = [n for n in recent if at - n["at"] <= timedelta(7)]  # the Town feed's week
+            it = item(kind="news", title=x["title"], source_name=x["source_name"], source_url=x["source_url"],
+                      start=None, end=None, place="", interest=None, category="business",
+                      trust="official" if x["tier"] == 1 else "secondhand")
+            r = plan([it], [], at.date(), INTERESTS, recent_news=list(recent))
+            if r["outcomes"][0][0] == "news":
+                shown += 1
+                recent.append({**r["news"][0], "status": "published", "created_at": x["created_at"], "at": at})
+        if shown != 1 and not g.get("known_miss"):
+            missed.append(f"{g['name']}: {shown} shown")
+    assert not missed, missed
+
+
+TESTS = [t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
