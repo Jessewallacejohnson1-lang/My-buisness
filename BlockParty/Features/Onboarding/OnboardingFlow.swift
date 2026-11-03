@@ -371,7 +371,8 @@ struct OnboardingFlow: View {
                 // None on the first question: the account is made, there's no going back to make another.
                 OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
                     .opacity(store.step == .name ? 0 : 1)
-                    .disabled(store.step == .name)
+                    // Nor while Log in or Create account waits on the server: its answer moves on.
+                    .disabled(store.step == .name || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
                     .opacity(store.account == nil ? 1 : 0)
             }

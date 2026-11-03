@@ -233,6 +233,9 @@ final class ProfileModel {
     /// still waiting on the phone. Nothing before an account exists.
     func arrived(_ onboarding: OnboardingStore) async {
         guard auth.userId != nil, await read() else { return }
+        // A quiet account kept from before onboarding 27 is on the Welcome, not in: its stamp
+        // mustn't finish the flow for the account made next, nor that flow's stamp land on it.
+        guard !auth.isAnonymous else { return }
         if onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
             await stamp(onboarding)
         } else if onboardedAt != nil {
