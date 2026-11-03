@@ -727,6 +727,27 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(try JSONDecoder().decode(Game.Live.self, from: Data(#"{"score":[0,0],"period":"Set 1"}"#.utf8)).drive, "other sports have none")
     }
 
+    /// A game's Attend takes our team's own color (game-card 12): the team around St. Joseph, else the home team,
+    /// at the marks' brightness, with ink on it where ink reads better than white, as on BP yellow.
+    func testAGamesAttendTakesOurTeamsColor() throws {
+        func game(_ teams: String) throws -> Game {
+            try JSONDecoder().decode(Game.self, from: Data(#"{"sport":"Soccer","teams":[\#(teams)]}"#.utf8))
+        }
+        let sju = ##"{"name":"Saint John's","color":"#C20430","local":true}"##
+        let augsburg = ##"{"name":"Augsburg","color":"#702038"}"##
+        let kennedy = ##"{"name":"Kennedy","local":true,"colors":["#1B2859"]}"##
+        XCTAssertEqual(try game("\(augsburg),\(sju)").ours, 1, "ours on the right")
+        XCTAssertEqual(try game("\(sju),\(augsburg)").ours, 0)
+        XCTAssertEqual(try game("\(kennedy),\(sju)").ours, 0, "both ours: the home team")
+        XCTAssertEqual(try game(##"{"name":"Sauk Centre"},{"name":"Minnewaska"}"##).ours, 0, "neither: the home team")
+        let attend = GameMatchup.attend(try game("\(augsburg),\(sju)"))
+        XCTAssertEqual(attend, GameMatchup.tone(0xC20430, lightness: 0.58, saturationFloor: 0.7), "Saint John's own cardinal")
+        XCTAssertNil(GameMatchup.attend(try game(##"{"name":"Somebody","local":true},\##(augsburg)"##)), "no color: BP yellow")
+        XCTAssertTrue(MeetupPillStyle.inkReads(on: try XCTUnwrap(attend)), "ink on Saint John's cardinal")
+        XCTAssertTrue(MeetupPillStyle.inkReads(on: Hue.brandYellowHex), "ink on BP yellow, as before")
+        XCTAssertFalse(MeetupPillStyle.inkReads(on: 0x1B2859), "white on navy")
+    }
+
     /// The page's colors (game-card 08): each team's color at Apple Sports' depth, hue kept; a black or grey
     /// one (Gustavus, St. Olaf) takes its logo's first real color; none at all is none.
     func testAGamesColorsDeepenAndABlackTeamTakesItsLogosColor() throws {
