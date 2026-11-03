@@ -745,7 +745,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(GameMatchup.attend(try game(##"{"name":"Somebody","local":true},\##(augsburg)"##)), "no color: BP yellow")
         XCTAssertTrue(MeetupPillStyle.inkReads(on: try XCTUnwrap(attend)), "ink on Saint John's cardinal")
         XCTAssertTrue(MeetupPillStyle.inkReads(on: Hue.brandYellowHex), "ink on BP yellow, as before")
-        XCTAssertFalse(MeetupPillStyle.inkReads(on: 0x1B2859), "white on navy")
+        let navy = try XCTUnwrap(GameMatchup.attend(try game("\(kennedy),\(augsburg)")))
+        XCTAssertFalse(MeetupPillStyle.inkReads(on: navy), "white on Kennedy's navy, brightened")
     }
 
     /// The page's colors (game-card 08): each team's color at Apple Sports' depth, hue kept; a black or grey
