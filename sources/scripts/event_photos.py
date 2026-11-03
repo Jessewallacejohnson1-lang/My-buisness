@@ -49,7 +49,6 @@ TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos
 CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
-TEXT = re.compile(r"\btext\b", re.I)  # Meta's own description: "May be an image of text that says ..."
 
 
 def out_dir():
@@ -139,8 +138,7 @@ def from_posts(group, rows, share=None):
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
-            out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]
-                    if not TEXT.search(p["about"])]
+            out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]]
     return out[:mine + PLACE_MORE]
 
 
@@ -283,13 +281,14 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 
 def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
-    of its own pictures, each group once; a flyer only from the Event's own post or page."""
+    of its own pictures, each group once. A flyer from another post of the place counts too, for the same kind of
+    event (Jesse kept a past show's poster for this year's play, 2026-11-03)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
-        if c and not (ln.get("flyer") and c["from"] == "other post"):
+        if c:
             picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None, bool(ln.get("flyer")))
     return picks
 
@@ -370,8 +369,9 @@ def selftest():
                  text="Join us! https://www.facebook.com/events/2380009089072052")]
     g = {"source_url": "https://www.facebook.com/prep/posts/pfbidPLAY", "title": "Fall Play", "events": []}
     got = from_posts(g, rows)
-    check([(c["url"], c["from"]) for c in got] == [("https://x.fbcdn.net/flyer.jpg", "post"), ("https://x.fbcdn.net/cast.jpg", "other post")],
-          "its post's flyer, full size, then the same page's photos, never another page's nor a picture Meta reads as text")
+    check([(c["url"], c["from"]) for c in got] == [("https://x.fbcdn.net/flyer.jpg", "post"), ("https://x.fbcdn.net/cast.jpg", "other post"),
+                                                    ("https://x.fbcdn.net/menu.jpg", "other post")],
+          "its post's flyer, full size, then the same page's photos and flyers, never another page's")
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
@@ -402,14 +402,14 @@ def selftest():
     with tempfile.TemporaryDirectory() as tmp:
         folder, out = Path(tmp) / "sheets", Path(tmp) / "out"
         folder.mkdir()
-        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "art": (4568, 3000), "og": (500, 500)}
+        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (500, 500)}
 
         def grab(c, dest):
             name = next(k for k in sizes if k in c["url"])
             Image.effect_noise(sizes[name], 60 + 10 * list(sizes).index(name)).convert("RGB").save(dest)
             return sizes[name]
         failed = download(gs, folder, grab)
-        check(not failed and [c["n"] for c in gs[0]["cands"]] == [1, 2] and gs[2]["cands"] == [],
+        check(not failed and [c["n"] for c in gs[0]["cands"]] == [1, 2, 3] and gs[2]["cands"] == [],
               f"each picture downloaded once and numbered; one under {MIN_WIDTH} px dropped")
         check(sheets(gs, folder) == 1 and (folder / "sheet-1.png").exists(), "one sheet for three blocks")
         batch = (folder / "batch-1.txt").read_text()
@@ -421,7 +421,8 @@ def selftest():
               "only a block laid out, once, and only one of its own pictures")
         own, other = (next(f"c{c['n']}" for c in gs[0]["cands"] if c["from"] == w) for w in ("post", "other post"))
         flyers = plan([{"event": "e1", "pick": own, "flyer": True}], gs), plan([{"event": "e1", "pick": other, "flyer": True}], gs)
-        check(flyers[0]["e1"][2] is True and flyers[1] == {}, "a flyer from the Event's own post, never another post's")
+        check(flyers[0]["e1"][2] is True and flyers[1]["e1"][2] is True,
+              "a flyer from the Event's own post, or from another post of the place (Jesse, 2026-11-03)")
 
         (folder / "events.json").write_text(json.dumps(gs))
         (out / "photos").mkdir(parents=True)

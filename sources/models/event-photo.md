@@ -20,16 +20,19 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
   it, the thing itself (the art in an exhibit, a dog in costume for a costume contest, the cast on its
   stage, staff dressed up for a Halloween treat day).
 - People taking part before none (Jesse, 2026-11-02: "preferably it shows people"): of two real photos, pick
-  the one with people in it, sharp and wide, over an empty room, a building's outside, a posed lineup or one
-  child close up. A photo with no people still beats none when it shows the thing itself (the art in an
-  exhibit, the wreaths at a wreath-making night).
+  the one with people in it, sharp and wide, over an empty room, a building's outside or one child close up.
+  A posed group of the place's own people for this kind of event is a real photo too: the team with its
+  medals, the cast, the class with its work, the board in a row (Jesse kept all 19 he saw, 2026-11-03); people
+  doing the thing still go first. A photo with no people still beats none when it shows the thing itself (the
+  art in an exhibit, the wreaths at a wreath-making night).
 - Its own pictures (`post`, `page`, `listing`) before another post's. Take an `other post` picture only when
   it shows this kind of Event at this place: the play's rehearsal for the play, last year's contest for this
   year's, the class in its own studio for the class. Never a different kind of thing (a sports photo for a
   concert, a kindergarten photo for a parents' class), and never a portrait or headshot for an Event.
-- No real photo among them: the Event's own flyer or poster, from its own `post`, `page` or `listing`, that
-  names this Event and is easy to read at card size. Mark it `"flyer": true`. Never another post's flyer, one
-  for a different event, or one that is mostly small print.
+- No real photo among them: a flyer or poster, marked `"flyer": true`. Best is the Event's own, from its own
+  `post`, `page` or `listing`; else an `other post` flyer for this same kind of event at this place (Jesse,
+  2026-11-03, kept a past show's poster for this year's play and past concerts' posters for a concert). Never
+  one for a different kind of event, and never one that is mostly small print.
 - Never any of these as a real photo: a flyer, poster or graphic, any picture with words, prices, dates, a QR
   code or a slogan set over or around it (a sign that is part of the place in a photo, like a shop's sign,
   is fine). And never any of these at all, however good it looks:
