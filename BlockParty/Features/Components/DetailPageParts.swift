@@ -174,7 +174,7 @@ struct AboutSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("About")
-                .font(.sansBold(20))
+                .font(.display(20))
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
 

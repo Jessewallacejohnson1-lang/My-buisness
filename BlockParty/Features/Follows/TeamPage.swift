@@ -116,7 +116,7 @@ struct TeamPage: View {
                 .frame(width: Self.logo, height: Self.logo)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.sansBold(20))
+                    .font(.display(20))
                     .foregroundStyle(Hue.nameOnDark)
                     .fixedSize(horizontal: false, vertical: true)
                 if let nickname = team.nickname {
@@ -181,7 +181,7 @@ struct TeamPage: View {
 
     private func heading(_ words: String) -> some View {
         Text(words)
-            .font(.sansBold(20))
+            .font(.display(20))
             .foregroundStyle(Hue.nameOnDark)
             .padding(.top, 26)
             .padding(.bottom, 6)
@@ -337,7 +337,7 @@ private struct SchoolFollow: View {
             actions.toggleFollow(target)
         } label: {
             Text(following ? "Following" : "Follow")
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(following ? Hue.nameOnDark : Hue.onBrandDisc)
                 .padding(.horizontal, FollowMetric.pagePad)
                 .frame(minWidth: FollowMetric.pageWidth, minHeight: FollowMetric.pageHeight)

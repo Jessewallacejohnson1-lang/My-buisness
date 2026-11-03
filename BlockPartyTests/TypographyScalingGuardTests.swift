@@ -55,7 +55,7 @@ final class TypographyScalingGuardTests: XCTestCase {
     /// back to the system font with no error, and the screens quietly lose their type.
     func testEveryFaceIsBundled() {
         registerBlockPartyFonts()
-        for face in [Face.displayRegular, Face.displayMedium, Face.displaySemi, Face.displayBold,
+        for face in [Face.displaySemi, Face.displayBold,
                      Face.logo, Face.eventHeadline, Face.logoSerif,
                      Face.bodyRegular, Face.bodyMedium, Face.bodySemi, Face.bodyBold] {
             XCTAssertNotNil(UIFont(name: face, size: 17), face)

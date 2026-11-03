@@ -322,7 +322,7 @@ struct ProfileView: View {
         Button { Haptics.light(); confirmSignOut = true } label: {
             HStack(spacing: 8) {
                 Image(systemName: "rectangle.portrait.and.arrow.right").font(.sansSemibold(15))
-                Text("Sign out").font(.sansSemibold(16))
+                Text("Sign out").font(.displaySemi(16))
             }
             .foregroundStyle(Hue.ink)
             .frame(maxWidth: .infinity)

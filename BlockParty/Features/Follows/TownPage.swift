@@ -389,7 +389,7 @@ private struct TownPageHeader: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page?.name ?? model.shown.name)
-                    .font(.eventDisplay(28))
+                    .font(.display(28))
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
@@ -464,7 +464,7 @@ private struct TownPageSection: View {
 
     var body: some View {
         Text(title)
-            .font(.sansSemibold(17))
+            .font(.displaySemi(17))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, TownPageMetric.sectionTop)
@@ -624,7 +624,7 @@ struct TownBoardPage: View {
             TownBoardTile(name: route.board.name)
             VStack(alignment: .leading, spacing: 2) {
                 Text(route.board.name)
-                    .font(.eventDisplay(28))
+                    .font(.display(28))
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)

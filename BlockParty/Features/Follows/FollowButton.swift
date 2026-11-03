@@ -80,7 +80,7 @@ struct FollowButton: View {
         let ink = !following && size != .beside
         Button(action: tap) {
             Text(following ? "Following" : "Follow")
-                .font(.sansSemibold(15))
+                .font(.displaySemi(15))
                 .foregroundStyle(ink ? Hue.surface : Hue.ink)
                 .lineLimit(1)
                 .padding(.horizontal, size == .row ? FollowMetric.rowPad : FollowMetric.pagePad)
