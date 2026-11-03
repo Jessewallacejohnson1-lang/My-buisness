@@ -142,7 +142,6 @@ struct AccountFields: View {
                 .tint(Hue.ink)
                 .focused($focus, equals: field)
                 .offset(y: 9)
-                .opacity(up ? 1 : 0)
         }
         .padding(.leading, 16)
         .frame(height: 60)

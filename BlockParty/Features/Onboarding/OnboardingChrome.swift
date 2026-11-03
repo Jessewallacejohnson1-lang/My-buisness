@@ -153,6 +153,7 @@ struct OnboardingNextBar: View {
         }
         .onChange(of: refused) { shakes += 1; Haptics.error() }
         .accessibilityIdentifier("onboarding-next")
+        .accessibilityLabel(title)   // the spinner too
         .accessibilityHint(allowed ? "" : "Not yet: answer the question first")
     }
 }

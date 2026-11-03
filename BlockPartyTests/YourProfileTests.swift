@@ -315,6 +315,19 @@ final class YourProfileTests: XCTestCase {
         XCTAssertEqual(stamps.count, 0)
         XCTAssertEqual(profile.lateLandings, 0)
     }
+
+    /// A quiet account kept from before onboarding 27, stamped back then: the Welcome stays up and
+    /// the account made next still answers every question (BP app onboarding 27 review).
+    func testAQuietAccountsStampDoesntSkipOnboarding() async {
+        auth.isAnonymous = true
+        server.answers["town_profiles"] = row("a", photo: "photo-a")
+        let onboarding = OnboardingStore(defaults: phone)
+
+        await model().arrived(onboarding)
+
+        XCTAssertFalse(onboarding.finished)
+        XCTAssertEqual(stamps.count, 0)
+    }
 }
 
 /// Holds each request that waits on it until `open`.
