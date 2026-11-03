@@ -1,6 +1,6 @@
 //
 //  RootView.swift
-//  Block Party — auth gate over the tab shell. Signed-out → Login; signed-in → tabs.
+//  Block Party — the account gate over the tab shell: no account → onboarding's Welcome; an account → tabs.
 //
 
 import SwiftUI
@@ -149,21 +149,21 @@ struct RootView: View {
         #endif
     }
 
-    /// Whether a session is REQUIRED to reach the app. False since 2026-09-18
-    /// (Jesse: "remove the sign-in process for now"), so the gate hands straight to
-    /// the tabs with or without one.
-    ///
-    /// A switch rather than a deletion, because "for now" is the whole point:
-    /// `LoginView`, `AuthStore`, the keychain session and every authed API path are
-    /// untouched and still work — flip this back to `true` and sign-in returns
-    /// exactly as it was. What signing out now does is drop the session and leave you
-    /// in the app, not bounce you to a login screen.
-    ///
-    /// Signed OUT, the app is honest about it rather than broken: authed reads fail
-    /// and their screens land in their own empty/failed states, and Your profile's
-    /// `arrived` returns immediately with no `userId`. Nothing force-unwraps
-    /// a session.
-    private static let requiresSignIn = false
+    /// Only an account someone made or logged into gets past the Welcome (Jesse, 2026-11-02: "dont
+    /// allow people in app without logged in", BP app onboarding 27). Screenshot runs
+    /// (`-skip-onboarding`) and UI tests reinstall with no account, so DEBUG lets those in without one.
+    private var hasAccount: Bool {
+        #if DEBUG
+        if LaunchFlags.has(.skipOnboarding) || LaunchFlags.has(.uiTests) { return true }
+        #endif
+        return auth.hasAccount
+    }
+
+    /// No account on the phone, once the launch has looked for a kept one.
+    private var signedOut: Bool { !auth.booting && !hasAccount }
+
+    /// Onboarding is up: the Welcome with no account, else until the flow is done.
+    private var flowUp: Bool { onboardingUp || !hasAccount }
 
     /// Onboarding's steps and answers on the phone; its finish hands them to Your profile, which
     /// stamps and saves them once an account exists (BP app codebase-health-2 10).
@@ -183,22 +183,18 @@ struct RootView: View {
     }
 
     private var gate: some View {
-        // Onboarding, then the tabs; Login only once sign-in is required again.
+        // Onboarding (the Welcome, Log in and Create account with no account), then the tabs.
         Group {
-            if auth.isSignedIn || !Self.requiresSignIn {
-                if onboardingUp {
-                    // Finished, the last screen waits under the island for the answers: nothing on it answers.
-                    OnboardingFlow(store: onboarding)
-                        .allowsHitTesting(!onboarding.finished)
-                        .transition(.opacity)
-                } else {
-                    MainTabsView(profile: profile).transition(.opacity)
-                }
+            if flowUp {
+                // Finished, the last screen waits under the island for the answers: nothing on it answers.
+                OnboardingFlow(store: onboarding)
+                    .allowsHitTesting(!onboarding.finished || !hasAccount)
+                    .transition(.opacity)
             } else {
-                LoginView()
+                MainTabsView(profile: profile).transition(.opacity)
             }
         }
-        .animation(.smooth(duration: 0.35), value: onboardingUp)
+        .animation(.smooth(duration: 0.35), value: flowUp)
         .overlay {
             if onboarding.welcoming {
                 OnboardingDone(name: onboarding.displayName ?? "") { onboarding.welcoming = false }
@@ -206,6 +202,8 @@ struct RootView: View {
         }
         // The launch's account, or a new one: your profile's read, and what onboarding owes it.
         .task(id: auth.userId) { await profile.arrived(onboarding) }
+        // Signed out, or a token the server turned down: the next account starts on a clean Welcome.
+        .onChange(of: signedOut, initial: true) { _, out in if out { onboarding.reset(); profile.forgetOnboarding() } }
         .onChange(of: onboarding.finished) { _, done in
             guard done, onboarding.finishedHere else { return }
             // Here, before the tabs come up, so the hello pill doesn't say a second welcome.

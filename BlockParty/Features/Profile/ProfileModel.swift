@@ -242,6 +242,10 @@ final class ProfileModel {
         await sendAnswers(onboarding)
     }
 
+    /// Signed out (`RootView`, with `OnboardingStore.reset()`): the next account's finish here waits
+    /// for its own answers again.
+    func forgetOnboarding() { answersLanded = false }
+
     /// The onboarded stamp with the birthday and the picks. On the account, the birthday leaves the
     /// phone, so another account signing in here later can't take it.
     private func stamp(_ onboarding: OnboardingStore) async {

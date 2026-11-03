@@ -286,6 +286,9 @@ final class YourProfileTests: XCTestCase {
         XCTAssertTrue(profile.answersLanded)
         XCTAssertEqual(stamps.count, 1)
         XCTAssertEqual(profile.lateLandings, 0, "in time for the Town feed's first read")
+
+        profile.forgetOnboarding()
+        XCTAssertFalse(profile.answersLanded, "signed out: the next account's finish waits again")
     }
 
     /// A first launch, before the quiet account exists: nothing is read or stamped, so the launch's

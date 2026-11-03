@@ -12,6 +12,9 @@ import Foundation
 struct SupabaseError: LocalizedError {
     let message: String
     let status: Int?
+    /// GoTrue's `error_code` (`invalid_credentials`, `user_already_exists`…), on auth calls only:
+    /// what the Log in screen's words are matched on, never the server's English.
+    var code: String? = nil
     var errorDescription: String? { message }
 
     /// The row or file is already there: a retry of a send whose answer was lost. PostgREST
@@ -46,7 +49,8 @@ enum SupabaseHTTP {
         let (data, resp) = try await Supabase.Send.live.run(req)
         let code = resp.statusCode
         if !(200..<300).contains(code) {
-            throw SupabaseError(message: parseAuthError(data) ?? "The account request didn't go through. Check your connection and try again. (Code \(code))", status: code)
+            let errorCode = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error_code"] as? String
+            throw SupabaseError(message: parseAuthError(data) ?? "The account request didn't go through. Check your connection and try again. (Code \(code))", status: code, code: errorCode)
         }
         return data
     }

@@ -30,15 +30,15 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertTrue(store.finished)
     }
 
-    func testBackGoesToThePreviousStepAndStopsAtWelcome() {
+    func testBackGoesToThePreviousStepAndStopsAtTheFirstQuestion() {
         let store = OnboardingStore(defaults: defaults)
         store.next(); store.next()
         XCTAssertEqual(store.step, .photo)
         store.back()
         XCTAssertEqual(store.step, .name)
         XCTAssertFalse(store.forward)
-        store.back(); store.back()
-        XCTAssertEqual(store.step, .welcome)
+        store.back()
+        XCTAssertEqual(store.step, .name, "the account is made before Name: Back would make a second one")
     }
 
     func testRelaunchResumesOnTheSameStep() {
@@ -74,10 +74,52 @@ final class OnboardingStoreTests: XCTestCase {
         midway.next()
         midway.serverSaysFinished()
         XCTAssertFalse(midway.finished, "a late read must not pull someone out halfway")
-        midway.back()
+        midway.reset()
         midway.serverSaysFinished()
         XCTAssertTrue(midway.finished)
         XCTAssertFalse(midway.finishedHere, "the server's stamp gets no Done island")
+    }
+
+    // MARK: Log in and Create account (onboarding 27)
+
+    func testCreateAccountGoesOnToTheFirstQuestion() {
+        let store = OnboardingStore(defaults: defaults)
+        store.open(.create)
+        XCTAssertEqual(store.account, .create)
+        XCTAssertEqual(store.step, .welcome, "a relaunch opens on the Welcome")
+        store.open(nil)
+        XCTAssertNil(store.account, "Back goes to the Welcome")
+        store.open(.create)
+        store.created()
+        XCTAssertNil(store.account)
+        XCTAssertEqual(store.step, .name)
+    }
+
+    func testLogInGoesStraightInOnlyWhenOnboardingWasFinished() {
+        let done = OnboardingStore(defaults: defaults)
+        done.open(.logIn)
+        done.loggedIn(onboarded: true)
+        XCTAssertTrue(done.finished)
+        XCTAssertFalse(done.finishedHere, "no Done island for an account that finished before")
+        done.reset()
+        done.open(.logIn)
+        done.loggedIn(onboarded: false)
+        XCTAssertFalse(done.finished)
+        XCTAssertEqual(done.step, .name, "an unfinished account picks up at the first question")
+    }
+
+    func testSignedOutTheNextAccountStartsFromTheWelcome() {
+        // The tabs were open: the hello pill's last look is kept.
+        defaults.set(Date().timeIntervalSince1970, forKey: HelloDrop.lastSeenKey)
+        let store = OnboardingStore(defaults: defaults)
+        store.finish()
+        store.reset()
+        XCTAssertFalse(store.finished)
+        XCTAssertFalse(store.welcoming, "no Done island left over for the next account")
+        XCTAssertEqual(store.step, .welcome)
+        let next = OnboardingStore(defaults: defaults)
+        XCTAssertFalse(next.finished, "not taken for an install from before onboarding")
+        XCTAssertFalse(next.arrivedBefore)
     }
 
     // MARK: Name and photo (ticket 18)
@@ -202,7 +244,7 @@ final class OnboardingStoreTests: XCTestCase {
         defaults.set("Avery", forKey: "onboarding.name")   // another step's answer
         defaults.set("keep", forKey: "other.setting")
         store.next(now: day("2026-10-25"))
-        store.leaveTooYoung()
+        store.reset()
         XCTAssertEqual(store.step, .welcome)
         XCTAssertNil(store.birthday)
         XCTAssertEqual(store.interests, [])
@@ -357,7 +399,7 @@ final class OnboardingStoreTests: XCTestCase {
     func testTooYoungForgetsTheRequests() {
         let store = OnboardingStore(defaults: defaults)
         store.toggleRequest("maya")
-        store.leaveTooYoung()
+        store.reset()
         XCTAssertEqual(OnboardingStore(defaults: defaults).requests, [])
     }
 }

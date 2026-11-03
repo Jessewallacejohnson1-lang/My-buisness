@@ -1,8 +1,9 @@
 //
 //  OnboardingFlow.swift
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
-//  Welcome (Nextdoor's layout, ticket 25 mock), then seven question steps on one fixed frame:
-//  the faint yellow backdrop, back and the progress bar on top, the wordmark, and the one
+//  Welcome (Nextdoor's layout, ticket 25 mock), Log in or Create account (onboarding 27), then
+//  seven question steps on one fixed frame: the white backdrop, back and the progress bar on top,
+//  the wordmark, and the one
 //  Next bar 84 pt from the bottom with its slot under it. Only the question moves between
 //  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
 //
@@ -62,6 +63,9 @@ final class OnboardingStore {
     }
     /// "Come back when you're 13" is up over the birthday step.
     private(set) var tooYoung = false
+    /// Log in or Create account is up over the Welcome (onboarding 27). Never saved: a relaunch
+    /// opens on the Welcome.
+    private(set) var account: OnboardingAccount?
 
     /// Name and Photo's answers (ticket 18), kept on the phone until they reach
     /// `town_profiles` (`saveAnswers`).
@@ -190,16 +194,38 @@ final class OnboardingStore {
     }
 
     func back() {
-        guard let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
+        // The account is made before the first question: Back there would make a second one.
+        guard step != .name, let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
         move(to: before, forward: false)
     }
 
     /// Back from "Come back when you're 13" to the wheel.
     func notTooYoung() { tooYoung = false }
 
-    /// Close on "Come back when you're 13": every answer is dropped, then every `onboarding.` key the
-    /// device kept, and the flow starts over on the Welcome.
-    func leaveTooYoung() {
+    /// The Welcome's Log in or Create account, or back to the Welcome (nil).
+    func open(_ way: OnboardingAccount?) {
+        account = way
+        forward = way != nil
+    }
+
+    /// The account is made: on to the first question.
+    func created() {
+        account = nil
+        next()
+    }
+
+    /// Logged in: an account that finished onboarding (on any phone) goes straight in, any other
+    /// picks up at the first question.
+    func loggedIn(onboarded: Bool) {
+        account = nil
+        if onboarded { markFinished() } else { next() }
+    }
+
+    /// Back to a clean Welcome: Close on "Come back when you're 13", and whenever the phone has no
+    /// account (signed out, or the server turned its token down), so the next account starts from
+    /// the beginning. Every answer is dropped, then every `onboarding.` key the device kept, and the
+    /// tabs' last look, so the next account isn't taken for an install from before onboarding.
+    func reset() {
         firstName = ""
         lastName = ""
         photo = nil
@@ -210,8 +236,14 @@ final class OnboardingStore {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
+        defaults.removeObject(forKey: HelloDrop.lastSeenKey)
         answersPending = false
         tooYoung = false
+        account = nil
+        welcoming = false
+        finished = false
+        finishedHere = false
+        arrivedBefore = false
         forward = false
         step = .welcome
     }
@@ -254,6 +286,10 @@ struct OnboardingFlow: View {
     let store: OnboardingStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Your profile, read once Log in lands: its onboarded stamp says where the account goes.
+    @Environment(ProfileModel.self) private var profile
+    /// Log in's and Create account's boxes, kept while you go back to the Welcome and in again.
+    @State private var form = AccountForm()
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
     /// "Popular in St. Joseph", read while the earlier steps are up.
@@ -276,18 +312,19 @@ struct OnboardingFlow: View {
         // the chrome rather than off a blank screen, and only the question slides in.
         ZStack {
             questions
-                .accessibilityHidden(store.step == .welcome)
-            if store.step == .welcome {
-                OnboardingWelcome(start: go { [store] in store.next() })
+                .accessibilityHidden(onWelcome)
+            if onWelcome {
+                OnboardingWelcome(create: go { [store] in store.open(.create) },
+                                  logIn: go { [store] in store.open(.logIn) })
                     .zIndex(1)
                     .transition(.opacity)
             }
             if store.tooYoung {
                 OnboardingTooYoung(back: go { [store] in store.notTooYoung() },
                                    close: go { [store] in
-                                       store.leaveTooYoung()
-                                       // An account made before this step goes too: nothing stays.
-                                       if AuthStore.shared.userId != nil { Task { await AuthStore.shared.signOut() } }
+                                       store.reset()
+                                       // The account made before this step goes too: nothing stays.
+                                       if AuthStore.shared.hasAccount { Task { await AuthStore.shared.deleteAccount() } }
                                    })
                     .zIndex(2)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing))
@@ -322,17 +359,21 @@ struct OnboardingFlow: View {
         ZStack(alignment: .top) {
             OnboardingBackdrop()
 
-            if store.step != .welcome {
+            if !onWelcome {
                 question
-                    .id(store.step)
+                    .id(store.account.map { "\($0)" } ?? "\(store.step)")
                     .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .offset(x: store.forward ? 36 : -36).combined(with: .opacity),
                         removal: .opacity.animation(.easeOut(duration: 0.12))))
             }
 
             HStack(spacing: 6) {
-                OnboardingBackChevron(action: go { [store] in store.back() })
+                // None on the first question: the account is made, there's no going back to make another.
+                OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
+                    .opacity(store.step == .name ? 0 : 1)
+                    .disabled(store.step == .name)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
+                    .opacity(store.account == nil ? 1 : 0)
             }
             .padding(.leading, 10)
             .padding(.trailing, 32)
@@ -401,7 +442,7 @@ struct OnboardingFlow: View {
         VStack(alignment: .leading, spacing: 32) {
             BlockPartyWordmark(height: 33)
                 .foregroundStyle(Hue.ink)
-            Text(firstHere ? "You're one of the first here" : store.step.question)
+            Text(store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question))
                 .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -423,6 +464,14 @@ struct OnboardingFlow: View {
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
     @ViewBuilder private var answer: some View {
+        if let way = store.account {
+            AccountFields(form: form, way: way, submit: submitAccount)
+        } else {
+            stepAnswer
+        }
+    }
+
+    @ViewBuilder private var stepAnswer: some View {
         switch store.step {
         case .name:
             OnboardingNameFields(store: store, done: go { [store] in store.next() })
@@ -456,8 +505,9 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed, yellow: store.step == .friends,
-                              action: store.step == .friends ? askContacts : go { [store] in store.next() })
+            OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
+                              yellow: store.step == .friends && store.account == nil,
+                              busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
@@ -470,7 +520,7 @@ struct OnboardingFlow: View {
 
     /// Skip on Photo, Not now on Find your friends (which skips Contacts too), else empty.
     @ViewBuilder private var slot: some View {
-        if let title = store.step.slot {
+        if store.account == nil, let title = store.step.slot {
             OnboardingLink(title: title, action: go { [store] in
                 if store.step == .friends { store.skipFriends() } else { store.next() }
             })
@@ -481,6 +531,7 @@ struct OnboardingFlow: View {
 
     /// "Pick 2 more" until step 7 has its 3, "Follow 2 more" until step 8 has.
     private var nextTitle: String {
+        if let way = store.account { return way.button }
         if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
@@ -509,6 +560,7 @@ struct OnboardingFlow: View {
         #if DEBUG
         if LaunchFlags.has(.onboardingNotYet) { return false }
         #endif
+        if store.account != nil { return form.canSubmit }
         switch store.step {
         case .name:  return store.displayName != nil
         case .photo: return store.photo != nil
@@ -516,6 +568,33 @@ struct OnboardingFlow: View {
         case .interests: return store.interests.count >= 3
         case .follow: return followsNeeded == 0
         default:     return true
+        }
+    }
+
+    /// The Welcome, alone: nothing past it is up yet.
+    private var onWelcome: Bool { store.step == .welcome && store.account == nil }
+
+    private var nextAction: () -> Void {
+        if store.account != nil { return submitAccount }
+        return store.step == .friends ? askContacts : go { [store] in store.next() }
+    }
+
+    /// Log in or Create account's Next. A new account goes on to the first question; a logged-in
+    /// one reads Your profile first, and its onboarded stamp sends it straight in or to the first
+    /// question. No answer from the read keeps the screen up with a line, to try again.
+    private func submitAccount() {
+        guard let way = store.account else { return }
+        Task {
+            await form.submit(way, auth: .shared) {
+                if way == .logIn {
+                    guard await profile.read() else { return AuthStore.Words.offline }
+                    let onboarded = profile.onboardedAt != nil
+                    go { [store] in store.loggedIn(onboarded: onboarded) }()
+                } else {
+                    go { [store] in store.created() }()
+                }
+                return nil
+            }
         }
     }
 
@@ -540,16 +619,15 @@ struct OnboardingFlow: View {
     }
 }
 
-/// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): a St. Joseph
-/// the Millstream street fair photo full bleed, the white wordmark and headline top
-/// left, three white pills where Nextdoor's last three sit, the Terms line and Log in. Until
-/// ticket 25 wires Apple and Google, all three pills go to the first question. Log in opens the existing
-/// sign-in.
+/// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): the Millstream
+/// street fair photo full bleed, the white wordmark and headline top left, the Terms line and Log
+/// in. One white pill, Continue with email, where Nextdoor's last sits (onboarding 27): Apple,
+/// Google and phone come back above it as each can make an account (tickets 25, 17).
 struct OnboardingWelcome: View {
-    let start: () -> Void
+    let create: () -> Void
+    let logIn: () -> Void
 
     @State private var shown = false
-    @State private var loggingIn = false
     /// A first open's launch zooms through to here; the logo and headline rise once it's half done.
     private let launch = LaunchStage.shared
 
@@ -564,7 +642,6 @@ struct OnboardingWelcome: View {
         .onAppear { shown = true }
         // Large text grows the headline and pills, never into each other.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .signInSheet(isPresented: $loggingIn)
     }
 
     /// The white wordmark at 88 pt and the headline at 150 pt, 24 pt from the left.
@@ -593,35 +670,29 @@ struct OnboardingWelcome: View {
         return Text("By continuing, you agree to our \(terms) and \(privacy).")
     }
 
-    /// The three pills, the Terms line and Log in, from the bottom up.
+    /// The pill, the Terms line and Log in, from the bottom up.
     private var actions: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 8) {
-                WelcomePill(title: "Continue with Apple", icon: Image(systemName: "apple.logo"), action: start)
-                    .rise(shown, delay: 0.16)
-                WelcomePill(title: "Continue with Google", icon: Image("GoogleG").resizable(), action: start)
-                    .rise(shown, delay: 0.22)
-                WelcomePill(title: "Continue with phone", icon: Image(systemName: "iphone"), action: start)
-                    .rise(shown, delay: 0.28)
-            }
-            .padding(.horizontal, 24)
+            WelcomePill(title: "Continue with email", icon: Image(systemName: "envelope"), action: create)
+                .rise(shown, delay: 0.16)
+                .padding(.horizontal, 24)
             terms
                 .font(.sans(13))
                 .foregroundStyle(.white.opacity(0.88))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .padding(.top, 18)
-                .rise(shown, delay: 0.34)
-            Button { loggingIn = true } label: { logIn }
+                .rise(shown, delay: 0.22)
+            Button(action: logIn) { logInLine }
                 .buttonStyle(OnboardingPress(scale: 0.96, dim: 0.7))
                 .padding(.top, 10)
-                .rise(shown, delay: 0.34)
+                .rise(shown, delay: 0.22)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 61)
     }
 
-    private var logIn: some View {
+    private var logInLine: some View {
         Text("Already have an account? \(Text("Log in").fontWeight(.semibold))")
             .font(.sans(15))
             .foregroundStyle(.white)
@@ -659,7 +730,7 @@ struct OnboardingWelcome: View {
 /// A white 48 pt pill on the Welcome: sinks to 97% and greys a touch under the finger.
 private struct WelcomePill: View {
     let title: String
-    /// Apple's and the phone's SF Symbols, or Google's four-colour G.
+    /// An SF Symbol, or later Google's four-colour G (`GoogleG`).
     let icon: Image
     let action: () -> Void
     var body: some View {

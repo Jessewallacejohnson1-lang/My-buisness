@@ -1,7 +1,7 @@
 //
 //  OnboardingChrome.swift
 //  Block Party — the pieces every onboarding question screen shares (BP app
-//  docs/plans/onboarding, mock v7): the faint yellow backdrop, the back chevron, Duolingo's
+//  docs/plans/onboarding, mock v7): the white backdrop, the back chevron, Duolingo's
 //  chunky yellow progress bar and the one Next bar. `OnboardingFlow` owns where they sit;
 //  the steps draw none of them. `ContinueButton` is Edit Profile's interests' Done, kept from
 //  the deleted wizard.
@@ -9,35 +9,14 @@
 
 import SwiftUI
 
-/// Instagram's backdrop, measured corner by corner, rebuilt as the one yellow at low strength
-/// over paper (mock v3 to v7): strongest top right and bottom centre, a hint top left and
-/// bottom left, and 3.5% everywhere. No new yellow exists; it is `Hue.brandDisc` faded.
+/// Plain white behind every onboarding screen after the Welcome, Log in and Create account
+/// included (Jesse, 2026-11-02: "change to whit back ground for all onboarding"). It was a faint
+/// yellow wash from 2026-10-24.
 struct OnboardingBackdrop: View {
     var body: some View {
-        GeometryReader { geo in
-            let size = geo.size
-            ZStack {
-                Hue.paper
-                Hue.brandDisc.opacity(0.035)
-                glow(0.17, at: .topTrailing, radii: (0.75, 0.45), fade: 0.70, size)
-                glow(0.09, at: .topLeading, radii: (0.60, 0.40), fade: 0.70, size)
-                glow(0.22, at: .bottom, radii: (0.70, 0.30), fade: 0.72, size)
-                glow(0.08, at: .bottomLeading, radii: (0.60, 0.35), fade: 0.70, size)
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-    }
-
-    /// One of the mock's CSS radial gradients: an ellipse `radii` of the screen's width and
-    /// height around `center`, fading to nothing `fade` of the way out.
-    private func glow(_ strength: Double, at center: UnitPoint, radii: (CGFloat, CGFloat),
-                      fade: CGFloat, _ size: CGSize) -> some View {
-        let rx = radii.0 * size.width, ry = radii.1 * size.height
-        return EllipticalGradient(colors: [Hue.brandDisc.opacity(strength), Hue.brandDisc.opacity(0)],
-                                  center: center, startRadiusFraction: 0, endRadiusFraction: fade)
-            .frame(width: rx * 2, height: ry * 2)
-            .position(x: center.x * size.width, y: center.y * size.height)
+        Hue.surface
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
     }
 }
 
@@ -134,22 +113,31 @@ struct OnboardingNextBar: View {
     var count = 0
     var allowed = true
     var yellow = false
+    /// Log in or Create account is waiting on the server: a spinner for the words, taps ignored.
+    var busy = false
+    /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
+    var refused = 0
     let action: () -> Void
 
     @State private var shakes = 0
 
     var body: some View {
         Button {
+            if busy { return }
             if allowed { action() } else { shakes += 1; Haptics.error() }
         } label: {
-            Text(title)
-                .font(.displaySemi(17))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
-                // roll, the bar holding still.
-                .contentTransition(.numericText(value: Double(count)))
-                .animation(.snappy, value: title)
+            if busy {
+                ProgressView().tint(.white)
+            } else {
+                Text(title)
+                    .font(.displaySemi(17))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
+                    // roll, the bar holding still.
+                    .contentTransition(.numericText(value: Double(count)))
+                    .animation(.snappy, value: title)
+            }
         }
         .buttonStyle(NextBarStyle(allowed: allowed, yellow: yellow))
         // Yellow to charcoal at once, as the mock does: a cross-fade passed through olive.
@@ -163,6 +151,7 @@ struct OnboardingNextBar: View {
             LinearKeyframe(1, duration: 0.06)
             LinearKeyframe(0, duration: 0.06)
         }
+        .onChange(of: refused) { shakes += 1; Haptics.error() }
         .accessibilityIdentifier("onboarding-next")
         .accessibilityHint(allowed ? "" : "Not yet: answer the question first")
     }

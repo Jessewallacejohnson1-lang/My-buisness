@@ -1,174 +1,209 @@
 //
 //  LoginView.swift
-//  Block Party — email + password auth (confirmation ON), Log in / Sign up toggle.
+//  Block Party — Log in and Create account (BP app onboarding 27): onboarding's white screen with
+//  the wordmark, a header, Instagram's two boxes and the charcoal Next bar. No app icon (Jesse,
+//  2026-11-02: "no logo icon i dont like it"). Onboarding shows them from the Welcome; a tap that
+//  needs an account shows Log in alone in a sheet (`signInSheet`).
 //
 
 import SwiftUI
 
-struct LoginView: View {
-    @EnvironmentObject private var auth: AuthStore
+/// Which of the Welcome's two ways in is up.
+enum OnboardingAccount {
+    case create, logIn
 
-    private enum Mode { case signIn, signUp }
-    @State private var mode: Mode = .signIn
-    @State private var email = ""
-    @State private var password = ""
-    @State private var busy = false
-    @State private var message: String?
-    @State private var messageIsError = true
+    var title: String { self == .logIn ? "Log in" : "Create account" }
+    var button: String { self == .logIn ? "Log in" : "Next" }
+}
+
+/// What's typed into Log in or Create account, and the server's answer.
+@MainActor @Observable
+final class AccountForm {
+    var email = "" { didSet { message = nil } }
+    var password = "" { didSet { message = nil } }
+    private(set) var busy = false
+    /// The line under the boxes: why the server said no.
+    private(set) var message: String?
+    /// Bumped on each no, for the Next bar's shake.
+    private(set) var refusals = 0
+
+    var canSubmit: Bool { Self.looksLikeEmail(email) && password.count >= 6 }
+
+    nonisolated static func looksLikeEmail(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespaces).wholeMatch(of: /[^@\s]+@[^@\s]+\.[^@\s]+/) != nil
+    }
+
+    /// Logs in or makes the account, then runs `then` (what comes next: the Town feed or the first
+    /// question), which answers a line when it couldn't go on. A retry once the account is in only
+    /// runs `then` again.
+    func submit(_ way: OnboardingAccount, auth: AuthStore, then: () async -> String?) async {
+        guard canSubmit, !busy else { return }
+        busy = true
+        defer { busy = false }
+        let mail = email.trimmingCharacters(in: .whitespaces)
+        if !auth.hasAccount {
+            let refused: String?
+            switch way {
+            case .logIn:
+                refused = await auth.signIn(email: mail, password: password)
+            case .create:
+                let made = await auth.signUp(email: mail, password: password)
+                refused = made.error ?? (made.needsConfirm ? "Check your email to confirm, then log in." : nil)
+            }
+            if let refused { return refuse(refused) }
+        }
+        if let stuck = await then() { refuse(stuck) }
+    }
+
+    private func refuse(_ line: String) {
+        message = line
+        refusals += 1
+        AccessibilityNotification.Announcement(line).post()
+    }
+}
+
+/// The two boxes, Instagram's (BP app references/log-in: 60 pt tall, 12 pt corners, 12 pt apart,
+/// a 1 pt line), each label rising out of the way once the box is touched; the hint on Create
+/// account and the server's no under them.
+struct AccountFields: View {
+    @Bindable var form: AccountForm
+    let way: OnboardingAccount
+    let submit: () -> Void
+
+    private enum Field { case email, password }
+    @FocusState private var focus: Field?
+    @State private var showPassword = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            Hue.paper.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        BlockPartyMark(side: 72)
-                            .padding(.bottom, 8)
-                        Text("Block Party")
-                            .font(.display(44))
-                            .foregroundStyle(Hue.ink)
-                        Text("See what's happening around \(Town.nickname).")
-                            .font(.sans(15))
-                            .foregroundStyle(Hue.inkSecondary)
-                    }
-                    .padding(.top, 60)
-
-                    modeToggle
-
-                    VStack(spacing: 12) {
-                        field("Email", text: $email, secure: false, keyboard: .emailAddress)
-                        field("Password", text: $password, secure: true, keyboard: .default)
-                    }
-
-                    if mode == .signIn {
-                        Button(action: resetPassword) {
-                            Text("Forgot password?")
-                                .font(.sans(13))
-                                .foregroundStyle(Hue.inkSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(busy)
-                    }
-
-                    if let message {
-                        Text(message)
-                            .font(messageIsError ? .sansBold(13) : .sans(13))
-                            .foregroundStyle(Hue.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Button(action: submit) {
-                        HStack {
-                            if busy { ProgressView().tint(Hue.surface) }
-                            Text(mode == .signIn ? "Log in" : "Create account")
-                                .font(.displaySemi(16))
-                        }
-                        .foregroundStyle(Hue.surface)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSubmit ? Hue.ink : Hue.ink.opacity(0.4))
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.97, haptic: true))
-                    .disabled(!canSubmit || busy)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 12) {
+                box("Email", .email, filled: !form.email.isEmpty) {
+                    TextField("", text: $form.email)
+                        .textContentType(.username)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.next)
                 }
-                .padding(.horizontal, 24)
+                box("Password", .password, filled: !form.password.isEmpty) {
+                    HStack(spacing: 0) {
+                        Group {
+                            if showPassword { TextField("", text: $form.password) } else { SecureField("", text: $form.password) }
+                        }
+                        .textContentType(way == .create ? .newPassword : .password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.go)
+                        eye
+                    }
+                }
+            }
+            .padding(.top, 32)
+            if way == .create {
+                Text("6 or more characters")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, 12)
+            }
+            if let message = form.message {
+                Label { Text(message) } icon: { Image(systemName: "exclamationmark.circle.fill") }
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 12)
+                    .transition(.opacity.combined(with: .offset(y: 6)))
             }
         }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: form.message)
+        .onSubmit { if focus == .email { focus = .password } else { submit() } }
+        .onAppear { focus = .email }
     }
 
-    private var modeToggle: some View {
-        HStack(spacing: 0) {
-            toggleButton("Log in", .signIn)
-            toggleButton("Sign up", .signUp)
-        }
-        .padding(3)
-        .background(Hue.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-    }
-
-    private func toggleButton(_ label: String, _ m: Mode) -> some View {
-        let on = mode == m
-        return Button {
-            withAnimation(.easeOut(duration: 0.18)) { mode = m; message = nil }
-        } label: {
+    /// One box: white, the hairline going ink while it's typed in. The label sits in the middle
+    /// until the box is touched or filled, then rises to the top at 12 pt.
+    private func box<Input: View>(_ label: String, _ field: Field, filled: Bool,
+                                  @ViewBuilder input: () -> Input) -> some View {
+        let up = filled || focus == field
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        return ZStack(alignment: .leading) {
             Text(label)
-                .font(.sansSemibold(14))
-                .foregroundStyle(on ? Hue.ink : Hue.inkSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(on ? Hue.surface : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .font(.sans(17))
+                .foregroundStyle(Hue.inkSecondary)
+                .scaleEffect(up ? 12.0 / 17.0 : 1, anchor: .leading)
+                .offset(y: up ? -12 : 0)
+                .accessibilityHidden(true)
+            input()
+                .font(.sans(17))
+                .foregroundStyle(Hue.ink)
+                .tint(Hue.ink)
+                .focused($focus, equals: field)
+                .offset(y: 9)
+                .opacity(up ? 1 : 0)
+                .accessibilityLabel(label)
         }
-        .buttonStyle(.plain)
+        .padding(.leading, 16)
+        .frame(height: 60)
+        .background(Hue.surface, in: shape)
+        .overlay(shape.strokeBorder(focus == field ? Hue.ink : Hue.hairline, lineWidth: focus == field ? 1.5 : 1))
+        .contentShape(shape)
+        .onTapGesture { focus = field }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: up)
     }
 
-    private func field(_ placeholder: String, text: Binding<String>, secure: Bool, keyboard: UIKeyboardType) -> some View {
-        Group {
-            if secure {
-                SecureField(placeholder, text: text)
-            } else {
-                TextField(placeholder, text: text)
-                    .keyboardType(keyboard)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+    /// Shows or hides the password, keeping the keyboard on it.
+    private var eye: some View {
+        Button {
+            showPassword.toggle()
+            focus = .password
+        } label: {
+            Image(systemName: showPassword ? "eye" : "eye.slash")
+                .font(.glyph(17, weight: .medium))
+                .foregroundStyle(Hue.inkSecondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(OnboardingPress(scale: 0.88))
+        .padding(.trailing, 4)
+        .offset(y: -9)
+        .accessibilityLabel(showPassword ? "Hide password" : "Show password")
+    }
+}
+
+/// Log in alone, over another screen: the tap needed an account. Since onboarding 27 nobody is in
+/// the app without one, so only DEBUG runs reach it; the sheets go in a follow-up.
+struct LoginView: View {
+    @EnvironmentObject private var auth: AuthStore
+    @State private var form = AccountForm()
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            OnboardingBackdrop()
+            VStack(alignment: .leading, spacing: 32) {
+                BlockPartyWordmark(height: 33)
+                    .foregroundStyle(Hue.ink)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(OnboardingAccount.logIn.title)
+                        .font(.display(30))
+                        .foregroundStyle(Hue.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    AccountFields(form: form, way: .logIn, submit: submit)
+                }
             }
+            .padding(.horizontal, 32)
+            .padding(.top, 72)
         }
-        .font(.sans(15))
-        .foregroundStyle(Hue.ink)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .background(Hue.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .blockPartyHairline()
-    }
-
-    private var canSubmit: Bool {
-        !email.trimmingCharacters(in: .whitespaces).isEmpty && password.count >= 6
-    }
-
-    private func resetPassword() {
-        let mail = email.trimmingCharacters(in: .whitespaces)
-        guard !mail.isEmpty else {
-            message = "Enter your email, then tap Forgot password."
-            messageIsError = true
-            return
-        }
-        busy = true
-        message = nil
-        Task {
-            let err = await auth.resetPassword(email: mail)
-            busy = false
-            if let err {
-                message = err; messageIsError = true
-            } else {
-                message = "Check your email for a reset link."; messageIsError = false
-            }
+        .safeAreaInset(edge: .bottom) {
+            OnboardingNextBar(title: OnboardingAccount.logIn.button, allowed: form.canSubmit, busy: form.busy,
+                              refused: form.refusals, action: submit)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
         }
     }
 
     private func submit() {
-        let mail = email.trimmingCharacters(in: .whitespaces)
-        busy = true
-        message = nil
-        Task {
-            if mode == .signIn {
-                let err = await auth.signIn(email: mail, password: password)
-                busy = false
-                if let err { message = err; messageIsError = true }
-                // success → AuthStore publishes session → RootView swaps to tabs
-            } else {
-                let result = await auth.signUp(email: mail, password: password)
-                busy = false
-                if let err = result.error {
-                    message = err; messageIsError = true
-                } else if result.needsConfirm {
-                    mode = .signIn
-                    message = "Check your email to confirm, then log in."
-                    messageIsError = false
-                }
-            }
-        }
+        // Signed in, the sheet closes itself (`SignInSheet`).
+        Task { await form.submit(.logIn, auth: auth) { nil } }
     }
 }
 
@@ -190,6 +225,6 @@ private struct SignInSheet: View {
     var body: some View {
         LoginView()
             // A real account, not just a session: an Anonymous one is already signed in.
-            .onChange(of: auth.isSignedIn && !auth.isAnonymous) { _, real in if real { dismiss() } }
+            .onChange(of: auth.hasAccount) { _, real in if real { dismiss() } }
     }
 }

@@ -11,20 +11,23 @@ import Combine
 @MainActor
 final class AuthStore: ObservableObject, TokenProviding {
     @Published private(set) var session: Session?
+    /// The launch hasn't finished looking for a kept session: no account yet doesn't mean signed out.
     @Published private(set) var booting = true
 
     static let shared = AuthStore()
 
     /// A session exists, real or anonymous: the person can act (Join, Save, Heart).
     var isSignedIn: Bool { session != nil }
-    /// The session is the quiet account every install gets (`ensureAccount`), not one
+    /// The session is a quiet account an install made for itself before 2026-11-02, not one
     /// someone signed into, so there is nothing to sign out of.
     var isAnonymous: Bool { session?.user.isAnonymous == true }
+    /// An account someone made or logged into: the only way past the Welcome (Jesse, 2026-11-02:
+    /// "dont allow people in app without logged in", BP app onboarding 27).
+    var hasAccount: Bool { isSignedIn && !isAnonymous }
     var email: String? { session?.user.email }
     var userId: String? { session?.user.id }
 
     private var refreshTask: Task<Void, Error>?
-    private var makingAccount = false
     /// Bumped whenever the signed-in identity intentionally changes (sign-out). An
     /// in-flight refresh captures this at start and refuses to write a session whose
     /// generation is stale — so a refresh resolving after sign-out can't resurrect
@@ -55,39 +58,8 @@ final class AuthStore: ObservableObject, TokenProviding {
         booting = false
     }
 
-    /// Makes the quiet anonymous account when there is no session, so Going, Save and
-    /// Heart work before sign-in exists (BP app docs/plans/real-life-actions). Runs
-    /// after `restore()` and on each return to the foreground. Silent on failure
-    /// (offline, Supabase's per-network limit): the app reads with the public key as
-    /// before and tries again next time.
-    func ensureAccount() async {
-        guard !booting, session == nil, !makingAccount, Self.makesAccounts else { return }
-        makingAccount = true
-        defer { makingAccount = false }
-        let generation = sessionGeneration
-        do {
-            let data = try await SupabaseHTTP.auth("signup", body: [:])
-            // A session restored or signed into meanwhile wins over this one.
-            guard session == nil, generation == sessionGeneration else { return }
-            try setSession(from: data)
-        } catch {
-            Log.network("AuthStore: anonymous account not made: \(error)")
-        }
-    }
-
-    /// Unit tests, UI tests and sample mode make no live account: each fresh install of
-    /// those would add one to the live project, inside the same 30-an-hour limit
-    /// Jesse's phone shares on this network.
-    private static var makesAccounts: Bool {
-        if isTestRun { return false }
-        #if DEBUG
-        if LaunchFlags.backend != .live { return false }
-        #endif
-        return true
-    }
-
     /// A unit or UI test run: it must never act for whatever account the simulator
-    /// kept, so it makes no account and sends no tap kept from before (`RealLifeActions`).
+    /// kept, so it sends no tap kept from before (`RealLifeActions`).
     static var isTestRun: Bool {
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return true }
         #if DEBUG
@@ -105,7 +77,7 @@ final class AuthStore: ObservableObject, TokenProviding {
             try setSession(from: data)
             return nil
         } catch {
-            return (error as? SupabaseError)?.message ?? error.localizedDescription
+            return Self.line(for: error)
         }
     }
 
@@ -121,19 +93,49 @@ final class AuthStore: ObservableObject, TokenProviding {
             }
             return (nil, true) // user returned but no session → confirm email
         } catch {
-            return ((error as? SupabaseError)?.message ?? error.localizedDescription, false)
+            return (Self.line(for: error), false)
         }
     }
 
-    /// Send a password-reset email via GoTrue's recover endpoint. Returns a
-    /// user-facing error string, nil on success.
-    func resetPassword(email: String) async -> String? {
-        do {
-            _ = try await SupabaseHTTP.auth("recover", body: ["email": email])
-            return nil
-        } catch {
-            return (error as? SupabaseError)?.message ?? error.localizedDescription
+    /// Deletes this account and everything tied to it on the server, then signs out: "Come back
+    /// when you're 13"'s Close, so "We didn't save anything you entered" stays true (BP app onboarding
+    /// 19, 27). ponytail: signs out even when the delete didn't go through (offline); the account
+    /// then stays on the server with no way back in. Retry it if that ever matters.
+    func deleteAccount() async {
+        do { try await Supabase(auth: self).rpc("delete_my_account") } catch {
+            Log.network("AuthStore: account not deleted: \(error)")
         }
+        await signOut()
+    }
+
+    /// What the Log in and Create account screens say when the server says no, matched on
+    /// GoTrue's code or the status, never its English (BP app backlog 08, onboarding 27).
+    nonisolated static func line(for error: Error) -> String {
+        if error is URLError { return Words.offline }
+        let failure = error as? SupabaseError
+        switch failure?.code {
+        case "invalid_credentials": return Words.wrong
+        case "user_already_exists", "email_exists": return Words.taken
+        case "weak_password": return Words.short
+        case "email_address_invalid", "validation_failed": return Words.badEmail
+        case "over_request_rate_limit", "over_email_send_rate_limit": return Words.tooMany
+        default: break
+        }
+        switch failure?.status {
+        case 429: return Words.tooMany
+        case let status? where status == 0 || status >= 500: return Words.offline
+        default: return Words.other
+        }
+    }
+
+    enum Words {
+        static let wrong = "Wrong email or password. Try again."
+        static let taken = "There's already an account with this email. Log in instead."
+        static let short = "Use 6 or more characters."
+        static let badEmail = "Check your email address."
+        static let tooMany = "Too many tries. Wait a minute, then try again."
+        static let offline = "Couldn't reach Block Party. Check your connection and try again."
+        static let other = "Something went wrong. Try again."
     }
 
     func signOut() async {
@@ -144,10 +146,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         refreshTask?.cancel()
         refreshTask = nil
         let token = session?.accessToken
-        session = nil
-        Keychain.clear()
-        ProfileModel.forget()     // don't let the next account inherit this user's name/interests/onboarded
-        TownFeedCache.clear()     // and the kept Town feed holds their Going
+        clear()
         if let token {
             _ = try? await SupabaseHTTP.auth("logout", bearer: token)
         }
@@ -208,8 +207,7 @@ final class AuthStore: ObservableObject, TokenProviding {
                     // An anonymous account can't be signed back into: its Going goes
                     // with it. Logged so losses can be counted.
                     if isAnonymous { Log.network("AuthStore: anonymous session rejected and cleared: \(error)") }
-                    session = nil
-                    Keychain.clear()
+                    clear()
                 }
                 throw error
             }
@@ -227,6 +225,16 @@ final class AuthStore: ObservableObject, TokenProviding {
         case 400, 401, 403: return true
         default: return false
         }
+    }
+
+    /// The account is gone from this phone, by sign-out or a token the server turned down: the next
+    /// account inherits none of its name, interests, onboarded stamp or kept Town feed (its Going).
+    /// Onboarding starts over on the Welcome (`RootView`).
+    private func clear() {
+        session = nil
+        Keychain.clear()
+        ProfileModel.forget()
+        TownFeedCache.clear()
     }
 
     private func setSession(from data: Data) throws {

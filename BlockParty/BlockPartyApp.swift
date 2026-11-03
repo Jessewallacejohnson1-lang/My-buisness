@@ -11,7 +11,6 @@ import MapboxMaps
 @main
 struct BlockPartyApp: App {
     @StateObject private var auth = AuthStore.shared
-    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         registerBlockPartyFonts()
@@ -26,17 +25,8 @@ struct BlockPartyApp: App {
             LaunchHost {
                 RootView()
                     .environmentObject(auth)
-                    .task {
-                        await auth.restore()
-                        // The quiet anonymous account, made only once restore has found
-                        // there is no stored session.
-                        await auth.ensureAccount()
-                    }
+                    .task { await auth.restore() }
             }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            // Offline at first launch: try again when the app comes back.
-            if phase == .active { Task { await auth.ensureAccount() } }
         }
     }
 }
