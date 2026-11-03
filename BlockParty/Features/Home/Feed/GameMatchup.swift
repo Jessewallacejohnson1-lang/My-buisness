@@ -190,11 +190,12 @@ struct GameMatchup: View {
     /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
     /// faint net and soccer's halfway line sit under the wash (soccer's center circle rides its minute ring).
     static func backdrop(_ game: Game) -> some View {
-        ZStack {
-            LinearGradient(stops: [.init(color: shade(game.teams[0]), location: 0),
-                                   .init(color: shade(game.teams[0]), location: 0.36),
-                                   .init(color: shade(game.teams[1]), location: 0.66),
-                                   .init(color: shade(game.teams[1]), location: 1)],
+        let sides = colors(game.teams)
+        return ZStack {
+            LinearGradient(stops: [.init(color: shade(sides[0]), location: 0),
+                                   .init(color: shade(sides[0]), location: 0.36),
+                                   .init(color: shade(sides[1]), location: 0.66),
+                                   .init(color: shade(sides[1]), location: 1)],
                            startPoint: .leading, endPoint: .trailing)
             if game.isVolleyball {
                 VolleyballNet()
@@ -214,25 +215,58 @@ struct GameMatchup: View {
         }
     }
 
-    /// A team's color at the page's depth (Burnley's claret and Chelsea's blue sit near 21% lightness in
+    /// A side's color at the page's depth (Burnley's claret and Chelsea's blue sit near 21% lightness in
     /// Apple's); none known is the poster's dark.
-    static func shade(_ team: Game.Team) -> Color {
-        vivid(team).map { Color(hex: tone($0, lightness: 0.21, saturationCap: 0.82)) } ?? Hue.poster
+    static func shade(_ rgb: UInt32?) -> Color {
+        rgb.map { Color(hex: tone($0, lightness: 0.21, saturationCap: 0.82)) } ?? Hue.poster
     }
 
-    /// The same hue bright enough for thin marks on the dark (an end zone, a scoring play's bar); none
-    /// known is a faint white.
-    static func mark(_ team: Game.Team) -> Color {
-        vivid(team).map { Color(hex: tone($0, lightness: 0.58, saturationFloor: 0.7)) } ?? .white.opacity(0.3)
+    /// A side's color bright enough for thin marks on the dark (an end zone, a scoring play's bar), so each
+    /// mark matches its half of the page; none known is a faint white.
+    static func mark(_ game: Game, _ side: Int) -> Color {
+        colors(game.teams)[side].map { Color(hex: tone($0, lightness: 0.58, saturationFloor: 0.7)) } ?? .white.opacity(0.3)
     }
+
+    /// The colors the page draws, home first (BP app game-card 10): each team's own, unless the two sit
+    /// within `closeHue` of each other, which reads as one color at the page's depth (Saint John's cardinal
+    /// and Augsburg's maroon, Tue 2026-11-03). Then the away team takes its next color that isn't close
+    /// (Macalester's navy); with none, the home team takes its own (Saint John's blue); with neither, the
+    /// away side goes charcoal.
+    static func colors(_ teams: [Game.Team]) -> [UInt32?] {
+        let own = teams.map { vivid($0) }
+        guard own.count == 2, let home = own[0], let away = own[1], close(home, away) else { return own }
+        if let second = palette(teams[1]).first(where: { isVivid($0) && !close(home, $0) }) { return [home, second] }
+        if let second = palette(teams[0]).first(where: { isVivid($0) && !close($0, away) }) { return [second, away] }
+        return [home, charcoal]
+    }
+
+    /// Hues closer than this read as one color once both are deepened (Saint Ben's red and Macalester's
+    /// orange-red sit 24° apart).
+    private static let closeHue = 30.0
+    /// A grey, which `tone` keeps grey: charcoal on the page, a grey mark.
+    static let charcoal: UInt32 = 0x808080
 
     /// The team's color, or for a black or grey one (Gustavus, St. Olaf) its logo's first real color; nil
     /// when none is known.
     static func vivid(_ team: Game.Team) -> UInt32? {
-        ([team.rgb].compactMap { $0 } + team.colors).first { rgb in
-            let (_, lightness, saturation) = hls(rgb)
-            return saturation > 0.15 && (0.08...0.92).contains(lightness)
-        }
+        palette(team).first { isVivid($0) }
+    }
+
+    /// The team's color, then the colors read from its logo.
+    private static func palette(_ team: Game.Team) -> [UInt32] {
+        [team.rgb].compactMap { $0 } + team.colors
+    }
+
+    /// Colorful enough to tell a team by: not a grey, a black or a white.
+    private static func isVivid(_ rgb: UInt32) -> Bool {
+        let (_, lightness, saturation) = hls(rgb)
+        return saturation > 0.15 && (0.08...0.92).contains(lightness)
+    }
+
+    /// Two colors whose hues sit within `closeHue` degrees, around the wheel.
+    private static func close(_ a: UInt32, _ b: UInt32) -> Bool {
+        let gap = abs(hls(a).0 - hls(b).0) * 360
+        return min(gap, 360 - gap) < closeHue
     }
 
     /// The color at that lightness, its hue kept, its saturation held between the floor and the cap (a
@@ -309,8 +343,8 @@ private struct FieldBar: View {
                     ForEach(1..<10) { ten in
                         Color.white.opacity(0.16).frame(width: 1).offset(x: x(ten * 10))
                     }
-                    GameMatchup.mark(game.teams[0]).frame(width: Self.endZone)
-                    GameMatchup.mark(game.teams[1]).frame(width: Self.endZone).offset(x: proxy.size.width - Self.endZone)
+                    GameMatchup.mark(game, 0).frame(width: Self.endZone)
+                    GameMatchup.mark(game, 1).frame(width: Self.endZone).offset(x: proxy.size.width - Self.endZone)
                     if let first = drive.firstDown {
                         Hue.brandDisc.frame(width: 2).offset(x: x(first) - 1)
                     }
@@ -407,7 +441,7 @@ private struct SetChips: View {
                     .transition(.asymmetric(insertion: .opacity, removal: .opacity.animation(.easeOut(duration: Metric.labelOut))))
             } else if let ahead, game.teams.indices.contains(ahead) {
                 Capsule()
-                    .fill(GameMatchup.mark(game.teams[ahead]))
+                    .fill(GameMatchup.mark(game, ahead))
                     .frame(width: Metric.bar.width, height: Metric.bar.height)
                     .padding(.bottom, Metric.bottom)
                     .transition(.opacity)
@@ -917,7 +951,7 @@ struct GameScoring: View {
         .overlay(alignment: side == 1 ? .trailing : .leading) {
             if game.teams.indices.contains(side) {
                 Capsule()
-                    .fill(GameMatchup.mark(game.teams[side]))
+                    .fill(GameMatchup.mark(game, side))
                     .frame(width: Self.bar)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 8)
