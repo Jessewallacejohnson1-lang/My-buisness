@@ -67,8 +67,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(fish.event.title, "Fish fry")
         XCTAssertNil(fish.event.sourceURL)
         let found = try CommunityAPI.townFeedRows(from: Data(json.replacingOccurrences(
-            of: #""kind":"event","source_url":null"#,
-            with: #""kind":"event","source_url":"https://www.milkandhoneyciders.com/events""#).utf8))
+            of: #""source_url":null,"going":false"#,
+            with: #""source_url":"https://www.milkandhoneyciders.com/events","going":false"#).utf8))
         XCTAssertEqual(TownFeed.card(found[0]).sourceURL?.absoluteString,
                        "https://www.milkandhoneyciders.com/events", "the Event page's link rides the card")
         XCTAssertEqual(flight.place, "The Wandering Cow")

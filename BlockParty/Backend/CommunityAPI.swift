@@ -59,7 +59,6 @@ extension UpcomingEvent: Decodable {
         init(from decoder: Decoder) { value = try? UpcomingEvent(from: decoder) }
     }
 
-
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
