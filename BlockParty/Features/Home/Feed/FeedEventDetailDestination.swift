@@ -546,7 +546,7 @@ struct FeedEventDetailDestination: View {
     /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
     /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
-        RSVPArea(item: current, words: words, size: .page, yellow: game != nil, tint: game.flatMap(GameMatchup.attend)) {
+        RSVPArea(item: current, words: words, size: .page, yellow: game != nil, tint: game.flatMap { GameMatchup.attend($0) }) {
             ShareCenter.shared.present(.event(item))
         }
             .padding(.leading, Metric.barWordsInset)
