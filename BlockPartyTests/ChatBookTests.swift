@@ -212,6 +212,57 @@ final class ChatBookTests: XCTestCase {
         let thread = ChatThread(api: api, me: "me", chat: "c1")
         await thread.send("hi")
         XCTAssertEqual(thread.lastRefusal, "You've sent a lot of new messages today. Try again tomorrow.")
+        XCTAssertEqual(thread.messages[0].state, .refused, "no retry: it would only be refused again")
+    }
+
+    func testALongMessageIsCutToWhatTheDatabaseTakes() async throws {
+        server.answers["rpc/send_chat_message"] = sent()
+        let thread = ChatThread(api: api, me: "me", chat: "c1")
+        await thread.send(String(repeating: "x", count: ChatThread.longest + 5))
+        XCTAssertEqual((try args()["p_body"] as? String)?.count, ChatThread.longest)
+    }
+
+    func testAcceptShowsAtOnceAndAFailureTakesItBack() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(chatJSON(id: "r", request: true))]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        let chat = try XCTUnwrap(book.chats?.first)
+        server.answers["rpc/accept_chat"] = .init(status: 500, body: "{}")
+        do {
+            try await book.accept(chat)
+            XCTFail("it failed")
+        } catch {}
+        XCTAssertEqual(book.requests.map(\.id), ["r"], "back in Requests")
+        server.answers["rpc/accept_chat"] = .init(body: "null")
+        server.answers["rpc/get_chats"] = .init(body: "[\(chatJSON(id: "r"))]")
+        try await book.accept(chat)
+        XCTAssertEqual(book.messages.map(\.id), ["r"])
+    }
+
+    private func eventMessage(cancelled: Bool, day: String = "2030-01-01") -> String {
+        """
+        [{"id":"1","client_id":"E","sender_id":"sam","kind":"event","body":null,"photo_path":null,"photo_w":null,"photo_h":null,
+          "card":{"id":"e","title":"Bingo","event_date":"\(day)","start_time":"7 PM","created_at":"2026-11-01T00:00:00+00:00",
+                  "going_count":0,"going":false,"cancelled":\(cancelled),"all_day":false},
+          "created_at":"2026-11-03T18:00:00+00:00"}]
+        """
+    }
+
+    func testAnEventSentToYouCanBeAnsweredUntilItsOff() async throws {
+        server.answers["rpc/get_chat_messages"] = .init(body: eventMessage(cancelled: false))
+        var thread = ChatThread(api: api, me: "me", chat: "c1")
+        await thread.read()
+        XCTAssertEqual(thread.answerable?.id, "e")
+
+        server.answers["rpc/get_chat_messages"] = .init(body: eventMessage(cancelled: true))
+        thread = ChatThread(api: api, me: "me", chat: "c1")
+        await thread.read()
+        XCTAssertNil(thread.answerable, "called off: nothing to say I'm in to")
+
+        server.answers["rpc/get_chat_messages"] = .init(body: eventMessage(cancelled: false, day: "2020-01-01"))
+        thread = ChatThread(api: api, me: "me", chat: "c1")
+        await thread.read()
+        XCTAssertNil(thread.answerable, "over")
     }
 
     func testReadingDecodesEachKindAndMarksRead() async throws {

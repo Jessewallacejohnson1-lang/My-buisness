@@ -32,7 +32,8 @@ struct ChatPage: View {
     @State private var pick: PhotosPickerItem?
     @State private var reporting: ChatMessage?
     @State private var reported = false
-    @State private var askingBlock = false
+    /// Who Block is asking about: the friend, or someone in a group from a long press.
+    @State private var blocking: Neighbor?
     @State private var askingLeave = false
     @State private var problem: String?
     @FocusState private var typing: Bool
@@ -62,16 +63,19 @@ struct ChatPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            // A chat with this person that's already there, from their Profile or a search.
-            if chats.chats == nil { await chats.refresh() }
-            let known = chat ?? person.flatMap { chats.chat(with: $0) }
-            let me = (try? chats.api.db.userID) ?? ""
-            let new = ChatThread(api: chats.api, me: me, chat: known?.id ?? groupID, to: person?.id, book: chats,
-                                 actions: actions)
-            thread = new
-            chats.open = new
-            new.startTyping()
-            await new.read()
+            // Coming back from an Event or a Profile keeps what's here, what failed to send included.
+            if thread == nil {
+                // A chat with this person that's already there, from their Profile or a search.
+                if chats.chats == nil { await chats.refresh() }
+                let known = chat ?? person.flatMap { chats.chat(with: $0) }
+                let me = (try? chats.api.db.userID) ?? ""
+                thread = ChatThread(api: chats.api, me: me, chat: known?.id ?? groupID, to: person?.id, book: chats,
+                                    actions: actions)
+            }
+            guard let thread else { return }
+            chats.open = thread
+            thread.startTyping()
+            await thread.read()
         }
         .onDisappear {
             thread?.stopTyping()
@@ -92,15 +96,17 @@ struct ChatPage: View {
             Button("Cancel", role: .cancel) { reporting = nil }
         }
         .alert("Thanks for telling us", isPresented: $reported) {
-            if !isGroup, others.first != nil { Button("Block \(others[0].firstName)", role: .destructive) { block() } }
+            if !isGroup, let other = others.first {
+                Button("Block \(other.firstName)", role: .destructive) { book.act(.block, other) }
+            }
             Button("OK", role: .cancel) {}
         } message: {
             Text("We'll look at it. Nobody is told you reported it.")
         }
-        .alert("Block \(others.first?.firstName ?? "")?", isPresented: $askingBlock) {
-            Button("Block", role: .destructive) { block() }
+        .alert("Block \(blocking?.firstName ?? "")?", isPresented: blockAsked, presenting: blocking) { person in
+            Button("Block", role: .destructive) { book.act(.block, person) }
             Button("Cancel", role: .cancel) {}
-        } message: {
+        } message: { _ in
             Text("You won't see each other's messages or profiles. They won't be told.")
         }
         .alert("Leave this chat?", isPresented: $askingLeave) {
@@ -109,13 +115,17 @@ struct ChatPage: View {
         }
         .alert(problem ?? "", isPresented: problemShown) { Button("OK", role: .cancel) {} }
         // Blocked, by you or from the friend sheet: this chat is gone.
-        .onChange(of: others.first.map { book.relation($0) } == .blocked) { _, gone in
+        .onChange(of: !isGroup && others.first.map { book.relation($0) } == .blocked) { _, gone in
             if gone { dismiss() }
         }
     }
 
     private var reportAsked: Binding<Bool> {
         Binding { reporting != nil } set: { if !$0 { reporting = nil } }
+    }
+
+    private var blockAsked: Binding<Bool> {
+        Binding { blocking != nil } set: { if !$0 { blocking = nil } }
     }
 
     private var problemShown: Binding<Bool> {
@@ -127,7 +137,8 @@ struct ChatPage: View {
             bar(thread)
             ChatMessages(thread: thread, isGroup: isGroup, others: others, reduceMotion: reduceMotion,
                          answer: { answer($0, card: $1, thread) },
-                         report: { reporting = $0 })
+                         report: { reporting = $0 },
+                         block: { blocking = $0 })
                 .scrollDismissesKeyboard(.interactively)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { foot(thread) }
@@ -155,9 +166,9 @@ struct ChatPage: View {
                     Button(role: .destructive) { askingLeave = true } label: {
                         Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right")
                     }
-                } else if others.first != nil {
-                    Button(role: .destructive) { askingBlock = true } label: {
-                        Label("Block \(others[0].firstName)", systemImage: "hand.raised")
+                } else if let other = others.first {
+                    Button(role: .destructive) { blocking = other } label: {
+                        Label("Block \(other.firstName)", systemImage: "hand.raised")
                     }
                 }
             } label: {
@@ -212,7 +223,7 @@ struct ChatPage: View {
         if current?.request == true, let current {
             ChatRequestBar(chat: current, name: others.first?.firstName ?? "") { done in
                 if done { dismiss() }
-            } block: { askingBlock = true }
+            } block: { blocking = others.first }
         } else if current?.waiting == true {
             Text("Sent as a request. You can write more once \(others.first?.firstName ?? "they") accepts.")
                 .font(.sans(13))
@@ -295,8 +306,9 @@ struct ChatPage: View {
             .foregroundStyle(Hue.surface)
             .frame(width: ChatMetric.composerButton, height: ChatMetric.composerButton)
             .background(Hue.ink, in: Circle())
-            .frame(height: ChatMetric.composerField)
-            .contentShape(Rectangle())
+            .frame(width: PageMetric.tapMin, height: ChatMetric.composerField)
+            // Apple's 44 reaches a little past the field's height.
+            .contentShape(Rectangle().inset(by: (ChatMetric.composerField - PageMetric.tapMin) / 2))
     }
 
     // MARK: Actions
@@ -341,11 +353,6 @@ struct ChatPage: View {
                 problem = "Check your connection and try again."
             }
         }
-    }
-
-    private func block() {
-        guard let other = others.first else { return }
-        book.act(.block, other)
     }
 
     private func leave() {
@@ -393,6 +400,7 @@ private struct ChatMessages: View {
     let reduceMotion: Bool
     let answer: (String, FeedCardItem) -> Void
     let report: (ChatMessage) -> Void
+    let block: (Neighbor) -> Void
 
     private var names: [String: Neighbor] {
         Dictionary(others.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
@@ -436,8 +444,8 @@ private struct ChatMessages: View {
                         let lastOfRun = next?.senderID != message.senderID
                             || (next.map { ChatWords.needsStamp($0, after: message) } ?? true)
                         ChatBubble(message: message, thread: thread, sender: names[message.senderID],
-                                   showsName: isGroup && firstOfRun, showsFace: lastOfRun, reduceMotion: reduceMotion,
-                                   report: report)
+                                   showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
+                                   reduceMotion: reduceMotion, report: report, block: block)
                             .padding(.top, firstOfRun && !stamped ? ChatMetric.groupGap : stamped ? 0 : ChatMetric.runGap)
                             .id(message.id)
                             .transition(reduceMotion ? .opacity : .asymmetric(
@@ -486,8 +494,10 @@ private struct ChatBubble: View {
     let sender: Neighbor?
     let showsName: Bool
     let showsFace: Bool
+    let isGroup: Bool
     let reduceMotion: Bool
     let report: (ChatMessage) -> Void
+    let block: (Neighbor) -> Void
 
     private var mine: Bool { thread.isMine(message) }
 
@@ -503,20 +513,33 @@ private struct ChatBubble: View {
                 if mine { Spacer(minLength: 0) }
                 if !mine {
                     Group {
-                        if showsFace {
-                            Avatar(avatarUrl: sender?.avatarUrl, size: ChatMetric.theirFace)
+                        if showsFace, let sender {
+                            // Their Profile, where Block and everything else about them lives.
+                            NavigationLink(value: sender) {
+                                Avatar(avatarUrl: sender.avatarUrl, size: ChatMetric.theirFace)
+                                    .frame(width: ChatMetric.theirFace, height: ChatMetric.theirFace)
+                                    .contentShape(Circle().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
+                            }
+                            .buttonStyle(SquishStyle())
+                            .accessibilityLabel("\(sender.displayName)'s profile")
+                        } else if showsFace {
+                            Avatar(avatarUrl: nil, size: ChatMetric.theirFace)
                         } else {
                             Color.clear.frame(width: ChatMetric.theirFace, height: 1)
                         }
                     }
-                    .accessibilityHidden(true)
                 }
                 body(for: message.content)
                     .opacity(message.state == .sending ? 0.6 : 1)
                     .contextMenu { menu }
                 if !mine { Spacer(minLength: 0) }
             }
-            if message.state == .failed {
+            if message.state == .refused {
+                Text("Not sent.")
+                    .font(.sans(12))
+                    .foregroundStyle(Hue.canceled)
+                    .turnBackShake(failures: thread.failures, shakes: !reduceMotion)
+            } else if message.state == .failed {
                 Button { Task { await thread.retry(message) } } label: {
                     Label("Not sent. Tap to try again.", systemImage: "exclamationmark.circle")
                         .font(.sans(12))
@@ -537,6 +560,11 @@ private struct ChatBubble: View {
         }
         if !mine, message.serverID != nil {
             Button(role: .destructive) { report(message) } label: { Label("Report", systemImage: "flag") }
+        }
+        if !mine, isGroup, let sender {
+            Button(role: .destructive) { block(sender) } label: {
+                Label("Block \(sender.firstName)", systemImage: "hand.raised")
+            }
         }
     }
 
@@ -561,6 +589,8 @@ private struct ChatBubble: View {
         case .event(let card):
             if let card {
                 ChatEventCard(card: card)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("\(spokenSender) sent an Event, \(ChatWords.ago(message.at))")
             } else {
                 Text("This Event is no longer available.")
                     .font(.sans(14))
@@ -580,6 +610,7 @@ private struct ChatPhoto: View {
     let width: Int
     let height: Int
     @State private var open = false
+    @Namespace private var zoom
 
     private var size: CGSize {
         let aspect = CGFloat(max(height, 1)) / CGFloat(max(width, 1))
@@ -591,8 +622,11 @@ private struct ChatPhoto: View {
         Button { open = true } label: { picture.frame(width: size.width, height: size.height).clipped() }
             .buttonStyle(SquishStyle())
             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .matchedTransitionSource(id: "photo", in: zoom)
+            // Apple's zoom: it grows from the bubble, and a drag down takes it back there.
             .fullScreenCover(isPresented: $open) {
                 ChatPhotoView(image: image, link: link, aspect: size.height / size.width)
+                    .navigationTransition(.zoom(sourceID: "photo", in: zoom))
             }
     }
 
@@ -607,7 +641,7 @@ private struct ChatPhoto: View {
     }
 }
 
-/// A chat's photo, whole, on black, with Apple's two-finger zoom through a scroll view's `magnification`.
+/// A chat's photo, whole, on black. Two fingers zoom it, and it settles back on letting go, as Instagram's.
 private struct ChatPhotoView: View {
     let image: UIImage?
     let link: URL?

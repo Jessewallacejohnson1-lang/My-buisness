@@ -101,7 +101,7 @@ struct ChatPicker: View {
             let on = picked.contains(person)
             Button { toggle(person) } label: {
                 HStack(spacing: ChatMetric.rowGap) {
-                    PersonFace(person: person)
+                    Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.face)
                     Text(person.displayName)
                         .font(.sansSemibold(15))
                         .foregroundStyle(Hue.ink)
@@ -179,7 +179,7 @@ struct ChatPicker: View {
                 if let chat = target.chat {
                     ChatFace(chat: chat)
                 } else if let person = target.person {
-                    PersonFace(person: person)
+                    Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.face)
                 }
             } send: {
                 await deliver(key: target.id, chat: target.chat?.id, to: target.person?.id)
@@ -228,13 +228,5 @@ struct ChatPicker: View {
             withAnimation(Motion.snappy) { _ = sent.remove(key) }
             Haptics.error()
         }
-    }
-}
-
-private struct PersonFace: View {
-    let person: Neighbor
-
-    var body: some View {
-        Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.face)
     }
 }

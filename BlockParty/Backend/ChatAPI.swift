@@ -50,7 +50,8 @@ struct ChatMessage: Identifiable, Hashable {
         case event(FeedCardItem?)
     }
 
-    enum State: Hashable { case sent, sending, failed }
+    /// `refused`: the server said no for a reason a retry can't change, so it offers none.
+    enum State: Hashable { case sent, sending, failed, refused }
 
     /// The phone's id for it, the same before and after the server has it, so its bubble never jumps.
     let id: String
@@ -185,9 +186,10 @@ struct ChatAPI {
         return path
     }
 
-    /// Links to read those photos for a day; a path you can't see has none.
+    /// Links to read those photos for an hour, so a Block or a Hide reaches them soon; a path you can't
+    /// see has none.
     func signedLinks(_ paths: [String]) async throws -> [String: URL] {
-        try await db.signedLinks(bucket: "chat-photos", paths: paths, expires: 24 * 3600)
+        try await db.signedLinks(bucket: "chat-photos", paths: paths, expires: 3600)
     }
 
     // MARK: The admin's review queue

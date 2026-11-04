@@ -639,7 +639,7 @@ struct NeighborPage: View {
                                                             reduceMotion: reduceMotion) { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
-                    if book.relation(neighbor) != .blocked {
+                    if book.relation(neighbor) != .blocked, !book.isAnonymous() {
                         FeedEventDetailDestination.circleButton(
                             glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
                             label: "Message \(neighbor.firstName)", reduceMotion: reduceMotion

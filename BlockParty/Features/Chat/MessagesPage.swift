@@ -153,20 +153,18 @@ struct MessagesPage: View {
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
             Spacer()
-            if !requests.isEmpty {
-                NavigationLink(value: ChatRoute.requests) {
-                    Text("Requests (\(requests.count))")
-                        .font(.sans(15))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .frame(minHeight: PageMetric.tapMin)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(DimStyle())
+            // Always there, as the mock's; the count is how you know, since a request lights no dot.
+            NavigationLink(value: ChatRoute.requests) {
+                Text(requests.isEmpty ? "Requests" : "Requests (\(requests.count))")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(minHeight: PageMetric.tapMin)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(DimStyle())
         }
         .padding(.horizontal, ChatMetric.side)
         .padding(.top, ChatMetric.sectionTop)
-        .padding(.bottom, requests.isEmpty ? ChatMetric.sectionBottom : 0)
         if chats.chats == nil {
             if chats.failed {
                 ChatFailedLine { await chats.refresh() }
@@ -175,6 +173,12 @@ struct MessagesPage: View {
             }
         } else if mine.isEmpty {
             // Nothing yet: your friends to start with, never an empty box.
+            if book.loaded, book.friends.isEmpty {
+                Text("Add a friend to start a chat.")
+                    .font(.sans(14))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
+            }
             ForEach(book.friends) { person in
                 NavigationLink(value: ChatRoute.person(person)) { FriendToChatRow(person: person) }
                     .buttonStyle(RowPressStyle())

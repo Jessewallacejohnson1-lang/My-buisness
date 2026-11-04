@@ -27,6 +27,11 @@ final class ChatBook {
     /// The chat on screen, which hears what the socket hears.
     @ObservationIgnored weak var open: ChatThread?
     @ObservationIgnored private var latestRead = 0
+    /// The read that's waiting for what the socket heard to settle.
+    @ObservationIgnored private var hearing: Task<Void, Never>?
+
+    /// A burst the socket hears becomes one read, this long after its first.
+    static let hearingSettles: Duration = .milliseconds(500)
 
     init(supabase: Supabase, live: Bool = LaunchFlags.backend == .live, sockets: Bool = false) {
         api = ChatAPI(supabase)
@@ -82,14 +87,21 @@ final class ChatBook {
     func stop() { socket?.stop() }
 
     private func heard() {
-        Task { await refresh() }
-        Task { await open?.read() }
+        guard hearing == nil else { return }
+        hearing = Task { [weak self] in
+            try? await Task.sleep(for: Self.hearingSettles)
+            self?.hearing = nil
+            await self?.refresh()
+            await self?.open?.read()
+        }
     }
 
     /// Another account: nothing of the last one's stays.
     func accountChanged() {
         stop()
         socket = nil
+        hearing?.cancel()
+        hearing = nil
         latestRead &+= 1
         chats = live ? nil : []
         failed = false
@@ -102,9 +114,19 @@ final class ChatBook {
         chats?[i].unread = false
     }
 
-    /// Accepted, deleted or left: the list says so at once, and the read behind it agrees.
+    /// Accepted, deleted or left: the list says so at once, and the read behind it agrees. An Accept that
+    /// fails puts the request back.
     func accept(_ chat: Chat) async throws {
-        try await api.accept(chat.id)
+        let i = chats?.firstIndex { $0.id == chat.id }
+        if let i { withAnimation(Motion.smooth) { chats?[i].request = false } }
+        do {
+            try await api.accept(chat.id)
+        } catch {
+            if let now = chats?.firstIndex(where: { $0.id == chat.id }) {
+                withAnimation(Motion.smooth) { chats?[now].request = true }
+            }
+            throw error
+        }
         await refresh()
     }
 
@@ -154,6 +176,7 @@ final class ChatThread {
     @ObservationIgnored private var latestRead = 0
 
     static let page = 40
+    static let longest = 2000
     /// A "typing" goes out at most this often, and shows this long after the last one heard.
     static let typingEvery: TimeInterval = 2
     static let typingShows: Duration = .seconds(4)
@@ -243,7 +266,8 @@ final class ChatThread {
     // MARK: Sending
 
     func send(_ words: String) async {
-        let words = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The database's own limit, kept here so a long message isn't refused whole.
+        let words = String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ChatThread.longest))
         guard !words.isEmpty else { return }
         lastRefusal = nil
         await deliver(ChatMessage(id: UUID().uuidString.lowercased(), senderID: me, content: .text(words), at: .now,
@@ -294,9 +318,14 @@ final class ChatThread {
         } catch {
             Log.network("ChatThread send: \(error)")
             lastRefusal = ChatWords.refused(error)
-            if let i = messages.firstIndex(where: { $0.id == message.id }) { messages[i].state = .failed }
+            let refused = lastRefusal != nil
+            if let i = messages.firstIndex(where: { $0.id == message.id }) {
+                messages[i].state = refused ? .refused : .failed
+            }
             failures += 1
             Haptics.error()
+            // Refused: where the chat stands has changed, and its foot should say so.
+            if refused { await book?.refresh() }
         }
     }
 
@@ -372,7 +401,8 @@ final class ChatThread {
 
     /// The Event a reply can answer: the last message, from someone else (the mock's I'm in, Maybe, Can't).
     var answerable: FeedCardItem? {
-        guard let last = messages.last, last.senderID != me, case .event(let card?) = last.content else { return nil }
+        guard let last = messages.last, last.senderID != me, case .event(let card?) = last.content,
+              !card.cancelled, (card.when?.end ?? .distantFuture) > .now else { return nil }
         return card
     }
 
@@ -434,7 +464,10 @@ enum ChatWords {
         guard let message = (error as? SupabaseError)?.message else { return nil }
         switch message {
         case "chat_limit": return "You've sent a lot of new messages today. Try again tomorrow."
-        case "chat_not_available": return "This person can't get messages right now."
+        case "chat_not_available", "chat_not_member": return "This person can't get messages right now."
+        case "chat_waiting": return "You can write more once they accept."
+        case "chat_text_only": return "You can send photos and Events once they accept."
+        case "chat_event_gone": return "That Event is no longer available."
         default: return nil
         }
     }
