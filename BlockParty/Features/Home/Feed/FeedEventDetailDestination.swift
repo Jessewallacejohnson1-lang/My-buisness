@@ -872,6 +872,7 @@ private struct GoingChatBirthday: View {
         .onChange(of: date) { turned = true }
         .presentationDetents([.height(Self.height)])
         .presentationDragIndicator(.visible)
+        .presentationBackground(Hue.surface)
     }
 
     private func save() {
