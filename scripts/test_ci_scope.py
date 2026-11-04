@@ -16,6 +16,10 @@ class RuleTests(unittest.TestCase):
     def test_docs_only_skips(self):
         self.assertFalse(ci_scope.needs_tests(["docs/plans/x.md", "MEMORY.md", "supabase/migrations/1.sql",
                                                "sources/st-joseph-mn.md", ".claude/hooks/a.sh"]))
+        self.assertFalse(ci_scope.needs_tests(["BlockPartyUITests/FLAKY.md"]))  # only ci_wait.sh reads it
+
+    def test_a_ui_test_beside_the_flaky_list_runs(self):
+        self.assertTrue(ci_scope.needs_tests(["BlockPartyUITests/FLAKY.md", "BlockPartyUITests/ATests.swift"]))
 
     def test_the_docs_file_a_test_reads_runs(self):
         self.assertTrue(ci_scope.needs_tests(["docs/plans/x.md", "docs/debug-flags.md"]))
