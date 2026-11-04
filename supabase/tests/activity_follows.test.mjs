@@ -29,7 +29,7 @@ const id = async (team, name) =>
   (await db.query(`select id from public.team_activities where team_id = $1 and name = $2`, [team, name])).rows[0].id;
 const as = async (who, sql, args = []) => {
   await db.exec(`set role authenticated; select set_config('request.jwt.claims', '${JSON.stringify({ sub: who })}', false)`);
-  try { return (await db.query(sql, args)).rows; } finally { await db.exec('reset role'); }
+  try { return (await db.query(sql, args)).rows; } finally { await db.exec('reset role; reset request.jwt.claims'); }
 };
 
 test("an activity of a local school can be followed; anything else can't", async () => {
