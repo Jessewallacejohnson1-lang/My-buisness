@@ -159,6 +159,24 @@ struct Supabase {
         return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/\(bucket)/\(path)")
     }
 
+    /// Links that read files in a private bucket for `expires` seconds, by path: the bucket's read rule
+    /// decides, and a path it refuses has none.
+    func signedLinks(bucket: String, paths: [String], expires: Int) async throws -> [String: URL] {
+        guard !paths.isEmpty else { return [:] }
+        struct Row: Decodable {
+            let path: String?
+            let signedUrl: String?
+        }
+        var request = URLRequest(url: SupabaseConfig.storageURL.appendingPathComponent("object/sign/\(bucket)"))
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["expiresIn": expires, "paths": paths])
+        let rows: [Row] = try Self.decode(await perform(request, type: "application/json"))
+        return Dictionary(rows.compactMap { row in
+            guard let path = row.path, let link = row.signedUrl else { return nil }
+            return URL(string: SupabaseConfig.storageURL.absoluteString + link).map { (path, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
     /// Takes the file at `path` out of a Storage bucket, as supabase-js's `remove` does (a DELETE with
     /// no body is refused with a JSON content type). A refusal or no answer throws.
     func removeFile(bucket: String, path: String) async throws {

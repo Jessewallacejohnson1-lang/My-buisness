@@ -27,6 +27,8 @@ final class AppSession {
     /// Friend requests, friends and the dot on the Friends tab, so a row and a person's page
     /// agree (BP app docs/plans/friends, ticket 03).
     let friendsBook: FriendsBook
+    /// Your chats, the unread dot and their live updates (BP app five-tabs 05).
+    let chats: ChatBook
     /// The You tab's three weeks of Going, kept like the Town feed's.
     let you: YouModel
     /// Profile's Saved list (you-tab 04), kept the same way.
@@ -49,10 +51,11 @@ final class AppSession {
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
          notices: Notices, profile: ProfileModel, hello: HelloInbox,
-         saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil) {
+         saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil, chats: ChatBook? = nil) {
         self.actions = actions
         self.townFeed = townFeed
         self.liveGames = liveGames ?? LiveGames(listen: { _ in })
+        self.chats = chats ?? ChatBook(supabase: supabase)
         self.searchModel = searchModel
         self.friendsBook = friendsBook
         self.you = you
@@ -83,7 +86,7 @@ final class AppSession {
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
                   profile: profile,
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
-                  supabase: supabase, liveGames: live)
+                  supabase: supabase, liveGames: live, chats: ChatBook(supabase: supabase, sockets: true))
     }
 
     /// The account changed (`AuthStore.accountKey`): another one, none, or the same one logged in
@@ -124,6 +127,10 @@ final class AppSession {
         // Friends are a real account's, so the same one logging in for real starts them over too.
         friendsBook.reset()
         reads.append(Task { await friendsBook.refreshDot() })
+        // So are chats: nothing of the last account's stays, and this one's go live.
+        chats.accountChanged()
+        chats.start()
+        reads.append(Task { await chats.refresh() })
         return Task { for read in reads { await read.value } }
     }
 
@@ -133,6 +140,8 @@ final class AppSession {
         recordOpen()
         Task { await friendsBook.refreshDot() }
         Task { await notices.refresh() }
+        chats.start()
+        Task { await chats.refresh() }
         // Back the next morning on Daily: today's picks, not yesterday's.
         if tab == .blockParty { Task { await eventOfTheDay.refresh() } }
         // Back the next day on Search: today's Events, not yesterday's (five-tabs 04).
@@ -142,6 +151,7 @@ final class AppSession {
     /// Off to the background: the Town feed's views and opens go up now.
     func wentAway() {
         liveGames.away(true)
+        chats.stop()
         Task { await townFeed.send(always: true) }
     }
 

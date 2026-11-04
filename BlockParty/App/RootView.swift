@@ -311,6 +311,7 @@ struct MainTabsView: View {
     private var townFeed: TownFeed { session.townFeed }
     private var actions: RealLifeActions { session.actions }
     private var friendsBook: FriendsBook { session.friendsBook }
+    private var chats: ChatBook { session.chats }
     private var you: YouModel { session.you }
     private var saves: YouModel { session.saves }
     private var eventOfTheDay: EventOfTheDay { session.eventOfTheDay }
@@ -322,6 +323,10 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
+    private var sendingBinding: Binding<FeedCardItem?> {
+        Binding { chats.sending } set: { chats.sending = $0 }
+    }
+
     /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
@@ -407,6 +412,17 @@ struct MainTabsView: View {
                 }
                 .navigationDestination(for: PostingItem.self) { posting in
                     DailyPostPage(posting: posting)
+                }
+                // Messages and a chat (five-tabs 05).
+                .navigationDestination(for: ChatRoute.self) { route in
+                    switch route {
+                    case .messages: MessagesPage()
+                    case .requests: RequestsPage()
+                    case .chat(let chat): ChatPage(chat: chat)
+                    case .person(let person): ChatPage(chat: nil, person: person)
+                    case .group(let id, let others, let name):
+                        ChatPage(chat: nil, groupID: id, groupOthers: others, groupName: name)
+                    }
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in
                     switch route {
@@ -499,6 +515,14 @@ struct MainTabsView: View {
         // The bell's dot and its page.
         .environment(notices)
         .environment(friendsBook)
+        .environment(chats)
+        // An Event's "Send in a chat" (`ShareCenter`).
+        .sheet(item: sendingBinding) { ChatPicker(card: $0) }
+        .onAppear {
+            ShareCenter.shared.sendInChat = { chats.sending = $0 }
+            // The pencil's sheet and a Profile open a chat on the shell's stack.
+            chats.push = { path.append($0) }
+        }
         // A neighbour's page lays their groups and your shared plans over the You tab's reads.
         .environment(you)
         // The friend sheet and its refusals (follows 05).
@@ -710,7 +734,10 @@ struct MainTabsView: View {
             .onPreferenceChange(TabBarCompactKey.self) { tabBarCompact = $0 }
 
             BlockPartyTabBar(selection: tab, onSelect: select,
-                             avatarURL: profile.avatarUrl, compact: tabBarCompact, friendsDot: friendsBook.dot)
+                             avatarURL: profile.avatarUrl, compact: tabBarCompact,
+                             friendsDot: friendsBook.dot || chats.unread,
+                             friendsLabel: friendsBook.dot ? "Friends, new friend request"
+                                 : chats.unread ? "Friends, unread message" : nil)
                 // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
                 // above the home-indicator safe area. The full-height frame is what
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
@@ -970,6 +997,8 @@ struct BlockPartyTabBar: View {
     /// A new friend request: the quiet yellow dot on the Friends tab (`FriendsBook.dot`), as
     /// it sat on the Town bar's friends mark until 2026-11-01.
     var friendsDot = false
+    /// What VoiceOver reads for Friends when the dot says something.
+    var friendsLabel: String? = nil
 
     /// The finger while it is down, capsule-local. `@GestureState` resets itself
     /// when the system cancels the touch, so the Lens can never stay stuck up.
@@ -1022,7 +1051,7 @@ struct BlockPartyTabBar: View {
                     .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
                       avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops,
-                      searchSwoops: searchSwoops, friendsDot: friendsDot)
+                      searchSwoops: searchSwoops, friendsDot: friendsDot, friendsLabel: friendsLabel)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -1171,6 +1200,7 @@ struct BlockPartyTabBar: View {
         var searchSwoops = 0
         /// A new friend request's dot on the Friends icon.
         var friendsDot = false
+        var friendsLabel: String? = nil
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
@@ -1265,7 +1295,7 @@ struct BlockPartyTabBar: View {
                 .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
                 .position(x: centreX(tab), y: TabBarMetric.height / 2)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(tab == .friends && friendsDot ? "Friends, new friend request" : tab.title)
+                .accessibilityLabel(tab == .friends ? friendsLabel ?? tab.title : tab.title)
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
                 .accessibilityAction { onSelect(tab) }
         }

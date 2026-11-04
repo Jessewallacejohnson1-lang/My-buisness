@@ -439,14 +439,18 @@ final class SearchModelTests: XCTestCase {
                     poi("stjoe-nologo", "No Logo", .food, "restaurant", entry: "nologo")],
                    photos: ["blend": [picture("blend")], "shop": [picture("shop"), picture("shop2")],
                             "nologo": [picture("nologo")]])
-        model.show(events: (0..<9).map { card("E\($0)", day: "2026-11-20") } + [card("No photo", day: "2026-11-20", photo: false)],
+        // Eight Events and two places: exactly two blocks, so no shuffle can cut the one looked for below.
+        model.show(events: (0..<8).map { card("E\($0)", day: "2026-11-20") } + [card("No photo", day: "2026-11-20", photo: false)],
                    now: at(3, 10))
         let grid = model.aroundTown(seed: 7)
-        XCTAssertEqual(grid.count, 10, "9 Events and 2 places with a page: two whole blocks")
+        XCTAssertEqual(grid.count, 10, "8 Events and 2 places with a page")
         XCTAssertFalse(grid.contains { $0.name == "No photo" || $0.name == "No Logo" }, "never a tile that does nothing")
         XCTAssertEqual(grid.first { $0.name == "Lee's Ace" }.map(\.photo) ?? nil, .saved(picture("shop")), "a business by its cover")
         XCTAssertEqual(model.aroundTown(seed: 7).map(\.id), grid.map(\.id))
         XCTAssertNotEqual(model.aroundTown(seed: 8).map(\.id), grid.map(\.id))
+        // One more leaves a block short: only whole blocks show.
+        model.show(events: (0..<9).map { card("E\($0)", day: "2026-11-20") }, now: at(3, 10))
+        XCTAssertEqual(model.aroundTown(seed: 7).count, 10, "11 to deal, two whole blocks")
     }
 
     /// Newest first, no repeats, eight at most, and kept between launches.

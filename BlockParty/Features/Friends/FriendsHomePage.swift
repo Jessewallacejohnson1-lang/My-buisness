@@ -79,6 +79,7 @@ struct FriendsHomePage: View {
     var cards: [FeedCardItem] = []
     @EnvironmentObject private var auth: AuthStore
     @Environment(FriendsBook.self) private var book
+    @Environment(ChatBook.self) private var chats
     /// The Town's groups, each saying whether you're in it (`get_groups`), read here and on You.
     @Environment(YouModel.self) private var you
     @Environment(RealLifeActions.self) private var actions
@@ -127,7 +128,11 @@ struct FriendsHomePage: View {
                 titleUnder = under
             }
             // Drawn last so it sits over the rows, read first so Back comes first.
-            FriendsTitleBar(title: "Friends", titleUnder: titleUnder, back: !tab).accessibilitySortPriority(1)
+            FriendsTitleBar(title: "Friends", titleUnder: titleUnder, back: !tab) {
+                // The way into Messages, once there's someone to write to or a chat (five-tabs 05).
+                if tab, !book.friends.isEmpty || !(chats.chats ?? []).isEmpty { MessagesPlane() }
+            }
+            .accessibilitySortPriority(1)
         }
         // Nobody found: Apple's empty page, in the middle of the screen.
         .overlay {
@@ -614,6 +619,7 @@ struct NeighborPage: View {
     let neighbor: Neighbor
     /// False while where you stand is still being read (a page opened from Following): the pill waits.
     var settled = true
+    @Environment(ChatBook.self) private var chats
     @Environment(FriendsBook.self) private var book
     @Environment(RealLifeActions.self) private var actions
     /// Your Going and the Town's groups, the You tab's (`RootView`).
@@ -632,6 +638,14 @@ struct NeighborPage: View {
                     FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
                                                             reduceMotion: reduceMotion) { dismiss() }
                     Spacer(minLength: 0)
+                    // Message: a friend's chat, or to anyone else a request (five-tabs 05).
+                    if book.relation(neighbor) != .blocked {
+                        FeedEventDetailDestination.circleButton(
+                            glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
+                            label: "Message \(neighbor.firstName)", reduceMotion: reduceMotion
+                        ) { chats.push?(.person(neighbor)) }
+                        .padding(.trailing, FriendsMetric.buttonGap)
+                    }
                     FeedEventDetailDestination.circleButton(glyph: Image(systemName: "ellipsis"),
                                                             label: "More options, \(neighbor.displayName)",
                                                             reduceMotion: reduceMotion) { book.menu = neighbor }
