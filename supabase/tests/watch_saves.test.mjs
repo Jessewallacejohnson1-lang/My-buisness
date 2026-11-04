@@ -23,7 +23,7 @@ const db = await PGlite.create();
 // storage (row security on, as live) and cron. No other role may use schema auth, as live.
 await db.exec(`
   create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
-  create schema extensions; create schema auth; create schema storage; create schema cron;
+  create schema extensions; create schema auth; create schema storage; create schema cron; create schema realtime;
   grant usage on schema public, extensions, auth, storage to anon, authenticated, service_role;
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
@@ -45,6 +45,10 @@ await db.exec(`
     $$ select string_to_array(name, '/') $$;
   create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
   create function cron.unschedule(name text) returns boolean language sql as $$ select true $$;
+  create table realtime.messages (id uuid primary key default gen_random_uuid(), extension text, topic text);
+  alter table realtime.messages enable row level security;
+  create function realtime.topic() returns text language sql stable as
+    $$ select current_setting('realtime.topic', true) $$;
   create publication supabase_realtime;
 `);
 // The live rows aren't here, so a migration's own rows that point at them (team_activities'
