@@ -536,9 +536,12 @@ struct TeamFinal: Decodable, Hashable {
 
 #if DEBUG
 extension TeamFinal {
-    /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round.
+    /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round; with `-town-shootout`, 1–1 and won
+    /// 5–4 on penalties (game-card 15).
     static func sample(won: Bool) -> TeamFinal {
-        let score = won ? "[33, 23]" : "[23, 33]"
+        let score = LaunchFlags.has(.townShootout)
+            ? #"[1, 1], "live": {"score": [1, 1], "period": "OT", "shootout": {"score": [5, 4], "who": "SJU"}}"#
+            : won ? "[33, 23]" : "[23, 33]"
         // Saint John's logo colours, as hex without the mark (colour literals stay in Hue).
         let red = "BC0E33", blue = "02A2E2"
         let json = """

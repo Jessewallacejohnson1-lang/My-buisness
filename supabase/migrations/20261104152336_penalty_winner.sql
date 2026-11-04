@@ -11,9 +11,9 @@
 -- them, with only the marked lines added.
 
 -- The kicks in a game's whole file, merged into live_score by the caller: {"shootout": {...}}, or {"shootout": null}
--- for a finished game with no kicks, a draw. Null when it can't say yet: another game's file, one still on, or level
--- counts, which a real shootout never ends on. A kick went in unless it was saved, missed or hit the post: every kick
--- says "onTarget", saved ones too, so the words after the shooter and the goalmouth decide, as they do for a shot.
+-- for a finished game with no kicks, a draw. Null when it can't say yet: another game's file, one still on, a file with
+-- no play list, or level counts, which a real shootout never ends on. A kick went in if it says "onTarget", as all 14
+-- real ones do, saved ones too, and wasn't saved, missed or off the post, by the words and goalmouth a shot uses.
 create or replace function private.sidearm_shootout(p_full jsonb, p_day date, p_host text)
 returns jsonb
 language sql
@@ -34,10 +34,11 @@ as $$
                        count(*) filter (where p->>'Team' = 'HomeTeam' and in_goal) as home,
                        count(*) filter (where p->>'Team' = 'VisitingTeam' and in_goal) as away
                 from jsonb_array_elements(case when jsonb_typeof(p_full->'Plays') = 'array' then p_full->'Plays' else '[]' end) as x(p),
-                     lateral (select coalesce(p->>'Narrative', '') !~ 'Shootout save by'
+                     lateral (select coalesce(p->>'Qualifiers', '') ~ '"onTarget"'
+                                     and coalesce(p->>'Narrative', '') !~ 'Shootout save by'
                                      and coalesce(p->>'Qualifiers', '') !~ '"(blocked|goalmouth:(out|woodwork)[a-z]*)"' as in_goal) i
                 where p->>'Type' = 'SHOOTOUTKICK') k
-  where g->>'IsComplete' = 'true' and h.ours <> h.theirs
+  where g->>'IsComplete' = 'true' and h.ours <> h.theirs and jsonb_typeof(p_full->'Plays') = 'array'
     and g->>'Date' ~ '^\d{1,2}/\d{1,2}/\d{4}$' and to_date(g->>'Date', 'MM/DD/YYYY') = p_day
 $$;
 revoke execute on function private.sidearm_shootout(jsonb, date, text) from public, anon, authenticated;
@@ -273,6 +274,10 @@ as $$
   where f.follower_id = auth.uid() and f.target_type = 'team'
     and e.status = 'approved' and e.final_score is not null and e.cancelled_at is null
     and e.final_checked_at > p_since
+    -- A tied final waits for word on its penalty kicks, so the pill never says tied about a game won on them: it stays
+    -- on the bell for days. Half an hour at most, and the app's read looks back an hour, so none is missed.
+    and (e.final_score[1] <> e.final_score[2] or coalesce(e.live_score, '{}') ? 'shootout'
+         or e.final_checked_at < now() - interval '30 minutes')
   order by e.final_checked_at desc
 $$;
 revoke execute on function public.my_team_finals(timestamptz) from public, anon;

@@ -34,6 +34,8 @@ struct GameMatchup: View {
         static let logo: CGFloat = 44
         static let nameGap: CGFloat = 10
         static let middle: CGFloat = 112
+        /// The line under Final, wider than the column: the room between the numbers on the smallest phone.
+        static let penalties: CGFloat = 190
         /// The chip and the clock line 4 pt into the number's line, 10 pt apart.
         static let middleTop: CGFloat = 4
         static let middleGap: CGFloat = 10
@@ -173,7 +175,8 @@ struct GameMatchup: View {
                         .font(.sans(13))
                         .foregroundStyle(.white.opacity(Scorers.words))
                         .lineLimit(1)
-                        .fixedSize()
+                        .minimumScaleFactor(0.8)
+                        .frame(width: Metric.penalties)
                         .transition(.opacity)
                 }
             } else if let live, game.isSoccer, let minute = live.minute(at: now) {
