@@ -134,10 +134,10 @@ enum FollowSuggestions {
     /// lead only for somebody who opened Schools on the step before (onboarding 28).
     static func ordered(_ all: [FollowSuggestion], picked: [String], schoolsFirst: Bool = false) -> [FollowSuggestion] {
         let picks = Set(picked)
-        let fits = { (s: FollowSuggestion) in (schoolsFirst && s.isSchool) || !s.interests.isDisjoint(with: picks) }
+        let rank = { (s: FollowSuggestion) in schoolsFirst && s.isSchool ? 0 : s.interests.isDisjoint(with: picks) ? 2 : 1 }
         return all.sorted { a, b in
-            let fa = fits(a), fb = fits(b)
-            if fa != fb { return fa }
+            let ra = rank(a), rb = rank(b)
+            if ra != rb { return ra < rb }
             if a.events != b.events { return a.events > b.events }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }

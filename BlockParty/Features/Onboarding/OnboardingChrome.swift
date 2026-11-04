@@ -221,7 +221,7 @@ struct OnboardingLink: View {
     }
 }
 
-/// The search box over Interests' chips and Follow 3's places: a 44 pt white box on a 1.5 pt
+/// The search box over Follow 3's places: a 44 pt white box on a 1.5 pt
 /// hairline, 24 pt under the question's line.
 struct OnboardingSearchField: View {
     let prompt: String

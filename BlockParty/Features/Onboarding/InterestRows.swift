@@ -38,8 +38,8 @@ struct InterestRows<Heading: View>: View {
     @State private var open: Set<String> = []
     /// The kind of school showing: one at a time, and another tap swaps it in place.
     @State private var openType: String?
-    /// The kinds opened so far: their crests load only once somebody asks for them.
-    @State private var mounted: Set<String> = []
+    /// Schools opened once: its crests load then, so a kind's are there when it opens.
+    @State private var schoolsMounted = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var opening: Animation {
@@ -95,7 +95,7 @@ struct InterestRows<Heading: View>: View {
                     .padding(.horizontal, gutter)
                     ForEach(types) { type in
                         InterestOpening(open: shown && openType == type.id, animation: opening) {
-                            if mounted.contains(type.id) {
+                            if schoolsMounted {
                                 tiles(type, shown: shown && openType == type.id)
                                     .padding(.top, 14)
                             }
@@ -128,7 +128,7 @@ struct InterestRows<Heading: View>: View {
 
     private func pickRow(_ row: InterestRow, _ pick: InterestPick) -> some View {
         let on = pick.isOn(in: picked)
-        return Button { toggle(pick) } label: {
+        return Button { Haptics.light(); toggle(pick) } label: {
             face(row) { InterestPickDisc(on: on, side: Metric.disc) }
         }
         .buttonStyle(.press(.row))
@@ -172,8 +172,8 @@ struct InterestRows<Heading: View>: View {
         let count = FollowSuggestions.tiles(type, in: schools ?? []).filter { isFollowing($0.target) }.count
         let full = count > 0 && !shown
         return Button {
-            Haptics.selection()
-            mounted.insert(type.id)
+            // Tries a failed read again, which the line under it says to.
+            schoolsOpened()
             withAnimation(opening) { openType = shown ? nil : type.id }
         } label: {
             HStack(spacing: 6) {
@@ -181,6 +181,8 @@ struct InterestRows<Heading: View>: View {
                     .font(.sansMedium(15))
                     .foregroundStyle(full ? Color.white : Hue.ink)
                     .lineLimit(1)
+                    // So its touch area reaches 44 pt, as an interest chip's does.
+                    .frame(minHeight: 21)
                 if full {
                     Text("\(count)")
                         .font(.sansBold(15))
@@ -193,6 +195,7 @@ struct InterestRows<Heading: View>: View {
             }
         }
         .buttonStyle(InterestChipStyle(on: full, opened: shown))
+        .accessibilityLabel(type.label)
         .accessibilityValue(shown ? "Open" : count > 0 ? "Closed, \(count) followed" : "Closed")
     }
 
@@ -241,7 +244,6 @@ struct InterestRows<Heading: View>: View {
     }
 
     private func toggle(_ pick: InterestPick) {
-        Haptics.light()
         picked = Interests.toggled(pick, in: picked)
     }
 
@@ -251,7 +253,10 @@ struct InterestRows<Heading: View>: View {
         withAnimation(opening) {
             if opens { open.insert(row.id) } else { open.remove(row.id) }
         }
-        if opens, case .schools = row.kind { schoolsOpened() }
+        if opens, case .schools = row.kind {
+            schoolsMounted = true
+            schoolsOpened()
+        }
     }
 }
 

@@ -298,6 +298,18 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertNotEqual(names(["coffee"]), names(["bars"]))
     }
 
+    func testSchoolsLeadFollowThreeOnlyForWhoOpenedSchools() {
+        let all = FollowSuggestions.build(
+            places: [poi("z", "Zed's", "bar", entry: "zed")],
+            schools: [LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", schoolName: nil, logoUrl: nil)],
+            pages: [],
+            events: [UpcomingTags(interests: [], place: "zed"), UpcomingTags(interests: [], place: "zed"),
+                     UpcomingTags(interests: [], teams: ["kennedy"])])
+        XCTAssertEqual(FollowSuggestions.ordered(all, picked: ["bars"]).map(\.name), ["Zed's", "Kennedy"])
+        XCTAssertEqual(FollowSuggestions.ordered(all, picked: ["bars"], schoolsFirst: true).map(\.name),
+                       ["Kennedy", "Zed's"], "ahead of what fits, though it's quieter")
+    }
+
     func testSchoolsShowEachKindInTheTownsOrderUnderItsShortNames() {
         let all = FollowSuggestions.build(
             places: [poi("p1", "Sartell Cafe", "cafe")],

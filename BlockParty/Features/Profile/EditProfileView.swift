@@ -37,6 +37,10 @@ struct EditProfileView: View {
     }
 
     private var interestLabels: [String] { Interests.names(interests) }
+    /// What the summary counts: what the sheet counts, schools followed included.
+    private var chosen: Int {
+        interestLabels.count + FollowSuggestions.schoolTargets(in: schools ?? []).filter { isFollowing($0) }.count
+    }
 
     private func isFollowing(_ target: FollowTarget) -> Bool {
         heldFollows[target] ?? actions.follow(target).isFollowing
@@ -97,18 +101,21 @@ struct EditProfileView: View {
         }
         .sheet(isPresented: $showInterests) {
             InterestsSheet(picked: $interests, schools: schools,
-                           isFollowing: { isFollowing($0) }, toggleFollow: { toggleFollow($0) }) {
-                readSchools()
-            }
+                           isFollowing: { isFollowing($0) }, toggleFollow: { toggleFollow($0) },
+                           schoolsOpened: { readSchools() })
+                .task { if schools == nil { await loadSchools() } }
         }
-        .task { await loadSchools() }
     }
 
-    /// Which schools you follow, then their tiles, so a tile never says Follow on one you do.
+    /// Which schools you follow, then their tiles, so a tile never says Follow on one you do. Read
+    /// when the sheet opens, not to change a name. Without the follows it's a failed read: nothing
+    /// could say which you follow.
     private func loadSchools() async {
-        if let follows = try? await CommunityAPI(auth: AuthStore.shared).myFollows() {
-            actions.read(following: follows.map(\.target))
+        guard let follows = try? await CommunityAPI(auth: AuthStore.shared).myFollows() else {
+            schools = []
+            return
         }
+        actions.read(following: follows.map(\.target))
         schools = (try? await FollowSuggestions.loadSchools()) ?? []
     }
 
@@ -294,7 +301,7 @@ struct EditProfileView: View {
             Button { Haptics.selection(); showInterests = true } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3").font(.sansSemibold(14))
-                    Text(interestLabels.isEmpty ? "Choose interests" : "Edit interests · \(interestLabels.count)")
+                    Text(chosen == 0 ? "Choose interests" : "Edit interests · \(chosen)")
                         .font(.displaySemi(15))
                 }
                 .foregroundStyle(Hue.ink)
@@ -332,11 +339,11 @@ private struct InterestsSheet: View {
                 EmptyView()
             }
         }
-        .onAppear {
-            // Watch sports and the rest no longer on the rows go when you come to change them, and an
-            // old Campus pick stays only with something under the college followed.
-            picked = Interests.onRows(picked)
-            let college = FollowSuggestions.collegeTargets(in: schools ?? [])
+        // Watch sports and the rest no longer on the rows go when you come to change them.
+        .onAppear { picked = Interests.onRows(picked) }
+        // An old Campus pick stays only with something under the college followed, once that's read.
+        .onChange(of: schools, initial: true) { _, new in
+            let college = FollowSuggestions.collegeTargets(in: new ?? [])
             if !college.isEmpty {
                 picked = Interests.withCollege(picked, following: college.contains(where: isFollowing))
             }

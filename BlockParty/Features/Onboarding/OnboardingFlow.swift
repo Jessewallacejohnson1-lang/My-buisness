@@ -297,7 +297,6 @@ struct OnboardingFlow: View {
     @State private var form = AccountForm()
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
-    /// "Popular in St. Joseph", read while the earlier steps are up.
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
     /// Contacts' check, held here so back to Find your friends and on again spends no second one of
