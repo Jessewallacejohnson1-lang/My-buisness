@@ -1,64 +1,17 @@
 // The cloud routines' saves, as the account they really run as: the Watch key's role, `watch` (BP app
 // loopholes 12). Its grants are only the scripts' own calls, so each save here runs as `watch` with
 // nothing but what Supabase and the migrations give it, and the break-ins it must never manage are
-// tried at the end. The other stories run as the database owner: on 2026-10-25 interests_21's
+// tried at the end. The other stories mostly write as the database owner: on 2026-10-25 interests_21's
 // trigger, in schema private, refused every save for a day while they passed (BP app smooth-mornings
-// 02). This one loads every migration, oldest first, so a grant, trigger or function the job can't
-// use fails the push and names itself.
+// 02). This one writes as the job does, so a grant, trigger or function the job can't use fails the
+// push and names itself.
 // Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-
-const db = await PGlite.create();
-// What a Supabase project has before any migration: the API roles (service_role skips row
-// security), their grants and the owner's default grants, and stand-ins for the platform's auth,
-// storage (row security on, as live) and cron. No other role may use schema auth, as live.
-await db.exec(`
-  create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
-  create schema extensions; create schema auth; create schema storage; create schema cron;
-  grant usage on schema public, extensions, auth, storage to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
-  alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
-  create table auth.users (id uuid primary key, email text, phone text, is_anonymous boolean not null default false,
-    raw_user_meta_data jsonb, created_at timestamptz default now());
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  -- As live, uid and role read the claims themselves: a body naming auth.jwt() needs schema auth.
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid $$;
-  create function auth.role() returns text language sql stable as
-    $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role' $$;
-  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint,
-    allowed_mime_types text[]);
-  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
-  alter table storage.objects enable row level security;
-  create function storage.foldername(name text) returns text[] language sql immutable as
-    $$ select string_to_array(name, '/') $$;
-  create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
-  create function cron.unschedule(name text) returns boolean language sql as $$ select true $$;
-  create publication supabase_realtime;
-`);
-// The live rows aren't here, so a migration's own rows that point at them (team_activities'
-// teams) skip their foreign keys while loading. Extensions are the platform's.
-await db.exec('set session_replication_role = replica');
-for (const f of readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()) {
-  try {
-    await db.exec(readFileSync(join(migrations, f), 'utf8').replace(/create extension[^;]*;/gi, ''));
-  } catch (e) {
-    throw new Error(`${f} didn't load: ${e.message}`);
-  }
-}
-await db.exec('reset session_replication_role');
-
+const db = await realDatabase();
 // One call as PostgREST makes it with the Watch key, on plans made fresh: a plan the owner made
 // keeps working for any role without its schema rights checked again. A refusal names the triggers
 // in its context on the table the statement writes, or else the function it stopped in.

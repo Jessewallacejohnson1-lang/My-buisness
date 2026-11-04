@@ -1,151 +1,18 @@
 // Fixed stories for the Town feed function (supabase/migrations/*_town_feed*.sql), run in
 // PGlite: Postgres compiled to WASM, so no Docker. Run: `npm install && npm test` in this
-// folder. The schema below is the subset of schema.sql the function reads.
+// folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase, migrations, people, adminClaims } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
 import { CARD_KEYS } from './event_card.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-// The function as first built, then each file that re-creates it: the recipe (ticket 18),
-// hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
-// counting helpers it reads.
-const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
-  'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
-  'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture',
-  'private.sidearm_live', 'public.record_live_score', 'private.sidearm_scoring', 'public.activity_has_event',
-  'public.meeting_board', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit', 'private.shows_poster', 'private.post_poster',
-  'public.get_town_more', 'private.event_cards']);
-// Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
-const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
-  .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
-  .match(/create or replace function private\.findable\(p_user uuid\)[\s\S]*?\$\$;/)[0];
-// (Views, ticket 20: the table, its summary and the clean-up load with town_feed_views; the
-// pg_cron jobs in feed_jobs don't, since PGlite has no pg_cron.)
-
-const db = await PGlite.create();
-await db.exec(`
-  set timezone = 'UTC';
-  create role anon; create role authenticated; create role service_role;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  -- The admin, for the score breakdown: on when a story sets test.admin.
-  create function public.is_admin() returns boolean language sql stable as
-    $$ select coalesce(current_setting('test.admin', true), '') = 'on' $$;
-  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null,
-    status text not null default 'approved', entry_id text, place_entry_id text,
-    created_at timestamptz not null default now());
-  create table public.club_members (id uuid primary key default gen_random_uuid(), club_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now(), unique (club_id, user_id));
-  -- The source registry's pages (watch-every-place 02): no read rule for neighbours, as live.
-  create table public.sources (id uuid primary key default gen_random_uuid(), entry_id text not null,
-    url text, name text);
-  create table public.club_events (
-    id uuid primary key default gen_random_uuid(), club_id uuid, submitted_by uuid,
-    status text not null default 'approved', title text not null, event_date date,
-    start_time text, created_at timestamptz not null default now(), location text,
-    image_url text, kind text not null default 'event', category text,
-    end_at timestamptz, all_day boolean not null default false,
-    source_name text, shows_from date, place_entry_id text, description text,
-    sport text, team_ids text[], occasion text, source_url text,
-    -- A post (town-feed 29): who may see it and who it's with.
-    friends_only boolean not null default false, tagged uuid[], image_aspect real);
-  -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
-  create table public.teams (id text primary key, name text not null, short_name text not null,
-    logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
-    local boolean not null default false, nickname text, school_name text);
-  -- The schools whose activities can be followed (school-activities 01 and 02), for the activities'
-  -- migration to name; the stories add the teams they need, as reset() empties the table.
-  insert into public.teams (id, name, short_name, local) values
-    ('apollo', 'Apollo', 'Apollo', true), ('tech', 'Tech', 'Tech', true), ('cathedral', 'Cathedral', 'Cathedral', true),
-    ('apollo-cathedral', 'Apollo-Cathedral', 'Apollo-Cathedral', true), ('rocori', 'ROCORI', 'ROCORI', true),
-    ('sartell', 'Sartell', 'Sartell', true), ('sauk-rapids-rice', 'Sauk Rapids-Rice', 'Sauk Rapids-Rice', true),
-    ('saint-benedict', 'Saint Benedict', 'Saint Benedict', true), ('saint-johns', 'Saint John''s', 'Saint John''s', true);
-  create table public.town_follows (id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, unique (follower_id, target_type, target_id));
-  -- The Town's pages (follows 04, 20261027143913_city_pages.sql), as live: Joetown and the City.
-  create table public.town_pages (id uuid primary key default gen_random_uuid(), town text not null,
-    slug text not null, name text not null, kind text not null, source_name text not null, picture text,
-    picture_kind text, unique (town, slug));
-  insert into public.town_pages (town, slug, name, kind, source_name, picture_kind) values
-    ('st-joseph-mn', 'town', 'Joetown', 'St. Joseph''s events', 'JoeTown', 'town'),
-    ('st-joseph-mn', 'city', 'City of St. Joseph', 'City government', 'City of St. Joseph', null);
-  -- Where events happen, with their pictures (place-photos): the app's places rows, then the
-  -- photos Block Party keeps (loaded from their migrations below).
-  create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
-    logo_url text, search_logo jsonb, primary_type text);
-  -- Town news (town-feed 35), as schema.sql makes it; the migration adds interests and its place.
-  create table public.board_items (id uuid primary key default gen_random_uuid(), title text not null,
-    blurb text, category text not null, source_name text not null, source_url text,
-    tier numeric not null default 1, status text not null default 'staging', starts_at timestamptz,
-    created_at timestamptz not null default now(), published_at timestamptz, image_url text,
-    fetched_at timestamptz);
-  create table public.event_rsvps (
-    id uuid primary key default gen_random_uuid(), event_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now());
-  create table public.event_saves (
-    event_id uuid not null, user_id uuid not null, created_at timestamptz not null default now(),
-    primary key (event_id, user_id));
-  create table public.event_likes (
-    id uuid primary key default gen_random_uuid(), event_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now(),
-    unique (event_id, user_id));
-  create table public.town_profiles (
-    user_id uuid primary key, interests text[] not null default '{}'::text[],
-    display_name text, avatar_url text);
-  -- The Friends builds' tables (friend_requests, unfriend_and_block), as they are live.
-  create schema if not exists private;
-  create table private.friendships (a uuid not null, b uuid not null, requested_by uuid not null,
-    created_at timestamptz not null default now(), primary key (a, b), check (a < b));
-  create table private.blocks (blocker_id uuid not null, blocked_id uuid not null,
-    created_at timestamptz not null default now(), primary key (blocker_id, blocked_id));
-  create index event_rsvps_event_idx on public.event_rsvps (event_id);
-  create index event_rsvps_user_id_idx on public.event_rsvps (user_id);
-  create index event_saves_user_id_idx on public.event_saves (user_id);
-  create index event_likes_event_idx on public.event_likes (event_id);
-  create index event_likes_user_id_idx on public.event_likes (user_id);
-
-  -- The live read rules (schema.sql), so a signed-out read is tested as it runs live.
-  alter table public.club_events enable row level security;
-  alter table public.event_rsvps enable row level security;
-  alter table public.clubs enable row level security;
-  alter table public.event_saves enable row level security;
-  alter table public.event_likes enable row level security;
-  alter table public.town_profiles enable row level security;
-  alter table public.club_members enable row level security;
-  alter table public.sources enable row level security;
-  alter table public.board_items enable row level security;
-  create policy "read published items" on public.board_items for select to public
-    using (status = 'published');
-  create policy "read memberships" on public.club_members for select to authenticated using (true);
-  create policy "read events" on public.club_events for select to public
-    using (status = 'approved' or submitted_by = auth.uid() or is_admin());
-  create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
-  create policy "read clubs" on public.clubs for select to public using (true);
-  create policy "event saves select" on public.event_saves for select to authenticated using (true);
-  create policy "own likes select" on public.event_likes for select to public
-    using (auth.uid() = user_id);
-  create policy "town_profiles_select_own" on public.town_profiles for select to public
-    using (auth.uid() = user_id);
-  grant select on all tables in schema public to anon, authenticated;
-  -- Supabase gives anon and authenticated every privilege on each new public table, so a
-  -- table that must not be read has to revoke it: copied here, so the revoke is tested.
-  alter default privileges in schema public grant all on tables to anon, authenticated;
-`);
-await db.exec(findable);
-for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
-  await db.exec(readFileSync(join(migrations, f), 'utf8'));
-for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
+const db = await realDatabase();
+const ADMIN = await adminClaims(db);
 // The two functions as they were before feed-load (20261102155729_feed_once_per_open.sql), kept under
 // other names so the stories can hold the new ones to them: the whole feed with its own body, and the
 // Event of the day that worked it all out.
@@ -193,14 +60,6 @@ await db.exec(`
     left join lateral jsonb_to_record(f.card) as c(${CARD_COLUMNS}) on true
     order by f.ordinality
   $$;`);
-// Posts (town-feed 29): a Friends-only post is kept by the read rule itself, as it is live.
-const postRules = readFileSync(join(migrations, readdirSync(migrations).find((f) => f.endsWith('_post_screen_posts.sql'))), 'utf8');
-await db.exec(postRules.match(/create or replace function private\.sees_post[\s\S]*?\$\$;/)[0]);
-await db.exec(postRules.match(/alter policy "read events"[\s\S]*?;/)[0]);
-// The stories empty teams between them; the activities stay, matched by their ids.
-await db.exec(`alter table public.team_activities drop constraint team_activities_team_id_fkey,
-                 drop constraint team_activities_fielded_by_fkey`);
-
 const CITY = 'City of St. Joseph';
 const ME = '00000000-0000-0000-0000-00000000000a';
 
@@ -211,9 +70,11 @@ async function reset() {
                  delete from public.event_saves; delete from public.event_likes;
                  delete from public.town_profiles; delete from private.friendships;
                  delete from private.blocks; delete from public.club_members;
-                 delete from public.clubs; delete from public.sources; delete from public.teams;
+                 delete from public.clubs; delete from public.sources;
                  delete from public.board_items; delete from public.feed_mutes; delete from public.town_follows;
-                 reset request.jwt.claim.sub; reset test.admin;`);
+                 -- The stories name their own teams; the activities stay, matched by their ids.
+                 set session_replication_role = replica; delete from public.teams; reset session_replication_role;
+                 reset request.jwt.claim.sub; reset request.jwt.claims;`);
 }
 
 // Created well before the stories' dates, so nothing is new unless a story says so.
@@ -221,6 +82,7 @@ async function add(title, date, more = {}) {
   const row = { source_name: CITY, start_time: null, end_at: null, all_day: false,
                 shows_from: null, status: 'approved', submitted_by: null, category: null,
                 created_at: '2026-09-01 12:00-05', ...more };
+  if (row.submitted_by) await people(db, row.submitted_by);
   const { rows } = await db.query(
     `insert into public.club_events (title, event_date, source_name, start_time, end_at,
        all_day, shows_from, status, submitted_by, category, created_at)
@@ -384,6 +246,7 @@ test("every account's hearts are counted, and yours says you hearted it", async 
   const fair = await add('Fall fair', '2026-10-09', { start_time: '11 AM' });
   const quiz = await add('Quiz night', '2026-10-09', { start_time: '7 PM' });
   const OTHER = '00000000-0000-0000-0000-0000000000c3';
+  await people(db, OTHER);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2), ($1, $3), ($4, $3)`,
                  [fair, ME, OTHER, quiz]);
   const hearts = async () => (await db.query(
@@ -418,6 +281,7 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   await signIn(ME, ['watch_sports']);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale']);
   await db.exec('reset role');
+  await people(db, '00000000-0000-0000-0000-0000000000c4');
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
                  [off, '00000000-0000-0000-0000-0000000000c4']);
   await signIn(ME, ['watch_sports']);
@@ -437,6 +301,7 @@ test("a Hearted called-off date never stands in for its series' next live one", 
   const off = await add('Trivia night', '2026-10-08', { start_time: '7 PM' });
   await add('Trivia night', '2026-10-15', { start_time: '7 PM' });
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [off]);
+  await people(db, '00000000-0000-0000-0000-0000000000c4');
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
                  [off, '00000000-0000-0000-0000-0000000000c4']);
   await signIn(ME);
@@ -469,7 +334,7 @@ test('points halve for every 7 days an event is away', async () => {
   await add('Today', '2026-10-08', { start_time: '12 PM' });
   await add('A week out', '2026-10-15', { start_time: '12 PM', source_name: 'A' });
   await add('Two weeks out', '2026-10-22', { start_time: '12 PM', source_name: 'B' });
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const soon = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r.score.soon]));
   assert.deepEqual(soon, { 'Today': 1, 'A week out': 0.5, 'Two weeks out': 0.25 });
 });
@@ -543,7 +408,7 @@ test("every interest the tagger gave an Event matches, two at most; an untagged 
   // The writer guessed dining; the tagger said nothing fits, and the tagger wins.
   await db.query(`update public.club_events set category = 'dining', interests_tagged_at = now() where id = $1`, [council]);
   await signIn(YOU, ['bars', 'dining', 'live_music']);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.interest]),
                    [['Trivia at the taproom', 'interest', 'bars', 6], ['Pancake breakfast', 'interest', 'dining', 3],
@@ -557,7 +422,7 @@ test("how much an Event draws the town out is everyone's starting point: 0, 1.5 
   await add('Book sale', '2026-10-09', { start_time: '11 AM', source_name: 'Library' });
   await db.query(`update public.club_events set draw = 3 where id = $1`, [fair]);
   await db.query(`update public.club_events set draw = 1 where id = $1`, [council]);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.score.draw]),
                    [['Art fair', 3], ['Book sale', 1.5], ['Council meeting', 0]]);
@@ -585,7 +450,7 @@ test("a host you've been into lifts its other Events and is named; routine busin
   await tap('event_likes', zoo, YOU, '2026-10-07 12:00');
   await tap('event_rsvps', zoo, YOU, '2026-10-07 12:00');
   await signIn(YOU);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
   // The craft fair you hearted lifts the Zoo day; the Zoo day's own taps don't count for it, and
   // being Going still lowers it as ever.
@@ -602,11 +467,12 @@ test('a host you\'ve been into counts once however much you tapped, 90 days back
   const parade = await add('Parade', '2026-08-01', { start_time: '11 AM' });
   const spring = await add('Spring fling', '2026-06-20', { start_time: '1 PM' });
   const OTHER = '00000000-0000-0000-0000-0000000000c9';
+  await people(db, OTHER);
   await tap('event_likes', parade, OTHER, '2026-08-01 12:00');
   await tap('event_likes', spring, YOU, '2026-06-20 14:00');
   const tapped = async () => {
     await signIn(YOU);
-    await db.exec(`set test.admin = 'on'`);
+    await db.exec(`set request.jwt.claims = '${ADMIN}'`);
     return (await feed('2026-10-08 12:00')).find((r) => r.title === 'Zoo day').score.tapped;
   };
   assert.equal(await tapped(), 0, "a neighbour's heart and 110 days back don't count");
@@ -625,7 +491,7 @@ async function teams(...rows) {
 }
 async function byTitle(at = '2026-10-08 12:00') {
   await signIn(YOU);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   return Object.fromEntries((await feed(at)).map((r) => [r.title, r]));
 }
 
@@ -761,7 +627,7 @@ test('a friend Going lifts an Event and names them, newest Going first; three fr
   assert.deepEqual(rows[0].friends_going, [{ name: 'Anna', photo: PHOTO }, { name: 'Cal', photo: null },
                                            { name: 'Ben', photo: null }]);
   assert.deepEqual(rows[1].friends_going, []);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   assert.deepEqual([(await feed(nowTown()))[0].score.friend, (await feed(nowTown()))[0].score.yours], [3, 3]);
 });
 
@@ -788,7 +654,7 @@ test("a friend's save or Heart lifts nothing", async () => {
   await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [quiz, ANNA]);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [quiz, ANNA]);
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const [row] = await feed(nowTown());
   assert.deepEqual([row.reason === 'friend', row.friends_going, row.score.friend], [false, [], 0]);
 });
@@ -840,12 +706,12 @@ test('posted since your last visit and not yet seen is New: 2 points, under your
   await tap('event_likes', past, YOU, '2026-10-01 12:00');
   // A first open: no last visit, and nothing came in the last 24 hours, so nothing is New.
   await signIn(YOU);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'));
   // You last looked on the 6th.
   await viewed(old, YOU, '2026-10-06 09:00');
   await signIn(YOU);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.reason, r.score.new]),
                    [['Yours', 'tapped', 0], ['Posted since', 'new', 2], ['Old', 'tomorrow', 0]]);
@@ -951,7 +817,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await add('Bake sale', '2026-10-09', { start_time: '12 PM', category: 'dining' });
   await signIn(YOU, ['dining']);
   assert.equal((await feed('2026-10-08 12:00'))[0].score, null);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
@@ -963,7 +829,7 @@ test('the admin\'s breakdown on a longer feed: same host halves, nothing moved w
   await reset();
   for (const [i, h] of ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM'].entries())
     await add(`Meeting ${i + 1}`, '2026-10-09', { start_time: h });
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.score.spot, r.score.spacing, r.score.newSpot]),
                    [[1, 1, false], [2, 0.5, false], [3, 0.25, false], [4, 0.125, false], [5, 0.0625, false]]);
@@ -1043,10 +909,12 @@ async function fiveThousand() {
   // 50,000 Going, 10,000 saves and 50,000 hearts.
   const picks = ['live_music', 'dining', 'lakes_biking', 'families_kids', 'bars', 'outdoors'];
   await db.query(`
-    insert into public.club_events (title, event_date, source_name, start_time, category, created_at)
-    select 'Event ' || g, date '2026-10-08' + (g % 56), 'Host ' || (g % 40), (g % 12 + 1) || ' PM',
+    insert into public.club_events (status, title, event_date, source_name, start_time, category, created_at)
+    select 'approved', 'Event ' || g, date '2026-10-08' + (g % 56), 'Host ' || (g % 40), (g % 12 + 1) || ' PM',
            ($1::text[])[g % 6 + 1], timestamptz '2026-09-01 12:00-05'
     from generate_series(1, 200) g`, [picks]);
+  await db.exec(`insert into auth.users (id)
+    select ('00000000-0000-0000-0001-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 5000) g on conflict do nothing`);
   await db.query(`
     insert into public.town_profiles (user_id, interests)
     select ('00000000-0000-0000-0001-' || lpad(g::text, 12, '0'))::uuid,
@@ -1073,7 +941,6 @@ async function fiveThousand() {
   assert.ok(h >= 45000, `${h} hearts`);
   // The reader has 200 friends, named and Going to things (ticket 28).
   await db.exec(`
-    insert into auth.users (id) select user_id from public.town_profiles on conflict do nothing;
     update public.town_profiles set display_name = 'Neighbour ' || right(user_id::text, 4);
     insert into private.friendships (a, b, requested_by)
     select least(r, f), greatest(r, f), r
@@ -1093,12 +960,12 @@ async function fiveThousand() {
     from (select target_id, row_number() over (order by target_id) n from public.town_follows
           where target_type = 'profile') f
     where e.title = 'Event ' || (f.n * 9);
-    insert into public.places (name, entry_id) select 'Place ' || g, 'speed-place-' || g from generate_series(1, 5) g;
+    insert into public.places (lat, lon, family, name, entry_id) select 45.5, -94.3, 'business', 'Place ' || g, 'speed-place-' || g from generate_series(1, 5) g;
     insert into public.town_follows (follower_id, target_type, target_id)
     select '00000000-0000-0000-0001-000000000042', 'place', id from public.places where entry_id like 'speed-place-%';
     update public.club_events set place_entry_id = 'speed-place-' || (split_part(title, ' ', 2)::int / 5 % 5 + 1)
     where split_part(title, ' ', 2)::int % 5 = 0;
-    insert into public.clubs (name) select 'Group ' || g from generate_series(1, 3) g;
+    insert into public.clubs (status, name) select 'approved', 'Group ' || g from generate_series(1, 3) g;
     insert into public.club_members (club_id, user_id)
     select id, '00000000-0000-0000-0001-000000000042' from public.clubs where name like 'Group %';
     update public.club_events e set club_id = c.id
@@ -1158,10 +1025,10 @@ test("each event carries its place's picture: a photo before a logo, else the pl
       ('krewe', 'https://x/bar.webp', 'https://krewemn.com/menu', 2, 'photo', 'live', null, 1200, 1600),
       ('krewe', 'https://x/old.webp', 'https://krewemn.com/', 0, 'photo', 'retired', null, 1600, 900),
       ('kennedy', 'https://x/k.webp', 'https://kennedy.isd742.org/', 0, 'logo', 'live', 220, null, null);
-    insert into public.places (name, entry_id, logo_url, search_logo) values
-      ('Sal''s Bar & Grill', 'sals', 'https://x/pin.png', '{"url":"https://x/sals.webp","hue":7,"chroma":true}'),
-      ('Coborn''s', 'coborns', 'https://x/coborns-pin.png', null),
-      ('Grey Co', 'grey', null, '{"url":"https://x/grey.webp","hue":40,"chroma":false}');`);
+    insert into public.places (lat, lon, family, name, entry_id, logo_url, search_logo) values
+      (45.5, -94.3, 'business', 'Sal''s Bar & Grill', 'sals', 'https://x/pin.png', '{"url":"https://x/sals.webp","hue":7,"chroma":true}'),
+      (45.5, -94.3, 'business', 'Coborn''s', 'coborns', 'https://x/coborns-pin.png', null),
+      (45.5, -94.3, 'business', 'Grey Co', 'grey', null, '{"url":"https://x/grey.webp","hue":40,"chroma":false}');`);
   const pick = async (id) => (await db.query('select public.place_picture($1) as p', [id])).rows[0].p;
   assert.deepEqual(await pick('krewe'), { url: 'https://x/food.webp', kind: 'photo', credit: null,
                                           site: 'https://krewemn.com/', w: 1600, h: 1067,
@@ -1175,9 +1042,9 @@ test("each event carries its place's picture: a photo before a logo, else the pl
   assert.equal(await pick('nowhere'), null);
   assert.equal(await pick(null), null);
 
-  await db.query(`insert into public.club_events (title, event_date, source_name, place_entry_id, created_at)
-                  values ('Trivia', '2026-10-09', 'Krewe', 'krewe', '2026-09-01 12:00-05'),
-                         ('Walk', '2026-10-09', $1, null, '2026-09-01 12:00-05')`, [CITY]);
+  await db.query(`insert into public.club_events (status, title, event_date, source_name, place_entry_id, created_at)
+                  values ('approved', 'Trivia', '2026-10-09', 'Krewe', 'krewe', '2026-09-01 12:00-05'),
+                         ('approved', 'Walk', '2026-10-09', $1, null, '2026-09-01 12:00-05')`, [CITY]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, place_picture
     from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
@@ -1215,8 +1082,8 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.deepEqual([await season('2026-11-30'), await season('2026-12-01'), await season('2027-02-28')], ['fall', 'winter', 'winter']);
 
   const add = async (title, date, sport = null, id = null) => (await db.query(
-    `insert into public.club_events (id, title, event_date, sport, category, source_name, place_entry_id)
-     values (coalesce($4::uuid, gen_random_uuid()), $1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`,
+    `insert into public.club_events (status, id, title, event_date, sport, category, source_name, place_entry_id)
+     values ('approved', coalesce($4::uuid, gen_random_uuid()), $1, $2, $3, 'watch_sports', 'Arena', 'arena') returning id`,
     [title, date, sport, id])).rows[0].id;
   const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
   const winter = await pic(await add('Hockey vs Foley', '2026-12-10', 'Boys Hockey'));
@@ -1237,8 +1104,8 @@ test("an event card shows its place's photo of what the event is, in season, tak
   assert.equal(await pic('00000000-0000-0000-0000-000000000000'), null);
 
   await db.exec(`delete from public.club_events;
-                  insert into public.club_events (title, event_date, sport, category, source_name, place_entry_id, created_at)
-                  values ('Hockey vs Sartell', '2026-10-09', 'Boys Hockey', 'watch_sports', 'Arena', 'arena', '2026-09-01 12:00-05')`);
+                  insert into public.club_events (status, title, event_date, sport, category, source_name, place_entry_id, created_at)
+                  values ('approved', 'Hockey vs Sartell', '2026-10-09', 'Boys Hockey', 'watch_sports', 'Arena', 'arena', '2026-09-01 12:00-05')`);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, place_picture
     from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
@@ -1255,8 +1122,8 @@ test("an Event's own photo shows before any scene, credited, and is never its pl
       ('prep', 'https://x/prep.webp', 'https://sjprep.net/', 0, 'photo', 'live', 1600, 1067, '{}', '{}'),
       ('prep', 'https://x/stage.webp', 'https://sjprep.net/t', 1, 'scene', 'live', 1600, 1067, '{theater}', '{}');`);
   const add = async (title) => (await db.query(
-    `insert into public.club_events (title, event_date, category, source_name, place_entry_id, created_at)
-     values ($1, '2026-10-09', 'art_theater', 'Saint John''s Prep', 'prep', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
+    `insert into public.club_events (status, title, event_date, category, source_name, place_entry_id, created_at)
+     values ('approved', $1, '2026-10-09', 'art_theater', 'Saint John''s Prep', 'prep', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
   const own = (event, url, status = 'live', kind = 'event') => db.query(
     `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, credit, width, height)
      values ('prep', $2, 'https://www.facebook.com/SaintJohnsPrepMN/posts/1', $4, $3, $1, 'Saint John''s Prep', 1536, 2048)`,
@@ -1299,8 +1166,8 @@ test("an Event's own flyer shows after the scene of what it is, before its place
       ('bakery', 'https://x/pastry.webp', 'https://bakery.example/', 0, 'photo', 'live', 1307, 1600, '{}', '{}'),
       ('bakery', 'https://x/tasting.webp', 'https://bakery.example/t', 1, 'scene', 'live', 1600, 1067, '{talk}', '{}');`);
   const add = async (title) => (await db.query(
-    `insert into public.club_events (title, event_date, category, source_name, place_entry_id, created_at)
-     values ($1, '2026-10-09', 'dining', 'Bakery', 'bakery', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
+    `insert into public.club_events (status, title, event_date, category, source_name, place_entry_id, created_at)
+     values ('approved', $1, '2026-10-09', 'dining', 'Bakery', 'bakery', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
   const flyer = (event) => db.query(
     `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, credit, width, height)
      values ('bakery', 'https://x/flyer.webp', 'https://www.facebook.com/bakery/posts/1', 'flyer', 'live', $1, 'Bakery', 1080, 1080)`,
@@ -1332,7 +1199,7 @@ test('a Christmas photo shows on a holiday event from November 1, on any from De
       ('shop', 'https://x/sweaters.webp', 'https://shop.com/', 1, 'scene', 'live', '{shopping}', '{christmas}'),
       ('shop', 'https://x/racks.webp', 'https://shop.com/', 2, 'scene', 'live', '{shopping}', '{}');`);
   const pic = async (title, date) => (await db.query('select public.event_picture($1) as p', [(await db.query(
-    `insert into public.club_events (title, event_date, source_name, place_entry_id) values ($1, $2, 'Shop', 'shop')
+    `insert into public.club_events (status, title, event_date, source_name, place_entry_id) values ('approved', $1, $2, 'Shop', 'shop')
      returning id`, [title, date])).rows[0].id])).rows[0].p.url;
   assert.equal(await pic('Boo-tique Bash', '2026-10-28'), 'https://x/racks.webp', 'never on a Halloween party');
   assert.equal(await pic('Black Friday', '2026-11-27'), 'https://x/sweaters.webp', 'a holiday event in November: it goes first');
@@ -1350,7 +1217,7 @@ test("a girls' game never shows a boys' photo, nor the other way (event-photos 0
       ('gym', 'https://x/cover.webp', 'https://gym.org/', 0, 'photo', 'live', '{}', '{}'),
       ('gym', 'https://x/boys.webp', 'https://gym.org/', 1, 'scene', 'live', '{basketball,boys}', '{}');`);
   const pic = async (title, sport) => (await db.query('select public.event_picture($1) as p', [(await db.query(
-    `insert into public.club_events (title, event_date, sport, source_name, place_entry_id) values ($1, '2026-12-10', $2, 'Gym', 'gym')
+    `insert into public.club_events (status, title, event_date, sport, source_name, place_entry_id) values ('approved', $1, '2026-12-10', $2, 'Gym', 'gym')
      returning id`, [title, sport])).rows[0].id])).rows[0].p.url;
   assert.equal(await pic('Sartell vs Forestview · 7th Grade', 'Girls Basketball'), 'https://x/cover.webp', "a girls' game: the place's picture");
   assert.equal(await pic("Women's Basketball vs Bethel", null), 'https://x/cover.webp', 'women is girls, though it holds "men"');
@@ -1816,9 +1683,9 @@ test("a group's Event names the group and whether you're in it; found ones by it
   await db.exec(`update public.clubs set entry_id = 'group-st-joe-rod-and-gun-club' where id = '${GROUP}'`);
   await db.exec(readFileSync(join(migrations, '20261019180000_group_join_on_cards.sql'), 'utf8')
     .match(/update public\.clubs set own_entry_id[^;]*;/)[0]);
-  await db.query(`insert into public.sources (entry_id, url, name) values
-      ('st-joe-rod-gun-club', 'https://stjoerodandgunclub.org/events/?ical=1', 'St Joe Rod and Gun Club'),
-      ('cidery', 'https://cidery.example/events', 'Milk & Honey Ciders')`);
+  await db.query(`insert into public.sources (town, status, method, entry_id, url, name) values
+      ('st-joseph-mn', 'active', 'fetch', 'st-joe-rod-gun-club', 'https://stjoerodandgunclub.org/events/?ical=1', 'St Joe Rod and Gun Club'),
+      ('st-joseph-mn', 'active', 'fetch', 'cidery', 'https://cidery.example/events', 'Milk & Honey Ciders')`);
   const at = (title, more) => add(title, '2026-10-09', { start_time: '6 PM', ...more });
   await at('Monthly Meeting', { source_name: 'St Joe Rod and Gun Club' });
   const stitch = await at('Stitch and Sip', { source_name: 'Milk & Honey Ciders' });
@@ -2093,8 +1960,8 @@ test('a news item shows its place\'s logo before its photo', async () => {
   await db.exec(`delete from public.place_photos; delete from public.places;
     insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height) values
       ('cow-wandering', 'https://x/cow-photo.webp', 'https://cow', 0, 'photo', 'live', 800, 600);
-    insert into public.places (name, entry_id, search_logo) values
-      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');`);
+    insert into public.places (lat, lon, family, name, entry_id, search_logo) values
+      (45.5, -94.3, 'business', 'The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');`);
   await news('Flight Friday', '2026-10-08 17:00', { place_entry_id: 'cow-wandering' });
   await news('Taco Tuesday', '2026-10-08 16:00', { source_name: 'Neighbors Route 75' });
   await db.exec('set role anon');
@@ -2107,9 +1974,9 @@ test('a news item shows its place\'s logo before its photo', async () => {
 test('an Event shows who puts it on: the logo of the place it was found on, else its group\'s place', async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places; delete from public.sources;
-    insert into public.places (name, entry_id, search_logo) values
-      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
-    insert into public.sources (entry_id, url, name) values ('cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
+    insert into public.places (lat, lon, family, name, entry_id, search_logo) values
+      (45.5, -94.3, 'business', 'The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
+    insert into public.sources (town, status, method, entry_id, url, name) values ('st-joseph-mn', 'active', 'fetch', 'cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
   await add('Sundae Social', '2026-10-09', { start_time: '6 PM', source_name: 'The Wandering Cow' });
   await add('Bake sale', '2026-10-09', { start_time: '7 PM', source_name: 'Nobody Known' });
   await db.exec('set role anon');
@@ -2171,7 +2038,7 @@ test("Not interested lowers its host's other Events × 0.3, and nothing else, fo
   await notInterested(fair, YOU, '2026-10-08 12:00');
   const x = async (at) => {
     await signIn(YOU);
-    await db.exec(`set test.admin = 'on'`);
+    await db.exec(`set request.jwt.claims = '${ADMIN}'`);
     return Object.fromEntries((await feed(at)).map((r) => [r.title, r.score.notInterested]));
   };
   assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.3, 'Gallery night': 1, Bingo: 1 });
@@ -2190,7 +2057,7 @@ test('Not interested on a host beats its "been into" lift', async () => {
   await tap('event_likes', movie, YOU, '2026-10-07 12:00');
   await notInterested(movie, YOU, '2026-10-08 12:00');
   await signIn(YOU);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   const zoo = rows.find((r) => r.title === 'Zoo day');
   assert.deepEqual([zoo.score.tapped, zoo.score.notInterested], [3, 0.3]);
@@ -2222,7 +2089,7 @@ test('a muted host never shows, to the one who muted it only; unmuting brings it
 test("a group's Event mutes the group by the name its card shows; signed out can't hide or mute", async () => {
   await reset();
   await db.exec('reset role');
-  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Rod and Gun Club') returning id`);
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name, status) values ('Rod and Gun Club', 'approved') returning id`);
   const shoot = await add('Trap shoot', '2026-10-09', { start_time: '10 AM' });
   await db.query('update public.club_events set club_id = $1, source_name = null where id = $2', [club, shoot]);
   await signIn(YOU);
@@ -2245,8 +2112,8 @@ async function born(id, birthday) {
 test('under 18 never sees an Event or news its place or host keeps to 18+ or 21+', async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
-    insert into public.places (name, entry_id, adults_only) values ('The Middy', 'middy', true),
-      ('Sal''s Bar & Grill', 'bar-grill-sals', false);`);
+    insert into public.places (lat, lon, family, name, entry_id, adults_only) values (45.5, -94.3, 'business', 'The Middy', 'middy', true),
+      (45.5, -94.3, 'business', 'Sal''s Bar & Grill', 'bar-grill-sals', false);`);
   const middy = await add('Trivia night', '2026-10-09', { start_time: '7 PM', source_name: 'The Middy' });
   await add('Bingo Night', '2026-10-09', { start_time: '6 PM', source_name: "Sal's Bar and Grill" });
   const label = await add('Comedy show', '2026-10-09', { start_time: '8 PM', source_name: "Sal's Bar and Grill" });
@@ -2293,6 +2160,7 @@ async function follow(who, type, team, activity) {
   const id = activity
     ? (await db.query(`select id from public.team_activities where team_id = $1 and name = $2`, [team, activity])).rows[0].id
     : (await db.query(`select uuid from public.teams where id = $1`, [team])).rows[0].uuid;
+  await people(db, who);
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, $2, $3)`, [who, type, id]);
 }
 async function schools() {
@@ -2315,12 +2183,12 @@ test('an activity you follow lifts its games and says so; following the whole sc
   await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
   await follow(ME, 'activity', 'cathedral', 'Volleyball (girls)');
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.follow]), [
     ['Cathedral Volleyball vs Sartell', 'follow', 'Cathedral Volleyball (girls)', 3],
     ['Fall fair', 'tomorrow', null, 0]]);
-  await db.exec('reset test.admin');
+  await db.exec('reset request.jwt.claims');
   await db.exec(`reset role; delete from public.town_follows`);
   await follow(ME, 'team', 'cathedral');
   await signIn(ME);
@@ -2405,7 +2273,7 @@ test('a reported Event never shows to its reporter, lowers nothing, and others s
   const scam = await add('Free iPhones', '2026-10-09', { start_time: '10 AM', source_name: 'Parks', category: 'arts' });
   await add('Zoo day', '2026-10-09', { start_time: '11 AM', source_name: 'Parks', category: 'arts' });
   await reportAs(YOU, scam, 'scam');
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.score.notInterested]), [['Zoo day', 1]]);
   await signIn(ME);
@@ -2437,7 +2305,7 @@ test('Wrong info and Wrong photo hide nothing and only reach the queue', async (
   assert.equal(await reportAs(YOU, fair, 'wrong_info'), false);
   assert.equal(await reportAs(YOU, fair, 'wrong_photo'), false);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Craft fair']);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   assert.deepEqual((await db.query('select title, reasons, reports from public.list_reports()')).rows,
     [{ title: 'Craft fair', reasons: ['wrong_info', 'wrong_photo'], reports: 2 }]);
 });
@@ -2469,7 +2337,7 @@ test('the admin keeps a reported Event or takes it down for everyone', async () 
   await reportAs(YOU, sale, 'nudity');
   await signIn(ME);
   await assert.rejects(db.query('select public.resolve_reports($1, true)', [fair]), /admin only/);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   await db.query('select public.resolve_reports($1, false)', [fair]);
   await db.query('select public.resolve_reports($1, true)', [sale]);
   assert.deepEqual((await db.query('select * from public.list_reports()')).rows, []);
@@ -2485,7 +2353,8 @@ const PEONY = 'White Peony Boutique';
 async function followPlace(who, name = PEONY, entry = 'white-peony') {
   await db.exec('reset role');
   const { rows: [{ id }] } = await db.query(
-    `insert into public.places (name, entry_id) values ($1, $2) returning id`, [name, entry]);
+    `insert into public.places (lat, lon, family, name, entry_id) values (45.5, -94.3, 'business', $1, $2) returning id`, [name, entry]);
+  await people(db, who);
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [who, id]);
 }
 async function atPlace(title, date, more = {}) {
@@ -2509,12 +2378,12 @@ test('a Place you follow lifts its Events and says so', async () => {
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Fall open house'], 'not followed: soonest first');
   await followPlace(ME);
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const [top, next] = await lifted('2026-10-08 12:00');
   assert.deepEqual([top.title, top.reason, top.reason_name, top.score.follow, top.score.pool],
                    ['Fall open house', 'follow', PEONY, 3, 'yours']);
   assert.deepEqual([next.title, next.reason, next.score.follow], ['Fall fair', 'tomorrow', 0]);
-  await db.exec('reset test.admin');
+  await db.exec('reset request.jwt.claims');
   await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
   assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason]),
                    [['Fall fair', 'tomorrow'], ['Fall open house', 'soon']], 'signed out follows nothing');
@@ -2528,11 +2397,11 @@ test('a followed Place is still spaced out, and a host you have been into lifts 
   await followPlace(ME);
   await db.query(`insert into public.event_likes (event_id, user_id, created_at) values ($1, $2, '2026-09-19')`, [old, ME]);
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await lifted('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.score.yours, r.score.spacing]), [
     ['Open house 09', 3, 1], ['Open house 10', 3, 0.5], ['Open house 11', 3, 0.25]]);
-  await db.exec('reset test.admin');
+  await db.exec('reset request.jwt.claims');
   await noPlaces();
 });
 
@@ -2560,8 +2429,8 @@ test("a Group you're in lifts its Events and those found for it", async () => {
   await reset();
   await db.exec('reset role');
   const { rows: [{ id: club }] } = await db.query(
-    `insert into public.clubs (name, own_entry_id) values ('Book Club', 'book-club') returning id`);
-  await db.query(`insert into public.sources (entry_id, url, name) values ('book-club', 'https://books', 'Book Club site')`);
+    `insert into public.clubs (name, status, own_entry_id) values ('Book Club', 'approved', 'book-club') returning id`);
+  await db.query(`insert into public.sources (town, status, method, entry_id, url, name) values ('st-joseph-mn', 'active', 'fetch', 'book-club', 'https://books', 'Book Club site')`);
   const POSTER = '00000000-0000-0000-0000-0000000000e2';
   const own = await add('Book swap', '2026-10-12', { start_time: '7 PM', source_name: null, submitted_by: POSTER });
   await db.query('update public.club_events set club_id = $1 where id = $2', [club, own]);
@@ -2589,10 +2458,10 @@ test('a muted Place you follow stays out; Not interested still lowers its other 
   await followPlace(ME);
   await notInterested(first, ME, '2026-10-08 09:00');
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const by = Object.fromEntries((await lifted('2026-10-08 12:00')).map((r) => [r.title, [r.score.yours, r.score.notInterested]]));
   assert.deepEqual(by, { 'Trunk show': [3, 0.3], 'Fall fair': [0, 1] });
-  await db.exec('reset test.admin');
+  await db.exec('reset request.jwt.claims');
   await db.query(`select public.mute_host($1)`, [first]);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair']);
   await noPlaces();
@@ -2622,7 +2491,7 @@ test("an activity you follow names the game before the Place it's at; a Place ne
 test("your own posting is never lifted by what it's at, and a Group's Event never names who posted it", async () => {
   await reset();
   await db.exec('reset role');
-  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Book Club') returning id`);
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name, status) values ('Book Club', 'approved') returning id`);
   const SAM = '00000000-0000-0000-0000-0000000000e3';
   await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [SAM]);
   await db.query(`insert into public.town_profiles (user_id, display_name) values ($1, 'Sam Lee')`, [SAM]);
@@ -2648,11 +2517,11 @@ test('the Score line gives the follow lift to what the card names, a friend Goin
   await befriend(ME, FRIEND);
   await goes(show, FRIEND);
   await signIn(ME);
-  await db.exec(`set test.admin = 'on'`);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const [row] = await lifted(`${day(0)} 12:00`);
   assert.deepEqual([row.reason, row.score.follow, row.score.friend, row.score.yours, row.friends_going.length],
                    ['follow', 3, 0, 3, 1]);
-  await db.exec('reset test.admin; reset role');
+  await db.exec('reset request.jwt.claims; reset role');
   await db.query('delete from auth.users where id = $1', [FRIEND]);
   await noPlaces();
 });
@@ -2661,11 +2530,13 @@ test('the Score line gives the follow lift to what the card names, a friend Goin
 // board its meetings; a City meeting (draw 1) reaches only the City's or that board's followers, lower.
 async function followPage(who, slug) {
   await db.exec('reset role');
+  await people(db, who);
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id)
                   select $1, 'page', id from public.town_pages where slug = $2`, [who, slug]);
 }
 async function followBoard(who, name) {
   await db.exec('reset role');
+  await people(db, who);
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id)
                   select $1, 'board', id from public.city_boards where name = $2`, [who, name]);
 }
@@ -2811,7 +2682,7 @@ async function more(round, opened = [], shown = [], at = '2026-10-08 12:00') {
 async function place(name, type = 'cafe', logo = true) {
   await db.exec('reset role');
   const { rows: [{ id }] } = await db.query(
-    `insert into public.places (name, entry_id, primary_type, search_logo) values ($1, $2, $3, $4) returning id`,
+    `insert into public.places (lat, lon, family, name, entry_id, primary_type, search_logo) values (45.5, -94.3, 'business', $1, $2, $3, $4) returning id`,
     [name, name.toLowerCase().replace(/\W+/g, '-'), type, logo ? JSON.stringify({ url: `https://x/${name}.webp` }) : null]);
   return id;
 }
@@ -2852,9 +2723,11 @@ test('places to try: those Search opens, no services, what you follow first, the
   await place('Quiet deli', 'sandwich_shop');
   await signIn(ME);
   await db.exec('reset role');
-  for (const [who, id] of [['c1', cafe], ['c2', cafe], ['c3', cafe], ['c4', bakery], ['c5', bakery]])
+  for (const [who, id] of [['c1', cafe], ['c2', cafe], ['c3', cafe], ['c4', bakery], ['c5', bakery]]) {
+    await people(db, `00000000-0000-0000-0000-0000000000${who}`);
     await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`,
       [`00000000-0000-0000-0000-0000000000${who}`, id]);
+  }
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [ME, shop]);
   await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Muted bar', 'Muted bar')`, [ME]);
   await db.exec('set role authenticated');
@@ -2936,6 +2809,7 @@ async function busyWeekend() {
   await on('Second quilt show', '2026-10-13', '1 PM', 'Quilters', ['arts']);
   // Called off, still in the feed for the Heart it has: never a pick.
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [e.Parade]);
+  await people(db, SHE);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [e.Parade, SHE]);
   await standouts('2026-10-09', [e.Parade, e['Fall fair'], e['Quilt show'], e['Loud night'], e['Bake sale'],
                                  e['Campus lecture'], e['Pancake breakfast'], e['Halloween party']]);
@@ -2946,14 +2820,14 @@ async function busyWeekend() {
 // Each viewer as the stories read them: signed out, a neighbour with a hidden Event, a muted host and
 // a Going, and the admin (the Score line).
 async function asViewer(who, e) {
-  if (who === 'out') { await db.exec('reset role; reset request.jwt.claim.sub; reset test.admin; set role anon'); return; }
+  if (who === 'out') { await db.exec('reset role; reset request.jwt.claim.sub; reset request.jwt.claims; set role anon'); return; }
   await signIn(ME, ['dining', 'campus', 'arts']);
   await db.exec('reset role');
   await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Loud bar', 'Loud bar') on conflict do nothing`, [ME]);
   await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
                   values ($1, $2, 'not_interested', timestamptz '2026-10-01 12:00-05') on conflict do nothing`, [ME, e['Quilt show']]);
   await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2) on conflict do nothing`, [e['Taproom brunch'], ME]);
-  await db.exec(`set role authenticated; ${who === 'admin' ? "set test.admin = 'on'" : 'reset test.admin'}`);
+  await db.exec(`set role authenticated; ${who === 'admin' ? `set request.jwt.claims = '${ADMIN}'` : 'reset request.jwt.claims'}`);
 }
 const MOMENTS = ['00:00', '07:00', '10:30', '15:00', '18:30', '21:30', '23:30']
   .flatMap((t) => ['2026-10-09', '2026-10-10', '2026-10-11'].map((d) => `${d} ${t}`));
@@ -2974,7 +2848,7 @@ test('feed-load: Event of the day picks what it did when it read the whole feed:
       seen[`${who} ${at}`] = now.map((r) => r.title);
     }
   }
-  await db.exec('reset role; reset test.admin');
+  await db.exec('reset role; reset request.jwt.claims');
   // The stories reach every way a pick goes: picks that fit, a called-off pick, a hidden one, a muted
   // host's, one that's over, a day with no picks, a day with nothing on.
   assert.deepEqual(seen['out 2026-10-09 07:00'], ['Bake sale', 'Quilt show', 'Fall fair']);
@@ -3008,7 +2882,7 @@ test('feed-load: get_town_feed gives the same rows in the same order as before i
       }
     }
   }
-  await db.exec('reset role; reset test.admin');
+  await db.exec('reset role; reset request.jwt.claims');
   // A later migration that gives get_town_feed a body of its own again would leave Event of the day
   // reading the old one: change private.town_feed instead.
   const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean, boolean)'::regprocedure) as def`);
@@ -3233,8 +3107,8 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
   await reset();
   // SJU Athletics' registry entry, as host_entries names it (live, and here from its migration).
   await db.exec(`delete from public.place_photos; delete from public.places;
-    insert into public.sources (entry_id, name) values ('activities-athletic-sju', 'SJU Athletics');
-    insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'activities-athletic-sju');
+    insert into public.sources (town, status, method, entry_id, url, name) values ('st-joseph-mn', 'active', 'fetch', 'activities-athletic-sju', 'https://gojohnnies.com/', 'SJU Athletics');
+    insert into public.clubs (name, status, own_entry_id) values ('Johnnie Football Boosters', 'approved', 'activities-athletic-sju');
     insert into public.place_photos (entry_id, url, source_url, position, kind, status, hue, width, height) values
       ('activities-athletic-sju', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 0, 'logo', 'live', 20, null, null),
       ('clemens-field', 'https://x/field.webp', 'https://csbsju.edu/', 1, 'photo', 'live', null, 1600, 1067);
@@ -3248,6 +3122,7 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
       team_ids = '{saint-johns,concordia}', occasion = 'Homecoming', cancelled_at = now()
     where id = $1`, [id, day(2)]);
   // Called off stays in the feed only once someone Hearted it.
+  await people(db, BEN);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [id, BEN]);
   await neighbour(ANNA, 'Anna Lee', { photo: PHOTO });
   await befriend(ME, ANNA);
@@ -3311,9 +3186,9 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
 test("Daily's Event of the day sends the Event card, with the found link and host picture it never had", async () => {
   await reset();
   await db.exec(`delete from public.daily_standouts; delete from public.place_photos; delete from public.places;
-    insert into public.places (name, entry_id, search_logo) values
-      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
-    insert into public.sources (entry_id, url, name) values ('cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
+    insert into public.places (lat, lon, family, name, entry_id, search_logo) values
+      (45.5, -94.3, 'business', 'The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
+    insert into public.sources (town, status, method, entry_id, url, name) values ('st-joseph-mn', 'active', 'fetch', 'cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
   const id = await add('Sundae Social', '2026-10-09', { start_time: '6 PM', source_name: 'The Wandering Cow' });
   await db.query(`update public.club_events set source_url = 'https://cow/events/sundae' where id = $1`, [id]);
   await db.exec('set role anon');
