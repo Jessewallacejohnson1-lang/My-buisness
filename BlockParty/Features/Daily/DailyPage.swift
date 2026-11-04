@@ -424,11 +424,11 @@ private struct SpotlightCard: View {
     }
 }
 
-/// The bouncier card press (the spec's "bouncy press"), telling the card inside that it
-/// is pressed so its shadow can pull in as it sinks.
+/// The squish, telling the card inside that it is pressed so its shadow can pull in as it sinks.
 private struct SpotlightPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        PressableCardStyle().makeBody(configuration: configuration)
+        configuration.label
+            .press(.squish, down: configuration.isPressed)
             .environment(\.spotlightPressed, configuration.isPressed)
     }
 }

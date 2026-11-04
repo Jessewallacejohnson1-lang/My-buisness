@@ -189,7 +189,7 @@ struct ProfileView: View {
                 NavigationLink { SavedPage(model: saves) } label: {
                     ProfileRow(icon: BookmarkGlyph(saved: true), title: "Saved")
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 ProfileRowDivider()
                 ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
                            action: { ShareCenter.shared.present(.appInvite()) })
@@ -220,18 +220,18 @@ struct ProfileView: View {
                     NavigationLink { FollowingPage().environment(searchModel) } label: {
                         ProfileRow(icon: "person.2", title: "Following")
                     }
-                    .buttonStyle(PressableStyle())
+                    .buttonStyle(.press(.squish))
                     ProfileRowDivider()
                     NavigationLink { BlockedPage() } label: {
                         ProfileRow(icon: "hand.raised", title: "Blocked")
                     }
-                    .buttonStyle(PressableStyle())
+                    .buttonStyle(.press(.squish))
                     ProfileRowDivider()
                     // `muted-row` (town-feed 21): the hosts you muted from a Town card.
                     NavigationLink { MutedPage().environment(townFeed) } label: {
                         ProfileRow(icon: "speaker.slash", title: "Muted")
                     }
-                    .buttonStyle(PressableStyle())
+                    .buttonStyle(.press(.squish))
                     ProfileRowDivider()
                 }
                 ProfileRow(icon: "info.circle", title: "About Block Party",
@@ -252,7 +252,7 @@ struct ProfileView: View {
                         .frame(minHeight: 44)
                         .padding(.leading, 6)
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
             }
         }
     }
@@ -329,7 +329,7 @@ struct ProfileView: View {
             .padding(.vertical, 15)
             .glassPanel(Radius.card)
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
     }
 
     // MARK: - Helpers

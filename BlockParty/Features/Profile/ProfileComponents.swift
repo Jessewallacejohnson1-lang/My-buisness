@@ -86,7 +86,7 @@ struct ProfileRow<Icon: View>: View {
     var body: some View {
         if let action {
             Button { Haptics.light(); action() } label: { rowContent }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
         } else {
             rowContent
         }

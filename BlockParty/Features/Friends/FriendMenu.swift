@@ -139,7 +139,7 @@ struct FriendMenu: View {
             .frame(height: FriendsMetric.menuRow)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
         .onAppear { actions.followOpened(follow) }
         .onDisappear { actions.followClosed(follow) }
     }
@@ -166,7 +166,7 @@ struct FriendMenu: View {
             .frame(height: FriendsMetric.menuRow)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
     }
 }
 

@@ -369,7 +369,7 @@ private struct FriendsSectionTitle: View {
                         .foregroundStyle(Hue.inkSecondary)
                         .contentShape(TapArea())
                 }
-                .buttonStyle(DimStyle())
+                .buttonStyle(.press(.dim))
                 .accessibilityLabel("See all, \(text)")
             }
         }
@@ -398,7 +398,7 @@ private struct AcceptedLine: View {
             .padding(.vertical, FriendsMetric.acceptedPad)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
         .overlay(alignment: .bottom) {
             Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline)
                 .padding(.horizontal, FriendsMetric.side)
@@ -422,11 +422,11 @@ struct PersonRow: View {
             NavigationLink(value: person) {
                 Avatar(avatarUrl: person.avatarUrl, size: waiting ? FriendsMetric.requestFace : FriendsMetric.neighborFace, outlined: true)
             }
-            .buttonStyle(DimStyle())
+            .buttonStyle(.press(.dim))
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
                 NavigationLink(value: person) { NameAndMutual(person: person, grows: !waiting) }
-                    .buttonStyle(DimStyle())
+                    .buttonStyle(.press(.dim))
                 if waiting {
                     RelationButtons(person: person, logIn: logIn)
                         .padding(.top, FriendsMetric.buttonTop)
@@ -459,7 +459,7 @@ struct MoreButton: View {
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(DimStyle())
+        .buttonStyle(.press(.dim))
         .accessibilityLabel("More options, \(person.displayName)")
     }
 }
@@ -475,11 +475,11 @@ struct ResultRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: FriendsMetric.avatarGap) {
             NavigationLink(value: person) { Avatar(avatarUrl: person.avatarUrl, size: face, outlined: true) }
-                .buttonStyle(DimStyle())
+                .buttonStyle(.press(.dim))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
                 NavigationLink(value: person) { NameAndMutual(person: person, nameFont: nameFont) }
-                    .buttonStyle(DimStyle())
+                    .buttonStyle(.press(.dim))
                 RelationButtons(person: person, logIn: logIn)
                     .padding(.top, FriendsMetric.buttonTop)
             }
@@ -599,7 +599,7 @@ struct RelationButtons: View {
                 // 36pt drawn, 44pt to the finger.
                 .contentShape(Rectangle().inset(by: (FriendsMetric.button - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
         .accessibilityHint(hint)
     }
@@ -732,7 +732,7 @@ struct LogInToFindRow: View {
             .frame(height: SearchMetric.row)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
     }
 }
 

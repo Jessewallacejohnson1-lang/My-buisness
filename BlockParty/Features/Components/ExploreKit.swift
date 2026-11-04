@@ -1,82 +1,11 @@
 //
 //  ExploreKit.swift
-//  Block Party — shared press motion, the bookmark glyph and button, and the
+//  Block Party — the bookmark glyph and button, and the
 //  phone's old saved list (only read once, to move it up to the server).
 //
 
 import SwiftUI
 import Combine
-
-// MARK: - Motion primitives
-
-/// A card's press: a soft scale-in on touch. Born on onboarding's old photo cards; Daily's
-/// cards and the You tab's rows kept it.
-struct PressableCardStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Also Daily's Event of the day card's, which squishes from its link's press.
-    static let pressedScale: CGFloat = 0.97
-    static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
-            .animation(Self.press, value: configuration.isPressed)
-    }
-}
-
-/// Card / control press feedback: a tap "pop". On the press-DOWN edge a one-shot
-/// keyframe plays start-to-finish — scale in to `scale`, then spring back with a
-/// tiny overshoot — so it reads even on a fast tap (a plain scale-while-held barely
-/// shows when the finger is down for a fraction of a second). `haptic: true` adds a
-/// light tick on press-down for button-like controls; content rows/cards leave it
-/// off. Honors Reduce Motion (no scale; the haptic still fires).
-struct PressableStyle: ButtonStyle {
-    var scale: CGFloat = 0.97
-    var haptic: Bool = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        Pop(label: configuration.label,
-            isPressed: configuration.isPressed,
-            restingScale: scale,
-            haptic: haptic)
-    }
-
-    /// The trigger-driven pop. A per-press counter (bumped on the down edge) drives a
-    /// keyframe timeline that always runs to completion, independent of hold duration.
-    private struct Pop<Label: View>: View {
-        let label: Label
-        let isPressed: Bool
-        let restingScale: CGFloat
-        let haptic: Bool
-        @Environment(\.accessibilityReduceMotion) private var reduceMotion
-        @State private var taps = 0
-
-        var body: some View {
-            // Press in to `target`, then overshoot ABOVE 100% before settling. The
-            // explicit overshoot is what makes the pop read even when the press-in is
-            // shallow (a 0.97 scale alone is ~1px and invisible); the bounce past 1.0
-            // is the satisfying "click". Reduce Motion flattens the whole track.
-            let target: CGFloat = reduceMotion ? 1 : restingScale
-            let peak: CGFloat = reduceMotion ? 1 : 1.05
-            label
-                .keyframeAnimator(initialValue: CGFloat(1), trigger: taps) { view, s in
-                    view.scaleEffect(s)
-                } keyframes: { _ in
-                    KeyframeTrack {
-                        CubicKeyframe(target, duration: 0.10)   // press in
-                        CubicKeyframe(peak, duration: 0.13)     // overshoot past 100%
-                        SpringKeyframe(CGFloat(1), duration: 0.30, spring: Spring(duration: 0.30, bounce: 0.26))
-                    }
-                }
-                .onChange(of: isPressed) { _, pressed in
-                    guard pressed else { return }
-                    if haptic { Haptics.light() }
-                    taps &+= 1
-                }
-        }
-    }
-}
 
 // MARK: - Saved (bookmark) state
 
@@ -169,7 +98,7 @@ struct SaveBookmarkButton: View {
                 .contentShape(Rectangle())
         }
         // It squishes like the event page's save, not fades (taste.md: press).
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(.press(.squish))
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
         .signInSheet(isPresented: $signInShown)

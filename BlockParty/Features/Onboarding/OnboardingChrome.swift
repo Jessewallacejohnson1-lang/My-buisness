@@ -32,7 +32,7 @@ struct OnboardingBackChevron: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(OnboardingPress(scale: 0.88))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("Back")
     }
 }
@@ -188,8 +188,7 @@ private struct NextBarStyle: ButtonStyle {
                     else if allowed { Capsule().fill(face) } else { Capsule().fill(Hue.nextOffFace) }
                 }
                 .offset(y: down ? 4 : 0)
-                .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62),
-                           value: down)
+                .animation(Press.push(down: down), value: down)
         }
         .frame(height: 52)
         // One shadow under the whole bar, so the words cast none on the face (it showed on the
@@ -216,7 +215,7 @@ struct OnboardingLink: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(OnboardingPress(scale: 0.95, dim: 0.6))
+        .buttonStyle(.press(.dim))
     }
 }
 
@@ -248,22 +247,6 @@ struct OnboardingSearchField: View {
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
         .padding(.top, 24)
-    }
-}
-
-/// A press that sinks on touch-down (80 ms) and springs back (70 ms): the chevron, the links
-/// and the Welcome's white pills, which also grey to `pill` under the finger.
-struct OnboardingPress: ButtonStyle {
-    let scale: CGFloat
-    var dim: Double = 1
-    var pill: Color?
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed
-        configuration.label
-            .background { if let pill { Capsule().fill(down ? pill : .white) } }
-            .scaleEffect(down ? scale : 1)
-            .opacity(down ? dim : 1)
-            .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62), value: down)
     }
 }
 

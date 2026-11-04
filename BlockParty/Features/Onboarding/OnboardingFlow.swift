@@ -685,7 +685,7 @@ struct OnboardingWelcome: View {
                 .padding(.top, 18)
                 .rise(shown, delay: 0.22)
             Button(action: logIn) { logInLine }
-                .buttonStyle(OnboardingPress(scale: 0.96, dim: 0.7))
+                .buttonStyle(.press(.dim))
                 .padding(.top, 10)
                 .rise(shown, delay: 0.22)
         }
@@ -744,7 +744,16 @@ private struct WelcomePill: View {
             .frame(maxWidth: .infinity, minHeight: 48)
             .contentShape(Capsule())
         }
-        .buttonStyle(OnboardingPress(scale: 0.97, pill: Hue.welcomePillDown))
+        .buttonStyle(WelcomePillPress())
+    }
+}
+
+/// The squish, on a white pill that greys under the finger.
+private struct WelcomePillPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Hue.welcomePillDown : Hue.welcomePill, in: Capsule())
+            .press(.squish, down: configuration.isPressed)
     }
 }
 

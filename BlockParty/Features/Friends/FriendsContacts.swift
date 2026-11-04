@@ -282,7 +282,7 @@ private struct InviteRow: View {
                 .frame(minWidth: FriendsMetric.invitePillWidth, minHeight: FriendsMetric.invitePill)
                 .background(Capsule().fill(Hue.fill))
                 .contentShape(Capsule().inset(by: -6))
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("Invite \(contact.name)")
         }
         .padding(.horizontal, FriendsMetric.side)
@@ -339,7 +339,7 @@ struct ContactsNote: View {
                         .frame(height: FriendsMetric.invite)
                         .background(Capsule().fill(Hue.ink))
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 .padding(.top, FriendsMetric.inviteTop)
             }
         }

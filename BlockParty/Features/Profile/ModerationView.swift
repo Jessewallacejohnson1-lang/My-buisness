@@ -387,7 +387,7 @@ struct ReviewQueueRow: View {
         HStack(spacing: 12) {
             if let onOpen {
                 Button(action: onOpen) { summary }
-                    .buttonStyle(PressableStyle(scale: 0.98))
+                    .buttonStyle(.press(.squish))
                     .accessibilityElement(children: .combine)
                     .accessibilityHint("Opens where it was found")
             } else {
@@ -400,13 +400,13 @@ struct ReviewQueueRow: View {
                     .background(Hue.ink, in: Capsule())
                     .frame(height: 44).contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle(scale: 0.94))
+            .buttonStyle(.press(.squish))
 
             Button { Haptics.light(); if asksWhy { asking = true } else { onDecline(nil) } } label: {
                 Image(systemName: "xmark").font(.sans(15)).foregroundStyle(Hue.inkSecondary)
                     .frame(width: 44, height: 44).contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle(scale: 0.9))
+            .buttonStyle(.press(.squish))
             .accessibilityLabel(declineLabel)
             // On the × itself, so iOS 26 points the dialog at the row it is about.
             .confirmationDialog("What was wrong?", isPresented: $asking, titleVisibility: .visible) {

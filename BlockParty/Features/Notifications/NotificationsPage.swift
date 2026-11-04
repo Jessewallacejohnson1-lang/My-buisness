@@ -137,7 +137,7 @@ private struct NoticeRow: View {
             .padding(.vertical, NoticeMetric.rowPad)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
     }
 }
 
@@ -179,7 +179,7 @@ private struct HelloItemRow: View {
                         .padding(.vertical, NoticeMetric.rowPad)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(RowPressStyle())
+                .buttonStyle(.press(.row))
                 // The Contacts page's button, at its own width beside the words.
                 RelationButtons(person: person) {}
                     .fixedSize()
@@ -187,11 +187,11 @@ private struct HelloItemRow: View {
             }
         case .accepted(let person):
             NavigationLink(value: person) { padded(words).contentShape(Rectangle()) }
-                .buttonStyle(RowPressStyle())
+                .buttonStyle(.press(.row))
         case .final(let final):
             if let team = final.teamPage {
                 NavigationLink(value: team) { padded(words).contentShape(Rectangle()) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
             } else {
                 padded(words).accessibilityElement(children: .combine)
             }
@@ -201,14 +201,14 @@ private struct HelloItemRow: View {
         case .posted(let posted):
             if posted.live {
                 NavigationLink(value: NoticeEventRoute(item: posted.card)) { padded(words).contentShape(Rectangle()) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
             } else {
                 padded(words).accessibilityElement(children: .combine)
             }
         case .added:
             if let card {
                 NavigationLink(value: NoticeEventRoute(item: card)) { padded(words).contentShape(Rectangle()) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
             } else {
                 padded(words).accessibilityElement(children: .combine)
             }

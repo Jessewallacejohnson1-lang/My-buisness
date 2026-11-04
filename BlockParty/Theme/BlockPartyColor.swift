@@ -200,6 +200,7 @@ nonisolated enum Hue {
     static let nextOffFace   = Color(hex: 0xE6E5DF)
     static let nextOffEdge   = Color(hex: 0xCFCEC7)
     /// The Welcome's white pills pressed (ticket 25 mock).
+    static let welcomePill = Color(hex: 0xFFFFFF)
     static let welcomePillDown = Color(hex: 0xECECEA)
     /// The Welcome's scrims over its photo, black at the mock's strengths.
     static let welcomeScrim  = Color(hex: 0x000000)

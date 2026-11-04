@@ -204,7 +204,7 @@ private struct FollowingRow: View {
         .background {
             if opens {
                 Button { open(item, picture.rect) } label: { Color.clear.contentShape(Rectangle()) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
                     .accessibilityHidden(true)
             }
         }
@@ -407,10 +407,10 @@ struct EventHostRow: View {
                         }
                     }
                 }
-                // The link row's squish (`FeedCardPressStyle`) on the whole card.
+                // The link row's squish on the whole card.
                 .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                 .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
-                .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
+                .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
                 .animation(Motion.smooth, value: actions.follow(host.target).count)
                 .padding(.top, top)
                 .transition(.opacity)

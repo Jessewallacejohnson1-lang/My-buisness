@@ -74,7 +74,7 @@ struct EventOfTheDayPoster: View {
             .overlay(alignment: .bottom) { copy }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
-            .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: linkPressed)
+            .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                         report: picture.report(place: item.whereLine)))
             // On screen, a heart or Attend that fails may shake here.

@@ -234,7 +234,7 @@ struct RSVPArea: View {
                 .foregroundStyle(tint)
                 .contentShape(Rectangle().inset(by: size.leaveReach))
         }
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(.press(.squish))
         .accessibilityHint(hint)
     }
 

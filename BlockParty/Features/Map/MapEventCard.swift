@@ -56,9 +56,8 @@ struct MapEventCard: View {
         .shadow(color: .black.opacity(0.16), radius: 16, x: 0, y: 6)
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         // Squishes the moment a finger lands, and follows a drag down to close.
-        .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
+        .press(.squish, down: pressed)
         .offset(y: drag)
-        .animation(.spring(response: 0.28, dampingFraction: 0.68), value: pressed)
         .onTapGesture { onOpen(item) }
         .simultaneousGesture(touch)
         .onChange(of: scrolled) { _, new in if let new, new != page { page = new; Haptics.selection() } }
