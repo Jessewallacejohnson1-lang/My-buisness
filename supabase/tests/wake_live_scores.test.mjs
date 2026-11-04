@@ -9,10 +9,12 @@ const db = await realDatabase();
 const wake = () => db.query('select private.wake_live_scores()');
 const story = async (game, status, content) => {
   await db.exec('delete from fake.calls; delete from fake.answer; delete from public.club_events;');
-  // A game kicking off now, in the Town's time.
+  // A game that kicked off an hour ago, in the Town's time: right now reads an hour ahead for one hour on the night
+  // the clocks fall back, past the 15 minutes' lead the job allows.
   if (game) await db.exec(`insert into public.club_events (title, status, team_ids, source_name, sport, event_date, start_time)
     values ('SJU Football vs Concordia', 'approved', '{saint-johns,concordia}', 'SJU Athletics', 'Football',
-            (now() at time zone 'America/Chicago')::date, to_char(now() at time zone 'America/Chicago', 'FMHH12:MI am'))`);
+            ((now() - interval '1 hour') at time zone 'America/Chicago')::date,
+            to_char((now() - interval '1 hour') at time zone 'America/Chicago', 'FMHH12:MI am'))`);
   await db.query('insert into fake.answer (status, content) values ($1, $2)', [status, content]);
 };
 

@@ -24,12 +24,12 @@ async function reset() {
                   [EVE, 'Eve Park', 'eve@example.com', null]];
   for (const [who, name, mail, phone] of people) {
     // Only Cal's number was checked by a text code.
-    await db.query(`insert into auth.users (id, email, phone, phone_confirmed_at)
-                    values ($1, $2, $3, case when $4 then now() end)`, [who, mail, phone, who === CAL]);
+    await db.query(`insert into auth.users (id, email, email_confirmed_at, phone, phone_confirmed_at)
+                    values ($1, $2, now(), $3, case when $4 then now() end)`, [who, mail, phone, who === CAL]);
     await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [who, name]);
   }
-  await db.query(`insert into auth.users (id, is_anonymous, email) values ($1, true, 'anon@example.com')`, [ANON]);
-  await db.query(`insert into auth.users (id, email) values ($1, 'noname@example.com')`, [NONAME]);
+  await db.query(`insert into auth.users (id, is_anonymous, email, email_confirmed_at) values ($1, true, 'anon@example.com', now())`, [ANON]);
+  await db.query(`insert into auth.users (id, email, email_confirmed_at) values ($1, 'noname@example.com', now())`, [NONAME]);
   await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [NONAME, '  ']);
 }
 

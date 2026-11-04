@@ -44,13 +44,14 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
 
   // A game names its sport and two teams (game-card 01): a team it hasn't seen gets its row, no
   // logo or color yet, and one already there keeps its own; a re-read without the game clears it.
+  const seeded = (await db.query('select id from public.teams')).rows.map((r) => r.id);
   await db.exec(`insert into public.teams (id, name, short_name, color) values ('sartell', 'Sartell', 'Sartell', '#1A4C9C')`);
   const teamed = (day) => placed(day).map((g) => ({ ...g, sport: 'Volleyball', team_ids: ['rocori', 'sartell'],
     team_names: ['ROCORI', 'Sartell'], occasion: 'Senior Night' }));
   await apply(teamed('2026-10-21'), [], [], []);
   assert.deepEqual((await db.query(`select sport, team_ids, occasion from public.club_events`)).rows,
                    [{ sport: 'Volleyball', team_ids: ['rocori', 'sartell'], occasion: 'Senior Night' }]);
-  assert.deepEqual((await db.query(`select id, name, short_name, color from public.teams where id in ('rocori', 'sartell') order by id`)).rows,
+  assert.deepEqual((await db.query(`select id, name, short_name, color from public.teams where id <> all($1) order by id`, [seeded])).rows,
                    [{ id: 'rocori', name: 'ROCORI', short_name: 'ROCORI', color: null },
                     { id: 'sartell', name: 'Sartell', short_name: 'Sartell', color: '#1A4C9C' }]);
   await apply(placed('2026-10-21'), [], [], []);

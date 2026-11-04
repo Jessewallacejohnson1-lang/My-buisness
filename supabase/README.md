@@ -20,6 +20,8 @@ waitlist website.
   (`status` defaults to pending; `people()` adds whoever a row names). Don't copy a table, rule or
   function into a story: a copy keeps passing after the real one changes. Only something the
   platform provides gets a stand-in, and it goes in `fixture.mjs`.
+  The migrations load on empty tables, so a migration's one-time change to rows already live has
+  no story: read a count on the live database before and after applying it.
 
 ## Changing the schema
 
