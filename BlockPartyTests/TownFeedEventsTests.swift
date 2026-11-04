@@ -794,6 +794,18 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(try words("00 Kaylee Buerman FT GOOD (2 Pt)", "Girls Basketball", period: "Q1", clock: "0:41"), ["Buerman free throw", "Q1 · 0:41"])
         XCTAssertEqual(try words("20 Tyliah Frazier PULL UP GOOD (4 Pt)", "Basketball", period: "Q2", clock: "6:11"), ["Frazier pull-up", "Q2 · 6:11"])
         XCTAssertEqual(try words("9 Drew Buslee DRIVING LAYUP GOOD (5 Pt)", "Basketball", period: "Q2", clock: "2:00"), ["Buslee driving layup", "Q2 · 2:00"])
+        // Names that aren't plain letters, and never an assist for the scorer.
+        XCTAssertEqual(try words("Shot by SJU Peña,José, low right, GOAL; Assist by SJU Holden,Laird", "Soccer", period: "1st half", clock: "39'"),
+                       ["Goal · Peña 39'", "Assist: Holden"])
+        XCTAssertEqual(try words("Penalty kick taken by Núñez,Luis, GOAL", "Soccer", period: "1st half", clock: "31'"), ["Goal · Núñez 31'", "Penalty kick"])
+        XCTAssertNil(GameMoment.scorer(in: "Shot by SJU , GOAL; Assist by SJU Holden,Laird"), "the assist isn't the scorer")
+        // Words that would read wrong stay SIDEARM's: a chained play, a suffix, capitals.
+        let chained = "Feeney,Trey pass complete to Berg,Sam for 15 yards to the GAC40, fumble by Berg,Sam recovered by SJU Moen,Alex, Moen,Alex for 40 yards to the GAC00, TOUCHDOWN."
+        XCTAssertEqual(try words(chained, "Football", period: "Q2", clock: "1:00")[0], chained)
+        for raw in ["7 Sedric Melvin Jr. LAYUP GOOD (2 Pt)", "8 Sam Melvin III LAYUP GOOD (2 Pt)", "5 MEGAN DRISTE 3PTR GOOD (3 Pt)"] {
+            XCTAssertEqual(try words(raw, "Basketball", period: "Q1", clock: "1:00")[0], raw)
+        }
+        XCTAssertNil(GameMoment.scorer(in: "Feeney,Trey pass complete to Van Der Berg,Tom for 5 yards"), "never the passer")
         // Hockey has no real sample yet.
         XCTAssertEqual(try words("Shot by SJU Burke,Sam, GOAL", "Hockey", period: "P2", clock: "8:31"), ["Shot by SJU Burke,Sam, GOAL", "P2 · 8:31"])
         // The name a pass's catcher takes, "Jr." included, for the pill and the scorers too.
@@ -838,11 +850,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(moment("Kern,Cole pass complete to Berg,Sam for 18 yards to the GAC0, TOUCHDOWN"), ["Touchdown", "Berg", "0"])
         XCTAssertEqual(moment("52 yd TD run"), ["Touchdown", nil, "0"], "no name: the label alone")
         XCTAssertEqual(moment("T. Lund 41 yd field goal", side: 1), ["Field goal", "Lund, 41 yd", "1"])
-        XCTAssertEqual(moment("Lund,Tom field goal attempt from 41 GOOD", side: 1), ["Field goal", "Lund", "1"])
+        XCTAssertEqual(moment("Lund,Tom field goal attempt from 41 GOOD", side: 1), ["Field goal", "Lund, 41 yd", "1"], "SIDEARM's live words")
         XCTAssertEqual(moment("Team safety", side: 1), ["Safety", nil, "1"])
         XCTAssertEqual(moment("M. Olson kick attempt good"), [], "an extra point is quiet")
         XCTAssertEqual(moment("Goal by SJU Franzman,Gabe, low right", sport: "Soccer"), ["Goal", "Franzman", "0"])
-        XCTAssertEqual(moment("Hansen,Matt field goal attempt from 39 GOOD.", sport: "Football"), ["Field goal", "Hansen, 39 yd", "0"], "SIDEARM's live words")
         XCTAssertEqual(moment("Jump shot by SJU Smith,Al", sport: "Basketball"), [], "a basket is quiet")
 
         func game(_ more: String, sport: String = "Football") throws -> Game {

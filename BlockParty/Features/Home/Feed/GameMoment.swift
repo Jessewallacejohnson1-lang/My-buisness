@@ -80,7 +80,7 @@ nonisolated struct GameMoment: Equatable, Sendable {
     private static func goal(in play: Game.Play) -> (title: String, detail: String)? {
         let text = play.text
         guard text.range(of: #"^(Shot by|Penalty kick taken by) .*\bGOAL\b"#, options: .regularExpression) != nil else { return nil }
-        let assists = groups(#"Assist by \S+ \#(name),"#, in: text, all: true)
+        let assists = text.split(separator: ";").dropFirst().compactMap { capture(#"Assist by \S+ \#(name),"#, in: String($0)) }
         let detail = text.hasPrefix("Penalty") ? "Penalty kick" : assists.isEmpty ? play.period : "Assist: " + assists.joined(separator: ", ")
         let who = (scorer(in: text).map { "Goal · \($0)" } ?? "Goal")
         return ([who, play.clock].compactMap { $0 }.joined(separator: " "), detail)
@@ -93,39 +93,39 @@ nonisolated struct GameMoment: Equatable, Sendable {
         if kick.count == 2 { return "\(kick[0]) \(kick[1]) yd field goal" }
         let point = groups(#"^\#(name),[^,]* kick attempt good"#, in: text)
         if let kicker = point.first { return "\(kicker) extra point" }
-        let pass = groups(#"complete to \#(name),.* for (\d+) yards?\b.*TOUCHDOWN"#, in: text)
+        let pass = groups(#"complete to \#(name),\S+ for (\d+) yards? to the \w+, TOUCHDOWN"#, in: text)
         return pass.count == 2 ? "\(pass[0]) \(pass[1]) yd TD pass" : nil
     }
 
     /// "5 Megan Driste 3PTR GOOD (3 Pt); 1 Lauren Arnold Assist (2 Asst)": the name, then the shot in capitals.
     private static func basketballTitle(_ text: String) -> String? {
         let read = groups(#"^\S+ (.+?) ([A-Z0-9][A-Z0-9 \-]*) GOOD \("#, in: text)
-        guard read.count == 2, let last = read[0].split(separator: " ").last else { return nil }
+        // A name that won't read plainly ("Melvin Jr.", "MEGAN DRISTE", "Melvin III") keeps SIDEARM's words.
+        guard read.count == 2, let last = read[0].split(separator: " ").last, last.contains(where: \.isLowercase),
+              !["Jr.", "Sr."].contains(String(last)), !["II", "III", "IV"].contains(String(read[1].prefix { $0 != " " })) else { return nil }
         let shot = ["3PTR": "3-pointer", "FT": "free throw", "PULL UP": "pull-up"][read[1]] ?? read[1].lowercased()
         return "\(last) \(shot)"
     }
 
     /// A last name as SIDEARM writes it before the comma, "Jr." kept.
-    private static let name = #"([A-Z][A-Za-z'’\-]+(?: (?:Jr|Sr)\.| (?:II|III|IV))?)"#
+    private static let name = #"(\p{Lu}[\p{L}'’\-]+(?: (?:Jr|Sr)\.| (?:II|III|IV))?)"#
 
     /// The player a play is about, by last name: the catch's on a pass ("Kern,Cole pass complete to
     /// Berg,Sam"), else the first "Last,First" (SIDEARM's live words), else "J. Jeffrey" (its summary's).
-    /// None beats a wrong name.
+    /// None beats a wrong name: a pass's other player, or an assist after the ";", is never the answer.
     static func scorer(in text: String) -> String? {
-        capture("complete to \(name),", in: text)
-            ?? capture(#"\#(name),\s?[A-Z]"#, in: text)
-            ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: text)
+        let play = text.split(separator: ";").first.map { String($0) } ?? text
+        if play.contains("complete to") { return capture("complete to \(name),", in: play) }
+        return capture(#"\#(name),\s?\p{Lu}"#, in: play) ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: play)
     }
 
     private static func capture(_ pattern: String, in text: String) -> String? {
         groups(pattern, in: text).first
     }
 
-    /// The captured words of the pattern's first match, or the first capture of every match.
-    private static func groups(_ pattern: String, in text: String, all: Bool = false) -> [String] {
-        guard let regex = try? Regex(pattern) else { return [] }
-        if all { return text.matches(of: regex).compactMap { $0.output.count > 1 ? $0.output[1].substring.map { String($0) } : nil } }
-        guard let match = text.firstMatch(of: regex) else { return [] }
+    /// The captured words of the pattern's first match.
+    private static func groups(_ pattern: String, in text: String) -> [String] {
+        guard let regex = try? Regex(pattern), let match = text.firstMatch(of: regex) else { return [] }
         return (1..<match.output.count).compactMap { match.output[$0].substring.map { String($0) } }
     }
 
