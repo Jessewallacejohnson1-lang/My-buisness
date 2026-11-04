@@ -3,36 +3,16 @@
 // deletes nothing and can't call it. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key);
-  create table public.town_profiles (user_id uuid primary key references auth.users (id) on delete cascade);
-`);
-for (const f of creating(migrations, ['public.delete_my_account'])) {
-  await db.exec(readFileSync(join(migrations, f), 'utf8'));
-}
-
+const db = await realDatabase();
 const kid = '00000000-0000-0000-0000-00000000000a';
 const neighbor = '00000000-0000-0000-0000-00000000000b';
 
 async function reset() {
   await db.exec(`delete from auth.users;
-    insert into auth.users values ('${kid}'), ('${neighbor}');
-    insert into public.town_profiles values ('${kid}'), ('${neighbor}');`);
+    insert into auth.users (id) values ('${kid}'), ('${neighbor}');
+    insert into public.town_profiles (user_id) values ('${kid}'), ('${neighbor}');`);
 }
 
 async function as(role, sub, sql) {

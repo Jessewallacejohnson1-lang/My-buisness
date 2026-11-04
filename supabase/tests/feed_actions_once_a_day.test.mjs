@@ -3,25 +3,13 @@
 // PGlite. Run: `npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
-
-const migrations = process.env.MIGRATIONS ?? new URL('../migrations', import.meta.url).pathname;
-const db = await PGlite.create();
-await db.exec(`
-  set timezone = 'UTC';
-  create role anon; create role authenticated;
-  create schema private;
-  create table public.feed_actions (id uuid primary key default gen_random_uuid(), user_id uuid not null,
-    item_id uuid not null, action text not null, at timestamptz not null default now(),
-    constraint feed_actions_action_check check (action in ('view', 'open', 'not_interested', 'reported')));
-`);
-for (const f of creating(migrations, ['private.feed_actions_once_a_day'])) await db.exec(readFileSync(join(migrations, f), 'utf8'));
+import { realDatabase, people } from './fixture.mjs';
 
 const [ANNA, BEN] = ['a', 'b'].map((x) => `00000000-0000-0000-0000-00000000000${x}`);
 const [FAIR, QUIZ] = ['1', '2'].map((x) => `00000000-0000-0000-0000-00000000010${x}`);
+const db = await realDatabase();
+await people(db, ANNA, BEN);
+await db.exec(`insert into public.club_events (id, title) values ('${FAIR}', 'Fair'), ('${QUIZ}', 'Quiz')`);
 // Town time, Central.
 const send = (rows) => db.query(`insert into public.feed_actions (user_id, item_id, action, at)
   select * from unnest($1::uuid[], $2::uuid[], $3::text[], $4::timestamptz[])`,
