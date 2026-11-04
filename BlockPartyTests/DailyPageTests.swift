@@ -189,7 +189,8 @@ final class DailyPageTests: XCTestCase {
     /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
     /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
-                                  leaves: String, picture: [String: Any]? = nil) throws -> TownFeedRow {
+                                  leaves: String, picture: [String: Any]? = nil,
+                                  game: [String: Any]? = nil) throws -> TownFeedRow {
         let id = "11111111-2222-3333-4444-555555555555"
         var card: [String: Any] = [
             "id": id, "title": "Sartell Boys Soccer vs ROCORI",
@@ -198,6 +199,7 @@ final class DailyPageTests: XCTestCase {
             "source_name": "Sartell High School", "end_at": endAt ?? NSNull(), "all_day": allDay,
             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "going": true]
         card["place_picture"] = picture
+        card["game"] = game
         let json: [String: Any] = ["id": id, "recurrence": NSNull(), "leaves_at": leaves, "card": card]
         let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
         return try XCTUnwrap(rows.first)
@@ -213,6 +215,14 @@ final class DailyPageTests: XCTestCase {
         let rows = try pictures.map { try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00", picture: $0) }
         XCTAssertEqual(DailyEvent.todaysPicks(rows).map { $0.item.image.url?.lastPathComponent }, ["scene.webp"])
         XCTAssertEqual(rows.compactMap { DailyEvent(row: $0) }.count, 4, "another day's read keeps its one pick")
+
+        // A game passes over its place's cover too, and keeps a scene.
+        let teams: [String: Any] = ["sport": "Football", "teams": [["name": "Saint John's", "short": "Saint John's"],
+                                                                   ["name": "Concordia", "short": "Concordia"]]]
+        let games = try [pictures[0], pictures[3]].map {
+            try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00", picture: $0, game: teams)
+        }
+        XCTAssertEqual(DailyEvent.todaysPicks(games).map { $0.item.image.url?.lastPathComponent }, ["scene.webp"])
     }
 
     /// A pick becomes Daily's poster: it starts at its own time in the Town, stays until it leaves

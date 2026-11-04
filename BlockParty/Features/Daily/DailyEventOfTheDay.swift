@@ -136,11 +136,11 @@ extension DailyEvent {
         self = event
     }
 
-    /// Today's picks as the poster takes them: only ones with a photo of the Event, so a pick with just
-    /// its place's cover or logo stays a white card in the list and the next pick takes the poster (Jesse,
-    /// 2026-11-04, BP app town-feed 40). Another day in Daily's week has one pick, so it keeps it.
+    /// Today's picks as the poster takes them: only ones with a photo of the Event, a game's too, so a
+    /// pick with just its place's cover or logo stays in the list and the next pick takes the poster
+    /// (Jesse, 2026-11-04, BP app town-feed 40). Another day in Daily's week has one pick, so it keeps it.
     static func todaysPicks(_ rows: [TownFeedRow]) -> [DailyEvent] {
-        rows.compactMap { DailyEvent(row: $0) }.filter { !$0.item.isPhotoless }
+        rows.compactMap { DailyEvent(row: $0) }.filter { $0.item.image.isPhoto && !$0.item.coverOnly }
     }
 }
 

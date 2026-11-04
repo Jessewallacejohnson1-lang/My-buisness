@@ -142,7 +142,7 @@ struct FeedCardItem: Identifiable, Hashable {
     /// The place's photos, after the event's own: what its Event page shows (event-card 02).
     var venue: [FeedCardImageSource] {
         #if DEBUG
-        // UI tests only: a second bundled photo, so the card and its page have two to swipe
+        // UI tests only: a second bundled photo, so its page has two to swipe
         // with no network (`EventCardPhotoTapTests`).
         if LaunchFlags.has(.eventPageTwoPhotos),
            let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
