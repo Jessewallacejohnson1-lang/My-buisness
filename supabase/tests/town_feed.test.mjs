@@ -1665,6 +1665,32 @@ test('scoring plays are kept as SIDEARM lists them: each play that changed the s
                                    [JSON.stringify(csbOld.LastPlays ?? csbOld.Game?.LastPlays ?? [])])).rows[0].s, []);
 });
 
+test("a goal SIDEARM rewrites as its words fill in stays one play, the newest words, in its place (game-card 13)", async () => {
+  await reset();
+  const game = await add('CSB Soccer vs Macalester', '2026-11-03', { start_time: '2 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Soccer', team_ids = array['saint-benedict', 'macalester'],
+    live_score = '{"host_home": true}' where id = $1`, [game]);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const plays = async () => (await db.query('select scoring_plays from public.club_events where id = $1', [game])).rows[0].scoring_plays;
+  const shot = (id, text, team, home, away) => ({ Id: id, Narrative: text, Team: team, Type: 'SHOT', Period: 1, ClockSeconds: 1740,
+    Score: { HomeTeam: home, VisitingTeam: away } });
+  // Tuesday's real pushes: Macalester's goal, then CSB's, its words filling in over three pushes.
+  assert.equal(await record([shot('45+A54025FA', 'Shot by MAC Arredondo,Ava, low right, GOAL', 'VisitingTeam', 0, 1)]), 'live');
+  assert.equal(await record([shot('73+FC3012F3', 'Shot by CSB , GOAL', 'HomeTeam', 1, 1)]), 'live');
+  assert.equal(await record([shot('73+BEFCE2EA', 'Shot by CSB Warren,Veronica, high right, GOAL', 'HomeTeam', 1, 1)]), 'live');
+  assert.equal(await record([shot('73+385945FD', 'Shot by CSB Warren,Veronica, high right, GOAL; Assist by CSB Fernholz,Gabby', 'HomeTeam', 1, 1)]), 'live');
+  assert.deepEqual((await plays()).map((p) => [p.id, p.text]),
+                   [['45', 'Shot by MAC Arredondo,Ava, low right, GOAL'],
+                    ['73', 'Shot by CSB Warren,Veronica, high right, GOAL; Assist by CSB Fernholz,Gabby']], 'two goals, two plays');
+  // A scorer SIDEARM renames (Augsburg's 88th, Casias then Paradiso) takes the place.
+  assert.equal(await record([shot('260+F8BFA6D9', 'Shot by AUG Casias,Gio, low right, GOAL', 'VisitingTeam', 1, 2)]), 'live');
+  assert.equal(await record([shot('260+1FECA06E', 'Shot by AUG Paradiso,Liam, low right, GOAL', 'VisitingTeam', 1, 2)]), 'live');
+  assert.deepEqual((await plays()).map((p) => p.id), ['45', '73', '260']);
+  assert.equal((await plays())[2].text, 'Shot by AUG Paradiso,Liam, low right, GOAL');
+  assert.equal(await record([shot('260+1FECA06E', 'Shot by AUG Paradiso,Liam, low right, GOAL', 'VisitingTeam', 1, 2)]), 'ignored', 'the same words again');
+});
+
 // CSB 79-57 Augsburg, 2026-02-21: SIDEARM's game file once it was over, with every foul and a few baskets from its
 // full play list (game-card 09). SIDEARM's own Personal Fouls per quarter: Saint Benedict 3, 3, 6, 5; Augsburg 3, 3, 10, 5.
 const csbHoops = JSON.parse(readFileSync(join(here, 'sidearm-final-csb-wbball.json'), 'utf8'));
@@ -1723,6 +1749,9 @@ test("basketball keeps each team's fouls this quarter by play, as SIDEARM counts
   const foul = plays.find((p) => p.Type === 'FOUL' && p.Team === 'VisitingTeam');
   await record(at(5, [{ ...foul, Id: 'ot-1', Period: 5 }]));
   assert.deepEqual(await fouls(), [4, 5, 6]);
+  // SIDEARM rewrites a foul's words: the same place in its list, a new hash, still one foul (game-card 13).
+  await record(at(5, [{ ...foul, Id: 'ot-1+5A603CF4', Period: 5 }]));
+  assert.deepEqual(await fouls(), [4, 5, 6], 'a rewritten foul counts once');
   // The feed sends them inside the live score.
   await db.exec('set role anon');
   const [row] = (await db.query(`select game from public.flat_town_feed(('2026-02-21 14:30'::timestamp at time zone 'America/Chicago'))
