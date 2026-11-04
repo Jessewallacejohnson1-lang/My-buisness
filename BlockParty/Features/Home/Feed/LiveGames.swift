@@ -153,13 +153,14 @@ final class LiveGames {
     /// the same path a real one takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
     /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
     /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final; with `-town-basketball`,
-    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final (game-card 09).
+    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final (game-card 09);
+    /// with `-town-shootout`, Saint Ben's vs Macalester level through overtime to a 1-1 final won on penalties (game-card 15).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
         let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
-        let basketball = LaunchFlags.has(.townBasketball)
-        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : "g1"
+        let basketball = LaunchFlags.has(.townBasketball), shootout = LaunchFlags.has(.townShootout)
+        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : shootout ? "p1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
@@ -216,7 +217,16 @@ final class LiveGames {
             // A sixth basket: the list keeps the newest 5.
             (quarter("[50,46]", 5, 64, fouls: (4, 3, 5)), basket(6, "21 Anna Moore LAYUP GOOD (10 Pt)", "OT", "1:04", 0, "[50,46]")),
         ]
-        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : football
+        // Saint Ben's vs Macalester's real plays, then the clock running out on the second overtime.
+        let overtime: [(String, String?)] = [
+            (#"[1,1],"period":"OT","clock":"100'","clock_s":5990"#, #"{"id":"45","text":"Shot by MAC Arredondo,Ava, low right, GOAL","period":"1st half","clock":"19'","side":1,"score":[0,1]}"#),
+            (#"[1,1],"period":"OT","clock":"105'","clock_s":6290"#, #"{"id":"73","text":"Shot by CSB Warren,Veronica, high right, GOAL","period":"1st half","clock":"29'","side":0,"score":[1,1]}"#),
+            (#"[1,1],"period":"OT","clock":"107'","clock_s":6410"#, nil),
+            (#"[1,1],"period":"OT","clock":"108'","clock_s":6470"#, nil),
+            (#"[1,1],"period":"OT","clock":"109'","clock_s":6530"#, nil),
+            (#"[1,1],"period":"OT","clock":"110'","clock_s":6590"#, nil),
+        ]
+        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : shootout ? overtime : football
         // `club_events.live_score` as the realtime row carries it.
         let live = { (score: String, complete: Bool) in
             Data((#"{"score":"# + score + #","complete":\#(complete),"at":""# + DateHelpers.timestampString(.now) + #""}"#).utf8)
@@ -238,6 +248,9 @@ final class LiveGames {
             // The server keeps the last live score beside a final: volleyball's sets stay.
             if volleyball {
                 send([3, 2], live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true), nil)
+            } else if shootout {
+                // The kicks come in the final's own write.
+                send([1, 1], live(#"[1,1],"period":"OT","shootout":{"score":[5,4],"who":"CSB"}"#, true), nil)
             } else {
                 send(soccer ? [2, 1] : basketball ? [52, 48] : [21, 10], nil, nil)
             }

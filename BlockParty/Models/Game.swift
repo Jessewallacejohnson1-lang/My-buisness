@@ -22,8 +22,35 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     /// Each period's score in `teams` order, as SIDEARM last sent them: volleyball's sets (ticket 05).
     /// Kept after the final, which the live score is not.
     private(set) var periods: [[Int]] = []
+    /// A tied final settled on penalty kicks (game-card 15); nil for every other game. Kept after the final, which
+    /// the live score is not.
+    private(set) var shootout: Shootout?
     /// SIDEARM's scoring plays, oldest first (ticket 05): every play that changed the score, in its words.
     private(set) var plays: [Play] = []
+
+    /// How penalty kicks settled a tie, as `live_score.shootout` keeps it (`private.sidearm_shootout`).
+    nonisolated struct Shootout: Decodable, Hashable, Sendable {
+        /// Kicks made, in `teams` order; never level.
+        let score: [Int]
+        /// The winner's letters as SIDEARM has them ("CSB"): the line has room for these, not "Saint Ben's".
+        let who: String
+
+        private enum CodingKeys: String, CodingKey { case score, who }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            score = try c.decode([Int].self, forKey: .score)
+            who = try c.decode(String.self, forKey: .who)
+            guard score.count == 2, score.allSatisfy({ $0 >= 0 }), score[0] != score[1], !who.isEmpty else {
+                throw DecodingError.dataCorruptedError(forKey: .score, in: c, debugDescription: "two unequal counts and a name")
+            }
+        }
+
+        /// The side that won them, 0 or 1.
+        var winner: Int { score[0] > score[1] ? 0 : 1 }
+        /// "CSB wins 5–4", the winner's count first.
+        var wins: String { "\(who) wins \(score[winner])–\(score[1 - winner])" }
+    }
 
     /// One scoring play as `club_events.scoring_plays` keeps it (`private.sidearm_scoring`).
     nonisolated struct Play: Decodable, Hashable, Sendable, Identifiable {
@@ -66,6 +93,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         /// Basketball's fouls this quarter, or half, in `teams` order (game-card 09): the Bonus. Nil for any other
         /// sport, an old read, and a count from a period that is over.
         let fouls: [Int]?
+        /// Penalty kicks that settled a tie (game-card 15); nil for any other read, and for one that doesn't read.
+        let shootout: Shootout?
 
         /// Basketball's periods as SIDEARM sends them (`private.sidearm_live`).
         nonisolated struct Bar: Hashable, Sendable {
@@ -181,7 +210,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         var isHalftime: Bool { period == "1st half" && (seconds ?? 0) >= 2700 }
 
         private enum CodingKeys: String, CodingKey {
-            case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls
+            case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls, shootout
             case periodNumber = "period_n", length = "period_s"
         }
 
@@ -212,6 +241,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             // A count the server hasn't started over for this period yet is none, so no stale Bonus shows.
             let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
             self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
+            shootout = (try? c.decodeIfPresent(Shootout.self, forKey: .shootout)) ?? nil
         }
     }
 
@@ -239,6 +269,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         self.final = final
         self.live = final == nil ? live : nil
         self.periods = live?.periods ?? []
+        self.shootout = final.flatMap { $0[0] == $0[1] ? live?.shootout : nil }
         self.plays = plays.filter { $0.score.count == 2 && (0...1).contains($0.side) }
     }
 
@@ -248,10 +279,11 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         init(from decoder: Decoder) { value = try? T(from: decoder) }
     }
 
-    /// The side with more, 0 or 1; nil before the final and on a tie, which fades neither side.
+    /// The side with more, or on a tie the side that won on penalties, 0 or 1; nil before the final and on any other
+    /// tie, which fades neither side.
     var winner: Int? {
-        guard let final, final[0] != final[1] else { return nil }
-        return final[0] > final[1] ? 0 : 1
+        guard let final else { return nil }
+        return final[0] == final[1] ? shootout?.winner : final[0] > final[1] ? 0 : 1
     }
 
     /// Volleyball keeps sets, not quarters or halves: its page draws them, and a set won is a moment.
@@ -352,10 +384,16 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     /// The card's title as VoiceOver says it, naming the teams the discs show: "Football,
     /// Saint John's versus Gustavus", and once it's over "Football, Saint John's 33, Concordia 23, final".
-    /// While it's on: "Football, Saint John's 14, Concordia 7, Q3" (the chip before it says Live).
+    /// While it's on: "Football, Saint John's 14, Concordia 7, Q3" (the chip before it says Live). Settled on
+    /// penalties: "Soccer, Saint Ben's 1, Macalester 1, final, Saint Ben's wins 5 to 4 on penalties".
     var spoken: String {
         guard teams.count == 2 else { return sport }
-        if let final { return "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final" }
+        if let final {
+            let score = "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final"
+            guard let shootout else { return score }
+            let won = shootout.winner
+            return score + ", \(teams[won].short) wins \(shootout.score[won]) to \(shootout.score[1 - won]) on penalties"
+        }
         if let live {
             return "\(sport), \(teams[0].short) \(live.score[0]), \(teams[1].short) \(live.score[1]), \(live.period)"
         }

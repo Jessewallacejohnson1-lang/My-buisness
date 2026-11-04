@@ -439,6 +439,25 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(final([7, 7], mine: 0).text, "Saint John's tied Gustavus 7–7")
     }
 
+    /// `my_team_finals` sends the live score too, for a tied game's penalty kicks (game-card 15).
+    func testAGameWonOnPenaltiesIsNoTie() throws {
+        let finalOn = { (mine: Int) -> TeamFinal in
+            let json = """
+            {"event_id": "e1", "mine": \(mine), "game": {"sport": "Soccer", "occasion": null, "final": [1, 1],
+              "live": {"score": [1, 1], "period": "OT", "complete": true, "clock_s": 6600, "shootout": {"score": [5, 4], "who": "CSB"}},
+              "teams": [{"name": "Saint Benedict", "short": "Saint Ben's", "nickname": "Bennies", "local": true},
+                        {"name": "Macalester", "short": "Macalester"}]}}
+            """
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try! decoder.decode(TeamFinal.self, from: Data(json.utf8))
+        }
+        XCTAssertEqual(finalOn(0).text, "Bennies beat Macalester 5–4 on penalties")
+        XCTAssertTrue(finalOn(0).won)
+        XCTAssertEqual(finalOn(1).text, "Macalester lost to Bennies 4–5 on penalties")
+        XCTAssertFalse(finalOn(1).won)
+    }
+
     /// A win takes the team's logo colours, the pill the first and the confetti all; a loss neither.
     func testAWinTakesTheTeamsColours() {
         let win = HelloDrop.final(final([33, 23], mine: 0))

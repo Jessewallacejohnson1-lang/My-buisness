@@ -86,6 +86,104 @@
   }
  },
  {
+   "id": "p1",
+   "title": "CSB Soccer vs Macalester",
+   "host": "CSB Athletics",
+   "place": "CSB Stadium",
+   "day": "2026-11-03",
+   "time": "2 PM",
+   "hoursUntil": 4,
+   "went": 38,
+   "game": {
+     "sport": "Soccer",
+     "final": [
+       1,
+       1
+     ],
+     "live": {
+       "score": [
+         1,
+         1
+       ],
+       "period": "OT",
+       "clock": "111'",
+       "clock_s": 6600,
+       "complete": true,
+       "host_home": true,
+       "periods": [
+         [
+           1,
+           0,
+           0,
+           0,
+           0
+         ],
+         [
+           1,
+           0,
+           0,
+           0,
+           0
+         ]
+       ],
+       "shootout": {
+         "score": [
+           5,
+           4
+         ],
+         "who": "CSB"
+       }
+     },
+     "plays": [
+       {
+         "id": "45",
+         "text": "Shot by MAC Arredondo,Ava, low right, GOAL",
+         "period": "1st half",
+         "clock": "19'",
+         "side": 1,
+         "score": [
+           0,
+           1
+         ]
+       },
+       {
+         "id": "73",
+         "text": "Shot by CSB Warren,Veronica, high right, GOAL; Assist by CSB Fernholz,Gabby; Assist by CSB Verkinderen,Ella",
+         "period": "1st half",
+         "clock": "29'",
+         "side": 0,
+         "score": [
+           1,
+           1
+         ]
+       }
+     ],
+     "teams": [
+       {
+         "name": "Saint Benedict",
+         "short": "Saint Ben's",
+         "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/activities-athletic-csb/logo-e99d0312e8.webp",
+         "color": "#BD0F34",
+         "colors": [
+           "#BB2037",
+           "#0F9CD7"
+         ]
+       },
+       {
+         "name": "Macalester",
+         "short": "Macalester",
+         "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/macalester/logo-0b8b867e3d.png",
+         "color": "#D04828",
+         "colors": [
+           "#E44924",
+           "#315371",
+           "#AF4734"
+         ]
+       }
+     ]
+   }
+ },
+ {
   "id": "g1",
   "title": "SJU Football vs Gustavus Adolphus",
   "host": "SJU Athletics",

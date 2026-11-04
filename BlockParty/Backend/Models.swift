@@ -524,11 +524,11 @@ struct TeamFinal: Decodable, Hashable {
     var other: Game.Team? { game.teams.indices.contains(1 - mine) ? game.teams[1 - mine] : nil }
     var won: Bool { game.winner == mine }
 
-    /// "Johnnies beat Gusties 33–23", "Johnnies lost to Gusties 23–33", "Johnnies tied Gusties 7–7":
-    /// your team's score first, each by its nickname when it has one.
+    /// "Johnnies beat Gusties 33–23", "Johnnies lost to Gusties 23–33", "Johnnies tied Gusties 7–7",
+    /// "Bennies beat Macalester 5–4 on penalties": your team's score first, each by its nickname when it has one.
     var text: String? {
         guard let final = game.final, let team, let other else { return nil }
-        let score = "\(final[mine])–\(final[1 - mine])"
+        let score = game.shootout.map { "\($0.score[mine])–\($0.score[1 - mine]) on penalties" } ?? "\(final[mine])–\(final[1 - mine])"
         guard let winner = game.winner else { return "\(team.called) tied \(other.called) \(score)" }
         return winner == mine ? "\(team.called) beat \(other.called) \(score)" : "\(team.called) lost to \(other.called) \(score)"
     }
