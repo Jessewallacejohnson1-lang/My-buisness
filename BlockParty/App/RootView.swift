@@ -219,20 +219,8 @@ struct RootView: View {
 
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
-    /// The hello pill's one line (hello-drop 01, 03).
     /// The hello pill's news post, when its app isn't on the phone.
     @State private var helloLink: SafariLink?
-
-    @MainActor
-    private func helloMessage(_ lastSeen: Date?, _ waiting: HelloDrop.Message?, _ yesterday: String) -> HelloDrop.Message? {
-        let news = townFeed.shown.compactMap { entry -> TownNews? in
-            if case .news(let post) = entry.item { post } else { nil }
-        }
-        return HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
-                                 groups: you.groups ?? [],
-                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news, waiting: waiting,
-                                 yesterday: yesterday)
-    }
 
     /// Where a tap on the hello pill goes.
     @MainActor
@@ -257,18 +245,6 @@ struct MainTabsView: View {
                 }
             }
         }
-    }
-
-    /// Every Going this account has had, counted once over (hello-drop 02).
-    private static func attendedCount() async -> Int? {
-        guard let rows = try? await CommunityAPI(auth: AuthStore.shared)
-            .getMyGoing(from: "2000-01-01", to: Town.day(Date())) else { return nil }
-        return HelloMoment.attendedCount(rows.compactMap(YouCalendar.event(from:)), now: Date())
-    }
-
-    /// Your followed teams' finals read since a time (hello-drop 03).
-    private static func teamFinals(since: Date) async -> [TeamFinal]? {
-        try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)
     }
 
     @State private var tab: Tab
@@ -483,23 +459,7 @@ struct MainTabsView: View {
         .task { if !searchModel.placesLoaded { await searchModel.load() } }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
-            HelloDropView(
-                prepare: {
-                    if you.going == nil { await you.refresh() }
-                    if you.groups == nil, let groups = await you.refreshGroups() { actions.read(groups) }
-                },
-                ready: { townFeed.entries != nil && you.going != nil },
-                message: helloMessage,
-                open: openHello,
-                attended: Self.attendedCount,
-                finals: Self.teamFinals,
-                joined: { await ContactsMatch.joined(since: $0) },
-                // The Friends page's own read, so someone you blocked is never said (hello-drop 06).
-                accepted: {
-                    await friendsBook.refresh()
-                    return friendsBook.loaded && !friendsBook.failed ? friendsBook.accepted : nil
-                }
-            )
+            HelloDropView(pill: session.helloPill, open: openHello)
             .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
         // The iPhone Calendar follows the Going (ticket 05).

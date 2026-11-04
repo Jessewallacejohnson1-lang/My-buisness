@@ -642,4 +642,325 @@ final class HelloDropTests: XCTestCase {
                                                           event("j", "2026-10-31", "6 PM")]),
                        "1 event this week")
     }
+
+    // MARK: The pill's model (`HelloPill`, codebase-health-2 14)
+
+    /// The reads' answers and the clock, which a test moves; a pause moves the clock too.
+    @MainActor
+    private final class PillFakes {
+        var now: Date
+        var pauses = 0
+        var day = HelloPill.Day()
+        var attended: Int? = nil
+        var finals: [TeamFinal]? = []
+        var joined: [Neighbor]? = []
+        var accepted: [Neighbor]? = []
+        var attendedReads = 0
+        var acceptedReads = 0
+        var finalsSince: [Date] = []
+        var joinedSince: [Date] = []
+        /// While true, the attended read doesn't answer.
+        var attendedHangs = false
+        init(now: Date) { self.now = now }
+    }
+
+    private struct PillRig {
+        let pill: HelloPill
+        let inbox: HelloInbox
+        let fakes: PillFakes
+        let phone: UserDefaults
+    }
+
+    /// A pill with fake reads, its own phone and its own clock, on a Wednesday morning. Every read
+    /// answers at once with nothing found until the test says otherwise.
+    private func pillRig(_ name: String = #function) -> PillRig {
+        let phone = UserDefaults(suiteName: "HelloPillTests.\(name)")!
+        phone.removePersistentDomain(forName: "HelloPillTests.\(name)")
+        let start = town("2026-10-21 09:00")
+        let inbox = HelloInbox(keep: phone, now: start)
+        let fakes = PillFakes(now: start)
+        let reads = HelloPill.Reads(
+            prepare: {},
+            ready: { true },
+            day: { fakes.day },
+            name: { "Jesse" },
+            attended: {
+                fakes.attendedReads += 1
+                while fakes.attendedHangs { await Task.yield() }
+                return fakes.attended
+            },
+            finals: {
+                fakes.finalsSince.append($0)
+                return fakes.finals
+            },
+            joined: {
+                fakes.joinedSince.append($0)
+                return fakes.joined
+            },
+            accepted: {
+                fakes.acceptedReads += 1
+                return fakes.accepted
+            })
+        let pill = HelloPill(reads: reads, inbox: inbox, phone: phone, now: { fakes.now }, pause: { _ in
+            fakes.now.addTimeInterval(0.1)
+            fakes.pauses += 1
+            await Task.yield()
+        })
+        return PillRig(pill: pill, inbox: inbox, fakes: fakes, phone: phone)
+    }
+
+    /// A morning with every read back: the hello, then what goes on after it.
+    private func wholeMorning(_ rig: PillRig) async -> HelloPill.Say? {
+        guard let morning = rig.pill.morning() else {
+            XCTFail("no hello")
+            return nil
+        }
+        await morning.reads.value
+        return await rig.pill.afterHello()
+    }
+
+    private func words(_ said: HelloPill.Say?) -> String? {
+        if case .line(let message) = said { message.text } else { nil }
+    }
+
+    private var bingoTonight: HelloPill.Day { HelloPill.Day(town: [event("Bingo", "2026-10-21", "6 PM")]) }
+
+    func testTheMorningSaysItsHelloOnceAndKnowsTheVeryFirstOpen() async {
+        let rig = pillRig()
+        let first = rig.pill.morning()
+        XCTAssertEqual(first?.hello, "Welcome to Block Party, Jesse")
+        XCTAssertEqual(first?.first, true)
+        XCTAssertNil(rig.pill.morning(), "a second open the same day")
+        await first?.reads.value
+
+        rig.fakes.now = town("2026-10-22 20:00")
+        XCTAssertFalse(rig.pill.wentAway())
+        rig.fakes.now = town("2026-10-23 09:00")
+        let next = rig.pill.morning()
+        XCTAssertEqual(next?.hello, "Happy Friday, Jesse")
+        XCTAssertEqual(next?.first, false)
+        await next?.reads.value
+    }
+
+    /// An acceptance waiting takes the line the day's count would have had (hello-drop 06).
+    func testAnAcceptanceWaitingBeatsTheDaysCount() async {
+        let quiet = pillRig("beats.quiet")
+        quiet.fakes.day = bingoTonight
+        let count = await wholeMorning(quiet)
+        XCTAssertEqual(words(count), "1 thing happening today", "with nothing waiting, the count")
+
+        let rig = pillRig("beats.waiting")
+        rig.fakes.day = bingoTonight
+        rig.inbox.add(.accepted(kate), at: rig.fakes.now)
+        let said = await wholeMorning(rig)
+        XCTAssertEqual(words(said), "Kate accepted your friend request")
+        XCTAssertNil(rig.inbox.next, "told")
+        XCTAssertEqual(rig.phone.string(forKey: HelloPill.lastLineKey), "Kate accepted your friend request")
+    }
+
+    /// What you follow added comes after your own day, and stays new for a day with room for it.
+    func testWhatYouFollowAddedWaitsForYourOwnDay() async {
+        let rig = pillRig()
+        rig.fakes.day = HelloPill.Day(going: [event("Rocktoberfest", "2026-10-21", "4 PM")])
+        rig.inbox.add(.added(HelloItem.Added(name: "Bad Habit Brewing", day: "2026-10-21", eventId: "e", title: "Pint Night",
+                                             eventDate: nil, startTime: nil, count: 1, picture: nil,
+                                             pictureIsPhoto: true, photo: nil)),
+                      at: rig.fakes.now)
+
+        let wednesday = await wholeMorning(rig)
+        XCTAssertEqual(words(wednesday), "Rocktoberfest is today at 4")
+        XCTAssertEqual(rig.pill.waiting?.id, "added:Bad Habit Brewing:2026-10-21", "still new")
+
+        rig.pill.gone()
+        rig.fakes.now = town("2026-10-22 09:00")
+        rig.fakes.day = HelloPill.Day()
+        let thursday = await wholeMorning(rig)
+        XCTAssertEqual(words(thursday), "Bad Habit Brewing added an event")
+        XCTAssertNil(rig.pill.waiting, "told")
+    }
+
+    /// Left the app with an item on the pill: still new, for the bell's dot and the next pill.
+    func testAPillGoneBeforeItWasReadStaysNew() {
+        let rig = pillRig()
+        rig.inbox.add(.accepted(kate), at: rig.fakes.now)
+        XCTAssertEqual(words(rig.pill.drop()), "Kate accepted your friend request")
+        XCTAssertNil(rig.inbox.next, "told as it came up")
+
+        XCTAssertTrue(rig.pill.wentAway(), "the view sends it away")
+        XCTAssertEqual(rig.inbox.next?.id, "accepted:kate")
+        XCTAssertEqual(rig.phone.double(forKey: HelloDrop.lastSeenKey), rig.fakes.now.timeIntervalSince1970)
+    }
+
+    /// One that went back up was read: leaving after it un-tells nothing.
+    func testAPillThatWentBackUpStaysTold() {
+        let rig = pillRig()
+        rig.inbox.add(.accepted(kate), at: rig.fakes.now)
+        _ = rig.pill.drop()
+        rig.pill.gone()
+        XCTAssertFalse(rig.pill.wentAway())
+        XCTAssertNil(rig.inbox.next)
+    }
+
+    /// The hello and a plain day's line aren't items: they stay up when you leave.
+    func testLeavingDuringAPlainLineUnTellsNothing() async {
+        let rig = pillRig()
+        rig.fakes.day = bingoTonight
+        let said = await wholeMorning(rig)
+        XCTAssertEqual(words(said), "1 thing happening today")
+        XCTAssertFalse(rig.pill.wentAway())
+    }
+
+    /// A swipe during the hello cancels the wait: nothing is told and the day's words stay.
+    func testASwipeDuringTheHelloWritesNothing() async {
+        let rig = pillRig()
+        rig.phone.set("3 events this week", forKey: HelloPill.lastLineKey)
+        rig.inbox.add(.accepted(kate), at: rig.fakes.now)
+        let morning = rig.pill.morning()
+        let after = Task { await rig.pill.afterHello() }
+        after.cancel()
+        let said = await after.value
+        await morning?.reads.value
+        XCTAssertNil(said)
+        XCTAssertEqual(rig.inbox.next?.id, "accepted:kate")
+        XCTAssertEqual(rig.phone.string(forKey: HelloPill.lastLineKey), "3 events this week")
+        XCTAssertFalse(rig.pill.wentAway(), "nothing was put on the pill")
+    }
+
+    /// A read that never answers holds the line 1 s at most, then it says what it can.
+    func testAReadThatNeverAnswersStillLetsTheLineCome() async {
+        let rig = pillRig()
+        rig.fakes.day = bingoTonight
+        rig.fakes.attendedHangs = true
+        let morning = rig.pill.morning()
+        let started = rig.fakes.now
+        let said = await rig.pill.afterHello()
+        XCTAssertEqual(words(said), "1 thing happening today")
+        XCTAssertEqual(rig.fakes.pauses, 10)
+        XCTAssertEqual(rig.fakes.now.timeIntervalSince(started), 1, accuracy: 0.001)
+        rig.fakes.attendedHangs = false
+        await morning?.reads.value
+    }
+
+    /// A final found while the hello holds makes this pill, with no wait once the reads are back.
+    func testAFinalLandingDuringTheHoldMakesThisPill() async {
+        let rig = pillRig()
+        rig.fakes.day = bingoTonight
+        rig.fakes.finals = [final([33, 23], mine: 0)]
+        let said = await wholeMorning(rig)
+        XCTAssertEqual(words(said), "Saint John's beat Gustavus 33–23")
+        XCTAssertEqual(rig.fakes.pauses, 0)
+    }
+
+    /// Launch brings both the first task and an active phase: attended reads once in 30 s.
+    func testTheAttendedReadWaits30Seconds() async {
+        let rig = pillRig()
+        rig.fakes.attended = 1
+        await rig.pill.readLater()
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.attendedReads, 1)
+        if case .moment(.firstEvent)? = rig.inbox.next?.what {} else { XCTFail("the first event found") }
+
+        rig.fakes.now.addTimeInterval(31)
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.attendedReads, 2)
+    }
+
+    /// A failed accepted read (before the saved login is in) tries again at once; one that came
+    /// back waits 30 s.
+    func testAFailedAcceptedReadTriesAgainAtOnce() async {
+        let rig = pillRig()
+        rig.fakes.accepted = nil
+        await rig.pill.readLater()
+        rig.fakes.accepted = []
+        await rig.pill.readLater()
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.acceptedReads, 2)
+        rig.fakes.now.addTimeInterval(31)
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.acceptedReads, 3)
+    }
+
+    /// A failed finals read doesn't step past a final; one that came back moves the cut-off to an
+    /// hour before it began (`HelloSchedule`).
+    func testAFailedFinalsReadDoesNotMoveTheCutOff() async {
+        let rig = pillRig()
+        let start = rig.fakes.now
+        rig.fakes.finals = nil
+        await rig.pill.readLater()
+        rig.fakes.now.addTimeInterval(60)
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.finalsSince, [start.addingTimeInterval(-36 * 3600),
+                                               start.addingTimeInterval(60 - 36 * 3600)], "still 36 hours back")
+
+        rig.fakes.finals = []
+        await rig.pill.readLater()
+        let read = rig.fakes.now
+        rig.fakes.now.addTimeInterval(60)
+        await rig.pill.readLater()
+        XCTAssertEqual(rig.fakes.finalsSince.last, read.addingTimeInterval(-3600))
+    }
+
+    /// The first contacts check that works sets the cut-off, so nobody already here is new; one
+    /// that can't check leaves it for later. A week back at most.
+    func testTheFirstContactsCheckSetsTheCutOff() async {
+        let rig = pillRig()
+        rig.fakes.joined = nil
+        _ = await wholeMorning(rig)
+        XCTAssertEqual(rig.phone.double(forKey: HelloPill.joinedSinceKey), 0, "Contacts not allowed yet")
+
+        rig.fakes.joined = []
+        rig.fakes.now = town("2026-10-22 09:00")
+        _ = await wholeMorning(rig)
+        XCTAssertEqual(rig.fakes.joinedSince.last, town("2026-10-22 09:00"), "nobody already here is new")
+
+        rig.fakes.now = town("2026-10-23 09:00")
+        _ = await wholeMorning(rig)
+        XCTAssertEqual(rig.fakes.joinedSince.last, town("2026-10-22 09:00"), "since the first check")
+
+        rig.fakes.joined = [sam]
+        rig.fakes.now = town("2026-11-20 09:00")
+        let said = await wholeMorning(rig)
+        XCTAssertEqual(rig.fakes.joinedSince.last, town("2026-11-13 09:00"), "a week back at most")
+        XCTAssertEqual(words(said), "Sam joined Block Party")
+    }
+
+    /// A count isn't said two days running: the next one down stands in. A day with no line clears
+    /// that memory (hello-drop 08).
+    func testACountIsNotSaidTwoDaysRunning() async {
+        let rig = pillRig()
+        rig.fakes.day = HelloPill.Day(town: [event("a", "2026-10-21", "7 PM"), event("b", "2026-10-22", "7 PM"),
+                                             event("c", "2026-10-23", "7 PM")])
+        let wednesday = await wholeMorning(rig)
+        XCTAssertEqual(words(wednesday), "1 thing happening today")
+
+        rig.fakes.now = town("2026-10-22 09:00")
+        let thursday = await wholeMorning(rig)
+        XCTAssertEqual(words(thursday), "1 event this weekend", "not yesterday's words again")
+
+        rig.fakes.day = HelloPill.Day()
+        rig.fakes.now = town("2026-10-23 09:00")
+        let friday = await wholeMorning(rig)
+        XCTAssertNil(friday, "nothing to say: the pill goes back up")
+        XCTAssertEqual(rig.phone.string(forKey: HelloPill.lastLineKey), "")
+    }
+
+    /// Straight down, an hour apart; what you made with a tap doesn't wait and doesn't count.
+    func testDropKeepsThePillsLimitsAndWhatYouMadeDoesNotWait() {
+        let rig = pillRig()
+        rig.inbox.add(.accepted(kate), at: rig.fakes.now)
+        XCTAssertNotNil(rig.pill.drop())
+        rig.pill.gone()
+
+        rig.fakes.now.addTimeInterval(600)
+        rig.inbox.add(.joined(sam), at: rig.fakes.now)
+        XCTAssertNil(rig.pill.drop(), "ten minutes on")
+        XCTAssertEqual(rig.pill.waiting?.id, "joined:sam", "kept for later")
+
+        rig.inbox.add(.moment(.firstFriend), at: rig.fakes.now)
+        XCTAssertEqual(rig.pill.drop(), .moment(.firstFriend), "yours, at once")
+        rig.pill.gone()
+
+        rig.fakes.now.addTimeInterval(3000)
+        XCTAssertEqual(words(rig.pill.drop()), "Sam joined Block Party", "an hour after the last that counted")
+    }
 }
