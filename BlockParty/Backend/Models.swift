@@ -240,7 +240,6 @@ nonisolated struct TownFeedRow: Hashable {
     let leavesAt: Date
     var reason: String? = nil
     var reasonName: String? = nil
-    var score: FeedScore? = nil
     var heartCount = 0
     var hearted = false
     var saved = false
@@ -359,41 +358,6 @@ nonisolated extension TownMoreRow {
 nonisolated struct FeedFriend: Hashable, Sendable {
     let name: String
     let photo: URL?
-}
-
-/// The points behind a card's place in the Town feed, as `get_town_feed` sends them to
-/// the admin only: each lift in points, each multiplier, and the spot they add up to.
-nonisolated struct FeedScore: Decodable, Hashable, Sendable {
-    let interest: Double
-    let friend: Double
-    let follow: Double
-    let popular: Double
-    let size: Double
-    /// 1 small, 2 medium, 3 big.
-    let sizeStep: Int
-    let daysAway: Double
-    let soon: Double
-    let acted: Double
-    let spacing: Double
-    let newSpot: Bool
-    let total: Double
-    /// Where the card sits; `TownFeed.cards` sets it to the card's place on screen, which
-    /// a read that keeps the order on screen can leave different from the database's.
-    var spot: Int
-    var of: Int
-    /// Newer terms, absent from a breakdown read before them: points for a host you've been
-    /// into (town-feed 30), for how much it draws the town out (34), and the multiplier for an
-    /// interest placed again (32).
-    var tapped: Double? = nil
-    var draw: Double? = nil
-    var topicSpacing: Double? = nil
-    /// Like something you said Not interested to: × 0.3 fading to × 1 over 90 days (ticket 21).
-    var notInterested: Double? = nil
-    /// "yours" (a friend Going, something you follow, a host you've been into) or "discovery";
-    /// nil for your own plans, which are in neither (town-feed 31).
-    var pool: String? = nil
-    /// Points for being new: in the feed since your last visit or the last 24 hours, unseen (town-feed 36, 38).
-    var new: Double? = nil
 }
 
 struct Trail: Identifiable, Hashable {
