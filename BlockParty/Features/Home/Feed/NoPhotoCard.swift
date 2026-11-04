@@ -2,8 +2,8 @@
 //  NoPhotoCard.swift
 //  Block Party — a Town card with no photo (BP app references/no-photo-cards, Jesse 2026-10-30).
 //
-//  A card with no photo of its own or its place's used to spend a whole photo-sized frame on the
-//  place's logo over its backdrop, or on ink. It is a short white card now, Meetup's and Luma's
+//  A card with no photo of the Event used to spend a whole photo-sized frame on the place's logo
+//  over its backdrop, on ink, or on the place's cover (town-feed 40). It is a short white card now, Meetup's and Luma's
 //  event rows in the white game card's edge and shadow: the place's logo on the left, the day (or
 //  NEW for News) in a light grey pill, the title and its facts beside it. Jesse picked it over a
 //  post card, a logo tile, a logo watermark and a yellow pill ("that looks harsh"). The heart and
@@ -134,12 +134,8 @@ struct NoPhotoCardMark: View {
 }
 
 extension FeedCardItem {
-    /// No photo of its own or its place's, and not a game: the short white card. A photo that fails
-    /// to load keeps its photo card, as ink, so the feed never jumps (Jesse at Check-in 1).
-    var isPhotoless: Bool { game == nil && !image.isPhoto }
-}
-
-extension TownNews {
-    /// Only its place's logo, or nothing: the short white card.
-    var isPhotoless: Bool { picture?.kind != .photo }
+    /// No photo of the Event, and not a game: the short white card. Its place's cover doesn't count
+    /// (Jesse, 2026-11-04: "only photos of the event", BP app town-feed 40). A photo that fails to load
+    /// keeps its photo card, as ink, so the feed never jumps (Jesse at Check-in 1).
+    var isPhotoless: Bool { game == nil && (!image.isPhoto || coverOnly) }
 }

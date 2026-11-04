@@ -10,9 +10,6 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
-- 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
-  database-only commit (run 41256785507, attempt 1; the rerun passed), after its 2026-10-25 fix
-  below · cause not found · no fix yet
 - 2026-10-30 · `town_feed.test.mjs` "the feed is read in under 100 ms with 5,000 people" · red on
   fix/rootview-typecheck (run 41157284060, a Swift-only change): median 250.2 ms against CI's 250 ms
   budget · a slow GitHub runner; green on main at fbd23337 and 4d97358e · no fix yet on GitHub (the
@@ -23,6 +20,9 @@ flake moves to Fixed, dated, and stays there.
 
 ## Fixed
 
+- 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
+  database-only commit (run 41256785507, attempt 1; the rerun passed), after its 2026-10-25 fix
+  below · cause not found · gone with the test: a Town card no longer swipes (BP app town-feed 40)
 - 2026-11-04 · `town_feed.test.mjs` "feed-load: with 5,000 people, Event of the day never works out the
   whole feed, and reads faster" · red on 57f3a253, a commit touching only `social.md` and `check_judge.py`
   (run 41857161145, attempt 1; the re-run passed): no picks 127.7 ms against 178.2, half being 89.1. Red on

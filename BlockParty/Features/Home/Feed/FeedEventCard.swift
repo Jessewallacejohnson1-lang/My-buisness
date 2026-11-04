@@ -54,8 +54,6 @@ struct FeedEventCard: View {
     @State private var shownPhotos: Set<URL> = []
     /// A single photo that could not be loaded (taken down, or offline): the card turns to ink.
     @State private var failedPhoto: URL?
-    /// Which of a swiping card's photos is up (event-card 02).
-    @State private var photoPage: Int? = 0
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
     @State private var menuPresented = false
@@ -115,8 +113,6 @@ struct FeedEventCard: View {
             }
             .buttonStyle(FeedCardLinkStyle())
             .accessibilityIdentifier("event-card-link")
-            // Which photo is up, read with the card: the pager and its dots stay out of VoiceOver.
-            .accessibilityValue(swipes ? "Photo \(pageShown + 1) of \(cardPhotos.count)" : "")
             // The press comes from the touch itself, not the link: the photo's double
             // tap holds the link's own press until it fails, so the photo sinks the
             // moment a finger lands.
@@ -159,18 +155,13 @@ struct FeedEventCard: View {
                 }
             }
 
-            // Under a photo that swipes, the dots that say which one is up (Instagram's).
-            if swipes {
-                PageDots(count: cardPhotos.count, page: pageShown)
-            }
-
             // One line under the photo (event-card 06): the send, the •••, the faces, the count and
-            // Attend (rsvp-and-groups 01; 12 pt below the photo), or under the dots' row. Called off,
+            // Attend (rsvp-and-groups 01; 12 pt below the photo). Called off,
             // a red "Canceled" pill and no count. Going, the pill turns into the X that leaves
             // (attend-x) and the send into the yellow share beside it. The heart is on the photo.
             if let rsvp = actions.rsvp(item, town: true) {
                 RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true, onMenu: openMenu)
-                    .padding(.top, swipes ? 0 : 12)
+                    .padding(.top, 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
                     .transition(.opacity)
             } else {
@@ -183,7 +174,8 @@ struct FeedEventCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
-                                    report: currentPhoto.report(place: item.whereLine)))
+                                    // On the white card no photo is up to report.
+                                    report: item.isPhotoless ? nil : displayImage.report(place: item.whereLine)))
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -336,25 +328,11 @@ struct FeedEventCard: View {
         return item.image
     }
 
-    /// The event's own photo and its place's, each once, at most three (the Event page shows
-    /// the same). Nothing leaves when it fails: it stays ink, so the card never shrinks.
-    private var cardPhotos: [FeedCardImageSource] { item.game == nil ? item.photos() : [] }
-
-    /// Two or more photos swipe, under dots; one doesn't.
-    private var swipes: Bool { cardPhotos.count > 1 }
-
-    private var pageShown: Int { min(photoPage ?? 0, max(cardPhotos.count - 1, 0)) }
-
-    /// The photo that's up: its credit shows, and the ••• menu reports it.
-    private var currentPhoto: FeedCardImageSource {
-        swipes ? cardPhotos[pageShown] : displayImage
-    }
-
     /// The credit for the photo on screen, in the array form `PhotoCredit` takes. Empty
     /// until the photo itself has decoded, so a credit never sits on ink.
     private var creditNames: [String] {
-        guard let url = currentPhoto.url, PhotoPager.isShown(url, in: shownPhotos),
-              let credit = currentPhoto.attribution
+        guard let url = displayImage.url, PhotoPager.isShown(url, in: shownPhotos),
+              let credit = displayImage.attribution
         else { return [] }
         return [credit]
     }
@@ -472,12 +450,12 @@ struct FeedEventCard: View {
         if let game = item.game {
             WhiteGameCard(item: item, game: game, place: metaSummary)
         } else if let url = displayImage.url {
-            // The Event page's carousel: it pages under the finger, and one photo rubber-bands
-            // (a sideways swipe used to open the Event page as if it were a tap, 2026-10-20).
-            // Waits on ink, and stays out of VoiceOver here: the card reads as one link, and its
-            // page has the carousel. A swiping card keeps a photo that fails, as ink.
-            PhotoPager(urls: swipes ? cardPhotos.compactMap(\.url) : [url], page: $photoPage, shown: $shownPhotos,
-                       value: "", onFailure: { if !swipes { failedPhoto = $0 } }, skeleton: false, bounces: true)
+            // The Event page's carousel with the Event's one photo: it rubber-bands (a sideways swipe
+            // used to open the Event page as if it were a tap, 2026-10-20). The place's other photos stay
+            // on its page (Jesse, 2026-11-04, BP app town-feed 40). Waits on ink, and stays out of
+            // VoiceOver here: the card reads as one link, and its page has the carousel.
+            PhotoPager(urls: [url], page: .constant(0), shown: $shownPhotos,
+                       value: "", onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true)
                 .accessibilityHidden(true)
         } else {
             Rectangle().fill(Hue.ink)
@@ -806,30 +784,5 @@ struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
 
     func handleUIGestureRecognizerAction(_ recognizer: Recognizer, context: Context) {
         if recognizer.state == .ended { onDoubleTap(context.converter.localLocation) }
-    }
-}
-
-/// Which of a card's photos is up: Instagram's dots under its carousel, 6 pt, 4 pt apart, in a
-/// 28 pt row, ink for the one up and ink at 18% for the rest (the approved Round 3 mock).
-private struct PageDots: View {
-    let count: Int
-    let page: Int
-
-    private static let side: CGFloat = 6
-    private static let gap: CGFloat = 4
-    private static let row: CGFloat = 28
-
-    var body: some View {
-        HStack(spacing: Self.gap) {
-            ForEach(0..<count, id: \.self) { index in
-                Circle()
-                    .fill(Hue.ink.opacity(index == page ? 1 : 0.18))
-                    .frame(width: Self.side, height: Self.side)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: Self.row)
-        .animation(Motion.smooth, value: page)
-        // The card's link says which photo is up.
-        .accessibilityHidden(true)
     }
 }

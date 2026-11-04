@@ -185,9 +185,12 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     /// The place's other live photos, after this cover, as they came (ticket 02): read
     /// through `more`, so one that doesn't decode never costs the cover.
     var others: [Lenient]? = nil
+    /// This is the place's cover, not a photo of the Event (`public.event_picture`, BP app town-feed
+    /// 40): its Town card goes white, its page still shows it. nil on every other picture.
+    var cover: Bool? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case url, kind, credit, site, hue
+        case url, kind, credit, site, hue, cover
         case width = "w", height = "h", others = "more"
     }
 

@@ -2,16 +2,13 @@
 //  TownNewsCard.swift
 //  Block Party — town news in the Town feed (BP app docs/plans/town-feed, ticket 35).
 //
-//  A Town card that says News (Jesse, 2026-10-29: "similar format to cards just news", BP app
-//  references/found-posts): the place's photo in its own shape, ink when it fails; a white "News"
-//  chip where an event's day and time go; the headline over it as an event's title, the facts
-//  under that; the send and the ••• under the picture (news-menu: Not interested and Mute its
-//  place, as an Event card's). No place name and no
-//  picture beside one: a found post carries only the place's own mark. No time: Block Party knows
-//  when it saved a post, not when the place posted it. A tap opens the post in Instagram or
-//  Facebook when that app is on the phone, else in Apple's in-app browser; the picture sinks the
-//  instant a finger lands, as an event card's does. With no photo it is the short white card, its
-//  pill saying NEW (BP app references/no-photo-cards).
+//  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
+//  logo on the left, else its first letter; NEW in the grey pill; the headline and the facts beside
+//  them; the send and the ••• under it (news-menu: Not interested and Mute its place, as an Event
+//  card's). Never a photo: a post has no Event, so the only photo it could show is its place's cover
+//  (Jesse, 2026-11-04, BP app town-feed 40). No time: Block Party knows when it saved a post, not when
+//  the place posted it. A tap opens the post in Instagram or Facebook when that app is on the phone,
+//  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
 //
 
 import SwiftUI
@@ -22,24 +19,10 @@ struct TownNewsCard: View {
     var sendable = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var pressed = false
     @State private var link: SafariLink?
     /// The •••'s sheet, an Event card's: Not interested and Mute its place (news-menu).
     @State private var menuPresented = false
-    /// The photo once its bitmap is on screen: its credit waits for it.
-    @State private var shown: Set<URL> = []
-    /// A photo that couldn't load: the card turns to ink, keeping its shape.
-    @State private var failed = false
-
-    /// The place's picture, which also sets the card's shape, failed or not.
-    private var source: FeedCardImageSource { news.picture.map(FeedCardImageSource.init) ?? .fallback }
-    private var image: FeedCardImageSource { failed ? .fallback : source }
-
-    private var credit: [String] {
-        guard let url = image.url, PhotoPager.isShown(url, in: shown), let credit = image.attribution else { return [] }
-        return [credit]
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -81,98 +64,10 @@ struct TownNewsCard: View {
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
 
-    /// The place's photo, or with none the short white card, its pill saying NEW (no-photo-cards).
-    @ViewBuilder
     private var face: some View {
-        if news.isPhotoless {
-            NoPhotoCard(logo: news.picture?.url, name: news.place, pill: "NEW", title: news.headline,
-                        facts: news.facts, factsLines: 2)
-                .padding(.horizontal, DailyFeedMetric.contentInset)
-        } else {
-            picture
-        }
-    }
-
-    /// The event card's picture (`FeedEventCard.imageSection`): the photo's own shape, 20 pt
-    /// corners, the chip along the top with the photo's credit at the right, the words off the
-    /// bottom left.
-    private var picture: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                pictureContent
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .background(Hue.ink)
-                    .clipped()
-                if image.isPhoto {
-                    FeedCardPhotoScrim(imageHeight: proxy.size.height)
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(source.cardAspect), contentMode: .fit)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(alignment: .top) {
-            HStack(alignment: .center, spacing: 8) {
-                PhotoChip(text: "News")
-                Spacer(minLength: 0)
-                PhotoCredit(names: credit)
-                    .padding(-PhotoCredit.edgeInset)
-                    .animation(reduceMotion ? nil : Motion.smooth, value: credit)
-                placeMark
-            }
-            .frame(minHeight: PhotoChip.height)
-            .padding(PhotoChip.inset)
-        }
-        .overlay(alignment: .bottomLeading) {
-            copy.padding(16)
-        }
-        .padding(.horizontal, DailyFeedMetric.contentInset)
-    }
-
-    /// Whose post it is, on the picture's top right, as an Event's host rides it (Jesse, 2026-10-29:
-    /// "water marks for businesses or people"): its first letter, since the feed sends no logo
-    /// beside a photo, and a post with only a logo is the white card (no-photo-cards).
-    @ViewBuilder
-    private var placeMark: some View {
-        if !news.place.isEmpty {
-            Avatar(nil, size: PhotoChip.height, blank: .initial(news.place))
-                .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
-        }
-    }
-
-    @ViewBuilder
-    private var pictureContent: some View {
-        if let url = image.url {
-            PhotoPager(urls: [url], page: .constant(0), shown: $shown, value: "",
-                       onFailure: { _ in failed = true }, skeleton: false, bounces: true)
-        } else {
-            Rectangle().fill(Hue.ink)
-        }
-    }
-
-    /// The headline as an event's title (`FeedEventCard.imageCopy`), the facts in its place line's
-    /// type, two lines at most: news facts run a sentence where an event's place is a few words.
-    private var copy: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(news.headline)
-                .font(.eventDisplay(28))
-                .lineSpacing(-2)
-                .foregroundStyle(.white)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-            if let facts = news.facts {
-                Text(facts)
-                    .font(.sans(13))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .feedCardPhotoTypeShadow()
-        .allowsHitTesting(false)
+        NoPhotoCard(logo: news.picture?.kind == .logo ? news.picture?.url : nil, name: news.place, pill: "NEW",
+                    title: news.headline, facts: news.facts, factsLines: 2)
+            .padding(.horizontal, DailyFeedMetric.contentInset)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in

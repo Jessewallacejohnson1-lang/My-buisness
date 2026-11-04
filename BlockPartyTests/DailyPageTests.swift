@@ -189,17 +189,30 @@ final class DailyPageTests: XCTestCase {
     /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
     /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
-                                  leaves: String) throws -> TownFeedRow {
+                                  leaves: String, picture: [String: Any]? = nil) throws -> TownFeedRow {
         let id = "11111111-2222-3333-4444-555555555555"
-        let card: [String: Any] = [
+        var card: [String: Any] = [
             "id": id, "title": "Sartell Boys Soccer vs ROCORI",
             "event_date": "2026-10-20", "start_time": start ?? NSNull(), "location": "Sartell High School",
             "image_url": NSNull(), "category": "watch_sports", "club_name": NSNull(),
             "source_name": "Sartell High School", "end_at": endAt ?? NSNull(), "all_day": allDay,
             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "going": true]
+        card["place_picture"] = picture
         let json: [String: Any] = ["id": id, "recurrence": NSNull(), "leaves_at": leaves, "card": card]
         let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
         return try XCTUnwrap(rows.first)
+    }
+
+    /// Today's poster takes only a pick with a photo of the Event (BP app town-feed 40). One with
+    /// just its place's cover or logo, or nothing, is passed over; another day's read keeps it.
+    func testTodaysPosterPassesOverAPickWithNoPhotoOfTheEvent() throws {
+        let pictures: [[String: Any]?] = [["url": "https://x/hall.webp", "kind": "photo", "cover": true],
+                                          ["url": "https://x/logo.webp", "kind": "logo"],
+                                          nil,
+                                          ["url": "https://x/scene.webp", "kind": "photo"]]
+        let rows = try pictures.map { try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00", picture: $0) }
+        XCTAssertEqual(DailyEvent.todaysPicks(rows).map { $0.item.image.url?.lastPathComponent }, ["scene.webp"])
+        XCTAssertEqual(rows.compactMap { DailyEvent(row: $0) }.count, 4, "another day's read keeps its one pick")
     }
 
     /// A pick becomes Daily's poster: it starts at its own time in the Town, stays until it leaves

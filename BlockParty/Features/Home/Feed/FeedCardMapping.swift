@@ -11,13 +11,14 @@ extension FeedCardItem {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
         let place = event.placePicture.map(FeedCardImageSource.init)
+        let image = Self.imageSource(imageUrl: event.imageUrl, title: event.title, place: place)
 
         self.init(
             id: event.id,
             title: event.title,
             dateChip: Self.dateChip(from: event.eventDate),
             metaLine: [time, location].compactMap { $0 }.joined(separator: " · "),
-            image: Self.imageSource(imageUrl: event.imageUrl, title: event.title, place: place),
+            image: image,
             recurrence: recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             hostPicture: event.hostPicture,
@@ -38,6 +39,7 @@ extension FeedCardItem {
             cancelled: event.cancelled,
             place: place,
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
+            coverOnly: event.placePicture?.cover == true && image == place,
             game: event.game,
             what: Self.nonempty(event.what),
             createdAt: DateHelpers.timestamp(event.createdAt),

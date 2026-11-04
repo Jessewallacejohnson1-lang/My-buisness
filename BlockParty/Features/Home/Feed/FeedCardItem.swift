@@ -57,6 +57,10 @@ struct FeedCardItem: Identifiable, Hashable {
     var place: FeedCardImageSource? = nil
     /// The place's other photos after `place` (event-card 02).
     var placeMore: [FeedCardImageSource] = []
+    /// `image` is its place's cover, not a photo of the Event: its Town card is the white card and
+    /// its Event of the day is passed over; its page and every other screen still show the cover
+    /// (Jesse, 2026-11-04, BP app town-feed 40).
+    var coverOnly = false
     /// The approved group putting it on, as the Town feed names it, and whether the read said
     /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
     var groupID: String? = nil
@@ -135,8 +139,7 @@ struct FeedCardItem: Identifiable, Hashable {
         return startTime == nil ? shareLocation : nil
     }
 
-    /// The place's photos, after the event's own: what the card swipes to and its Event page
-    /// shows (event-card 02).
+    /// The place's photos, after the event's own: what its Event page shows (event-card 02).
     var venue: [FeedCardImageSource] {
         #if DEBUG
         // UI tests only: a second bundled photo, so the card and its page have two to swipe
@@ -149,8 +152,8 @@ struct FeedCardItem: Identifiable, Hashable {
         return (place.map { [$0] } ?? []) + placeMore
     }
 
-    /// The card's and its page's photos: the event's own first, then the place's, each once,
-    /// at most three; ones that `failed` to load left out.
+    /// Its page's photos: the event's own first, then the place's, each once, at most three; ones
+    /// that `failed` to load left out.
     func photos(failed: Set<URL> = []) -> [FeedCardImageSource] {
         FeedEventDetailDestination.photoList(event: image, venue: venue, failed: failed)
     }

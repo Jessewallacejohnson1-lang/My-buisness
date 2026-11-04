@@ -135,6 +135,13 @@ extension DailyEvent {
         event.ends = row.leavesAt
         self = event
     }
+
+    /// Today's picks as the poster takes them: only ones with a photo of the Event, so a pick with just
+    /// its place's cover or logo stays a white card in the list and the next pick takes the poster (Jesse,
+    /// 2026-11-04, BP app town-feed 40). Another day in Daily's week has one pick, so it keeps it.
+    static func todaysPicks(_ rows: [TownFeedRow]) -> [DailyEvent] {
+        rows.compactMap { DailyEvent(row: $0) }.filter { !$0.item.isPhotoless }
+    }
 }
 
 /// Daily's Event of the day, and the Town feed's top (event-card 03): the read's picks, kept
@@ -172,11 +179,11 @@ final class EventOfTheDay {
         }
         #endif
         self.init(read: {
-            try await CommunityAPI(supabase).getEventOfTheDay().compactMap(DailyEvent.init(row:))
+            DailyEvent.todaysPicks(try await CommunityAPI(supabase).getEventOfTheDay())
         }, kept: {
             guard let data = TownFeedCache.load(.eventOfTheDay),
                   let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
-            return rows.compactMap(DailyEvent.init(row:))
+            return DailyEvent.todaysPicks(rows)
         })
     }
 

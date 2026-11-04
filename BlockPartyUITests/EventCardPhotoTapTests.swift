@@ -28,7 +28,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         // swipe below always has a carousel to start on, network or not.
         // `-daily-samples -daily-hour 12`: the Event of the day poster above the cards is a
         // live read otherwise, and with no real event on (most nights) the cards sat a poster's
-        // height higher, so the title test's drag carried the title under the top bar (red on GitHub
+        // height higher, so a drag from the card carried it under the top bar (red on GitHub
         // 2026-10-30 02:56 and 03:15 UTC, green at 01:59 with a live event on).
         app.launchArguments = ["-open-tab", "town", "-town-samples", "-event-page-two-photos", "-ui-tests",
                                "-daily-samples", "-daily-hour", "12"]
@@ -70,17 +70,6 @@ final class EventCardPhotoTapTests: XCTestCase {
     /// The Event page is up: its own Back button shows. A drag up that scrolls Town's card
     /// under the top bar leaves the card unhittable, which `waitForPush` would read as a push
     /// (GitHub, a6a2298 and b0f753d, 2026-10-20).
-    /// Waits until the element stops moving (two looks 0.4 s apart agree), at most 5 s.
-    private func waitUntilStill(_ element: XCUIElement) {
-        var last = element.frame
-        for _ in 0..<12 {
-            Thread.sleep(forTimeInterval: 0.4)
-            let now = element.frame
-            if now == last { return }
-            last = now
-        }
-    }
-
     private func pageOpened(timeout: TimeInterval) -> Bool {
         app.buttons["Back"].waitForExistence(timeout: timeout)
     }
@@ -105,61 +94,19 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertTrue(pageOpened(timeout: 15), "the pushed page has no Back button for the swipe test to look for")
     }
 
-    /// A card with two photos swipes between them under the finger and never opens its page;
-    /// the dots under it say the second is up; a single tap then still opens the page; a drag
-    /// up that starts on the photo scrolls the feed (BP app event-card 02).
-    /// `-event-page-two-photos` gives the first card a second photo.
-    func testASwipeOnThePhotoPagesAndADragUpScrolls() {
+    /// A drag up that starts on the photo scrolls the feed and never opens the page.
+    func testADragUpOnThePhotoScrollsTheFeed() {
         let link = firstCardLink()
-        XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
-
-        photo(of: link, x: 0.85).press(forDuration: 0.05, thenDragTo: photo(of: link, x: 0.1))
-        XCTAssertFalse(pageOpened(timeout: 2), "a swipe on the photo pushed the event page")
-        // Ends as soon as the dots say so; GitHub's runner takes seconds over each look.
-        let second = NSPredicate(format: "value == 'Photo 2 of 2'")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 15),
-                       .completed, "the swipe didn't bring the second photo up")
-
         let top = link.frame.minY
         photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80))
         XCTAssertFalse(pageOpened(timeout: 2), "a drag up on the photo pushed the event page")
         XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
     }
 
-    /// A swipe that starts on the title over the photo's bottom pages too: the shade and the words
-    /// there used to catch the finger, and the swipe opened nothing or the page (Jesse, 2026-10-23).
-    func testASwipeOnTheTitlePagesThePhoto() {
+    /// A Town card has one photo (BP app town-feed 40): a sideways swipe on it rubber-bands and opens
+    /// nothing (it used to open the Event page as if it were a tap), and a tap then still opens the page.
+    func testASidewaysSwipeOnTheCardOpensNothing() {
         let link = firstCardLink()
-        XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
-        let title = app.staticTexts["Music in Millstream Park"].firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "no title on the first card")
-        // On GitHub's iPhone 17 (874 pt tall) the title sits behind the tab bar: bring it up first,
-        // as the drag-up check above does, and let the feed settle.
-        // Held at the end, so the feed moves the 200 pt and stops: a quick drag flung it on until the title
-        // sat under the status bar, where iOS keeps the touch, and the swipe paged nothing (red on
-        // GitHub from ee03ef6, 2026-10-25). Then the frame is read once the feed is still.
-        photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80),
-                                       withVelocity: .slow, thenHoldForDuration: 0.5)
-        waitUntilStill(title)
-        XCTAssertGreaterThan(title.frame.minY, 120, "the title went up under the top bar")
-        XCTAssertLessThan(title.frame.maxY, app.frame.maxY - 140, "the title is still behind the tab bar")
-
-        title.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
-            .press(forDuration: 0.05, thenDragTo: title.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)))
-        XCTAssertFalse(pageOpened(timeout: 2), "a swipe on the title pushed the event page")
-        let second = NSPredicate(format: "value == 'Photo 2 of 2'")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 15),
-                       .completed, "a swipe on the title didn't bring the second photo up")
-    }
-
-    /// A card with one photo: a sideways swipe on it rubber-bands and opens nothing (it used to
-    /// open the Event page as if it were a tap), and a tap then still opens the page.
-    func testASidewaysSwipeOnAOnePhotoCardOpensNothing() {
-        app.terminate()
-        app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests"]
-        app.launch()
-        let link = firstCardLink()
-        XCTAssertEqual(link.value as? String ?? "", "", "the first sample card has more than one photo")
 
         photo(of: link, x: 0.85).press(forDuration: 0.05, thenDragTo: photo(of: link, x: 0.1))
         XCTAssertFalse(waitForPush(from: link, timeout: 2), "a sideways swipe on a one-photo card opened its page")

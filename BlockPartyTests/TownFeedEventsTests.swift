@@ -239,7 +239,7 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     /// A card with no photo is the short white card (BP app references/no-photo-cards): its place's
-    /// logo or nothing at all makes it one; a photo or a game never does. News the same.
+    /// logo or nothing at all makes it one; a photo or a game never does.
     func testACardWithNoPhotoIsTheShortWhiteCard() throws {
         let row = { (id: String, extra: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
@@ -255,19 +255,32 @@ final class TownFeedEventsTests: XCTestCase {
         ].joined(separator: ",") + "]"
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.isPhotoless), [true, true, false, false], "logo, ink, photo, game")
-
-        let post = URL(string: "https://www.instagram.com/p/1/")!
-        let news = { (picture: PlacePicture?) in
-            TownNews(id: "n", place: "The Wandering Cow", words: "Four scoops for $5", post: post,
-                     picture: picture, leavesAt: .distantFuture)
-        }
-        XCTAssertTrue(news(nil).isPhotoless, "no picture: its first letter")
-        XCTAssertTrue(news(PlacePicture(url: URL(string: "https://x/cow.webp")!, kind: .logo)).isPhotoless)
-        XCTAssertFalse(news(PlacePicture(url: URL(string: "https://x/cow.jpg")!, kind: .photo)).isPhotoless)
     }
 
-    /// The place's other photos reach the card (BP app event-card 02): the card and its page
-    /// show the cover, then the rest in order, each once with its own credit; one that doesn't
+    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
+    /// while its page keeps the cover and the place's other photos and `image` stays for every other
+    /// screen. The Event's own photo still wins over the cover.
+    func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
+        let row = { (id: String, image: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
+         "location":"Fire Hall","image_url":\(image),"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false,
+         "place_picture":{"url":"https://x/hall.webp","kind":"photo","w":1600,"h":1067,"cover":true,
+                          "more":[{"url":"https://x/yard.webp","kind":"photo"}]}}}
+        """ }
+        let json = "[" + row("cover", "null") + "," + row("own", #""https://x/own.jpg""#) + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+
+        XCTAssertEqual(cards.map(\.coverOnly), [true, false])
+        XCTAssertEqual(cards.map(\.isPhotoless), [true, false], "its place's cover: white; its own photo: a photo card")
+        XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp", "yard.webp"],
+                       "its page keeps the place's photos")
+        XCTAssertEqual(cards[0].image.url?.lastPathComponent, "hall.webp", "other screens keep what they show")
+    }
+
+    /// The place's other photos reach the card's page (BP app event-card 02): its page shows
+    /// the cover, then the rest in order, each once with its own credit; one that doesn't
     /// decode is left out and the cover kept.
     func testAPlacesOtherPhotosReachTheCardAndABadOneCostsNothing() throws {
         let json = """

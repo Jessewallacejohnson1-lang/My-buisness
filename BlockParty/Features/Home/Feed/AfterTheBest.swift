@@ -83,8 +83,7 @@ struct PlaceCard: View {
         }
     }
 
-    /// The Town news card's picture (`TownNewsCard.picture`) with no chip: the photo's own shape, its
-    /// credit, the logo, the words off the bottom left.
+    /// The place's own photo: the photo's own shape, its credit, the logo, the words off the bottom left.
     private func picture(_ source: FeedCardImageSource) -> some View {
         let image = failed ? FeedCardImageSource.fallback : source
         let credit = image.url.flatMap { PhotoPager.isShown($0, in: shown) ? image.attribution : nil }

@@ -1115,6 +1115,46 @@ test("an event card shows its place's photo of what the event is, in season, tak
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test("event_picture says when it is only the place's cover, and never of a photo of the Event (town-feed 40)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons) values
+      ('hall', 'https://x/cover.webp', 'https://hall.org/', 0, 'photo', 'live', 1600, 1067, '{}', '{}'),
+      ('hall', 'https://x/more.webp', 'https://hall.org/', 1, 'photo', 'live', 1600, 1067, '{}', '{}'),
+      ('hall', 'https://x/stage.webp', 'https://hall.org/t', 2, 'scene', 'live', 1600, 1067, '{theater}', '{}'),
+      ('shop', 'https://x/logo.webp', 'https://shop.org/', 0, 'logo', 'live', null, null, '{}', '{}');`);
+  const add = async (title, entry) => (await db.query(
+    `insert into public.club_events (status, title, event_date, category, source_name, place_entry_id, created_at)
+     values ('approved', $1, '2026-10-09', 'volunteering', 'Hall', $2, '2026-09-01 12:00-05') returning id`, [title, entry])).rows[0].id;
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+
+  const onCover = await pic(await add('Annual meeting', 'hall'));
+  assert.equal(onCover.url, 'https://x/cover.webp');
+  assert.equal(onCover.kind, 'photo', 'a build from before this still draws it');
+  assert.equal(onCover.cover, true);
+  assert.deepEqual(onCover.more.map((m) => m.url), ['https://x/more.webp'], "the Event page keeps the place's photos");
+
+  const scene = await pic(await add('The Fall Play', 'hall'));
+  assert.equal(scene.url, 'https://x/stage.webp');
+  assert.equal(scene.cover, undefined, 'a scene is of the Event');
+
+  const own = await add('Annual meeting two', 'hall');
+  await db.query(`insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, width, height)
+                  values ('hall', 'https://x/own.webp', 'https://hall.org/e', 'event', 'live', $1, 1600, 1067)`, [own]);
+  assert.equal((await pic(own)).cover, undefined, "the Event's own photo is of the Event");
+
+  const flyer = await add('Annual meeting three', 'hall');
+  await db.query(`insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, width, height)
+                  values ('hall', 'https://x/flyer.webp', 'https://hall.org/f', 'flyer', 'live', $1, 1600, 1067)`, [flyer]);
+  assert.equal((await pic(flyer)).cover, undefined, 'its flyer is of the Event');
+
+  const logo = await pic(await add('Sale', 'shop'));
+  assert.equal(logo.kind, 'logo');
+  assert.equal(logo.cover, undefined, 'a logo is the white card already');
+  assert.equal(await pic(await add('Somewhere', 'nowhere')), null);
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
 test("an Event's own photo shows before any scene, credited, and is never its place's cover (event-photos 09)", async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
