@@ -164,11 +164,11 @@ final class LiveGames {
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
-            (#"[7,0],"period":"Q1","clock":"9:18","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"1","text":"C. Kern 1 yd TD run (M. Olson kick)","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
-            (#"[7,3],"period":"Q2","clock":"0:03","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, #"{"id":"2","text":"T. Lund 34 yd field goal","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
-            (#"[14,3],"period":"Q3","clock":"4:12","drive":{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#, #"{"id":"3","text":"J. Jeffrey 52 yd TD run (M. Olson kick)","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
-            (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"A. Moen 7 yd TD run (T. Lund kick)","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
-            (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"S. Berg 18 yd TD pass from C. Kern (M. Olson kick)","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
+            (#"[7,0],"period":"Q1","clock":"9:18","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"1","text":"Feeney,Trey left pass complete to Kern,Cole for 9 yards to the GAC00, TOUCHDOWN.","period":"Q1","clock":"9:18","side":0,"score":[7,0]}"#),
+            (#"[7,3],"period":"Q2","clock":"0:03","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, #"{"id":"2","text":"Lund,Tate field goal attempt from 34 GOOD.","period":"Q2","clock":"0:03","side":1,"score":[7,3]}"#),
+            (#"[14,3],"period":"Q3","clock":"4:12","drive":{"down":2,"togo":"7","spot":"GAC34","side":0,"ball":66}"#, #"{"id":"3","text":"Feeney,Trey middle pass complete to Jeffrey,Jack for 52 yards to the GAC00, TOUCHDOWN.","period":"Q3","clock":"4:12","side":0,"score":[14,3]}"#),
+            (#"[14,10],"period":"Q4","clock":"6:05","drive":{"down":3,"togo":"4","spot":"SJU41","side":0,"ball":41}"#, #"{"id":"4","text":"Sieben,Jack left pass complete to Moen,Alex for 7 yards to the SJU00, TOUCHDOWN.","period":"Q4","clock":"6:05","side":1,"score":[14,10]}"#),
+            (#"[21,10],"period":"Q4","clock":"0:45","drive":{"down":1,"togo":"10","spot":"GAC25","side":1,"ball":75}"#, #"{"id":"5","text":"Feeney,Trey right pass complete to Berg,Sam for 18 yards to the GAC00, TOUCHDOWN.","period":"Q4","clock":"0:45","side":0,"score":[21,10]}"#),
         ]
         // Sets won, the set, and each set's points; SIDEARM adds a set's column when it starts, so a set
         // won shows on its own before the next begins.
@@ -186,11 +186,11 @@ final class LiveGames {
         // The minute as SIDEARM pushes it: the clock in seconds, stopped at 45:00 through halftime.
         let halves: [(String, String?)] = [
             (#"[0,0],"period":"1st half","clock":"38'","clock_s":2230"#, nil),
-            (#"[1,0],"period":"1st half","clock":"41'","clock_s":2410"#, #"{"id":"1","text":"Goal by SJU Hanson,Ben, top left","period":"1st half","clock":"41'","side":0,"score":[1,0]}"#),
+            (#"[1,0],"period":"1st half","clock":"41'","clock_s":2410"#, #"{"id":"1","text":"Shot by SJU Hanson,Ben, top left, GOAL","period":"1st half","clock":"41'","side":0,"score":[1,0]}"#),
             (#"[1,0],"period":"1st half","clock":"46'","clock_s":2700"#, nil),
             (#"[1,0],"period":"2nd half","clock":"46'","clock_s":2700"#, nil),
-            (#"[1,1],"period":"2nd half","clock":"58'","clock_s":3430"#, #"{"id":"2","text":"Goal by AUG Larkin,Sam","period":"2nd half","clock":"58'","side":1,"score":[1,1]}"#),
-            (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Goal by SJU Hanson,Ben, low right","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
+            (#"[1,1],"period":"2nd half","clock":"58'","clock_s":3430"#, #"{"id":"2","text":"Shot by AUG Larkin,Sam, GOAL","period":"2nd half","clock":"58'","side":1,"score":[1,1]}"#),
+            (#"[2,1],"period":"2nd half","clock":"71'","clock_s":4210"#, #"{"id":"3","text":"Shot by SJU Hanson,Ben, low right, GOAL","period":"2nd half","clock":"71'","side":0,"score":[2,1]}"#),
             (#"[2,1],"period":"2nd half","clock":"90'","clock_s":5350"#, nil),
         ]
         // The clock as last sent, the period and its length, and each team's fouls this quarter by play id

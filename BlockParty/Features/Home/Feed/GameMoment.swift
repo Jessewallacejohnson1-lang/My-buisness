@@ -50,8 +50,8 @@ nonisolated struct GameMoment: Equatable, Sendable {
                 label = "Touchdown"
             } else if text.range(of: "field goal", options: .caseInsensitive) != nil {
                 label = "Field goal"
-                // "T. Lund 41 yd field goal": the kick's length beside the kicker.
-                if let yards = capture(#"(\d+) ?(?:yd|yards?)\b"#, in: text) {
+                // "Hansen,Matt field goal attempt from 39 GOOD." or "T. Lund 41 yd field goal": the kick's length beside the kicker.
+                if let yards = capture(#"from (\d+) GOOD|(\d+) ?(?:yd|yards?)\b"#, in: text) {
                     detail = [detail, "\(yards) yd"].compactMap { $0 }.joined(separator: ", ")
                 }
             } else if text.range(of: "safety", options: .caseInsensitive) != nil {
@@ -65,20 +65,68 @@ nonisolated struct GameMoment: Equatable, Sendable {
         return GameMoment(id: play.id, label: label, detail: detail, side: play.side)
     }
 
+    /// A play card's two lines (BP app game-card 14, the drafts' words): "Goal · Benson 39'" over "Assist: Holden",
+    /// "Hansen 39 yd field goal" and "Driste 3-pointer" over the clock. Read from SIDEARM's live words, seen on real
+    /// games; anything else stays as SIDEARM sent it, over the clock, since a wrong name is worse than its words.
+    static func words(of play: Game.Play, sport: String) -> (title: String, detail: String) {
+        let sport = sport.lowercased()
+        if sport.contains("soccer"), let goal = goal(in: play) { return goal }
+        let title = sport.contains("football") ? footballTitle(play.text) : sport.contains("basketball") ? basketballTitle(play.text) : nil
+        return (title ?? play.text, play.when)
+    }
+
+    /// "Shot by SJU Benson,Soren, high left, GOAL; Assist by SJU Holden,Laird", "Penalty kick taken by Cornett,Billy,
+    /// GOAL", and "Shot by CSB , GOAL" before SIDEARM has the name.
+    private static func goal(in play: Game.Play) -> (title: String, detail: String)? {
+        let text = play.text
+        guard text.range(of: #"^(Shot by|Penalty kick taken by) .*\bGOAL\b"#, options: .regularExpression) != nil else { return nil }
+        let assists = text.split(separator: ";").dropFirst().compactMap { capture(#"Assist by \S+ \#(name),"#, in: String($0)) }
+        let detail = text.hasPrefix("Penalty") ? "Penalty kick" : assists.isEmpty ? play.period : "Assist: " + assists.joined(separator: ", ")
+        let who = (scorer(in: text).map { "Goal · \($0)" } ?? "Goal")
+        return ([who, play.clock].compactMap { $0 }.joined(separator: " "), detail)
+    }
+
+    /// "Hansen,Matt field goal attempt from 39 GOOD.", "Hansen,Matt kick attempt good.", and a touchdown pass by its
+    /// catcher: "Feeney,Trey middle pass complete to Melvin Jr.,Sedric for 3 yards to the GAC00, TOUCHDOWN."
+    private static func footballTitle(_ text: String) -> String? {
+        let kick = groups(#"^\#(name),[^,]* field goal attempt from (\d+) GOOD"#, in: text)
+        if kick.count == 2 { return "\(kick[0]) \(kick[1]) yd field goal" }
+        let point = groups(#"^\#(name),[^,]* kick attempt good"#, in: text)
+        if let kicker = point.first { return "\(kicker) extra point" }
+        let pass = groups(#"complete to \#(name),\S+ for (\d+) yards? to the \w+, TOUCHDOWN"#, in: text)
+        return pass.count == 2 ? "\(pass[0]) \(pass[1]) yd TD pass" : nil
+    }
+
+    /// "5 Megan Driste 3PTR GOOD (3 Pt); 1 Lauren Arnold Assist (2 Asst)": the name, then the shot in capitals.
+    private static func basketballTitle(_ text: String) -> String? {
+        let read = groups(#"^\S+ (.+?) ([A-Z0-9][A-Z0-9 \-]*) GOOD \("#, in: text)
+        // A name that won't read plainly ("Melvin Jr.", "MEGAN DRISTE", "Melvin III") keeps SIDEARM's words.
+        guard read.count == 2, let last = read[0].split(separator: " ").last, last.contains(where: \.isLowercase),
+              !["Jr.", "Sr."].contains(String(last)), !["II", "III", "IV"].contains(String(read[1].prefix { $0 != " " })) else { return nil }
+        let shot = ["3PTR": "3-pointer", "FT": "free throw", "PULL UP": "pull-up"][read[1]] ?? read[1].lowercased()
+        return "\(last) \(shot)"
+    }
+
+    /// A last name as SIDEARM writes it before the comma, "Jr." kept.
+    private static let name = #"(\p{Lu}[\p{L}'’\-]+(?: (?:Jr|Sr)\.| (?:II|III|IV))?)"#
+
     /// The player a play is about, by last name: the catch's on a pass ("Kern,Cole pass complete to
     /// Berg,Sam"), else the first "Last,First" (SIDEARM's live words), else "J. Jeffrey" (its summary's).
-    /// SIDEARM's football words are unseen until a real game (BP app game-card 07); none beats a wrong name.
+    /// None beats a wrong name: a pass's other player, or an assist after the ";", is never the answer.
     static func scorer(in text: String) -> String? {
-        let name = #"([A-Z][A-Za-z'’\-]+)"#
-        return capture("complete to \(name),", in: text)
-            ?? capture(#"\#(name),\s?[A-Z]"#, in: text)
-            ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: text)
+        let play = text.split(separator: ";").first.map { String($0) } ?? text
+        if play.contains("complete to") { return capture("complete to \(name),", in: play) }
+        return capture(#"\#(name),\s?\p{Lu}"#, in: play) ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: play)
     }
 
     private static func capture(_ pattern: String, in text: String) -> String? {
-        guard let regex = try? Regex(pattern), let match = text.firstMatch(of: regex),
-              match.output.count > 1, let found = match.output[1].substring else { return nil }
-        return String(found)
+        groups(pattern, in: text).first
+    }
+
+    /// The captured words of the pattern's first match.
+    private static func groups(_ pattern: String, in text: String) -> [String] {
+        guard let regex = try? Regex(pattern), let match = text.firstMatch(of: regex) else { return [] }
+        return (1..<match.output.count).compactMap { match.output[$0].substring.map { String($0) } }
     }
 
     /// Volleyball keeps no plays: a set is won when the next one starts (SIDEARM adds its column).

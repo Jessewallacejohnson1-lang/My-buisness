@@ -905,7 +905,7 @@ struct WhiteGameCard: View {
 }
 
 /// A game's scoring plays on its Event page, newest first (BP app game-card 05; Jesse, 2026-10-25: "copy
-/// sidearm"): SIDEARM's own words, the time under each, the score after it with the scoring side in ink,
+/// sidearm"): the clean words (`GameMoment.words`, game-card 14), the time or assists under each, the score after it with the scoring side in ink,
 /// and a thin bar of the scoring school's color on its side, as Apple Sports' Key Plays draw them
 /// (`references/live-plays/`). Volleyball has none: every point would be a play, and its sets are the
 /// chips under its logos (game-card 09).
@@ -926,6 +926,8 @@ struct GameScoring: View {
                 // Jesse, 2026-11-01: yes to the mock's pick).
                 ForEach(game.isBasketball ? Array(game.plays.suffix(5).reversed()) : game.plays.reversed()) { play in
                     row(play)
+                        // A rewrite's words fill in with the scorers' cross-fade (game-card 13).
+                        .animation(reduceMotion ? nil : Motion.smooth, value: play.text)
                         // A new play slides in on top; basketball's oldest of the 5 fades where it is, not
                         // sliding up over the rest.
                         .transition(reduceMotion ? .opacity
@@ -949,14 +951,15 @@ struct GameScoring: View {
 
     private func row(_ play: Game.Play) -> some View {
         let score = play.score, side = play.side
+        let words = GameMoment.words(of: play, sport: game.sport)
         let home = Text("\(score[0])"), away = Text("\(score[1])")
         return VStack(alignment: .leading, spacing: 6) {
-            Text(play.text)
-                .font(.sans(15))
+            Text(words.title)
+                .font(.sansMedium(16))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Text(play.when).monospacedDigit()
+                Text(words.detail).monospacedDigit()
                 Spacer(minLength: 8)
                 Text("\(side == 0 ? home.foregroundStyle(Hue.ink).bold() : home) – \(side == 1 ? away.foregroundStyle(Hue.ink).bold() : away)")
                     .monospacedDigit()
@@ -980,7 +983,7 @@ struct GameScoring: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([play.text, play.when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
+        .accessibilityLabel([words.title.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: " yd", with: " yard").replacingOccurrences(of: "TD", with: "touchdown"), words.detail, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
             .joined(separator: ", "))
     }
 }
