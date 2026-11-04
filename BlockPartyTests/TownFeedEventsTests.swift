@@ -204,7 +204,6 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
         XCTAssertNil(card.why)
-        XCTAssertNil(card.score)
         // And from before hearts, none: the next read brings them.
         XCTAssertEqual(card.likeCount, 0)
         XCTAssertFalse(card.isLiked)
@@ -413,9 +412,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.posterClock(at: later), later)
     }
 
-    /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
-    /// admin's score comes through whole.
-    func testTheRecipesReasonAndScoreReachTheCard() throws {
+    /// The recipe's columns (ticket 18): the reason becomes the card's line, and the admin's score
+    /// the server still sends costs nothing (Jesse, 2026-11-04: it stays in the backend).
+    func testTheRecipesReasonReachesTheCard() throws {
         let json = """
         [{"id":"e1","recurrence":null,"leaves_at":"2026-10-12T22:00:00+00:00","reason":"interest",
          "reason_name":"live_music","score":{"interest":3,"friend":0,"follow":0,"popular":0,
@@ -438,24 +437,9 @@ final class TownFeedEventsTests: XCTestCase {
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today", "Happening today"])
-        XCTAssertEqual(cards[0].score?.spot, 2)
-        XCTAssertEqual(cards[0].score?.spacing, 0.5)
-        XCTAssertEqual(cards[0].score?.sizeStep, 2)
-        // The newer terms (town-feed 30, 34, 32), and none from a breakdown read before them.
-        XCTAssertEqual([cards[0].score?.tapped, cards[0].score?.draw, cards[0].score?.topicSpacing], [2, 1.5, 0.7])
-        XCTAssertEqual(cards[0].score?.new, 2, "New (town-feed 36)")
-        let older = try JSONDecoder().decode(FeedScore.self, from: Data("""
-            {"interest":0,"friend":0,"follow":0,"popular":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,
-             "acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}
-            """.utf8))
-        XCTAssertNil(older.tapped)
-        XCTAssertNil(older.new)
-        XCTAssertNil(cards[1].score)
         // Everyone's hearts, and whether you hearted it (ticket 03).
         XCTAssertEqual(cards[0].likeCount, 4)
         XCTAssertTrue(cards[0].isLiked)
-        // A breakdown that doesn't read costs only the breakdown, never the feed.
-        XCTAssertNil(cards[2].score)
     }
 
     /// Friends Going (town-feed 28) come through with the reason that names the first of them;
@@ -1091,31 +1075,6 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.goingCount), [5, 5])
     }
 
-    /// The admin's Score names each card's place on screen, not the database's, so it
-    /// holds after a read that kept the order.
-    func testScoreNamesTheCardsPlaceOnScreen() async {
-        func scored(_ ids: [String]) -> [TownFeedEntry] {
-            ids.enumerated().map { place, id in
-                var row = row(id)
-                row.score = FeedScore(interest: 0, friend: 0, follow: 0, popular: 0, size: 0,
-                                      sizeStep: 1, daysAway: 1, soon: 0.9, acted: 1, spacing: 1,
-                                      newSpot: false, total: 0.9, spot: place + 1, of: ids.count)
-                return TownFeed.entry(row)
-            }
-        }
-        let town = feed(answers: [scored(["a", "b", "c"]), scored(["new", "c", "a"])])
-        town.cameBack(at: now)
-        await town.reload(at: now)
-        town.scrolled(to: 300)
-        town.left(at: now)
-        town.scrolled(to: 0)  // another tab: the rebuilt screen starts at the top
-        town.cameBack(at: now.addingTimeInterval(29 * 60))
-        await town.refresh(at: now.addingTimeInterval(29 * 60))
-        XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
-        XCTAssertEqual(town.cards.map { $0.score?.spot }, [1, 2])
-        XCTAssertEqual(town.cards.map { $0.score?.of }, [2, 2])
-    }
-
     /// Back after 30 minutes or more, still at the top: the fresh order.
     func testBackAfterHalfAnHourAtTheTopTakesTheFreshOrder() async {
         let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])
@@ -1576,13 +1535,6 @@ final class TownFeedEventsTests: XCTestCase {
         town.accountChanged()
         XCTAssertNil(town.undo)
         XCTAssertEqual(ids(town), ["a", "b", "c"])
-    }
-
-    func testAScoreFromBeforeNotInterestedStillReads() throws {
-        let json = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
-        XCTAssertNil(try JSONDecoder().decode(FeedScore.self, from: Data(json.utf8)).notInterested)
-        let newer = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"notInterested":0.3,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
-        XCTAssertEqual(try JSONDecoder().decode(FeedScore.self, from: Data(newer.utf8)).notInterested, 0.3)
     }
 
     // MARK: After the best (town-feed 23)

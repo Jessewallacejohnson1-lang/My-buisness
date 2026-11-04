@@ -223,15 +223,9 @@ enum DailyFixtures {
                 category: .musicArts,
                 // Long on purpose: it runs past the event page's 4-line clamp.
                 description: "Bring a blanket or a lawn chair and find a spot on the grass by the river. This week it's a local bluegrass trio playing two sets, with a short break in between so the kids can run around. The lemonade stand will be going, and a food truck or two usually parks by the lot. If it rains, check back here before you head over. Leashed dogs are welcome. Please pack out what you pack in.",
-                // The one card with a score, so the Eyes pass shows the admin's sheet
-                // beside everyone else's.
                 reason: "interest", reasonName: "live_music",
                 // Two of the sample friends (`Neighbor.samples`) Going (town-feed 28).
                 friends: [("Sam", "centennial-park"), ("Marlene", "memorial-park")],
-                score: FeedScore(interest: 3, friend: 0, follow: 0, popular: 0, size: 0,
-                                 sizeStep: 1, daysAway: 0.25, soon: 0.98, acted: 1, spacing: 1,
-                                 newSpot: true, total: 10.29, spot: 1, of: 6,
-                                 tapped: 3, draw: 1.5, pool: "yours", new: 2),
                 now: now
             ),
             event(
@@ -333,7 +327,7 @@ enum DailyFixtures {
         hoursUntil: Double, going: Int,
         category: EventCategory? = nil, description: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
-        friends: [(name: String, photo: String?)] = [], score: FeedScore? = nil, credit: String? = nil,
+        friends: [(name: String, photo: String?)] = [], credit: String? = nil,
         logo: String? = nil,
         now: Date
     ) -> TownFeedEntry {
@@ -361,7 +355,6 @@ enum DailyFixtures {
         let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
         item.why = FeedCardMenu.line(reason: day, name: reasonName)
         item.what = whats[id]
-        item.score = score
         item.friendsGoing = friends.map { friend in
             FeedFriend(name: friend.name,
                        photo: friend.photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") })

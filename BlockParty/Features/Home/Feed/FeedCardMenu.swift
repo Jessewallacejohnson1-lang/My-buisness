@@ -1,8 +1,8 @@
 //
 //  FeedCardMenu.swift
-//  Block Party — a Town feed card's ••• sheet: why the card is there, a way to change
-//  that, and for the admin the points behind its place (BP app docs/plans/town-feed,
-//  ticket 18).
+//  Block Party — a Town feed card's ••• sheet: why the card is there and a way to change
+//  that (BP app docs/plans/town-feed, ticket 18). The points behind its place stay on the
+//  server (Jesse, 2026-11-04).
 //
 //  Instagram's ••• sheet is the Reference (BP app references/recipe-why-score/),
 //  measured off its frames: grey groups 16pt in from each side with 16pt corners, 51pt
@@ -29,7 +29,6 @@ import SwiftUI
 
 struct FeedCardMenu: View {
     let why: String
-    let score: FeedScore?
     var report: PhotoReport? = nil
     /// The host Mute names; nil, no Mute (a neighbour's own posting names none).
     var hostName: String? = nil
@@ -180,11 +179,6 @@ struct FeedCardMenu: View {
                     .buttonStyle(.press(.row))
                 }
                 .padding(.top, 12)
-            }
-
-            if let score {
-                group { ScoreBox(score: score) }
-                    .padding(.top, 12)
             }
         }
     }
@@ -360,80 +354,6 @@ struct FeedCardMenu: View {
     }
 }
 
-/// Every term behind a card's place, for Jesse's account: lifts in points, then the
-/// multipliers, the total and the card's place in the feed. A term that changes nothing
-/// is greyed. Rows 14pt apart and plain words (Jesse, 2026-10-11).
-private struct ScoreBox: View {
-    let score: FeedScore
-
-    var body: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Text("Score")
-                Spacer()
-                Text(Self.number(score.total))
-            }
-            .font(.sansSemibold(17))
-            .foregroundStyle(Hue.ink)
-            .padding(.bottom, 3)
-
-            row("Start", "1", idle: false)
-            row("Your interests", "+" + Self.number(score.interest), idle: score.interest == 0)
-            row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
-            row("You follow it", "+" + Self.number(score.follow), idle: score.follow == 0)
-            row("Host you've been into", "+" + Self.number(score.tapped ?? 0), idle: (score.tapped ?? 0) == 0)
-            row("New", "+" + Self.number(score.new ?? 0), idle: (score.new ?? 0) == 0)
-            row("Draws the town out", "+" + Self.number(score.draw ?? 0), idle: (score.draw ?? 0) == 0)
-            row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
-            row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
-            row("Like one you hid", "×" + Self.number(score.notInterested ?? 1), idle: (score.notInterested ?? 1) == 1)
-            row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
-
-            Rectangle().fill(Hue.hairline).frame(height: 1)
-            Text("Place \(score.spot) of \(score.of) in your feed")
-                .font(.sans(13))
-                .foregroundStyle(Hue.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .monospacedDigit()
-        .padding(.leading, 20)
-        .padding(.trailing, 16)
-        .padding(.vertical, 14)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// "Starts in 6 hours", "Starts in 2 days": what the time multiplier is about.
-    private var startsIn: String {
-        let hours = Int((score.daysAway * 24).rounded())
-        if hours == 0 { return "Happening now" }
-        if hours < 24 { return "Starts in \(hours) hour" + (hours == 1 ? "" : "s") }
-        let days = Int(score.daysAway.rounded())
-        return "Starts in \(days) day" + (days == 1 ? "" : "s")
-    }
-
-    /// "2nd card from this host": the spacing halves for each earlier card from it.
-    private var sameHost: String {
-        let earlier = Int((log(score.spacing) / log(0.5)).rounded())
-        let ordinal = NumberFormatter()
-        ordinal.numberStyle = .ordinal
-        return (ordinal.string(from: NSNumber(value: earlier + 1)) ?? "") + " card from this host"
-    }
-
-    private func row(_ label: String, _ value: String, idle: Bool) -> some View {
-        HStack {
-            Text(label).foregroundStyle(Hue.inkSecondary)
-            Spacer()
-            Text(value).foregroundStyle(Hue.ink)
-        }
-        .font(.sans(13))
-        .opacity(idle ? 0.45 : 1)
-    }
-
-    private static func number(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)))
-    }
-}
-
 /// A Town card's ••• sheet with Not interested and Mute (ticket 21): the choice waits until the
 /// sheet has closed, so the card it hangs on isn't taken away under it. Off the Town feed (no
 /// `TownFeed` around) or signed out, the sheet has neither row. A News post's sheet (news-menu)
@@ -444,7 +364,6 @@ struct FeedCardMenuSheet: ViewModifier {
     let id: String
     let hostName: String
     let why: String?
-    let score: FeedScore?
     let report: PhotoReport?
     /// The Event's card, which Report sends; nil for News and posts.
     let card: FeedCardItem?
@@ -456,7 +375,6 @@ struct FeedCardMenuSheet: ViewModifier {
         id = item.id
         hostName = item.hostName
         why = item.why
-        score = item.score
         self.report = report
         card = item
     }
@@ -468,7 +386,6 @@ struct FeedCardMenuSheet: ViewModifier {
         id = news.id
         hostName = news.place
         why = news.interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News"
-        score = nil
         report = nil
         card = nil
     }
@@ -480,7 +397,6 @@ struct FeedCardMenuSheet: ViewModifier {
         id = post.id
         hostName = ""
         why = "Posted in \(Town.everyday)"
-        score = nil
         report = nil
         card = nil
         self.post = post
@@ -500,7 +416,7 @@ struct FeedCardMenuSheet: ViewModifier {
     // closures written inline in the sheet.
     @ViewBuilder private var menu: some View {
         if let why {
-            FeedCardMenu(why: why, score: score, report: report,
+            FeedCardMenu(why: why, report: report,
                          hostName: hostName.isEmpty ? nil : hostName,
                          onHide: onHide,
                          reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) }

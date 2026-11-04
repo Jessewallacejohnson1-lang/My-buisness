@@ -346,23 +346,6 @@ final class DailyPageTests: XCTestCase {
         let cards = [card("a"), card(pick.id), card("b")]
         XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.id),
                        ["event-of-the-day:\(pick.id)", "event:a", "news:n", "event:b"])
-        // The Score's place is where each sits on screen: the poster first, then the cards, news counted.
-        func scored(_ item: FeedCardItem) -> FeedCardItem {
-            var item = item
-            item.score = FeedScore(interest: 0, friend: 0, follow: 0, popular: 0, size: 0, sizeStep: 1, daysAway: 1,
-                                   soon: 0.9, acted: 1, spacing: 1, newSpot: false, total: 0.9, spot: 9, of: 9)
-            return item
-        }
-        var scoredPick = pick
-        scoredPick.item = scored(pick.item)
-        let places = DailyFeedItem.town(entries(cards.map(scored)), eventOfTheDay: scoredPick).map { item -> String in
-            switch item {
-            case .eventOfTheDay(let event): return "\(event.item.score?.spot ?? 0)/\(event.item.score?.of ?? 0)"
-            case .event(let card): return "\(card.score?.spot ?? 0)/\(card.score?.of ?? 0)"
-            case .posting, .news, .post, .caughtUp, .place, .again: return "-"
-            }
-        }
-        XCTAssertEqual(places, ["1/4", "2/4", "-", "4/4"])
         XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.eventID), [pick.id, "a", nil, "b"])
         XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: nil).map(\.id),
                        ["event:a", "event:\(pick.id)", "news:n", "event:b"])

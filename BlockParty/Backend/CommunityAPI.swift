@@ -270,7 +270,6 @@ struct CommunityAPI {
             let leavesAt: String
             let reason: String?
             let reasonName: String?
-            let score: LenientScore?
             let heartCount: Int?
             let hearted: Bool?
             let saved: Bool?
@@ -302,12 +301,6 @@ struct CommunityAPI {
             let value: Poster?
             init(from decoder: Decoder) { value = try? Poster(from: decoder) }
         }
-        /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
-        /// feed.
-        struct LenientScore: Decodable {
-            let value: FeedScore?
-            init(from decoder: Decoder) { value = try? FeedScore(from: decoder) }
-        }
         return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
             if row.kind == "post" {
@@ -333,7 +326,7 @@ struct CommunityAPI {
             }
             guard let event = row.card?.value else { return nil }
             return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
-                                      reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
+                                      reason: row.reason, reasonName: row.reasonName,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
                                       saved: row.saved ?? false,
                                       groupID: row.clubId, inGroup: row.inClub ?? false))

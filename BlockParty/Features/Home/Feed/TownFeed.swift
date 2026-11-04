@@ -393,17 +393,8 @@ final class TownFeed {
         loadingMore = false
     }
 
-    /// The events still on, in the database's order. The admin's Score names each card's
-    /// place as it is on screen, so it holds after a read that kept the order.
-    var cards: [FeedCardItem] {
-        let on = shown.compactMap(\.card)
-        return on.enumerated().map { place, card in
-            var card = card
-            card.score?.spot = place + 1
-            card.score?.of = on.count
-            return card
-        }
-    }
+    /// The events still on, in the database's order.
+    var cards: [FeedCardItem] { shown.compactMap(\.card) }
 
     /// When the next card leaves: the feed reads again then.
     var nextLeave: Date? {
@@ -739,7 +730,6 @@ final class TownFeed {
         var card = FeedCardItem(row.event, recurrence: row.recurrence)
         card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
         card.followed = row.reason == "follow" ? row.reasonName : nil
-        card.score = row.score
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
         card.isSaved = row.saved

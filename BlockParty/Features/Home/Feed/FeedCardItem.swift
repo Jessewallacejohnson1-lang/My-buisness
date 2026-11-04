@@ -47,8 +47,6 @@ struct FeedCardItem: Identifiable, Hashable {
     /// Town feed's follow reason (BP app school-activities 03, town-feed 37): what Daily's Following
     /// reads. nil otherwise.
     var followed: String? = nil
-    /// The points behind the card's place; the database sends them to the admin only.
-    var score: FeedScore? = nil
     /// Called off (`UpcomingEvent.cancelled`): the card and its page show a red Canceled pill
     /// and a black-and-white photo (Jesse, 2026-10-17), and the You tab leaves it out.
     var cancelled = false
