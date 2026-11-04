@@ -139,7 +139,7 @@ final class ChatBookTests: XCTestCase {
         server.answers["rpc/join_going_chat"] = .init(body: #""g9""#)
         server.answers["rpc/get_chat_messages"] = .init(body: "[]")
         let thread = ChatThread(api: api, me: "me", chat: nil, going: "e1")
-        XCTAssertTrue(thread.isGoing)
+        XCTAssertTrue(thread.isRoom)
         XCTAssertFalse(thread.loaded, "loading until it's joined, never an empty chat you can't write to")
         await thread.read()
         XCTAssertEqual(thread.chatID, "g9")
@@ -164,6 +164,72 @@ final class ChatBookTests: XCTestCase {
         XCTAssertEqual(thread.messages.first?.host, true)
         XCTAssertTrue(thread.gone)
         XCTAssertEqual(thread.lastRefusal, "You're not in this chat anymore.")
+    }
+
+    // MARK: Group chats
+
+    private func clubJSON(last: String = "Ice isn't safe yet", mine: Bool = false, sender: String = "Ben Ortiz",
+                          unread: Bool = false, lights: Bool = false) -> String {
+        """
+        {"chat_id":"k1","kind":"club","name":"Rod and Gun Club","others":[],"last_kind":"text","last_body":"\(last)",
+         "last_mine":\(mine),"last_sender":"\(sender)","last_at":"2026-11-03T17:00:00+00:00","unread":\(unread),
+         "request":false,"waiting":false,"event":null,"last_host":false,"is_host":false,"lights":\(lights),"club_id":"g7"}
+        """
+    }
+
+    func testAGroupChatsRowIsItsGroupAndSaysWhoWrote() throws {
+        let row = try chats(clubJSON())[0]
+        XCTAssertEqual(row.kind, .club)
+        XCTAssertEqual(row.title, "Rod and Gun Club")
+        XCTAssertEqual(row.clubId, "g7")
+        XCTAssertEqual(ChatWords.preview(row), "Ben: Ice isn't safe yet")
+        XCTAssertEqual(ChatWords.preview(try chats(clubJSON(last: "Thanks", mine: true))[0]), "You: Thanks")
+    }
+
+    func testAGroupChatIsFoundByItsGroupAndItsWordsLightTheDot() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(clubJSON(unread: true, lights: true))]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        XCTAssertEqual(book.chat(forGroup: "g7")?.id, "k1")
+        XCTAssertNil(book.chat(forGroup: "other"))
+        XCTAssertTrue(book.unread, "a Group has no host, so every message lights it")
+        book.markedRead("k1")
+        XCTAssertFalse(book.unread)
+    }
+
+    func testAGroupChatJoinsBeforeItReadsAndOpensNoTypingChannel() async throws {
+        server.answers["rpc/join_group_chat"] = .init(body: #""k9""#)
+        server.answers["rpc/get_chat_messages"] = .init(body: "[]")
+        let thread = ChatThread(api: api, me: "me", chat: nil, club: "g7")
+        XCTAssertTrue(thread.isRoom)
+        XCTAssertFalse(thread.loaded, "\"Say hi\" never flashes over old messages")
+        await thread.read()
+        XCTAssertEqual(thread.chatID, "k9")
+        XCTAssertTrue(thread.loaded)
+        XCTAssertFalse(server.requests.contains { $0.url?.path.contains("chat_reads") == true }, "no Seen")
+    }
+
+    func testAGroupChatOpenedFromTheListStillJoinsSoItUndoesYourLeave() async throws {
+        server.answers["rpc/join_group_chat"] = .init(body: #""k1""#)
+        server.answers["rpc/get_chat_messages"] = .init(body: "[]")
+        let thread = ChatThread(api: api, me: "me", chat: "k1", club: "g7")
+        await thread.read()
+        XCTAssertEqual(server.requests.filter { $0.url?.path.contains("join_group_chat") == true }.count, 1)
+    }
+
+    func testARefusedGroupChatJoinIsBelievedOnlyAfterTheRetriesAndThePageGoes() async throws {
+        server.answers["rpc/join_group_chat"] = .init(status: 403, body: #"{"message":"chat_not_going"}"#)
+        let thread = ChatThread(api: api, me: "me", chat: nil, club: "g7")
+        await thread.read()
+        XCTAssertTrue(thread.gone)
+        XCTAssertEqual(server.requests.filter { $0.url?.path.contains("join_group_chat") == true }.count,
+                       ChatThread.joinRetries.count + 1)
+    }
+
+    func testAskingAboutAGroupChatReadsItsOwnFunction() async throws {
+        server.answers["rpc/get_group_chat"] = .init(body: #"[{"state":"birthday","is_host":false}]"#)
+        let access = try await api.groupAccess("g7")
+        XCTAssertEqual(access, ChatAccess(state: .ask, isHost: false))
     }
 
     func testALimitInAGoingChatSaysSoInMinutes() {

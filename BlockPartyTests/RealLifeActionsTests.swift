@@ -839,6 +839,21 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.writes, [], "no Going written")
     }
 
+    /// A Group's chat comes or goes with being in the Group, so Messages and the red dot read again.
+    func testAJoinOrLeaveThatLandsTellsTheChatsAndARefusedOneDoesNot() async throws {
+        let server = Server()
+        let actions = actions(server)
+        var told = 0
+        actions.memberWritten = { told += 1 }
+        actions.toggleMember(group())
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(told, 1)
+        server.failing = true
+        actions.toggleMember(groupID: "other", inGroup: false)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(told, 1, "nothing changed, so nothing to read")
+    }
+
     /// As a failed RSVP: it holds for the hold, turns back, and shakes the open Group page once
     /// the flip is done.
     func testAFailedJoinOfAGroupHoldsThenTurnsBackThenShakesOnce() async throws {

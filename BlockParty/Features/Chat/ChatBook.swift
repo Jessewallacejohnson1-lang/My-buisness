@@ -56,6 +56,11 @@ final class ChatBook {
         chats?.first { $0.kind == .going && $0.card?.id == id }
     }
 
+    /// A Group's chat, once it's on your list.
+    func chat(forGroup id: String) -> Chat? {
+        chats?.first { $0.kind == .club && $0.clubId == id }
+    }
+
     func refresh() async {
         guard live, db.auth.userId != nil else { return }
         latestRead &+= 1
@@ -168,9 +173,9 @@ final class ChatThread {
     private(set) var links: [String: URL] = [:]
     /// A photo on its way, as picked, by the message's id.
     private(set) var picked: [String: UIImage] = [:]
-    /// The chat, once it exists: nil for a first message to someone, or a Going chat not joined yet.
+    /// The chat, once it exists: nil for a first message to someone, or a Going or Group chat not joined yet.
     private(set) var chatID: String?
-    /// Out of a Going chat: left Going on another phone, or its Event closed. The page goes.
+    /// Out of a Going or Group chat: left on another phone, or its Event or Group closed. The page goes.
     private(set) var gone = false
 
     private let api: ChatAPI
@@ -180,6 +185,8 @@ final class ChatThread {
     private let me: String
     /// A Going chat's Event (five-tabs 06): its chat is joined, never started.
     private let goingEvent: String?
+    /// A Group chat's Group (five-tabs 07): joined the same way.
+    let club: String?
     /// You're the host: whatever you write is an update.
     let isHost: Bool
     @ObservationIgnored private var joined = false
@@ -193,11 +200,11 @@ final class ChatThread {
     /// A "typing" goes out at most this often, and shows this long after the last one heard.
     static let typingEvery: TimeInterval = 2
     static let typingShows: Duration = .seconds(4)
-    /// The row comes with Attend's tap, so its write may still be on its way: a no is only believed after these.
+    /// The row comes with Attend's or Join's tap, so its write may still be on its way: a no is only believed after these.
     static let joinRetries: [Duration] = [.milliseconds(700), .milliseconds(1400)]
 
     init(api: ChatAPI, me: String, chat: String?, to person: String? = nil, book: ChatBook? = nil,
-         actions: RealLifeActions? = nil, going: String? = nil, isHost: Bool = false) {
+         actions: RealLifeActions? = nil, going: String? = nil, club: String? = nil, isHost: Bool = false) {
         self.api = api
         self.me = me.lowercased()
         chatID = chat
@@ -205,19 +212,22 @@ final class ChatThread {
         self.book = book
         self.actions = actions
         goingEvent = going
+        self.club = club
         self.isHost = isHost
         // A first message to someone has nothing to wait for.
-        loaded = chat == nil && going == nil
+        loaded = chat == nil && going == nil && club == nil
     }
 
     // MARK: Reading
 
-    var isGoing: Bool { goingEvent != nil }
+    /// A room of people who didn't pick each other, a Going or a Group chat: joined before it reads, with no Seen,
+    /// no typing dots and no photos.
+    var isRoom: Bool { goingEvent != nil || club != nil }
 
     func read() async {
-        if let goingEvent, !joined {
+        if isRoom, !joined {
             do {
-                chatID = try await join(goingEvent)
+                chatID = try await join()
                 joined = true
             } catch {
                 guard !Task.isCancelled else { return }
@@ -232,8 +242,8 @@ final class ChatThread {
         let thisRead = latestRead
         do {
             async let newest = api.messages(chatID, limit: Self.page)
-            // A Going chat writes no reads: nobody is shown as having read it.
-            async let read = isGoing ? [:] : api.reads(chatID)
+            // A room writes no reads: nobody is shown as having read it.
+            async let read = isRoom ? [:] : api.reads(chatID)
             let (rows, seen) = try await (newest, read)
             guard thisRead == latestRead else { return }
             actions?.read(rows.compactMap(\.card))
@@ -256,15 +266,20 @@ final class ChatThread {
         }
     }
 
-    private func join(_ event: String) async throws -> String {
+    private func join() async throws -> String {
         for wait in Self.joinRetries {
             do {
-                return try await api.joinGoing(event)
+                return try await joinOnce()
             } catch let error as SupabaseError where error.message == "chat_not_going" {
                 try await Task.sleep(for: wait)
             }
         }
-        return try await api.joinGoing(event)
+        return try await joinOnce()
+    }
+
+    private func joinOnce() async throws -> String {
+        if let club { return try await api.joinGroup(club) }
+        return try await api.joinGoing(goingEvent ?? "")
     }
 
     func readOlder() async {
@@ -398,8 +413,8 @@ final class ChatThread {
 
     /// The chat's private channel, while it's on screen.
     func startTyping() {
-        // Not in a Going chat: a typing signal would show who is reading quietly.
-        guard channel == nil, !isGoing, let chatID else { return }
+        // Not in a room: a typing signal would show who is reading quietly.
+        guard channel == nil, !isRoom, let chatID else { return }
         let auth = api.db.auth
         let channel = RealtimeClient(privateChannel: "chat:\(chatID)",
                                      tokenProvider: { try? await auth.validAccessToken() })

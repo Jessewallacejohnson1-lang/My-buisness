@@ -396,6 +396,8 @@ struct MainTabsView: View {
                         ChatPage(chat: nil, groupID: id, groupOthers: others, groupName: name)
                     case .going(let card, let isHost):
                         ChatPage(chat: nil, event: card, eventHost: isHost)
+                    case .groupChat(let group):
+                        ChatPage(chat: nil, club: group)
                     }
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in

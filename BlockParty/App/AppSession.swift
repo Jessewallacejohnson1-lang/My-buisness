@@ -61,7 +61,9 @@ final class AppSession {
         self.actions = actions
         self.townFeed = townFeed
         self.liveGames = liveGames ?? LiveGames(listen: { _ in })
-        self.chats = chats ?? ChatBook(supabase: supabase)
+        let chats = chats ?? ChatBook(supabase: supabase)
+        self.chats = chats
+        actions.memberWritten = { Task { await chats.refresh() } }
         self.searchModel = searchModel
         self.friendsBook = friendsBook
         self.you = you

@@ -539,7 +539,13 @@ struct FeedEventDetailDestination: View {
                     FactRow(glyph: "mappin.and.ellipse", lines: Self.placeLines(place), end: .opens,
                             hint: "Opens in Maps") { Directions.url(forPlace: place).map { openURL($0) } }
                 }
-                if goingChat { GoingChatRow(item: current) }
+                if goingChat {
+                    ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,
+                                listed: { [id = current.id] in $0.chat(forEvent: id) },
+                                quiet: actions.going(current).count > 0 ? "\(actions.going(current).count) going" : nil,
+                                access: { [id = current.id] in try await $0.goingAccess(id) },
+                                route: { [current] in .going(current, isHost: $0) })
+                }
             }
             .padding(.top, Metric.rowsTop)
         }
@@ -700,7 +706,7 @@ struct FeedEventDetailDestination: View {
 /// One fact under an Event's title (event-page-formats 06): Apple's glyph, a line over a grey line,
 /// and at its end what a tap does, pressed as the link row is. A row that opens nothing has no end
 /// and doesn't press (05).
-private struct FactRow: View {
+struct FactRow: View {
     enum End { case add, opens }
 
     let glyph: String
@@ -759,152 +765,6 @@ private struct FactRow: View {
         .foregroundStyle(Hue.ink)
         .padding(.vertical, m.rowPad)
         .contentShape(Rectangle())
-    }
-}
-
-/// The Going chat's row under the place (five-tabs 06): once you're Going or it's your Event, the chat's newest word
-/// or how many are Going. With no birthday yet it asks once; under 18, it stays away.
-private struct GoingChatRow: View {
-    let item: FeedCardItem
-
-    @Environment(ChatBook.self) private var chats: ChatBook?
-    @Environment(RealLifeActions.self) private var actions
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var access: GoingChatAccess?
-    @State private var asking = false
-    /// Under 13 on the wheel saves nothing (onboarding's rule), so this phone remembers not to ask again.
-    @AppStorage("goingChat.tooYoung") private var tooYoung = false
-
-    /// It's on your list, so you're in: known before the read, so the page doesn't jump on every open.
-    private var chat: Chat? { chats?.chat(forEvent: item.id) }
-
-    private var shows: Bool {
-        if let chat { return access?.state != .hidden && (chat.isHost == true || actions.going(item).isGoing) }
-        guard let access, access.state != .hidden, !(access.state == .ask && tooYoung) else { return false }
-        return access.isHost || actions.going(item).isGoing
-    }
-
-    private var lines: FeedEventDetailDestination.FactLines {
-        if let chat { return .init(first: "Going chat", second: ChatWords.preview(chat)) }
-        let count = actions.going(item).count
-        return .init(first: "Going chat", second: count > 0 ? "\(count) going" : nil)
-    }
-
-    private var route: ChatRoute { .going(item, isHost: access?.isHost ?? chat?.isHost == true) }
-
-    var body: some View {
-        let m = FeedEventDetailDestination.Metric.self
-        // A stack, not a Group: a Group with nothing in it runs no `.task`, and the read is what brings the row.
-        VStack(spacing: 0) {
-            if shows {
-                VStack(spacing: 0) {
-                    Hue.hairline
-                        .frame(height: m.hairline)
-                        .padding(.leading, m.rowGlyph + m.rowGap)
-                    FactRow(glyph: "bubble.left.and.bubble.right", glyphSize: m.chatGlyph, lines: lines, end: .opens,
-                            hint: "Opens the chat", link: access?.state == .ask ? nil : route) { asking = true }
-                }
-                // Fades in while the page makes room: sliding, it passed over the place's words.
-                .transition(.opacity)
-            }
-        }
-        .animation(reduceMotion ? nil : Motion.smooth, value: shows)
-        // Again once you're Going: a read that failed, or found the chat closed to you, gets another try.
-        .task(id: actions.going(item).isGoing) {
-            guard let chats, let new = try? await chats.api.goingAccess(item.id) else { return }
-            access = new
-        }
-        .sheet(isPresented: $asking) {
-            if let chats {
-                GoingChatBirthday(chats: chats) { saved in
-                    guard saved else { tooYoung = true; return }
-                    Task {
-                        if let new = try? await chats.api.goingAccess(item.id) { access = new }
-                        if access?.state == .open { chats.push?(route) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// "When's your birthday?", once, for an account with none: onboarding's field and wheel in a sheet.
-private struct GoingChatBirthday: View {
-    let chats: ChatBook
-    /// Saved, or under 13, for whom nothing is saved.
-    let done: (Bool) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var date = Date.now
-    @State private var turned = false
-    @State private var saving = false
-    @State private var failures = 0
-
-    /// Its height: the words, field and button over the wheel (picked); the button as Onboarding's.
-    private static let height: CGFloat = OnboardingBirthdayWheel.height + 280
-    private static let button: CGFloat = 50
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("When's your birthday?")
-                .font(.display(28))
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.top, FeedEventDetailDestination.Metric.inset)
-            // Never says why: naming the age would tell someone under 18 which answer gets them in (Jesse, 2026-11-04).
-            Text("Only you see your birthday.")
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, ChatMetric.chipGap)
-            OnboardingBirthdayField(date: date, now: .now)
-                .padding(.top, ChatMetric.side)
-            Button(action: save) {
-                Text("Continue")
-                    .font(.displaySemi(17))
-                    .foregroundStyle(Hue.surface)
-                    .frame(maxWidth: .infinity, minHeight: Self.button)
-                    .background(Hue.ink.opacity(turned ? 1 : 0.3), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.press(.squish))
-            .disabled(!turned || saving)
-            .turnBackShake(failures: failures, shakes: !reduceMotion)
-            .padding(.top, ChatMetric.side)
-            Spacer(minLength: ChatMetric.side)
-        }
-        .padding(.horizontal, FeedEventDetailDestination.Metric.inset)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            OnboardingBirthdayWheel(date: $date, now: .now)
-                .ignoresSafeArea(.container, edges: .bottom)
-        }
-        .onChange(of: date) { turned = true }
-        .presentationDetents([.height(Self.height)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Hue.surface)
-    }
-
-    private func save() {
-        guard OnboardingAge.years(from: date, to: .now) >= 13 else {
-            dismiss()
-            done(false)
-            return
-        }
-        saving = true
-        Task {
-            do {
-                try await ProfileAPI(chats.api.db).setBirthday(date)
-                dismiss()
-                done(true)
-            } catch {
-                Log.network("GoingChatBirthday: \(error)")
-                failures += 1
-                Haptics.error()
-            }
-            saving = false
-        }
     }
 }
 

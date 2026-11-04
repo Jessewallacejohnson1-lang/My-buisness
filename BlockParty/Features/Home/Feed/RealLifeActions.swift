@@ -147,6 +147,9 @@ final class RealLifeActions {
     /// Whose taps `chosen` holds, set only by `accountChanged`: until then nothing is
     /// kept or wiped, so a launch's first read can't erase taps not yet brought back,
     /// and one account's taps are never filed under the next.
+    /// A Join or a Leave landed: a Group's chat comes or goes with it (the shell sets this).
+    @ObservationIgnored var memberWritten: (() -> Void)?
+
     @ObservationIgnored private var keptFor: String?
     /// When each tap was made, for `keepFor`.
     @ObservationIgnored private var tappedOn: [Key: Date] = [:]
@@ -737,6 +740,7 @@ final class RealLifeActions {
     /// answer at all waits and tries again; only the server's "no" turns back.
     private func write(_ key: Key) async {
         var written: Bool?
+        defer { if key.kind == .member, written != nil { memberWritten?() } }
         var account = self.account
         var retries = 0
         while let choice = chosen[key] {

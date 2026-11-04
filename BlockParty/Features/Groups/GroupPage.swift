@@ -218,6 +218,12 @@ struct GroupPage: View {
                     .transition(.opacity)
             }
 
+            // Once you're in. The count is right above, so with nothing said it has no second line.
+            ChatRoomRow(title: "Group chat", isIn: actions.member(group).isMember,
+                        listed: { [id = group.id] in $0.chat(forGroup: id) },
+                        ruled: false, access: { [id = group.id] in try await $0.groupAccess(id) },
+                        route: { [group] _ in .groupChat(group) })
+
             if let about = Self.nonempty(group.about) {
                 section("About")
                 Text(about)

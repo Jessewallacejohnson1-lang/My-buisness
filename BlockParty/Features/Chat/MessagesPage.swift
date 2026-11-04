@@ -86,6 +86,8 @@ enum ChatRoute: Hashable {
     case group(id: String, others: [Neighbor], name: String?)
     /// An Event's Going chat, from its page (five-tabs 06), whether or not anyone has written.
     case going(FeedCardItem, isHost: Bool)
+    /// A Group's chat, from its page (five-tabs 07), whether or not anyone has written.
+    case groupChat(TownGroup)
 }
 
 /// The paper plane at the top right of Friends: it shows once you've a friend or a chat, and its red dot
@@ -259,8 +261,8 @@ private struct ChatRow: View {
                                 .font(.sansSemibold(15))
                                 .foregroundStyle(Hue.ink)
                                 .lineLimit(1)
-                            if chat.kind == .going {
-                                Text("Going chat")
+                            if let tag {
+                                Text(tag)
                                     .font(.sansSemibold(11))
                                     .foregroundStyle(Hue.inkSecondary)
                                     .padding(.horizontal, ChatMetric.tagX)
@@ -284,8 +286,16 @@ private struct ChatRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.row))
-            .accessibilityLabel([chat.title, chat.kind == .going ? "Going chat" : nil, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
+            .accessibilityLabel([chat.title, tag, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
                 .compactMap { $0 }.joined(separator: ", "))
+        }
+    }
+
+    private var tag: String? {
+        switch chat.kind {
+        case .going: "Going chat"
+        case .club: "Group"
+        case .direct, .group: nil
         }
     }
 }
@@ -334,14 +344,35 @@ struct ChatEventFace: View {
     }
 }
 
-/// A chat's picture: the friend's face, for a group two faces overlapping, for a Going chat its Event.
+/// A Group in a Group chat's row and bar: its logo on its backdrop, else Search's group icon (the spec's rule), in the
+/// Going chat's rounded square. nil: the Group isn't read yet, which shows the icon.
+struct ChatGroupFace: View {
+    let group: TownGroup?
+    var size = ChatMetric.face
+
+    var body: some View {
+        let scale = size / ChatMetric.face
+        Hue.fill
+            .frame(width: size, height: size)
+            .overlay {
+                YouGroupPicture(group: group, logoSide: YouMetric.groupLogo * scale, glyph: YouMetric.groupGlyph * scale)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: ChatMetric.eventFaceCorner * scale, style: .continuous))
+    }
+}
+
+/// A chat's picture: the friend's face, for a group two faces overlapping, for a Going chat its Event, for a Group chat
+/// its Group.
 struct ChatFace: View {
     let chat: Chat
     var size = ChatMetric.face
+    @Environment(YouModel.self) private var you: YouModel?
 
     var body: some View {
         if let card = chat.card {
             ChatEventFace(card: card, size: size)
+        } else if let club = chat.clubId {
+            ChatGroupFace(group: you?.groups?.first { $0.id == club }, size: size)
         } else if chat.kind == .direct || chat.others.count < 2 {
             Avatar(avatarUrl: chat.others.first?.avatarUrl, size: size)
         } else {

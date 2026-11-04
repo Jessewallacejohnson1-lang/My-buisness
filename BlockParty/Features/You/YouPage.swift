@@ -227,18 +227,20 @@ struct YouHighlight<Picture: View>: View {
 /// the grey. Never its photos: a saved photo carries its credit wherever it shows (MEMORY.md,
 /// 2026-10-16) and a circle this size has no room for one (Jesse, ticket 09 Check-in 1).
 struct YouGroupPicture: View {
-    let group: TownGroup
+    let group: TownGroup?
+    var logoSide = YouMetric.groupLogo
+    var glyph = YouMetric.groupGlyph
 
     var body: some View {
-        if let logo = group.logo.flatMap({ FeedCardImageSource($0).logo }) {
+        if let logo = group?.logo.flatMap({ FeedCardImageSource($0).logo }) {
             ZStack {
                 SearchBackdrop(colors: logo.backdrop)
                 SearchFloor()
-                CastLogo(logo: logo, side: YouMetric.groupLogo)
+                CastLogo(logo: logo, side: logoSide)
             }
         } else {
             Image(systemName: "person.2")
-                .font(.glyph(YouMetric.groupGlyph))
+                .font(.glyph(glyph))
                 .foregroundStyle(Hue.inkSecondary)
         }
     }

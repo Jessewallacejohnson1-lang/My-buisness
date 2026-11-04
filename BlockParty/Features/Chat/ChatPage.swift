@@ -8,6 +8,9 @@
 //  A Going chat (five-tabs 06) is the same thread among strangers: the bar shows its Event, it takes words only, with no
 //  Seen or typing dots, and whatever its host writes is an update, drawn as Instagram's channel card.
 //
+//  A Group chat (five-tabs 07) is that room for a Group's members: the bar shows the Group, words and Events go in, and
+//  everyone is equal, since a Group has no host.
+//
 //  Apple's pieces: a bottom-anchored scroll (`defaultScrollAnchor`), the composer in `safeAreaInset`, a growing
 //  `TextField`, `PhotosPicker`, and `contextMenu` on a bubble. How Instagram builds its own is a guess.
 //
@@ -27,7 +30,10 @@ struct ChatPage: View {
     /// A Going chat's Event, from its page, before the chat reaches the list.
     var event: FeedCardItem? = nil
     var eventHost = false
+    /// A Group chat's Group, from its page, before the chat reaches the list.
+    var club: TownGroup? = nil
 
+    @Environment(YouModel.self) private var you: YouModel?
     @Environment(ChatBook.self) private var chats
     @Environment(FriendsBook.self) private var book
     @Environment(RealLifeActions.self) private var actions
@@ -59,10 +65,20 @@ struct ChatPage: View {
     /// The Event, newest from the list, while this is a Going chat.
     private var goingCard: FeedCardItem? { current?.card ?? event }
 
-    private var isGroup: Bool { goingCard != nil || (current?.kind ?? (groupID != nil ? .group : .direct)) == .group }
+    /// A Group chat's Group, by its id on the list while its page didn't open this.
+    private var clubID: String? { club?.id ?? current?.clubId ?? chat?.clubId }
+
+    private var townGroup: TownGroup? {
+        club ?? clubID.flatMap { id in you?.groups?.first { $0.id == id } }
+    }
+
+    private var isGroup: Bool {
+        goingCard != nil || clubID != nil || (current?.kind ?? (groupID != nil ? .group : .direct)) == .group
+    }
 
     private var title: String {
-        goingCard?.title ?? current?.title ?? groupName ?? others.map(isGroup ? \.firstName : \.displayName).joined(separator: ", ")
+        goingCard?.title ?? townGroup?.name ?? current?.title ?? groupName
+            ?? others.map(isGroup ? \.firstName : \.displayName).joined(separator: ", ")
     }
 
     var body: some View {
@@ -79,9 +95,12 @@ struct ChatPage: View {
                 let known = chat ?? person.flatMap { chats.chat(with: $0) }
                 let me = (try? chats.api.db.userID) ?? ""
                 thread = ChatThread(api: chats.api, me: me, chat: known?.id ?? groupID, to: person?.id, book: chats,
-                                    actions: actions, going: goingCard?.id, isHost: event == nil ? chat?.isHost == true : eventHost)
+                                    actions: actions, going: goingCard?.id, club: clubID,
+                                    isHost: event == nil ? chat?.isHost == true : eventHost)
             }
             guard let thread else { return }
+            // The first read of the Groups failed: the bar's Group, its count and leaving it need them.
+            if clubID != nil, you?.groups == nil { await you?.refreshGroups() }
             chats.open = thread
             // Back from the Profile of someone you've just blocked: their words go, the newest too.
             for person in thread.messages.compactMap(\.sender) where book.relation(person) == .blocked {
@@ -130,7 +149,11 @@ struct ChatPage: View {
             Button("Leave", role: .destructive) { leave() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            if goingCard != nil { Text("You'll still be going. Tap Going chat on the Event to come back.") }
+            if goingCard != nil {
+                Text("You'll still be going. Tap Going chat on the Event to come back.")
+            } else if clubID != nil {
+                Text("You'll stay in the group. Tap Group chat on its page to come back.")
+            }
         }
         .alert(problem ?? "", isPresented: problemShown) {
             Button("OK", role: .cancel) { if thread?.gone == true { dismiss() } }
@@ -138,6 +161,10 @@ struct ChatPage: View {
         // No longer Going, on the Event page behind a chat bar: leaving Going leaves the chat at once.
         .onChange(of: goingCard.map { actions.going($0).isGoing }) { _, going in
             if going == false, thread?.isHost != true { dismiss() }
+        }
+        // Left the Group from its page behind a chat bar: leaving the Group leaves the chat at once.
+        .onChange(of: townGroup.map { actions.member($0).isMember }) { _, member in
+            if member == false { dismiss() }
         }
         // Blocked, by you or from the friend sheet: this chat is gone.
         .onChange(of: !isGroup && others.first.map { book.relation($0) } == .blocked) { _, gone in
@@ -179,6 +206,9 @@ struct ChatPage: View {
                 if let card = goingCard {
                     NavigationLink(value: card) { who }
                         .buttonStyle(.press(.dim))
+                } else if let townGroup {
+                    NavigationLink(value: townGroup) { who }
+                        .buttonStyle(.press(.dim))
                 } else if !isGroup, let other = others.first {
                     NavigationLink(value: other) { who }
                         .buttonStyle(.press(.dim))
@@ -188,8 +218,8 @@ struct ChatPage: View {
             }
             Spacer(minLength: 0)
             Menu {
-                // Not in a Going chat, where whoever spoke last is a stranger: a press reports the right one.
-                if goingCard == nil {
+                // Not in a room, where whoever spoke last is a stranger: a press reports the right one.
+                if !thread.isRoom {
                     Button { reporting = thread.lastFromOthers } label: { Label("Report", systemImage: "flag") }
                         .disabled(thread.lastFromOthers == nil)
                 }
@@ -221,6 +251,8 @@ struct ChatPage: View {
         HStack(spacing: ChatMetric.chipGap) {
             if let card = goingCard {
                 ChatEventFace(card: card, size: ChatMetric.barFace)
+            } else if clubID != nil {
+                ChatGroupFace(group: townGroup, size: ChatMetric.barFace)
             } else if let current {
                 ChatFace(chat: current, size: ChatMetric.barFace)
             } else {
@@ -242,12 +274,13 @@ struct ChatPage: View {
         .contentShape(Rectangle())
     }
 
-    /// "Friends since 2024" (the mock's), how many are in a group, or how many are Going, never 0.
+    /// "Friends since 2024" (the mock's), how many are in a group, how many are Going, or a Group's members, never 0.
     private var line: String? {
         if let card = goingCard {
             let count = actions.going(card).count
             return count > 0 ? "\(count) going" : nil
         }
+        if clubID != nil { return townGroup.flatMap { GroupPage.membersText(actions.member($0).count) } }
         if isGroup { return "\(others.count + 1) people" }
         guard let other = others.first, book.relation(other) == .friends,
               let since = other.friendsSince.flatMap(DateHelpers.timestamp) else { return nil }
@@ -280,10 +313,10 @@ struct ChatPage: View {
         let empty = words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         // Before a chat exists with someone who isn't your friend, words alone go.
         let strangers = current == nil && !isGroup && others.first.map { book.relation($0) != .friends } == true
-        // A Going chat is words only, and has nowhere to send them until it's joined.
-        let ready = !thread.isGoing || thread.chatID != nil
+        // A room takes no photos, and has nowhere to send words until it's joined.
+        let ready = !thread.isRoom || thread.chatID != nil
         return HStack(alignment: .bottom, spacing: ChatMetric.chipGap) {
-            if !strangers, !thread.isGoing { photoButton(thread) }
+            if !strangers, !thread.isRoom { photoButton(thread) }
             HStack(alignment: .bottom, spacing: 0) {
                 TextField(thread.isHost ? "Post an update…" : "Message…", text: $words, axis: .vertical)
                     .font(.sans(16))
@@ -466,8 +499,8 @@ private struct ChatMessages: View {
                         }
                     }
                     let messages = thread.messages
-                    if thread.isGoing, thread.loaded, messages.isEmpty {
-                        Text("Say hi to everyone going.")
+                    if thread.isRoom, thread.loaded, messages.isEmpty {
+                        Text(thread.club == nil ? "Say hi to everyone going." : "Say hi to the group.")
                             .font(.sans(14))
                             .foregroundStyle(Hue.inkSecondary)
                             .padding(.bottom, ChatMetric.sectionTop)
