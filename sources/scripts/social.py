@@ -23,10 +23,10 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
   done            after `morning.py save`: marks those runs read, so the next check starts after
                   them. A check that stopped early never marks, and the next reads its runs too.
                   It repeats the pictures line, so the answer carries what pictures cost.
-  spend           one line for the morning report, "Apify: $X of $25 this month", with a
-                  heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say).
-                  The cap is whatever Apify reports: $25 since Jesse raised it from $19 on
-                  2026-10-28.
+  spend           one line for the morning report, "Apify: $X of $Y this month", with a
+                  heads-up past 3/4 of the cap and at the cap (Jesse, 2026-11-04: no slowdown,
+                  just say). The cap is whatever Apify reports. The 8 AM check emails this line
+                  the morning it first passes either one (private.apify_level, BP app loopholes 13).
 
 A post whose caption is short or gives no time of day also gets its pictures read (Jesse,
 2026-10-26): Obbink's trivia night on Oct 29 was on its picture alone, under a one-line caption
@@ -94,7 +94,7 @@ PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\b
 SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
              ("bp-busy-9pm", "0 21 * * *", "busy", "4 hours"),
              ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
-HEADS_UP = 15.0
+HEADS_UP = 0.75  # of the cap; private.apify_level says the same for the 8 AM email
 STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
 DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
@@ -691,8 +691,8 @@ def spend_line(used, cap):
     line = f"Apify: ${used:.2f} of ${cap:.0f} this month"
     if used >= cap - 0.01:
         return line + ". The cap is reached: Apify has stopped every check until the cycle resets."
-    if used >= HEADS_UP:
-        return line + f". Heads-up: past ${HEADS_UP:.0f}."
+    if used >= cap * HEADS_UP:
+        return line + ". Heads-up: past 3/4 of the cap."
     return line
 
 
@@ -788,7 +788,10 @@ def selftest():
           and "$0.047 more if the judge" in line and "1 would not download" in line, f"the cost line: {line}")
     check(pictures_line({"read": 0, "failed": []}) == "[social] pictures: none read", "a check with no pictures says so")
     check(spend_line(8.4, 19) == "Apify: $8.40 of $19 this month", "the plain spend line")
-    check("Heads-up" in spend_line(15.2, 19) and "cap is reached" in spend_line(19, 19), "the heads-up and the cap")
+    check("Heads-up" not in spend_line(29.99, 40), "just under 3/4 of a $40 cap: no heads-up")
+    check(spend_line(30, 40) == "Apify: $30.00 of $40 this month. Heads-up: past 3/4 of the cap.", "at 3/4: the heads-up")
+    check("Heads-up" in spend_line(39.5, 40), "above 3/4: the heads-up")
+    check("cap is reached" in spend_line(40, 40) and "Heads-up" not in spend_line(40, 40), "at the cap: the cap line alone")
     blocked = ("import sys; sys.modules['PIL'] = None; import social; social.limits = lambda: "
                "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; print(social.spend())")
     r = subprocess.run([sys.executable, "-c", blocked], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
