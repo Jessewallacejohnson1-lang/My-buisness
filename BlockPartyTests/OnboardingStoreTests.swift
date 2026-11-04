@@ -285,8 +285,9 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(Array(names(["bars"]).prefix(2)), ["The Middy", "Bad Habit"], "busiest first within what fits")
         // A place's Events add what its kind doesn't say: trivia makes The Middy a Games place.
         XCTAssertEqual(names(["games"]).first, "The Middy")
-        // A school's concert doesn't make it a Live music place (onboarding 28).
-        XCTAssertNotEqual(names(["live_music"]).first, "Kennedy")
+        // A school's concert doesn't make it a Live music place, so what fits comes first though
+        // the school is busier (onboarding 28).
+        XCTAssertEqual(names(["live_music", "coffee"]).first, "The Local Blend")
         XCTAssertEqual(FollowSuggestions.ordered(town, picked: ["coffee"], schoolsFirst: true).first?.name, "Kennedy",
                        "schools lead for somebody who opened Schools")
         XCTAssertEqual(names(["town_meetings"]).first, "City")
