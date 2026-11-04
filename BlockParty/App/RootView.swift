@@ -479,8 +479,6 @@ struct MainTabsView: View {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }
         }
-        // Search's places, so a Place host opens its page from the first tap.
-        .task { if !searchModel.placesLoaded { await searchModel.load() } }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
             HelloDropView(
@@ -523,9 +521,6 @@ struct MainTabsView: View {
         .environment(you)
         // The friend sheet and its refusals (follows 05).
         .friendSurfaces(friendsBook, actions: actions)
-        // The dot: read at launch and on coming back to the app (and on each visit to Town),
-        // and again for another account, or the same one logged in for real.
-        .task { await friendsBook.refreshDot() }
         // Each list the Town feed lands, kept or read: Events of what you follow found since the
         // last look go to the hello pill and the bell (hello-drop 07).
         .onChange(of: townFeed.entries?.map(\.id)) {
@@ -539,36 +534,14 @@ struct MainTabsView: View {
             session.accountChanged(from: old[0].isEmpty ? nil : old[0], to: auth.userId,
                                    signedIn: auth.isSignedIn)
         }
-        // Onboarding's Follow 3 picks wait on the phone until a signed-up account can take them
-        // (BP app onboarding 22): at launch, and when one arrives.
-        .task(id: auth.accountKey) {
-            guard !actions.needsSignUp else { return }
-            for target in OnboardingStore.takeFollows() { actions.followOn(target) }
-        }
         // Onboarding's answers landed after the tabs opened: the feed reads again, sorted to them.
         .onChange(of: profile.lateLandings) { Task { await townFeed.reload() } }
-        // Event saves this phone kept before they moved to the server go up once, at
-        // launch with an account or when one arrives (above).
-        .task { await actions.moveUp(.shared) }
-        // Canceled or moved since you last looked: at launch, on coming back, and for a new account.
-        .task { await notices.refresh() }
-        // The Town feed's views and opens go up every 30 seconds, from the shell so it
-        // runs on any tab and under a pushed page (ticket 20); the DEBUG demo screens
-        // outside the shell never send.
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(TownFeed.sendEvery))
-                await townFeed.send()
-            }
-        }
+        .task { await session.launched() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { session.wentAway() }
             if phase == .active { session.cameForward(on: tab) }
         }
-        .onAppear {
-            session.recordOpen()
-            openLaunchPages()
-        }
+        .onAppear { openLaunchPages() }
     }
 
     /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own
