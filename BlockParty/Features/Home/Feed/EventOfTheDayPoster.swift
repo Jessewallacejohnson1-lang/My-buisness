@@ -229,7 +229,7 @@ struct EventOfTheDayPoster: View {
                 .accessibilityHidden(true)
             if words.canLeave, let leave = words.second {
                 RSVPArea.leave(leave, size: .card, hint: "Takes you off the going list",
-                               reduceMotion: reduceMotion, tint: .white.opacity(0.6)) {
+                               tint: .white.opacity(0.6)) {
                     actions.toggleGoing(item)
                 }
             } else if let names = actions.rsvp(item, bar: true)?.second {

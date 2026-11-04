@@ -161,7 +161,6 @@ struct DailyWeekRow: View {
     @Namespace private var bubble
     /// The day under the finger, so its bubble squishes with its words.
     @State private var pressed: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: DailyWeekMetric.gap) {
@@ -178,22 +177,17 @@ struct DailyWeekRow: View {
                             .overlay { DailyWeekMetric.shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
                             .modifier(CardShadow())
                             .matchedGeometryEffect(id: day.id, in: bubble, isSource: false)
-                            .scaleEffect(squish(day.id))
+                            .press(.squish, down: pressed == day.id)
                     }
                 }
                 DailyWeekMetric.shape.fill(Hue.ink)
                     .shadow(color: .black.opacity(DailyWeekMetric.pickedShadowOpacity),
                             radius: DailyWeekMetric.pickedShadowRadius, y: DailyWeekMetric.pickedShadowY)
                     .matchedGeometryEffect(id: shown, in: bubble, isSource: false)
-                    .scaleEffect(squish(shown))
+                    .press(.squish, down: pressed == shown)
             }
-            .animation(Press.animation(down: pressed != nil, reduceMotion: reduceMotion), value: pressed)
         }
         .padding(.horizontal, DailyWeekMetric.side)
-    }
-
-    private func squish(_ day: String) -> CGFloat {
-        pressed == day && !reduceMotion ? Press.shallowest : 1
     }
 }
 
@@ -253,17 +247,15 @@ private struct DailyWeekBubble: View {
     }
 }
 
-/// The card press (`Press`'s shallowest squish) on a day's words, telling the row
+/// The squish on a day's words, telling the row
 /// which day is down so its bubble, in the layer under them, squishes with them.
 private struct DailyWeekPressStyle: ButtonStyle {
     let day: String
     @Binding var pressed: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? Press.shallowest : 1)
-            .animation(Press.animation(down: configuration.isPressed, reduceMotion: reduceMotion), value: configuration.isPressed)
+            .press(.squish, down: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isDown in
                 if isDown { pressed = day } else if pressed == day { pressed = nil }
             }

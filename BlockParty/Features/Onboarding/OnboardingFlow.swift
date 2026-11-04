@@ -752,7 +752,9 @@ private struct WelcomePill: View {
 private struct WelcomePillPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Hue.welcomePillDown : Hue.welcomePill, in: Capsule())
+            .animation(.easeOut(duration: Press.inSeconds)) {
+                $0.background(configuration.isPressed ? Hue.welcomePillDown : Hue.welcomePill, in: Capsule())
+            }
             .press(.squish, down: configuration.isPressed)
     }
 }

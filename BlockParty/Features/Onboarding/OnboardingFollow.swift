@@ -508,7 +508,7 @@ struct OnboardingPillFace: View {
     }
 }
 
-/// Contacts' Add friend on the Friends-family pill (`OnboardingPillFace`). A tap sinks it to 94%, ticks,
+/// Contacts' Add friend on the Friends-family pill (`OnboardingPillFace`). A tap sinks it, ticks,
 /// and pops it to 106% as it turns.
 struct OnboardingListPill: View {
     let title: String

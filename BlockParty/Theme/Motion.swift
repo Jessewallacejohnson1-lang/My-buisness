@@ -95,13 +95,15 @@ private struct PressEffect: ViewModifier {
     func body(content: Content) -> some View {
         switch press {
         case .squish:
+            // Moves the sink alone: what the label does as the finger lifts (a Follow turning) keeps
+            // its own timing, as Attend's words do.
             let sinks = down && !reduceMotion
-            content
-                .visualEffect { view, proxy in
+            content.animation(Press.animation(down: down, reduceMotion: reduceMotion)) {
+                $0.visualEffect { view, proxy in
                     view.scaleEffect(sinks ? Press.depth(width: proxy.size.width) : 1)
                 }
                 .opacity(FeedMotion.pressOpacity(isPressed: down, reduceMotion: reduceMotion))
-                .animation(Press.animation(down: down, reduceMotion: reduceMotion), value: down)
+            }
         case .dim:
             content.opacity(down ? Press.dimmed : 1)
         case .row:

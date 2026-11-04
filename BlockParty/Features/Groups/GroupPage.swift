@@ -308,7 +308,7 @@ struct GroupPage: View {
                         .font(.display(size.top))
                         .foregroundStyle(Hue.ink)
                     RSVPArea.leave("Leave group?", size: size, hint: "Takes you out of the group",
-                                   reduceMotion: reduceMotion, action: toggle)
+                                   action: toggle)
                 }
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .layoutPriority(1)

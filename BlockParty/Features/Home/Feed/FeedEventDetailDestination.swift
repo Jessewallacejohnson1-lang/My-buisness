@@ -368,7 +368,6 @@ struct FeedEventDetailDestination: View {
             Self.circleButton(
                 glyph: Image(systemName: "arrow.left"),
                 label: "Back",
-                reduceMotion: reduceMotion,
                 onColor: game != nil
             ) { dismiss() }
 
@@ -377,7 +376,7 @@ struct FeedEventDetailDestination: View {
             // The card's share reveal. 15, not the row's 17: the Reference's share
             // mark is 14 x 17 pt.
             Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                              reduceMotion: reduceMotion, onColor: game != nil) {
+                              onColor: game != nil) {
                 ShareCenter.shared.present(.event(item))
             }
 
@@ -386,7 +385,7 @@ struct FeedEventDetailDestination: View {
             let saved = actions.saved(item)
             let failures = actions.saveFailureCount(item.id)
             Self.circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save",
-                              reduceMotion: reduceMotion, onColor: game != nil, action: toggleSave)
+                              onColor: game != nil, action: toggleSave)
                 .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
                 .accessibilityAddTraits(saved ? .isSelected : [])
         }
@@ -423,7 +422,6 @@ struct FeedEventDetailDestination: View {
     static func circleButton(
         glyph: some View,
         label: String,
-        reduceMotion: Bool,
         onColor: Bool = false,
         action: @escaping () -> Void
     ) -> some View {

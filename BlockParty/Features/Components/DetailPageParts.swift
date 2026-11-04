@@ -160,7 +160,6 @@ struct InfoPill: View {
 struct AboutSection: View {
     let text: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
     /// The words' height in full and at four lines, so "Read more" shows only when the clamp
     /// actually cuts something.

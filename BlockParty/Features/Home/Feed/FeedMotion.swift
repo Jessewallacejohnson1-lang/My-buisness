@@ -6,9 +6,8 @@
 //  Town event card, the photo alone). Its spring is `Press`'s.
 //
 //  Reduce Motion is not a dimmer here — it is a different animation. Every branch
-//  below collapses to a CROSS-FADE: no spring, no scale, no offset. `Spec` exists
-//  so that contract is assertable in a unit test rather than only in a screenshot
-//  (`FeedMotionTests`), and every view in the feed reads its numbers from here.
+//  below collapses to a CROSS-FADE: no spring, no scale, no offset, and every view in the
+//  feed reads its numbers from here.
 //
 //  Never attach a whole-card LongPressGesture/DragGesture/.gesture(TapGesture) to
 //  anything inside the feed's scroll views — it claims the touch on press-down and
@@ -25,19 +24,6 @@
 import SwiftUI
 
 nonisolated enum FeedMotion {
-    /// What a feed animation is actually allowed to do. Reduce Motion drives every
-    /// flag false except opacity, which is the cross-fade itself.
-    struct Spec: Equatable {
-        let usesSpring: Bool
-        let usesScale: Bool
-        let usesOffset: Bool
-        /// Seconds. For a spring this is its `response`, for a cross-fade its duration.
-        let duration: Double
-
-        /// A cross-fade is the absence of everything else.
-        var isCrossFade: Bool { !usesSpring && !usesScale && !usesOffset }
-    }
-
     /// One duration for every reduced-motion cross-fade in the feed, so a skeleton,
     /// an error card and a press all hand over at the same speed.
     static let crossFade: Double = 0.20
@@ -46,13 +32,7 @@ nonisolated enum FeedMotion {
 
     /// The only press scale allowed on a feed surface; exactly 1 under Reduce Motion.
     /// 0.97, guessed (2026-10-23). A Town event card sinks only its photo (Jesse, 2026-10-27).
-    static let quietPress: CGFloat = 0.97
-
-    static func quietPressSpec(reduceMotion: Bool) -> Spec {
-        reduceMotion
-            ? Spec(usesSpring: false, usesScale: false, usesOffset: false, duration: crossFade)
-            : Spec(usesSpring: true, usesScale: true, usesOffset: false, duration: Press.backResponse)
-    }
+    static let quietPress = Press.shallowest
 
     static func pressScale(isPressed: Bool, reduceMotion: Bool) -> CGFloat {
         guard !reduceMotion, isPressed else { return 1 }

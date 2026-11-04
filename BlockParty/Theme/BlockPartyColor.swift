@@ -199,7 +199,7 @@ nonisolated enum Hue {
     /// The Next bar while not allowed: a grey face on a darker grey edge.
     static let nextOffFace   = Color(hex: 0xE6E5DF)
     static let nextOffEdge   = Color(hex: 0xCFCEC7)
-    /// The Welcome's white pills pressed (ticket 25 mock).
+    /// The Welcome's white pills, and pressed (ticket 25 mock).
     static let welcomePill = Color(hex: 0xFFFFFF)
     static let welcomePillDown = Color(hex: 0xECECEA)
     /// The Welcome's scrims over its photo, black at the mock's strengths.

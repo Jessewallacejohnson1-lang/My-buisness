@@ -15,22 +15,6 @@ import XCTest
 
 final class FeedMotionTests: XCTestCase {
 
-    // MARK: Reduce Motion degrades EVERY feed animation to a cross-fade
-
-    func testReduceMotionTurnsEveryFeedAnimationIntoACrossFade() {
-        let specs: [(name: String, spec: FeedMotion.Spec)] = [
-            ("quiet press", FeedMotion.quietPressSpec(reduceMotion: true)),
-        ]
-
-        for entry in specs {
-            XCTAssertFalse(entry.spec.usesSpring, "\(entry.name) must not spring")
-            XCTAssertFalse(entry.spec.usesScale, "\(entry.name) must not scale")
-            XCTAssertFalse(entry.spec.usesOffset, "\(entry.name) must not move")
-            XCTAssertTrue(entry.spec.isCrossFade, "\(entry.name) must be a cross-fade")
-            XCTAssertEqual(entry.spec.duration, FeedMotion.crossFade)
-        }
-    }
-
     func testReduceMotionRemovesEveryPressScaleAndSubstitutesAFade() {
         XCTAssertEqual(FeedMotion.pressScale(isPressed: true, reduceMotion: true), 1)
         XCTAssertEqual(FeedMotion.pressScale(isPressed: false, reduceMotion: true), 1)
@@ -59,7 +43,6 @@ final class FeedMotionTests: XCTestCase {
         XCTAssertEqual(Press.depth(width: 44), 0.886, accuracy: 0.001, "an icon")
         XCTAssertEqual(Press.depth(width: 100), 0.95, accuracy: 0.001, "Search's logos, as drawn on Jesse's mockup")
         XCTAssertEqual(Press.depth(width: 358), 0.97, "a Town card")
-        XCTAssertEqual(Press.shallowest, FeedMotion.quietPress)
         XCTAssertEqual(Press.inSeconds, 0.08)
         XCTAssertEqual(Press.backResponse, 0.28)
         XCTAssertEqual(Press.backDamping, 0.68)
