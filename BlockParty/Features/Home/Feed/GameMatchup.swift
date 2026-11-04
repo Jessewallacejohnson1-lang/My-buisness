@@ -927,14 +927,15 @@ struct GameScoring: View {
 
     private func row(_ play: Game.Play) -> some View {
         let score = play.score, side = play.side
+        let words = GameMoment.words(of: play, sport: game.sport)
         let home = Text("\(score[0])"), away = Text("\(score[1])")
         return VStack(alignment: .leading, spacing: 6) {
-            Text(play.text)
-                .font(.sans(15))
+            Text(words.title)
+                .font(.sansMedium(16))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Text(play.when).monospacedDigit()
+                Text(words.detail).monospacedDigit()
                 Spacer(minLength: 8)
                 Text("\(side == 0 ? home.foregroundStyle(Hue.ink).bold() : home) – \(side == 1 ? away.foregroundStyle(Hue.ink).bold() : away)")
                     .monospacedDigit()
@@ -958,7 +959,7 @@ struct GameScoring: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([play.text, play.when, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
+        .accessibilityLabel([words.title, words.detail, "\(game.teams[0].short) \(score[0]), \(game.teams[1].short) \(score[1])"]
             .joined(separator: ", "))
     }
 }
