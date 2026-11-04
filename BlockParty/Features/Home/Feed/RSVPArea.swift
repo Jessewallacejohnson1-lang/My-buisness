@@ -182,8 +182,7 @@ struct RSVPArea: View {
                 }
                 if let second = words.second {
                     if words.canLeave {
-                        Self.leave(second, size: size, hint: "Takes you off the going list",
-                                   reduceMotion: reduceMotion) { actions.toggleGoing(item) }
+                        Self.leave(second, size: size, hint: "Takes you off the going list") { actions.toggleGoing(item) }
                     } else {
                         // Shrinks a little before it cuts: a 402 pt phone leaves the Event page's bar
                         // 125 pt beside the faces and the pill, and "Sam and 2 friends" needs 125.
@@ -226,7 +225,7 @@ struct RSVPArea: View {
 
     /// "Can't go?", and the Group page's "Leave group?": quiet words that undo, grown to a 44 pt target.
     /// `tint`: white at 60% on the Event of the day poster's dark (event-card 03).
-    static func leave(_ words: String, size: Size, hint: String, reduceMotion: Bool,
+    static func leave(_ words: String, size: Size, hint: String,
                       tint: Color = Hue.inkSecondary, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(words)
@@ -234,7 +233,7 @@ struct RSVPArea: View {
                 .foregroundStyle(tint)
                 .contentShape(Rectangle().inset(by: size.leaveReach))
         }
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(.press(.squish))
         .accessibilityHint(hint)
     }
 

@@ -42,7 +42,7 @@ struct EditProfileView: View {
                 VStack(spacing: 26) {
                     if model.canDescribe {
                         PhotosPicker(selection: $coverPick, matching: .images, photoLibrary: .shared()) { coverWell }
-                            .buttonStyle(PressableStyle())
+                            .buttonStyle(.press(.squish))
                     }
                     PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { avatarWell }
                         .buttonStyle(.plain)
@@ -270,7 +270,7 @@ struct EditProfileView: View {
                 .padding(.vertical, 13)
                 .background(Hue.fill.opacity(0.9), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
         }
     }
 }

@@ -54,7 +54,7 @@ struct ShareTargetRow: View {
                     .foregroundStyle(Hue.inkSecondary)
             }
         }
-        .buttonStyle(PressableStyle(scale: 0.9))
+        .buttonStyle(.press(.squish))
     }
 }
 

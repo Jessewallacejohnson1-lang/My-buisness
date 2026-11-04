@@ -3,12 +3,11 @@
 //  Block Party — the Town feed's motion vocabulary, and its Reduce Motion contract.
 //
 //  The feed stays quiet: everything routes through `quietPress`, one small press (on a
-//  Town event card, the photo alone). The one louder press is `FeedMarkPress`.
+//  Town event card, the photo alone). Its spring is `Press`'s.
 //
 //  Reduce Motion is not a dimmer here — it is a different animation. Every branch
-//  below collapses to a CROSS-FADE: no spring, no scale, no offset. `Spec` exists
-//  so that contract is assertable in a unit test rather than only in a screenshot
-//  (`FeedMotionTests`), and every view in the feed reads its numbers from here.
+//  below collapses to a CROSS-FADE: no spring, no scale, no offset, and every view in the
+//  feed reads its numbers from here.
 //
 //  Never attach a whole-card LongPressGesture/DragGesture/.gesture(TapGesture) to
 //  anything inside the feed's scroll views — it claims the touch on press-down and
@@ -25,19 +24,6 @@
 import SwiftUI
 
 nonisolated enum FeedMotion {
-    /// What a feed animation is actually allowed to do. Reduce Motion drives every
-    /// flag false except opacity, which is the cross-fade itself.
-    struct Spec: Equatable {
-        let usesSpring: Bool
-        let usesScale: Bool
-        let usesOffset: Bool
-        /// Seconds. For a spring this is its `response`, for a cross-fade its duration.
-        let duration: Double
-
-        /// A cross-fade is the absence of everything else.
-        var isCrossFade: Bool { !usesSpring && !usesScale && !usesOffset }
-    }
-
     /// One duration for every reduced-motion cross-fade in the feed, so a skeleton,
     /// an error card and a press all hand over at the same speed.
     static let crossFade: Double = 0.20
@@ -46,13 +32,7 @@ nonisolated enum FeedMotion {
 
     /// The only press scale allowed on a feed surface; exactly 1 under Reduce Motion.
     /// 0.97, guessed (2026-10-23). A Town event card sinks only its photo (Jesse, 2026-10-27).
-    static let quietPress: CGFloat = 0.97
-
-    static func quietPressSpec(reduceMotion: Bool) -> Spec {
-        reduceMotion
-            ? Spec(usesSpring: false, usesScale: false, usesOffset: false, duration: crossFade)
-            : Spec(usesSpring: true, usesScale: true, usesOffset: false, duration: pressResponse)
-    }
+    static let quietPress = Press.shallowest
 
     static func pressScale(isPressed: Bool, reduceMotion: Bool) -> CGFloat {
         guard !reduceMotion, isPressed else { return 1 }
@@ -64,42 +44,5 @@ nonisolated enum FeedMotion {
     static func pressOpacity(isPressed: Bool, reduceMotion: Bool) -> Double {
         guard reduceMotion, isPressed else { return 1 }
         return 0.78
-    }
-
-    /// The press spring. Kept on this `nonisolated` enum (not `Motion`, which is
-    /// MainActor-isolated) so it can be asserted in a plain unit test.
-    static let pressResponse: Double = 0.25
-    static let pressDamping: Double = 0.80
-
-    static func pressAnimation(reduceMotion: Bool) -> Animation {
-        reduceMotion
-            ? .easeOut(duration: crossFade / 2)
-            : .spring(response: pressResponse, dampingFraction: pressDamping)
-    }
-}
-
-/// The one press style for a whole feed card. Uses `ButtonStyle.isPressed` rather
-/// than a gesture so it composes with the enclosing ScrollView's pan.
-struct FeedCardPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(
-                FeedMotion.pressScale(
-                    isPressed: configuration.isPressed,
-                    reduceMotion: reduceMotion
-                )
-            )
-            .opacity(
-                FeedMotion.pressOpacity(
-                    isPressed: configuration.isPressed,
-                    reduceMotion: reduceMotion
-                )
-            )
-            .animation(
-                FeedMotion.pressAnimation(reduceMotion: reduceMotion),
-                value: configuration.isPressed
-            )
     }
 }

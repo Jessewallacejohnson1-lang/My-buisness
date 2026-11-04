@@ -170,12 +170,10 @@ struct GroupPage: View {
 
     private var topButtons: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                    reduceMotion: reduceMotion) { dismiss() }
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
             FeedEventDetailDestination.circleButton(
-                glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                reduceMotion: reduceMotion
+                glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share"
             ) {
                 ShareCenter.shared.present(.group(group))
             }
@@ -308,7 +306,7 @@ struct GroupPage: View {
                         .font(.display(size.top))
                         .foregroundStyle(Hue.ink)
                     RSVPArea.leave("Leave group?", size: size, hint: "Takes you out of the group",
-                                   reduceMotion: reduceMotion, action: toggle)
+                                   action: toggle)
                 }
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .layoutPriority(1)

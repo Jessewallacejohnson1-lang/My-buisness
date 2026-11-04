@@ -259,6 +259,8 @@ CAMPUS_HOSTS = {"Campus Events": "CSB SJU Campus Events", "CSB Athletics": "CSB 
                 "School of Theology": "Saint John's School of Theology"}
 # A calendar whose events are at home gives only the street address; the card names the place.
 CAMPUS_HOMES = {"St. Benedict's Monastery": ("104 Chapel Lane", "Saint Benedict's Monastery")}
+# A campus listing that gives only a street address, and the place at it (title-and-place, The place line).
+CAMPUS_ADDRESSES = {"14215 Fruit Farm Road": "Episcopal House of Prayer, Collegeville"}
 CAMPUS_INTERESTS = {"CSB Athletics": "watch_sports", "SJU Athletics": "watch_sports",
                     "Library": "books", "St. Benedict's Monastery": "faith"}
 # Campus Events also lists what only students go to: career workshops and fairs (Jesse, 2026-10-14).
@@ -337,6 +339,7 @@ def pathify_items(rows, entry, src, today):
         address, home_name = CAMPUS_HOMES.get(cal, (None, None))
         if address and place.startswith(address):
             place = home_name
+        place = next((name for a, name in CAMPUS_ADDRESSES.items() if place.startswith(a)), place)
         if "Athletics" in cal and ("group exercise" in place.lower() or "dance team" in title.lower()
                                    or not HOME_GAME.search(place)):
             continue  # a rec-center class, a halftime show or an away game
@@ -825,6 +828,14 @@ BOUND_WHO = re.compile(r"(girls|boys)\s+(varsity|jv|ms|c|b)", re.I)
 BOUND_MEET = re.compile(r"wrestl|swim|diving|cross country|track|gymnast|ski|golf|dance", re.I)
 # A name that says only what kind of meet it is ("Competition", "Triangular") gets its activity in front.
 BOUND_GENERIC = {"competition", "meet", "invitational", "invite", "triangular", "quad", "tri", "tournament", "scrimmage"}
+# A meet's name that lacks its sport ("Section Championship"; Jesse, 2026-11-04): the sport goes before the
+# word saying what kind of meet it is, else after the name.
+BOUND_SAID = re.compile(r"wrestl|swim|div(e|ing)|cross country|track|gymnast|\bski|nordic|golf|dance|kick|hockey|"
+                        r"basketball|soccer|football|baseball|softball|volleyball|tennis|lacrosse|bowling|trap|clay", re.I)
+BOUND_KIND = re.compile(r" (invite|invitational|championships?|tournament|classic|jamboree|showcase|tri|quad|duals|"
+                        r"duels|open|sprints|meet|scrimmages?|banquet|meeting)( \d{4})?$", re.I)
+# Bound joins a school and its room, and the two often repeat: "ROCORI High School High School Gym".
+BOUND_DOUBLED = re.compile(r"\b((?:[\w.'-]+ ){0,2}[\w.'-]+) \1\b", re.I)
 HOME = (45.5647, -94.3183)  # St. Joseph
 
 
@@ -841,6 +852,16 @@ def bound_sport(name):
     return f"{sex} {family}" if sex in ("Boys", "Girls") and family not in ONE_GENDER else family
 
 
+def bound_with_sport(name, activity):
+    """A meet's own name with its sport in it. No boys or girls: a meet is often both."""
+    family = re.sub(r"^(girls|boys|ms coed) ", "", activity.partition(", ")[0], flags=re.I)
+    family = SPORT_WORDS.get(family, family)
+    if not family or BOUND_SAID.search(name):
+        return name
+    kind = BOUND_KIND.search(name)
+    return f"{name[:kind.start()]} {family}{kind[0]}" if kind else f"{name} {family}"
+
+
 def bound_team(entry):
     """The school's row in public.teams: "Apollo High School" is apollo, "Kennedy Community School" kennedy."""
     return re.sub(r"[^a-z0-9]+", "-", re.sub(r" (High|Community) School$", "", entry["_name"]).lower()).strip("-")
@@ -851,6 +872,7 @@ def bound_items(text, entry, src, today):
     for ev in parse_ics(text):
         get = lambda k: unescape(ev.get(k, ("", ""))[1])
         title, key, level = get("SUMMARY"), get("X-BND-ACTIVITYKEY"), get("X-BND-ACTIVITYLEVEL")
+        title = re.sub(r"\s*\(time tba\)$", "", title, flags=re.I)  # the missing start is already missing
         geo = re.fullmatch(r"(-?[\d.]+);(-?[\d.]+)", ev.get("GEO", ("", ""))[1].strip())
         if "DTSTART" not in ev or "UID" not in ev or get("STATUS").upper() == "CANCELLED" or BOUND_PASS.search(title):
             continue
@@ -859,12 +881,13 @@ def bound_items(text, entry, src, today):
         start, all_day = when(ev["DTSTART"])
         if not ahead(start if all_day else start.date(), today):
             continue
-        uid, place = f"bound:{ev['UID'][1].strip()}", get("LOCATION")
+        uid, place = f"bound:{ev['UID'][1].strip()}", BOUND_DOUBLED.sub(r"\1", get("LOCATION"))
         name = BOUND_LEVEL.sub("", re.sub(rf"\s*\({re.escape(level)}\)$", "", title) if level else title)
         # Bound cuts a long title off mid-word: "vs South Junior High (Mid".
         name = re.sub(r"\s*\([^)]*$", "", name)
         name = name.split(": ", 1)[1].strip() if ": " in name and key else "" if key and name.endswith(":") else name
-        if not re.sub(r"\bvs\b", "", name).strip():
+        # A show has no opponent: "Theatre: vs St. Cloud Cathedral (Winter Show)" is a show named by its level.
+        if not re.sub(r"\bvs\b", "", name).strip() or (key in BOUND_ARTS and re.match(r"vs\b", name)):
             # Posted with no name ("Choir:  vs"): a show's level may be its name ("Fall Show"), else skip
             # it. A team sport's is a game with no opponent yet. A meet sport's level says only who goes:
             # a meet of many schools (Sartell's "Girls Varsity" wrestling, Dec 18-19: eight schools on
@@ -875,11 +898,12 @@ def bound_items(text, entry, src, today):
                 sex = "" if who[1].lower() in sport.lower() else f"{who[1].title()} "
                 school = short_team(re.sub(r" (High|Community) School$", "", entry["_name"]))
                 rank = BOUND_LEVEL_WORDS.get(who[2].upper() if len(who[2]) <= 2 else who[2].title())
-                name = f"{school} {sex}{sport} Meet" + (f" · {rank}" if rank else "")
+                name = f"{school} {sex}{sport} Meet" + (f" · {LEVEL_SHORT.get(rank, rank)}" if rank else "")
             elif not level or key not in BOUND_ARTS or BOUND_LEVEL.fullmatch(f" ({level})"):
                 continue
             else:
                 name = level
+        name = re.sub(r"^.*\bpresents:\s*", "", name, flags=re.I)  # "Apollo Theater Presents: The SpongeBob Musical"
         quoted = re.search(r'"([^"]+)"', name)
         if quoted and len(name) > 40:  # 'SRRHS Fall Musical, "Disney, The Little Mermaid"': the show's own name
             name = re.sub(r"^Disney,\s*", "", quoted[1])
@@ -915,8 +939,9 @@ def bound_items(text, entry, src, today):
         elif key:
             # A banquet, a meeting: for those following its activity or school. The school's own days
             # with no activity ("No School", "Mass", "Conferences") stay out.
-            out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
-                              followers_only=True, same=(start_at, key or name, level, place[:25]), **mark))
+            out.append(judged(entry, src, title=bound_with_sport(name, get("X-BND-ACTIVITYNAME")), start=start_at,
+                              all_day=all_day, place=place, followers_only=True,
+                              same=(start_at, key or name, level, place[:25]), **mark))
     # The school's own team, which a title too long for both leaves out: its own name, or a co-op's
     # ("St. Cloud", "River Lakes") as the one team in more than half that activity's games here.
     played = Counter(g["activity_name"] for g, _ in games)
@@ -1235,6 +1260,10 @@ def t_pathify():
          "ticket_url": "https://sbm.osb.org/event/grounding-our-emotions-during-tough-times/2026-11-03/"},
         {"id": 5, "title": "Salvage", "location": "Clemens Library", "calendar": {"name": "Library"},
          "start_date": "2026-11-03T20:00:00Z", "all_day": False, "ticket_url": ""}], {"_name": "x"}, src, TODAY)
+    circle = pathify_items([{"id": 6, "title": "Contemplative Drumming Circle", "calendar": {"name": "Spiritual Life"},
+                             "location": "14215 Fruit Farm Road, Collegeville, MN, USA", "all_day": False,
+                             "start_date": "2026-12-01T23:30:00Z", "ticket_url": ""}], {"_name": "x"}, src, TODAY)[0]
+    assert circle["place"] == "Episcopal House of Prayer, Collegeville", circle["place"]
     assert (retreat["source_url"], retreat["source_uid"]) == (
         "https://sbm.osb.org/event/grounding-our-emotions-during-tough-times/2026-11-03/", "4155871"), \
         "an Event with a sign-up page links to it, still known by the calendar's id"
@@ -1635,18 +1664,54 @@ def t_gobound():
     # off, a middle school game that isn't Apollo's level, the JV game, the varsity game away, the banquet (school-activities 03). The varsity game at home
     # stays the league's; the season pass and the cancelled concert stay out.
     assert [(i["title"], i["followers_only"]) for i in events] == [
-        ("Apollo Theater Presents: The SpongeBob Musical", False), ("Detroit Lakes Band Festival", True),
+        ("The SpongeBob Musical", False), ("Detroit Lakes Band Festival", True),
         ("Fall Show", False), ("Fall Play", False), ("The Little Mermaid", False),
         ("Kennedy Boys Soccer vs Melrose · MS", True), ("Kennedy Basketball vs Holdingford · MS", True),
         ("Apollo Volleyball vs Brainerd · JV", True), ("Fergus Falls Volleyball vs Apollo", True),
         ("Volleyball Banquet", True), ("Boys Soccer Banquet - Play Soccer", True),
         ("Robotics Competition", False), ("Apollo Girls Wrestling Meet", True),
-        ("Apollo Boys Wrestling Meet · Middle school", True)], events
+        ("Apollo Boys Wrestling Meet · MS", True)], events
     assert [(i["activity_team"], i["activity_name"]) for i in events[:2]] == [("apollo", "Drama"), ("apollo", "Band")]
     assert events[8]["area"] == "announced", "an away game isn't the writer's 20-mile game"
     assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
     assert got[-1] == {"kind": "schedule", "uid_prefix": "bound:", "from": "2026-10-25", "through": "2027-01-23",
                        "sources": ["Apollo High School"]}, "the schedule line: a dropped event was called off"
+    # Lines read from the seven schools' calendars on 2026-11-04.
+    def one(summary, key, level, name, place="Sartell High School Gym"):
+        got = bound_items(ev("r1", summary, key, level, name, place=place), {"_name": "Sartell High School"}, src,
+                          date(2026, 10, 25))
+        return got[0] if got else None
+    for summary, name, level, want in [
+            ("Nordic Ski Racing\\, Boys: Section Championship (Varsity)", "Nordic Ski Racing\\, Boys", "Varsity",
+             "Section Nordic Skiing Championship"),
+            ("Wrestling: Pierz Tri (Varsity)", "Wrestling", "Varsity", "Pierz Wrestling Tri"),
+            ("Dance: Best of the Best (Varsity)", "Dance", "Varsity", "Best of the Best Dance"),
+            ("Swimming and Diving\\, Boys: StormHawk Invitational 2026 (Varsity)", "Swimming and Diving\\, Boys", "Varsity",
+             "StormHawk Swim Invitational 2026"),
+            ("Girls Nordic Ski: Central Lakes Nordic Championship (Varsity)", "Girls Nordic Ski", "Varsity",
+             "Central Lakes Nordic Championship"),
+            ("Dance: Conference Kick (Varsity)", "Dance", "Varsity", "Conference Kick"),
+            ("Dance: Edina Invite (Varsity) (Time TBA)", "Dance", "Varsity", "Edina Dance Invite")]:
+        assert one(summary, name.split("\\")[0].split()[0].lower(), level, name)["title"] == want, summary
+    game = one("Basketball\\, Boys: Osseo vs St. Cloud Tech (B) (Time TBA)", "basketball", "B", "Basketball\\, Boys")
+    assert game["game"]["teams"][0] == "Tech" and "TBA" not in game["title"], game["title"]
+    assert one("Nordic Ski Racing\\, Girls: (JV) (Time TBA)", "nordic", "JV", "Nordic Ski Racing\\, Girls") is None, \
+        "no name and no time: nothing to show"
+    assert one("Theatre: vs St. Cloud Cathedral (Winter Show)", "theatre", "Winter Show", "Theatre")["title"] == "Winter Show", \
+        "a show has no opponent: its level names it"
+    for raw, want in [("ROCORI High School High School Gym North Court #3", "ROCORI High School Gym North Court #3"),
+                      ("St. Cloud Tech High School Gym Gym-West Court", "St. Cloud Tech High School Gym-West Court"),
+                      ("Foley High School Foley High School Main Gym", "Foley High School Main Gym"),
+                      ("Foley Intermediate School Foley Field House Field House - Court 1",
+                       "Foley Intermediate School Foley Field House - Court 1"),
+                      ("Long Prairie-Grey Eagle High School High School: Main Gym",
+                       "Long Prairie-Grey Eagle High School: Main Gym"),
+                      ("Paynesville Area High School Middle School Gym", "Paynesville Area High School Middle School Gym")]:
+        got = one("Wrestling: Pierz Tri (Varsity)", "wrestling", "Varsity", "Wrestling", place=raw)
+        assert got["place"] == want, got["place"]
+    about = one("Basketball\\, Boys: Osseo vs St. Cloud Tech (B)", "basketball", "B", "Basketball\\, Boys",
+                place="ROCORI High School High School Gym")["blurb"]
+    assert "High School High School" not in about, about
     for empty in ("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", ev("p1", "Apollo Boys Soccer Season Pass", "soccer")):
         assert bound_items(empty, {"_name": "Apollo High School"}, src, date(2026, 10, 25)) == [], \
             "a schedule with nothing on it calls nothing off"

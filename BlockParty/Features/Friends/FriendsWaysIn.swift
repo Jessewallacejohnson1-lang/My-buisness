@@ -83,7 +83,7 @@ struct FriendsWaysCard: View {
                     Image(systemName: "person.text.rectangle").font(.glyph(21, weight: .medium)).foregroundStyle(Hue.ink)
                 }
             }
-            .buttonStyle(PressableStyle(scale: 0.9))
+            .buttonStyle(.press(.squish))
             way("Your code") {
                 Image(systemName: "qrcode").font(.glyph(21, weight: .medium)).foregroundStyle(Hue.ink)
             } action: {
@@ -120,7 +120,7 @@ struct FriendsWaysCard: View {
     private func way(_ word: String, fill: Color = Hue.fill, @ViewBuilder glyph: () -> some View,
                      action: @escaping () -> Void) -> some View {
         Button(action: action) { face(word, fill: fill, glyph: glyph) }
-            .buttonStyle(PressableStyle(scale: 0.9))
+            .buttonStyle(.press(.squish))
     }
 
     private func face(_ word: String, fill: Color = Hue.fill, @ViewBuilder glyph: () -> some View) -> some View {
@@ -173,7 +173,7 @@ struct FriendsEmptyInvite: View {
                     .frame(height: FriendsMetric.invite)
                     .background(Capsule().fill(Hue.ink))
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .padding(.top, FriendsMetric.inviteTop)
         }
         .frame(maxWidth: .infinity)

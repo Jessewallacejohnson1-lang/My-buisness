@@ -122,7 +122,7 @@ private struct ExploreTile: View {
     @State private var frame = FrameBox()
 
     var body: some View {
-        OpenButton(item: item, style: SquishStyle(), tap: tap) {
+        OpenButton(item: item, press: .squish, tap: tap) {
             SearchPhoto(item: item)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())

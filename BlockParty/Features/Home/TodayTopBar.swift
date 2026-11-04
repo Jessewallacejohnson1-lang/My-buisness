@@ -410,9 +410,8 @@ struct TodayTopBar: View {
                 }
                 .contentShape(Rectangle())
         }
-        // The same pop the app's other bare controls use. The map disc beside it
-        // runs the same style at 0.92, without the tick.
-        .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
+        // The map disc beside it runs the same style, without the tick.
+        .buttonStyle(.press(.squish, haptic: true))
         .accessibilityLabel(label)
         .accessibilityHint(hint)
         // Frozen chrome owes the reader another way in — the mark never grows with
@@ -466,7 +465,7 @@ struct TodayTopBar: View {
             .contentShape(Rectangle())
         }
         .menuStyle(.button)
-        .buttonStyle(PressableStyle(scale: 0.96))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("Block Party")
         .accessibilityHint("Opens \(TownPageKind.town.name) or \(TownPageKind.city.name)")
         .accessibilityAddTraits(.isHeader)
@@ -522,7 +521,7 @@ struct TodayTopBar: View {
     /// step with the rest of the bar. A plain view fades, slides and clips with its
     /// neighbours. `TodayHeaderTests.testMapDiscIsExactBrandYellow` guards the colour.
     ///
-    /// The press is a 0.92 squish without the haptic: opening the map is not a
+    /// The press is the squish without the haptic: opening the map is not a
     /// commit (Jesse, Q4 A).
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
@@ -533,7 +532,7 @@ struct TodayTopBar: View {
                 .background(Self.mapShape.fill(Hue.brandDisc))
                 .contentShape(Self.mapShape)
         }
-        .buttonStyle(PressableStyle(scale: 0.92, haptic: false))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("Open the town map")
     }
 }

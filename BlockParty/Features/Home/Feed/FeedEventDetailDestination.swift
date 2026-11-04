@@ -372,7 +372,6 @@ struct FeedEventDetailDestination: View {
             Self.circleButton(
                 glyph: Image(systemName: "arrow.left"),
                 label: "Back",
-                reduceMotion: reduceMotion,
                 onColor: game != nil
             ) { dismiss() }
 
@@ -381,7 +380,7 @@ struct FeedEventDetailDestination: View {
             // The card's share reveal. 15, not the row's 17: the Reference's share
             // mark is 14 x 17 pt.
             Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                              reduceMotion: reduceMotion, onColor: game != nil) {
+                              onColor: game != nil) {
                 ShareCenter.shared.present(.event(item))
             }
 
@@ -390,7 +389,7 @@ struct FeedEventDetailDestination: View {
             let saved = actions.saved(item)
             let failures = actions.saveFailureCount(item.id)
             Self.circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save",
-                              reduceMotion: reduceMotion, onColor: game != nil, action: toggleSave)
+                              onColor: game != nil, action: toggleSave)
                 .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
                 .accessibilityAddTraits(saved ? .isSelected : [])
         }
@@ -427,7 +426,6 @@ struct FeedEventDetailDestination: View {
     static func circleButton(
         glyph: some View,
         label: String,
-        reduceMotion: Bool,
         onColor: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
@@ -449,7 +447,7 @@ struct FeedEventDetailDestination: View {
                 .frame(width: Metric.tapBox, height: Metric.tapBox)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel(label)
     }
 
@@ -714,12 +712,12 @@ private struct FactRow: View {
     var body: some View {
         if let link {
             NavigationLink(value: link) { row }
-                .buttonStyle(FeedCardPressStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(lines.spoken)
                 .accessibilityHint(hint)
         } else if end != nil {
             Button(action: action) { row }
-                .buttonStyle(FeedCardPressStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(lines.spoken)
                 .accessibilityHint(hint)
         } else {
@@ -860,7 +858,7 @@ private struct GoingChatBirthday: View {
                     .background(Hue.ink.opacity(turned ? 1 : 0.3), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(SquishStyle())
+            .buttonStyle(.press(.squish))
             .disabled(!turned || saving)
             .turnBackShake(failures: failures, shakes: !reduceMotion)
             .padding(.top, ChatMetric.side)

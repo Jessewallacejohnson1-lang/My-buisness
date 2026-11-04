@@ -89,7 +89,7 @@ struct FollowButton: View {
                 // Drawn 32 or 36 pt, 44 pt to the finger.
                 .contentShape(Rectangle().inset(by: (height - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: following)
         .accessibilityLabel("\(following ? "Following" : "Follow"), \(name)")

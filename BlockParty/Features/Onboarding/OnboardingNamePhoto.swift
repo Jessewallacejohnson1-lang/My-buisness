@@ -76,7 +76,7 @@ struct OnboardingPhotoCircle: View {
             Haptics.light()
             if Self.hasCamera { asking = true } else { library = true }
         } label: { circle }
-        .buttonStyle(OnboardingPress(scale: 0.95))
+        .buttonStyle(.press(.squish))
         .frame(maxWidth: .infinity)
         .padding(.top, 48)
         .accessibilityLabel(store.photo == nil ? "Add a photo" : "Change photo")

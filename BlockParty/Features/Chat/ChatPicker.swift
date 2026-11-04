@@ -116,7 +116,7 @@ struct ChatPicker: View {
                 .padding(.vertical, ChatMetric.rowPad)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(RowPressStyle())
+            .buttonStyle(.press(.row))
             .accessibilityAddTraits(on ? .isSelected : [])
         }
     }
@@ -139,7 +139,7 @@ struct ChatPicker: View {
                 .background(Hue.ink, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .disabled(starting)
         .turnBackShake(failures: failures, shakes: true)
         .padding(.horizontal, ChatMetric.side)
@@ -207,7 +207,7 @@ struct ChatPicker: View {
                     .frame(minHeight: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(SquishStyle())
+            .buttonStyle(.press(.squish))
             .disabled(done)
             .accessibilityLabel(done ? "Sent to \(name)" : "Send to \(name)")
         }

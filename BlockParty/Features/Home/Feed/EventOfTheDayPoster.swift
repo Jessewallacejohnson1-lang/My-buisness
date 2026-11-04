@@ -74,7 +74,7 @@ struct EventOfTheDayPoster: View {
             .overlay(alignment: .bottom) { copy }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
-            .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: linkPressed)
+            .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                         report: picture.report(place: item.whereLine)))
             // On screen, a heart or Attend that fails may shake here.
@@ -229,7 +229,7 @@ struct EventOfTheDayPoster: View {
                 .accessibilityHidden(true)
             if words.canLeave, let leave = words.second {
                 RSVPArea.leave(leave, size: .card, hint: "Takes you off the going list",
-                               reduceMotion: reduceMotion, tint: .white.opacity(0.6)) {
+                               tint: .white.opacity(0.6)) {
                     actions.toggleGoing(item)
                 }
             } else if let names = actions.rsvp(item, bar: true)?.second {

@@ -56,7 +56,7 @@ struct PlaceCard: View {
             face
                 .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                 .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
-                .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: pressed)
+                .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
                 .contentShape(Rectangle())
         }
         .buttonStyle(FeedCardLinkStyle())

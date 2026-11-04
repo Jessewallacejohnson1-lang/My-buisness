@@ -178,7 +178,7 @@ struct AgendaList: View {
                             AgendaCard(event: next, now: now, withDay: true, friends: [], open: false,
                                        pill: next.startsLabel(now: now))
                         }
-                        .buttonStyle(PressableCardStyle())
+                        .buttonStyle(.press(.squish))
                         // Every other card opens its Event; this one turns the Calendar. A working word.
                         .accessibilityHint("Shows that day")
                     }
@@ -223,7 +223,7 @@ struct AgendaCards: View {
                     AgendaCard(event: event, now: now, withDay: withDay,
                                friends: faces ? event.item.friendsGoing : [], open: openID == event.id)
                 }
-                .buttonStyle(PressableCardStyle())
+                .buttonStyle(.press(.squish))
             }
         }
     }

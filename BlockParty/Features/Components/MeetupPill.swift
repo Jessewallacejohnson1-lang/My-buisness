@@ -11,8 +11,8 @@
 //  it (`meetupPillDepth`). No Apple button draws this, so the style is BP's own, built
 //  from SwiftUI's gradient and shadows.
 //
-//  Pressed, it sinks to 97% and its shadows pull in, on the press spring every pressable
-//  in the app shares (`FeedMarkPress`, response 0.25, damping 0.6). Reduce Motion: no
+//  Pressed, it sinks to 97% and its shadows pull in, on the press every pressable in the
+//  app shares (`Press`). Reduce Motion: no
 //  sink, the feed's opacity dip, and the shadows still pull in.
 //
 
@@ -73,7 +73,7 @@ struct MeetupPillStyle: ButtonStyle {
         // The press spring moves only the sink and the shadows. The words swap on their
         // caller's timing, so the pill turns into Invite with the words beside it, not on
         // the spring (the review's frames, 2026-10-17).
-        let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
+        let press = Press.animation(down: pressed, reduceMotion: reduceMotion)
         return configuration.label
             .foregroundStyle(light || grey ? Hue.ink : yellow && Self.inkReads(on: tint ?? Hue.brandYellowHex) ? Hue.onBrandDisc : .white)
             .padding(.horizontal, sidePadding)
@@ -157,7 +157,7 @@ struct YellowDiscStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
+        let press = Press.animation(down: pressed, reduceMotion: reduceMotion)
         return configuration.label
             .foregroundStyle(Hue.onBrandDisc)
             .frame(width: YellowShareButton.side, height: YellowShareButton.side)

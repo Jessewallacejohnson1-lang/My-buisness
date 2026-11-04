@@ -498,7 +498,7 @@ private struct HoursPill: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(FeedCardPressStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(PlaceHours.words(status))
                 .accessibilityValue(expanded ? ([hours.seasonLine].compactMap { $0 }
                     + hours.week(from: context.date).map { "\($0.day) \($0.hours)" }).joined(separator: ", ") : "")
@@ -657,8 +657,7 @@ private struct BackCircle: View {
         let p = opener.progress.value
         let m = FeedEventDetailDestination.Metric.self
         let pad = (m.tapBox - m.button) / 2
-        FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                reduceMotion: reduceMotion) { opener.close() }
+        FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { opener.close() }
             .opacity(min(max(p * 2 - 1, 0), 1))
             .scaleEffect(lerp(SearchMetric.bizBackFrom, 1, min(max(p, 0), 1)))
             .offset(x: m.inset - pad, y: top + m.buttonTop - pad)

@@ -109,7 +109,7 @@ struct FeedEventCard: View {
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
                         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
-                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                        .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
                 .contentShape(Rectangle())
             }
@@ -132,7 +132,7 @@ struct FeedEventCard: View {
                         .padding(.bottom, item.isPhotoless ? 0 : Self.photoHeartInset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: item.isPhotoless ? 0 : -photoSize.height * (1 - pressScale) / 2)
-                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                        .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
             // On the white card with no photo, its logo is the host's mark, its own button over the
@@ -142,7 +142,7 @@ struct FeedEventCard: View {
                     whiteCardMark
                         .padding(.leading, DailyFeedMetric.contentInset + NoPhotoCard.Metric.horizontal)
                         .offset(x: photoSize.width * (1 - pressScale) / 2)
-                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                        .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
             // The host's mark on the photo's top right, its own button over the link, as the heart is:
@@ -155,7 +155,7 @@ struct FeedEventCard: View {
                         .padding(.top, PhotoChip.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: photoSize.height * (1 - pressScale) / 2)
-                        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+                        .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
 
@@ -226,7 +226,7 @@ struct FeedEventCard: View {
             .accessibilitySortPriority(1)
         if hostOpener != nil {
             Button(action: openHost) { mark }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
         } else {
             mark
         }
@@ -318,7 +318,7 @@ struct FeedEventCard: View {
                 .trackFrame(hostFrame)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .accessibilitySortPriority(1)
     }
 
@@ -741,16 +741,16 @@ struct FeedCardMenuButton: View {
     }
 }
 
-/// The •••'s press, as the approved Check-in 1 mock drew it: it shrinks to 0.88 over a
-/// faint disc on touch-down and springs back the way it went.
+/// The •••'s press, as the approved Check-in 1 mock drew it: it shrinks over a faint disc on
+/// touch-down and springs back the way it went.
 struct MenuPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(Hue.ink.opacity(configuration.isPressed ? 0.06 : 0), in: Circle())
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.88 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.68), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Press.deepest : 1)
+            .animation(Press.animation(down: configuration.isPressed, reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
 

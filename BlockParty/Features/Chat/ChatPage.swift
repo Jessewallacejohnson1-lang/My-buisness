@@ -170,10 +170,10 @@ struct ChatPage: View {
             Group {
                 if let card = goingCard {
                     NavigationLink(value: card) { who }
-                        .buttonStyle(DimStyle())
+                        .buttonStyle(.press(.dim))
                 } else if !isGroup, let other = others.first {
                     NavigationLink(value: other) { who }
-                        .buttonStyle(DimStyle())
+                        .buttonStyle(.press(.dim))
                 } else {
                     who
                 }
@@ -294,7 +294,7 @@ struct ChatPage: View {
                             .frame(width: PageMetric.tapMin, height: ChatMetric.composerField)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(SquishStyle())
+                    .buttonStyle(.press(.squish))
                     .accessibilityLabel("Send")
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -315,7 +315,7 @@ struct ChatPage: View {
         // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
         if let file = LaunchFlags.value(.newEventPhoto), let image = UIImage(named: file) {
             Button { Task { await thread.send(photo: image) } } label: { photoGlyph }
-                .buttonStyle(SquishStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("Send a photo")
         } else {
             photoPicker
@@ -327,7 +327,7 @@ struct ChatPage: View {
 
     private var photoPicker: some View {
         PhotosPicker(selection: $pick, matching: .images) { photoGlyph }
-            .buttonStyle(SquishStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("Send a photo")
     }
 
@@ -559,7 +559,7 @@ private struct ChatBubble: View {
                         .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(DimStyle())
+                .buttonStyle(.press(.dim))
                 .turnBackShake(failures: thread.failures, shakes: !reduceMotion)
             }
         }
@@ -599,7 +599,7 @@ private struct ChatBubble: View {
             .overlay(Circle().stroke(Hue.paper, lineWidth: 2))
         if !mine, let sender {
             NavigationLink(value: sender) { face.contentShape(Circle()) }
-                .buttonStyle(SquishStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("\(sender.displayName)'s profile")
         } else {
             face.accessibilityHidden(true)
@@ -624,7 +624,7 @@ private struct ChatBubble: View {
                                 .frame(width: ChatMetric.theirFace, height: ChatMetric.theirFace)
                                 .contentShape(Circle().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
                         }
-                        .buttonStyle(SquishStyle())
+                        .buttonStyle(.press(.squish))
                         .accessibilityLabel("\(sender.displayName)'s profile")
                     } else if showsFace {
                         Avatar(avatarUrl: nil, size: ChatMetric.theirFace)
@@ -706,7 +706,7 @@ private struct ChatPhoto: View {
 
     var body: some View {
         Button { open = true } label: { picture.frame(width: size.width, height: size.height).clipped() }
-            .buttonStyle(SquishStyle())
+            .buttonStyle(.press(.squish))
             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             .matchedTransitionSource(id: "photo", in: zoom)
             // Apple's zoom: it grows from the bubble, and a drag down takes it back there.
@@ -763,7 +763,7 @@ private struct ChatPhotoView: View {
                     .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("Close")
             .padding(.trailing, PageMetric.backLead)
         }
@@ -805,7 +805,7 @@ private struct ChatEventCard: View {
                         .padding(.horizontal, ChatMetric.eventInsetX)
                 }
             }
-            .buttonStyle(DimStyle())
+            .buttonStyle(.press(.dim))
             HStack {
                 FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
                 Spacer(minLength: 0)
@@ -851,7 +851,7 @@ private struct ChatAnswers: View {
                         .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(SquishStyle())
+                .buttonStyle(.press(.squish))
             }
             Spacer(minLength: 0)
         }
@@ -942,7 +942,7 @@ private struct ChatRequestBar: View {
                 .background(fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .disabled(busy)
     }
 

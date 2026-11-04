@@ -158,14 +158,14 @@ struct YourCodeSheet: View {
                 Button { scanning = true } label: {
                     action("Scan a code", glyph: "viewfinder", ink: true)
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 if let picture = codes?.share {
                     let image = Image(uiImage: picture)
                     ShareLink(item: image, message: Text(FriendsInvite.message),
                               preview: SharePreview("Your code", image: image)) {
                         action("Share", glyph: "square.and.arrow.up", ink: false)
                     }
-                    .buttonStyle(PressableStyle())
+                    .buttonStyle(.press(.squish))
                 }
             }
             .padding(.top, FriendsMetric.codeActsTop)
@@ -266,8 +266,7 @@ struct CodeScanner: View {
                     .frame(maxHeight: .infinity)
             }
             // The Event page's white round button, where its back sits.
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "xmark"), label: "Close",
-                                                    reduceMotion: reduceMotion) { dismiss() }
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "xmark"), label: "Close") { dismiss() }
                 .padding(.leading, Round.inset - (Round.tapBox - Round.button) / 2)
                 .padding(.top, Round.buttonTop - (Round.tapBox - Round.button) / 2)
         }

@@ -121,7 +121,7 @@ struct FeedCardMenu: View {
                     .frame(minHeight: Metric.rowHeight)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(RowPressStyle())
+                .buttonStyle(.press(.row))
             }
 
             if let onHide {
@@ -150,7 +150,7 @@ struct FeedCardMenu: View {
                                 .frame(minHeight: Metric.rowHeight)
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(RowPressStyle())
+                            .buttonStyle(.press(.row))
                         }
                     }
                 }
@@ -177,7 +177,7 @@ struct FeedCardMenu: View {
                         .frame(minHeight: Metric.rowHeight)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
                 }
                 .padding(.top, 12)
             }
@@ -227,7 +227,7 @@ struct FeedCardMenu: View {
                         .frame(minHeight: 61)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
                 }
                 Rectangle().fill(Hue.hairline).frame(height: 1)
             }
@@ -262,7 +262,7 @@ struct FeedCardMenu: View {
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .background(Hue.ink, in: Capsule())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
         }
         .frame(height: max(height - 16, 0), alignment: .top)
     }
@@ -280,7 +280,7 @@ struct FeedCardMenu: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("Close")
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -327,7 +327,7 @@ struct FeedCardMenu: View {
             .frame(minHeight: Metric.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(RowPressStyle())
+        .buttonStyle(.press(.row))
     }
 
     private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

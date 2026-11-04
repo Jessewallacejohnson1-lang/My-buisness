@@ -244,7 +244,6 @@ struct TownPageView: View {
     @State private var model: TownPageModel
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Scrolled up past the photo: the top turns paper, so the words never run under the clock.
     @State private var pastPhoto = false
 
@@ -288,8 +287,7 @@ struct TownPageView: View {
     /// Back, and the switch centred on the photo; outside the scroll, so they stay put.
     private var top: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                    reduceMotion: reduceMotion) { dismiss() }
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
         }
         .overlay {
@@ -497,7 +495,7 @@ struct TownEventRow: View {
         // Opens its Event page, as a Town card does; the route Notifications uses, so an open from
         // here doesn't count toward the Town feed's popularity.
         NavigationLink(value: NoticeEventRoute(item: item)) { row }
-            .buttonStyle(PressableStyle(scale: 0.98))
+            .buttonStyle(.press(.squish))
     }
 
     /// The Town feed's own card when it has this Event (its photo, Going and the rest); else the
@@ -569,7 +567,7 @@ private struct TownBoardRow: View {
                 .frame(minHeight: TownPageMetric.row)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityElement(children: .combine)
             .accessibilityHint("Shows its meetings")
             FollowButton(target: board.target, name: board.name, size: .row)
