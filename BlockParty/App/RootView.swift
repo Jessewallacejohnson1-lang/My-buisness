@@ -418,6 +418,8 @@ struct MainTabsView: View {
                     case .person(let person): ChatPage(chat: nil, person: person)
                     case .group(let id, let others, let name):
                         ChatPage(chat: nil, groupID: id, groupOthers: others, groupName: name)
+                    case .going(let card, let isHost):
+                        ChatPage(chat: nil, event: card, eventHost: isHost)
                     }
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in

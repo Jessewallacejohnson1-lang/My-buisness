@@ -2,7 +2,7 @@
 //  ChatBookTests.swift
 //  BlockPartyTests — chat's model (BP app five-tabs 05): what a list row says, how the server's messages and what's
 //  on its way merge, a send and a failed send, the first message to someone, Seen, the answers, the typing dots and
-//  the dot. What the server allows is `supabase/tests/chat_with_friends.test.mjs`.
+//  the dot, and a Going chat's row, join and updates. What the server allows is `supabase/tests/chat_with_friends.test.mjs` and `going_chat.test.mjs`.
 //
 
 import XCTest
@@ -71,6 +71,112 @@ final class ChatBookTests: XCTestCase {
         XCTAssertTrue(ChatWords.needsStamp(message("a"), after: nil))
         XCTAssertFalse(ChatWords.needsStamp(message("b", at: 14 * 60), after: message("a")))
         XCTAssertTrue(ChatWords.needsStamp(message("b", at: 15 * 60), after: message("a")))
+    }
+
+    // MARK: Going chats
+
+    private let cardJSON = #"{"id":"e1","title":"Holiday Market","event_date":"2026-12-05","going_count":24,"created_at":"2026-11-03T17:00:00+00:00"}"#
+
+    private func goingJSON(id: String = "g1", card: String? = nil, last: String = "Vendors by 8:30", mine: Bool = false,
+                           sender: String = "Sam Lee", host: Bool = false, isHost: Bool = false, unread: Bool = false,
+                           lights: Bool = false) -> String {
+        """
+        {"chat_id":"\(id)","kind":"going","name":null,"others":[],"last_kind":"text","last_body":"\(last)","last_mine":\(mine),
+         "last_sender":"\(sender)","last_at":"2026-11-03T17:00:00+00:00","unread":\(unread),"request":false,"waiting":false,
+         "event":\(card ?? cardJSON),"last_host":\(host),"is_host":\(isHost),"lights":\(lights)}
+        """
+    }
+
+    func testAGoingChatsRowIsItsEvent() throws {
+        let row = try chats(goingJSON(host: true))[0]
+        XCTAssertEqual(row.kind, .going)
+        XCTAssertEqual(row.title, "Holiday Market")
+        XCTAssertEqual(row.card?.id, "e1")
+        XCTAssertEqual(ChatWords.preview(row), "Host: Vendors by 8:30")
+        XCTAssertEqual(ChatWords.preview(try chats(goingJSON(last: "See you", sender: "Maya Ruiz"))[0]), "Maya: See you")
+        XCTAssertEqual(ChatWords.preview(try chats(goingJSON(last: "See you", mine: true, host: true))[0]), "You: See you")
+    }
+
+    func testOneOddCardLeavesOutOnlyItsRow() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(goingJSON(id: "odd", card: #"{"nope":1}"#)),\(chatJSON(id: "d"))]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        XCTAssertEqual(book.chats?.count, 2)
+        XCTAssertFalse(book.failed)
+        XCTAssertEqual(book.messages.map(\.id), ["d"])
+    }
+
+    func testOnlyAnUpdateLightsTheDotAndReadingClearsIt() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(goingJSON(unread: true, lights: false))]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        XCTAssertFalse(book.unread, "chatter bolds its row and lights nothing")
+        XCTAssertEqual(book.chat(forEvent: "e1")?.id, "g1")
+
+        server.answers["rpc/get_chats"] = .init(body: "[\(goingJSON(unread: true, lights: true))]")
+        await book.refresh()
+        XCTAssertTrue(book.unread)
+        book.markedRead("g1")
+        XCTAssertFalse(book.unread)
+        XCTAssertEqual(book.chats?.first?.unread, false)
+    }
+
+    func testAHostsWordsComeBackAsUpdatesWithWhoWroteThem() throws {
+        let rows = try ChatAPI.messages(from: Data(#"""
+        [{"id":"s1","client_id":"c1","sender_id":"SAM","kind":"text","body":"Moved inside","photo_path":null,"photo_w":null,"photo_h":null,
+          "card":null,"created_at":"2026-11-03T17:00:00+00:00","host":true,
+          "sender":{"user_id":"sam","display_name":"Sam Lee","avatar_url":null,"since":null,"relation":"none","mutual_friends":0,"friends_since":null}},
+         {"id":"s2","client_id":"c2","sender_id":"ANA","kind":"text","body":"ok","photo_path":null,"photo_w":null,"photo_h":null,
+          "card":null,"created_at":"2026-11-03T17:01:00+00:00","host":false,"sender":null}]
+        """#.utf8))
+        XCTAssertEqual(rows[0].host, true)
+        XCTAssertEqual(rows[0].sender?.displayName, "Sam Lee")
+        XCTAssertEqual(rows[1].host, false)
+        XCTAssertNil(rows[1].sender, "a banned sender goes unnamed")
+    }
+
+    func testAGoingChatJoinsBeforeItReadsAndOpensNoTypingChannel() async throws {
+        server.answers["rpc/join_going_chat"] = .init(body: #""g9""#)
+        server.answers["rpc/get_chat_messages"] = .init(body: "[]")
+        let thread = ChatThread(api: api, me: "me", chat: nil, going: "e1")
+        XCTAssertTrue(thread.isGoing)
+        XCTAssertFalse(thread.loaded, "loading until it's joined, never an empty chat you can't write to")
+        await thread.read()
+        XCTAssertEqual(thread.chatID, "g9")
+        XCTAssertTrue(thread.loaded)
+        XCTAssertFalse(thread.gone)
+    }
+
+    func testARefusedJoinIsBelievedOnlyAfterTheRetriesAndThePageGoes() async throws {
+        server.answers["rpc/join_going_chat"] = .init(status: 403, body: #"{"message":"chat_not_going"}"#)
+        let thread = ChatThread(api: api, me: "me", chat: nil, going: "e1")
+        await thread.read()
+        XCTAssertTrue(thread.gone)
+        XCTAssertEqual(thread.chatID, nil)
+        XCTAssertEqual(server.requests.filter { $0.url?.path.contains("join_going_chat") == true }.count,
+                       ChatThread.joinRetries.count + 1)
+    }
+
+    func testAHostsSendIsAnUpdateAtOnceAndARefusalSendsThePageAway() async throws {
+        server.answers["rpc/send_chat_message"] = .init(status: 403, body: #"{"message":"chat_not_going"}"#)
+        let thread = ChatThread(api: api, me: "me", chat: "g1", going: nil, isHost: true)
+        await thread.send("Doors at 9")
+        XCTAssertEqual(thread.messages.first?.host, true)
+        XCTAssertTrue(thread.gone)
+        XCTAssertEqual(thread.lastRefusal, "You're not in this chat anymore.")
+    }
+
+    func testALimitInAGoingChatSaysSoInMinutes() {
+        XCTAssertEqual(ChatWords.refused(SupabaseError(message: "chat_slow_down", status: 403)),
+                       "You're sending a lot. Try again in a few minutes.")
+    }
+
+    func testABlockFromAPressTakesTheirWordsAtOnce() async throws {
+        let thread = ChatThread(api: api, me: "me", chat: "g1")
+        server.answers["rpc/send_chat_message"] = .init(status: 500, body: "{}")
+        await thread.send("mine")
+        thread.dropMessages(from: "ME")
+        XCTAssertTrue(thread.messages.isEmpty)
     }
 
     // MARK: The list

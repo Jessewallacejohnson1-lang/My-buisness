@@ -44,7 +44,7 @@ struct ChatPicker: View {
 
     /// For an Event: your chats first, then friends you haven't one with.
     private func listTargets() -> [Target] {
-        chats.messages.filter { !$0.waiting }.map { Target(id: $0.id, name: $0.title, chat: $0) }
+        chats.messages.filter { !$0.waiting && $0.kind != .going }.map { Target(id: $0.id, name: $0.title, chat: $0) }
             + book.friends.filter { chats.chat(with: $0) == nil }
                 .map { Target(id: $0.id, name: $0.displayName, person: $0) }
     }
