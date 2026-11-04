@@ -30,7 +30,8 @@ run `cat supabase/town_feed.sql >> <the new file>` and write what changed in com
 copy. `tests/migration_numbers.test.mjs` fails when the newest feed migration is not a
 word-for-word copy. After a merge or rebase, `git diff origin/main -- supabase/town_feed.sql` must
 show only your lines: keeping one side of a conflict drops the other chat's change, and the test
-can't see that.
+can't see that. When the newest feed migration is your own and not applied yet, replace its copy
+instead of making another: `apply_migration.py` reads the newest file as what is live.
 
 ## Known gaps
 

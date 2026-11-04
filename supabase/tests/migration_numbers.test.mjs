@@ -28,5 +28,10 @@ test('the newest Town feed migration holds supabase/town_feed.sql word for word'
   const sql = readFileSync(`${dir}/${newest}`, 'utf8');
   const source = readFileSync(new URL('../town_feed.sql', import.meta.url), 'utf8').trim();
   assert.ok(sql.includes(source), `${newest} is not a copy of supabase/town_feed.sql. Edit that file, then ` +
-    '`supabase migration new <name>` and `cat supabase/town_feed.sql >> <the new file>`');
+    '`supabase migration new <name>` and `cat supabase/town_feed.sql >> <the new file>`. When it is your own ' +
+    'and not applied yet, replace its copy instead.');
+  // Nothing left over: an emptied or cut source file still passes the check above, and so does a
+  // function hand-written below the copy.
+  assert.doesNotMatch(sql.replace(source, ''), /create\s+(or\s+replace\s+)?function\s+(private\.town_feed|public\.get_town_feed)\s*\(/i,
+    `${newest} makes the feed outside its copy of supabase/town_feed.sql, or that file has lost part of it`);
 });
