@@ -5,67 +5,9 @@
 // `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  -- town_follows and club_members as schema.sql makes them, with their live rules.
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    constraint town_follows_target_type_check check (target_type in ('club', 'profile')),
-    unique (follower_id, target_type, target_id));
-  alter table public.town_follows enable row level security;
-  create policy "own follows delete" on public.town_follows for delete to public using (auth.uid() = follower_id);
-  create policy "own follows insert" on public.town_follows for insert to public with check (auth.uid() = follower_id);
-  create policy "own follows select" on public.town_follows for select to public using (auth.uid() = follower_id);
-  create table public.clubs (id uuid primary key, name text not null, status text not null default 'pending');
-  create table public.club_members (club_id uuid not null, user_id uuid not null default auth.uid(),
-    unique (club_id, user_id));
-  alter table public.club_members enable row level security;
-  create policy "join club" on public.club_members for insert to public with check (user_id = auth.uid());
-  create policy "leave club" on public.club_members for delete to public using (user_id = auth.uid());
-  create policy "read memberships" on public.club_members for select to authenticated using (true);
-  create table public.places (id uuid primary key, name text not null, primary_type text, entry_id text);
-  create table public.club_events (id uuid primary key, title text, submitted_by uuid, club_id uuid,
-    place_entry_id text, status text not null default 'approved');
-  -- The Place's picture, as place_picture answers (its own file has its own stories).
-  create function public.place_picture(p_entry_id text) returns jsonb language sql stable as
-    $$ select jsonb_build_object('url', 'https://pic/' || p_entry_id, 'kind', 'logo') $$;
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-  create table public.teams (uuid uuid primary key, short_name text, logo_url text);
-  grant select, insert, update, delete on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
-                   ...read('_unfriend_and_block.sql'), ...read('_follow_places_and_people.sql'),
-                   ...read('_my_follows_own_photos.sql')]) {
-  await db.exec(sql);
-}
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, EVE, NAMELESS, ANON] = [1, 2, 3, 4, 5, 6, 7].map(id);
 const [KREWE, BLEND, RUNNERS] = [id(800), id(801), id(900)];
@@ -85,12 +27,17 @@ async function reset() {
                    [who, name, `https://face/${name.trim()}`]);
   }
   await db.query('insert into auth.users (id, is_anonymous) values ($1, true)', [ANON]);
-  await db.query(`insert into public.places values ($1, 'Krewe', 'restaurant', 'krewe'),
-                  ($2, 'The Local Blend', 'coffee_shop', 'local-blend')`, [KREWE, BLEND]);
-  await db.query(`insert into public.clubs values ($1, 'Running Club', 'approved')`, [RUNNERS]);
-  await db.query(`insert into public.club_events (id, title, submitted_by, club_id, place_entry_id) values
-                  ($1, 'Mardi Gras Night', null, null, 'krewe'), ($2, 'Porch sale', $5, null, 'krewe'),
-                  ($3, 'Long run', $5, $6, null), ($4, 'Somewhere', null, null, 'gone')`,
+  await db.query(`insert into public.places (id, name, lat, lon, family, primary_type, entry_id) values
+                  ($1, 'Krewe', 45.5, -94.3, 'food', 'restaurant', 'krewe'),
+                  ($2, 'The Local Blend', 45.5, -94.3, 'food', 'coffee_shop', 'local-blend')`, [KREWE, BLEND]);
+  await db.exec(`delete from public.place_photos;
+    insert into public.place_photos (entry_id, url, source_url, kind, status) values
+      ('krewe', 'https://pic/krewe', 'https://krewemn.com/', 'logo', 'live'),
+      ('local-blend', 'https://pic/local-blend', 'https://localblend.com/', 'logo', 'live')`);
+  await db.query(`insert into public.clubs (id, name, status) values ($1, 'Running Club', 'approved')`, [RUNNERS]);
+  await db.query(`insert into public.club_events (id, status, title, submitted_by, club_id, place_entry_id) values
+                  ($1, 'approved', 'Mardi Gras Night', null, null, 'krewe'), ($2, 'approved', 'Porch sale', $5, null, 'krewe'),
+                  ($3, 'approved', 'Long run', $5, $6, null), ($4, 'approved', 'Somewhere', null, null, 'gone')`,
                  [AT_KREWE, BY_BEN, BY_GROUP, NOWHERE, BEN, RUNNERS]);
 }
 

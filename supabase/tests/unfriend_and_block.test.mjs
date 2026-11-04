@@ -5,56 +5,9 @@
 // this folder. The schema below is the subset of schema.sql the functions read.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    unique (follower_id, target_type, target_id));
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-
-  -- The live rules (schema.sql): your own profile row; your own follows, any target.
-  alter table public.town_profiles enable row level security;
-  create policy "town_profiles_select_own" on public.town_profiles for select to public
-    using (auth.uid() = user_id);
-  alter table public.town_follows enable row level security;
-  create policy "own follows select" on public.town_follows for select to public
-    using (auth.uid() = follower_id);
-  create policy "own follows insert" on public.town_follows for insert to public
-    with check (auth.uid() = follower_id);
-  grant select, insert on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql'),
-                   ...read('_get_neighbor.sql')]) {
-  await db.exec(sql);
-}
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, ANON] = [1, 2, 3, 6].map(id);
 const CLUB = id(900);
@@ -109,7 +62,7 @@ test('an anonymous account can do none of it', async () => {
 test('unfriend ends the friendship and both follows, and nothing else', async () => {
   await reset();
   await makeFriends(ANA, BEN);
-  await as(ANA, `insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'club', $2)`, [ANA, CLUB]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'club', $2)`, [ANA, CLUB]);
   assert.equal(await unfriend(ANA, BEN), 'none');
   assert.deepEqual(await friends(ANA), []);
   assert.deepEqual(await friends(BEN), []);
@@ -119,7 +72,7 @@ test('unfriend ends the friendship and both follows, and nothing else', async ()
 
 test('unfriending someone who is not a friend leaves their follow alone', async () => {
   await reset();
-  await as(ANA, `insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ANA, BEN]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ANA, BEN]);
   assert.equal(await unfriend(ANA, BEN), 'none');
   assert.deepEqual(await follows(), ['1>2']);
 });
