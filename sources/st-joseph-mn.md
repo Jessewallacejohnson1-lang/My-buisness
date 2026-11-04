@@ -3742,18 +3742,17 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ```yaml
 id: collegeville-communities
 status: active
-tier: watched
+tier: listed
 category: "real_estate_service"
 place_type: "Business"
 address: "24 College Ave N"
 added_by: agent:town-verify
 sources:
-  - url: https://www.collegevillecu.com/feed/
-    kind: rss
-    method: fetch
-    trust: official
+  - url: TODO
+    kind: website
+    method: submission
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched from 2026-10-15 until 2026-11-04, when Jesse took collegevillecu.com off the watch: its feed now posts articles in Hebrew about index funds, so the site no longer looks like theirs.
 
 ## Collegeville Orchards
 ```yaml

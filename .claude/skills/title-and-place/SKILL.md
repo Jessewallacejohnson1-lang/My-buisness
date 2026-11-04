@@ -31,7 +31,8 @@ skill covers the calls the code can't make.
 - **High school teams as neighbours say them:** "Apollo", "Tech", "Cathedral" (not "St. Cloud
   Apollo"), "Kimball" (not "Kimball Area"); a co-op joined with a hyphen ("Sartell-Sauk
   Rapids"); "Girls Swim", and no "Girls" on volleyball. A meet or tournament keeps its own name,
-  with its sport when the name lacks one ("Central Lakes Conference Swim Meet").
+  with its sport when the name lacks one ("Central Lakes Conference Swim Meet"; the school reader's
+  `bound_with_sport` does it for a Bound meet, Jesse, 2026-11-04).
 - **A game over 40** gives up a little at a time, never a word cut, until it fits: a school's kind
   ("Willmar MS" is "Willmar"), the host line's own team ("Boys Basketball vs Willmar · C-squad"),
   a co-op's later towns ("Sartell-Sauk Rapids" is "Sartell"), the level's short form ("8th", "MS";
@@ -54,7 +55,9 @@ skill covers the calls the code can't make.
   Collegeville"; inside St. Joseph, the venue alone: "CSB Stadium".
 - **A street address only when the place has no name.** When the page gives an address and
   the page or the host names the place at it, use the name: "104 Chapel Lane" is "Saint
-  Benedict's Monastery".
+  Benedict's Monastery"; "14215 Fruit Farm Road" is "Episcopal House of Prayer, Collegeville".
+- **No word twice in a row:** "ROCORI High School High School Gym" is "ROCORI High School Gym" (Bound
+  joins a school and its room; the school reader writes them once, Jesse, 2026-11-04).
 - **"Online"** for a webinar or virtual event.
 - **City Council and EDA meetings with no room listed are at "City Hall"** (Jesse, 2026-10-20). The
   writer fills it in (`MEETS_AT`); the Park Board moves between City Hall and the parks, so it stays blank.
@@ -78,6 +81,10 @@ skill covers the calls the code can't make.
 | The Great Pumpkin Returns to Saint John's Abbey! | The Great Pumpkin Returns |
 | Christmas Craft Sale at Saint Scholastica Convent (the place line says where) | Christmas Craft Sale |
 | Festival of Cultures Student Showcase and Fashion Show | Festival of Cultures Fashion Show |
+| Nordic Ski Racing, Boys: Section Championship (Varsity) | Section Nordic Skiing Championship |
+| Dance: Edina Invite (Varsity) (Time TBA) | Edina Dance Invite |
+| Drama: Apollo Theater Presents: The SpongeBob Musical (Varsity) | The SpongeBob Musical |
+| Theatre: vs St. Cloud Cathedral (Winter Show) | Winter Show |
 
 ## Done
 
