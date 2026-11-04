@@ -67,6 +67,7 @@ await db.exec(`
     $$ select p_words like '%21+%' $$;
 `);
 await db.exec(read('_chat_with_friends.sql')[0]);
+await db.exec(read('_chat_safety.sql')[0]);
 
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, KID, ANON, NOBIRTH] = [1, 2, 3, 4, 5, 6, 7].map(id);
@@ -159,8 +160,8 @@ test('a read rule keeps a chat to the people in it, in REST as in the functions'
   await reset();
   await friends(ANA, BEN);
   const { chat_id: chat } = await sendTo(ANA, BEN, 'just us');
-  assert.equal((await as(BEN, 'select * from public.chat_messages')).length, 1);
-  assert.equal((await as(CAL, 'select * from public.chat_messages')).length, 0);
+  assert.equal((await as(BEN, 'select id from public.chat_messages')).length, 1);
+  assert.equal((await as(CAL, 'select id from public.chat_messages')).length, 0);
   assert.deepEqual(await words(CAL, chat), []);
   await refuses(sendIn(CAL, chat, 'let me in'), 'chat_not_member');
 });
@@ -245,7 +246,7 @@ test('under 18 or no birthday: a stranger\'s message is kept from them, and the 
     const { chat_id: chat } = await sendTo(ANA, young, 'hey');
     assert.deepEqual(await chats(young), [], 'nothing reaches them');
     assert.deepEqual(await words(young, chat), []);
-    assert.equal((await as(young, 'select * from public.chat_messages')).length, 0);
+    assert.equal((await as(young, 'select id from public.chat_messages')).length, 0);
     const [mine] = await chats(ANA);
     assert.equal(mine.waiting, true);
     assert.deepEqual(await words(ANA, chat), ['hey']);
@@ -255,6 +256,56 @@ test('under 18 or no birthday: a stranger\'s message is kept from them, and the 
     assert.deepEqual(await words(young, chat), ['hi, it is Ana']);
     assert.equal((await chats(young))[0].request, false);
   }
+});
+
+test('nobody can tell a message was kept: its sender cannot read held or request', async () => {
+  await reset();
+  const { chat_id: chat } = await sendTo(ANA, KID, 'hey');
+  await refuses(as(ANA, 'select held from public.chat_messages'), 'permission denied');
+  await refuses(as(ANA, 'select request from public.chat_messages'), 'permission denied');
+  await refuses(as(ANA, 'select * from public.chat_messages'), 'permission denied');
+  assert.deepEqual((await as(ANA, 'select body from public.chat_messages')).map((m) => m.body), ['hey']);
+  assert.deepEqual(Object.keys((await messages(ANA, chat))[0]).filter((k) => ['held', 'request'].includes(k)), []);
+});
+
+test('someone under 18 writing first opens nothing: a stranger\'s reply stays with them, words only', async () => {
+  for (const young of [KID, NOBIRTH]) {
+    await reset();
+    const { chat_id: chat } = await sendTo(young, ANA, 'hi');
+    assert.deepEqual(await chats(ANA), [], 'theirs is kept too: no chat with a stranger under 18, either way');
+    assert.deepEqual(await words(ANA, chat), []);
+    assert.equal((await chats(young))[0].waiting, true, 'to them it reads as waiting');
+    const reply = await sendTo(ANA, young, 'hello there');
+    assert.equal(reply.chat_id, chat);
+    assert.deepEqual(await words(young, chat), ['hi'], 'the reply never reaches them');
+    assert.deepEqual(await words(ANA, chat), ['hello there']);
+    await refuses(sendIn(ANA, chat, null, { photo: `${ANA}/${id(1)}.jpg`, w: 1, h: 1 }), 'chat_text_only');
+    await refuses(sendIn(ANA, chat, 'again'), 'chat_waiting');
+    // Friends: what's new arrives, both ways; what was kept stays kept.
+    await friends(ANA, young);
+    await sendIn(ANA, chat, 'now we can talk');
+    assert.deepEqual(await words(young, chat), ['hi', 'now we can talk']);
+    await sendIn(young, chat, 'hi Ana');
+    assert.deepEqual(await words(ANA, chat), ['hello there', 'now we can talk', 'hi Ana']);
+  }
+});
+
+test('Leave and Delete keep their read row, whose key names nobody', async () => {
+  await reset();
+  await friends(ANA, BEN);
+  await friends(ANA, CAL);
+  const group = (await as(ANA, 'select public.start_group_chat($1::uuid[]) as id', [[BEN, CAL]]))[0].id;
+  await sendIn(ANA, group, 'hi');
+  await as(BEN, 'select public.mark_chat_read($1)', [group]);
+  await as(BEN, 'select public.leave_chat($1)', [group]);
+  assert.equal((await db.query('select * from public.chat_reads where user_id = $1', [BEN])).rows.length, 1);
+  const { chat_id: asked } = await sendTo(DEE, CAL, 'hi');
+  await as(CAL, 'select public.accept_chat($1)', [asked]);
+  await as(CAL, 'select public.decline_chat($1)', [asked]);
+  assert.equal((await db.query('select * from public.chat_reads where user_id = $1 and chat_id = $2', [CAL, asked])).rows.length, 1);
+  const key = (await db.query(`select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
+    where i.indrelid = 'public.chat_reads'::regclass and i.indisprimary`)).rows.map((r) => r.attname);
+  assert.deepEqual(key, ['id']);
 });
 
 test('Block stops messages both ways and hides the chat, in REST too; unblocking starts over as a request', async () => {
@@ -307,7 +358,7 @@ test('a group is your friends; it reaches them with its first message, and anyon
   await as(CAL, 'select public.leave_chat($1)', [chat]);
   assert.deepEqual(await chats(CAL), []);
   assert.deepEqual(await words(CAL, chat), []);
-  assert.equal((await as(CAL, 'select * from public.chat_messages')).length, 0, 'the rule itself says Leave');
+  assert.equal((await as(CAL, 'select id from public.chat_messages')).length, 0, 'the rule itself says Leave');
   await refuses(sendIn(CAL, chat, 'back'), 'chat_not_member');
   assert.deepEqual((await chats(BEN))[0].others.map((o) => o.display_name), ['Ana Lee']);
 });
