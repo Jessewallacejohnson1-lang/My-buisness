@@ -44,6 +44,9 @@ final class AppSession {
     /// Your profile (codebase-health-2 09): the You tab, the tab bar's photo, New post's name line.
     /// The root view makes it, since it reads while onboarding is up, before the shell exists.
     let profile: ProfileModel
+    /// What the hello pill says next, and its reads (codebase-health-2 14). No line in `accountChanged`:
+    /// it keeps no account's data, only when it last read and the phone's own cut-offs.
+    let helloPill: HelloPill
     private let hello: HelloInbox
     /// Saves this phone kept before they moved to the server.
     private let saved: SavedStore
@@ -68,6 +71,9 @@ final class AppSession {
         self.notices = notices
         self.profile = profile
         self.hello = hello
+        helloPill = HelloPill(reads: .live(you: you, townFeed: townFeed, friendsBook: friendsBook, actions: actions,
+                                           supabase: supabase),
+                              inbox: hello, phone: phone)
         self.saved = saved
         self.supabase = supabase
         self.phone = phone
