@@ -779,7 +779,7 @@ private struct GoingChatRow: View {
     private var chat: Chat? { chats?.chat(forEvent: item.id) }
 
     private var shows: Bool {
-        if chat != nil { return access?.state != .hidden }
+        if let chat { return access?.state != .hidden && (chat.isHost == true || actions.going(item).isGoing) }
         guard let access, access.state != .hidden, !(access.state == .ask && tooYoung) else { return false }
         return access.isHost || actions.going(item).isGoing
     }
