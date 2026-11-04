@@ -20,8 +20,16 @@ Jesse's plan (no API key, no bill) and scores all three together: about 640,000 
 exits 1 below the bar.
 
 The first baseline (2026-11-03): 332 of 369 right (90%), with keeps 313 of 342, mistakes stopped 19 of 27
-and about 41 extras a reading. Its readings ran from 109 to 112 of 123, so the bar sits one such swing
-below it, at 87.5%.
+and about 41 extras a reading.
+
+The same prompt read again that evening: 319 of 369 (86%), readings 101, 109 and 109, mistakes stopped 18 of 27.
+That failed the first bar of 87.5%, so the bar is 85% (Jesse, 2026-11-04), and a change runs side by side with
+today's prompt, not against a number written here. Most of that swing is one message: in 2 of 12 readings the
+judge wrote about 20 items where it usually writes 30 on Oct 29's 30 posts (ticket 17; ticket 18 looks into it).
+
+A message with a found event whose "Where" is empty also shows the registry's place names. The judge then reads
+St. John the Baptist Parish's Craft Fair as listed too, so that label comes out right here; with file search, as
+in a real run, it stays outside 3 of 3 (ticket 17). Count 3 of 369 as this check's kindness.
 
   python3 sources/scripts/check_judge.py [--model sonnet] [--runs 3] [--judge FILE] [--fixture FILE]
   python3 sources/scripts/check_judge.py --selftest
@@ -36,15 +44,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from batch import page_id
 from check_flags import ask, flags_in
+from registry import load
 from towns import TOWNS, DEFAULT
 
 SOURCES = Path(__file__).resolve().parents[1]
 JUDGE = SOURCES / "models" / "judge.md"
 SOCIAL = SOURCES / "models" / "social.md"
 FIXTURE = Path.home() / "BP app/docs/plans/watch-every-place/assets/16-judge-check/fixture.json"
-BAR = 0.875
+BAR = 0.85
 CHUNK = 30  # posts in one message; a real check's whole day would outrun one answer
 RULE = re.compile(r"\b(every|each|weekly|through|until|\w+days)\b", re.I)  # "Fridays through Oct 16"
+NO_WHERE = re.compile(r"^Where:\s*$", re.M)  # a found event Facebook gives no place
 RULES_FROM, RULES_TO = "Each page is one post, and its first line", "**Photos.**"
 THIS_CHECK = """
 
@@ -63,9 +73,16 @@ def system_prompt(judge=JUDGE):
         + social[social.index(RULES_FROM):social.index(RULES_TO)] + THIS_CHECK
 
 
+def listed_places():
+    """What sources/st-joseph-mn.md answers the judge in a real run, where it can search the file."""
+    return ", ".join(sorted(n for e in load(SOURCES.parent)[0] if e.get("status") != "retired"
+                            for n in [e["_name"], *(e.get("aka") or [])]))
+
+
 def messages(fixture):
     """The judge's messages: each day's flagged posts, a place's posts together (the rules fold them), in
-    chunks of CHUNK. A post with no flags never reaches the judge."""
+    chunks of CHUNK. A post with no flags never reaches the judge. A message holding a found event with an
+    empty "Where" also carries the registry's place names, since the rule sends the judge to that file."""
     out = []
     for group in fixture["groups"]:
         flagged = sorted((p for p in group["pages"] if p["flags"]), key=lambda p: p["name"])
@@ -75,8 +92,9 @@ def messages(fixture):
             pages = "\n".join(f"=== PAGE {p['file']} ===\nName: {p['name']}\nURL: {p['url']}\nCategory: {p['category']}\n"
                               f"Trust: {p['trust']}\n{p['text']}\n" for p in part)
             flags = "".join(json.dumps(f, ensure_ascii=False) + "\n" for p in part for f in p["flags"])
+            listed = f"\nTHE PLACES sources/st-joseph-mn.md LISTS\n\n{listed_places()}\n" if NO_WHERE.search(pages) else ""
             out.append(f"Today is {day:%A, %B %-d, %Y}. The town is {TOWNS[DEFAULT]['display']}, Minnesota.\n\n"
-                       f"THE PAGES\n\n{pages}\nTHE FLAGS\n\n{flags}")
+                       f"THE PAGES\n\n{pages}\nTHE FLAGS\n\n{flags}{listed}")
     return out
 
 
@@ -218,6 +236,9 @@ def selftest():
         {"file": "a", "name": "Abe", "url": "u", "category": None, "trust": "official", "text": "t", "flags": [{"page": "a"}]},
         {"file": "q", "name": "Quiet", "url": "u", "category": None, "trust": "official", "text": "t", "flags": []}]}]}
     msg = messages(fixture)
+    found = {"groups": [{"day": "2026-11-03", "pages": [
+        {"file": "s", "name": "Stone Road", "url": "u", "category": None, "trust": "official",
+         "text": "Event: Stone Road @ The La Playette!\nWhen: Saturday\nWhere: \n\nCome out", "flags": [{"page": "s"}]}]}]}
     checks = [
         ((s["keeps"], s["keeps_right"]) == (10, 6), "an Event on its day and a News are keeps; the rest are misses"),
         ((s["mistakes"], s["mistakes_right"]) == (5, 3), "outside, closed and a fair title stop a mistake; a kept one and a wrong town don't"),
@@ -235,6 +256,7 @@ def selftest():
         (RULES_FROM in social and RULES_TO in social and "Keep everything" in system_prompt(), "social.md's rules are found"),
         (len(msg) == 1 and "Quiet" not in msg[0] and msg[0].index("Abe") < msg[0].index("Zed")
          and "Thursday, October 29, 2026" in msg[0], "the day, a place's posts together, an unflagged post left out"),
+        ("The La Playette" in messages(found)[0] and "PLACES" not in msg[0], "the registry's names come only with an empty Where"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:

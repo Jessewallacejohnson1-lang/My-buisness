@@ -218,6 +218,9 @@ which holds `TodayTopBar` and the feed.
   only calls it, and `get_event_of_the_day` asks it for just the day's picks and their hosts'
   Events instead of the whole feed. A change to the feed replaces `private.town_feed`; giving
   `get_town_feed` its own body again leaves Event of the day on the old one (a story checks).
+  Both are edited in `supabase/town_feed.sql` and each new migration copies that file `[test]`
+  (`migration_numbers.test.mjs`; steps in `supabase/README.md`). `get_event_of_the_day` is not in
+  it and repeats the feed's start-time patterns, so a change to `start_minutes` changes it too.
 - **`TownFeed` is the app's one module for it** `[test]` (`TownFeedEventsTests`). `MainTabsView`
   holds it, so coming back to Town shows the list it left while it reads again; a failed read
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
