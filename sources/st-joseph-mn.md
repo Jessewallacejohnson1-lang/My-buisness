@@ -2139,7 +2139,7 @@ sources:
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56802, -94.31309. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
-## St Jospeh’s Church
+## Church of Saint Joseph
 ```yaml
 id: church-jospehs-st
 status: active

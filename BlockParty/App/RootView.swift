@@ -13,8 +13,9 @@ import SwiftUI
 enum Tab: Int, CaseIterable, Identifiable {
     /// The town feed — everything happening on the block, for everyone.
     case town
-    /// The neighbour's own paper: the town feed crossed with what they follow.
-    case daily
+    /// The Block Party tab (Daily until five-tabs 04): the neighbour's own paper, the town feed
+    /// crossed with what they follow.
+    case blockParty
     /// Friends, in the middle: neighbours, requests, what friends are going to, and Groups.
     /// It was a page pushed from the Town bar's friends mark until 2026-11-01.
     case friends
@@ -28,7 +29,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .town:     return "Town"
-        case .daily:    return "Daily"
+        case .blockParty:    return "Block Party"
         case .friends:  return "Friends"
         case .search:   return "Search"
         case .you:      return "You"
@@ -45,7 +46,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .town:     return "house"
-        case .daily:    return "DailyMark"
+        case .blockParty:    return "DailyMark"
         case .friends:  return "person.2"
         case .search:   return "magnifyingglass"
         case .you:      return "person"
@@ -55,14 +56,14 @@ enum Tab: Int, CaseIterable, Identifiable {
     /// A magnifier has no fill: selected, it thickens instead (`MagnifierGlyph.bold`).
     /// Daily's Bp! is a logo with no outline form, so it stays solid and the grey
     /// bubble alone shows it's picked (Jesse, 2026-10-29).
-    var selectedSymbol: String { self == .search || self == .daily ? symbol : symbol + ".fill" }
+    var selectedSymbol: String { self == .search || self == .blockParty ? symbol : symbol + ".fill" }
 
     /// One line on what the slot is for — shown by the placeholder screens, so an
     /// unbuilt tab reads as reserved rather than broken.
     var promise: String {
         switch self {
         case .town:     return "Everything happening on the block."
-        case .daily:    return "Your paper — the town, filtered to what you follow."
+        case .blockParty:    return "Your paper — the town, filtered to what you follow."
         case .friends:  return "Your neighbors, and what they're going to."
         case .search:   return "Find a place, a happening, or someone on the block."
         case .you:      return "Your three weeks, and your profile."
@@ -292,7 +293,7 @@ struct MainTabsView: View {
         if let tab = LaunchFlags.value(.openTab) {
             switch tab {
             case "town":     return .town
-            case "daily":    return .daily
+            case "daily", "blockparty": return .blockParty
             case "friends":  return .friends
             case "search":   return .search
             case "you":      return .you
@@ -409,7 +410,6 @@ struct MainTabsView: View {
                 }
                 .navigationDestination(for: FriendsRoute.self) { route in
                     switch route {
-                    case .home: FriendsHomePage()
                     case .contacts: FriendsContactsPage()
                     case .allFriends: FriendsAllPage(groups: false)
                     case .groups: FriendsAllPage(groups: true)
@@ -660,7 +660,7 @@ struct MainTabsView: View {
                         // Daily shows paper while its first read is out, then its page: the week
                         // on top, and under it the picked day, or the named, reserved slot on a
                         // day with nothing in it.
-                        case .daily:
+                        case .blockParty:
                             Group {
                                 if DailySpotlight.today != nil || eventOfTheDay.events != nil {
                                     DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
@@ -677,7 +677,13 @@ struct MainTabsView: View {
                             FriendsHomePage(tab: true, cards: townFeed.cards)
                                 // The Town tab reads the feed; a launch straight onto Friends reads it here.
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
-                        case .search:   SearchPage(model: searchModel)
+                        // Places, businesses and the Town feed's Events (five-tabs 04).
+                        case .search:
+                            // A failed read with nothing kept is no Events, not a shimmer for good.
+                            SearchPage(model: searchModel,
+                                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards)
+                                // The Town tab reads the feed; a launch straight onto Search reads it here.
+                                .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).
                         case .you:
                             ProfileView(model: session.profile, saves: saves)
@@ -877,7 +883,7 @@ nonisolated enum TabBarMetric {
 
     /// The distance between neighbouring tab centres.
     static func pitch(capsuleWidth: CGFloat) -> CGFloat {
-        centreX(of: .daily, capsuleWidth: capsuleWidth) - centreX(of: .town, capsuleWidth: capsuleWidth)
+        centreX(of: .blockParty, capsuleWidth: capsuleWidth) - centreX(of: .town, capsuleWidth: capsuleWidth)
     }
 
     static func magnification(itemX: CGFloat, lensX: CGFloat, capsuleWidth: CGFloat) -> CGFloat {
@@ -1037,7 +1043,7 @@ struct BlockPartyTabBar: View {
                                                    capsuleWidth: width)
                         // Every tap on Daily hops its !, and every tap on Search swoops
                         // its shine, already-picked included.
-                        if tab == .daily && !reduceMotion { dailyHops += 1 }
+                        if tab == .blockParty && !reduceMotion { dailyHops += 1 }
                         if tab == .search && !reduceMotion { searchSwoops += 1 }
                         onSelect(tab)
                     }
@@ -1188,7 +1194,7 @@ struct BlockPartyTabBar: View {
                         .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
                         .contentShape(Rectangle())
                         .accessibilityShowsLargeContentViewer {
-                            if tab == .daily {
+                            if tab == .blockParty {
                                 Label(tab.title, image: tab.symbol)
                             } else {
                                 Label(tab.title, systemImage: selection == tab ? tab.selectedSymbol : tab.symbol)
@@ -1235,7 +1241,7 @@ struct BlockPartyTabBar: View {
                     MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected, swoops: searchSwoops)
                 } else if tab == .town {
                     HouseGlyph(filled: selected)
-                } else if tab == .daily {
+                } else if tab == .blockParty {
                     DailyMarkGlyph(hops: dailyHops)
                         .frame(width: TabBarMetric.dailyMarkWidth)
                         // The launch's Bp! lands here: hidden till it does (`LaunchBall`).

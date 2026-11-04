@@ -22,6 +22,8 @@ enum Radius {
     static let searchField: CGFloat = 10
     static let logoTile: CGFloat = 11
     static let photoCard: CGFloat = 13
+    /// New in St. Joseph's yellow New tag, from the five-tabs mock's round 2 (BP app five-tabs 04).
+    static let newTag: CGFloat = 7
 
     /// The Town's Event of the day poster: DICE's card corner (the approved Round 3 page, BP app
     /// event-card 03), tighter than a Town card's 20, as a printed poster's is.

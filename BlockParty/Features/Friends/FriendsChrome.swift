@@ -22,8 +22,6 @@ nonisolated enum FriendsMetric {
 
 /// What the shell's stack pushes for friends.
 enum FriendsRoute: Hashable {
-    /// The Friends page (BP app docs/plans/friends): search, then requests and friends.
-    case home
     /// Your phone's contacts on Block Party, and the rest to invite (friends 06).
     case contacts
     /// See all on the Friends tab (five-tabs 02): every friend, or every Group with its Join.

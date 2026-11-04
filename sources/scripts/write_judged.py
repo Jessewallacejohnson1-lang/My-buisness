@@ -518,7 +518,8 @@ def tidy_place(place, home=HOME):
     lead = r"(?:St\.?|Saint)\s+" if rest != name else ""
     trailing = re.compile(r"[\s,]+" + lead + re.escape(rest) + "$", re.I)
     p = ", ".join(parts)
-    return trailing.sub("", p) or p
+    left = trailing.sub("", p)
+    return p if re.search(r"\b(?:of|in|at)$", left, re.I) else left or p  # "Church of Saint Joseph" keeps its name
 
 
 def meets_at(place, host, title, home=HOME):
@@ -1720,6 +1721,8 @@ WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on t
      "Free Art Prints from The Saint John's Bible", "Liturgical Press, Collegeville"),
     ("Park Commission Meeting", "Stearns County", "29709 Kipper Road, St Joseph", "Park Commission Meeting", "29709 Kipper Road"),
     ("Fare for All", "City of St. Joseph", "610 County Rd 2 St. Joseph MN 56374", "Fare for All", "610 County Rd 2"),
+    ("Christmas Treasure Sale", "Church of Saint Joseph", "Church of Saint Joseph", "Christmas Treasure Sale",
+     "Church of Saint Joseph"),
     ("The Nolan Lecture", "Saint John's School of Theology", "Saint John's University, Abbey Plaza, Collegeville, MN",
      "The Nolan Lecture", "SJU, Collegeville"),
 ]

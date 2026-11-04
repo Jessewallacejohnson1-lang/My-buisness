@@ -275,8 +275,8 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(row.map(\.id), ["g:b", "g:s", "g:w"])
         XCTAssertEqual(row[0].townGroup?.id, "b", "it opens its Group page")
         XCTAssertFalse(row[0].opens, "not the business page")
-        XCTAssertTrue(model.chips.contains(.clubs))
-        XCTAssertEqual(model.results(for: "book", in: .clubs).first?.items.first?.name, "Book Discussion Group")
+        XCTAssertEqual(model.results(for: "book", in: .all).first?.items.first?.name, "Book Discussion Group",
+                       "typing still finds a Group under All (five-tabs 04)")
     }
 
     /// What a Group page says: never "0 members", the town after the kind, when and where in one line.
@@ -323,6 +323,130 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.results(for: "pizza", in: .businesses).map(\.kind), [.restaurant])
         XCTAssertTrue(model.results(for: "pizza", in: .parks).isEmpty)
         XCTAssertTrue(model.results(for: "   ", in: .all).isEmpty)
+    }
+
+    // MARK: Search at rest and its Events (five-tabs 04)
+
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        Town.gregorian.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    private func card(_ id: String, day: String = "2026-11-03", time: String? = nil, allDay: Bool = false,
+                      added: Date? = nil, photo: Bool = true, game: Bool = false, repeats: String? = nil,
+                      cancelled: Bool = false) -> FeedCardItem {
+        FeedCardItem(id: id, title: id, dateChip: "", metaLine: "",
+                     image: photo ? .eventPhoto(URL(string: "https://x/\(id).webp")!) : .fallback, recurrence: repeats,
+                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+                     eventDate: day, startTime: time, allDay: allDay, cancelled: cancelled,
+                     game: game ? Self.game : nil,
+                     createdAt: added)
+    }
+
+    private static let game = try? JSONDecoder().decode(
+        Game.Lenient.self, from: Data(#"{"sport":"Soccer","teams":[{"name":"CSB"},{"name":"Hamline"}]}"#.utf8)).value
+
+    /// The pills are All, Businesses, Events and Parks: Groups and people left for Friends.
+    func testFourPills() {
+        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Businesses", "Events", "Parks"])
+    }
+
+    /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come
+    /// and not called off, soonest first, under Today, This week and Later, each opening its Event page,
+    /// found by typing too. No made-up Rocktoberfest.
+    func testEventsComeFromTheTownFeed() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        XCTAssertTrue(model.isLoading(.event))
+        model.show(events: nil)
+        XCTAssertTrue(model.isLoading(.event), "nil is the feed not read yet")
+        let now = at(3, 10)
+        model.show(events: [card("Later", day: "2026-11-20", time: "7 PM"), card("Over", time: "8 AM"),
+                            card("Off", time: "6 PM", cancelled: true), card("Week", day: "2026-11-05", time: "7 PM"),
+                            card("Bingo", time: "6:30 PM")], now: now)
+        XCTAssertFalse(model.isLoading(.event))
+        let row = model.row(.event)
+        XCTAssertEqual(row.map(\.name), ["Bingo", "Week", "Later"])
+        XCTAssertEqual(row.map(\.group), ["Today", "This week", "Later"])
+        XCTAssertEqual(row.map(\.sub), ["6:30 PM", "Thu · 7 PM", "Fri · 7 PM"])
+        XCTAssertEqual(row[0].card?.id, "Bingo", "it opens the Event page")
+        XCTAssertEqual(row[0].photo, .card(.eventPhoto(URL(string: "https://x/Bingo.webp")!)))
+        XCTAssertEqual(model.results(for: "bingo", in: .events).first?.items.first?.id, "e:Bingo")
+        XCTAssertFalse(model.items.contains { $0.id == "e:Rocktoberfest" })
+    }
+
+    /// The first row's name and how long it lasts: morning from 5 to noon, afternoon to 5 PM, then
+    /// tonight until 5 the next morning.
+    func testPartOfTheDay() {
+        XCTAssertEqual(SearchModel.dayPart(at(3, 5)).title, "This morning")
+        XCTAssertEqual(SearchModel.dayPart(at(3, 11, 59)).ends, at(3, 12))
+        XCTAssertEqual(SearchModel.dayPart(at(3, 12)).title, "This afternoon")
+        XCTAssertEqual(SearchModel.dayPart(at(3, 17)).title, "Tonight")
+        XCTAssertEqual(SearchModel.dayPart(at(3, 23)).ends, at(4, 5))
+        XCTAssertEqual(SearchModel.dayPart(at(4, 2)).title, "Tonight")
+        XCTAssertEqual(SearchModel.dayPart(at(4, 2)).ends, at(4, 5))
+    }
+
+    /// The part of the day's row: today's Events on now first, then those starting before it ends,
+    /// all-day ones last; then the places open now with a page and a photo; ten at most.
+    func testHappeningNow() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        var open = poi("stjoe-blend", "The Local Blend", .food, "coffee_shop", logo: logo(), entry: "blend")
+        open.hours = PlaceHours(days: Array(repeating: [7 * 60 ..< 14 * 60], count: 7))
+        var shut = poi("stjoe-bar", "Bad Habit", .food, "brewery", logo: logo(), entry: "bar")
+        shut.hours = PlaceHours(days: Array(repeating: [16 * 60 ..< 22 * 60], count: 7))
+        var bare = poi("stjoe-nophoto", "No Photo", .food, "restaurant", logo: logo(), entry: "none")
+        bare.hours = open.hours
+        model.show([open, shut, bare], photos: ["blend": [picture("blend")], "bar": [picture("bar")]])
+        model.show(events: [card("Talk", time: "11 AM"), card("Class", time: "9:30 AM"), card("Vote", allDay: true),
+                            card("No photo", time: "10:30 AM", photo: false),
+                            card("Bingo", time: "6:30 PM"), card("Tomorrow", day: "2026-11-04", time: "9 AM")],
+                   now: at(3, 10))
+        let row = model.happening(at: at(3, 10))
+        XCTAssertEqual(row.map(\.name), ["Class", "Talk", "Vote", "The Local Blend"])
+        XCTAssertEqual(row.map(\.sub), ["Now", "11 AM", "All day", "Open till 2 PM"])
+        XCTAssertEqual(row.last?.photo, .saved(picture("blend")))
+        XCTAssertEqual(model.happening(at: at(3, 18)).map(\.name), ["Bingo", "Vote", "Bad Habit"],
+                       "tonight: the evening's, and what's open then")
+        model.show(events: (0..<12).map { card("E\($0)", time: "11 AM") }, now: at(3, 10))
+        XCTAssertEqual(model.happening(at: at(3, 10)).count, SearchModel.restRowMax)
+    }
+
+    /// New in St. Joseph: the Events with a photo added in the last week, newest first, without games,
+    /// a repeating series or what the part of the day's row shows, ten on the row and all on its page.
+    func testNewThisWeek() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let now = at(3, 10)
+        model.show(events: [card("Old", day: "2026-11-20", added: at(1, 9) - 7 * 24 * 3600),
+                            card("Concert", day: "2026-11-20", added: at(2, 9)),
+                            card("Market", day: "2026-11-21", added: at(3, 8)),
+                            card("Game", day: "2026-11-20", added: at(3, 8), game: true),
+                            card("Yoga", day: "2026-11-20", added: at(3, 8), repeats: "Every Tuesday"),
+                            card("Bare", day: "2026-11-20", added: at(3, 9), photo: false),
+                            card("Unknown", day: "2026-11-20")], now: now)
+        XCTAssertEqual(model.fresh(at: now).map(\.name), ["Market", "Concert"], "a row of photos")
+        XCTAssertEqual(model.fresh(at: now, without: model.row(.event).filter { $0.name == "Market" }).map(\.name),
+                       ["Concert"], "not what the row above shows")
+        model.show(events: (0..<14).map { card("E\($0)", day: "2026-11-20", added: at(3, 9) - Double($0) * 60) }, now: now)
+        XCTAssertEqual(model.fresh(at: now).map(\.name), (0..<10).map { "E\($0)" })
+        XCTAssertEqual(model.fresh(at: now, all: true).count, 14)
+    }
+
+    /// Around town: every Event with a photo and every place with a page, by its cover, whole blocks
+    /// of five; the same seed deals the same grid (back from an Event page), another seed reshuffles.
+    func testAroundTown() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-blend", "The Local Blend", .food, "coffee_shop", logo: logo(), entry: "blend"),
+                    poi("stjoe-shop", "Lee's Ace", .business, "hardware_store", logo: logo(), entry: "shop"),
+                    poi("stjoe-nologo", "No Logo", .food, "restaurant", entry: "nologo")],
+                   photos: ["blend": [picture("blend")], "shop": [picture("shop"), picture("shop2")],
+                            "nologo": [picture("nologo")]])
+        model.show(events: (0..<9).map { card("E\($0)", day: "2026-11-20") } + [card("No photo", day: "2026-11-20", photo: false)],
+                   now: at(3, 10))
+        let grid = model.aroundTown(seed: 7)
+        XCTAssertEqual(grid.count, 10, "9 Events and 2 places with a page: two whole blocks")
+        XCTAssertFalse(grid.contains { $0.name == "No photo" || $0.name == "No Logo" }, "never a tile that does nothing")
+        XCTAssertEqual(grid.first { $0.name == "Lee's Ace" }.map(\.photo) ?? nil, .saved(picture("shop")), "a business by its cover")
+        XCTAssertEqual(model.aroundTown(seed: 7).map(\.id), grid.map(\.id))
+        XCTAssertNotEqual(model.aroundTown(seed: 8).map(\.id), grid.map(\.id))
     }
 
     /// Newest first, no repeats, eight at most, and kept between launches.

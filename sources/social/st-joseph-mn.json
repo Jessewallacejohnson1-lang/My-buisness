@@ -4,7 +4,7 @@
   "name": "Bo-Diddley's",
   "kind": "facebook",
   "url": "https://www.facebook.com/BoDiddleysDeli",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "city-of-st-joseph",
@@ -53,14 +53,14 @@
   "name": "Gary's Pizza",
   "kind": "facebook",
   "url": "https://www.facebook.com/GarysPizzaMN",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "joetown",
   "name": "JoeTown",
   "kind": "facebook",
   "url": "https://www.facebook.com/JoetownMNcvb",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "kays-kitchen",
@@ -74,7 +74,7 @@
   "name": "Krewe",
   "kind": "facebook",
   "url": "https://www.facebook.com/210140619913002",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "krewe",
@@ -116,7 +116,7 @@
   "name": "Neighbors Route 75",
   "kind": "facebook",
   "url": "https://www.facebook.com/NeighborsRoute75",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "distillery-obbink",
@@ -137,35 +137,36 @@
   "name": "Resurrection Lutheran Church",
   "kind": "instagram",
   "url": "https://www.instagram.com/rlcstjoemn",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "church-life-of-river",
   "name": "River of Life Church",
   "kind": "facebook",
   "url": "https://www.facebook.com/riveroflifechurchmn",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "department-fire-joseph-st",
   "name": "Saint Joseph Fire Department",
   "kind": "facebook",
   "url": "https://www.facebook.com/271301023797058",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "bar-grill-sals",
   "name": "Sal's Bar and Grill",
   "kind": "facebook",
   "url": "https://www.facebook.com/732251640162088",
-  "busy": true
+  "busy": false,
+  "hidden": true
  },
  {
   "entry_id": "st-joseph-farmers-market",
   "name": "St. Joseph Farmers' Market",
   "kind": "facebook",
   "url": "https://www.facebook.com/294317540881",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "mary-meadow-sunny",
@@ -200,14 +201,14 @@
   "name": "The Local Blend",
   "kind": "facebook",
   "url": "https://www.facebook.com/thelocalblend",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "local-blend",
   "name": "The Local Blend",
   "kind": "instagram",
   "url": "https://www.instagram.com/local_blend",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "north-table",
@@ -242,7 +243,7 @@
   "name": "Thomsen’s Garden Center",
   "kind": "facebook",
   "url": "https://www.facebook.com/242293447495",
-  "busy": true
+  "busy": false
  },
  {
   "entry_id": "boutique-peony-white",
@@ -304,14 +305,7 @@
   "entry_id": "328-american-legion-post",
   "name": "American Legion Post 328",
   "kind": "facebook",
-  "url": "https://www.facebook.com/americanlegionhq",
-  "busy": false
- },
- {
-  "entry_id": "328-american-legion-post",
-  "name": "American Legion Post 328",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/theamericanlegion",
+  "url": "https://www.facebook.com/people/American-Legion-Post-328-St-JosephMN/61579377179822",
   "busy": false
  },
  {
@@ -2078,6 +2072,48 @@
   "name": "Solar Nails of St Joseph",
   "kind": "instagram",
   "url": "https://www.instagram.com/solarnailsmn",
+  "busy": false
+ },
+ {
+  "entry_id": "bad-habit-brewing",
+  "name": "Bad Habit Brewing",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/badhabitbrewing",
+  "busy": true
+ },
+ {
+  "entry_id": "la-playette",
+  "name": "The La Playette",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/thelaplayette",
+  "busy": true
+ },
+ {
+  "entry_id": "joetown",
+  "name": "JoeTown",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/joetownmn",
+  "busy": true
+ },
+ {
+  "entry_id": "bar-grill-sals",
+  "name": "Sal's Bar and Grill",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/salsbarandgrill",
+  "busy": true
+ },
+ {
+  "entry_id": "church-jospehs-st",
+  "name": "Church of Saint Joseph",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/ChurchSJStJoseph",
+  "busy": false
+ },
+ {
+  "entry_id": "st-john-baptist-parish",
+  "name": "St John the Baptist Parish",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/sjtbparish",
   "busy": false
  }
 ]
