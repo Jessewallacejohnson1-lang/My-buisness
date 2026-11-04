@@ -170,12 +170,10 @@ struct GroupPage: View {
 
     private var topButtons: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                    reduceMotion: reduceMotion) { dismiss() }
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
             FeedEventDetailDestination.circleButton(
-                glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                reduceMotion: reduceMotion
+                glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share"
             ) {
                 ShareCenter.shared.present(.group(group))
             }

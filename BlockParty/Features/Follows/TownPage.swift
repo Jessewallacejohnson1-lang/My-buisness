@@ -244,7 +244,6 @@ struct TownPageView: View {
     @State private var model: TownPageModel
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Scrolled up past the photo: the top turns paper, so the words never run under the clock.
     @State private var pastPhoto = false
 
@@ -288,8 +287,7 @@ struct TownPageView: View {
     /// Back, and the switch centred on the photo; outside the scroll, so they stay put.
     private var top: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                    reduceMotion: reduceMotion) { dismiss() }
+            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
         }
         .overlay {

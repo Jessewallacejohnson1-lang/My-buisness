@@ -635,20 +635,18 @@ struct NeighborPage: View {
         TimelineView(.everyMinute) { context in
             ProfilePage(face: face(now: context.date)) {
                 HStack(spacing: 0) {
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
-                                                            reduceMotion: reduceMotion) { dismiss() }
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
                     if book.relation(neighbor) != .blocked, !book.isAnonymous() {
                         FeedEventDetailDestination.circleButton(
                             glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
-                            label: "Message \(neighbor.firstName)", reduceMotion: reduceMotion
+                            label: "Message \(neighbor.firstName)"
                         ) { chats.push?(.person(neighbor)) }
                         .padding(.trailing, FriendsMetric.buttonGap)
                     }
                     FeedEventDetailDestination.circleButton(glyph: Image(systemName: "ellipsis"),
-                                                            label: "More options, \(neighbor.displayName)",
-                                                            reduceMotion: reduceMotion) { book.menu = neighbor }
+                                                            label: "More options, \(neighbor.displayName)") { book.menu = neighbor }
                 }
             } bar: {
                 ProfilePillBar {

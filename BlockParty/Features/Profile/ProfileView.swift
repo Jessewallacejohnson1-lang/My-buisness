@@ -57,13 +57,12 @@ struct ProfileView: View {
             ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 })) {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile",
-                                                            reduceMotion: reduceMotion) {
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile") {
                         Haptics.selection()
                         editing = true
                     }
                     FeedEventDetailDestination.circleButton(glyph: Image(systemName: "line.3.horizontal"),
-                                                            label: "Settings", reduceMotion: reduceMotion) {
+                                                            label: "Settings") {
                         Haptics.selection()
                         settings = true
                     }
