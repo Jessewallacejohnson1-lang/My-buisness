@@ -4,49 +4,9 @@
 // like the others: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    unique (follower_id, target_type, target_id));
-  create table public.clubs (id uuid primary key, name text not null, status text not null default 'pending');
-  create table public.club_members (club_id uuid not null, user_id uuid not null, unique (club_id, user_id));
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-  grant select, insert, update on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
-                   ...read('_unfriend_and_block.sql'), ...read('_people_you_may_know.sql'),
-                   ...read('_suggestions_not_after_delete.sql')]) {
-  await db.exec(sql);
-}
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, EVE, FAY, ANON] = [1, 2, 3, 4, 5, 7, 6].map(id);
 const [RUNNERS, PENDING] = [id(900), id(901)];
@@ -63,7 +23,7 @@ async function reset() {
     await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [who, name]);
   }
   await db.query('insert into auth.users (id, is_anonymous) values ($1, true)', [ANON]);
-  await db.query(`insert into public.clubs values ($1, 'Running Club', 'approved'), ($2, 'Secret Club', 'pending')`,
+  await db.query(`insert into public.clubs (id, name, status) values ($1, 'Running Club', 'approved'), ($2, 'Secret Club', 'pending')`,
                  [RUNNERS, PENDING]);
 }
 
@@ -78,7 +38,7 @@ async function as(who, sql, params = [], { anonymous = false } = {}) {
 const one = async (who, fn, other) => (await as(who, `select public.${fn}($1) as r`, [other]))[0].r;
 const makeFriends = async (a, b) => { await one(a, 'send_friend_request', b); await one(b, 'confirm_friend_request', a); };
 const hide = (who, other) => as(who, 'select public.hide_suggestion($1)', [other]);
-const join_ = (who, club) => db.query('insert into public.club_members values ($1, $2)', [club, who]);
+const join_ = (who, club) => db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, who]);
 /** "Name: reason" for each suggestion, in order. */
 const list = async (who) => (await as(who, 'select * from public.get_people_you_may_know()')).map((r) =>
   `${r.display_name}: ${r.mutual_friends ? `${r.mutual_friends} mutual` : r.shared_group ?? 'follows'}`);
@@ -108,11 +68,11 @@ test('friends of friends, most friends shared first, then groups, then followers
 
 test('someone who follows you is suggested, with no reason given', async () => {
   await reset();
-  await as(FAY, `insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [FAY, ANA]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [FAY, ANA]);
   assert.deepEqual(await list(ANA), ['Fay Lund: follows']);
   // Following a group isn't following you.
   await reset();
-  await as(FAY, `insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'club', $2)`, [FAY, ANA]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'club', $2)`, [FAY, ANA]);
   assert.deepEqual(await list(ANA), []);
 });
 

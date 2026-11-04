@@ -2,58 +2,12 @@
 // *_unfriend_and_block.sql re-made search, the Friends page and send): send, cancel,
 // confirm, delete, the dot and the accepted line, the daily limit, and who can read what
 // (BP app docs/plans/friends, ticket 03). Run in PGlite like the Town feed's: `npm install &&
-// npm test` in this folder. The schema below is the subset of schema.sql the functions read,
-// with is_real_account() taken from its own migration.
+// npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    unique (follower_id, target_type, target_id));
-  -- The old feed read whose follower count would count friends; only its grant matters here.
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-  revoke execute on function public.get_feed_postings(integer) from public, anon;
-  grant execute on function public.get_feed_postings(integer) to authenticated;
-
-  -- The live rules (schema.sql): your own profile row, your own follows.
-  alter table public.town_profiles enable row level security;
-  create policy "town_profiles_select_own" on public.town_profiles for select to public
-    using (auth.uid() = user_id);
-  alter table public.town_follows enable row level security;
-  create policy "own follows select" on public.town_follows for select to public
-    using (auth.uid() = follower_id);
-  grant select on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql')]) await db.exec(sql);
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, NONAME, ANON] = [1, 2, 3, 4, 5, 6].map(id);
 

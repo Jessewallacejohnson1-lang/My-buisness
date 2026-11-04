@@ -35,6 +35,7 @@ export async function realDatabase() {
       allowed_mime_types text[]);
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
     alter table storage.objects enable row level security;
+    grant all on storage.buckets, storage.objects to anon, authenticated, service_role;
     create function storage.foldername(name text) returns text[] language sql immutable as
       $$ select string_to_array(name, '/') $$;
     create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
@@ -78,3 +79,10 @@ export async function realDatabase() {
 // The people a story names: on the real schema a row that names someone needs them in auth.users.
 export const people = (db, ...ids) => db.query(
   'insert into auth.users (id) select unnest($1::uuid[]) on conflict do nothing', [ids]);
+
+// The sign-in claims that make the real is_admin() true: it compares one email, which only its migration
+// names. A story sets them with `set request.jwt.claims` and clears them with `reset request.jwt.claims`.
+export async function adminClaims(db) {
+  const { rows: [{ d }] } = await db.query(`select pg_get_functiondef('public.is_admin'::regproc) as d`);
+  return JSON.stringify({ email: d.match(/'([^'\s]+@[^'\s]+)'/)[1] });
+}

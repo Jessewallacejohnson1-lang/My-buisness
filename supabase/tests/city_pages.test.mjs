@@ -5,67 +5,10 @@
 // others: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    constraint town_follows_target_type_check check (target_type in ('club', 'profile')),
-    unique (follower_id, target_type, target_id));
-  alter table public.town_follows enable row level security;
-  create policy "own follows select" on public.town_follows for select to public using (auth.uid() = follower_id);
-  create table public.clubs (id uuid primary key, name text not null, status text not null default 'pending');
-  create table public.club_members (club_id uuid not null, user_id uuid not null default auth.uid(),
-    unique (club_id, user_id));
-  alter table public.club_members enable row level security;
-  create table public.places (id uuid primary key, name text not null, primary_type text, entry_id text);
-  create table public.teams (id text primary key, uuid uuid not null default gen_random_uuid(), short_name text,
-    logo_url text, local boolean not null default false);
-  create table public.team_activities (id uuid primary key default gen_random_uuid(), team_id text);
-  -- club_events, the columns the pages read.
-  create table public.club_events (id uuid primary key default gen_random_uuid(), title text not null,
-    submitted_by uuid, club_id uuid, place_entry_id text, status text not null default 'approved',
-    source_name text, draw smallint, event_date date, start_time text, location text,
-    cancelled_at timestamptz, followers_only boolean not null default false);
-  create function public.place_picture(p_entry_id text) returns jsonb language sql stable as
-    $$ select jsonb_build_object('url', 'https://pic/' || p_entry_id, 'kind', 'logo') $$;
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-  grant select, insert, update, delete on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'),
-                   ...read('_unfriend_and_block.sql'), ...read('_follow_places_and_people.sql'),
-                   ...read('_city_boards.sql'), ...read('_city_pages.sql'), ...read('_campus_pages.sql')]) {
-  await db.exec(sql);
-}
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, ANON] = [1, 2, 3, 4].map(id);
 const soon = townDay;
@@ -99,15 +42,10 @@ const follow = async (who, type, target, o) => (await as(who, 'select public.fol
 const unfollow = async (who, type, target) => (await as(who, 'select public.unfollow_target($1, $2) as r', [type, target]))[0].r;
 const card = async (who, type, target) => (await as(who, 'select * from public.follow_card($1, $2)', [type, target]))[0];
 const event = (title, source, days, o = {}) => db.query(
-  `insert into public.club_events (title, source_name, draw, event_date, start_time, location, cancelled_at)
-   values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+  `insert into public.club_events (title, status, source_name, draw, event_date, start_time, location, cancelled_at)
+   values ($1, 'approved', $2, $3, $4, $5, $6, $7) returning id`,
   [title, source, o.draw ?? 1, soon(days), o.time ?? '18:00', o.location ?? null, o.cancelled ?? null])
   .then((r) => r.rows[0].id);
-
-test('the page loads with every function that makes what it reads', () => {
-  const made = creating(migrations, ['public.town_page', 'public.board_meetings']);
-  assert.ok(made.at(-1).endsWith('_campus_pages.sql'), 'the newest file making them is the one tested');
-});
 
 test('the City, Joetown and a board each round-trip as a follow, twice each way', async () => {
   await reset();

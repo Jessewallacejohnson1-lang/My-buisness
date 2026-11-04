@@ -4,58 +4,16 @@
 // poster's own folder. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase, people } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const files = readdirSync(migrations)
-  .filter((f) => f.endsWith('_town_plus_posting.sql') || f.endsWith('_town_plus_empty_interests.sql')).sort();
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated; create role service_role;
-  create schema auth; create schema storage;
-  grant usage on schema auth, storage to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create function public.is_admin() returns boolean language sql stable as $$ select false $$;
-  create function storage.foldername(name text) returns text[] language sql immutable as
-    $$ select string_to_array(name, '/') $$;
-
-  create table public.club_events (id uuid primary key default gen_random_uuid(),
-    club_id uuid, submitted_by uuid, status text not null default 'pending', title text not null,
-    event_date date, start_time text, location text, description text, image_url text,
-    kind text not null default 'event', category text, review_reason text, rechecked_at timestamptz,
-    source_name text, source_uid text, source_url text, place_entry_id text, team_ids text[],
-    activity_team text, activity_name text, sport text, occasion text, what text, draw smallint,
-    shows_from date, interests text[] default '{}', interests_tagged_at timestamptz, lat double precision,
-    lng double precision, followers_only boolean default false, cancelled_at timestamptz, moved_at timestamptz,
-    moved_from jsonb, live_score jsonb, final_score jsonb, scoring_plays jsonb);
-  create table storage.buckets (id text primary key, name text, public boolean,
-    file_size_limit bigint, allowed_mime_types text[]);
-  insert into storage.buckets (id, name, public) values ('event-images', 'event-images', true);
-  create table storage.objects (id uuid primary key default gen_random_uuid(),
-    bucket_id text not null, name text not null);
-
-  alter table public.club_events enable row level security;
-  alter table storage.objects enable row level security;
-  create policy "read events" on public.club_events for select to anon, authenticated using (true);
-  create policy "submit events" on public.club_events for insert to public
-    with check (submitted_by = (select auth.uid()) and (status = 'pending' or public.is_admin()));
-  create policy "moderate events" on public.club_events for update to public
-    using (public.is_admin() or (submitted_by = (select auth.uid()) and status = 'pending'))
-    with check (public.is_admin() or (submitted_by = (select auth.uid()) and status = 'pending'));
-  grant select, insert, update, delete on all tables in schema public, storage to anon, authenticated;
-`);
-for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
 const ME = '00000000-0000-0000-0000-0000000000b2';
 const YOU = '00000000-0000-0000-0000-0000000000c3';
+const OTHER = '00000000-0000-0000-0000-0000000000e5';
+const GROUP = '00000000-0000-0000-0000-0000000000d4';
+await people(db, ME, YOU, OTHER);
+await db.exec(`insert into public.clubs (id, name) values ('${GROUP}', 'Book Club')`);
+await db.exec(`insert into storage.buckets (id, name, public) values ('event-images', 'event-images', true) on conflict (id) do nothing`);
 const PHOTOS = 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/event-images/';
 let n = 0;
 
@@ -94,8 +52,8 @@ test('nobody claims another neighbour\'s Event', async () => {
 });
 
 test('an Event dressed as a found one, a Group\'s, a team\'s or a business\'s is never claimed', async () => {
-  for (const extra of [{ source_name: 'Bad Habit Brewing' }, { club_id: '00000000-0000-0000-0000-0000000000d4' },
-    { place_entry_id: 'bad-habit-brewing' }, { team_ids: ['sju'] }, { draw: 3 }, { shows_from: '2026-11-02' },
+  for (const extra of [{ source_name: 'Bad Habit Brewing' }, { club_id: GROUP },
+    { place_entry_id: 'bad-habit-brewing' }, { team_ids: ['sju', 'csb'] }, { draw: 3 }, { shows_from: '2026-11-02' },
     { kind: 'trail' }, { category: 'music' }, { followers_only: true }, { lat: 45.56 }, { interests: ['college'] }]) {
     assert.equal(await claim(await posted(ME, extra), ME), false, JSON.stringify(extra));
   }
@@ -110,7 +68,7 @@ test('the photo must be the poster\'s own upload', async () => {
 });
 
 test('10 claims a day, then none', async () => {
-  const who = '00000000-0000-0000-0000-0000000000e5';
+  const who = OTHER;
   for (let i = 0; i < 10; i++) assert.equal(await claim(await posted(who), who), true, `claim ${i + 1}`);
   assert.equal(await claim(await posted(who), who), false);
 });

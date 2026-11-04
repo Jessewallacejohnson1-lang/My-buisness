@@ -2,35 +2,14 @@
 // docs/plans/town-feed, ticket 26), run in PGlite. Run: `npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase, people, adminClaims } from './fixture.mjs';
 
-const migrations = process.env.MIGRATIONS ?? new URL('../migrations', import.meta.url).pathname;
-const db = await PGlite.create();
-await db.exec(`
-  set timezone = 'UTC';
-  create role anon; create role authenticated;
-  create schema auth;
-  create table auth.users (id uuid primary key);
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  create function public.is_admin() returns boolean language sql stable as
-    $$ select coalesce(current_setting('test.admin', true), '') = 'on' $$;
-  create table public.feed_actions (id uuid primary key default gen_random_uuid(), user_id uuid not null,
-    item_id uuid not null, action text not null, at timestamptz not null default now(),
-    constraint feed_actions_action_check check (action in ('view', 'open', 'not_interested')));
-  create table public.event_rsvps (id uuid primary key default gen_random_uuid(), event_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now());
-  create table public.event_saves (event_id uuid not null, user_id uuid not null,
-    created_at timestamptz not null default now(), primary key (event_id, user_id));
-`);
-for (const f of creating(migrations, ['public.weekly_numbers'])) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
+const ADMIN = await adminClaims(db);
 const [ANNA, BEN, CAL, DEE] = ['a', 'b', 'c', 'd'].map((x) => `00000000-0000-0000-0000-00000000000${x}`);
-await db.query(`insert into auth.users (id) values ($1), ($2), ($3), ($4)`, [ANNA, BEN, CAL, DEE]);
+await people(db, ANNA, BEN, CAL, DEE);
 const [FAIR, QUIZ, RIDE] = ['1', '2', '3'].map((x) => `00000000-0000-0000-0000-00000000010${x}`);
+await db.exec(`insert into public.club_events (id, title) values ('${FAIR}', 'Fair'), ('${QUIZ}', 'Quiz'), ('${RIDE}', 'Ride')`);
 // Town time, Central.
 const at = (s) => `${s}-05`;
 async function act(who, item, action, when) {
@@ -38,7 +17,7 @@ async function act(who, item, action, when) {
     [who, item, action, at(when)]);
 }
 async function numbers(week, admin = true) {
-  await db.exec(`reset role; ${admin ? "set test.admin = 'on'" : 'reset test.admin'}; set role authenticated`);
+  await db.exec(`reset role; ${admin ? `set request.jwt.claims = '${ADMIN}'` : 'reset request.jwt.claims'}; set role authenticated`);
   const { rows } = await db.query(`select * from public.weekly_numbers($1::date)`, [week]);
   await db.exec('reset role');
   return rows;

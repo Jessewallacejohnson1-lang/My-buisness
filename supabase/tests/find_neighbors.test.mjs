@@ -1,53 +1,12 @@
 // Fixed stories for search_neighbors (supabase/migrations/*_find_neighbors.sql, re-created by
 // *_friend_requests.sql),
 // how a neighbour finds another by name (BP app docs/plans/friends, ticket 02), run in PGlite
-// like the Town feed's. Run: `npm install && npm test` in this folder. The schema below is the
-// subset of schema.sql the functions read, with is_real_account() taken from its own migration.
+// like the Town feed's. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  -- One claims JSON feeds both, as on Supabase.
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key, display_name text, avatar_url text,
-    onboarded_at timestamptz, created_at timestamptz not null default now());
-  -- What *_friend_requests.sql needs beside them.
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, unique (follower_id, target_type, target_id));
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-
-  -- The live rule (schema.sql): each person reads only their own row.
-  alter table public.town_profiles enable row level security;
-  create policy "town_profiles_select_own" on public.town_profiles for select to public
-    using (auth.uid() = user_id);
-  grant select on all tables in schema public to anon, authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql')]) await db.exec(sql);
-
+const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const ME = id(1);
 
