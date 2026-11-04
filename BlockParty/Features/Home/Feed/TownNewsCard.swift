@@ -3,8 +3,8 @@
 //  Block Party — town news in the Town feed (BP app docs/plans/town-feed, ticket 35).
 //
 //  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
-//  logo on the left, else its first letter; NEW in the grey pill; the headline and the facts beside
-//  them; the send and the ••• under it (news-menu: Not interested and Mute its place, as an Event
+//  logo on the left, else its first letter with its name starting the facts; NEW in the grey pill; the
+//  headline and the facts beside them; the send and the ••• under it (news-menu: Not interested and Mute its place, as an Event
 //  card's). Never a photo: a post has no Event, so the only photo it could show is its place's cover
 //  (Jesse, 2026-11-04, BP app town-feed 40). No time: Block Party knows when it saved a post, not when
 //  the place posted it. A tap opens the post in Instagram or Facebook when that app is on the phone,
@@ -65,8 +65,8 @@ struct TownNewsCard: View {
     }
 
     private var face: some View {
-        NoPhotoCard(logo: news.picture?.kind == .logo ? news.picture?.url : nil, name: news.place, pill: "NEW",
-                    title: news.headline, facts: news.facts, factsLines: 2)
+        NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
+                    title: news.headline, facts: news.cardFacts, factsLines: 2)
             .padding(.horizontal, DailyFeedMetric.contentInset)
     }
 
@@ -94,5 +94,18 @@ struct TownNewsCard: View {
                     .background(Hue.surface)
             }
         )
+    }
+}
+
+extension TownNews {
+    /// The place's logo; a photo is its cover, which News never shows (BP app town-feed 40).
+    var logo: URL? { picture?.kind == .logo ? picture?.url : nil }
+
+    /// The card's small line. A first letter doesn't say whose post it is, so with no logo the place's
+    /// name starts it, unless the words already name it (Jesse at town-feed 40's Check-in 2).
+    var cardFacts: String? {
+        guard logo == nil, !place.isEmpty, !words.localizedCaseInsensitiveContains(place),
+              !headline.localizedCaseInsensitiveContains(place) else { return facts }
+        return [place, facts].compactMap { $0 }.joined(separator: " · ")
     }
 }

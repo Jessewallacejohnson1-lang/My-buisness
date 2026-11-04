@@ -257,6 +257,27 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.isPhotoless), [true, true, false, false], "logo, ink, photo, game")
     }
 
+    /// News shows a logo or a first letter, never its place's photo, and a letter's card names the
+    /// place, since the letter alone doesn't say whose post it is (BP app town-feed 40).
+    func testNewsWithNoLogoNamesItsPlace() {
+        let post = URL(string: "https://www.instagram.com/p/1/")!
+        let news = { (place: String, picture: PlacePicture?) in
+            TownNews(id: "n", place: place, words: "Open 10 to 6 through Sunday.", post: post,
+                     picture: picture, leavesAt: .distantFuture, title: "Hours through November")
+        }
+        let logo = PlacePicture(url: URL(string: "https://x/cow.webp")!, kind: .logo)
+        let photo = PlacePicture(url: URL(string: "https://x/cow.jpg")!, kind: .photo)
+
+        XCTAssertEqual(news("Orchard", logo).logo, logo.url)
+        XCTAssertEqual(news("Orchard", logo).cardFacts, "Open 10 to 6 through Sunday.", "its logo says whose it is")
+        XCTAssertNil(news("Orchard", photo).logo, "a place's photo is never its logo")
+        XCTAssertEqual(news("Orchard", photo).cardFacts, "Orchard · Open 10 to 6 through Sunday.")
+        XCTAssertEqual(news("Orchard", nil).cardFacts, "Orchard · Open 10 to 6 through Sunday.")
+        XCTAssertEqual(news("", nil).cardFacts, "Open 10 to 6 through Sunday.", "no place, nothing to name")
+        XCTAssertEqual(news("Hours", nil).cardFacts, "Open 10 to 6 through Sunday.", "the headline names it already")
+        XCTAssertEqual(news("sunday", nil).cardFacts, "Open 10 to 6 through Sunday.", "the facts name it already")
+    }
+
     /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
     /// while its page keeps the cover and the place's other photos and `image` stays for every other
     /// screen. The Event's own photo still wins over the cover.
