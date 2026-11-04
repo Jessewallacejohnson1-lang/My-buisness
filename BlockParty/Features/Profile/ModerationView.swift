@@ -59,6 +59,8 @@ final class ModerationModel: ObservableObject {
     @Published var posts: [PendingPost] = []
     @Published var clubs: [ClubRow] = []
     @Published var reports: [ReportedEvent] = []
+    /// Reported chat messages, as their reports kept them (BP app five-tabs 05). Nobody else's chats show here.
+    @Published var messages: [ReportedMessage] = []
     @Published var loading = true
     @Published var failed = false
     /// Bumped when a decision fails and its row comes back, so that row shakes.
@@ -70,18 +72,20 @@ final class ModerationModel: ObservableObject {
 
     func load(_ api: CommunityAPI) async {
         #if DEBUG
-        if preview { posts = Self.fixtures; reports = Self.reportFixtures; loading = false; return }
+        if preview { posts = Self.fixtures; reports = Self.reportFixtures; messages = Self.messageFixtures; loading = false; return }
         #endif
-        if posts.isEmpty && clubs.isEmpty && reports.isEmpty { loading = true }
+        if posts.isEmpty && clubs.isEmpty && reports.isEmpty && messages.isEmpty { loading = true }
         do {
             async let p = api.getPendingPosts()
             async let c = api.getPendingClubs()
             async let r = api.reportedEvents()
+            async let m = ChatAPI(api.db).reportedMessages()
             // A row mid-decision stays gone even if this fetch raced its write.
             posts = try await p.filter { !acting.contains($0.id) }
             clubs = try await c.filter { !acting.contains($0.id) }
             // Reports never blank the rest of the queue.
             reports = ((try? await r) ?? []).filter { !acting.contains($0.id) }
+            messages = ((try? await m) ?? []).filter { !acting.contains($0.id) }
             failed = false
         } catch {
             if posts.isEmpty && clubs.isEmpty && reports.isEmpty { failed = true }
@@ -134,6 +138,21 @@ final class ModerationModel: ObservableObject {
         }
     }
 
+    /// A reported chat message: keep it (the report goes) or hide it from the chat. The row leaves at once;
+    /// a failed write brings it back.
+    func decideMessage(_ api: CommunityAPI, _ report: ReportedMessage, hide: Bool) async {
+        guard !acting.contains(report.id), let i = messages.firstIndex(of: report) else { return }
+        acting.insert(report.id); defer { acting.remove(report.id) }
+        withAnimation(Self.leave) { _ = messages.remove(at: i) }
+        do {
+            try await write { try await ChatAPI(api.db).resolve(report: report.id, hide: hide) }
+        } catch {
+            withAnimation(Self.leave) { messages.insert(report, at: min(i, messages.count)) }
+                completion: { self.rollback(report.id) }
+            Log.network("Moderation.decideMessage: \(error)")
+        }
+    }
+
     /// Flip back first, then shake (taste.md): runs once the row has landed.
     private func rollback(_ id: String) {
         Haptics.error()
@@ -166,6 +185,11 @@ final class ModerationModel: ObservableObject {
     ]
 
     /// The City's real found events from 2026-10-06 (`-review-queue-preview`).
+    static let messageFixtures = [
+        ReportedMessage(id: "fixture-message", senderName: "Sam Rivera", kind: "text", body: "Sample reported message",
+                        photoPath: nil, eventTitle: nil, reason: "bullying"),
+    ]
+
     static let fixtures: [PendingPost] = [
         ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training", 2449),
         ("2026-10-10", "11 AM", false, "Empty Bowls: A Gathering of Hope", 2376),
@@ -197,7 +221,7 @@ struct ModerationView: View {
     }
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
-    private var pendingCount: Int { model.posts.count + model.clubs.count + model.reports.count }
+    private var pendingCount: Int { model.posts.count + model.clubs.count + model.reports.count + model.messages.count }
 
     var body: some View {
         NavigationStack {
@@ -227,6 +251,23 @@ struct ModerationView: View {
                                     asksWhy: false,
                                     declineLabel: "Take down",
                                     onDecline: { _ in Task { await model.decideReport(api, report, takeDown: true) } })
+                                .transition(Self.rowTransition)
+                            }
+                        }
+                        if !model.messages.isEmpty {
+                            ModerationSectionLabel(text: "Reported messages")
+                            ForEach(model.messages) { report in
+                                ReviewQueueRow(
+                                    tile: .symbol(report.photoPath == nil ? "bubble.left" : "photo"),
+                                    title: report.body ?? report.eventTitle ?? "Photo",
+                                    subtitle: report.subtitle,
+                                    shakes: model.rollbacks[report.id, default: 0],
+                                    onOpen: report.photoPath.map { path in { openPhoto(path) } },
+                                    approveLabel: "Keep",
+                                    onApprove: { Task { await model.decideMessage(api, report, hide: false) } },
+                                    asksWhy: false,
+                                    declineLabel: "Hide",
+                                    onDecline: { _ in Task { await model.decideMessage(api, report, hide: true) } })
                                 .transition(Self.rowTransition)
                             }
                         }
@@ -287,6 +328,13 @@ struct ModerationView: View {
     /// Leaves to the left and, when a write fails, comes back from the left.
     private static let rowTransition = AnyTransition.move(edge: .leading).combined(with: .opacity)
 
+    /// A reported photo, through a link signed for the admin.
+    private func openPhoto(_ path: String) {
+        Task {
+            if let url = try? await ChatAPI(api.db).signedLinks([path])[path] { link = SafariLink(url: url) }
+        }
+    }
+
     private func emptyState(icon: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.sansLight(30)).foregroundStyle(Hue.inkSecondary)
@@ -294,6 +342,13 @@ struct ModerationView: View {
             Text(detail).font(.sans(15)).foregroundStyle(Hue.inkSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60).padding(.horizontal, 24)
+    }
+}
+
+extension ReportedMessage {
+    /// "Sam Rivera · Bullying or unwanted contact".
+    var subtitle: String {
+        [senderName, ReportReason(rawValue: reason)?.label ?? reason].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

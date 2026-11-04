@@ -105,6 +105,16 @@ Business has no slot.
   people have no row or pill (they live on Friends), but typing under All finds the Town's
   Groups (`get_groups`) and neighbours with a real account and a name (`search_neighbors`),
   listed after the places and never saved to Recent.
+- **Chat** (`Features/Chat/`, `Backend/ChatAPI.swift`, BP app five-tabs 05): the paper plane at the top
+  right of Friends opens Messages, then a chat: text, a photo or an Event, one friend or a group of friends.
+  Who is in what is `private.chats` and `private.chat_members`; every write is a function
+  (`send_chat_message` and its neighbours) and every read the app makes too. **Strangers:** friends write
+  freely; someone else's first message waits in Requests, one text until accepted, and Delete is remembered;
+  a direct chat with anyone under 18, or with no birthday, needs a friendship, and what's sent without one is
+  `held`, seen only by its sender, who isn't told (Jesse, 2026-11-03). Block, Hide and Leave are in the
+  messages' read rule itself. Photos are in the private `chat-photos` bucket, read through links signed for an
+  hour. No push yet: a closed app learns nothing until it opens. A deleted account's photos stay in the bucket,
+  which nobody but the admin can read (`~/.claude/PENDING.md`).
 - **The Block Party tab** (`Features/Daily/DailyPage.swift`) shows its page
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
@@ -179,6 +189,12 @@ dependency**. `[prose]`
   screen, an open Event page from any tab), and hands every change to `MapModel` while the map
   is open, which asks `ClubEventRelevance.matters` whether it is worth a re-read (a new follower
   passes its own days to the same rule). Never open a second `RealtimeClient` on `club_events`.
+  Chat has its own (BP app five-tabs 05): `ChatBook` holds one on `chat_messages` and `chat_reads` while
+  the app is open and reads again on anything it hears, and an open chat joins a private Broadcast
+  channel, `chat:<id>`, for its typing dots. **Realtime sends a DELETE to everyone subscribed, past the
+  read rule, with the row's primary key:** a table in the publication never has a key that says anything
+  (`chat_reads` has its own id for this reason). A column no client should see isn't granted, since
+  Realtime sends what the role may select (`chat_messages.held`).
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,

@@ -3,7 +3,7 @@
 // folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { realDatabase, migrations, people, adminClaims } from './fixture.mjs';
@@ -1670,6 +1670,132 @@ test('one listener at a time: the games are handed out at most once in 50 second
   for (const fn of ['public.start_live_scores()', 'public.record_live_score(uuid, jsonb)'])
     assert.equal((await db.query(`select has_function_privilege('anon', $1, 'execute') as ok`, [fn])).rows[0].ok, false,
                  `${fn}: the service role only`);
+});
+
+// Saint Ben's 1-1 Macalester, 2026-11-03, CSB 5-4 on kicks (game-card 15): SIDEARM's whole file, cut to its Game and
+// its goals and kicks.
+const shootoutFile = JSON.parse(readFileSync(join(here, 'sidearm-full-csb-wsoc-shootout.json'), 'utf8'));
+
+test('penalty kicks are counted from the whole file: saved, missed and off the post stay out, the host comes first', async () => {
+  const count = async (file, day = '2026-11-03', host = 'benedict') => (await db.query(
+    'select private.sidearm_shootout($1::jsonb, $2::date, $3) as s', [JSON.stringify(file), day, host])).rows[0].s;
+  assert.deepEqual(await count(shootoutFile), { shootout: { score: [5, 4], who: 'CSB' } }, "the real game's count");
+  assert.deepEqual(await count(shootoutFile, '2026-11-03', 'macalester'), { shootout: { score: [4, 5], who: 'CSB' } },
+                   'read for the other host: its count first, the winner the same');
+  assert.equal(await count(shootoutFile, '2026-11-05'), null, 'the file has moved on: not this game');
+  assert.equal(await count({ ...shootoutFile, Game: { ...shootoutFile.Game, IsComplete: false } }), null, 'still on');
+  const kicks = shootoutFile.Plays.filter((p) => p.Type === 'SHOOTOUTKICK');
+  // A kick that went in by every other word turns into a miss by its goalmouth, or off the post.
+  const went = kicks.filter((p) => p.Team === 'HomeTeam' && !p.Narrative.includes('Shootout save by'));
+  for (const [i, spot] of [[0, 'goalmouth:outleft'], [1, 'goalmouth:woodworkright'], [2, 'blocked']]) {
+    const plays = kicks.map((p) => (p === went[i] ? { ...p, Qualifiers: ['onTarget', spot] } : p));
+    assert.equal(await count({ ...shootoutFile, Plays: plays }), null, `${spot}: CSB 4, level, so it can't say yet`);
+  }
+  assert.deepEqual(await count({ ...shootoutFile, Plays: kicks.filter((p) => p !== kicks[0]) }),
+                   { shootout: { score: [5, 3], who: 'CSB' } }, 'a kick the file no longer lists');
+  assert.deepEqual(await count({ ...shootoutFile, Plays: shootoutFile.Plays.filter((p) => p.Type === 'GOAL') }),
+                   { shootout: null }, 'a finished game with no kicks is a draw');
+  assert.equal(await count({ ...shootoutFile, Plays: 'none' }), null, "no list can't say there were no kicks");
+  const unknown = kicks.map((p) => (p === went[0] ? { ...p, Qualifiers: ['goalmouth:lowleft'] } : p));
+  assert.equal(await count({ ...shootoutFile, Plays: unknown }), null, 'not on target: CSB 4, level');
+});
+
+test("a tie in overtime takes its penalty kicks with its final, and the job reads the ones that didn't land", async () => {
+  await reset();
+  await db.exec('delete from fake.calls; delete from fake.answer');
+  const answer = async (status, body) => {
+    await db.query('delete from fake.answer');
+    await db.query('insert into fake.answer values ($1, $2)', [status, JSON.stringify(body)]);
+  };
+  const reads = async () => (await db.query('select uri from fake.calls')).rows.map((r) => r.uri);
+  const game = await add('CSB Soccer vs Macalester', '2026-11-03', { start_time: '2 PM', source_name: 'CSB Athletics' });
+  await db.query(`update public.club_events set sport = 'Soccer', team_ids = array['saint-benedict', 'macalester'] where id = $1`, [game]);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const row = async () => (await db.query('select live_score, final_score from public.club_events where id = $1', [game])).rows[0];
+  const push = (over = {}) => ({ Game: { ...shootoutFile.Game, HasStarted: true, ...over } });
+  // A final takes two complete pushes in a row. Its one extra read comes with the second.
+  await answer(200, shootoutFile);
+  assert.equal(await record(push()), 'live');
+  assert.deepEqual(await reads(), [], 'no read before the final');
+  assert.equal(await record(push()), 'final');
+  assert.deepEqual(await reads(), ['https://sidearmstats.com/csb/wsoc/game.json?detail=full']);
+  let now = await row();
+  assert.deepEqual(now.final_score, [1, 1], 'the score stays the tie it was');
+  assert.deepEqual(now.live_score.shootout, { score: [5, 4], who: 'CSB' }, 'the kicks, in the one write');
+  assert.equal(await record(push()), 'ignored', 'nothing after the final');
+
+  // The read fails: the final still lands, with no word on kicks, and the job's next run with a file to spare reads them.
+  const again = async () => {
+    await db.query('update public.club_events set final_score = null, live_score = null, final_checked_at = null where id = $1', [game]);
+    await db.query('delete from fake.calls');
+  };
+  await again();
+  await answer(500, {});
+  await record(push());
+  assert.equal(await record(push()), 'final');
+  now = await row();
+  assert.deepEqual(now.final_score, [1, 1]);
+  assert.equal('shootout' in now.live_score, false);
+  const at = (await db.query(`select final_checked_at from public.club_events where id = $1`, [game])).rows[0].final_checked_at;
+  const job = async (ran = '2026-11-03 18:00') => (await db.query(
+    `select private.read_finals($1::timestamp at time zone 'America/Chicago') as r`, [ran])).rows[0].r;
+  await job();
+  assert.equal('shootout' in (await row()).live_score, false, 'it failed again: still no word');
+  await answer(200, shootoutFile);
+  assert.equal((await job()).files, 1);
+  assert.deepEqual((await row()).live_score.shootout, { score: [5, 4], who: 'CSB' });
+  assert.deepEqual((await db.query(`select final_checked_at from public.club_events where id = $1`, [game])).rows[0].final_checked_at, at,
+                   "the final's read time stays, or the hello pill would drop twice");
+  await db.query('delete from fake.calls');
+  assert.equal((await job()).files, 0, 'answered: never read again');
+  assert.deepEqual(await reads(), []);
+
+  // A draw in regular time: no read when the final lands, one from the job, and no more once it's said.
+  await again();
+  await answer(200, { ...shootoutFile, Plays: [] });
+  const regular = { Period: 2, HomeTeam: { ...shootoutFile.Game.HomeTeam, PeriodScores: [1, 0] },
+                    VisitingTeam: { ...shootoutFile.Game.VisitingTeam, PeriodScores: [1, 0] } };
+  await record(push(regular));
+  assert.equal(await record(push(regular)), 'final');
+  assert.deepEqual(await reads(), [], 'no overtime, so no read at the final');
+  await job();
+  assert.equal((await reads()).length, 1);
+  assert.equal((await row()).live_score.shootout, null);
+  await job();
+  assert.equal((await reads()).length, 1, 'a draw is read once');
+
+  // A final the job read itself, with no live score at all: the hello pill's read waits for the kicks, half an hour at
+  // most, and the kicks bring a live score the app can read.
+  const FAN = '00000000-0000-0000-0000-0000000000f5';
+  await people(db, FAN);
+  await db.query(`insert into public.teams (id, name, short_name, local) values
+    ('saint-benedict', 'Saint Benedict', 'Saint Ben''s', true), ('macalester', 'Macalester', 'Macalester', false)
+    on conflict (id) do nothing`);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id)
+    select $1, 'team', uuid from public.teams where id = 'saint-benedict'`, [FAN]);
+  const pill = async () => {
+    await db.exec(`set request.jwt.claim.sub = '${FAN}'`);
+    const rows = (await db.query(`select game, mine from public.my_team_finals('2026-01-01')`)).rows;
+    await db.exec('reset request.jwt.claim.sub');
+    return rows;
+  };
+  await again();
+  await db.query(`update public.club_events set final_score = array[1, 1], final_checked_at = now() - interval '31 minutes' where id = $1`, [game]);
+  assert.equal((await pill()).length, 1, 'half an hour on, with no word: it says what it knows');
+  await db.query(`update public.club_events set final_checked_at = now() where id = $1`, [game]);
+  assert.equal((await pill()).length, 0, 'a tied final waits for word on its kicks');
+  await answer(200, shootoutFile);
+  await job();
+  now = await row();
+  assert.deepEqual(now.live_score.shootout, { score: [5, 4], who: 'CSB' });
+  assert.deepEqual([now.live_score.score, now.live_score.period, now.live_score.complete], [[1, 1], 'OT', true]);
+
+  // The hello pill's read carries them, so it says beat, not tied.
+  const finals = await pill();
+  assert.deepEqual([finals.length, finals[0].mine], [1, 0]);
+  assert.deepEqual(finals[0].game.final, [1, 1]);
+  assert.deepEqual(finals[0].game.live.shootout, { score: [5, 4], who: 'CSB' });
 });
 
 test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {

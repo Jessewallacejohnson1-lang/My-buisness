@@ -5,7 +5,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { creating } from './migrations.mjs';
 
 const dir = new URL('../migrations', import.meta.url).pathname;
 
@@ -24,7 +23,9 @@ test('every migration file has its own 14-digit version', () => {
 // so a feed change reads as a small diff of that file (BP app codebase-health-2, ticket 12). A
 // stale copy took the friends lift out of the live feed on 2026-10-17.
 test('the newest Town feed migration holds supabase/town_feed.sql word for word', () => {
-  const newest = creating(dir, ['private.town_feed', 'public.get_town_feed']).at(-1);
+  const makesFeed = /create\s+(or\s+replace\s+)?function\s+(private\.town_feed|public\.get_town_feed)\s*\(/i;
+  const newest = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => makesFeed.test(readFileSync(`${dir}/${f}`, 'utf8'))).at(-1);
   const sql = readFileSync(`${dir}/${newest}`, 'utf8');
   const source = readFileSync(new URL('../town_feed.sql', import.meta.url), 'utf8').trim();
   assert.ok(sql.includes(source), `${newest} is not a copy of supabase/town_feed.sql. Edit that file, then ` +

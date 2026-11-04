@@ -1,0 +1,514 @@
+{
+ "Game": {
+  "Type": "SoccerGame",
+  "HasStarted": true,
+  "IsComplete": true,
+  "Date": "11/3/2026",
+  "PeriodsRegulation": 2,
+  "Period": 5,
+  "ClockSeconds": 6600,
+  "HomeTeam": {
+   "Id": "CSB",
+   "Name": "Saint Benedict",
+   "Score": 1,
+   "PeriodScores": [
+    1,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "VisitingTeam": {
+   "Id": "MAC",
+   "Name": "Macalester",
+   "Score": 1,
+   "PeriodScores": [
+    1,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ "Plays": [
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Ava",
+    "LastName": "Arredondo",
+    "UniformNumber": "15",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=15&name=Arredondo%2cAva",
+    "PersonId": "1045800"
+   },
+   "InvolvedPlayers": [],
+   "Team": "VisitingTeam",
+   "Narrative": "Shot by MAC Arredondo,Ava, low right, GOAL",
+   "Context": "",
+   "Id": "45+1150604A",
+   "Type": "GOAL",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 1126,
+   "Coordinate": {
+    "X": 30.0,
+    "Y": 50.0,
+    "Side": "right"
+   },
+   "Qualifiers": [
+    "goalmouth:lowright",
+    "from:rightfoot",
+    "noassist"
+   ],
+   "Score": {
+    "HomeTeam": 0,
+    "VisitingTeam": 1
+   }
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Veronica",
+    "LastName": "Warren",
+    "UniformNumber": "10",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=10&name=Warren%2cVeronica",
+    "PersonId": "1182897"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Gabby",
+     "LastName": "Fernholz",
+     "UniformNumber": "13",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=13&name=Fernholz%2cGabby",
+     "PersonId": "1043863"
+    },
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Ella",
+     "LastName": "Verkinderen",
+     "UniformNumber": "6",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=6&name=Verkinderen%2cElla",
+     "PersonId": "1377699"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "Shot by CSB Warren,Veronica, high right, GOAL; Assist by CSB Fernholz,Gabby; Assist by CSB Verkinderen,Ella",
+   "Context": "",
+   "Id": "73+98A7A581",
+   "Type": "GOAL",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 1682,
+   "Coordinate": {
+    "X": 83.0,
+    "Y": 39.0,
+    "Side": "left"
+   },
+   "Qualifiers": [
+    "goalmouth:highright",
+    "from:rightfoot"
+   ],
+   "Score": {
+    "HomeTeam": 1,
+    "VisitingTeam": 1
+   }
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Lilly",
+    "LastName": "Staples",
+    "UniformNumber": "20",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=20&name=Staples%2cLilly",
+    "PersonId": "1183042"
+   },
+   "InvolvedPlayers": [],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Staples,Lilly, low right",
+   "Context": "",
+   "Id": "338+BFBD04E1",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowright"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Tatum",
+    "LastName": "Janezich",
+    "UniformNumber": "27",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=27&name=Janezich%2cTatum",
+    "PersonId": "1184447"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Abigail",
+     "LastName": "Heuga",
+     "UniformNumber": "1",
+     "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=1&name=Heuga%2cAbigail",
+     "PersonId": "876072"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Janezich,Tatum, high right, Shootout save by MAC Heuga,Abigail",
+   "Context": "",
+   "Id": "339+57339E21",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:highright"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Nisha",
+    "LastName": "Wetter",
+    "UniformNumber": "7",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=7&name=Wetter%2cNisha",
+    "PersonId": "1183040"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Samantha",
+     "LastName": "Hartnett",
+     "UniformNumber": "30",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=30&name=Hartnett%2cSamantha",
+     "PersonId": "1377687"
+    }
+   ],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Wetter,Nisha, low center, Shootout save by CSB Hartnett,Samantha",
+   "Context": "",
+   "Id": "340+40AB9C18",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowcenter"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Emma",
+    "LastName": "Johnson",
+    "UniformNumber": "21",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=21&name=Johnson%2cEmma",
+    "PersonId": "1183009"
+   },
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Johnson,Emma, high left",
+   "Context": "",
+   "Id": "341+B57BB15B",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:highleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Lindsay",
+    "LastName": "Edmonson",
+    "UniformNumber": "13",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=13&name=Edmonson%2cLindsay",
+    "PersonId": "1183047"
+   },
+   "InvolvedPlayers": [],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Edmonson,Lindsay, low right",
+   "Context": "",
+   "Id": "342+66611370",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowright"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Avery",
+    "LastName": "Soli",
+    "UniformNumber": "24",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=24&name=Soli%2cAvery",
+    "PersonId": "868630"
+   },
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Soli,Avery, low center",
+   "Context": "",
+   "Id": "343+EBF4AE2A",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowcenter"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Abbey",
+    "LastName": "Birkey",
+    "UniformNumber": "21",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=21&name=Birkey%2cAbbey",
+    "PersonId": "876068"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Samantha",
+     "LastName": "Hartnett",
+     "UniformNumber": "30",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=30&name=Hartnett%2cSamantha",
+     "PersonId": "1377687"
+    }
+   ],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Birkey,Abbey, low right, Shootout save by CSB Hartnett,Samantha",
+   "Context": "",
+   "Id": "344+D32D4F9C",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowright"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Allison",
+    "LastName": "Cammerrer",
+    "UniformNumber": "19",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=19&name=Cammerrer%2cAllison",
+    "PersonId": "1182977"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Abigail",
+     "LastName": "Heuga",
+     "UniformNumber": "1",
+     "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=1&name=Heuga%2cAbigail",
+     "PersonId": "876072"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Cammerrer,Allison, low left, Shootout save by MAC Heuga,Abigail",
+   "Context": "",
+   "Id": "345+B0DC4283",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Timna",
+    "LastName": "Nevo",
+    "UniformNumber": "3",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=3&name=Nevo%2cTimna",
+    "PersonId": "876060"
+   },
+   "InvolvedPlayers": [],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Nevo,Timna, high left",
+   "Context": "",
+   "Id": "346+DB809419",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:highleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Laila",
+    "LastName": "Totushek",
+    "UniformNumber": "5",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=5&name=Totushek%2cLaila",
+    "PersonId": "1182878"
+   },
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Totushek,Laila, low left",
+   "Context": "",
+   "Id": "347+DCFE0968",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Evelyn",
+    "LastName": "Savoie",
+    "UniformNumber": "11",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=11&name=Savoie%2cEvelyn",
+    "PersonId": "1183043"
+   },
+   "InvolvedPlayers": [],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Savoie,Evelyn, low left",
+   "Context": "",
+   "Id": "348+5EBC9B56",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Ella",
+    "LastName": "Verkinderen",
+    "UniformNumber": "6",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=6&name=Verkinderen%2cElla",
+    "PersonId": "1377699"
+   },
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Verkinderen,Ella, low left",
+   "Context": "",
+   "Id": "349+9CCF3365",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "VisitingTeam",
+    "FirstName": "Gabriela",
+    "LastName": "Carrillo-Quinones",
+    "UniformNumber": "10",
+    "Photo": "https://athletics.macalester.edu/services/stat_handler.aspx?path=wsoc&uni=10&name=Carrillo-Quinones%2cGabriela",
+    "PersonId": "876062"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "HomeTeam",
+     "FirstName": "Samantha",
+     "LastName": "Hartnett",
+     "UniformNumber": "30",
+     "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=30&name=Hartnett%2cSamantha",
+     "PersonId": "1377687"
+    }
+   ],
+   "Team": "VisitingTeam",
+   "Narrative": "Shootout kick by MAC Carrillo-Quinones,Gabriela, low left, Shootout save by CSB Hartnett,Samantha",
+   "Context": "",
+   "Id": "350+27EB4F6C",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowleft"
+   ],
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Jessica",
+    "LastName": "Decowski",
+    "UniformNumber": "18",
+    "Photo": "https://gobennies.com/services/stat_handler.aspx?path=wsoc&uni=18&name=Decowski%2cJessica",
+    "PersonId": "1043950"
+   },
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Shootout kick by CSB Decowski,Jessica, low center",
+   "Context": "",
+   "Id": "351+52C481F9",
+   "Type": "SHOOTOUTKICK",
+   "Action": null,
+   "Period": 5,
+   "ClockSeconds": 6600,
+   "Coordinate": null,
+   "Qualifiers": [
+    "onTarget",
+    "goalmouth:lowcenter"
+   ],
+   "Score": null
+  }
+ ]
+}

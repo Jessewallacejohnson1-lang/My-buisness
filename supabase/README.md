@@ -14,7 +14,12 @@ waitlist website.
 - `config.toml`: the settings that deploy reads. `live-scores` keeps its login check off.
 - `tests/`: fixed stories for the database functions, run in PGlite (Postgres compiled to
   WASM, so no Docker): `npm install && npm test` there. The Town feed's are in
-  `town_feed.test.mjs`.
+  `town_feed.test.mjs`. Every story file starts from `realDatabase()` in `fixture.mjs`: every
+  migration, oldest first (under half a second), over stand-ins for what the platform provides. A
+  story adds only its rows, and they meet the real required fields, foreign keys and read rules
+  (`status` defaults to pending; `people()` adds whoever a row names). Don't copy a table, rule or
+  function into a story: a copy keeps passing after the real one changes. Only something the
+  platform provides gets a stand-in, and it goes in `fixture.mjs`.
 
 ## Changing the schema
 

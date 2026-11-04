@@ -127,6 +127,8 @@ nonisolated enum Hue {
     /// This is the one red in the app. It is state, not chrome: never a border, never
     /// a background, never an error colour.
     static let heart         = Color(hex: 0xFF3040)
+    /// The dot on the Friends tab's paper plane for an unread message, the mock's red (BP app five-tabs 05).
+    static let unread        = heart
 
     /// **The brand yellow.** The logo's field colour, sampled from the master
     /// (`docs/brand/source-logo-1254.png`): the modal pixel across the field, not an

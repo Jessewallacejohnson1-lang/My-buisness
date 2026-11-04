@@ -11,7 +11,7 @@ export async function realDatabase() {
   const db = await PGlite.create();
   await db.exec(`set timezone = 'UTC'`);
   // The API roles (service_role skips row security), their grants and the owner's default grants, and
-  // stand-ins for the platform's auth, storage (row security on, as live), cron, Vault and pgsql-http.
+  // stand-ins for the platform's auth, storage and Realtime (row security on, as live), cron, Vault and pgsql-http.
   // No other role may use schema auth, as live. A web call is kept in fake.calls and answered from the
   // one row a story puts in fake.answer.
   await db.exec(`
@@ -37,7 +37,7 @@ export async function realDatabase() {
     alter table storage.objects enable row level security;
     grant all on storage.buckets, storage.objects to anon, authenticated, service_role;
     create function storage.foldername(name text) returns text[] language sql immutable as
-      $$ select string_to_array(name, '/') $$;
+      $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
     create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
     create function cron.unschedule(name text) returns boolean language sql as $$ select true $$;
     create table cron.job (jobid bigint, jobname text);
@@ -60,6 +60,13 @@ export async function realDatabase() {
       insert into fake.calls values (r.uri, r.headers::text, r.content);
       return (select (a.status, 'application/json', null, a.content)::extensions.http_response from fake.answer a);
     end $$;
+    create schema realtime;
+    grant usage on schema realtime to anon, authenticated, service_role;
+    create table realtime.messages (id uuid primary key default gen_random_uuid(), extension text, topic text);
+    alter table realtime.messages enable row level security;
+    grant select, insert on realtime.messages to authenticated;
+    create function realtime.topic() returns text language sql stable as
+      $$ select current_setting('realtime.topic', true) $$;
     create publication supabase_realtime;
   `);
   // The live rows aren't here, so a migration's own rows that point at them (team_activities' teams) skip

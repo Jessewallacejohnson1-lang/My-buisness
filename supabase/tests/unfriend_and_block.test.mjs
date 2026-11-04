@@ -2,7 +2,7 @@
 // ends a friendship and its two follows; a block ends everything between two people and hides
 // each from the other everywhere; unblock gives back only being findable (BP app
 // docs/plans/friends, ticket 04). Run in PGlite like the others: `npm install && npm test` in
-// this folder. The schema below is the subset of schema.sql the functions read.
+// this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase } from './fixture.mjs';

@@ -17,6 +17,12 @@ struct ShareTargetRow: View {
 
     var body: some View {
         HStack(spacing: 30) {
+            // A chat on Block Party first: the Event's own card, with Going on it (five-tabs 05).
+            if center.payload?.card != nil, center.sendInChat != nil {
+                target("paperplane", "Chat", tint: .white, bg: Hue.ink) {
+                    center.sendCardInChat()
+                }
+            }
             if center.canSendMessages {
                 target("message.fill", "Messages", tint: .white, bg: Hue.ink) {
                     center.sendMessages()
