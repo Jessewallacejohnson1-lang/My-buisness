@@ -765,6 +765,53 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"##)))
     }
 
+    /// A play card's words (game-card 14), from SIDEARM's real words: Tuesday 2026-11-03's soccer, 2026-10-31's
+    /// football and 2026-02-21's basketball. Words it doesn't know stay SIDEARM's: a wrong name is worse.
+    func testAPlayCardReadsSidearmsWordsIntoCleanOnes() throws {
+        func words(_ text: String, _ sport: String, period: String, clock: String? = nil) throws -> [String] {
+            let row: [String: Any?] = ["id": "1", "text": text, "period": period, "clock": clock, "side": 0, "score": [1, 0]]
+            let json = try JSONSerialization.data(withJSONObject: row.compactMapValues { $0 })
+            let read = GameMoment.words(of: try JSONDecoder().decode(Game.Play.self, from: json), sport: sport)
+            return [read.title, read.detail]
+        }
+        // Soccer: the draft's Goal, name and minute, over the assists, a penalty, or the half.
+        XCTAssertEqual(try words("Shot by SJU Benson,Soren, high left, GOAL; Assist by SJU Holden,Laird", "Soccer", period: "1st half", clock: "39'"),
+                       ["Goal · Benson 39'", "Assist: Holden"])
+        XCTAssertEqual(try words("Shot by SJU Buckneberg,Aidan, low right, GOAL; Assist by SJU Ryan,Eli; Assist by SJU Monette,Grady", "Girls Soccer", period: "2nd half", clock: "50'"),
+                       ["Goal · Buckneberg 50'", "Assist: Ryan, Monette"])
+        XCTAssertEqual(try words("Shot by AUG Paradiso,Liam, low right, GOAL", "Soccer", period: "2nd half", clock: "88'"), ["Goal · Paradiso 88'", "2nd half"])
+        XCTAssertEqual(try words("Penalty kick taken by Cornett,Billy, GOAL", "Soccer", period: "1st half", clock: "31'"), ["Goal · Cornett 31'", "Penalty kick"])
+        XCTAssertEqual(try words("Shot by CSB , GOAL", "Soccer", period: "1st half", clock: "29'"), ["Goal 29'", "1st half"], "no name yet")
+        XCTAssertEqual(try words("Own goal by SJU", "Soccer", period: "1st half", clock: "12'"), ["Own goal by SJU", "1st half · 12'"], "words it doesn't know")
+        // Football: name, yards, what it was; a touchdown pass names the catcher.
+        XCTAssertEqual(try words("Hansen,Matt field goal attempt from 39 GOOD.", "Football", period: "Q4", clock: "5:23"), ["Hansen 39 yd field goal", "Q4 · 5:23"])
+        XCTAssertEqual(try words("Hansen,Matt kick attempt good.", "Football", period: "Q3"), ["Hansen extra point", "Q3"])
+        XCTAssertEqual(try words("Feeney,Trey middle pass complete to Melvin Jr.,Sedric for 3 yards to the GAC00, TOUCHDOWN.", "Football", period: "Q2", clock: "10:10"),
+                       ["Melvin Jr. 3 yd TD pass", "Q2 · 10:10"])
+        XCTAssertEqual(try words("J. Jeffrey 52 yd TD run (M. Olson kick)", "Football", period: "Q3", clock: "4:12"), ["J. Jeffrey 52 yd TD run (M. Olson kick)", "Q3 · 4:12"])
+        // Basketball: the last name and the shot; the jersey, the points so far and the assist go.
+        XCTAssertEqual(try words("5 Megan Driste 3PTR GOOD (3 Pt); 1 Lauren Arnold Assist (2 Asst)", "Basketball", period: "Q1", clock: "8:59"), ["Driste 3-pointer", "Q1 · 8:59"])
+        XCTAssertEqual(try words("00 Kaylee Buerman FT GOOD (2 Pt)", "Girls Basketball", period: "Q1", clock: "0:41"), ["Buerman free throw", "Q1 · 0:41"])
+        XCTAssertEqual(try words("20 Tyliah Frazier PULL UP GOOD (4 Pt)", "Basketball", period: "Q2", clock: "6:11"), ["Frazier pull-up", "Q2 · 6:11"])
+        XCTAssertEqual(try words("9 Drew Buslee DRIVING LAYUP GOOD (5 Pt)", "Basketball", period: "Q2", clock: "2:00"), ["Buslee driving layup", "Q2 · 2:00"])
+        // Names that aren't plain letters, and never an assist for the scorer.
+        XCTAssertEqual(try words("Shot by SJU Peña,José, low right, GOAL; Assist by SJU Holden,Laird", "Soccer", period: "1st half", clock: "39'"),
+                       ["Goal · Peña 39'", "Assist: Holden"])
+        XCTAssertEqual(try words("Penalty kick taken by Núñez,Luis, GOAL", "Soccer", period: "1st half", clock: "31'"), ["Goal · Núñez 31'", "Penalty kick"])
+        XCTAssertNil(GameMoment.scorer(in: "Shot by SJU , GOAL; Assist by SJU Holden,Laird"), "the assist isn't the scorer")
+        // Words that would read wrong stay SIDEARM's: a chained play, a suffix, capitals.
+        let chained = "Feeney,Trey pass complete to Berg,Sam for 15 yards to the GAC40, fumble by Berg,Sam recovered by SJU Moen,Alex, Moen,Alex for 40 yards to the GAC00, TOUCHDOWN."
+        XCTAssertEqual(try words(chained, "Football", period: "Q2", clock: "1:00")[0], chained)
+        for raw in ["7 Sedric Melvin Jr. LAYUP GOOD (2 Pt)", "8 Sam Melvin III LAYUP GOOD (2 Pt)", "5 MEGAN DRISTE 3PTR GOOD (3 Pt)"] {
+            XCTAssertEqual(try words(raw, "Basketball", period: "Q1", clock: "1:00")[0], raw)
+        }
+        XCTAssertNil(GameMoment.scorer(in: "Feeney,Trey pass complete to Van Der Berg,Tom for 5 yards"), "never the passer")
+        // Hockey has no real sample yet.
+        XCTAssertEqual(try words("Shot by SJU Burke,Sam, GOAL", "Hockey", period: "P2", clock: "8:31"), ["Shot by SJU Burke,Sam, GOAL", "P2 · 8:31"])
+        // The name a pass's catcher takes, "Jr." included, for the pill and the scorers too.
+        XCTAssertEqual(GameMoment.scorer(in: "Feeney,Trey middle pass complete to Melvin Jr.,Sedric for 3 yards to the GAC00, TOUCHDOWN."), "Melvin Jr.")
+    }
+
     /// Two teams in one color take two (game-card 10): Tuesday 2026-11-03's games came out one deep red. The
     /// away team takes its next color that isn't close; with none, the home team its own; with neither, the
     /// away side goes charcoal. Teams far apart keep their own.
@@ -803,7 +850,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(moment("Kern,Cole pass complete to Berg,Sam for 18 yards to the GAC0, TOUCHDOWN"), ["Touchdown", "Berg", "0"])
         XCTAssertEqual(moment("52 yd TD run"), ["Touchdown", nil, "0"], "no name: the label alone")
         XCTAssertEqual(moment("T. Lund 41 yd field goal", side: 1), ["Field goal", "Lund, 41 yd", "1"])
-        XCTAssertEqual(moment("Lund,Tom field goal attempt from 41 GOOD", side: 1), ["Field goal", "Lund", "1"])
+        XCTAssertEqual(moment("Lund,Tom field goal attempt from 41 GOOD", side: 1), ["Field goal", "Lund, 41 yd", "1"], "SIDEARM's live words")
         XCTAssertEqual(moment("Team safety", side: 1), ["Safety", nil, "1"])
         XCTAssertEqual(moment("M. Olson kick attempt good"), [], "an extra point is quiet")
         XCTAssertEqual(moment("Goal by SJU Franzman,Gabe, low right", sport: "Soccer"), ["Goal", "Franzman", "0"])

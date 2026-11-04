@@ -10,6 +10,7 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-03 · `SearchModelTests.testAroundTown` · red once in feat/play-words (no Search change): "Lee's Ace" came back nil · `aroundTown` orders tiles by `Hasher()`, which Swift seeds anew each launch, then keeps `aroundMax`, so 1 launch in about 11 cuts the place the test looks for; the same seed also isn't the same order across launches · no fix yet (a stable hash, or look for the place before the cut)
 - 2026-11-03 · `town_feed.test.mjs` "feed-load: with 5,000 people, Event of the day never works out the
   whole feed, and reads faster", on the Mac only · red once in fix/morning-1103's `ci_checks.sh db` while
   another chat was building (load near 120): no picks 76.6 ms against 148.6, half being 74.3; the file
