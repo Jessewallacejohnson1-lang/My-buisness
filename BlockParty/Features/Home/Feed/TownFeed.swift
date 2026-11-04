@@ -179,7 +179,7 @@ final class TownFeed {
     /// A card at least half on screen this long is one view (ticket 20).
     static let viewAfter: TimeInterval = 1
     /// Views and opens go up at most this often, and when the app leaves the screen.
-    static let sendEvery: TimeInterval = 30
+    nonisolated static let sendEvery: TimeInterval = 30
 
     /// Cards half on screen now, and since when (reset when the feed comes back).
     @ObservationIgnored private var onScreen: [String: Date] = [:]

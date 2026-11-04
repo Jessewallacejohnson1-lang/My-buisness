@@ -1,7 +1,8 @@
 //
 //  AppSession.swift
-//  Block Party — the models every tab shares, and what happens to them when the account changes,
-//  the app comes back or it goes away (BP app codebase-health 22). The shell holds one.
+//  Block Party — the models every tab shares, and what happens to them when the shell comes up,
+//  the account changes, the app comes back or it goes away (BP app codebase-health 22). The shell
+//  holds one.
 //
 //  A model that keeps an account's state joins here: a property, its line in `accountChanged`,
 //  and its check in `AppSessionTests`, so the last account's Going or Saved never shows under
@@ -50,6 +51,7 @@ final class AppSession {
     /// Saves this phone kept before they moved to the server.
     private let saved: SavedStore
     private let supabase: Supabase
+    private let phone: UserDefaults
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
@@ -74,6 +76,7 @@ final class AppSession {
                               inbox: hello, phone: phone)
         self.saved = saved
         self.supabase = supabase
+        self.phone = phone
     }
 
     /// The live models, or the DEBUG samples each one's launch flags pick. Every one reads and
@@ -95,6 +98,31 @@ final class AppSession {
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
                   supabase: supabase, liveGames: live, chats: ChatBook(supabase: supabase, sockets: true),
                   phone: phone ?? .standard)
+    }
+
+    /// The shell came up: today's open and onboarding's follows, then its reads side by side, so a
+    /// slow one holds up nothing. Runs for as long as the shell is up: the Town feed's views and
+    /// opens go up every 30 seconds, on any tab and under a pushed page (ticket 20), and the shell
+    /// going cancels the lot. The DEBUG demo screens outside the shell never send.
+    func launched(sendEvery: Duration = .seconds(TownFeed.sendEvery)) async {
+        recordOpen()
+        takeFollows()
+        await withDiscardingTaskGroup { jobs in
+            // Search's places, so a Place host opens its page from the first tap.
+            jobs.addTask { @MainActor in if !self.searchModel.placesLoaded { await self.searchModel.load() } }
+            jobs.addTask { await self.friendsBook.refreshDot() }
+            // Event saves this phone kept before they moved to the server go up once, at launch
+            // with an account or when one arrives (`accountChanged`).
+            jobs.addTask { await self.actions.moveUp(self.saved) }
+            // Canceled or moved since you last looked.
+            jobs.addTask { await self.notices.refresh() }
+            jobs.addTask {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: sendEvery)
+                    await self.townFeed.send()
+                }
+            }
+        }
     }
 
     /// The account changed (`AuthStore.accountKey`): another one, none, or the same one logged in
@@ -139,6 +167,8 @@ final class AppSession {
         chats.accountChanged()
         chats.start()
         reads.append(Task { await chats.refresh() })
+        // After `actions` let the last account go; the same one logging in for real can take them.
+        takeFollows()
         return Task { for read in reads { await read.value } }
     }
 
@@ -164,9 +194,16 @@ final class AppSession {
     }
 
     /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.
-    func recordOpen() {
+    private func recordOpen() {
         guard supabase.auth.userId != nil else { return }
         let api = CommunityAPI(supabase)
         Task { try? await api.recordOpen() }
+    }
+
+    /// Onboarding's Follow 3 picks wait on the phone until a signed-up account can take them (BP
+    /// app onboarding 22): at launch, and when one arrives.
+    private func takeFollows() {
+        guard !actions.needsSignUp else { return }
+        for target in OnboardingStore.takeFollows(phone) { actions.followOn(target) }
     }
 }

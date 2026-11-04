@@ -4,7 +4,8 @@
 //  shares, in the same turn, before anything is read for the next one; then every read goes as
 //  the next one (BP app codebase-health 22). Reads go through ticket 16's client to its fake
 //  server, so nothing leaves the phone; the shell's real models are handed that client too, and
-//  every read of theirs arrives there as the new account.
+//  every read of theirs arrives there as the new account. The shell coming up runs each launch job
+//  once, through the session.
 //
 
 import XCTest
@@ -39,10 +40,10 @@ final class AppSessionTests: XCTestCase {
     }
 
     /// The shell's models, each reading for whoever is signed in: account a is Going to e1, b isn't.
-    private func session() -> AppSession {
-        let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                                      knownEvents: { _ in [] })
+    private func session(actions: RealLifeActions? = nil) -> AppSession {
+        let actions = actions ?? RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
+                                                 setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                                 knownEvents: { _ in [] })
         return AppSession(
             actions: actions,
             townFeed: TownFeed(read: {
@@ -67,7 +68,7 @@ final class AppSessionTests: XCTestCase {
             // client like the rest.
             profile: ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone),
             hello: HelloInbox(keep: phone), saved: SavedStore(key: phoneName),
-            supabase: Supabase(auth: auth, send: server.send))
+            supabase: Supabase(auth: auth, send: server.send), phone: phone)
     }
 
     private func signIn(_ id: String) {
@@ -192,6 +193,101 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.actions.saved(card))
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
         XCTAssertEqual(functions(from: sent), ["friends_dot", "get_chats"])
+    }
+
+    /// The shell coming up runs each launch job once, side by side, and they all stop when it goes.
+    func testLaunchRunsEachJobOnceAndStopsWithTheShell() async throws {
+        signIn("a")
+        // A save from before saves moved to the server, so moving them up asks which are Events.
+        UserDefaults.standard.set([UUID().uuidString], forKey: phoneName)
+        let client = Supabase(auth: auth, send: server.send)
+        let session = AppSession(profile: ProfileModel(supabase: client, phone: phone), supabase: client,
+                                 phone: phone, saved: SavedStore(key: phoneName))
+        addTeardownBlock { TownFeedCache.clear() }
+        session.townFeed.opened("e1")
+
+        let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
+        let jobs = ["places", "place_photos", "place_names", "get_groups", "friends_dot", "club_events", "get_my_changes"]
+        try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.unsent.isEmpty)
+
+        XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")
+        XCTAssertTrue(session.townFeed.unsent.isEmpty, "the wait for the send loop's first turn")
+        XCTAssertTrue(session.searchModel.placesLoaded)
+
+        // Never answering here would fail by hanging: the send loop has to end with the shell.
+        launch.cancel()
+        await launch.value
+
+        // Back up with the places in: Search doesn't read them again.
+        let sent = server.requests.count
+        let again = Task { await session.launched(sendEvery: .seconds(60)) }
+        try await waitWhile(self.server.requests.count < sent + 2)
+        again.cancel()
+        await again.value
+        XCTAssertEqual(functions(from: sent).sorted(), ["friends_dot", "get_my_changes"])
+    }
+
+    /// Onboarding's follows wait through the quiet account and go up once, when a real one arrives.
+    func testAWaitingFollowGoesUpOnceARealAccountArrives() async throws {
+        let picked = FollowTarget(type: .place, id: "p1")
+        let store = OnboardingStore(defaults: phone)
+        store.toggleFollow(picked)
+        store.finish()
+        signIn("a")
+        auth.isAnonymous = true
+        var written: [FollowTarget] = []
+        let actions = RealLifeActions(signedIn: true, needsAccount: true, isAnonymous: { self.auth.isAnonymous },
+                                      hold: .zero, flip: .zero,
+                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                      setFollow: { target, _ in written.append(target) },
+                                      knownEvents: { _ in [] })
+        let session = session(actions: actions)
+
+        // At launch, and when the quiet account comes in: it can't take them.
+        let launch = Task { await session.launched() }
+        await session.accountChanged(from: nil, to: "a", signedIn: true).value
+        XCTAssertEqual(written, [])
+        XCTAssertTrue(actions.needsSignUp)
+
+        // The same account logs in for real: this is the one that takes them.
+        auth.isAnonymous = false
+        await session.accountChanged(from: "a", to: "a", signedIn: true).value
+        try await waitWhile(written.isEmpty)
+        XCTAssertEqual(written, [picked])
+        XCTAssertTrue(actions.follow(picked).isFollowing)
+
+        // Taken once: another account, or the next launch, finds none left.
+        signIn("b")
+        await session.accountChanged(from: "a", to: "b", signedIn: true).value
+        launch.cancel()
+        await launch.value
+        let next = Task { await session.launched() }
+        next.cancel()
+        await next.value
+        XCTAssertEqual(written, [picked])
+    }
+
+    /// Someone who signed up in onboarding reaches the shell with a real account: no account change
+    /// comes, so the launch itself takes their follows.
+    func testAWaitingFollowGoesUpAtLaunchWithARealAccount() async throws {
+        let picked = FollowTarget(type: .place, id: "p1")
+        let store = OnboardingStore(defaults: phone)
+        store.toggleFollow(picked)
+        store.finish()
+        signIn("a")
+        var written: [FollowTarget] = []
+        let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
+                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                      setFollow: { target, _ in written.append(target) },
+                                      knownEvents: { _ in [] })
+        let session = session(actions: actions)
+
+        let launch = Task { await session.launched() }
+        try await waitWhile(written.isEmpty)
+        launch.cancel()
+        await launch.value
+
+        XCTAssertEqual(written, [picked])
     }
 
     /// The shell's real models, not stand-ins, handed the session's one client: after a switch
