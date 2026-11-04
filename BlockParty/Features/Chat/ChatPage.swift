@@ -403,8 +403,12 @@ private struct ChatMessages: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if thread.hasOlder {
-                        ProgressView()
-                            .frame(height: ChatMetric.older)
+                        // Older messages read as this comes into view: a bubble's shape, shimmering.
+                        SkeletonBlock(cornerRadius: Radius.card)
+                            .frame(width: ChatMetric.loadingName, height: ChatMetric.composerField)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .shimmering()
+                            .accessibilityLabel("Loading")
                             .task { await thread.readOlder() }
                     }
                     if !thread.loaded {
@@ -588,7 +592,7 @@ private struct ChatPhoto: View {
             .buttonStyle(SquishStyle())
             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             .fullScreenCover(isPresented: $open) {
-                ChatPhotoView(image: image, link: link)
+                ChatPhotoView(image: image, link: link, aspect: size.height / size.width)
             }
     }
 
@@ -607,6 +611,8 @@ private struct ChatPhoto: View {
 private struct ChatPhotoView: View {
     let image: UIImage?
     let link: URL?
+    /// Height over width, as the message knows it, so a photo from its link is whole on the screen.
+    let aspect: CGFloat
     @Environment(\.dismiss) private var dismiss
     @State private var scale: CGFloat = 1
 
@@ -617,7 +623,12 @@ private struct ChatPhotoView: View {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFit()
                 } else if let link {
-                    AsyncImage(url: link) { $0.resizable().scaledToFit() } placeholder: { ProgressView().tint(.white) }
+                    GeometryReader { proxy in
+                        let width = min(proxy.size.width, proxy.size.height / aspect)
+                        FeedCardURLPhoto(url: link, loadingFill: .clear)
+                            .frame(width: width, height: width * aspect)
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -651,7 +662,14 @@ private struct ChatEventCard: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Hue.fill
                         .frame(height: ChatMetric.eventPhoto)
-                        .overlay { if let url = card.image.url { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+                        .overlay {
+                            if let url = card.image.url {
+                                FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                            } else if let logo = card.image.logo {
+                                // A place we have no photo of: its logo bare, as Search shows it.
+                                CastLogo(logo: logo, side: SearchMetric.logoOnRow)
+                            }
+                        }
                         .clipped()
                     Text(card.title)
                         .font(.sansSemibold(16))

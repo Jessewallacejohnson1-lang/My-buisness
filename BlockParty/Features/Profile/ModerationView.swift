@@ -72,7 +72,7 @@ final class ModerationModel: ObservableObject {
 
     func load(_ api: CommunityAPI) async {
         #if DEBUG
-        if preview { posts = Self.fixtures; reports = Self.reportFixtures; loading = false; return }
+        if preview { posts = Self.fixtures; reports = Self.reportFixtures; messages = Self.messageFixtures; loading = false; return }
         #endif
         if posts.isEmpty && clubs.isEmpty && reports.isEmpty && messages.isEmpty { loading = true }
         do {
@@ -185,6 +185,11 @@ final class ModerationModel: ObservableObject {
     ]
 
     /// The City's real found events from 2026-10-06 (`-review-queue-preview`).
+    static let messageFixtures = [
+        ReportedMessage(id: "fixture-message", senderName: "Sam Rivera", kind: "text", body: "Sample reported message",
+                        photoPath: nil, eventTitle: nil, reason: "bullying"),
+    ]
+
     static let fixtures: [PendingPost] = [
         ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training", 2449),
         ("2026-10-10", "11 AM", false, "Empty Bowls: A Gathering of Hope", 2376),

@@ -58,7 +58,11 @@ struct ChatPicker: View {
                         .padding(.bottom, ChatMetric.sectionBottom)
                     if card == nil { picking } else { sending }
                     if !book.loaded {
-                        ProgressView().frame(maxWidth: .infinity, minHeight: ChatMetric.older)
+                        SkeletonBlock(cornerRadius: ChatMetric.loadingLine / 2)
+                            .frame(width: ChatMetric.loadingName, height: ChatMetric.loadingLine)
+                            .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
+                            .shimmering()
+                            .accessibilityLabel("Loading")
                     } else if friends.isEmpty && (card == nil || targets.isEmpty) {
                         Text("Add a friend to start a chat.")
                             .font(.sans(14))
