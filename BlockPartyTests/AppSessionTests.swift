@@ -99,6 +99,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))
+        XCTAssertNotNil(session.chats.chats, "a's chats")
         session.profile.avatarUrl = "photo-a"   // a's read: the root view's, not the session's
 
         signIn("b")
@@ -114,6 +115,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.eventOfTheDay.needsRead(now: Date()), "a's Event of the day reads again")
         XCTAssertNil(session.notices.list, "a's bell")
         XCTAssertFalse(session.friendsBook.dot, "a's friends dot")
+        XCTAssertNil(session.chats.chats, "a's chats")
         XCTAssertNil(session.profile.avatarUrl, "a's photo")
         XCTAssertTrue(session.townFeed.unsent.isEmpty, "a's views never go up as b")
         XCTAssertTrue(session.townFeed.hiddenIDs.isEmpty, "a's hidden cards")
@@ -122,7 +124,7 @@ final class AppSessionTests: XCTestCase {
         // Then b's reads, every one as b.
         await reads.value
         XCTAssertEqual(Set(functions(from: sent)), ["get_town_feed", "get_my_going", "get_groups",
-                                                    "get_event_of_the_day", "get_my_changes", "friends_dot"],
+                                                    "get_event_of_the_day", "get_my_changes", "friends_dot", "get_chats"],
                        "no profile read: the root view's read is the one for each account")
         XCTAssertEqual(Set(server.requests[sent...].map { $0.value(forHTTPHeaderField: "Authorization") }),
                        ["Bearer token-b"])
@@ -177,7 +179,7 @@ final class AppSessionTests: XCTestCase {
     }
 
     /// The same account logging in for real keeps its taps and lists; only friends start over.
-    func testLoggingInForRealStartsOnlyFriendsOver() async throws {
+    func testLoggingInForRealStartsOnlyFriendsAndChatsOver() async throws {
         signIn("a")
         let session = session()
         await session.accountChanged(from: nil, to: "a", signedIn: true).value
@@ -189,7 +191,7 @@ final class AppSessionTests: XCTestCase {
 
         XCTAssertTrue(session.actions.saved(card))
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
-        XCTAssertEqual(functions(from: sent), ["friends_dot"])
+        XCTAssertEqual(functions(from: sent), ["friends_dot", "get_chats"])
     }
 
     /// The shell's real models, not stand-ins, handed the session's one client: after a switch

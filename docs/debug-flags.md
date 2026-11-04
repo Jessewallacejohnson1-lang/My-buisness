@@ -22,6 +22,7 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   - `-show-skeletons`. Loading is a skeleton, and `-show-skeletons` is the flag that shows it.
   - `-share-demo`.
   - `-open-tab search` opens the Search tab (its places load signed out too, with the public key). With nothing typed under All it shows the part of the day's row, New in St. Joseph and Around town (five-tabs 04), from the Town feed's real Events (read there when Search opens first) and the places; groups are the Town's real ones (`get_groups`, read signed out too), found by typing under All, and a group's result opens its Group page, whose Join group follows the same flags as Join below (under `-town-samples` it writes nowhere); typed words find real neighbours, or the sample ones under `-town-samples`; recents start from the mockup's five until something is searched.
+  - `-chat-draft <text>`: a chat opens with those words in its composer, ready for its arrow, since AXe can't type on the simulator (BP app five-tabs 05). `-new-event-photo <file>` also makes a chat's photo button send that bundled photo, since AXe can't reach Apple's picker.
   - `-search-words <text>` (with `-open-tab search`) opens with those words typed (the results).
   - `-search-focus` opens on the recents as after a tap on the field.
   - `-search-chip <all|businesses|events|parks>` opens on that filter (`businesses` is the logo wall).

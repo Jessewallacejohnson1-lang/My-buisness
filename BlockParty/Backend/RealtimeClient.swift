@@ -1,8 +1,9 @@
 //
 //  RealtimeClient.swift
 //  Block Party — a minimal Supabase Realtime (Phoenix channel) client over
-//  URLSessionWebSocketTask. Subscribes to Postgres changes on one table and
-//  reports INSERT / UPDATE / DELETE via `onChange`.
+//  URLSessionWebSocketTask. Subscribes to Postgres changes on one or more tables and
+//  reports INSERT / UPDATE / DELETE via `onChange`, or joins a private Broadcast channel
+//  (a chat's typing dots, BP app five-tabs 05) and reports what others send via `onBroadcast`.
 //
 //  No Supabase SDK: this speaks the Phoenix wire protocol (vsn 1.0.0, object
 //  frames) by hand, matching the hand-rolled REST layer in SupabaseHTTP. RLS
@@ -57,12 +58,16 @@ final class RealtimeClient {
 
     var onChange: ((Change) -> Void)?
     var onStatus: ((Status) -> Void)?
+    /// A Broadcast channel's messages, by event name, with who sent them as `payload` says.
+    var onBroadcast: ((String, [String: Any]) -> Void)?
 
     // MARK: Config
 
     private let schema: String
-    private let table: String
+    private let tables: [String]
     private let topic: String
+    /// Joins as a private channel, which the `realtime.messages` rules let in or don't.
+    private let isPrivate: Bool
     private let tokenProvider: () async -> String?
 
     // MARK: State
@@ -84,8 +89,27 @@ final class RealtimeClient {
 
     init(schema: String = "public", table: String, tokenProvider: @escaping () async -> String?) {
         self.schema = schema
-        self.table = table
-        self.topic = "realtime:bp-\(table)"
+        tables = [table]
+        topic = "realtime:bp-\(table)"
+        isPrivate = false
+        self.tokenProvider = tokenProvider
+    }
+
+    /// Changes on several tables over one channel, `name` naming it.
+    init(schema: String = "public", name: String, tables: [String], tokenProvider: @escaping () async -> String?) {
+        self.schema = schema
+        self.tables = tables
+        topic = "realtime:bp-\(name)"
+        isPrivate = false
+        self.tokenProvider = tokenProvider
+    }
+
+    /// A private Broadcast channel: `realtime.topic()` reads `channel`.
+    init(privateChannel channel: String, tokenProvider: @escaping () async -> String?) {
+        schema = "public"
+        tables = []
+        topic = "realtime:\(channel)"
+        isPrivate = true
         self.tokenProvider = tokenProvider
     }
 
@@ -141,14 +165,18 @@ final class RealtimeClient {
         guard epoch == self.epoch, !stopped else { return }
         var payload: [String: Any] = [
             "config": [
-                "postgres_changes": [
-                    ["event": "*", "schema": schema, "table": table],
-                ],
-                "private": false,
+                "postgres_changes": tables.map { ["event": "*", "schema": schema, "table": $0] },
+                "broadcast": ["self": false, "ack": false],
+                "private": isPrivate,
             ],
         ]
         if let token { payload["access_token"] = token }
         send(event: "phx_join", payload: payload)
+    }
+
+    /// Sends on a Broadcast channel; dropped when the socket isn't up.
+    func broadcast(_ event: String, _ payload: [String: Any] = [:]) {
+        send(event: "broadcast", payload: ["type": "broadcast", "event": event, "payload": payload])
     }
 
     private func send(event: String, payload: [String: Any], topicOverride: String? = nil) {
@@ -215,6 +243,9 @@ final class RealtimeClient {
             let new = row(from: data["record"] as? [String: Any])
             let old = row(from: data["old_record"] as? [String: Any])
             onChange?(Change(kind: kind, new: new, old: old))
+        case "broadcast":
+            guard let payload = obj["payload"] as? [String: Any], let name = payload["event"] as? String else { return }
+            onBroadcast?(name, payload["payload"] as? [String: Any] ?? [:])
         case "system":
             // "Subscribed to PostgreSQL" with status ok = the subscription is
             // live. Reset the reconnect backoff ONLY here — resetting on any

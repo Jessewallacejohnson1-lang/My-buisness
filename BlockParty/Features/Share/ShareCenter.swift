@@ -30,6 +30,8 @@ struct SharePayload: Identifiable {
     var isEvent = false
     /// The Event's id, so a share that went out counts in the weekly numbers (town-feed 26).
     var eventID: String?
+    /// The Event itself: what "Send in a chat" sends (BP app five-tabs 05).
+    var card: FeedCardItem?
 
     init<V: View>(title: String,
                   shareText: String,
@@ -52,6 +54,8 @@ final class ShareCenter: ObservableObject {
     @Published var revealed: Bool = false
 
     private var window: UIWindow?
+    /// Set by the shell: opens the picker for an Event once this sheet has gone.
+    var sendInChat: ((FeedCardItem) -> Void)?
 
     func present(_ payload: SharePayload) {
         guard self.payload == nil else { return }   // one at a time
@@ -71,6 +75,13 @@ final class ShareCenter: ObservableObject {
                 self.revealed = true
             }
         }
+    }
+
+    /// Hands the Event to the shell's picker as this sheet goes.
+    func sendCardInChat() {
+        guard let card = payload?.card else { return }
+        dismiss()
+        sendInChat?(card)
     }
 
     func dismiss() {
@@ -203,6 +214,7 @@ extension SharePayload {
         var payload = SharePayload.event(title: item.title, dateLabel: item.dateChip, time: item.shareTime,
                                          location: item.shareLocation)
         payload.eventID = item.id
+        payload.card = item
         return payload
     }
 
