@@ -430,10 +430,10 @@ def team_key(name):
     return team_id(re.sub(r"\s*\([^)]*\)?\s*$", "", re.sub(r"^#\d+\s+", "", name.strip())))
 
 
-def known_teams():
+def known_teams(db=None):
     """Every name a team goes by -> its id (public.teams: id, name, short name, aliases). Only a
     name here gets a game card: no reader makes a team (Jesse, 2026-10-26)."""
-    rows = Supabase().rest("GET", "teams?select=id,name,short_name,aliases") or []
+    rows = (db or Supabase()).rest("GET", "teams?select=id,name,short_name,aliases") or []
     return {team_key(n): r["id"] for r in rows
             for n in (r["id"], r["name"], r.get("short_name"), *(r.get("aliases") or [])) if n}
 
@@ -1050,22 +1050,22 @@ def to_sql(result, today):
             f"select public.apply_judged(\n  {args});\n")
 
 
-def apply(result):
+def apply(result, db=None):
     """The live write, over the service role key: one call, all or nothing."""
     if not result.get("teams_checked"):
         sys.exit("[judged] refused: the plan didn't look its games' teams up (plan(..., teams=known_teams()))")
-    return Supabase().rest("POST", "rpc/apply_judged", payloads(result))
+    return (db or Supabase()).rest("POST", "rpc/apply_judged", payloads(result))
 
 
-def listed_in_db():
-    return Supabase().rest("POST", "rpc/listed_for_writer", {})
+def listed_in_db(db=None):
+    return (db or Supabase()).rest("POST", "rpc/listed_for_writer", {})
 
 
-def news_in_db(now=None):
+def news_in_db(now=None, db=None):
     """The News already in the app from the 7 days the Town feed shows it (Chicago's now minus 7 days),
     with each one's link, status and created time, for repeat_of."""
     since = ((now or datetime.now(LOCAL)) - timedelta(7)).replace(microsecond=0).isoformat()
-    return Supabase().rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at"
+    return (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at"
                                   f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
 
 
