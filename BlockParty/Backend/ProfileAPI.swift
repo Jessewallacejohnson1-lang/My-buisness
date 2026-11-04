@@ -82,6 +82,13 @@ struct ProfileAPI {
                           prefer: "resolution=merge-duplicates,return=minimal")
     }
 
+    /// A birthday for an account with none, when the Going chat asks (BP app five-tabs 06). It sets once.
+    func setBirthday(_ day: Date) async throws {
+        let row: [String: Any] = ["user_id": try db.userID, "birthday": OnboardingAge.day.format(day)]
+        try await db.rest("town_profiles", method: "POST", [("on_conflict", "user_id")], body: row,
+                          prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
     /// Onboarding's name, photo and interests (BP app onboarding 18, 20) on the caller's row,
     /// making it if there is none yet. Only the answers given travel, so the onboarded stamp and
     /// anything left blank are left alone.

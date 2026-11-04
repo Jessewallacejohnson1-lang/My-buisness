@@ -5,6 +5,9 @@
 //  carries the same Attend as everywhere, with I'm in, Maybe and Can't under one sent to you. Typing dots and
 //  Seen, no online status. A request shows Accept, Delete and Block where the composer goes.
 //
+//  A Going chat (five-tabs 06) is the same thread among strangers: the bar shows its Event, it takes words only, with no
+//  Seen or typing dots, and whatever its host writes is an update, drawn as Instagram's channel card.
+//
 //  Apple's pieces: a bottom-anchored scroll (`defaultScrollAnchor`), the composer in `safeAreaInset`, a growing
 //  `TextField`, `PhotosPicker`, and `contextMenu` on a bubble. How Instagram builds its own is a guess.
 //
@@ -21,6 +24,9 @@ struct ChatPage: View {
     var groupID: String? = nil
     var groupOthers: [Neighbor] = []
     var groupName: String? = nil
+    /// A Going chat's Event, from its page, before the chat reaches the list.
+    var event: FeedCardItem? = nil
+    var eventHost = false
 
     @Environment(ChatBook.self) private var chats
     @Environment(FriendsBook.self) private var book
@@ -50,10 +56,13 @@ struct ChatPage: View {
         return groupOthers
     }
 
-    private var isGroup: Bool { (current?.kind ?? (groupID != nil ? .group : .direct)) == .group }
+    /// The Event, newest from the list, while this is a Going chat.
+    private var goingCard: FeedCardItem? { current?.card ?? event }
+
+    private var isGroup: Bool { goingCard != nil || (current?.kind ?? (groupID != nil ? .group : .direct)) == .group }
 
     private var title: String {
-        current?.title ?? groupName ?? others.map(isGroup ? \.firstName : \.displayName).joined(separator: ", ")
+        goingCard?.title ?? current?.title ?? groupName ?? others.map(isGroup ? \.firstName : \.displayName).joined(separator: ", ")
     }
 
     var body: some View {
@@ -70,12 +79,13 @@ struct ChatPage: View {
                 let known = chat ?? person.flatMap { chats.chat(with: $0) }
                 let me = (try? chats.api.db.userID) ?? ""
                 thread = ChatThread(api: chats.api, me: me, chat: known?.id ?? groupID, to: person?.id, book: chats,
-                                    actions: actions)
+                                    actions: actions, going: goingCard?.id, isHost: event == nil ? chat?.isHost == true : eventHost)
             }
             guard let thread else { return }
             chats.open = thread
             thread.startTyping()
             await thread.read()
+            if thread.gone { problem = ChatWords.refused(SupabaseError(message: "chat_not_going", status: nil)) }
         }
         .onDisappear {
             thread?.stopTyping()
@@ -104,7 +114,10 @@ struct ChatPage: View {
             Text("We'll look at it. Nobody is told you reported it.")
         }
         .alert("Block \(blocking?.firstName ?? "")?", isPresented: blockAsked, presenting: blocking) { person in
-            Button("Block", role: .destructive) { book.act(.block, person) }
+            Button("Block", role: .destructive) {
+                book.act(.block, person)
+                thread?.dropMessages(from: person.id)
+            }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
             Text("You won't see each other's messages or profiles. They won't be told.")
@@ -112,8 +125,12 @@ struct ChatPage: View {
         .alert("Leave this chat?", isPresented: $askingLeave) {
             Button("Leave", role: .destructive) { leave() }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            if goingCard != nil { Text("You'll still be going. Tap Going chat on the Event to come back.") }
         }
-        .alert(problem ?? "", isPresented: problemShown) { Button("OK", role: .cancel) {} }
+        .alert(problem ?? "", isPresented: problemShown) {
+            Button("OK", role: .cancel) { if thread?.gone == true { dismiss() } }
+        }
         // Blocked, by you or from the friend sheet: this chat is gone.
         .onChange(of: !isGroup && others.first.map { book.relation($0) } == .blocked) { _, gone in
             if gone { dismiss() }
@@ -151,7 +168,10 @@ struct ChatPage: View {
         HStack(spacing: 0) {
             BackButton { dismiss() }
             Group {
-                if !isGroup, let other = others.first {
+                if let card = goingCard {
+                    NavigationLink(value: card) { who }
+                        .buttonStyle(.press(.dim))
+                } else if !isGroup, let other = others.first {
                     NavigationLink(value: other) { who }
                         .buttonStyle(.press(.dim))
                 } else {
@@ -160,8 +180,11 @@ struct ChatPage: View {
             }
             Spacer(minLength: 0)
             Menu {
-                Button { reporting = thread.lastFromOthers } label: { Label("Report", systemImage: "flag") }
-                    .disabled(thread.lastFromOthers == nil)
+                // Not in a Going chat, where whoever spoke last is a stranger: a press reports the right one.
+                if goingCard == nil {
+                    Button { reporting = thread.lastFromOthers } label: { Label("Report", systemImage: "flag") }
+                        .disabled(thread.lastFromOthers == nil)
+                }
                 if isGroup {
                     Button(role: .destructive) { askingLeave = true } label: {
                         Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right")
@@ -188,7 +211,9 @@ struct ChatPage: View {
 
     private var who: some View {
         HStack(spacing: ChatMetric.chipGap) {
-            if let current {
+            if let card = goingCard {
+                ChatEventFace(card: card, size: ChatMetric.barFace)
+            } else if let current {
                 ChatFace(chat: current, size: ChatMetric.barFace)
             } else {
                 Avatar(avatarUrl: others.first?.avatarUrl, size: ChatMetric.barFace)
@@ -209,8 +234,12 @@ struct ChatPage: View {
         .contentShape(Rectangle())
     }
 
-    /// "Friends since 2024" (the mock's), or how many are in a group.
+    /// "Friends since 2024" (the mock's), how many are in a group, or how many are Going, never 0.
     private var line: String? {
+        if let card = goingCard {
+            let count = actions.going(card).count
+            return count > 0 ? "\(count) going" : nil
+        }
         if isGroup { return "\(others.count + 1) people" }
         guard let other = others.first, book.relation(other) == .friends,
               let since = other.friendsSince.flatMap(DateHelpers.timestamp) else { return nil }
@@ -243,17 +272,19 @@ struct ChatPage: View {
         let empty = words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         // Before a chat exists with someone who isn't your friend, words alone go.
         let strangers = current == nil && !isGroup && others.first.map { book.relation($0) != .friends } == true
+        // A Going chat is words only, and has nowhere to send them until it's joined.
+        let ready = !thread.isGoing || thread.chatID != nil
         return HStack(alignment: .bottom, spacing: ChatMetric.chipGap) {
-            if !strangers { photoButton(thread) }
+            if !strangers, !thread.isGoing { photoButton(thread) }
             HStack(alignment: .bottom, spacing: 0) {
-                TextField("Message…", text: $words, axis: .vertical)
+                TextField(thread.isHost ? "Post an update…" : "Message…", text: $words, axis: .vertical)
                     .font(.sans(16))
                     .foregroundStyle(Hue.ink)
                     .lineLimit(1 ... ChatMetric.composerLines)
                     .focused($typing)
                     .padding(.vertical, ChatMetric.bubbleY)
                     .onChange(of: words) { _, new in if !new.isEmpty { thread.typed() } }
-                if !empty {
+                if !empty, ready {
                     Button { send(thread) } label: {
                         Image(systemName: "arrow.up")
                             .font(.glyph(ChatMetric.sendGlyph, weight: .bold))
@@ -356,10 +387,10 @@ struct ChatPage: View {
     }
 
     private func leave() {
-        guard let current else { dismiss(); return }
+        guard let id = thread?.chatID ?? current?.id else { dismiss(); return }
         Task {
             do {
-                try await chats.leave(current)
+                try await chats.leave(id)
                 dismiss()
             } catch {
                 problem = "Check your connection and try again."
@@ -427,6 +458,12 @@ private struct ChatMessages: View {
                         }
                     }
                     let messages = thread.messages
+                    if thread.isGoing, thread.loaded, messages.isEmpty {
+                        Text("Say hi to everyone going.")
+                            .font(.sans(14))
+                            .foregroundStyle(Hue.inkSecondary)
+                            .padding(.bottom, ChatMetric.sectionTop)
+                    }
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         let last = index > 0 ? messages[index - 1] : nil
                         let next = index + 1 < messages.count ? messages[index + 1] : nil
@@ -440,10 +477,11 @@ private struct ChatMessages: View {
                             .padding(.top, ChatMetric.stampTop)
                             .padding(.bottom, ChatMetric.stampBottom)
                         }
-                        let firstOfRun = stamped || last?.senderID != message.senderID
-                        let lastOfRun = next?.senderID != message.senderID
+                        // A host's update stands alone, so its face never sits on the card above.
+                        let firstOfRun = stamped || last?.senderID != message.senderID || message.host || last?.host == true
+                        let lastOfRun = next?.senderID != message.senderID || message.host || next?.host == true
                             || (next.map { ChatWords.needsStamp($0, after: message) } ?? true)
-                        ChatBubble(message: message, thread: thread, sender: names[message.senderID],
+                        ChatBubble(message: message, thread: thread, sender: names[message.senderID] ?? message.sender,
                                    showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
                                    reduceMotion: reduceMotion, report: report, block: block)
                             .padding(.top, firstOfRun && !stamped ? ChatMetric.groupGap : stamped ? 0 : ChatMetric.runGap)
@@ -502,37 +540,11 @@ private struct ChatBubble: View {
     private var mine: Bool { thread.isMine(message) }
 
     var body: some View {
-        VStack(alignment: mine ? .trailing : .leading, spacing: 2) {
-            if showsName, !mine, let sender {
-                Text(sender.firstName)
-                    .font(.sans(12))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.leading, ChatMetric.theirLead)
-            }
-            HStack(alignment: .bottom, spacing: ChatMetric.theirLead - ChatMetric.theirFace) {
-                if mine { Spacer(minLength: 0) }
-                if !mine {
-                    Group {
-                        if showsFace, let sender {
-                            // Their Profile, where Block and everything else about them lives.
-                            NavigationLink(value: sender) {
-                                Avatar(avatarUrl: sender.avatarUrl, size: ChatMetric.theirFace)
-                                    .frame(width: ChatMetric.theirFace, height: ChatMetric.theirFace)
-                                    .contentShape(Circle().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
-                            }
-                            .buttonStyle(.press(.squish))
-                            .accessibilityLabel("\(sender.displayName)'s profile")
-                        } else if showsFace {
-                            Avatar(avatarUrl: nil, size: ChatMetric.theirFace)
-                        } else {
-                            Color.clear.frame(width: ChatMetric.theirFace, height: 1)
-                        }
-                    }
-                }
-                body(for: message.content)
-                    .opacity(message.state == .sending ? 0.6 : 1)
-                    .contextMenu { menu }
-                if !mine { Spacer(minLength: 0) }
+        VStack(alignment: message.host ? .center : mine ? .trailing : .leading, spacing: 2) {
+            if message.host, case .text(let words) = message.content {
+                update(words)
+            } else {
+                bubble
             }
             if message.state == .refused {
                 Text("Not sent.")
@@ -552,6 +564,80 @@ private struct ChatBubble: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// A host's update: Instagram's channel card, in the middle of the thread, their face on its top edge.
+    private func update(_ words: String) -> some View {
+        let name = mine ? "You" : sender?.displayName ?? "Host"
+        return VStack(spacing: ChatMetric.updateLineGap) {
+            Text("\(Text(name).font(.sansSemibold(12)).foregroundStyle(Hue.ink)) · Host")
+                .font(.sans(12))
+                .foregroundStyle(Hue.inkSecondary)
+                .lineLimit(1)
+            Text(words)
+                .font(.sansSemibold(16))
+                .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, ChatMetric.updateTop)
+        .padding(.horizontal, ChatMetric.updateSide)
+        .padding(.bottom, ChatMetric.updateSide)
+        .frame(width: ChatMetric.updateWidth)
+        .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .opacity(message.state == .sending ? 0.6 : 1)
+        .contextMenu { menu }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Host update, \(name): \(words), \(ChatWords.ago(message.at))")
+        .overlay(alignment: .top) { updateFace.offset(y: -ChatMetric.updateFace / 2) }
+        .padding(.top, ChatMetric.updateFace / 2)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var updateFace: some View {
+        let face = Avatar(avatarUrl: sender?.avatarUrl, size: ChatMetric.updateFace)
+            .overlay(Circle().stroke(Hue.paper, lineWidth: 2))
+        if !mine, let sender {
+            NavigationLink(value: sender) { face.contentShape(Circle()) }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel("\(sender.displayName)'s profile")
+        } else {
+            face.accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder private var bubble: some View {
+        if showsName, !mine, let sender {
+            Text(sender.firstName)
+                .font(.sans(12))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.leading, ChatMetric.theirLead)
+        }
+        HStack(alignment: .bottom, spacing: ChatMetric.theirLead - ChatMetric.theirFace) {
+            if mine { Spacer(minLength: 0) }
+            if !mine {
+                Group {
+                    if showsFace, let sender {
+                        // Their Profile, where Block and everything else about them lives.
+                        NavigationLink(value: sender) {
+                            Avatar(avatarUrl: sender.avatarUrl, size: ChatMetric.theirFace)
+                                .frame(width: ChatMetric.theirFace, height: ChatMetric.theirFace)
+                                .contentShape(Circle().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
+                        }
+                        .buttonStyle(.press(.squish))
+                        .accessibilityLabel("\(sender.displayName)'s profile")
+                    } else if showsFace {
+                        Avatar(avatarUrl: nil, size: ChatMetric.theirFace)
+                    } else {
+                        Color.clear.frame(width: ChatMetric.theirFace, height: 1)
+                    }
+                }
+            }
+            body(for: message.content)
+                .opacity(message.state == .sending ? 0.6 : 1)
+                .contextMenu { menu }
+            if !mine { Spacer(minLength: 0) }
+        }
     }
 
     @ViewBuilder private var menu: some View {

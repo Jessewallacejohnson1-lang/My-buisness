@@ -56,8 +56,12 @@ struct FeedEventDetailDestination: View {
     @State private var scrolled = false
     @Environment(\.openURL) private var openURL
 
-    init(item: FeedCardItem) {
+    /// The Going chat's row: not on the map's own stack, which has no chat to push to.
+    private let goingChat: Bool
+
+    init(item: FeedCardItem, goingChat: Bool = true) {
         self.item = item
+        self.goingChat = goingChat
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
@@ -533,6 +537,7 @@ struct FeedEventDetailDestination: View {
                     FactRow(glyph: "mappin.and.ellipse", lines: Self.placeLines(place), end: .opens,
                             hint: "Opens in Maps") { Directions.url(forPlace: place).map { openURL($0) } }
                 }
+                if goingChat { GoingChatRow(item: current) }
             }
             .padding(.top, Metric.rowsTop)
         }
@@ -700,10 +705,17 @@ private struct FactRow: View {
     let lines: FeedEventDetailDestination.FactLines
     let end: End?
     let hint: String
+    /// A chat it pushes, instead of its action.
+    var link: ChatRoute? = nil
     let action: () -> Void
 
     var body: some View {
-        if end != nil {
+        if let link {
+            NavigationLink(value: link) { row }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel(lines.spoken)
+                .accessibilityHint(hint)
+        } else if end != nil {
             Button(action: action) { row }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel(lines.spoken)
@@ -728,6 +740,7 @@ private struct FactRow: View {
                     Text(second)
                         .font(.sans(15))
                         .foregroundStyle(Hue.inkSecondary)
+                        .lineLimit(link == nil ? nil : 1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -742,6 +755,145 @@ private struct FactRow: View {
         .foregroundStyle(Hue.ink)
         .padding(.vertical, m.rowPad)
         .contentShape(Rectangle())
+    }
+}
+
+/// The Going chat's row under the place (five-tabs 06): once you're Going or it's your Event, the chat's newest word
+/// or how many are Going. With no birthday yet it asks once; under 18, it stays away.
+private struct GoingChatRow: View {
+    let item: FeedCardItem
+
+    @Environment(ChatBook.self) private var chats: ChatBook?
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var access: GoingChatAccess?
+    @State private var asking = false
+    /// Under 13 on the wheel saves nothing (onboarding's rule), so this phone remembers not to ask again.
+    @AppStorage("goingChat.tooYoung") private var tooYoung = false
+
+    private var shows: Bool {
+        guard let access, access.state != .hidden, !tooYoung else { return false }
+        return access.isHost || actions.going(item).isGoing
+    }
+
+    private var lines: FeedEventDetailDestination.FactLines {
+        if let chat = chats?.chat(forEvent: item.id) {
+            return .init(first: "Going chat", second: ChatWords.preview(chat))
+        }
+        let count = actions.going(item).count
+        return .init(first: "Going chat", second: count > 0 ? "\(count) going" : nil)
+    }
+
+    private var route: ChatRoute { .going(item, isHost: access?.isHost == true) }
+
+    var body: some View {
+        let m = FeedEventDetailDestination.Metric.self
+        Group {
+            if shows {
+                VStack(spacing: 0) {
+                    Hue.hairline
+                        .frame(height: m.hairline)
+                        .padding(.leading, m.rowGlyph + m.rowGap)
+                    FactRow(glyph: "bubble.left.and.bubble.right", lines: lines, end: .opens, hint: "Opens the chat",
+                            link: access?.state == .open ? route : nil) { asking = true }
+                }
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : Motion.smooth, value: shows)
+        .task(id: item.id) {
+            guard let chats else { return }
+            access = try? await chats.api.goingAccess(item.id)
+        }
+        .sheet(isPresented: $asking) {
+            if let chats {
+                GoingChatBirthday(chats: chats) { saved in
+                    guard saved else { tooYoung = true; return }
+                    Task {
+                        access = try? await chats.api.goingAccess(item.id)
+                        if access?.state == .open { chats.push?(route) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// "When's your birthday?", once, for an account with none: onboarding's field and wheel in a sheet.
+private struct GoingChatBirthday: View {
+    let chats: ChatBook
+    /// Saved, or under 13, for whom nothing is saved.
+    let done: (Bool) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var date = Date.now
+    @State private var turned = false
+    @State private var saving = false
+    @State private var failures = 0
+
+    /// Its height: the words, field and button over the wheel (picked); the button as Onboarding's.
+    private static let height: CGFloat = OnboardingBirthdayWheel.height + 300
+    private static let button: CGFloat = 50
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("When's your birthday?")
+                .font(.display(28))
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, FeedEventDetailDestination.Metric.inset)
+            Text("Going chats are for 18 and over. Only you see your birthday.")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, ChatMetric.chipGap)
+            OnboardingBirthdayField(date: date, now: .now)
+                .padding(.top, ChatMetric.side)
+            Button(action: save) {
+                Text("Continue")
+                    .font(.displaySemi(17))
+                    .foregroundStyle(Hue.surface)
+                    .frame(maxWidth: .infinity, minHeight: Self.button)
+                    .background(Hue.ink.opacity(turned ? 1 : 0.3), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press(.squish))
+            .disabled(!turned || saving)
+            .turnBackShake(failures: failures, shakes: !reduceMotion)
+            .padding(.top, ChatMetric.side)
+            Spacer(minLength: ChatMetric.side)
+        }
+        .padding(.horizontal, FeedEventDetailDestination.Metric.inset)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            OnboardingBirthdayWheel(date: $date, now: .now)
+                .ignoresSafeArea(.container, edges: .bottom)
+        }
+        .onChange(of: date) { turned = true }
+        .presentationDetents([.height(Self.height)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func save() {
+        guard OnboardingAge.years(from: date, to: .now) >= 13 else {
+            dismiss()
+            done(false)
+            return
+        }
+        saving = true
+        Task {
+            do {
+                try await ProfileAPI(chats.api.db).setBirthday(date)
+                dismiss()
+                done(true)
+            } catch {
+                Log.network("GoingChatBirthday: \(error)")
+                failures += 1
+                Haptics.error()
+            }
+            saving = false
+        }
     }
 }
 

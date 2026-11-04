@@ -27,6 +27,18 @@ nonisolated enum ChatMetric {
     static let planeDotInset: CGFloat = 8
     /// On a neighbour's Profile, in the cover's white circle (picked).
     static let profileGlyph: CGFloat = 18
+    /// A Going chat's Event photo, as the mock's row: this corner on the 56 pt face, and in scale on the bar's.
+    static let eventFaceCorner: CGFloat = 14
+    /// The "Going chat" tag beside its name (the mock's).
+    static let tagX: CGFloat = 6
+    static let tagHeight: CGFloat = 18
+    static let tagCorner: CGFloat = 6
+    /// A host's update: Instagram's channel card, measured (`references/going-chat/SPEC.md`).
+    static let updateWidth: CGFloat = 288
+    static let updateFace: CGFloat = 44
+    static let updateTop: CGFloat = 30
+    static let updateSide: CGFloat = 16
+    static let updateLineGap: CGFloat = 6
 
     // A chat (`ChatPage`), from the mock's chat.
     static let barFace: CGFloat = 34
@@ -72,6 +84,8 @@ enum ChatRoute: Hashable {
     case person(Neighbor)
     /// A group just started: it reaches its people with its first message.
     case group(id: String, others: [Neighbor], name: String?)
+    /// An Event's Going chat, from its page (five-tabs 06), whether or not anyone has written.
+    case going(FeedCardItem, isHost: Bool)
 }
 
 /// The paper plane at the top right of Friends: it shows once you've a friend or a chat, and its red dot
@@ -240,10 +254,21 @@ private struct ChatRow: View {
                 HStack(spacing: ChatMetric.rowGap) {
                     ChatFace(chat: chat)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(chat.title)
-                            .font(.sansSemibold(15))
-                            .foregroundStyle(Hue.ink)
-                            .lineLimit(1)
+                        HStack(spacing: ChatMetric.tagX) {
+                            Text(chat.title)
+                                .font(.sansSemibold(15))
+                                .foregroundStyle(Hue.ink)
+                                .lineLimit(1)
+                            if chat.kind == .going {
+                                Text("Going chat")
+                                    .font(.sansSemibold(11))
+                                    .foregroundStyle(Hue.inkSecondary)
+                                    .padding(.horizontal, ChatMetric.tagX)
+                                    .frame(height: ChatMetric.tagHeight)
+                                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: ChatMetric.tagCorner, style: .continuous))
+                                    .fixedSize()
+                            }
+                        }
                         Text("\(ChatWords.preview(chat)) · \(ago)")
                             .font(chat.unread ? .sansSemibold(14) : .sans(14))
                             .foregroundStyle(chat.unread ? Hue.ink : Hue.inkSecondary)
@@ -259,7 +284,7 @@ private struct ChatRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.row))
-            .accessibilityLabel([chat.title, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
+            .accessibilityLabel([chat.title, chat.kind == .going ? "Going chat" : nil, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
                 .compactMap { $0 }.joined(separator: ", "))
         }
     }
@@ -290,13 +315,34 @@ private struct FriendToChatRow: View {
     }
 }
 
-/// A chat's picture: the friend's face, or for a group two faces overlapping.
+/// An Event in a Going chat's row and bar: its photo, else its place's logo, in a rounded square.
+struct ChatEventFace: View {
+    let card: FeedCardItem
+    var size = ChatMetric.face
+
+    var body: some View {
+        Hue.fill
+            .frame(width: size, height: size)
+            .overlay {
+                if let url = card.image.url {
+                    FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                } else if let logo = card.image.logo {
+                    CastLogo(logo: logo, side: size)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: size * ChatMetric.eventFaceCorner / ChatMetric.face, style: .continuous))
+    }
+}
+
+/// A chat's picture: the friend's face, for a group two faces overlapping, for a Going chat its Event.
 struct ChatFace: View {
     let chat: Chat
     var size = ChatMetric.face
 
     var body: some View {
-        if chat.kind == .direct || chat.others.count < 2 {
+        if let card = chat.card {
+            ChatEventFace(card: card, size: size)
+        } else if chat.kind == .direct || chat.others.count < 2 {
             Avatar(avatarUrl: chat.others.first?.avatarUrl, size: size)
         } else {
             let small = size * ChatMetric.duoFace / ChatMetric.face

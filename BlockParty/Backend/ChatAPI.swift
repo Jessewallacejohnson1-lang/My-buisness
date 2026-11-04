@@ -7,9 +7,9 @@
 
 import Foundation
 
-/// One line of Messages: a chat with a friend, or a group of friends.
+/// One line of Messages: a chat with a friend, a group of friends, or everyone Going to an Event.
 struct Chat: Identifiable, Hashable, Decodable {
-    enum Kind: String, Decodable { case direct, group }
+    enum Kind: String, Decodable { case direct, group, going }
 
     let chatId: String
     let kind: Kind
@@ -28,17 +28,45 @@ struct Chat: Identifiable, Hashable, Decodable {
     /// Yours is waiting in theirs: one message until they accept. It reads the same whether they've seen
     /// it, deleted it or it was kept from them.
     var waiting: Bool
+    /// A Going chat's Event (five-tabs 06), the same card as everywhere.
+    var event: ChatEvent?
+    /// Its last word is the host's: the row says "Host:".
+    var lastHost: Bool?
+    /// You're its host: whatever you write is an update.
+    var isHost: Bool?
+    /// What may light the red dot: in a Going chat only an update, so a busy Event doesn't light the tab all day.
+    var lights: Bool?
 
     var id: String { chatId }
+    var card: FeedCardItem? { event?.card }
 
-    /// Its name, else who's in it: a friend's whole name, a group's first names.
+    /// Its Event's title, else its name, else who's in it: a friend's whole name, a group's first names.
     var title: String {
+        if let card { return card.title }
         if let name { return name }
         if kind == .direct, let other = others.first { return other.displayName }
         return others.map(\.firstName).joined(separator: ", ")
     }
 
     var lastDate: Date { DateHelpers.timestamp(lastAt) ?? .distantPast }
+}
+
+/// A Going chat's Event. A card that won't decode leaves that row with no Event, never fails all of Messages.
+struct ChatEvent: Hashable, Decodable {
+    let card: FeedCardItem?
+
+    init(from decoder: Decoder) { card = (try? UpcomingEvent(from: decoder)).map { FeedCardItem($0) } }
+}
+
+/// What the Event page's Going chat row asks. Whether you're Going is the app's own to know, so this read can't
+/// race Attend's write. `ask`: no birthday yet, so the row asks once. `hidden`: the row stays away.
+nonisolated struct GoingChatAccess: Equatable, Decodable {
+    enum State: String, Decodable {
+        case open, hidden = "none", ask = "birthday"
+    }
+
+    let state: State
+    let isHost: Bool
 }
 
 /// One message in a chat, sent or on its way.
@@ -61,6 +89,10 @@ struct ChatMessage: Identifiable, Hashable {
     var content: Content
     var at: Date
     var state = State.sent
+    /// Who wrote it, in a Going chat, where no list of people names them.
+    var sender: Neighbor? = nil
+    /// The host's: an update, drawn as a card.
+    var host = false
 }
 
 /// What a message sends.
@@ -116,6 +148,8 @@ struct ChatAPI {
             let photoH: Int?
             let card: UpcomingEvent.Lenient?
             let createdAt: String
+            let sender: Neighbor?
+            let host: Bool?
         }
         return try Supabase.decode(data, as: [Row].self).compactMap { row in
             guard let at = DateHelpers.timestamp(row.createdAt) else { return nil }
@@ -127,7 +161,7 @@ struct ChatAPI {
             default: return nil
             }
             return ChatMessage(id: row.clientId.lowercased(), serverID: row.id, senderID: row.senderId.lowercased(),
-                               content: content, at: at)
+                               content: content, at: at, sender: row.sender, host: row.host ?? false)
         }
     }
 
@@ -163,6 +197,16 @@ struct ChatAPI {
     /// A group of your friends, its id; it reaches them with its first message.
     func startGroup(_ members: [String], name: String?) async throws -> String {
         try Supabase.decode(await db.rpc("start_group_chat", ["p_members": members, "p_name": name ?? NSNull()]))
+    }
+
+    func goingAccess(_ event: String) async throws -> GoingChatAccess {
+        let rows: [GoingChatAccess] = try Supabase.decode(await db.rpc("get_going_chat", ["p_event": event]))
+        return rows.first ?? GoingChatAccess(state: .hidden, isHost: false)
+    }
+
+    /// An Event's Going chat, opened: made with its first person in, and your Leave undone.
+    func joinGoing(_ event: String) async throws -> String {
+        try Supabase.decode(await db.rpc("join_going_chat", ["p_event": event]))
     }
 
     func markRead(_ chat: String) async throws { try await db.rpc("mark_chat_read", ["p_chat": chat]) }

@@ -41,14 +41,19 @@ final class ChatBook {
     }
 
     /// The chats themselves, less your Requests.
-    var messages: [Chat] { (chats ?? []).filter { !$0.request } }
+    var messages: [Chat] { (chats ?? []).filter { !$0.request && ($0.kind != .going || $0.card != nil) } }
     var requests: [Chat] { (chats ?? []).filter(\.request) }
     /// A request lights no dot: nobody earns one by writing to a stranger.
-    var unread: Bool { messages.contains(where: \.unread) }
+    var unread: Bool { messages.contains { $0.lights ?? $0.unread } }
 
     /// The chat with one person, if there's one yet.
     func chat(with person: Neighbor) -> Chat? {
         chats?.first { $0.kind == .direct && $0.others.first?.id == person.id }
+    }
+
+    /// An Event's Going chat, once it's on your list.
+    func chat(forEvent id: String) -> Chat? {
+        chats?.first { $0.kind == .going && $0.card?.id == id }
     }
 
     func refresh() async {
@@ -110,8 +115,9 @@ final class ChatBook {
 
     /// Read on screen, so its dot goes at once.
     func markedRead(_ id: String) {
-        guard let i = chats?.firstIndex(where: { $0.id == id }), chats?[i].unread == true else { return }
+        guard let i = chats?.firstIndex(where: { $0.id == id }), chats?[i].unread == true || chats?[i].lights == true else { return }
         chats?[i].unread = false
+        if chats?[i].lights != nil { chats?[i].lights = false }
     }
 
     /// Accepted, deleted or left: the list says so at once, and the read behind it agrees. An Accept that
@@ -135,9 +141,9 @@ final class ChatBook {
         withAnimation(Motion.smooth) { chats?.removeAll { $0.id == chat.id } }
     }
 
-    func leave(_ chat: Chat) async throws {
-        try await api.leave(chat.id)
-        withAnimation(Motion.smooth) { chats?.removeAll { $0.id == chat.id } }
+    func leave(_ chat: String) async throws {
+        try await api.leave(chat)
+        withAnimation(Motion.smooth) { chats?.removeAll { $0.id == chat } }
     }
 }
 
@@ -162,14 +168,21 @@ final class ChatThread {
     private(set) var links: [String: URL] = [:]
     /// A photo on its way, as picked, by the message's id.
     private(set) var picked: [String: UIImage] = [:]
-    /// The chat, once it exists: nil for a first message to someone.
+    /// The chat, once it exists: nil for a first message to someone, or a Going chat not joined yet.
     private(set) var chatID: String?
+    /// Out of a Going chat: left Going on another phone, or its Event closed. The page goes.
+    private(set) var gone = false
 
     private let api: ChatAPI
     private let book: ChatBook?
     private let actions: RealLifeActions?
     private let person: String?
     private let me: String
+    /// A Going chat's Event (five-tabs 06): its chat is joined, never started.
+    private let goingEvent: String?
+    /// You're the host: whatever you write is an update.
+    let isHost: Bool
+    @ObservationIgnored private var joined = false
     @ObservationIgnored private var channel: RealtimeClient?
     @ObservationIgnored private var lastTyping = Date.distantPast
     @ObservationIgnored private var typingEnds: [String: Task<Void, Never>] = [:]
@@ -180,22 +193,40 @@ final class ChatThread {
     /// A "typing" goes out at most this often, and shows this long after the last one heard.
     static let typingEvery: TimeInterval = 2
     static let typingShows: Duration = .seconds(4)
+    /// The row comes with Attend's tap, so its write may still be on its way: a no is only believed after these.
+    static let joinRetries: [Duration] = [.milliseconds(700), .milliseconds(1400)]
 
     init(api: ChatAPI, me: String, chat: String?, to person: String? = nil, book: ChatBook? = nil,
-         actions: RealLifeActions? = nil) {
+         actions: RealLifeActions? = nil, going: String? = nil, isHost: Bool = false) {
         self.api = api
         self.me = me.lowercased()
         chatID = chat
         self.person = person
         self.book = book
         self.actions = actions
+        goingEvent = going
+        self.isHost = isHost
         // A first message to someone has nothing to wait for.
-        loaded = chat == nil
+        loaded = chat == nil && going == nil
     }
 
     // MARK: Reading
 
+    var isGoing: Bool { goingEvent != nil }
+
     func read() async {
+        if let goingEvent, !joined {
+            do {
+                chatID = try await join(goingEvent)
+                joined = true
+            } catch {
+                guard !Task.isCancelled else { return }
+                Log.network("ChatThread join: \(error)")
+                gone = (error as? SupabaseError)?.message == "chat_not_going"
+                failed = true
+                return
+            }
+        }
         guard let chatID else { return }
         latestRead &+= 1
         let thisRead = latestRead
@@ -222,6 +253,17 @@ final class ChatThread {
             Log.network("ChatThread: \(error)")
             failed = true
         }
+    }
+
+    private func join(_ event: String) async throws -> String {
+        for wait in Self.joinRetries {
+            do {
+                return try await api.joinGoing(event)
+            } catch let error as SupabaseError where error.message == "chat_not_going" {
+                try await Task.sleep(for: wait)
+            }
+        }
+        return try await api.joinGoing(event)
     }
 
     func readOlder() async {
@@ -271,7 +313,7 @@ final class ChatThread {
         guard !words.isEmpty else { return }
         lastRefusal = nil
         await deliver(ChatMessage(id: UUID().uuidString.lowercased(), senderID: me, content: .text(words), at: .now,
-                                  state: .sending))
+                                  state: .sending, host: isHost))
     }
 
     func send(card: FeedCardItem) async {
@@ -318,6 +360,7 @@ final class ChatThread {
         } catch {
             Log.network("ChatThread send: \(error)")
             lastRefusal = ChatWords.refused(error)
+            gone = (error as? SupabaseError)?.message == "chat_not_going"
             let refused = lastRefusal != nil
             if let i = messages.firstIndex(where: { $0.id == message.id }) {
                 messages[i].state = refused ? .refused : .failed
@@ -352,7 +395,8 @@ final class ChatThread {
 
     /// The chat's private channel, while it's on screen.
     func startTyping() {
-        guard channel == nil, let chatID else { return }
+        // Not in a Going chat: a typing signal would show who is reading quietly.
+        guard channel == nil, !isGoing, let chatID else { return }
         let auth = api.db.auth
         let channel = RealtimeClient(privateChannel: "chat:\(chatID)",
                                      tokenProvider: { try? await auth.validAccessToken() })
@@ -408,6 +452,12 @@ final class ChatThread {
 
     func isMine(_ message: ChatMessage) -> Bool { message.senderID == me }
 
+    /// Blocked from a press: their words go at once, and the next read agrees.
+    func dropMessages(from person: String) {
+        let person = person.lowercased()
+        withAnimation(Motion.smooth) { messages.removeAll { $0.senderID == person } }
+    }
+
     /// Any other person's last message: what a report from the ••• names.
     var lastFromOthers: ChatMessage? { messages.last { $0.senderID != me && $0.serverID != nil } }
 }
@@ -428,7 +478,8 @@ enum ChatWords {
         default: chat.lastBody ?? ""
         }
         if chat.lastMine { return "You: \(said)" }
-        if chat.kind == .group, let name = chat.lastSender?.split(separator: " ").first { return "\(name): \(said)" }
+        if chat.lastHost == true { return "Host: \(said)" }
+        if chat.kind != .direct, let name = chat.lastSender?.split(separator: " ").first { return "\(name): \(said)" }
         return said
     }
 
@@ -468,6 +519,8 @@ enum ChatWords {
         case "chat_waiting": return "You can write more once they accept."
         case "chat_text_only": return "You can send photos and Events once they accept."
         case "chat_event_gone": return "That Event is no longer available."
+        case "chat_not_going": return "You're not in this chat anymore."
+        case "chat_slow_down": return "You're sending a lot. Try again in a few minutes."
         default: return nil
         }
     }
