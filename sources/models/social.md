@@ -49,8 +49,10 @@ carry on with the rest.
    in its note, starting 'From the picture:'." In judging:
    - A page that opens "Found by searching Facebook's events" is an event its host listed in public: its
      `source_name` is the host `pages.json` names, and `area` is where it happens, `town` or `campus`, else
-     `outside`, never `announced` (the host isn't a St. Joseph source). Drop one hosted only by a private
-     person: a birthday, a party, a sale at home (ADR-020: a neighbour's post is a tip, never content).
+     `outside`, never `announced` (the host isn't a St. Joseph source). When that page's "Where" is empty, the
+     place is in the event's name or words: write it in `place`. It is in St. Joseph only when
+     `sources/st-joseph-mn.md` lists it (search the file); if not, the event is `outside`. Drop one hosted only
+     by a private person: a birthday, a party, a sale at home (ADR-020: a neighbour's post is a tip, never content).
    - A post's pictures are part of it: a flag from a picture is judged like one from the caption,
      and a caption that only teases ("come out to the cocktail lounge…") is not a teaser when its
      picture says what. Before keeping an item whose day, time or place comes only from a
