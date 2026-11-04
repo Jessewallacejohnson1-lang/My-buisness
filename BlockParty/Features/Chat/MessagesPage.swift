@@ -94,7 +94,7 @@ struct MessagesPlane: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .animation(Motion.smooth, value: chats.unread)
         .accessibilityLabel(chats.unread ? "Messages, unread message" : "Messages")
     }
@@ -134,7 +134,7 @@ struct MessagesPage: View {
                         .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(SquishStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("New message")
             }
             .accessibilitySortPriority(1)
@@ -161,7 +161,7 @@ struct MessagesPage: View {
                     .frame(minHeight: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(DimStyle())
+            .buttonStyle(.press(.dim))
         }
         .padding(.horizontal, ChatMetric.side)
         .padding(.top, ChatMetric.sectionTop)
@@ -181,7 +181,7 @@ struct MessagesPage: View {
             }
             ForEach(book.friends) { person in
                 NavigationLink(value: ChatRoute.person(person)) { FriendToChatRow(person: person) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
             }
         } else {
             ForEach(mine) { chat in ChatRow(chat: chat) }
@@ -199,7 +199,7 @@ struct MessagesPage: View {
             ForEach(found) { chat in ChatRow(chat: chat) }
             ForEach(friends) { person in
                 NavigationLink(value: ChatRoute.person(person)) { FriendToChatRow(person: person) }
-                    .buttonStyle(RowPressStyle())
+                    .buttonStyle(.press(.row))
             }
         }
     }
@@ -258,7 +258,7 @@ private struct ChatRow: View {
                 .padding(.vertical, ChatMetric.rowPad)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(RowPressStyle())
+            .buttonStyle(.press(.row))
             .accessibilityLabel([chat.title, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
                 .compactMap { $0 }.joined(separator: ", "))
         }
@@ -342,6 +342,6 @@ struct ChatFailedLine: View {
                 .frame(maxWidth: .infinity, minHeight: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(DimStyle())
+        .buttonStyle(.press(.dim))
     }
 }
