@@ -7,6 +7,7 @@ nonisolated enum LaunchFlags {
     nonisolated enum Flag: String, CaseIterable {
         case appearance = "-appearance"
         case appearanceDemo = "-appearance-demo"
+        case chatDraft = "-chat-draft"
         case dailyFeedPreview = "-daily-feed-preview"
         case dailyFeedState = "-daily-feed-state"
         case dailyHour = "-daily-hour"

@@ -165,14 +165,15 @@ struct Supabase {
         guard !paths.isEmpty else { return [:] }
         struct Row: Decodable {
             let path: String?
-            let signedUrl: String?
+            // Storage's own spelling, which the decoder's snake-case rule leaves as it is.
+            let signedURL: String?
         }
         var request = URLRequest(url: SupabaseConfig.storageURL.appendingPathComponent("object/sign/\(bucket)"))
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: ["expiresIn": expires, "paths": paths])
         let rows: [Row] = try Self.decode(await perform(request, type: "application/json"))
         return Dictionary(rows.compactMap { row in
-            guard let path = row.path, let link = row.signedUrl else { return nil }
+            guard let path = row.path, let link = row.signedURL else { return nil }
             return URL(string: SupabaseConfig.storageURL.absoluteString + link).map { (path, $0) }
         }, uniquingKeysWith: { first, _ in first })
     }

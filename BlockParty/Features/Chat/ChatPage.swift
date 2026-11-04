@@ -82,6 +82,9 @@ struct ChatPage: View {
             guard let item else { return }
             Task { await sendPicked(item) }
         }
+        #if DEBUG
+        .onAppear { if let draft = LaunchFlags.value(.chatDraft) { words = draft } }
+        #endif
         .confirmationDialog("Why are you reporting this?", isPresented: reportAsked, titleVisibility: .visible) {
             ForEach(ReportReason.allCases.filter(\.hides)) { reason in
                 Button(reason.label) { report(reason) }
@@ -224,25 +227,13 @@ struct ChatPage: View {
         }
     }
 
-    /// The camera's place holds the photo button, the field grows to five lines, and the arrow comes with
-    /// words. A non-friend's first message is words alone, so the photo button waits for friends.
+    /// The camera's place holds the photo button, the field grows to five lines, and the arrow comes with words.
     private func composer(_ thread: ChatThread) -> some View {
         let empty = words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let strangers = !isGroup && others.first.map { book.relation($0) != .friends } == true
+        // Before a chat exists with someone who isn't your friend, words alone go.
+        let strangers = current == nil && !isGroup && others.first.map { book.relation($0) != .friends } == true
         return HStack(alignment: .bottom, spacing: ChatMetric.chipGap) {
-            if !strangers {
-                PhotosPicker(selection: $pick, matching: .images) {
-                    Image(systemName: "photo")
-                        .font(.glyph(16, weight: .semibold))
-                        .foregroundStyle(Hue.surface)
-                        .frame(width: ChatMetric.composerButton, height: ChatMetric.composerButton)
-                        .background(Hue.ink, in: Circle())
-                        .frame(height: ChatMetric.composerField)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SquishStyle())
-                .accessibilityLabel("Send a photo")
-            }
+            if !strangers { photoButton(thread) }
             HStack(alignment: .bottom, spacing: 0) {
                 TextField("Message…", text: $words, axis: .vertical)
                     .font(.sans(16))
@@ -275,6 +266,37 @@ struct ChatPage: View {
         .padding(.horizontal, ChatMetric.composerX)
         .padding(.vertical, ChatMetric.composerY)
         .background(Hue.paper)
+    }
+
+    @ViewBuilder private func photoButton(_ thread: ChatThread) -> some View {
+        #if DEBUG
+        // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
+        if let file = LaunchFlags.value(.newEventPhoto), let image = UIImage(named: file) {
+            Button { Task { await thread.send(photo: image) } } label: { photoGlyph }
+                .buttonStyle(SquishStyle())
+                .accessibilityLabel("Send a photo")
+        } else {
+            photoPicker
+        }
+        #else
+        photoPicker
+        #endif
+    }
+
+    private var photoPicker: some View {
+        PhotosPicker(selection: $pick, matching: .images) { photoGlyph }
+            .buttonStyle(SquishStyle())
+            .accessibilityLabel("Send a photo")
+    }
+
+    private var photoGlyph: some View {
+        Image(systemName: "photo")
+            .font(.glyph(16, weight: .semibold))
+            .foregroundStyle(Hue.surface)
+            .frame(width: ChatMetric.composerButton, height: ChatMetric.composerButton)
+            .background(Hue.ink, in: Circle())
+            .frame(height: ChatMetric.composerField)
+            .contentShape(Rectangle())
     }
 
     // MARK: Actions
@@ -649,7 +671,7 @@ private struct ChatEventCard: View {
             HStack {
                 FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
                 Spacer(minLength: 0)
-                AttendPill(item: card, words: words, onInvite: nil)
+                AttendPill(item: card, words: words) { ShareCenter.shared.present(.event(card)) }
             }
             .padding(.horizontal, ChatMetric.eventInsetX)
             .padding(.top, ChatMetric.chipGap)

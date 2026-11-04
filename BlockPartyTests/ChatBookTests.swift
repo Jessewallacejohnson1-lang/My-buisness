@@ -223,7 +223,7 @@ final class ChatBookTests: XCTestCase {
          {"id":"1","client_id":"A","sender_id":"me","kind":"text","body":"hi","photo_path":null,"photo_w":null,"photo_h":null,
           "card":null,"created_at":"2026-11-03T18:00:00+00:00"}]
         """)
-        server.answers["object/sign/chat-photos"] = .init(body: #"[{"path":"sam/x.jpg","signedURL":null,"signedUrl":"/object/sign/chat-photos/sam/x.jpg?token=t"}]"#)
+        server.answers["object/sign/chat-photos"] = .init(body: #"[{"error":null,"path":"sam/x.jpg","signedURL":"/object/sign/chat-photos/sam/x.jpg?token=t"}]"#)
         server.answers["chat_reads"] = .init(body: #"[{"user_id":"SAM","read_at":"2026-11-03T18:00:00+00:00"}]"#)
         let thread = ChatThread(api: api, me: "me", chat: "c1")
         await thread.read()

@@ -323,10 +323,6 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    private var sendingBinding: Binding<FeedCardItem?> {
-        Binding { chats.sending } set: { chats.sending = $0 }
-    }
-
     /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
@@ -508,6 +504,8 @@ struct MainTabsView: View {
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
+        // An Event's "Send in a chat" (`ShareCenter`).
+        .sheet(item: Bindable(chats).sending) { ChatPicker(card: $0) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
         // A game's newest score, on whichever page shows it (codebase-health-2 08).
@@ -516,8 +514,6 @@ struct MainTabsView: View {
         .environment(notices)
         .environment(friendsBook)
         .environment(chats)
-        // An Event's "Send in a chat" (`ShareCenter`).
-        .sheet(item: sendingBinding) { ChatPicker(card: $0) }
         .onAppear {
             ShareCenter.shared.sendInChat = { chats.sending = $0 }
             // The pencil's sheet and a Profile open a chat on the shell's stack.

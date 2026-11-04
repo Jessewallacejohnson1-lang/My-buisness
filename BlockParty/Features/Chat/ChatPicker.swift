@@ -18,6 +18,9 @@ struct ChatPicker: View {
     @State private var picked: [Neighbor] = []
     @State private var name = ""
     @State private var sent: Set<String> = []
+    /// Who an Event can go to, kept as the sheet opened: a send moves a chat up the list behind it,
+    /// and the row under your thumb mustn't move.
+    @State private var targets: [Target] = []
     @State private var failures = 0
     @State private var starting = false
     @State private var failed = false
@@ -30,9 +33,21 @@ struct ChatPicker: View {
     }
 
     private var friends: [Neighbor] { book.friends.filter { matches($0.displayName) } }
+
+    /// A chat, or a friend you haven't one with.
+    private struct Target: Identifiable {
+        let id: String
+        let name: String
+        var chat: Chat? = nil
+        var person: Neighbor? = nil
+    }
+
     /// For an Event: your chats first, then friends you haven't one with.
-    private var recent: [Chat] { chats.messages.filter { !$0.waiting && matches($0.title) } }
-    private var others: [Neighbor] { friends.filter { chats.chat(with: $0) == nil } }
+    private func listTargets() -> [Target] {
+        chats.messages.filter { !$0.waiting }.map { Target(id: $0.id, name: $0.title, chat: $0) }
+            + book.friends.filter { chats.chat(with: $0) == nil }
+                .map { Target(id: $0.id, name: $0.displayName, person: $0) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -44,7 +59,7 @@ struct ChatPicker: View {
                     if card == nil { picking } else { sending }
                     if !book.loaded {
                         ProgressView().frame(maxWidth: .infinity, minHeight: ChatMetric.older)
-                    } else if friends.isEmpty && recent.isEmpty {
+                    } else if friends.isEmpty && (card == nil || targets.isEmpty) {
                         Text("Add a friend to start a chat.")
                             .font(.sans(14))
                             .foregroundStyle(Hue.inkSecondary)
@@ -62,6 +77,9 @@ struct ChatPicker: View {
             .safeAreaInset(edge: .bottom, spacing: 0) { if card == nil && !picked.isEmpty { start } }
         }
         .task { await book.refresh() }
+        .onChange(of: book.loaded, initial: true) { _, loaded in
+            if loaded, targets.isEmpty { targets = listTargets() }
+        }
         .presentationDetents([.large])
     }
 
@@ -152,14 +170,15 @@ struct ChatPicker: View {
     // MARK: Sending an Event
 
     @ViewBuilder private var sending: some View {
-        ForEach(recent) { chat in
-            row(key: chat.id, name: chat.title) { ChatFace(chat: chat, size: ChatMetric.face) } send: {
-                await deliver(key: chat.id, chat: chat.id, to: nil)
-            }
-        }
-        ForEach(others) { person in
-            row(key: person.id, name: person.displayName) { PersonFace(person: person) } send: {
-                await deliver(key: person.id, chat: nil, to: person.id)
+        ForEach(targets.filter { matches($0.name) }) { target in
+            row(key: target.id, name: target.name) {
+                if let chat = target.chat {
+                    ChatFace(chat: chat)
+                } else if let person = target.person {
+                    PersonFace(person: person)
+                }
+            } send: {
+                await deliver(key: target.id, chat: target.chat?.id, to: target.person?.id)
             }
         }
     }

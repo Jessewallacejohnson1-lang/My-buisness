@@ -230,8 +230,9 @@ private struct ChatRow: View {
     let chat: Chat
 
     var body: some View {
-        NavigationLink(value: ChatRoute.chat(chat)) {
-            TimelineView(.everyMinute) { context in
+        TimelineView(.everyMinute) { context in
+            let ago = ChatWords.ago(chat.lastDate, now: context.date)
+            NavigationLink(value: ChatRoute.chat(chat)) {
                 HStack(spacing: ChatMetric.rowGap) {
                     ChatFace(chat: chat)
                     VStack(alignment: .leading, spacing: 0) {
@@ -239,7 +240,7 @@ private struct ChatRow: View {
                             .font(.sansSemibold(15))
                             .foregroundStyle(Hue.ink)
                             .lineLimit(1)
-                        Text("\(ChatWords.preview(chat)) · \(ChatWords.ago(chat.lastDate, now: context.date))")
+                        Text("\(ChatWords.preview(chat)) · \(ago)")
                             .font(chat.unread ? .sansSemibold(14) : .sans(14))
                             .foregroundStyle(chat.unread ? Hue.ink : Hue.inkSecondary)
                             .lineLimit(1)
@@ -253,12 +254,10 @@ private struct ChatRow: View {
                 .padding(.vertical, ChatMetric.rowPad)
                 .contentShape(Rectangle())
             }
+            .buttonStyle(RowPressStyle())
+            .accessibilityLabel([chat.title, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
+                .compactMap { $0 }.joined(separator: ", "))
         }
-        .buttonStyle(RowPressStyle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([chat.title, chat.unread ? "Unread" : nil, ChatWords.preview(chat),
-                             ChatWords.ago(chat.lastDate)].compactMap { $0 }.joined(separator: ", "))
-        .accessibilityAddTraits(.isButton)
     }
 }
 
