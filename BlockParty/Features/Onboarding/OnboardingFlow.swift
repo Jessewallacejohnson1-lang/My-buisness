@@ -77,6 +77,8 @@ final class OnboardingStore {
     /// then handed to Your profile (`ProfileModel.answered`), and reach the server with the name
     /// and photo.
     var interests: [String] { didSet { keep(interests, Self.interestsKey) } }
+    /// Opened Schools on Interests, so schools lead Follow 3 (onboarding 28).
+    var schoolsOpened: Bool { didSet { defaults.set(schoolsOpened, forKey: Self.schoolsOpenedKey) } }
     /// Follow 3's picks (ticket 22), in the order made. Kept on the phone: following needs a signed-up
     /// account, so the shell sends them once there is one (`takeFollows`).
     private(set) var follows: [FollowTarget] {
@@ -104,6 +106,7 @@ final class OnboardingStore {
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
     static let interestsKey = "onboarding.interests"
+    private static let schoolsOpenedKey = "onboarding.schoolsOpened"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -122,6 +125,7 @@ final class OnboardingStore {
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
         // A flow begun before the picks had a key of their own kept them in the phone's copy.
         interests = defaults.stringArray(forKey: Self.interestsKey) ?? Interests.get(defaults)
+        schoolsOpened = defaults.bool(forKey: Self.schoolsOpenedKey)
         follows = Self.savedFollows(defaults)
         requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
         arrivedBefore = before
@@ -233,6 +237,7 @@ final class OnboardingStore {
         follows = []
         requests = []
         interests = []
+        schoolsOpened = false
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
@@ -293,8 +298,7 @@ struct OnboardingFlow: View {
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
     /// "Popular in St. Joseph", read while the earlier steps are up.
-    @State private var popular: [String] = []
-    /// Follow 3's Places, schools and pages, read with Popular: nil while reading, empty if it failed.
+    /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
     /// Contacts' check, held here so back to Find your friends and on again spends no second one of
     /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
@@ -330,14 +334,11 @@ struct OnboardingFlow: View {
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing))
             }
         }
-        // One read of the upcoming Events, for Popular and for Follow 3, while the earlier steps are up.
+        // One read for Schools and for Follow 3, while the earlier steps are up.
         .task { await readSuggestions() }
         // Reached Follow 3 with nothing read (no signal back then): read again.
         .onChange(of: store.step) { _, step in
-            if step == .follow, suggestions?.isEmpty == true {
-                suggestions = nil
-                Task { await readSuggestions() }
-            }
+            if step == .follow { readAgain() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
@@ -349,8 +350,23 @@ struct OnboardingFlow: View {
 
     private func readSuggestions() async {
         let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags()
-        if let events { popular = Interests.popular(events.map(\.interests)) }
         suggestions = (try? await FollowSuggestions.load(events: events ?? [])) ?? []
+    }
+
+    /// Nothing read (no signal back then): read again.
+    private func readAgain() {
+        guard suggestions?.isEmpty == true else { return }
+        suggestions = nil
+        Task { await readSuggestions() }
+    }
+
+    /// A follow on Schools or Follow 3. One under the college picks its interests, and taking the
+    /// last one off takes them.
+    private func toggleFollow(_ target: FollowTarget) {
+        store.toggleFollow(target)
+        let college = FollowSuggestions.collegeTargets(in: suggestions ?? [])
+        guard college.contains(target) else { return }
+        store.interests = Interests.withCollege(store.interests, following: store.follows.contains(where: college.contains))
     }
 
     /// Every question step: the backdrop, the fixed top row and Next bar, and the one part
@@ -419,8 +435,34 @@ struct OnboardingFlow: View {
         Group {
             if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
-                OnboardingFollowGrid(suggestions: suggestions, interests: store.interests, follows: store.follows,
-                                     toggle: { [store] in store.toggleFollow($0) }) { heading }
+                OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
+                                     schoolsFirst: store.schoolsOpened, follows: store.follows,
+                                     toggle: { toggleFollow($0) }) { heading }
+            } else if store.step == .interests {
+                // Interests' question scrolls away with its rows, as Follow 3's does (onboarding 28).
+                InterestRows(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
+                             schools: suggestions,
+                             isFollowing: { [store] in store.follows.contains($0) },
+                             toggleFollow: { toggleFollow($0) },
+                             schoolsOpened: { store.schoolsOpened = true; readAgain() },
+                             topInset: 128 - FollowGridMetric.scrollTop) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        Text("We'll show events, groups and places that match.")
+                            .font(.sans(15))
+                            .foregroundStyle(Hue.inkSecondary)
+                            .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.top, FollowGridMetric.scrollTop)
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 16)
+                        .padding(.top, FollowGridMetric.scrollTop)
+                        .allowsHitTesting(false)
+                }
+                .ignoresSafeArea(.container)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     heading
@@ -485,13 +527,6 @@ struct OnboardingFlow: View {
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 32)
-        case .interests:
-            Text("We'll show events, groups and places that match.")
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, 8)
-            InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
-                          popular: popular)
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
@@ -533,7 +568,7 @@ struct OnboardingFlow: View {
     /// "Pick 2 more" until step 7 has its 3, "Follow 2 more" until step 8 has.
     private var nextTitle: String {
         if let way = store.account { return way.button }
-        if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
+        if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
     }
@@ -541,10 +576,18 @@ struct OnboardingFlow: View {
     /// Picks or follows the title still asks for, for its number's roll.
     private var stillToPick: Int {
         switch store.step {
-        case .interests: max(0, 3 - store.interests.count)
+        case .interests: max(0, 3 - picksMade)
         case .follow: followsNeeded
         default: 0
         }
+    }
+
+    /// What Pick 3 counts: everything picked or followed on Interests. Until the tiles are read, a
+    /// relaunch's follows all count, so nobody is held back by a read still out or failed.
+    private var picksMade: Int {
+        guard let suggestions, !suggestions.isEmpty else { return Interests.count(store.interests) + store.follows.count }
+        let schools = FollowSuggestions.schoolTargets(in: suggestions)
+        return Interests.count(store.interests) + store.follows.filter(schools.contains).count
     }
 
     /// Follows still to make on step 8; none while the read is out, when it failed or when it found
@@ -566,7 +609,7 @@ struct OnboardingFlow: View {
         case .name:  return store.displayName != nil
         case .photo: return store.photo != nil
         case .birthday: return store.birthday != nil
-        case .interests: return store.interests.count >= 3
+        case .interests: return picksMade >= 3
         case .follow: return followsNeeded == 0
         default:     return true
         }

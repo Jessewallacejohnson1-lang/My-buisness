@@ -285,13 +285,55 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(Array(names(["bars"]).prefix(2)), ["The Middy", "Bad Habit"], "busiest first within what fits")
         // A place's Events add what its kind doesn't say: trivia makes The Middy a Games place.
         XCTAssertEqual(names(["games"]).first, "The Middy")
-        XCTAssertEqual(names(["live_music"]).first, "Kennedy")
+        // A school's concert doesn't make it a Live music place (onboarding 28).
+        XCTAssertNotEqual(names(["live_music"]).first, "Kennedy")
+        XCTAssertEqual(FollowSuggestions.ordered(town, picked: ["coffee"], schoolsFirst: true).first?.name, "Kennedy",
+                       "schools lead for somebody who opened Schools")
         XCTAssertEqual(names(["town_meetings"]).first, "City")
         // Popular first (onboarding 26): whatever fits, busiest first, then A to Z.
         XCTAssertEqual(Array(names(["coffee", "families_kids", "bars"]).prefix(4)),
                        ["The Middy", "Bad Habit", "Little Saints", "The Local Blend"])
         XCTAssertEqual(names(["coffee"])[1], "Kennedy", "then the rest, busiest first")
         XCTAssertNotEqual(names(["coffee"]), names(["bars"]))
+    }
+
+    func testSchoolsShowEachKindInTheTownsOrderUnderItsShortNames() {
+        let all = FollowSuggestions.build(
+            places: [poi("p1", "Sartell Cafe", "cafe")],
+            schools: [LocalSchool(id: "sartell", uuid: "s", name: "Sartell", schoolName: "Sartell High School", logoUrl: nil),
+                      LocalSchool(id: "apollo", uuid: "a", name: "Apollo", schoolName: "Apollo High School", logoUrl: nil),
+                      LocalSchool(id: "cathedral", uuid: "c", name: "Cathedral", schoolName: "Cathedral High School", logoUrl: nil),
+                      LocalSchool(id: "apollo-cathedral", uuid: "x", name: "Apollo-Cathedral", schoolName: nil, logoUrl: nil),
+                      LocalSchool(id: "saint-johns", uuid: "j", name: "Saint John's", schoolName: "Saint John's University", logoUrl: nil)],
+            pages: [TownPageRow(id: "p", slug: "csbsju-campus-events", name: "CSB SJU Campus Events", kind: "College",
+                                sourceName: "CSB SJU Campus Events", picture: nil, pictureKind: nil),
+                    TownPageRow(id: "j", slug: "st-joseph-catholic", name: "St. Joseph Catholic School", kind: "School",
+                                sourceName: "St. Joseph Catholic School", picture: nil, pictureKind: nil)],
+            events: [UpcomingTags(interests: ["live_music"], source: "St. Joseph Catholic School")])
+        let names = { (id: String) in
+            FollowSuggestions.tiles(Town.schoolTypes.first { $0.id == id }!, in: all).map(\.name)
+        }
+        // Apollo before Cathedral before Sartell whatever the read's order; no row live, no tile.
+        XCTAssertEqual(names("high"), ["Apollo", "Cathedral", "Sartell"])
+        XCTAssertEqual(names("middle"), ["St. Joseph Catholic", "Cathedral", "Sartell"])
+        XCTAssertEqual(names("college"), ["Saint John's", "Campus Events"])
+        // A school two kinds show counts once; the co-op no kind names is never a tile.
+        XCTAssertEqual(FollowSuggestions.schoolTargets(in: all).count, 6)
+        // A school page is a school: no pick fits it, and Follow 3 pulls it up with the others.
+        let page = all.first { $0.key == "st-joseph-catholic" }!
+        XCTAssertTrue(page.isSchool)
+        XCTAssertTrue(page.interests.isEmpty)
+        XCTAssertEqual(page.events, 1)
+        XCTAssertEqual(FollowSuggestions.collegeTargets(in: all).count, 2)
+    }
+
+    func testOpeningSchoolsIsKeptAndGoesWithTheFlow() {
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertFalse(store.schoolsOpened)
+        store.schoolsOpened = true
+        XCTAssertTrue(OnboardingStore(defaults: defaults).schoolsOpened, "a relaunch resumes on it")
+        store.reset()
+        XCTAssertFalse(OnboardingStore(defaults: defaults).schoolsOpened)
     }
 
     func testFollowThreeShowsEveryPlaceAndSearchesEverything() {

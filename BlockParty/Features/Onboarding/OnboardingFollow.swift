@@ -13,7 +13,9 @@ import SwiftUI
 /// and how many upcoming Events it has, which is how popular it counts as.
 struct FollowSuggestion: Identifiable, Equatable {
     let target: FollowTarget
-    let name: String
+    var name: String
+    /// A school's team id or a page's slug, which `Town.schoolTypes` names; empty on a Place.
+    var key = ""
     /// "Coffee shop", "School", "City government".
     let kind: String?
     /// Search's cut-out logo, bare with its own cast shadow: a Place's from Search, a school's crest.
@@ -30,6 +32,7 @@ struct FollowSuggestion: Identifiable, Equatable {
     var events = 0
 
     var id: FollowTarget { target }
+    var isSchool: Bool { categories.contains("school") }
 }
 
 enum FollowSuggestions {
@@ -52,9 +55,6 @@ enum FollowSuggestions {
         "bowling_alley": ["games", "play_sports"], "golf_course": ["play_sports"], "sports_complex": ["play_sports"],
         "day_care_center": ["families_kids"], "playground": ["families_kids"],
     ]
-
-    /// A school fits Watch sports; its Events say the rest (concerts, plays).
-    static let school = ["watch_sports"]
 
     /// How many places like it a follow pulls up, as Spotify adds about three artists.
     static let likeIt = 3
@@ -93,7 +93,8 @@ enum FollowSuggestions {
         }
         func with(_ s: FollowSuggestion, _ fit: [String], _ mine: [UpcomingTags]) -> FollowSuggestion {
             var s = s
-            s.interests = Set(fit + mine.flatMap { Interests.ofEvent($0.interests) })
+            // A school fits no pick: its concert doesn't make it a Live music place (`ordered`).
+            s.interests = s.isSchool ? [] : Set(fit + mine.flatMap { Interests.ofEvent($0.interests) })
             s.events = mine.count
             return s
         }
@@ -109,31 +110,33 @@ enum FollowSuggestions {
         let fromSchools = schools.map { school in
             let crest = school.logoUrl.flatMap(URL.init(string:))
             return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: school.schoolName ?? school.name,
-                                         kind: "School",
+                                         key: school.id, kind: "School",
                                          // A crest's shadow in a near-neutral shade: schools carry no logo hue.
                                          logo: crest.map { SearchLogo(placeId: "team-\(school.uuid)", row: .init(url: $0, hue: 0, chroma: false)) },
                                          picture: crest, categories: ["school"]),
-                        Self.school, byTeam[school.id] ?? [])
+                        [], byTeam[school.id] ?? [])
         }
         let fromPages = pages.map { page in
             let picture = page.picture.flatMap(URL.init(string:))
             let logo = page.pictureKind == "logo" ? picture : nil
-            return with(FollowSuggestion(target: .init(type: .page, id: page.id), name: page.name, kind: page.kind,
+            return with(FollowSuggestion(target: .init(type: .page, id: page.id), name: page.name, key: page.slug, kind: page.kind,
                                          // A page's logo (the City's) bare with its shadow, as a place's.
                                          logo: logo.map { SearchLogo(placeId: "page-\(page.id)", row: .init(url: $0, hue: 0, chroma: false)) },
                                          picture: picture, isLogo: logo != nil, isTown: page.slug == "town",
-                                         categories: [page.kind == "College" ? "campus" : "town"]),
+                                         categories: [page.kind == "College" ? "campus" : page.kind == "School" ? "school" : "town"]),
                         interests(ofPage: page), page.sourceName.flatMap { bySource[$0] } ?? [])
         }
         return fromPlaces + fromSchools + fromPages
     }
 
     /// The grid before a search, every place in it: what fits the picks first, then the rest, each
-    /// busiest first (Jesse, 2026-11-02: "show popular ones first"), A to Z between equals.
-    static func ordered(_ all: [FollowSuggestion], picked: [String]) -> [FollowSuggestion] {
+    /// busiest first (Jesse, 2026-11-02: "show popular ones first"), A to Z between equals. Schools
+    /// lead only for somebody who opened Schools on the step before (onboarding 28).
+    static func ordered(_ all: [FollowSuggestion], picked: [String], schoolsFirst: Bool = false) -> [FollowSuggestion] {
         let picks = Set(picked)
+        let fits = { (s: FollowSuggestion) in (schoolsFirst && s.isSchool) || !s.interests.isDisjoint(with: picks) }
         return all.sorted { a, b in
-            let fa = !a.interests.isDisjoint(with: picks), fb = !b.interests.isDisjoint(with: picks)
+            let fa = fits(a), fb = fits(b)
             if fa != fb { return fa }
             if a.events != b.events { return a.events > b.events }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
@@ -172,12 +175,37 @@ enum FollowSuggestions {
             .sorted { $0.events != $1.events ? $0.events > $1.events : $0.name < $1.name }
     }
 
-    /// The Places, schools and pages, read together, with the upcoming Events Popular already read.
+    /// A kind of school's tiles in the Town's order, under the Town's short names.
+    static func tiles(_ type: Town.SchoolType, in all: [FollowSuggestion]) -> [FollowSuggestion] {
+        type.schools.compactMap { school in
+            guard var tile = all.first(where: { $0.key == school.key }) else { return nil }
+            tile.name = school.name
+            return tile
+        }
+    }
+
+    /// Everything the interests step's Schools can follow, each once: a school can be two kinds.
+    static func schoolTargets(in all: [FollowSuggestion]) -> [FollowTarget] {
+        var seen = Set<FollowTarget>()
+        return Town.schoolTypes.flatMap { tiles($0, in: all) }.map(\.target).filter { seen.insert($0).inserted }
+    }
+
+    static func collegeTargets(in all: [FollowSuggestion]) -> Set<FollowTarget> {
+        Set(Town.schoolTypes.filter(\.isCollege).flatMap { tiles($0, in: all) }.map(\.target))
+    }
+
+    /// The Places, schools and pages, read together, with the upcoming Events the step read.
     static func load(events: [UpcomingTags]) async throws -> [FollowSuggestion] {
         let api = CommunityAPI(auth: AuthStore.shared)
         async let places = api.getPlaces()
         let (s, p) = try await api.followableSchoolsAndPages()
         return build(places: try await places, schools: s, pages: p, events: events)
+    }
+
+    /// The schools and pages alone, for Edit Profile's Schools: its tiles need no Place or Event.
+    static func loadSchools() async throws -> [FollowSuggestion] {
+        let (s, p) = try await CommunityAPI(auth: AuthStore.shared).followableSchoolsAndPages()
+        return build(places: [], schools: s, pages: p, events: [])
     }
 }
 
@@ -189,6 +217,8 @@ struct OnboardingFollowGrid<Heading: View>: View {
     /// nil while reading; empty when the read failed.
     let suggestions: [FollowSuggestion]?
     let interests: [String]
+    /// Opened Schools on the step before, so schools lead.
+    let schoolsFirst: Bool
     let follows: [FollowTarget]
     let toggle: (FollowTarget) -> Void
     @ViewBuilder let heading: Heading
@@ -264,7 +294,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
         }
         .ignoresSafeArea(.container)
         .onChange(of: suggestions, initial: true) { _, new in
-            order = new.map { FollowSuggestions.ordered($0, picked: interests) }
+            order = new.map { FollowSuggestions.ordered($0, picked: interests, schoolsFirst: schoolsFirst) }
             showing = [:]
         }
         // A tile a search hid and brought back doesn't grow out of an old follow again.
@@ -388,7 +418,7 @@ enum FollowGridMetric {
 
 /// One place: its logo, its name and Follow under it. The whole tile is the button (Spotify's), and sinks
 /// under the finger; following turns the pill at once with its 106% pop while the logo hops.
-private struct FollowTile: View {
+struct FollowTile: View {
     let suggestion: FollowSuggestion
     let on: Bool
     let width: CGFloat
