@@ -312,8 +312,10 @@ final class ChatThread {
         let words = String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ChatThread.longest))
         guard !words.isEmpty else { return }
         lastRefusal = nil
+        // A host's update shows their face at once, from their last one when there is one.
         await deliver(ChatMessage(id: UUID().uuidString.lowercased(), senderID: me, content: .text(words), at: .now,
-                                  state: .sending, host: isHost))
+                                  state: .sending, sender: isHost ? messages.last { $0.senderID == me }?.sender : nil,
+                                  host: isHost))
     }
 
     func send(card: FeedCardItem) async {
@@ -355,8 +357,8 @@ final class ChatThread {
             if first { startTyping() }
             await book?.refresh()
             await sign()
-            // Waiting for the first read: this chat's own socket-less start.
-            if first { await read() }
+            // Waiting for the first read: this chat's own socket-less start. A host's first update reads who they are.
+            if first || (message.host && message.sender == nil) { await read() }
         } catch {
             Log.network("ChatThread send: \(error)")
             lastRefusal = ChatWords.refused(error)

@@ -791,12 +791,15 @@ private struct GoingChatRow: View {
         // A stack, not a Group: a Group with nothing in it runs no `.task`, and the read is what brings the row.
         VStack(spacing: 0) {
             if shows {
-                Hue.hairline
-                    .frame(height: m.hairline)
-                    .padding(.leading, m.rowGlyph + m.rowGap)
-                FactRow(glyph: "bubble.left.and.bubble.right", lines: lines, end: .opens, hint: "Opens the chat",
-                        link: access?.state == .open ? route : nil) { asking = true }
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                VStack(spacing: 0) {
+                    Hue.hairline
+                        .frame(height: m.hairline)
+                        .padding(.leading, m.rowGlyph + m.rowGap)
+                    FactRow(glyph: "bubble.left.and.bubble.right", lines: lines, end: .opens, hint: "Opens the chat",
+                            link: access?.state == .open ? route : nil) { asking = true }
+                }
+                // Fades in while the page makes room: sliding, it passed over the place's words.
+                .transition(.opacity)
             }
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: shows)
