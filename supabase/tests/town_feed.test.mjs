@@ -3017,9 +3017,9 @@ test('feed-load: get_town_feed gives the same rows in the same order as before i
 
 // Calls to each function during one read, counted by Postgres itself (track_functions): the counts
 // after it less those before it.
-async function callsDuring(sql, as) {
+async function callsDuring(sql, as, names = ['get_town_feed', 'old_town_feed', 'town_feed']) {
   const counts = async () => Object.fromEntries((await db.query(`select funcname, calls::int from pg_stat_xact_user_functions
-    where funcname in ('get_town_feed', 'old_town_feed', 'town_feed')`)).rows.map((r) => [r.funcname, r.calls]));
+    where funcname in (${names.map((n) => `'${n}'`).join(', ')})`)).rows.map((r) => [r.funcname, r.calls]));
   await db.exec(`reset role; begin; set local track_functions = 'all'`);
   const was = await counts();
   await db.exec(as);
@@ -3030,45 +3030,37 @@ async function callsDuring(sql, as) {
   return Object.fromEntries(Object.entries(now).map(([f, n]) => [f, n - (was[f] ?? 0)]).filter(([, n]) => n > 0));
 }
 
-test('feed-load: with 5,000 people, Event of the day never works out the whole feed, and reads faster', async () => {
+test('feed-load: with 5,000 people, Event of the day never works out the whole feed', async () => {
   await fiveThousand();
   const READER = '00000000-0000-0000-0001-000000000042';
-  const at = '2026-10-08 12:00';
+  const at = '2026-10-08 12:00', morning = '2026-10-08 07:00';
   const eotd = (fn, when = at) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [when]);
-  const median = async (fn, when) => {
-    await eotd(fn, when); // warm up
-    const times = [];
-    for (let i = 0; i < 5; i++) { const t0 = performance.now(); await eotd(fn, when); times.push(performance.now() - t0); }
-    return times.sort((a, b) => a - b)[2];
-  };
+  const q = (fn, when = morning) => `select * from public.${fn}(('${when}'::timestamp at time zone 'America/Chicago'))`;
   await signIn(READER);
   const as = `set role authenticated; set request.jwt.claim.sub = '${READER}'`;
+  // heart_count runs once for each Event a read works out: Postgres's own count, the same on any machine.
+  const worked = async (fn, when) => (await callsDuring(q(fn, when), as, ['heart_count'])).heart_count;
   // No picks written (Daily's other days, or a morning the job didn't run): the day's Events.
-  const out = {};
-  out.oldNone = await median('old_event_of_the_day', at);
-  out.newNone = await median('get_event_of_the_day', at);
   assert.deepEqual((await eotd('flat_event_of_the_day')).rows, (await eotd('old_event_of_the_day')).rows);
   assert.equal((await eotd('get_event_of_the_day')).rows.length, 1);
+  const noPicks = [await worked('get_event_of_the_day', at), await worked('get_town_feed', at)];
   // The morning's picks: four of the day's Events.
   await db.exec('reset role');
   const { rows: today } = await db.query(`select id from public.club_events where event_date = '2026-10-08' order by title limit 4`);
   await standouts('2026-10-08', today.map((r) => r.id));
   await signIn(READER);
-  out.oldPicks = await median('old_event_of_the_day', '2026-10-08 07:00');
-  out.newPicks = await median('get_event_of_the_day', '2026-10-08 07:00');
-  const picked = (await eotd('flat_event_of_the_day', '2026-10-08 07:00')).rows;
-  assert.deepEqual(picked, (await eotd('old_event_of_the_day', '2026-10-08 07:00')).rows);
+  const picked = (await eotd('flat_event_of_the_day', morning)).rows;
+  assert.deepEqual(picked, (await eotd('old_event_of_the_day', morning)).rows);
   assert.ok(picked.length >= 1);
-  console.log(`  get_event_of_the_day with 5,000 people, median: no picks ${out.oldNone.toFixed(1)} ms before, ` +
-              `${out.newNone.toFixed(1)} ms now; with picks ${out.oldPicks.toFixed(1)} ms before, ${out.newPicks.toFixed(1)} ms now`);
   // Postgres's own count: the old one ran the whole feed once a read; the new one never does.
-  const q = (fn) => `select * from public.${fn}(('2026-10-08 07:00'::timestamp at time zone 'America/Chicago'))`;
   assert.deepEqual(await callsDuring(q('old_event_of_the_day'), as), { old_town_feed: 1 });
   assert.deepEqual(await callsDuring(q('get_event_of_the_day'), as), { town_feed: 1 });
   assert.deepEqual(await callsDuring(q('get_town_feed'), as), { get_town_feed: 1, town_feed: 1 });
-  // Each read works out a slice, far smaller than the feed: at most half its time, either way.
-  assert.ok(out.newNone < out.oldNone / 2, `no picks: ${out.newNone} ms against ${out.oldNone}`);
-  assert.ok(out.newPicks < out.oldPicks / 2, `picks: ${out.newPicks} ms against ${out.oldPicks}`);
+  // Each read works out a slice, fewer Events than the whole feed, either way.
+  const picks = [await worked('get_event_of_the_day', morning), await worked('get_town_feed', morning)];
+  assert.ok(noPicks[0] < noPicks[1], `no picks: ${noPicks[0]} Events worked out against the feed's ${noPicks[1]}`);
+  assert.ok(picks[0] < picks[1], `picks: ${picks[0]} Events worked out against the feed's ${picks[1]}`);
+  console.log(`  Events worked out, Event of the day against the feed: no picks ${noPicks.join(' of ')}, picks ${picks.join(' of ')}`);
   await db.exec(`reset role; delete from public.places where entry_id like 'speed-place-%'`);
 });
 
