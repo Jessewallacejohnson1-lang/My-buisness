@@ -117,7 +117,7 @@ final class ChatBook {
     func markedRead(_ id: String) {
         guard let i = chats?.firstIndex(where: { $0.id == id }), chats?[i].unread == true || chats?[i].lights == true else { return }
         chats?[i].unread = false
-        if chats?[i].lights != nil { chats?[i].lights = false }
+        chats?[i].lights = false
     }
 
     /// Accepted, deleted or left: the list says so at once, and the read behind it agrees. An Accept that
@@ -232,7 +232,8 @@ final class ChatThread {
         let thisRead = latestRead
         do {
             async let newest = api.messages(chatID, limit: Self.page)
-            async let read = api.reads(chatID)
+            // A Going chat writes no reads: nobody is shown as having read it.
+            async let read = isGoing ? [:] : api.reads(chatID)
             let (rows, seen) = try await (newest, read)
             guard thisRead == latestRead else { return }
             actions?.read(rows.compactMap(\.card))

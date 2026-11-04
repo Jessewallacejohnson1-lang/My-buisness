@@ -83,6 +83,10 @@ struct ChatPage: View {
             }
             guard let thread else { return }
             chats.open = thread
+            // Back from the Profile of someone you've just blocked: their words go, the newest too.
+            for person in thread.messages.compactMap(\.sender) where book.relation(person) == .blocked {
+                thread.dropMessages(from: person.id)
+            }
             thread.startTyping()
             await thread.read()
             if thread.gone { problem = ChatWords.refused(SupabaseError(message: "chat_not_going", status: nil)) }
@@ -130,6 +134,10 @@ struct ChatPage: View {
         }
         .alert(problem ?? "", isPresented: problemShown) {
             Button("OK", role: .cancel) { if thread?.gone == true { dismiss() } }
+        }
+        // No longer Going, on the Event page behind a chat bar: leaving Going leaves the chat at once.
+        .onChange(of: goingCard.map { actions.going($0).isGoing }) { _, going in
+            if going == false, thread?.isHost != true { dismiss() }
         }
         // Blocked, by you or from the friend sheet: this chat is gone.
         .onChange(of: !isGroup && others.first.map { book.relation($0) } == .blocked) { _, gone in
@@ -579,16 +587,15 @@ private struct ChatBubble: View {
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity)
         .padding(.top, ChatMetric.updateTop)
         .padding(.horizontal, ChatMetric.updateSide)
         .padding(.bottom, ChatMetric.updateSide)
         .frame(width: ChatMetric.updateWidth)
         .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .opacity(message.state == .sending ? 0.6 : 1)
-        .contextMenu { menu }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Host update, \(name): \(words), \(ChatWords.ago(message.at))")
+        .contextMenu { menu }
         .overlay(alignment: .top) { updateFace.offset(y: -ChatMetric.updateFace / 2) }
         .padding(.top, ChatMetric.updateFace / 2)
         .frame(maxWidth: .infinity)

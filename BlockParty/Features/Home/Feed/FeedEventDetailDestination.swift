@@ -128,6 +128,8 @@ struct FeedEventDetailDestination: View {
         /// (and a game's score) 30 pt under the card, the Interest 12 pt under About.
         static let rowsTop: CGFloat = 16
         static let rowGlyph: CGFloat = 22
+        /// The Going chat's two bubbles, to fit that box.
+        static let chatGlyph: CGFloat = 15
         static let rowGap: CGFloat = 14
         static let rowPad: CGFloat = 13
         static let rowLineGap: CGFloat = 3
@@ -702,6 +704,8 @@ private struct FactRow: View {
     enum End { case add, opens }
 
     let glyph: String
+    /// Two bubbles run wider than the page's other glyphs, and it's made to fit their box.
+    var glyphSize: CGFloat = 19
     let lines: FeedEventDetailDestination.FactLines
     let end: End?
     let hint: String
@@ -731,7 +735,7 @@ private struct FactRow: View {
         let m = FeedEventDetailDestination.Metric.self
         return HStack(spacing: m.rowGap) {
             Image(systemName: glyph)
-                .font(.sans(19))
+                .font(.sans(glyphSize))
                 .frame(width: m.rowGlyph, height: m.rowGlyph)
             VStack(alignment: .leading, spacing: m.rowLineGap) {
                 Text(lines.first)
@@ -771,20 +775,22 @@ private struct GoingChatRow: View {
     /// Under 13 on the wheel saves nothing (onboarding's rule), so this phone remembers not to ask again.
     @AppStorage("goingChat.tooYoung") private var tooYoung = false
 
+    /// It's on your list, so you're in: known before the read, so the page doesn't jump on every open.
+    private var chat: Chat? { chats?.chat(forEvent: item.id) }
+
     private var shows: Bool {
-        guard let access, access.state != .hidden, !tooYoung else { return false }
+        if chat != nil { return access?.state != .hidden }
+        guard let access, access.state != .hidden, !(access.state == .ask && tooYoung) else { return false }
         return access.isHost || actions.going(item).isGoing
     }
 
     private var lines: FeedEventDetailDestination.FactLines {
-        if let chat = chats?.chat(forEvent: item.id) {
-            return .init(first: "Going chat", second: ChatWords.preview(chat))
-        }
+        if let chat { return .init(first: "Going chat", second: ChatWords.preview(chat)) }
         let count = actions.going(item).count
         return .init(first: "Going chat", second: count > 0 ? "\(count) going" : nil)
     }
 
-    private var route: ChatRoute { .going(item, isHost: access?.isHost == true) }
+    private var route: ChatRoute { .going(item, isHost: access?.isHost ?? chat?.isHost == true) }
 
     var body: some View {
         let m = FeedEventDetailDestination.Metric.self
@@ -795,24 +801,25 @@ private struct GoingChatRow: View {
                     Hue.hairline
                         .frame(height: m.hairline)
                         .padding(.leading, m.rowGlyph + m.rowGap)
-                    FactRow(glyph: "bubble.left.and.bubble.right", lines: lines, end: .opens, hint: "Opens the chat",
-                            link: access?.state == .open ? route : nil) { asking = true }
+                    FactRow(glyph: "bubble.left.and.bubble.right", glyphSize: m.chatGlyph, lines: lines, end: .opens,
+                            hint: "Opens the chat", link: access?.state == .ask ? nil : route) { asking = true }
                 }
                 // Fades in while the page makes room: sliding, it passed over the place's words.
                 .transition(.opacity)
             }
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: shows)
-        .task(id: item.id) {
-            guard let chats else { return }
-            access = try? await chats.api.goingAccess(item.id)
+        // Again once you're Going: a read that failed, or found the chat closed to you, gets another try.
+        .task(id: actions.going(item).isGoing) {
+            guard let chats, let new = try? await chats.api.goingAccess(item.id) else { return }
+            access = new
         }
         .sheet(isPresented: $asking) {
             if let chats {
                 GoingChatBirthday(chats: chats) { saved in
                     guard saved else { tooYoung = true; return }
                     Task {
-                        access = try? await chats.api.goingAccess(item.id)
+                        if let new = try? await chats.api.goingAccess(item.id) { access = new }
                         if access?.state == .open { chats.push?(route) }
                     }
                 }
