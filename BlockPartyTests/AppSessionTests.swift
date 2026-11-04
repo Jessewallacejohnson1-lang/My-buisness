@@ -267,6 +267,29 @@ final class AppSessionTests: XCTestCase {
         XCTAssertEqual(written, [picked])
     }
 
+    /// Someone who signed up in onboarding reaches the shell with a real account: no account change
+    /// comes, so the launch itself takes their follows.
+    func testAWaitingFollowGoesUpAtLaunchWithARealAccount() async throws {
+        let picked = FollowTarget(type: .place, id: "p1")
+        let store = OnboardingStore(defaults: phone)
+        store.toggleFollow(picked)
+        store.finish()
+        signIn("a")
+        var written: [FollowTarget] = []
+        let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
+                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                      setFollow: { target, _ in written.append(target) },
+                                      knownEvents: { _ in [] })
+        let session = session(actions: actions)
+
+        let launch = Task { await session.launched() }
+        try await waitWhile(written.isEmpty)
+        launch.cancel()
+        await launch.value
+
+        XCTAssertEqual(written, [picked])
+    }
+
     /// The shell's real models, not stand-ins, handed the session's one client: after a switch
     /// every one's reads arrive at the fake server as the new account, so none goes around the
     /// session to the live network or the last account's token.
