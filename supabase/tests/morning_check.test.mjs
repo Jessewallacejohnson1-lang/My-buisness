@@ -172,6 +172,81 @@ test("a meeting the page promises that the calendar moved or dropped is named on
   await db.exec('delete from public.clubs');
 });
 
+// Apify's line, as social.py's spend writes it at the end of the report; `before` is the mornings before today, newest first.
+const apify = (used, cap = 40) => `Apify: $${used.toFixed(2)} of $${cap} this month${used >= cap - 0.01
+  ? '. The cap is reached: Apify has stopped every check until the cycle resets.'
+  : used >= cap * 0.75 ? '. Heads-up: past 3/4 of the cap.' : ''} (resets after 2026-11-20)`;
+const mornings = async (today, ...before) => {
+  await story(`${report()}\n${today}`);
+  for (const [i, line] of before.entries()) {
+    await db.query('insert into public.morning_reports (day, report) values ($1, $2)',
+      [['2026-11-01', '2026-10-31', '2026-10-30'][i], line === null ? report() : `${report()}\n${line}`]);
+  }
+};
+
+test('Apify below 3/4 of the cap says nothing', async () => {
+  await mornings(apify(29.99), apify(29));
+  assert.deepEqual(await problems(), []);
+});
+
+test('Apify passing 3/4 of the cap is one line that morning, and not the next', async () => {
+  await mornings(apify(30), apify(29.5));
+  assert.deepEqual(await problems(), [apify(30)]);
+  await mornings(apify(31), apify(30));
+  assert.deepEqual(await problems(), []);
+});
+
+test('Apify reaching the cap is one line that morning, and not the next', async () => {
+  await mornings(apify(40), apify(38));
+  assert.deepEqual(await problems(), [apify(40)]);
+  await mornings(apify(40), apify(40));
+  assert.deepEqual(await problems(), []);
+});
+
+test('Apify jumping past 3/4 straight to the cap is only the cap line', async () => {
+  await mornings(apify(40), apify(20));
+  assert.deepEqual(await problems(), [apify(40)]);
+});
+
+test('a new Apify cycle sends nothing, and passing 3/4 again later says so again', async () => {
+  await mornings(apify(1), apify(40));
+  assert.deepEqual(await problems(), []);
+  await mornings(apify(30), apify(29), apify(1), apify(40));
+  assert.deepEqual(await problems(), [apify(30)]);
+});
+
+test('a raised Apify cap sends nothing, and crossing the new 3/4 later sends one line', async () => {
+  await mornings(apify(36, 50), apify(36, 40));
+  assert.deepEqual(await problems(), []);
+  await mornings(apify(38, 50), apify(36, 50), apify(36, 40));
+  assert.deepEqual(await problems(), [apify(38, 50)]);
+});
+
+test('a morning with Apify spend unknown says nothing about spend, and the next looks past it', async () => {
+  const unknown = "Apify: spend unknown, Apify refused the request (HTTP 401): check the routine's network secret";
+  await mornings(unknown, apify(30));
+  assert.deepEqual(await problems(), []);
+  await mornings(apify(31), unknown, apify(30));
+  assert.deepEqual(await problems(), [], 'already past 3/4 before the unknown morning');
+  await mornings(apify(31), unknown, apify(29));
+  assert.deepEqual(await problems(), [apify(31)], 'it crossed during the unknown morning');
+});
+
+test('with no earlier Apify line to compare, a morning already past 3/4 says so', async () => {
+  await mornings(apify(35));
+  assert.deepEqual(await problems(), [apify(35)]);
+  await mornings(apify(35), null);
+  assert.deepEqual(await problems(), [apify(35)], 'an earlier report with no Apify line is no comparison');
+});
+
+test("Apify's line reaches the email as the report wrote it", async () => {
+  await mornings(apify(30), apify(29));
+  await check();
+  const calls = await sent();
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(calls[0].content).arguments.subject, `Block Party: ${apify(30)}`);
+});
+
 test('only 8:00 in Chicago reads, summer or winter time', async () => {
   await story(null);
   await check('2026-11-02 13:00:00+00'); // 7:00 in winter
