@@ -498,7 +498,7 @@ private struct HoursPill: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(FeedCardPressStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(PlaceHours.words(status))
                 .accessibilityValue(expanded ? ([hours.seasonLine].compactMap { $0 }
                     + hours.week(from: context.date).map { "\($0.day) \($0.hours)" }).joined(separator: ", ") : "")

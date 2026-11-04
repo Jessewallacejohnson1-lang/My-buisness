@@ -497,7 +497,7 @@ struct TownEventRow: View {
         // Opens its Event page, as a Town card does; the route Notifications uses, so an open from
         // here doesn't count toward the Town feed's popularity.
         NavigationLink(value: NoticeEventRoute(item: item)) { row }
-            .buttonStyle(PressableStyle(scale: 0.98))
+            .buttonStyle(.press(.squish))
     }
 
     /// The Town feed's own card when it has this Event (its photo, Going and the rest); else the
@@ -569,7 +569,7 @@ private struct TownBoardRow: View {
                 .frame(minHeight: TownPageMetric.row)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityElement(children: .combine)
             .accessibilityHint("Shows its meetings")
             FollowButton(target: board.target, name: board.name, size: .row)

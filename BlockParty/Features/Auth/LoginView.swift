@@ -164,7 +164,7 @@ struct AccountFields: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(OnboardingPress(scale: 0.88))
+        .buttonStyle(.press(.squish))
         .padding(.trailing, 4)
         .offset(y: -9)
         .accessibilityLabel(showPassword ? "Hide password" : "Show password")

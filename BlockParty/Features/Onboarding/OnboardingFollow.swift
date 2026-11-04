@@ -427,7 +427,7 @@ private struct FollowTile: View {
             .frame(width: width)
             .contentShape(Rectangle())
         }
-        .buttonStyle(OnboardingPress(scale: 0.94))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("\(on ? "Following" : "Follow"), \(suggestion.name)")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -532,7 +532,7 @@ struct OnboardingListPill: View {
                 // Drawn 32 pt, 44 pt to the finger.
                 .contentShape(Rectangle().inset(by: (FollowMetric.rowHeight - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(OnboardingPress(scale: 0.94))
+        .buttonStyle(.press(.squish))
         // It turns at once, as Instagram's does, and the pop carries the motion: a fade left one
         // frame of ink words on ink, or two words over each other.
         .scaleEffect(pop)

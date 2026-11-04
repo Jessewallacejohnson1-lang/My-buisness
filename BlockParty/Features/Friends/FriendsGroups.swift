@@ -46,7 +46,7 @@ struct GroupCircles: View {
                     NavigationLink(value: group) {
                         YouHighlight(name: group.name) { YouGroupPicture(group: group) }
                     }
-                    .buttonStyle(PressableCardStyle())
+                    .buttonStyle(.press(.squish))
                     .accessibilityLabel(group.name)
                 }
             }
@@ -89,7 +89,7 @@ struct GroupJoinRow: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(DimStyle())
+            .buttonStyle(.press(.dim))
             Button(action: toggle) {
                 ZStack {
                     Text("Join").opacity(member.isMember ? 0 : 1)

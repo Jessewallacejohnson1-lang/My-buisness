@@ -85,7 +85,7 @@ struct TeamPage: View {
                     .background(Circle().fill(Hue.nameOnDark.opacity(0.12)))
                     .overlay(Circle().strokeBorder(Hue.nameOnDark.opacity(0.28), lineWidth: 1.5))
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("Back")
             .padding(.leading, Self.side)
         }
@@ -226,7 +226,7 @@ struct TeamPage: View {
                 .frame(minHeight: Self.rowHeight)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .disabled(activity.next == nil)
             .accessibilityElement(children: .combine)
             .accessibilityHint(activity.next == nil ? "" : "Shows what's coming up")
@@ -345,7 +345,7 @@ private struct SchoolFollow: View {
                             in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(Rectangle().inset(by: (FollowMetric.pageHeight - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: following)
         .accessibilityLabel("\(following ? "Following" : "Follow"), \(name)")
@@ -384,7 +384,7 @@ private struct ActivityStar: View {
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .padding(.horizontal, -(PageMetric.tapMin - TeamPage.star) / 2)
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel("Follow \(name)")

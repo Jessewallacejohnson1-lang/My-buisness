@@ -158,14 +158,14 @@ struct YourCodeSheet: View {
                 Button { scanning = true } label: {
                     action("Scan a code", glyph: "viewfinder", ink: true)
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 if let picture = codes?.share {
                     let image = Image(uiImage: picture)
                     ShareLink(item: image, message: Text(FriendsInvite.message),
                               preview: SharePreview("Your code", image: image)) {
                         action("Share", glyph: "square.and.arrow.up", ink: false)
                     }
-                    .buttonStyle(PressableStyle())
+                    .buttonStyle(.press(.squish))
                 }
             }
             .padding(.top, FriendsMetric.codeActsTop)

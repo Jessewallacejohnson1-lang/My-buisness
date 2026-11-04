@@ -207,7 +207,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                         .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle())
+                .buttonStyle(.press(.squish))
                 .padding(.top, Sizes.sectionTop - (PageMetric.tapMin - ProfileMetric.addBioLine) / 2)
             }
 
@@ -222,7 +222,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 section("Going")
                 ForEach(going) { event in
                     Button { openEvent(event.item) } label: { goingRow(event) }
-                        .buttonStyle(PressableStyle())
+                        .buttonStyle(.press(.squish))
                         .padding(.top, Sizes.rowTop)
                 }
             }
@@ -231,7 +231,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 section("Groups")
                 ForEach(face.groups) { group in
                     Button { openGroup(group) } label: { groupRow(group) }
-                        .buttonStyle(PressableStyle())
+                        .buttonStyle(.press(.squish))
                         .padding(.top, Sizes.rowTop)
                 }
             }
@@ -255,7 +255,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .padding(ProfileMetric.ring)
                 .background(Hue.paper, in: Circle())
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         .disabled(face.avatarUrl == nil)
         // No photo to open: the blank picture says nothing, so VoiceOver skips it, never "dimmed".
         .accessibilityHidden(face.avatarUrl == nil)
@@ -374,7 +374,7 @@ private struct ProfilePhotoView: View {
                     .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("Close")
             .padding(.trailing, FeedEventDetailDestination.Metric.inset - (PageMetric.tapMin - FeedEventDetailDestination.Metric.button) / 2)
         }

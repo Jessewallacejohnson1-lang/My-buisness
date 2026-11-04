@@ -83,7 +83,7 @@ private struct SuggestionCard: View {
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(DimStyle())
+            .buttonStyle(.press(.dim))
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
             // Never an Anonymous account here: the row is read only for a real one.
@@ -117,7 +117,7 @@ struct RemoveSuggestionButton: View {
                 .frame(width: DailyPeopleMetric.xTarget, height: DailyPeopleMetric.xTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.press(.squish))
         // `suggest-remove-vo`
         .accessibilityLabel("Remove suggestion, \(person.displayName)")
     }

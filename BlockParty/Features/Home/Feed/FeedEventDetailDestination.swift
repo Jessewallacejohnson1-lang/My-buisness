@@ -445,7 +445,7 @@ struct FeedEventDetailDestination: View {
                 .frame(width: Metric.tapBox, height: Metric.tapBox)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(.press(.squish))
         .accessibilityLabel(label)
     }
 
@@ -707,7 +707,7 @@ private struct FactRow: View {
     var body: some View {
         if end != nil {
             Button(action: action) { row }
-                .buttonStyle(FeedCardPressStyle())
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(lines.spoken)
                 .accessibilityHint(hint)
         } else {

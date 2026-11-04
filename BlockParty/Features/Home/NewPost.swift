@@ -451,7 +451,7 @@ struct PostingPostCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle(scale: notPosted ? 0.98 : 1, haptic: notPosted))
+        .buttonStyle(.press(.squish, haptic: notPosted))
         .disabled(!notPosted)
         .accessibilityElement(children: .combine)
         .accessibilityHint(notPosted ? "Opens your post again with why" : "")
@@ -699,7 +699,7 @@ struct NewPostSheet: View {
             .padding(.vertical, (NewPostMetric.tap - NewPostMetric.chip) / 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle(scale: 0.96))
+        .buttonStyle(.press(.squish))
         .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.chip) / 2)
     }
 
@@ -755,7 +755,7 @@ struct NewPostSheet: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle(scale: 0.98))
+            .buttonStyle(.press(.squish))
         }
     }
 
@@ -798,7 +798,7 @@ struct NewPostSheet: View {
                     .frame(minHeight: NewPostMetric.tap)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle(scale: 0.96))
+                .buttonStyle(.press(.squish))
                 .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
             }
             .overlay(alignment: .topTrailing) {
@@ -811,7 +811,7 @@ struct NewPostSheet: View {
                         .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
                         .contentShape(Circle())
                 }
-                .buttonStyle(PressableStyle(scale: 0.9))
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("Remove photo")
                 .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
             }
@@ -840,7 +840,7 @@ struct NewPostSheet: View {
                         .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle(scale: 0.9))
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel(model.photo == nil ? "Add a photo" : NewPostCopy.change)
                 Spacer()
                 Button(action: post) {
@@ -926,7 +926,7 @@ private struct NewPostTag: View {
                     HStack(spacing: 8) {
                         ForEach(tagged) { friend in
                             Button { toggle(friend) } label: { face(friend) }
-                                .buttonStyle(PressableStyle(scale: 0.94))
+                                .buttonStyle(.press(.squish))
                                 .accessibilityLabel("Untag \(friend.displayName)")
                                 .transition(.scale(scale: 0.6).combined(with: .opacity))
                         }
@@ -955,7 +955,7 @@ private struct NewPostTag: View {
                     .frame(minHeight: NewPostMetric.friendRow)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(RowPressStyle())
+                .buttonStyle(.press(.row))
                 .accessibilityAddTraits(on ? .isSelected : [])
                 .listRowInsets(NewEventMetric.placeInsets)
                 .listRowSeparator(.hidden)

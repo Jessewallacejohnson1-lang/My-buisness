@@ -92,7 +92,7 @@ struct DailyMasthead: View {
                     .scaledToFit()
                     .frame(width: DailyTopMetric.logo, height: DailyTopMetric.logo)
             }
-            .buttonStyle(PressableStyle(scale: 0.92))
+            .buttonStyle(.press(.squish))
             .accessibilityLabel(TownPageKind.town.name)
         }
         .padding(.horizontal, DailyTopMetric.side)
@@ -141,7 +141,7 @@ struct DailyTopicRow: View {
                 .padding(.vertical, DailyTopMetric.topicTapExtra)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PressableCardStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)
     }
 }

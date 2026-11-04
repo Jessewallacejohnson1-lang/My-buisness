@@ -252,7 +252,7 @@ struct SearchPage: View {
                     .frame(height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
-                .buttonStyle(DimStyle())
+                .buttonStyle(.press(.dim))
                 .opacity(model.searching ? 1 : 0)
                 .offset(x: model.searching ? 0 : SearchMetric.cancelSlide)
                 .allowsHitTesting(model.searching)
@@ -335,7 +335,7 @@ struct SearchPage: View {
                 }
                 .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -491,7 +491,7 @@ struct ShelfTitle: View {
     var body: some View {
         if let shelf {
             NavigationLink(value: shelf) { label }
-                .buttonStyle(DimStyle())
+                .buttonStyle(.press(.dim))
         } else {
             label
         }
@@ -599,7 +599,7 @@ private struct RowLogo: View {
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: size, height: size))
         .accessibilityLabel(item.name)
     }
@@ -653,7 +653,7 @@ private struct WallLogo: View {
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
-        .buttonStyle(SquishStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityLabel(item.name)
     }
 }
@@ -669,7 +669,7 @@ struct PhotoCard: View {
     @State private var photoFrame = FrameBox()
 
     var body: some View {
-        OpenButton(item: item, style: SquishStyle(), tap: tap) {
+        OpenButton(item: item, press: .squish, tap: tap) {
             VStack(alignment: .leading, spacing: 0) {
                 SearchPhoto(item: item)
                     .frame(maxWidth: .infinity)
@@ -755,9 +755,9 @@ private struct SectionTitle: View {
 
 /// What a card, row or tile does when tapped: a group's pushes its Group page and an Event's its
 /// Event page, each remembered as a recent; anything else runs `tap`, which remembers it itself.
-struct OpenButton<Label: View, Style: ButtonStyle>: View {
+struct OpenButton<Label: View>: View {
     let item: SearchItem
-    let style: Style
+    let press: Press
     let tap: () -> Void
     @ViewBuilder let label: () -> Label
     @Environment(SearchModel.self) private var model
@@ -765,15 +765,15 @@ struct OpenButton<Label: View, Style: ButtonStyle>: View {
     var body: some View {
         if let group = item.townGroup {
             NavigationLink(value: group, label: label)
-                .buttonStyle(style)
+                .buttonStyle(.press(press))
                 .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
         } else if let card = item.card {
             NavigationLink(value: card, label: label)
-                .buttonStyle(style)
+                .buttonStyle(.press(press))
                 .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
         } else {
             Button(action: tap, label: label)
-                .buttonStyle(style)
+                .buttonStyle(.press(press))
         }
     }
 }
@@ -788,7 +788,7 @@ struct ItemRow: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            OpenButton(item: item, style: RowPressStyle(), tap: tap) {
+            OpenButton(item: item, press: .row, tap: tap) {
                 HStack(spacing: SearchMetric.rowGap) {
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
@@ -877,7 +877,7 @@ private struct QueryRow: View {
                 .frame(height: SearchMetric.row)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(RowPressStyle())
+            .buttonStyle(.press(.row))
             RemoveButton(name: words) {
                 withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(SearchModel.queryID(words)) }
             }
@@ -897,7 +897,7 @@ private struct RemoveButton: View {
                 .frame(width: SearchMetric.removeSide, height: SearchMetric.removeSide)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(DimStyle())
+        .buttonStyle(.press(.dim))
         .padding(.trailing, SearchMetric.removeTrail)
         .accessibilityLabel("Remove \(name)")
     }

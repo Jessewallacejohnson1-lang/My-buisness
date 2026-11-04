@@ -1,8 +1,8 @@
 //
 //  PageChrome.swift
 //  Block Party — what pushed pages share (BP app codebase-health 19): the top bar with its back
-//  chevron and centred title, a list row with a button at its right and that grey button, their
-//  sizes, and the three press styles every screen uses. Drawn, not Apple's bar, which dropped a
+//  chevron and centred title, a list row with a button at its right and that grey button and their
+//  sizes. Drawn, not Apple's bar, which dropped a
 //  page pushed inside the old Profile sheet 20pt at the end of the push (Saved, 2026-10-13).
 //
 
@@ -16,10 +16,6 @@ nonisolated enum PageMetric {
     /// The smallest tap area, Apple's 44: smaller marks get theirs grown to it.
     static let tapMin: CGFloat = 44
 
-    // Touch, from Jesse's Search mockup.
-    static let pressScale: CGFloat = 0.95
-    static let dimPressed: Double = 0.45
-    static let rowPressed: Double = 0.05
 }
 
 /// A tap area at least `side` each way, centred on what's drawn, for a mark whose size isn't fixed
@@ -68,7 +64,7 @@ struct BackButton: View {
                 .frame(width: PageMetric.bar, height: PageMetric.bar)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(DimStyle())
+        .buttonStyle(.press(.dim))
         .accessibilityLabel("Back")
     }
 }
@@ -115,34 +111,6 @@ struct RowButton: View {
                 .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(Rectangle().inset(by: (FriendsMetric.button - PageMetric.tapMin) / 2))
         }
-        .buttonStyle(PressableStyle())
-    }
-}
-
-// MARK: - Press styles
-
-/// Squishes while the finger is down, sprung like the mockup's (0.95; response 0.28,
-/// damping 0.68), and springs back the way it went.
-struct SquishStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? PageMetric.pressScale : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.68), value: configuration.isPressed)
-    }
-}
-
-/// Fades while pressed: a row's title, Cancel, back.
-struct DimStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.opacity(configuration.isPressed ? PageMetric.dimPressed : 1)
-    }
-}
-
-/// A list row darkens a touch under the finger.
-struct RowPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.background(Hue.ink.opacity(configuration.isPressed ? PageMetric.rowPressed : 0))
+        .buttonStyle(.press(.squish))
     }
 }

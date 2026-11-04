@@ -171,7 +171,7 @@ private struct InterestChipStyle: ButtonStyle {
             .contentShape(Rectangle().inset(by: -3))
             .scaleEffect(down ? 0.97 : 1)
             .offset(y: down ? 2 : 0)
-            .animation(down ? .easeOut(duration: 0.08) : .spring(response: 0.12, dampingFraction: 0.62), value: down)
+            .animation(Press.push(down: down), value: down)
             .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
     }
 }

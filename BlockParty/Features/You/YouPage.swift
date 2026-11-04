@@ -146,7 +146,7 @@ struct YouPage: View {
                                events: events, isToday: date == today,
                                isPast: date < today, isPicked: date == day, ring: ring)
                     }
-                    .buttonStyle(PressableCardStyle())
+                    .buttonStyle(.press(.squish))
                     .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
                 }

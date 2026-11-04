@@ -185,7 +185,7 @@ private struct FollowingRow: View {
             case .update(let post): NavigationLink(value: post) { face }
             }
         }
-        .buttonStyle(PressableCardStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityLabel("\(item.name) \(item.what) \(item.spokenTime(now: now))")
     }
 

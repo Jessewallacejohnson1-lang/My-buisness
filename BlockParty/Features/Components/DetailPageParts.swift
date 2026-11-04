@@ -150,7 +150,7 @@ struct InfoPill: View {
             .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .contentShape(Rectangle())
         }
-        .buttonStyle(FeedCardPressStyle())
+        .buttonStyle(.press(.squish))
         .accessibilityLabel(text)
         .accessibilityHint(hint)
     }
@@ -207,7 +207,7 @@ struct AboutSection: View {
                         // AXe; 11 gave 42.3).
                         .contentShape(Rectangle().inset(by: -12))
                 }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+                .buttonStyle(.press(.squish))
             }
         }
     }

@@ -175,7 +175,7 @@ struct FeedUndoLine: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.press(.squish))
         }
         .padding(.horizontal, DailyFeedMetric.contentInset)
         .frame(height: Self.height)

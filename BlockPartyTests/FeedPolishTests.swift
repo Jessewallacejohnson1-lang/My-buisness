@@ -20,7 +20,6 @@ final class FeedMotionTests: XCTestCase {
     func testReduceMotionTurnsEveryFeedAnimationIntoACrossFade() {
         let specs: [(name: String, spec: FeedMotion.Spec)] = [
             ("quiet press", FeedMotion.quietPressSpec(reduceMotion: true)),
-            ("plus press", FeedMarkPress.spec(reduceMotion: true)),
         ]
 
         for entry in specs {
@@ -35,7 +34,6 @@ final class FeedMotionTests: XCTestCase {
     func testReduceMotionRemovesEveryPressScaleAndSubstitutesAFade() {
         XCTAssertEqual(FeedMotion.pressScale(isPressed: true, reduceMotion: true), 1)
         XCTAssertEqual(FeedMotion.pressScale(isPressed: false, reduceMotion: true), 1)
-        XCTAssertEqual(FeedMarkPress.scale(isPressed: true, reduceMotion: true), 1)
 
         XCTAssertLessThan(
             FeedMotion.pressOpacity(isPressed: true, reduceMotion: true),
@@ -45,14 +43,28 @@ final class FeedMotionTests: XCTestCase {
         XCTAssertEqual(FeedMotion.pressOpacity(isPressed: true, reduceMotion: false), 1)
     }
 
-    func testFeedPressStaysQuietWhileThePlusStaysEmphatic() {
+    func testFeedPressStaysQuietWhileASmallIconIsFelt() {
         let quiet = FeedMotion.pressScale(isPressed: true, reduceMotion: false)
-        let plus = FeedMarkPress.scale(isPressed: true, reduceMotion: false)
+        let icon = Press.depth(width: 44)
 
         XCTAssertEqual(quiet, FeedMotion.quietPress)
         // Jesse, 2026-10-23: at 0.985 only the photo looked pressed; the whole card moves now.
         XCTAssertGreaterThanOrEqual(quiet, 0.97, "A whole card presses in a little, never more")
-        XCTAssertLessThan(plus, quiet, "Only the + press is allowed to be felt")
+        XCTAssertLessThan(icon, quiet, "A small icon sinks deeper, or it barely moves")
+    }
+
+    /// Jesse's feel check on the three press styles (codebase-health 20).
+    func testThePressNumbers() {
+        XCTAssertEqual(Press.depth(width: 20), 0.88, "the deepest")
+        XCTAssertEqual(Press.depth(width: 44), 0.886, accuracy: 0.001, "an icon")
+        XCTAssertEqual(Press.depth(width: 100), 0.95, accuracy: 0.001, "Search's logos, as drawn on Jesse's mockup")
+        XCTAssertEqual(Press.depth(width: 358), 0.97, "a Town card")
+        XCTAssertEqual(Press.shallowest, FeedMotion.quietPress)
+        XCTAssertEqual(Press.inSeconds, 0.08)
+        XCTAssertEqual(Press.backResponse, 0.28)
+        XCTAssertEqual(Press.backDamping, 0.68)
+        XCTAssertEqual(Press.dimmed, 0.45)
+        XCTAssertEqual(Press.rowShade, 0.05)
     }
 }
 

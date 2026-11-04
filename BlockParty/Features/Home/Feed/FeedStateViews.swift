@@ -60,7 +60,7 @@ struct FeedUnavailableBody: View {
 }
 
 /// Ink-filled, `Radius.button` — a rounded square, never a pill. Every visual is
-/// inside the label so `FeedCardPressStyle` scales the whole control, not just its
+/// inside the label so the squish scales the whole control, not just its
 /// text sitting inside a stationary background.
 struct FeedRetryButton: View {
     var title: String = FeedStateCopy.retryAction
@@ -81,7 +81,7 @@ struct FeedRetryButton: View {
                     in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                 )
         }
-        .buttonStyle(FeedCardPressStyle())
+        .buttonStyle(.press(.squish))
     }
 }
 

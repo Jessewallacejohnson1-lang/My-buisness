@@ -187,13 +187,13 @@ struct DailyWeekRow: View {
                     .matchedGeometryEffect(id: shown, in: bubble, isSource: false)
                     .scaleEffect(squish(shown))
             }
-            .animation(PressableCardStyle.press, value: pressed)
+            .animation(Press.animation(down: pressed != nil, reduceMotion: reduceMotion), value: pressed)
         }
         .padding(.horizontal, DailyWeekMetric.side)
     }
 
     private func squish(_ day: String) -> CGFloat {
-        pressed == day && !reduceMotion ? PressableCardStyle.pressedScale : 1
+        pressed == day && !reduceMotion ? Press.shallowest : 1
     }
 }
 
@@ -253,7 +253,7 @@ private struct DailyWeekBubble: View {
     }
 }
 
-/// The card press (`PressableCardStyle`'s scale and spring) on a day's words, telling the row
+/// The card press (`Press`'s shallowest squish) on a day's words, telling the row
 /// which day is down so its bubble, in the layer under them, squishes with them.
 private struct DailyWeekPressStyle: ButtonStyle {
     let day: String
@@ -262,8 +262,8 @@ private struct DailyWeekPressStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? PressableCardStyle.pressedScale : 1)
-            .animation(PressableCardStyle.press, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Press.shallowest : 1)
+            .animation(Press.animation(down: configuration.isPressed, reduceMotion: reduceMotion), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isDown in
                 if isDown { pressed = day } else if pressed == day { pressed = nil }
             }
