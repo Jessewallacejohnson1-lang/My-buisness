@@ -114,7 +114,10 @@ Business has no slot.
   `held`, seen only by its sender, who isn't told (Jesse, 2026-11-03). Block, Hide and Leave are in the
   messages' read rule itself. Photos are in the private `chat-photos` bucket, read through links signed for an
   hour. No push yet: a closed app learns nothing until it opens. A deleted account's photos stay in the bucket,
-  which nobody but the admin can read (`~/.claude/PENDING.md`).
+  which nobody but the admin can read (`~/.claude/PENDING.md`). **Rooms:** a Going chat (five-tabs 06) and a Group chat
+  (five-tabs 07) are worked out live from Going and `club_members`, so leaving leaves the chat. Their `chat_members` row
+  holds only your read position and your Leave and admits no one: a new kind of room must stay out of `private.in_chat`'s
+  member branch and `get_chats`' `others`, or everyone who ever opened it stays in and is listed.
 - **The Block Party tab** (`Features/Daily/DailyPage.swift`) shows its page
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
