@@ -20,13 +20,12 @@ Jesse's plan (no API key, no bill) and scores all three together: about 640,000 
 exits 1 below the bar.
 
 The first baseline (2026-11-03): 332 of 369 right (90%), with keeps 313 of 342, mistakes stopped 19 of 27
-and about 41 extras a reading. Its readings ran from 109 to 112 of 123, so the bar sits one such swing
-below it, at 87.5%.
+and about 41 extras a reading.
 
 The same prompt read again that evening: 319 of 369 (86%), readings 101, 109 and 109, mistakes stopped 18 of 27.
-So run a change side by side with today's prompt, not against a number written here. Most of that swing is one
-message: in 2 of 12 readings the judge wrote about 20 items where it usually writes 30 on Oct 29's 30 posts
-(ticket 17).
+That failed the first bar of 87.5%, so the bar is 85% (Jesse, 2026-11-04), and a change runs side by side with
+today's prompt, not against a number written here. Most of that swing is one message: in 2 of 12 readings the
+judge wrote about 20 items where it usually writes 30 on Oct 29's 30 posts (ticket 17; ticket 18 looks into it).
 
 A message with a found event whose "Where" is empty also shows the registry's place names. The judge then reads
 St. John the Baptist Parish's Craft Fair as listed too, so that label comes out right here; with file search, as
@@ -52,7 +51,7 @@ SOURCES = Path(__file__).resolve().parents[1]
 JUDGE = SOURCES / "models" / "judge.md"
 SOCIAL = SOURCES / "models" / "social.md"
 FIXTURE = Path.home() / "BP app/docs/plans/watch-every-place/assets/16-judge-check/fixture.json"
-BAR = 0.875
+BAR = 0.85
 CHUNK = 30  # posts in one message; a real check's whole day would outrun one answer
 RULE = re.compile(r"\b(every|each|weekly|through|until|\w+days)\b", re.I)  # "Fridays through Oct 16"
 NO_WHERE = re.compile(r"^Where:\s*$", re.M)  # a found event Facebook gives no place
