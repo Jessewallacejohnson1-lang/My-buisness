@@ -98,8 +98,9 @@ or its `docs/rules/` file and leaves here.
   When the titles match, a missing place on either still counts as the same place
   (`write_judged.same_event`).
 - 2026-10-17 — Before a migration that drops and remakes a database function, copy that
-  function from the newest migration on `origin/main` that makes it, then apply. A copy of an
-  older version once took the friends lift out of the live Town feed.
+  function from the newest migration on `origin/main` that makes it (Town feed:
+  `supabase/town_feed.sql`), then apply. A copy of an older version once took the friends lift
+  out of the live Town feed.
 - 2026-10-16 — Check the live Town feed the way the app reads it: POST
   `/rest/v1/rpc/get_town_feed` with the app's public key from `SupabaseConfig.swift`. A
   read-only SQL `select ... from get_town_feed()` fails "permission denied" on

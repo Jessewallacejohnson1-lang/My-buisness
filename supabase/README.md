@@ -24,6 +24,14 @@ it (`supabase migration new <name>`), and applied after Jesse's yes with
 chat's live work. Never a hand edit in the dashboard, and never the Supabase connector's own
 `apply_migration` tool, which skips that check (BP app blocks it with a hook).
 
+The Town feed's two functions (`private.town_feed`, `get_town_feed`) are edited in
+`town_feed.sql`. Change that file, make the migration with `supabase migration new <name>`, then
+run `cat supabase/town_feed.sql >> <the new file>` and write what changed in comments above the
+copy. `tests/migration_numbers.test.mjs` fails when the newest feed migration is not a
+word-for-word copy. After a merge or rebase, `git diff origin/main -- supabase/town_feed.sql` must
+show only your lines: keeping one side of a conflict drops the other chat's change, and the test
+can't see that.
+
 ## Known gaps
 
 - The live migration history still lists the 34 changes this file replaced.
