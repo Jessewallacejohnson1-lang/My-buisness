@@ -659,8 +659,13 @@ final class HelloDropTests: XCTestCase {
         var acceptedReads = 0
         var finalsSince: [Date] = []
         var joinedSince: [Date] = []
-        /// While true, the attended read doesn't answer.
+        var prepares = 0
+        var ready = true
+        /// While true, that read doesn't answer.
         var attendedHangs = false
+        var finalsHang = false
+        /// Runs at each pause, with how many there have been.
+        var onPause: @MainActor (Int) -> Void = { _ in }
         init(now: Date) { self.now = now }
     }
 
@@ -680,8 +685,8 @@ final class HelloDropTests: XCTestCase {
         let inbox = HelloInbox(keep: phone, now: start)
         let fakes = PillFakes(now: start)
         let reads = HelloPill.Reads(
-            prepare: {},
-            ready: { true },
+            prepare: { fakes.prepares += 1 },
+            ready: { fakes.ready },
             day: { fakes.day },
             name: { "Jesse" },
             attended: {
@@ -691,6 +696,7 @@ final class HelloDropTests: XCTestCase {
             },
             finals: {
                 fakes.finalsSince.append($0)
+                while fakes.finalsHang { await Task.yield() }
                 return fakes.finals
             },
             joined: {
@@ -704,6 +710,7 @@ final class HelloDropTests: XCTestCase {
         let pill = HelloPill(reads: reads, inbox: inbox, phone: phone, now: { fakes.now }, pause: { _ in
             fakes.now.addTimeInterval(0.1)
             fakes.pauses += 1
+            fakes.onPause(fakes.pauses)
             await Task.yield()
         })
         return PillRig(pill: pill, inbox: inbox, fakes: fakes, phone: phone)
@@ -851,6 +858,42 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(rig.fakes.pauses, 0)
     }
 
+    /// One landing in the 1 s after the hold makes it too: what goes on is decided after the wait.
+    func testAFinalLandingDuringTheWaitMakesThisPill() async {
+        let rig = pillRig()
+        let fakes = rig.fakes
+        fakes.day = bingoTonight
+        fakes.finals = [final([33, 23], mine: 0)]
+        fakes.finalsHang = true
+        fakes.onPause = { if $0 == 2 { fakes.finalsHang = false } }
+        let morning = rig.pill.morning()
+        // Once the read has begun, only this test's pauses decide when it lands.
+        while fakes.finalsSince.isEmpty { await Task.yield() }
+        let said = await rig.pill.afterHello()
+        XCTAssertEqual(words(said), "Saint John's beat Gustavus 33–23")
+        await morning?.reads.value
+    }
+
+    /// A cold open: the line waits for the Going and the Town feed, which `prepare` asks for.
+    func testTheLineWaitsForTheFeedToComeIn() async {
+        let rig = pillRig()
+        let fakes = rig.fakes
+        let bingo = bingoTonight
+        fakes.ready = false
+        fakes.onPause = {
+            if $0 == 3 {
+                fakes.ready = true
+                fakes.day = bingo
+            }
+        }
+        let morning = rig.pill.morning()
+        await morning?.reads.value
+        let said = await rig.pill.afterHello()
+        XCTAssertEqual(words(said), "1 thing happening today")
+        XCTAssertEqual(fakes.pauses, 3)
+        XCTAssertEqual(fakes.prepares, 1)
+    }
+
     /// Launch brings both the first task and an active phase: attended reads once in 30 s.
     func testTheAttendedReadWaits30Seconds() async {
         let rig = pillRig()
@@ -917,6 +960,10 @@ final class HelloDropTests: XCTestCase {
         _ = await wholeMorning(rig)
         XCTAssertEqual(rig.fakes.joinedSince.last, town("2026-10-22 09:00"), "since the first check")
 
+        rig.fakes.now = town("2026-10-24 09:00")
+        _ = await wholeMorning(rig)
+        XCTAssertEqual(rig.fakes.joinedSince.last, town("2026-10-22 09:00"), "only the first check sets it")
+
         rig.fakes.joined = [sam]
         rig.fakes.now = town("2026-11-20 09:00")
         let said = await wholeMorning(rig)
@@ -962,5 +1009,16 @@ final class HelloDropTests: XCTestCase {
 
         rig.fakes.now.addTimeInterval(3000)
         XCTAssertEqual(words(rig.pill.drop()), "Sam joined Block Party", "an hour after the last that counted")
+        rig.pill.gone()
+
+        rig.fakes.now.addTimeInterval(3600)
+        rig.inbox.add(.accepted(sam), at: rig.fakes.now)
+        XCTAssertEqual(words(rig.pill.drop()), "Sam accepted your friend request", "the day's third")
+        rig.pill.gone()
+
+        rig.fakes.now.addTimeInterval(3600)
+        rig.inbox.add(.joined(kate), at: rig.fakes.now)
+        XCTAssertNil(rig.pill.drop(), "3 a day")
+        XCTAssertEqual(rig.pill.waiting?.id, "joined:kate", "kept for tomorrow")
     }
 }

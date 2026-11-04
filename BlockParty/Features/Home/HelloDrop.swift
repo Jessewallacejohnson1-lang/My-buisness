@@ -362,22 +362,23 @@ struct HelloDropView: View {
             #if DEBUG
             if let won = HelloDrop.debugFinal {
                 try? await Task.sleep(for: .seconds(8))
-                if let final = HelloItem.Final(TeamFinal.sample(won: won)) {
-                    let next = pill.say(HelloItem(what: .final(final), at: Date()))
+                if let final = HelloItem.Final(TeamFinal.sample(won: won)),
+                   let next = pill.say(HelloItem(what: .final(final), at: Date())) {
                     run = Task { await show(next, fromHello: false) }
                 }
                 return
             }
             if let shown = HelloDrop.debugMoment {
                 try? await Task.sleep(for: .seconds(8))
-                let next = pill.say(HelloItem(what: .moment(shown), at: Date()))
-                run = Task { await show(next, fromHello: false) }
+                if let next = pill.say(HelloItem(what: .moment(shown), at: Date())) {
+                    run = Task { await show(next, fromHello: false) }
+                }
                 return
             }
             if HelloDrop.later {
                 UserDefaults.standard.set(Town.day(Date()), forKey: HelloDrop.dayKey)
                 try? await Task.sleep(for: .seconds(8))
-                for item in HelloInbox.samples(now: Date()) where item.rank > 0 { pill.inbox.add(item.what) }
+                for item in HelloInbox.samples(now: Date()) where item.rank > 0 { HelloInbox.shared.add(item.what) }
                 return
             }
             #endif
@@ -541,7 +542,7 @@ struct HelloDropView: View {
 
     /// One answer on the pill, from the hello or straight down: a first or milestone with its
     /// tick, else its line, a win with its team's confetti.
-    private func show(_ next: HelloPill.Say?, fromHello: Bool) async {
+    private func show(_ next: HelloPill.Say, fromHello: Bool) async {
         let comeIn = reduceMotion ? Motion.smooth : fromHello ? Motion.bentoExpand : Motion.sheet
         switch next {
         case .moment(let shown):
@@ -561,8 +562,6 @@ struct HelloDropView: View {
                 if !reduceMotion { confetti += 1 }
                 Haptics.success()
             }
-        case nil:
-            break
         }
         await finish(after: Self.stay)
     }

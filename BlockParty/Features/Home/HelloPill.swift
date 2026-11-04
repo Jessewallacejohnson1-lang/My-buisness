@@ -63,7 +63,7 @@ final class HelloPill {
     /// The day's line the last first open said, so a count isn't said two days running (hello-drop 08).
     static let lastLineKey = "helloDrop.lastLine"
 
-    let inbox: HelloInbox
+    private let inbox: HelloInbox
     private let reads: Reads
     private let phone: UserDefaults
     private let clock: @MainActor () -> Date
