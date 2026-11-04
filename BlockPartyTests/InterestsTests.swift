@@ -1,7 +1,7 @@
 //
 //  InterestsTests.swift
-//  The 25 interests (BP app onboarding 20 and 21): the old-to-new map, search's everyday words, and
-//  "Popular in St. Joseph".
+//  The 25 interests (BP app onboarding 20 and 21), the old-to-new map, and the 9 rows that pick them
+//  (onboarding 28).
 //
 
 import XCTest
@@ -9,13 +9,8 @@ import XCTest
 
 final class InterestsTests: XCTestCase {
 
-    func testTwentyFiveInEightGroups() {
+    func testTwentyFiveInterestsStay() {
         XCTAssertEqual(Interests.all.count, 25)
-        XCTAssertEqual(Interests.sections.map(\.title),
-                       ["Outdoors", "Food & drink", "Arts & music", "Fun", "Sports & health", "Community", "Students",
-                        "Civics"])
-        XCTAssertEqual(Interests.sections.first { $0.title == "Students" }?.items.map(\.label),
-                       ["College", "High school", "Middle school"])
         XCTAssertEqual(Set(Interests.all.map(\.id)).count, 25)
     }
 
@@ -32,29 +27,42 @@ final class InterestsTests: XCTestCase {
         for (_, ids) in Interests.legacy { XCTAssertEqual(Interests.migrate(ids), ids) }
     }
 
-    func testSearchKnowsEverydayWords() {
-        XCTAssertEqual(Interests.search("pickleball").map(\.id), ["play_sports"])
-        XCTAssertEqual(Interests.search("church").map(\.id), ["faith"])
-        XCTAssertTrue(Interests.search("Trivia").map(\.id).contains("games"))
-        XCTAssertTrue(Interests.search("lib").map(\.id).contains("books"))
-        XCTAssertTrue(Interests.search("bingo night").map(\.id).contains("games"))
-        XCTAssertEqual(Interests.search("zzzz"), [])
-        XCTAssertEqual(Interests.search("  ").count, 25)
-        XCTAssertEqual(Interests.search("networking").map(\.id), ["networking"])
-        XCTAssertEqual(Interests.search("junior high").map(\.id), ["middle_school"])
-        XCTAssertTrue(Interests.search("high school").map(\.id).contains("high_school"))
-        XCTAssertTrue(Interests.search("college").map(\.id).contains("college"))
+    func testTheNineRowsSaveOnlyRealInterests() {
+        XCTAssertEqual(Interests.rows.map(\.label),
+                       ["Schools", "Families & kids", "Faith & church", "Arts & music", "Food & drink", "Fun",
+                        "Outdoors", "Health & fitness", "Town life"])
+        let real = Set(Interests.all.map(\.id))
+        for id in Interests.picks.flatMap(\.ids) + Interests.collegeIds { XCTAssertTrue(real.contains(id), id) }
+        // Nothing saves what another saves.
+        let ids = Interests.picks.flatMap(\.ids)
+        XCTAssertEqual(ids.count, Set(ids).count)
+        // Schools saves nothing: only what you follow lifts (Jesse, 2026-11-04).
+        for id in ["watch_sports", "high_school", "middle_school", "networking", "campus", "college"] {
+            XCTAssertFalse(ids.contains(id), id)
+        }
     }
 
-    func testPopularCountsRealEvents() {
-        let events = Array(repeating: ["watch_sports"], count: 5) + Array(repeating: ["faith", "live_music"], count: 4)
-            + Array(repeating: ["sports_leagues"], count: 3) + [["coffee"], ["coffee"]]
-        // An old id counts as its first new one (a game is Watch sports, not Play sports too);
-        // under 3 events doesn't make the row.
-        XCTAssertEqual(Interests.popular(events), ["watch_sports", "live_music", "faith"])
-        XCTAssertEqual(Interests.popular(events, limit: 2), ["watch_sports", "live_music"])
-        // Fewer than 3 interests with enough events: no row.
-        XCTAssertEqual(Interests.popular(Array(repeating: ["faith"], count: 9)), [])
-        XCTAssertEqual(Interests.popular([]), [])
+    func testAPickThatSavesTwoCountsOnceAndComesOffWhole() {
+        let books = Interests.picks.first { $0.label == "Books & talks" }!
+        let picked = Interests.toggled(books, in: ["coffee"])
+        XCTAssertEqual(picked, ["coffee", "books", "talks"])
+        XCTAssertEqual(Interests.count(picked), 2, "things picked, not interests saved")
+        XCTAssertEqual(Interests.names(picked), ["Books & talks", "Coffee shops"], "top to bottom")
+        XCTAssertEqual(Interests.toggled(books, in: picked), ["coffee"])
+        // An older pick of one half shows on, and one tap takes it off.
+        XCTAssertTrue(books.isOn(in: ["talks"]))
+        XCTAssertEqual(Interests.toggled(books, in: ["talks"]), [])
+    }
+
+    func testTheCollegesInterestsFollowItsFollows() {
+        XCTAssertEqual(Interests.withCollege(["coffee"], following: true), ["coffee", "campus", "college"])
+        XCTAssertEqual(Interests.withCollege(["coffee", "campus", "college"], following: true), ["coffee", "campus", "college"])
+        XCTAssertEqual(Interests.withCollege(["campus", "coffee", "college"], following: false), ["coffee"])
+        XCTAssertEqual(Interests.count(["campus", "college"]), 0, "a follow is what's counted, never these")
+    }
+
+    func testPicksNoLongerOnTheRowsGo() {
+        XCTAssertEqual(Interests.onRows(["watch_sports", "coffee", "high_school", "networking", "campus", "college"]),
+                       ["coffee", "campus", "college"])
     }
 }

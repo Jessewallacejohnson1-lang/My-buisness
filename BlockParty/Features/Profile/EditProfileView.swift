@@ -13,11 +13,15 @@ import PhotosUI
 struct EditProfileView: View {
     let model: ProfileModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(RealLifeActions.self) private var actions
 
     @State private var name = ""
     @State private var image: UIImage?
     @State private var interests: [String] = []
-    @State private var popular: [String] = []
+    /// Interests' Schools: nil while reading, empty when the read failed.
+    @State private var schools: [FollowSuggestion]?
+    /// Follows tapped in Interests, sent with Save as the picks are, so Cancel leaves both as they were.
+    @State private var heldFollows: [FollowTarget: Bool] = [:]
     @State private var pick: PhotosPickerItem?
     @State private var bio = ""
     @State private var cover: UIImage?
@@ -32,7 +36,18 @@ struct EditProfileView: View {
         LaunchFlags.has(.profileEditInterests)
     }
 
-    private var interestLabels: [String] { Interests.labels(for: interests) }
+    private var interestLabels: [String] { Interests.names(interests) }
+
+    private func isFollowing(_ target: FollowTarget) -> Bool {
+        heldFollows[target] ?? actions.follow(target).isFollowing
+    }
+
+    private func toggleFollow(_ target: FollowTarget) {
+        heldFollows[target] = !isFollowing(target)
+        let college = FollowSuggestions.collegeTargets(in: schools ?? [])
+        guard college.contains(target) else { return }
+        interests = Interests.withCollege(interests, following: college.contains(where: isFollowing))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,13 +96,27 @@ struct EditProfileView: View {
             }
         }
         .sheet(isPresented: $showInterests) {
-            InterestsSheet(picked: $interests, popular: popular)
-        }
-        .task {
-            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags() {
-                popular = Interests.popular(events.map(\.interests))
+            InterestsSheet(picked: $interests, schools: schools,
+                           isFollowing: { isFollowing($0) }, toggleFollow: { toggleFollow($0) }) {
+                readSchools()
             }
         }
+        .task { await loadSchools() }
+    }
+
+    /// Which schools you follow, then their tiles, so a tile never says Follow on one you do.
+    private func loadSchools() async {
+        if let follows = try? await CommunityAPI(auth: AuthStore.shared).myFollows() {
+            actions.read(following: follows.map(\.target))
+        }
+        schools = (try? await FollowSuggestions.loadSchools()) ?? []
+    }
+
+    /// Schools opened with nothing read (no signal back then): read again.
+    private func readSchools() {
+        guard schools?.isEmpty == true else { return }
+        schools = nil
+        Task { await loadSchools() }
     }
 
     // MARK: - Chrome
@@ -137,6 +166,9 @@ struct EditProfileView: View {
                         AccessibilityNotification.Announcement(problem.line).post()
                     } else {
                         Haptics.success()
+                        for (target, follow) in heldFollows where actions.follow(target).isFollowing != follow {
+                            actions.toggleFollow(target)
+                        }
                         dismiss()
                     }
                 }
@@ -250,7 +282,7 @@ struct EditProfileView: View {
     private var interestsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Interests").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
-            if interests.isEmpty {
+            if interestLabels.isEmpty {
                 Text("Choose a few to see events, groups, and trails that match.")
                     .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,7 +294,7 @@ struct EditProfileView: View {
             Button { Haptics.selection(); showInterests = true } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3").font(.sansSemibold(14))
-                    Text(interests.isEmpty ? "Choose interests" : "Edit interests · \(interests.count)")
+                    Text(interestLabels.isEmpty ? "Choose interests" : "Edit interests · \(interestLabels.count)")
                         .font(.displaySemi(15))
                 }
                 .foregroundStyle(Hue.ink)
@@ -275,11 +307,18 @@ struct EditProfileView: View {
     }
 }
 
-/// Edit Profile's interests: onboarding's chips, keeping at least one.
+/// Edit Profile's interests: onboarding's rows, keeping at least one thing picked or followed.
 private struct InterestsSheet: View {
     @Binding var picked: [String]
-    let popular: [String]
+    let schools: [FollowSuggestion]?
+    let isFollowing: (FollowTarget) -> Bool
+    let toggleFollow: (FollowTarget) -> Void
+    let schoolsOpened: () -> Void
     @Environment(\.dismiss) private var dismiss
+
+    private var count: Int {
+        Interests.count(picked) + FollowSuggestions.schoolTargets(in: schools ?? []).filter(isFollowing).count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -288,22 +327,33 @@ private struct InterestsSheet: View {
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
-            InterestChips(picked: $picked, popular: popular, bottomInset: 120)
+            InterestRows(picked: $picked, schools: schools, isFollowing: isFollowing, toggleFollow: toggleFollow,
+                         schoolsOpened: schoolsOpened, gutter: 24, topInset: 8, bottomInset: 120) {
+                EmptyView()
+            }
         }
-        .padding(.horizontal, 24)
+        .onAppear {
+            // Watch sports and the rest no longer on the rows go when you come to change them, and an
+            // old Campus pick stays only with something under the college followed.
+            picked = Interests.onRows(picked)
+            let college = FollowSuggestions.collegeTargets(in: schools ?? [])
+            if !college.isEmpty {
+                picked = Interests.withCollege(picked, following: college.contains(where: isFollowing))
+            }
+        }
         .overlay(alignment: .bottom) {
-            ContinueButton(title: picked.isEmpty ? "Pick 1" : "Done", enabled: !picked.isEmpty) {
+            ContinueButton(title: count == 0 ? "Pick 1" : "Done", enabled: count > 0) {
                 Haptics.selection(); dismiss()
             }
             .padding(.horizontal, 24)
             .padding(.top, 32)
             .padding(.bottom, 8)
-            // The chips scroll away under a paper fade, as onboarding's do under its Next bar.
+            // The rows scroll away under a paper fade, as onboarding's do under its Next bar.
             .background(LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea())
         }
         .background(Hue.paper.ignoresSafeArea())
         .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(picked.isEmpty)
+        .interactiveDismissDisabled(count == 0)
     }
 }

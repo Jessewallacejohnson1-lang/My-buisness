@@ -98,10 +98,8 @@ final class OnboardingNextBarTests: XCTestCase {
                 // Interests asks for 3 before it lets you on (ticket 20).
                 // The title rolls its number (onboarding 26): read it once the roll has landed.
                 XCTAssertTrue(next.wait(for: \.label, toEqual: "Pick 3 more", timeout: 3), "Next bar says \(next.label)")
-                // Popular in St. Joseph slides in when its counts land; let it, so no chip moves mid-tap.
-                _ = app.staticTexts["Popular in St. Joseph"].waitForExistence(timeout: 10)
                 for picked in 1...3 {
-                    // The first chip not yet picked, once the last one has glided into Added.
+                    // The first row not yet picked (onboarding 28).
                     let chip = app.buttons.matching(NSPredicate(format: "identifier == 'interest-chip' AND isSelected == NO"))
                         .element(boundBy: 0)
                     XCTAssertTrue(chip.waitForExistence(timeout: 3), "no chip to pick \(picked)")

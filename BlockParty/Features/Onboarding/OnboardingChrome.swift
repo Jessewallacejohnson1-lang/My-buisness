@@ -162,6 +162,8 @@ private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
     let yellow: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var face: some ShapeStyle {
         LinearGradient(stops: [.init(color: Hue.pillTop, location: 0),
                                .init(color: Hue.pillDeep, location: 0.25),
@@ -187,7 +189,7 @@ private struct NextBarStyle: ButtonStyle {
                     if yellow { YellowDiscStyle.lit(Capsule()) }
                     else if allowed { Capsule().fill(face) } else { Capsule().fill(Hue.nextOffFace) }
                 }
-                .offset(y: down ? 4 : 0)
+                .offset(y: down && !reduceMotion ? 4 : 0)
                 .animation(Press.push(down: down), value: down)
         }
         .frame(height: 52)

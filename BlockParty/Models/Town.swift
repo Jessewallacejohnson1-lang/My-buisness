@@ -33,6 +33,31 @@ nonisolated enum Town {
     /// What a place search adds to a name so Google looks here ("Krewe St Joseph MN").
     static let searchSuffix = "St Joseph MN"
 
+    /// Schools on the interests step: each kind with its schools, by team id or page slug, as short
+    /// as a tile shows them, in town first, then nearest (Jesse, 2026-11-04). One with no live row
+    /// stays out.
+    nonisolated struct SchoolType: Identifiable {
+        let id: String
+        let label: String
+        let schools: [(key: String, name: String)]
+        var isCollege = false
+    }
+
+    static let schoolTypes = [
+        SchoolType(id: "high", label: "High school",
+                   schools: [("st-johns-prep", "St. John's Prep"), ("apollo", "Apollo"), ("tech", "Tech"),
+                             ("cathedral", "Cathedral"), ("sartell", "Sartell"), ("rocori", "ROCORI"),
+                             ("sauk-rapids-rice", "Sauk Rapids-Rice")]),
+        SchoolType(id: "middle", label: "Middle school",
+                   schools: [("kennedy", "Kennedy"), ("st-joseph-catholic", "St. Joseph Catholic"),
+                             ("cathedral", "Cathedral"), ("sartell", "Sartell"),
+                             ("sauk-rapids-rice", "Sauk Rapids-Rice")]),
+        SchoolType(id: "college", label: "CSB & SJU",
+                   schools: [("saint-benedict", "Saint Benedict"), ("saint-johns", "Saint John's"),
+                             ("csbsju-campus-events", "Campus Events")],
+                   isCollege: true),
+    ]
+
     /// The trails Search lists, with the bundled photo of each.
     static let trails = [("Lake Wobegon Trail", "wobegon-trail"),
                          ("Saint John's Abbey Arboretum", "sju-arboretum-trail"),
