@@ -68,7 +68,8 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
-from run import deadline, late, only_one
+from run import late, failing, ASIDE_AFTER
+from morning_run import Run
 from batch import layout
 from towns import TOWNS, DEFAULT, lookup
 import composio
@@ -93,8 +94,6 @@ STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
 DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
 WAIT = 480  # seconds, over every part, that a check waits for an Apify run still going
-PART_MINUTES = 6  # as morning.py prepare's parts: the cloud stops a command at 10 minutes
-MISSES = 3  # reads in a row a page comes back not available or with nothing before it is set aside (smooth-mornings 04)
 
 # Pictures (Jesse, 2026-10-26: the words on a post's picture, when its caption doesn't say enough)
 PICTURES = 3        # most read per post: a carousel's flyer is often its second or third slide
@@ -426,8 +425,8 @@ def run_pages(run_id):
 def tally(reads, missed, today):
     """Each page the posts runs read, oldest run first: read when a row of it is a post or says it
     posted nothing new (`no_items`: most busy pages, most reads); missed when Apify says it is not
-    available, or gives no row for it at all (Sal's, every read in October). MISSES misses in a row set
-    a page aside; a good read brings it back. A run that missed more than half its pages (Facebook
+    available, or gives no row for it at all (Sal's, every read in October). run.failing decides: ASIDE_AFTER
+    misses in a row set a page aside; a good read brings it back. A run that missed more than half its pages (Facebook
     blocking Apify, a run stopped at its cap) counts against none. `reads`: (finished, pages, rows,
     what) per run. Returns the new state, the pages set aside and back, and a line per run not counted."""
     state, aside, back, uncounted = {u: dict(m) for u, m in missed.items()}, [], [], []
@@ -444,12 +443,13 @@ def tally(reads, missed, today):
             uncounted.append(f"{what}: {len(pages) - len(found & set(pages))} of {len(pages)} pages not read, not counted")
         for u in pages:
             m = state.get(u, {})
-            if u in found:
-                back += [u] if m.get("aside") else []
+            misses, happened = failing(m.get("misses", 0), m.get("aside"), u in found, counted)
+            if happened in ("clear", "back"):
+                back += [u] if happened == "back" else []
                 state.pop(u, None)
-            elif counted and not m.get("aside"):
-                m = {"misses": m.get("misses", 0) + 1, "why": why.get(u, "nothing back")}
-                if m["misses"] >= MISSES:
+            elif happened in ("missed", "set"):
+                m = {"misses": misses, "why": why.get(u, "nothing back")}
+                if happened == "set":
                     m["aside"] = str(today)
                     aside.append(u)
                 state[u] = m
@@ -462,7 +462,7 @@ def aside_lines(state, aside, back, lists):
     name = lambda u: f"{named[u]['name']}'s {named[u]['kind'].title()} {u}" if u in named else u
     retry = lambda u: ("the Thursday read" if named.get(u, {}).get("busy")
                        else "the Thursday read in the first week of each month")
-    return ([f"Set aside: {name(u)}: {state[u]['why'].replace('_', ' ')} {MISSES} reads in a row; off its paid list, "
+    return ([f"Set aside: {name(u)}: {state[u]['why'].replace('_', ' ')} {ASIDE_AFTER} reads in a row; off its paid list, "
              f"tried with {retry(u)}"
              for u in aside]
             + [f"Back: {name(u)}: read again, back on its list" for u in back])
@@ -507,46 +507,40 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
-def prepare(run, today, out, now, minutes=PART_MINUTES):
+def prepare(run, now):
     """In timed parts, as morning.py's: the wait for an Apify run still going and the pictures'
-    downloads stop after `minutes` and say "run again", and social-part.json carries the check to
+    downloads stop after the part's minutes and say "run again", and social-part.json carries the check to
     the next part."""
-    root = find_root()
-    out.parent.mkdir(parents=True, exist_ok=True)
-    if not only_one(out.parent / "prepare.lock"):
+    root, out, today, check, stop = find_root(), run.folder, run.today, run.check, run.stop
+    state, part = run.begin("social-part.json", {"failed": [], "give_up": time.time() + WAIT})
+    if state == "busy":
         return print("[social] another prepare is still running in this copy: let it finish, and start no second one")
-    prep = json.loads((out / "prepare.json").read_text()) if (out / "prepare.json").exists() else {}
-    if prep.get("run") == run and prep.get("today") == str(today) and not prep.get("done"):
+    if state == "prepared":
         print("[social] prepared already: nothing read again")  # run again after it was done; never start over
-        return say_prepared(prep, out)
-    stop, part_f = deadline(minutes), out / "social-part.json"
-    part = json.loads(part_f.read_text()) if part_f.exists() else {}
-    if part.get("run") != run or part.get("today") != str(today) or (out / "prepare.json").exists():  # a new check
-        if out.exists():
-            shutil.rmtree(out)
-        (out / "batches").mkdir(parents=True)
-        part = {"run": run, "today": str(today), "failed": [], "give_up": time.time() + WAIT}
+        return say_prepared(run.summary(), out)
+    saved = part.saved
+    if state == "new":
         try:
-            part["missed"] = read_missed()
+            saved["missed"] = read_missed()
         except Exception as e:  # every page read this time, and none counted
-            part["missed"], _ = None, part["failed"].append(f"set-aside pages unreadable: {e}")
+            saved["missed"], _ = None, saved["failed"].append(f"set-aside pages unreadable: {e}")
         try:
-            sync_tasks(root, part["missed"], now)  # the next run reads the list as it is now
+            sync_tasks(root, saved["missed"], now)  # the next run reads the list as it is now
         except Exception as e:
-            part["failed"].append(f"task pages not refreshed: {e}")
-        part["listed"] = sum(len(v) for (r, _), v in page_lists(root, part["missed"], now).items() if r == run)
+            saved["failed"].append(f"task pages not refreshed: {e}")
+        saved["listed"] = sum(len(v) for (r, _), v in page_lists(root, saved["missed"], now).items() if r == check)
         try:
-            mark = last_read(run)
+            mark = last_read(check)
         except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
-            mark, _ = None, part["failed"].append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[run].days} days")
-        part["mark"] = mark and mark.isoformat()
-    now = datetime.fromisoformat(part.setdefault("now", now.isoformat()))  # every part by the first part's clock
-    lists, failed = page_lists(root), part["failed"]
-    mark = part["mark"] and datetime.fromisoformat(part["mark"])
-    if "posts" not in part:
-        found, waiting = runs_since(run, mark, now, part["give_up"], stop)
-        if waiting and time.time() <= part["give_up"]:  # the part's time is spent first
-            part_f.write_text(json.dumps(part))
+            mark, _ = None, saved["failed"].append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[check].days} days")
+        saved["mark"] = mark and mark.isoformat()
+    now = datetime.fromisoformat(saved.setdefault("now", now.isoformat()))  # every part by the first part's clock
+    lists, failed = page_lists(root), saved["failed"]
+    mark = saved["mark"] and datetime.fromisoformat(saved["mark"])
+    if "posts" not in saved:
+        found, waiting = runs_since(check, mark, now, saved["give_up"], stop)
+        if waiting and time.time() <= saved["give_up"]:  # the part's time is spent first
+            part.save()
             return print(f"[social] run again: {', '.join(waiting)} still running on Apify")
         failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
@@ -565,7 +559,7 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
                 posts += got
                 if kind == "events":  # a posts page Apify can't read is named once, set aside (tally)
                     failed += [f"{kind}: {h}" for h in hidden]
-                elif r["status"] == "SUCCEEDED" and part.get("missed") is not None:
+                elif r["status"] == "SUCCEEDED" and saved.get("missed") is not None:
                     reads.append((r["finishedAt"], run_pages(r["id"]), rows,
                                   f"{kind} run at {finished.astimezone(LOCAL):%a %-I:%M %p}"))
                 if r["status"] != "SUCCEEDED":
@@ -574,19 +568,20 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         for p in posts:  # overlapping windows read a post twice; one page each
             if p["file"] not in seen:
                 seen.add(p["file"]), unique.append(p)
-        if part.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
-            state, aside, back, uncounted = tally(reads, part["missed"], today)
-            part.update(missed=state, aside=aside_lines(state, aside, back, lists))
+        if saved.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
+            missed, aside, back, uncounted = tally(reads, saved["missed"], today)
+            saved.update(missed=missed, aside=aside_lines(missed, aside, back, lists))
             failed += uncounted
-        part.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
-    posts = part["posts"]
-    pics = add_pictures(posts, out / "pictures", fetch_picture, stop, part.get("pics"))
+        saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
+    posts = saved["posts"]
+    pics = add_pictures(posts, out / "pictures", fetch_picture, stop, saved.get("pics"))
     if any(p.get("pictures") for p in posts):
-        part_f.write_text(json.dumps({**part, "pics": pics}))
+        saved["pics"] = pics
+        part.save()
         return print(f"[social] run again: {sum(bool(p.get('pictures')) for p in posts)} posts' pictures still to read")
     failed = failed + [f"picture not downloaded: {f}" for f in pics["failed"]]
-    cost, runs = part["cost"], part["runs"]
-    until = part["until"] and datetime.fromisoformat(part["until"])
+    cost, runs = saved["cost"], saved["runs"]
+    until = saved["until"] and datetime.fromisoformat(saved["until"])
     for i, text in enumerate(layout(posts, today, TOWNS[TOWN]["display"]), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
@@ -596,14 +591,14 @@ def prepare(run, today, out, now, minutes=PART_MINUTES):
         interests = write_judged.interest_ids()
     except Exception as e:  # no database keys (a dry run on a Mac): the judge then uses null
         interests, _ = [], failed.append(f"interest ids unread: {e}")
-    checked = part.get("listed", 0)  # set-aside pages left out
-    summary = {"today": str(today), "run": run, "since": mark.isoformat() if mark else None,
+    checked = saved.get("listed", 0)  # set-aside pages left out
+    summary = {"today": str(today), "run": check, "since": mark.isoformat() if mark else None,
                "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
-               "aside": part.get("aside", []), "missed": part.get("missed")}
-    (out / "prepare.json").write_text(json.dumps(summary, indent=1))
+               "aside": saved.get("aside", []), "missed": saved.get("missed")}
+    run.prepared(summary)
     say_prepared(summary, out)
 
 
@@ -619,11 +614,11 @@ def say_prepared(s, out):
         print(f"[social] FAILED {f}")
 
 
-def finish(out):
+def finish(run):
     """After the write: mark this check's runs read, so the next check starts after them, and the next
     prepare a new check."""
-    prep = json.loads((out / "prepare.json").read_text())
-    (out / "prepare.json").write_text(json.dumps({**prep, "done": True}, indent=1))
+    prep = run.summary()
+    run.finished()
     print(pictures_line(prep.get("pictures")))
     if not prep.get("read_until"):
         return print(f"[social] {prep['run']}: no Apify runs to mark")
@@ -735,7 +730,54 @@ def selftest():
         check(cond, what)
     for cond, what in set_aside_reads():
         check(cond, what)
+    for cond, what in done_alone():
+        check(cond, what)
     print(f"social.py selftest: {ok} passed, 0 failed")
+
+
+def done_alone():
+    """done through a Run, with Apify's store faked: it marks the runs read and saves the set-aside pages, and the check
+    is over. Run again it writes the same marks, so nothing moves."""
+    import contextlib
+    g, wrote = globals(), []
+    saved = g["mark_read"], g["save_missed"]
+    g["mark_read"], g["save_missed"] = (lambda run, at: wrote.append(("read", run, at))), (lambda m: wrote.append(("missed", m)))
+    until, missed = "2026-10-28T23:33:00+00:00", {"https://www.facebook.com/x": {"misses": 1, "why": "nothing back"}}
+
+    def done(**prep):
+        """One `done`, with what its prepare found: what it printed."""
+        run = Run(folder, date(2026, 10, 28), check="busy")
+        run.prepared({"today": "2026-10-28", "run": "busy", "apify_runs": 2, "pictures": None, **prep})
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            finish(run)
+        return said.getvalue(), run.summary().get("done")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            told, over = done(read_until=until, missed=missed)
+            first = list(wrote)
+            done(read_until=until, missed=missed)
+            twice = list(wrote)
+            wrote.clear()
+            none = done(read_until=None, missed=missed)
+            none_wrote = list(wrote)
+
+            def refused(run, at):
+                raise OSError("HTTP Error 401")
+            g["mark_read"] = refused
+            failed = done(read_until=until, missed=missed)
+            failed_wrote = list(wrote)
+    finally:
+        g["mark_read"], g["save_missed"] = saved
+    return [
+        (first == [("read", "busy", until), ("missed", missed)] and over is True and "2 runs marked read" in told,
+         f"done alone marks the runs read and saves the set-aside pages, and the check is over: {first}"),
+        (twice == first * 2, "done run again writes the same marks"),
+        (none_wrote == [] and none[1] is True and "no Apify runs to mark" in none[0], "a check with no runs marks nothing"),
+        (failed_wrote == [] and "[social] FAILED marking busy read (HTTP Error 401)" in failed[0] and failed[1] is True,
+         "a store that refuses is one line, and the set-aside pages wait with the mark, so no run is counted twice"),
+    ]
 
 
 def set_aside_reads():
@@ -781,12 +823,12 @@ def set_aside_reads():
         runs.setdefault(task, []).append({"id": rid, "status": "SUCCEEDED", "startedAt": at, "finishedAt": at,
                                           "defaultDatasetId": rid, "usageTotalUsd": 0.01})
 
-    def check(run, when):
+    def check(name, when):
         now = datetime.fromisoformat(when)
-        said = io.StringIO()
+        said, run = io.StringIO(), Run(folder, now.astimezone(LOCAL).date(), check=name, minutes=None)
         with contextlib.redirect_stdout(said):
-            prepare(run, now.astimezone(LOCAL).date(), folder, now, None)
-            finish(folder)
+            prepare(run, now)
+            finish(run)
         return said.getvalue().splitlines()
     fakes = {"api": apify, "items": lambda rid: data[rid][1], "load": lambda root: ([], [])}
     saved = {k: g[k] for k in (*fakes, "find_root")}, write_judged.interest_ids
@@ -847,6 +889,7 @@ def in_parts():
     run never ends."""
     import contextlib, run as runner, write_judged
     g, clock, got = globals(), type("Clock", (), {})(), []
+    day, at = date(2026, 10, 28), datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc)
     clock.monotonic = clock.time = lambda: clock.t
     clock.sleep = lambda s: setattr(clock, "t", clock.t + s)
     page = {"url": "https://www.facebook.com/krewe", "name": "Krewe", "entry_id": "krewe", "category": None}
@@ -870,13 +913,12 @@ def in_parts():
     def check(minutes):
         """One check's prepare, part after part: each part's words, and the batches it laid out."""
         clock.t, said = 1000.0, []
-        prep = folder / "prepare.json"
-        if prep.exists():  # the last check's `done`: this prepare starts a new check
-            prep.write_text(json.dumps({**json.loads(prep.read_text()), "done": True}))
+        if (folder / "prepare.json").exists():  # the last check's `done`: this prepare starts a new check
+            Run(folder, day).finished()
         while len(said) < 6 and (not said or "run again" in said[-1]):
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                prepare("busy", date(2026, 10, 28), folder, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc), minutes)
+                prepare(Run(folder, day, check="busy", minutes=minutes), at)
             said.append(out.getvalue())
         return said, {f.name: f.read_text() for f in (folder / "batches").iterdir()} if (folder / "batches").exists() else {}
     fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root, *a: None, "fetch_picture": picture,
@@ -899,7 +941,7 @@ def in_parts():
             again, flags = io.StringIO(), folder / "flags.jsonl"
             flags.write_text("{}\n")  # the helpers' flags, already in
             with contextlib.redirect_stdout(again):  # run again once done, before `done`: nothing read again
-                prepare("busy", date(2026, 10, 28), folder, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc), 2)
+                prepare(Run(folder, day, check="busy", minutes=2), at)
             again = (again.getvalue(), flags.exists())
     finally:
         g.update(saved[0])
@@ -937,13 +979,14 @@ def main():
         return print(spend())
     if args.step == "setup":
         return setup()
-    if args.step == "done":
-        return finish(find_root() / ".runs" / "morning")
-    if args.step != "prepare" or not args.run:
-        ap.error("setup, prepare busy|weekly, done, or spend")
     now = datetime.now(timezone.utc)
     today = date.fromisoformat(args.today) if args.today else now.astimezone(LOCAL).date()
-    prepare(args.run, today, find_root() / ".runs" / "morning", now)
+    run = Run(find_root() / ".runs" / "morning", today, check=args.run)
+    if args.step == "done":
+        return finish(run)
+    if args.step != "prepare" or not args.run:
+        ap.error("setup, prepare busy|weekly, done, or spend")
+    prepare(run, now)
 
 
 if __name__ == "__main__":

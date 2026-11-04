@@ -36,6 +36,8 @@ from registry import find_root, place_key  # noqa: E402
 import social, write_judged  # noqa: E402
 from read_events import LOCAL  # noqa: E402
 from run import Supabase, fetch  # noqa: E402
+from morning_run import Part  # noqa: E402
+from db import DbError  # noqa: E402
 from morning import read_items  # noqa: E402
 from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
@@ -309,19 +311,27 @@ def keep(out, dry_run=False, db=None, now=None):
     picks = plan(read_items(out / "event_photos.jsonl"), groups)
     db = db or (None if dry_run else Supabase())
     stamp = (now or datetime.now(timezone.utc)).isoformat()
-    kept = []
-    for g in groups:
-        if g["key"] in picks and not dry_run:
-            c, shows, flyer = picks[g["key"]]
+    by_key = {g["key"]: g for g in groups}
+
+    def save_one(key):
+        kind, what = key.split(":", 1)
+        if kind == "looked":
+            return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_checked_at": stamp}, prefer="return=minimal")
+        g, (c, shows, flyer) = by_key[what], picks[what]
+        try:
             place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
                                       proposed_by="event photos")
-        if not dry_run:
-            for e in g["events"]:
-                db.rest("PATCH", f"club_events?id=eq.{e['id']}", {"photo_checked_at": stamp}, prefer="return=minimal")
-        if g["key"] in picks:
-            kept.append(g)
+        except DbError as e:
+            if e.status != 409:  # the database's one live photo an Event has: an earlier run's save that got through
+                raise
+    if not dry_run:
+        # Each write its own key, so lines that come late are still saved and a stop leaves only what wasn't sent.
+        # prepare clears the file.
+        Part(folder / "kept.json").each([k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
+                                          + [f"looked:{e['id']}" for e in g["events"]]], save_one)
+    kept = [g for g in groups if g["key"] in picks]
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
@@ -444,12 +454,77 @@ def selftest():
               "every Event laid out is marked looked at, found or not")
         check(line.startswith("[photos] 2 of 4 new Events got a photo of their own (0 from their own post or page, 2 from")
               and "none for 2: Reflection; Give to the Max" in line, f"the line says what it did: {line}")
+        fake = place_photos.Unsent("https://db.example")
+        again = keep(out, db=fake, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        check(fake.calls == [] and again == line, "keep run again saves nothing twice, and says the same")
+        (out / "photos" / "kept.json").unlink()
+
+        class Stops(place_photos.Unsent):  # the routine stopped at the mark of the picked block's second Event
+            def rest(self, method, path, body=None, prefer=None):
+                if path == "club_events?id=eq.id1":
+                    raise KeyboardInterrupt
+                return super().rest(method, path, body, prefer)
+        fake, rest = Stops("https://db.example"), place_photos.Unsent("https://db.example")
+        try:
+            keep(out, db=fake, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        except KeyboardInterrupt:
+            pass
+        keep(out, db=rest, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        check(sum(m == "PUT" for m, p, b in fake.calls) == 1 and not any(m != "PATCH" for m, p, b in rest.calls)
+              and [p.split("=eq.")[1] for m, p, b in rest.calls] == ["id1", "id2", "id3"],
+              "keep stopped inside a picked block goes on from there: its photo isn't sent again, and the marks left are made")
+        (out / "photos" / "kept.json").unlink()
+        answers = (out / "event_photos.jsonl").read_text()
+        (out / "event_photos.jsonl").write_text("")  # keep run before the helpers' lines are in
+        early, late_ = place_photos.Unsent("https://db.example"), place_photos.Unsent("https://db.example")
+        keep(out, db=early, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        (out / "event_photos.jsonl").write_text(answers)
+        said = keep(out, db=late_, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        check(not any(m == "PUT" for m, p, b in early.calls) and [m for m, p, b in late_.calls] == ["PUT", "POST"] and said == line,
+              "lines that come after a keep are still saved, and only they are; the line says so")
+        (out / "photos" / "kept.json").unlink()
+
+        class Taken(place_photos.Unsent):  # the database already has this photo: an earlier run's save got through
+            def rest(self, method, path, body=None, prefer=None):
+                if path == "place_photos":
+                    raise DbError(method, path, self.status, "duplicate key value")
+                return super().rest(method, path, body, prefer)
+        fake = Taken("https://db.example")
+        fake.status = 409
+        keep(out, db=fake, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+        check(sorted(p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH") == ["id0", "id1", "id2", "id3"],
+              "an Event that already has its one live photo doesn't stop the blocks after it")
+        (out / "photos" / "kept.json").unlink()
+        fake = Taken("https://db.example")
+        fake.status = 500
+        try:
+            keep(out, db=fake, now=datetime(2026, 10, 31, 11, tzinfo=timezone.utc))
+            check(False, "a save the database refuses for any other reason stops keep")
+        except DbError:
+            check(True, "a save the database refuses for any other reason stops keep")
+        (out / "photos" / "kept.json").unlink(missing_ok=True)
         (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": own, "flyer": True}) + "\n")
         fake = place_photos.Unsent("https://db.example")
         keep(out, db=fake, now=datetime(2026, 11, 2, 11, tzinfo=timezone.utc))
         check({r["kind"] for m, p, b in fake.calls if p == "place_photos" for r in b} == {"flyer"}, "a flyer is saved as kind flyer")
         dry = keep(out, dry_run=True)
         check("dry run" in dry, "a dry run writes nothing")
+
+        class Found(place_photos.Unsent):  # the new Events, as the database answers
+            def rest(self, method, path, body=None, prefer=None):
+                self.calls.append((method, path, body))
+                return [dict(e) for e in events] if method == "GET" else None
+        fake = Found("https://db.example")
+        laid_out = lambda: {f.name for f in (out / "photos").iterdir()}
+        (out / "photos" / "kept.json").write_text("[]")
+        lay_out = lambda: prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=fake, rows=rows, banners={"4758895": "https://storage.googleapis.com/art.jpg"},
+                                  share=lambda u: "https://givemn.org/og.jpg", grab=grab)
+        first = lay_out()
+        check([len(g["events"]) for g in first] == [2, 1, 1] and "kept.json" not in laid_out() and "events.json" in laid_out()
+              and all(m == "GET" for m, p, b in fake.calls), "prepare alone lays the sheets out, writes nothing, and clears the last keep's memory")
+        before = (out / "photos" / "events.json").read_text()
+        lay_out()
+        check((out / "photos" / "events.json").read_text() == before, "prepare run again lays out the same")
     print(f"{ok} passed, {bad} failed")
     return bad == 0
 
