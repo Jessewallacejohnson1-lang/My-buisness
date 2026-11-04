@@ -1,116 +1,13 @@
 // Fixed stories for get_my_going (supabase/migrations/*_my_going.sql), the You tab's read of
 // the caller's Going, and get_my_saves (*_my_saves.sql), Profile's Saved list, run in PGlite
-// like the Town feed's. Run: `npm install && npm test` in
-// this folder. The schema below is the subset of schema.sql the function reads.
+// like the Town feed's. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase, people } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
 import { CARD_KEYS } from './event_card.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-// The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
-const files = creating(migrations, ['public.get_my_going', 'private.event_cards', 'public.place_picture', 'public.get_my_saves',
-  'private.going_count', 'private.heart_count', 'public.event_picture', 'private.event_subject', 'private.season_of', 'private.christmas_time', 'private.event_gender', 'private.christmas_fit']);
-// Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
-// shown, as they are now: each function alone, its newest definition in any migration.
-const cut = (fn) => readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'))
-  .map((sql) => sql.match(new RegExp(`create or replace function ${fn.replace('.', '\\.')}\\([\\s\\S]*?\\$\\$;`)))
-  .filter(Boolean).pop()[0];
-const findable = cut('private.findable');
-const friendsGoing = cut('private.friends_going');
-// The Event card's helpers (codebase-health-2 01), the same way: the group a found Event was found for,
-// its host's picture and a game's teams.
-const cardHelpers = ['private.event_group', 'public.place_picture', 'private.entry_picture',
-  'private.host_picture', 'private.event_game'].map(cut);
-
-const db = await PGlite.create();
-await db.exec(`
-  set timezone = 'UTC';
-  create role anon; create role authenticated;
-  create schema auth;
-  grant usage on schema auth to anon, authenticated;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  -- Neighbours and the Friends builds' tables (friend_requests, unfriend_and_block), as they are live.
-  create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text,
-    plans_to_friends boolean not null default true);
-  create schema if not exists private;
-  create table private.friendships (a uuid not null, b uuid not null, requested_by uuid not null,
-    created_at timestamptz not null default now(), primary key (a, b), check (a < b));
-  create table private.blocks (blocker_id uuid not null, blocked_id uuid not null,
-    created_at timestamptz not null default now(), primary key (blocker_id, blocked_id));
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  create function public.is_admin() returns boolean language sql stable as $$ select false $$;
-  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null,
-    status text not null default 'approved', own_entry_id text, place_entry_id text,
-    created_at timestamptz not null default now());
-  create table public.club_events (
-    id uuid primary key default gen_random_uuid(), club_id uuid, submitted_by uuid,
-    status text not null default 'approved', title text not null, event_date date,
-    start_time text, created_at timestamptz not null default now(), location text,
-    image_url text, kind text not null default 'event', category text,
-    end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz, place_entry_id text, description text, sport text,
-    source_url text, what text, team_ids text[], occasion text, final_score int[], live_score jsonb,
-    scoring_plays jsonb);
-  -- The Event card's hosts and games: the source registry's pages and the hosts named by hand, which no
-  -- neighbour may read (as live), and the schools a game names.
-  create table public.sources (id uuid primary key default gen_random_uuid(), entry_id text not null,
-    url text, name text);
-  create table public.host_entries (name text primary key, entry_id text not null);
-  create table public.teams (id text primary key, name text not null, short_name text not null,
-    logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
-    local boolean not null default false, nickname text);
-  -- Where events happen, with their pictures (place-photos): the app's places rows, then the
-  -- photos Block Party keeps (loaded from their migrations below).
-  create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
-    logo_url text, search_logo jsonb);
-  create table public.event_rsvps (
-    id uuid primary key default gen_random_uuid(), event_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now());
-  create table public.event_saves (
-    event_id uuid not null, user_id uuid not null, created_at timestamptz not null default now(),
-    primary key (event_id, user_id));
-  create table public.event_likes (
-    id uuid primary key default gen_random_uuid(), event_id uuid not null,
-    user_id uuid not null, created_at timestamptz not null default now());
-
-  -- The live read rules (schema.sql; Going readable only as your own rows since ticket 19).
-  alter table public.club_events enable row level security;
-  alter table public.event_rsvps enable row level security;
-  alter table public.event_saves enable row level security;
-  alter table public.clubs enable row level security;
-  alter table public.sources enable row level security;
-  alter table public.host_entries enable row level security;
-  create policy "read events" on public.club_events for select to public
-    using (status = 'approved' or submitted_by = auth.uid() or is_admin());
-  create policy "own rsvps select" on public.event_rsvps for select to public
-    using ((select auth.uid()) = user_id);
-  create policy "own saves select" on public.event_saves for select to public
-    using ((select auth.uid()) = user_id);
-  create policy "read clubs" on public.clubs for select to public using (true);
-  grant select on all tables in schema public to anon, authenticated;
-`);
-for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
-  await db.exec(readFileSync(join(migrations, f), 'utf8'));
-// Supabase gives anon and authenticated each new public table; the setup's grant ran before it.
-await db.exec('grant select on public.place_photos to anon, authenticated');
-await db.exec(findable);
-await db.exec(friendsGoing);
-// place_picture's own columns come with the files below; the stories run every helper's body.
-await db.exec('set check_function_bodies = off');
-for (const sql of cardHelpers) await db.exec(sql);
-await db.exec('reset check_function_bodies');
-for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
 const CITY = 'City of St. Joseph';
 const ME = '00000000-0000-0000-0000-00000000000a';
 const NEIGHBOUR = '00000000-0000-0000-0000-00000000000b';
@@ -119,8 +16,9 @@ async function reset() {
   await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_saves;
                  delete from public.club_events; delete from private.friendships;
                  delete from public.town_profiles; delete from auth.users;
-                 delete from public.clubs; delete from public.sources; delete from public.teams;
+                 delete from public.clubs; delete from public.sources;
                  delete from public.place_photos; reset request.jwt.claim.sub;`);
+  await people(db, ME, NEIGHBOUR);
 }
 
 async function add(title, date, more = {}) {
@@ -188,7 +86,7 @@ test('pending, rejected, non-events and events with no host are left out', async
 
 test('a club\'s event carries the club\'s name', async () => {
   await reset();
-  const { rows } = await db.query(`insert into public.clubs (name) values ('Bike club') returning id`);
+  const { rows } = await db.query(`insert into public.clubs (name, status) values ('Bike club', 'approved') returning id`);
   await going(ME, await add('Bike club ride', '2026-10-20', { club_id: rows[0].id }));
   const got = await mine('2026-10-11', '2026-10-31');
   assert.equal(got[0].club_name, 'Bike club');
@@ -374,7 +272,7 @@ test('your saves carry friends Going too, never a stranger or a friend hiding pl
   const quiz = await add('Quiz night', day);
   const fair = await add('Craft fair', day);
   const HIDING = '00000000-0000-0000-0000-0000000000c2';
-  await db.query('insert into auth.users (id) values ($1), ($2), ($3)', [FRIEND, HIDING, NEIGHBOUR]);
+  await people(db, FRIEND, HIDING);
   await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url, plans_to_friends)
                   values ($1, 'Anna Lee', $2, true), ($3, 'Hal Moe', null, false), ($4, 'Ned Nu', null, true)`,
                  [FRIEND, FRIEND_PHOTO, HIDING, NEIGHBOUR]);
@@ -420,13 +318,15 @@ async function asTheAppReads(read, day) {
 // A found game, called off, whose page names the group it was found for, at a place with a photo, that you
 // and a friend are Going to.
 async function fullEvent(day) {
-  await db.query(`insert into public.clubs (name, own_entry_id) values ('Johnnie Football Boosters', 'sju-athletics')`);
-  await db.exec(`insert into public.sources (entry_id, name) values ('sju-athletics', 'SJU Athletics');
+  await db.query(`insert into public.clubs (name, status, own_entry_id) values ('Johnnie Football Boosters', 'approved', 'sju-athletics')`);
+  await db.exec(`insert into public.sources (entry_id, url, town, name, status, method) values
+      ('sju-athletics', 'https://gojohnnies.com/', 'st-joseph-mn', 'SJU Athletics', 'active', 'fetch');
     insert into public.place_photos (entry_id, url, source_url, kind, status) values
-      ('sju-athletics', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 'logo', 'live'),
+      ('activities-athletic-sju', 'https://x/sju-logo.webp', 'https://gojohnnies.com/', 'logo', 'live'),
       ('clemens-field', 'https://x/field.webp', 'https://csbsju.edu/', 'photo', 'live');
     insert into public.teams (id, name, short_name, logo_url) values
-      ('saint-johns', 'Saint John''s', 'SJU', 'https://x/sju.png'), ('concordia', 'Concordia', 'Concordia', null);`);
+      ('saint-johns', 'Saint John''s', 'SJU', 'https://x/sju.png'), ('concordia', 'Concordia', 'Concordia', null)
+    on conflict (id) do nothing;`);
   const id = await add('SJU Football vs Concordia', day, { source_name: 'SJU Athletics' });
   await db.query(`update public.club_events set start_time = '1 PM', location = 'Clemens Field', category = 'sports',
       image_url = 'https://x/flyer.jpg', end_at = $2::date + time '21:00', place_entry_id = 'clemens-field',

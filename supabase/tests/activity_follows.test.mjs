@@ -4,60 +4,32 @@
 // the others: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase, people } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const one = (suffix) => readFileSync(join(migrations, readdirSync(migrations).find((f) => f.endsWith(suffix))), 'utf8');
-
 const ME = '00000000-0000-0000-0000-00000000000a';
-const db = await PGlite.create();
+const db = await realDatabase();
+await people(db, ME);
 await db.exec(`
-  create role anon; create role authenticated; create schema private; create schema auth;
-  grant usage on schema auth, private to anon, authenticated;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid $$;
-  create function private.findable(p uuid) returns boolean language sql stable as $$ select true $$;
-  create table public.places (id uuid primary key);
-  create table public.teams (id text primary key, name text not null, short_name text not null,
-    local boolean not null default false, nickname text, uuid uuid not null default gen_random_uuid(),
-    logo_url text, colors text[]);
+  insert into public.teams (id, name, short_name, local, school_name) values
+    ('apollo', 'Apollo', 'Apollo', true, 'Apollo High School')
+  on conflict (id) do nothing;
   insert into public.teams (id, name, short_name, local) values
-    ('apollo', 'Apollo', 'Apollo', true), ('tech', 'Tech', 'Tech', true), ('kennedy', 'Kennedy', 'Kennedy', false),
+    ('tech', 'Tech', 'Tech', true),
     ('cathedral', 'Cathedral', 'Cathedral', true), ('apollo-cathedral', 'Apollo-Cathedral', 'Apollo-Cathedral', true),
     ('rocori', 'ROCORI', 'ROCORI', true), ('sartell', 'Sartell', 'Sartell', true),
     ('sauk-rapids-rice', 'Sauk Rapids-Rice', 'Sauk Rapids-Rice', true),
     ('saint-benedict', 'Saint Benedict', 'Saint Benedict', true), ('saint-johns', 'Saint John''s', 'Saint John''s', true),
-    ('albany', 'Albany', 'Albany', false);
-  create table public.club_events (id uuid primary key default gen_random_uuid(), title text not null,
-    sport text, team_ids text[], event_date date, start_time text, location text,
-    status text not null default 'approved', cancelled_at timestamptz);
-  create table public.town_follows (id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null,
-    constraint town_follows_target_type_check check (target_type in ('club', 'profile', 'place', 'team')),
-    unique (follower_id, target_type, target_id));
-  grant select on public.teams, public.club_events, public.town_follows to anon, authenticated;
+    ('albany', 'Albany', 'Albany', false)
+  on conflict (id) do nothing;
 `);
-await db.exec(one('_team_activities.sql'));
-await db.exec(one('_activity_follows.sql'));
-await db.exec(one('_school_names.sql'));
-// Followed activities (ticket 03) remake team_page and activity_events; the Town feed it also remakes
-// isn't read here, so its tables needn't exist.
-await db.exec(`set check_function_bodies = off`);
-await db.exec(one('_activity_follow_lift.sql'));
-await db.exec(`reset check_function_bodies`);
-
 const soon = townDay;
 const apollo = (await db.query(`select uuid from public.teams where id = 'apollo'`)).rows[0].uuid;
 const id = async (team, name) =>
   (await db.query(`select id from public.team_activities where team_id = $1 and name = $2`, [team, name])).rows[0].id;
 const as = async (who, sql, args = []) => {
   await db.exec(`set role authenticated; select set_config('request.jwt.claims', '${JSON.stringify({ sub: who })}', false)`);
-  try { return (await db.query(sql, args)).rows; } finally { await db.exec('reset role'); }
+  try { return (await db.query(sql, args)).rows; } finally { await db.exec('reset role; reset request.jwt.claims'); }
 };
 
 test("an activity of a local school can be followed; anything else can't", async () => {
@@ -73,10 +45,10 @@ test("an activity of a local school can be followed; anything else can't", async
 });
 
 test("the school's page lists its activities in order, each with its next game and your star", async () => {
-  await db.query(`insert into public.club_events (title, sport, team_ids, event_date, start_time) values
-    ('Apollo Girls Soccer vs Albany', 'Girls Soccer', array['apollo', 'albany'], $1, '7 PM'),
-    ('Apollo Girls Soccer vs Tech', 'Girls Soccer', array['apollo', 'tech'], $2, '5 PM'),
-    ('Apollo Girls Soccer vs Foley', 'Girls Soccer', array['apollo', 'albany'], $3, '6 PM')`,
+  await db.query(`insert into public.club_events (status, title, sport, team_ids, event_date, start_time) values
+    ('approved', 'Apollo Girls Soccer vs Albany', 'Girls Soccer', array['apollo', 'albany'], $1, '7 PM'),
+    ('approved', 'Apollo Girls Soccer vs Tech', 'Girls Soccer', array['apollo', 'tech'], $2, '5 PM'),
+    ('approved', 'Apollo Girls Soccer vs Foley', 'Girls Soccer', array['apollo', 'albany'], $3, '6 PM')`,
     [soon(9), soon(2), soon(-3)]);
   const [page] = await as(ME, `select public.team_page($1) p`, [apollo]);
   assert.equal(page.p.name, 'Apollo High School', "the school's own name; game cards keep Apollo");
@@ -90,7 +62,7 @@ test("the school's page lists its activities in order, each with its next game a
   const boys = acts.find((a) => a.name === 'Boys Soccer');
   assert.equal(boys.next, null, 'no game yet: "No events yet"');
   assert.equal(boys.following, false);
-  const [signedOut] = await as('', `select public.team_page($1) p`, [apollo]);
+  const [signedOut] = await as(null, `select public.team_page($1) p`, [apollo]);
   assert.equal(signedOut.p.activities.find((a) => a.name === 'Girls Soccer').following, false);
 });
 
@@ -109,11 +81,11 @@ test('Kennedy has its logo and colours, navy first', async () => {
 
 test("the school's games stay what everyone sees; an activity's own list has every level, its concerts too", async () => {
   await db.exec('delete from public.club_events');
-  await db.query(`insert into public.club_events (title, sport, team_ids, event_date, start_time, followers_only) values
-    ('Apollo Girls Soccer vs Tech', 'Girls Soccer', array['apollo', 'tech'], $1, '7 PM', false),
-    ('Apollo Girls Soccer vs Tech · JV', 'Girls Soccer', array['apollo', 'tech'], $1, '5 PM', true)`, [soon(2)]);
-  await db.query(`insert into public.club_events (title, event_date, start_time, followers_only, activity_team, activity_name)
-    values ('Fall Choir Concert', $1, '7 PM', true, 'apollo', 'Choir')`, [soon(3)]);
+  await db.query(`insert into public.club_events (status, title, sport, team_ids, event_date, start_time, followers_only) values
+    ('approved', 'Apollo Girls Soccer vs Tech', 'Girls Soccer', array['apollo', 'tech'], $1, '7 PM', false),
+    ('approved', 'Apollo Girls Soccer vs Tech · JV', 'Girls Soccer', array['apollo', 'tech'], $1, '5 PM', true)`, [soon(2)]);
+  await db.query(`insert into public.club_events (status, title, event_date, start_time, followers_only, activity_team, activity_name)
+    values ('approved', 'Fall Choir Concert', $1, '7 PM', true, 'apollo', 'Choir')`, [soon(3)]);
   const [page] = await as(ME, `select public.team_page($1) p`, [apollo]);
   assert.deepEqual(page.p.games.map((g) => g.time), ['7 PM'], 'the JV game stays off the games list');
   assert.equal(page.p.activities.find((a) => a.name === 'Girls Soccer').next.title, 'Apollo Girls Soccer vs Tech · JV');

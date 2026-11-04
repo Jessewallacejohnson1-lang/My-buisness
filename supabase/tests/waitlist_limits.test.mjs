@@ -3,29 +3,9 @@
 // in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase } from './fixture.mjs';
 
-const migrations = process.env.MIGRATIONS ?? new URL('../migrations', import.meta.url).pathname;
-const db = await PGlite.create();
-// public.waitlist as live: its unique email, its insert rule, and anon's insert on every column.
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema private;
-  create table public.waitlist (id uuid primary key default gen_random_uuid(), email text not null,
-    first_name text not null, town text not null, created_at timestamptz not null default now(),
-    business_name text, business_kind text);
-  create unique index waitlist_email_lower_idx on public.waitlist (lower(email));
-  alter table public.waitlist enable row level security;
-  create policy "anon can join the waitlist" on public.waitlist for insert to anon
-    with check (char_length(email) between 6 and 254 and position('@' in email) > 1
-      and char_length(first_name) between 1 and 80 and char_length(town) between 1 and 120);
-  grant insert on public.waitlist to anon;
-`);
-for (const f of creating(migrations, ['private.waitlist_per_minute'])) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
 const TOWN = 'St. Joseph, MN';
 // The website's insert: its five fields, the business two only on an owner's path.
 async function signUp(email, extra = {}) {

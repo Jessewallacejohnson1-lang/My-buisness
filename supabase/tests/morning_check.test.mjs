@@ -1,62 +1,20 @@
 // Fixed stories for the 8:00 bad-morning email (supabase/migrations/*_morning_check.sql, BP app docs/plans/loopholes,
-// ticket 03), run in PGlite with stand-ins for pgsql-http, pg_cron's run log and Vault. A normal morning sends
+// ticket 03), run in PGlite with the fixture's stand-ins for pgsql-http, pg_cron's run log and Vault. A normal morning sends
 // nothing; each kind of bad morning is one line in one email. Run: `npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { creating } from './migrations.mjs';
+import { realDatabase, people } from './fixture.mjs';
 
-const migrations = process.env.MIGRATIONS ?? new URL('../migrations', import.meta.url).pathname;
-const read = (f) => readFileSync(join(migrations, f), 'utf8');
-// One function as it is now, cut from the newest file that makes it (that file makes much else too).
-const fn = (name) => read(creating(migrations, [name]).at(-1))
-  .match(new RegExp(`create or replace function ${name.replace('.', '\\.')}\\([\\s\\S]*?\\$\\$;`))[0];
-
-const db = await PGlite.create();
+const POSTER = '00000000-0000-0000-0000-00000000000a';
+const db = await realDatabase();
+await people(db, POSTER);
 await db.exec(`
-  set timezone = 'UTC';
-  create role anon; create role authenticated;
-  create schema extensions; create schema private; create schema cron; create schema vault;
-  create type extensions.http_header as (field varchar, value varchar);
-  create type extensions.http_request as (method text, uri varchar, headers extensions.http_header[],
-    content_type varchar, content varchar);
-  create type extensions.http_response as (status int, content_type varchar, headers extensions.http_header[],
-    content varchar);
-  create function extensions.http_header(varchar, varchar) returns extensions.http_header language sql
-    as $$ select ($1, $2)::extensions.http_header $$;
-  create function extensions.http_set_curlopt(varchar, varchar) returns boolean language sql as $$ select true $$;
-  -- Composio's answer, set by each story.
-  create table calls (uri text, headers text, content text);
-  create table answer (status int, content text);
-  create function extensions.http(r extensions.http_request) returns extensions.http_response language plpgsql as $$
-  begin
-    insert into public.calls values (r.uri, r.headers::text, r.content);
-    return (select (a.status, 'application/json', null, a.content)::extensions.http_response from public.answer a);
-  end $$;
-  create table cron.job (jobid bigint, jobname text);
-  create table cron.job_run_details (jobid bigint, status text, return_message text, start_time timestamptz);
-  create function cron.schedule(name text, sched text, cmd text) returns bigint language sql as $$ select 1::bigint $$;
-  create table vault.decrypted_secrets (name text, decrypted_secret text);
   insert into vault.decrypted_secrets values
     ('morning_check', '{"headers":{"x-user-api-key":"test-key","x-org-id":"ok_test"},"account":"ca_test",
       "user":"consumer-test","to":"jesse@example.com"}');
   insert into cron.job values (4, 'game-finals'), (5, 'live-scores');
-  create table public.club_events (id uuid primary key default gen_random_uuid(), title text, event_date date,
-    start_time text, team_ids text[], final_score int[], live_score jsonb, cancelled_at timestamptz,
-    status text default 'approved', source_name text, sport text, submitted_by uuid,
-    created_at timestamptz default now());
-  create table public.clubs (name text, status text default 'approved', calendar_id text, calendar_read_at timestamptz,
-    calendar jsonb, meets jsonb, schedule text, location text);
+  delete from public.clubs;
 `);
-await db.exec(read(readdirSync(migrations).find((f) => f.endsWith('_morning_reports.sql'))));
-await db.exec(fn('private.sidearm_file'));
-await db.exec(fn('private.live_games'));
-await db.exec(fn('public.group_meetings'));
-// Every file that makes the check, oldest first: the first also makes its schedule.
-for (const f of creating(migrations, ['private.morning_problems', 'private.morning_check'])) await db.exec(read(f));
-
 // Monday Nov 2, 8:00 in Chicago (winter time, UTC-6).
 const NOW = '2026-11-02 14:00:00+00';
 const report = ({ pages = 242, failed = 2, events = 54, extra = '' } = {}) => [
@@ -72,15 +30,15 @@ const report = ({ pages = 242, failed = 2, events = 54, extra = '' } = {}) => [
   '[morning] standouts: 9 of 25 events today',
 ].join('\n');
 const story = async (text = report()) => {
-  await db.exec(`delete from calls; delete from answer; delete from public.morning_reports;
+  await db.exec(`delete from fake.calls; delete from fake.answer; delete from public.morning_reports;
     delete from public.club_events; delete from cron.job_run_details;
-    insert into answer values (200, '{"successful":true,"error":null}');`);
+    insert into fake.answer values (200, '{"successful":true,"error":null}');`);
   if (text) await db.query(`insert into public.morning_reports (day, report) values ('2026-11-02', $1)`, [text]);
 };
 const problems = async (now = NOW) =>
   (await db.query('select private.morning_problems($1) p', [now])).rows.map((r) => r.p);
 const check = (now = NOW) => db.query('select private.morning_check($1)', [now]);
-const sent = async () => (await db.query('select uri, headers, content from calls')).rows;
+const sent = async () => (await db.query('select uri, headers, content from fake.calls')).rows;
 
 test('a normal morning sends no email', async () => {
   await story();
@@ -134,9 +92,9 @@ test('a report without its numbers says it could not be checked', async () => {
 test("a neighbour's post waiting over a day is named; a newer one or a found Event waiting is not", async () => {
   await story();
   await db.exec(`insert into public.club_events (title, status, submitted_by, created_at) values
-    ('Farmers market', 'pending', gen_random_uuid(), '2026-11-01 13:00+00'),
-    ('Bake sale', 'pending', gen_random_uuid(), '2026-11-01 15:00+00'),
-    ('Pancake breakfast', 'approved', gen_random_uuid(), '2026-10-20 15:00+00'),
+    ('Farmers market', 'pending', '${POSTER}', '2026-11-01 13:00+00'),
+    ('Bake sale', 'pending', '${POSTER}', '2026-11-01 15:00+00'),
+    ('Pancake breakfast', 'approved', '${POSTER}', '2026-10-20 15:00+00'),
     ('Dave''s Hot Chicken opening', 'pending', null, '2026-10-22 11:00+00')`);
   assert.deepEqual(await problems(),
     ['A neighbour\'s post has waited over a day for your approval: "Farmers market" (since Nov 1).']);
@@ -158,12 +116,12 @@ test('live scores: failures in the last day are counted by reason; a startup tim
 test('a game listened to with no score saved is named, final in or not; a scored one or one just begun is not', async () => {
   await story();
   await db.exec(`insert into public.club_events (title, event_date, start_time, team_ids, final_score, live_score,
-      source_name, sport) values
-    ('SJU Football vs Gustavus Adolphus', '2026-11-01', '1 PM', '{sju,gustavus}', '{28,14}', null, 'SJU Athletics', 'Football'),
-    ('CSB Volleyball vs Augsburg', '2026-11-01', '5 PM', '{csb,augsburg}', null, '{"home":2}', 'CSB Athletics', 'Volleyball'),
-    ('SJU Basketball vs St. Cloud State', '2026-11-02', '7:50 AM', '{sju,scsu}', null, null, 'SJU Athletics', 'Basketball'),
-    ('Sartell Football vs Apollo', '2026-11-01', '7 PM', '{sartell,apollo}', null, null, 'Sartell High School', 'Football'),
-    ('SJU Soccer vs Carleton', '2026-10-31', '1 PM', '{sju,carleton}', null, null, 'SJU Athletics', 'Soccer')`);
+      source_name, sport, status) values
+    ('SJU Football vs Gustavus Adolphus', '2026-11-01', '1 PM', '{sju,gustavus}', '{28,14}', null, 'SJU Athletics', 'Football', 'approved'),
+    ('CSB Volleyball vs Augsburg', '2026-11-01', '5 PM', '{csb,augsburg}', null, '{"home":2}', 'CSB Athletics', 'Volleyball', 'approved'),
+    ('SJU Basketball vs St. Cloud State', '2026-11-02', '7:50 AM', '{sju,scsu}', null, null, 'SJU Athletics', 'Basketball', 'approved'),
+    ('Sartell Football vs Apollo', '2026-11-01', '7 PM', '{sartell,apollo}', null, null, 'Sartell High School', 'Football', 'approved'),
+    ('SJU Soccer vs Carleton', '2026-10-31', '1 PM', '{sju,carleton}', null, null, 'SJU Athletics', 'Soccer', 'approved')`);
   assert.deepEqual(await problems(), ['Live scores heard nothing from SJU Football vs Gustavus Adolphus (Sun 1:00 PM).']);
   // The same game private.live_games listened to: 30 minutes in, before its final came.
   await db.exec(`update public.club_events set final_score = null where sport = 'Football'`);
@@ -174,11 +132,11 @@ test('a game listened to with no score saved is named, final in or not; a scored
 
 test("a group's calendar not read in over a day is named; one read this morning is not", async () => {
   await story();
-  await db.exec(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar) values
-    ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-01 10:30+00', null),
-    ('Quiet club', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-03"}]'),
-    ('New club', 'n@group.calendar.google.com', null, null),
-    ('Lions', null, null, null)`);
+  await db.exec(`insert into public.clubs (name, status, calendar_id, calendar_read_at, calendar) values
+    ('St. Cloud River Runners', 'approved', 'a@group.calendar.google.com', '2026-11-01 10:30+00', null),
+    ('Quiet club', 'approved', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-03"}]'),
+    ('New club', 'approved', 'n@group.calendar.google.com', null, null),
+    ('Lions', 'approved', null, null, null)`);
   assert.deepEqual(await problems(), [
     "The New club calendar hasn't been read since it was added.",
     "The St. Cloud River Runners calendar hasn't been read since Nov 1."]);
@@ -187,18 +145,18 @@ test("a group's calendar not read in over a day is named; one read this morning 
 
 test('a calendar read this morning with nothing for 2 weeks is named; one with a run next week is not', async () => {
   await story();
-  await db.exec(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar) values
-    ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-02 10:30+00',
+  await db.exec(`insert into public.clubs (name, status, calendar_id, calendar_read_at, calendar) values
+    ('St. Cloud River Runners', 'approved', 'a@group.calendar.google.com', '2026-11-02 10:30+00',
      '[{"what": "Run", "day": "2026-11-01"}, {"what": "Banquet", "day": "2026-11-16"}]'),
-    ('Quiet club', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-15"}]')`);
+    ('Quiet club', 'approved', 'q@group.calendar.google.com', '2026-11-02 10:30+00', '[{"what": "Run", "day": "2026-11-15"}]')`);
   assert.deepEqual(await problems(), ['The St. Cloud River Runners calendar has nothing on it for the next 2 weeks.']);
   await db.exec('delete from public.clubs');
 });
 
 test("a meeting the page promises that the calendar moved or dropped is named once, with the page's top line", async () => {
   await story();
-  const club = (calendar) => db.query(`insert into public.clubs (name, calendar_id, calendar_read_at, calendar, meets, schedule, location)
-    values ('St. Cloud River Runners', 'a@group.calendar.google.com', '2026-11-02 10:30+00', $1,
+  const club = (calendar) => db.query(`insert into public.clubs (name, status, calendar_id, calendar_read_at, calendar, meets, schedule, location)
+    values ('St. Cloud River Runners', 'approved', 'a@group.calendar.google.com', '2026-11-02 10:30+00', $1,
             '[{"what": "Coffee Run", "days": ["sun"], "time": "07:30"}]', 'Sundays at 7:30 AM', 'The Local Blend')`,
     [JSON.stringify(calendar)]);
   const run = (day, time, where) => ({ what: 'Coffee Run', day, time, where });
@@ -225,8 +183,8 @@ test('only 8:00 in Chicago reads, summer or winter time', async () => {
 
 test('an email Composio refuses fails the run, so pg_cron records it', async () => {
   await story(null);
-  await db.exec(`update answer set content = '{"successful":false,"error":"Connected account not found"}'`);
+  await db.exec(`update fake.answer set content = '{"successful":false,"error":"Connected account not found"}'`);
   await assert.rejects(check(), /morning check email not sent: .*Connected account not found/);
-  await db.exec(`update answer set status = 401, content = '{"error":{"message":"Invalid API key"}}'`);
+  await db.exec(`update fake.answer set status = 401, content = '{"error":{"message":"Invalid API key"}}'`);
   await assert.rejects(check(), /morning check email answered 401/);
 });

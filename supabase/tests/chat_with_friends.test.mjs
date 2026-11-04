@@ -4,71 +4,10 @@
 // Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase, adminClaims } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const read = (suffix) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
-  .map((f) => readFileSync(join(migrations, f), 'utf8'));
-const realAccount = read('_anonymous_accounts.sql')[0]
-  .match(/create or replace function public\.is_real_account\(\)[\s\S]*?\$\$;/)[0];
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth; create schema storage; create schema realtime; create schema private;
-  grant usage on schema auth, storage, realtime, private to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz);
-  create table public.town_profiles (
-    user_id uuid primary key references auth.users (id) on delete cascade, display_name text, avatar_url text,
-    birthday date, onboarded_at timestamptz, created_at timestamptz not null default now());
-  create table public.town_follows (
-    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
-    target_type text not null, target_id uuid not null, created_at timestamptz not null default now(),
-    unique (follower_id, target_type, target_id));
-  create function public.get_feed_postings(limit_n integer default 30) returns int
-    language sql as $$ select 0 $$;
-  create table public.club_events (id uuid primary key, title text, description text, status text, kind text,
-    place_entry_id text, club_id uuid);
-  create function public.is_admin() returns boolean language sql stable as
-    $$ select coalesce((auth.jwt() ->> 'admin')::boolean, false) $$;
-  grant execute on function public.is_admin() to authenticated;
-  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint,
-    allowed_mime_types text[]);
-  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
-  alter table storage.objects enable row level security;
-  create function storage.foldername(name text) returns text[] language sql immutable as
-    $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
-  create table realtime.messages (id uuid primary key default gen_random_uuid(), extension text, topic text);
-  alter table realtime.messages enable row level security;
-  create function realtime.topic() returns text language sql stable as
-    $$ select current_setting('realtime.topic', true) $$;
-  create publication supabase_realtime;
-  grant select, insert on storage.objects, realtime.messages to authenticated;
-  grant execute on function realtime.topic(), storage.foldername(text) to authenticated;
-`);
-await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql')]) {
-  await db.exec(sql);
-}
-// The card's own stories are event_card's; here it says only which Event, and adults_only reads the title's 21+.
-await db.exec(`
-  create function private.event_cards(p_events uuid[]) returns table (id uuid, card jsonb) language sql stable as
-    $$ select e.id, jsonb_build_object('id', e.id, 'title', e.title) from public.club_events e where e.id = any (p_events) $$;
-  create function private.adults_only(p_place text, p_club uuid, p_words text) returns boolean language sql stable as
-    $$ select p_words like '%21+%' $$;
-`);
-await db.exec(read('_chat_with_friends.sql')[0]);
-await db.exec(read('_chat_safety.sql')[0]);
-
+const db = await realDatabase();
+const ADMIN = JSON.parse(await adminClaims(db));
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, KID, ANON, NOBIRTH] = [1, 2, 3, 4, 5, 6, 7].map(id);
 const [EVENT, BAR, OFF] = [901, 902, 903].map(id);
@@ -96,7 +35,7 @@ async function reset() {
 }
 
 async function as(who, sql, params = [], { anonymous = false, admin = false, topic = '' } = {}) {
-  await db.exec(`set role authenticated; set request.jwt.claims = '${JSON.stringify({ sub: who, is_anonymous: anonymous, admin })}';
+  await db.exec(`set role authenticated; set request.jwt.claims = '${JSON.stringify({ sub: who, is_anonymous: anonymous, ...(admin ? ADMIN : {}) })}';
     set realtime.topic = '${topic}';`);
   try {
     return (await db.query(sql, params)).rows;

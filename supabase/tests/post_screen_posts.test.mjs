@@ -5,69 +5,18 @@
 // The feed's side is in town_feed.test.mjs. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase, people } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const files = readdirSync(migrations)
-  .filter((f) => ['_town_plus_posting.sql', '_town_plus_empty_interests.sql', '_post_screen_posts.sql', '_post_screen_tag_order.sql']
-    .some((end) => f.endsWith(end))).sort();
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated; create role service_role;
-  create schema auth; create schema storage;
-  grant usage on schema auth, storage to anon, authenticated;
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create function public.is_admin() returns boolean language sql stable as $$ select false $$;
-  create function storage.foldername(name text) returns text[] language sql immutable as
-    $$ select string_to_array(name, '/') $$;
-
-  create table public.club_events (id uuid primary key default gen_random_uuid(),
-    club_id uuid, submitted_by uuid, status text not null default 'pending', title text not null,
-    event_date date, start_time text, location text, description text, image_url text,
-    kind text not null default 'event', category text, review_reason text, rechecked_at timestamptz,
-    source_name text, source_uid text, source_url text, place_entry_id text, team_ids text[],
-    activity_team text, activity_name text, sport text, occasion text, what text, draw smallint,
-    shows_from date, interests text[] default '{}', interests_tagged_at timestamptz, lat double precision,
-    lng double precision, followers_only boolean default false, cancelled_at timestamptz, moved_at timestamptz,
-    moved_from jsonb, live_score jsonb, final_score jsonb, scoring_plays jsonb,
-    created_at timestamptz not null default now(), end_at timestamptz, all_day boolean not null default false,
-    constraint club_events_kind_check check (kind in ('event', 'trail')));
-  create schema private;
-  grant usage on schema private to anon, authenticated;
-  create table private.friendships (a uuid not null, b uuid not null, primary key (a, b), check (a < b));
-  create table storage.buckets (id text primary key, name text, public boolean,
-    file_size_limit bigint, allowed_mime_types text[]);
-  insert into storage.buckets (id, name, public) values ('event-images', 'event-images', true);
-  create table storage.objects (id uuid primary key default gen_random_uuid(),
-    bucket_id text not null, name text not null);
-
-  alter table public.club_events enable row level security;
-  alter table storage.objects enable row level security;
-  create policy "read events" on public.club_events for select to anon, authenticated using (true);
-  create policy "submit events" on public.club_events for insert to public
-    with check (submitted_by = (select auth.uid()) and (status = 'pending' or public.is_admin()));
-  create policy "moderate events" on public.club_events for update to public
-    using (public.is_admin() or (submitted_by = (select auth.uid()) and status = 'pending'))
-    with check (public.is_admin() or (submitted_by = (select auth.uid()) and status = 'pending'));
-  create policy "delete events" on public.club_events for delete to public
-    using (public.is_admin() or (submitted_by = (select auth.uid()) and status = 'pending'));
-  create policy "read photos" on storage.objects for select to anon, authenticated using (true);
-  grant select, insert, update, delete on all tables in schema public, storage to anon, authenticated;
-`);
-for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
 const ME = '00000000-0000-0000-0000-0000000000b2';
 const YOU = '00000000-0000-0000-0000-0000000000c3';
 const PHOTOS = 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/event-images/';
 const PAL = '00000000-0000-0000-0000-0000000000d4';
+const OTHER = '00000000-0000-0000-0000-0000000000e5';
+const GROUP = '00000000-0000-0000-0000-0000000000f6';
+await people(db, ME, YOU, PAL, OTHER);
+await db.exec(`insert into public.clubs (id, name) values ('${GROUP}', 'Book Club')`);
+await db.exec(`insert into storage.buckets (id, name, public) values ('event-images', 'event-images', true) on conflict (id) do nothing`);
 let n = 0;
 
 async function as(role, sub) {
@@ -95,7 +44,7 @@ async function claim(id, who) {
 }
 const row = async (id) => { await db.exec('reset role');
   return (await db.query(`select * from public.club_events where id = $1`, [id])).rows[0]; };
-await db.exec(`insert into private.friendships (a, b) values ('${[ME, PAL].sort().join("', '")}')`);
+await db.exec(`insert into private.friendships (a, b, requested_by) values ('${[ME, PAL].sort().join("', '")}', '${ME}')`);
 
 test('a post is claimed once, with words or a photo', async () => {
   const id = await posted(ME);
@@ -108,8 +57,8 @@ test('a post is claimed once, with words or a photo', async () => {
 
 test('a post has no day, time or end; a found, Group\'s or team\'s one is never claimed', async () => {
   for (const extra of [{ event_date: '2026-12-05' }, { start_time: '19:00' }, { end_at: '2026-12-05T20:00:00Z' },
-    { all_day: true }, { source_name: 'Bad Habit Brewing' }, { club_id: '00000000-0000-0000-0000-0000000000f6' },
-    { team_ids: ['sju'] }, { image_url: `${PHOTOS}${YOU}/0a1b.jpg` }]) {
+    { all_day: true }, { source_name: 'Bad Habit Brewing' }, { club_id: GROUP },
+    { team_ids: ['sju', 'csb'] }, { image_url: `${PHOTOS}${YOU}/0a1b.jpg` }]) {
     assert.equal(await claim(await posted(ME, extra), ME), false, JSON.stringify(extra));
   }
 });
@@ -131,7 +80,7 @@ test('tagged friends stay, anyone else is dropped, and the post still goes', asy
 });
 
 test('posts and Events share the 10 a day', async () => {
-  const who = '00000000-0000-0000-0000-0000000000e5';
+  const who = OTHER;
   for (let i = 0; i < 5; i++) assert.equal(await claim(await posted(who), who), true);
   for (let i = 0; i < 5; i++) assert.equal(await claim(await posted(who, { kind: 'event' }), who), true);
   assert.equal(await claim(await posted(who), who), false);
@@ -180,8 +129,8 @@ test('a photo\'s shape stays inside Instagram\'s limits, 4:5 tall to 1.91:1 wide
 });
 
 test('tagged friends keep the order they were tagged in, once each', async () => {
-  const PAL2 = '00000000-0000-0000-0000-0000000000e5';
-  await db.exec(`reset role; insert into private.friendships (a, b) values ('${[ME, PAL2].sort().join("', '")}')`);
+  const PAL2 = OTHER;
+  await db.exec(`reset role; insert into private.friendships (a, b, requested_by) values ('${[ME, PAL2].sort().join("', '")}', '${ME}')`);
   const id = await posted(ME, { tagged: [PAL2, YOU, PAL, PAL2] });
   assert.equal(await claim(id, ME), true);
   assert.deepEqual((await row(id)).tagged, [PAL2, PAL]);

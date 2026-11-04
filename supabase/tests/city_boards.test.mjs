@@ -3,30 +3,15 @@
 // Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const file = readdirSync(migrations).find((f) => f.endsWith('_city_boards.sql'));
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  -- public.club_events, only the columns a board reads.
-  create table public.club_events (id uuid primary key default gen_random_uuid(), title text not null,
-    source_name text, draw smallint);
-  grant select on public.club_events to anon, authenticated;
-`);
-await db.exec(readFileSync(join(migrations, file), 'utf8'));
-
+const db = await realDatabase();
 async function boardOf(title, source = 'City of St. Joseph', draw = 1) {
   await db.exec('set role anon');
   const { rows } = await db.query(
-    `with e as (select gen_random_uuid() id, $1::text title, $2::text source_name, $3::smallint draw)
-     select b.name from e left join public.city_boards b on b.id = public.meeting_board(e::public.club_events)`,
+    `select b.name from (select jsonb_populate_record(null::public.club_events,
+       jsonb_build_object('title', $1::text, 'source_name', $2::text, 'draw', $3::smallint)) e) r
+     left join public.city_boards b on b.id = public.meeting_board(r.e)`,
     [title, source, draw]);
   await db.exec('reset role');
   return rows[0].name;

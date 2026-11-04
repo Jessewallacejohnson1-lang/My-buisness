@@ -524,11 +524,11 @@ struct TeamFinal: Decodable, Hashable {
     var other: Game.Team? { game.teams.indices.contains(1 - mine) ? game.teams[1 - mine] : nil }
     var won: Bool { game.winner == mine }
 
-    /// "Johnnies beat Gusties 33–23", "Johnnies lost to Gusties 23–33", "Johnnies tied Gusties 7–7":
-    /// your team's score first, each by its nickname when it has one.
+    /// "Johnnies beat Gusties 33–23", "Johnnies lost to Gusties 23–33", "Johnnies tied Gusties 7–7",
+    /// "Bennies beat Macalester 5–4 on penalties": your team's score first, each by its nickname when it has one.
     var text: String? {
         guard let final = game.final, let team, let other else { return nil }
-        let score = "\(final[mine])–\(final[1 - mine])"
+        let score = game.shootout.map { "\($0.score[mine])–\($0.score[1 - mine]) on penalties" } ?? "\(final[mine])–\(final[1 - mine])"
         guard let winner = game.winner else { return "\(team.called) tied \(other.called) \(score)" }
         return winner == mine ? "\(team.called) beat \(other.called) \(score)" : "\(team.called) lost to \(other.called) \(score)"
     }
@@ -536,9 +536,12 @@ struct TeamFinal: Decodable, Hashable {
 
 #if DEBUG
 extension TeamFinal {
-    /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round.
+    /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round; with `-town-shootout`, 1–1 and won
+    /// 5–4 on penalties (game-card 15).
     static func sample(won: Bool) -> TeamFinal {
-        let score = won ? "[33, 23]" : "[23, 33]"
+        let score = LaunchFlags.has(.townShootout)
+            ? #"[1, 1], "live": {"score": [1, 1], "period": "OT", "shootout": {"score": [5, 4], "who": "SJU"}}"#
+            : won ? "[33, 23]" : "[23, 33]"
         // Saint John's logo colours, as hex without the mark (colour literals stay in Hue).
         let red = "BC0E33", blue = "02A2E2"
         let json = """

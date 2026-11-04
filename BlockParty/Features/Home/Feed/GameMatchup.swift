@@ -34,6 +34,8 @@ struct GameMatchup: View {
         static let logo: CGFloat = 44
         static let nameGap: CGFloat = 10
         static let middle: CGFloat = 112
+        /// The line under Final, wider than the column: the room between the numbers on the smallest phone.
+        static let penalties: CGFloat = 190
         /// The chip and the clock line 4 pt into the number's line, 10 pt apart.
         static let middleTop: CGFloat = 4
         static let middleGap: CGFloat = 10
@@ -100,6 +102,7 @@ struct GameMatchup: View {
         // A refresh that brings the live score or the final cross-fades into it.
         .animation(Motion.smooth, value: game.final)
         .animation(Motion.smooth, value: game.live == nil)
+        .animation(Motion.smooth, value: game.shootout)
         // A scoring play while it's on screen: the clock line says it, that logo pops (ticket 07).
         .playsMoments(of: game)
     }
@@ -165,6 +168,17 @@ struct GameMatchup: View {
         VStack(spacing: Metric.middleGap) {
             if game.final != nil {
                 NightChip(text: "Final")
+                // Wider than this column, in the room between the numbers, as Apple Sports' "VAN wins 4-2 Pens";
+                // in the scorers' look, which reads on the team colors (Jesse, game-card 15).
+                if let shootout = game.shootout {
+                    Text("\(shootout.wins) on penalties")
+                        .font(.sans(13))
+                        .foregroundStyle(.white.opacity(Scorers.words))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: Metric.penalties)
+                        .transition(.opacity)
+                }
             } else if let live, game.isSoccer, let minute = live.minute(at: now) {
                 // The chip keeps its place through a quiet spell, so the ring stays on the center circle.
                 NightChip(text: "Live", dot: Hue.live)
@@ -796,6 +810,7 @@ struct WhiteGameCard: View {
             // A refresh that brings the live score or the final cross-fades VS into it.
             .animation(reduceMotion ? nil : Motion.smooth, value: game.final)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.live == nil)
+            .animation(reduceMotion ? nil : Motion.smooth, value: game.shootout)
             Text(place)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
@@ -848,7 +863,17 @@ struct WhiteGameCard: View {
             // A basketball score ("102 – 98") still fits.
             .minimumScaleFactor(0.7)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.live?.score)
-            if let status {
+            if let shootout = game.shootout {
+                // Two lines in Final's place, between the logos on every phone (Jesse, game-card 15). No moments
+                // come after a final, so they skip MomentLine, which holds to one line.
+                Text("\(shootout.wins)\non penalties")
+                    .font(MomentLineStyle.onWhite.font)
+                    .foregroundStyle(Hue.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .transition(.opacity)
+            } else if let status {
                 // A scoring play turns it into an ink capsule round the moment for 3 s (ticket 07).
                 MomentLine(style: .onWhite) {
                     HStack(spacing: 5) {

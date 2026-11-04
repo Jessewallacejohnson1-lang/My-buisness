@@ -10,14 +10,6 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
-- 2026-11-04 · `town_feed.test.mjs` "feed-load: with 5,000 people, Event of the day never works out the
-  whole feed, and reads faster" · red on 57f3a253, a commit touching only `social.md` and `check_judge.py`
-  (run 41857161145, attempt 1; the re-run passed): no picks 127.7 ms against 178.2, half being 89.1. Red on
-  the Mac on 2026-11-03 too, in fix/morning-1103's `ci_checks.sh db` while another chat was building (load
-  near 120): 76.6 ms against 148.6, half being 74.3; the file alone passed 137 of 137. Red again on 2026-11-04
-  in the pre-push check for this line (load near 14): 38.6 ms against 75.7, half being 37.8 · a busy Mac or a
-  slow GitHub runner · no fix yet (only its time half flakes; its Postgres call counts prove the same thing)
-- 2026-11-03 · `SearchModelTests.testAroundTown` · red once in feat/play-words (no Search change): "Lee's Ace" came back nil · `aroundTown` orders tiles by `Hasher()`, which Swift seeds anew each launch, then keeps `aroundMax`, so 1 launch in about 11 cuts the place the test looks for; the same seed also isn't the same order across launches · no fix yet (a stable hash, or look for the place before the cut)
 - 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
   database-only commit (run 41256785507, attempt 1; the rerun passed), after its 2026-10-25 fix
   below · cause not found · no fix yet
@@ -30,6 +22,16 @@ flake moves to Fixed, dated, and stays there.
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
 
 ## Fixed
+
+- 2026-11-04 · `town_feed.test.mjs` "feed-load: with 5,000 people, Event of the day never works out the
+  whole feed, and reads faster" · red on 57f3a253, a commit touching only `social.md` and `check_judge.py`
+  (run 41857161145, attempt 1; the re-run passed): no picks 127.7 ms against 178.2, half being 89.1. Red on
+  the Mac on 2026-11-03, in fix/morning-1103's `ci_checks.sh db` while another chat was building (load near
+  120): 76.6 ms against 148.6, half being 74.3. Red on 2026-11-04 in a pre-push check (load near 14): 38.6 ms
+  against 75.7, half being 37.8 · it compared two timings on a busy Mac or a slow GitHub runner · it now
+  counts the Events each read works out with Postgres's own count (11 of the feed's 59, 3 runs of 3 the same;
+  59 of 59 when Event of the day is made to read the whole feed), and times nothing · fix in this commit
+- 2026-11-03 · `SearchModelTests.testAroundTown` · red once in feat/play-words (no Search change): "Lee's Ace" came back nil · `aroundTown` orders tiles by `Hasher()`, which Swift seeds anew each launch, then keeps `aroundMax`, so 1 launch in about 11 cuts the place the test looks for; the same seed also isn't the same order across launches · fixed 2026-11-04 in 5d8f1f50: the test now deals exactly two whole blocks, so no shuffle can cut the place it looks for
 
 - 2026-11-02 · `event_photos.py --selftest` "the batch names each picture and its source; a block
   with none isn't shown" · red on 4419fe77, a DECISIONS.md-only commit (run 41502676020, attempt 1)

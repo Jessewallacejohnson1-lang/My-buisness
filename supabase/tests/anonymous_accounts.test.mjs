@@ -3,104 +3,16 @@
 // Events but can't publish. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase, people } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const files = readdirSync(migrations)
-  .filter((f) => f.endsWith('_anonymous_accounts.sql') || f.endsWith('_anonymous_profile_photos.sql'))
-  .sort();
-
-const db = await PGlite.create();
-await db.exec(`
-  create role anon; create role authenticated;
-  create schema auth; create schema storage;
-  grant usage on schema auth, storage to anon, authenticated;
-  -- One claims JSON feeds both, as on Supabase.
-  create function auth.jwt() returns jsonb language sql stable as
-    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  create function auth.uid() returns uuid language sql stable as
-    $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create function public.is_admin() returns boolean language sql stable as $$ select false $$;
-  create function storage.foldername(name text) returns text[] language sql immutable as
-    $$ select string_to_array(name, '/') $$;
-  create function public.compose_briefing(p_date date, p_weather jsonb default null,
-    p_fallback_title text default null, p_fallback_body text default null,
-    p_fallback_deeplink text default null) returns void language sql as $$ select $$;
-
-  create table public.club_events (id uuid primary key default gen_random_uuid(),
-    submitted_by uuid, status text not null default 'pending', title text not null);
-  create table public.clubs (id uuid primary key default gen_random_uuid(),
-    submitted_by uuid, status text not null default 'pending', name text not null);
-  create table public.event_comments (id uuid primary key default gen_random_uuid(),
-    event_id uuid not null, user_id uuid not null, body text not null);
-  create table public.event_rsvps (id uuid primary key default gen_random_uuid(),
-    event_id uuid not null, user_id uuid not null);
-  create table public.event_likes (id uuid primary key default gen_random_uuid(),
-    event_id uuid not null, user_id uuid not null);
-  create table public.event_saves (event_id uuid not null, user_id uuid not null,
-    primary key (event_id, user_id));
-  create table public.club_members (id uuid primary key default gen_random_uuid(),
-    club_id uuid not null, user_id uuid not null, unique (club_id, user_id));
-  create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text);
-  create table storage.objects (id uuid primary key default gen_random_uuid(),
-    bucket_id text not null, name text not null);
-
-  -- The live rules (schema.sql) these sit beside.
-  alter table public.club_events enable row level security;
-  alter table public.clubs enable row level security;
-  alter table public.event_comments enable row level security;
-  alter table public.event_rsvps enable row level security;
-  alter table public.event_likes enable row level security;
-  alter table public.event_saves enable row level security;
-  alter table public.club_members enable row level security;
-  alter table public.town_profiles enable row level security;
-  alter table storage.objects enable row level security;
-  create policy "submit events" on public.club_events for insert to public
-    with check (submitted_by = auth.uid());
-  create policy "submit clubs" on public.clubs for insert to public
-    with check (submitted_by = auth.uid() and (status = 'pending' or is_admin()));
-  create policy "own comments insert" on public.event_comments for insert to public
-    with check (auth.uid() = user_id);
-  create policy "rsvp insert" on public.event_rsvps for insert to public
-    with check (user_id = auth.uid());
-  create policy "rsvp delete" on public.event_rsvps for delete to public
-    using (user_id = auth.uid());
-  create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
-  create policy "own saves insert" on public.event_saves for insert to public
-    with check (auth.uid() = user_id);
-  create policy "own saves delete" on public.event_saves for delete to public
-    using (auth.uid() = user_id);
-  create policy "own saves select" on public.event_saves for select to public
-    using ((select auth.uid()) = user_id);
-  create policy "own likes insert" on public.event_likes for insert to public
-    with check (auth.uid() = user_id);
-  create policy "own likes delete" on public.event_likes for delete to public
-    using (auth.uid() = user_id);
-  create policy "join club" on public.club_members for insert to public
-    with check (user_id = auth.uid());
-  create policy "leave club" on public.club_members for delete to public
-    using (user_id = auth.uid());
-  create policy "read memberships" on public.club_members for select to authenticated using (true);
-  create policy "town_profiles_insert_own" on public.town_profiles for insert to public
-    with check (auth.uid() = user_id);
-  create policy "town_profiles_update_own" on public.town_profiles for update to public
-    using (auth.uid() = user_id);
-  create policy "town_profiles_select_own" on public.town_profiles for select to public
-    using (auth.uid() = user_id);
-  create policy "avatars_insert_own" on storage.objects for insert to authenticated
-    with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-  create policy "event images authenticated upload" on storage.objects for insert to authenticated
-    with check (bucket_id = 'event-images');
-  grant select, insert, update, delete on all tables in schema public, storage to anon, authenticated;
-`);
-for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
-
+const db = await realDatabase();
 const ANON_USER = '00000000-0000-0000-0000-0000000000a1';
 const REAL_USER = '00000000-0000-0000-0000-0000000000b2';
+await people(db, ANON_USER, REAL_USER);
+await db.exec(`
+  insert into public.club_events (id, title) values ('00000000-0000-0000-0000-00000000e001', 'Fair');
+  insert into public.clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Book Club');
+`);
 
 async function as(role, sub, anonymous) {
   await db.exec(`reset role; set role ${role};`);
@@ -137,23 +49,23 @@ test('an anonymous account can add and remove its own save', async () => {
   await denied(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [event, REAL_USER]);
 });
 
-test('an anonymous account can join and leave a group, never for someone else', async () => {
-  // rsvp-and-groups 06: Join group writes its own club_members row; leaving deletes it.
-  await as('authenticated', ANON_USER, true);
+test('an anonymous account joins no group; a real account joins and leaves its own (follows 02)', async () => {
   const club = '00000000-0000-0000-0000-00000000c001';
-  await allowed(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, ANON_USER]);
-  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 1);
-  await allowed(`delete from public.club_members where club_id = $1 and user_id = $2`, [club, ANON_USER]);
-  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 0);
-  await denied(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, REAL_USER]);
+  await as('authenticated', ANON_USER, true);
+  await denied(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, ANON_USER]);
   await as('authenticated', REAL_USER, false);
+  await denied(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, ANON_USER]);
   await allowed(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, REAL_USER]);
+  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 1);
   await as('authenticated', ANON_USER, true);
   await allowed(`delete from public.club_members where club_id = $1`, [club]);
   await db.exec('reset role');
   assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 1,
     "deleting someone else's membership removes nothing");
-  await db.query('delete from public.club_members');
+  await as('authenticated', REAL_USER, false);
+  await allowed(`delete from public.club_members where club_id = $1 and user_id = $2`, [club, REAL_USER]);
+  await db.exec('reset role');
+  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 0);
 });
 
 test('an anonymous account keeps its own profile name, but no photo link', async () => {
@@ -185,12 +97,4 @@ test('a real account still posts, comments and uploads as before', async () => {
   // A session from before anonymous sign-in carries no is_anonymous claim: still real.
   await as('authenticated', REAL_USER, undefined);
   await allowed(`insert into public.club_events (submitted_by, title) values ($1, 'Quiz')`, [REAL_USER]);
-});
-
-test('nobody outside the nightly job can write a briefing', async () => {
-  for (const role of ['anon', 'authenticated']) {
-    await as(role, role === 'anon' ? null : REAL_USER, false);
-    await assert.rejects(db.query(`select public.compose_briefing(current_date)`), /permission denied/);
-  }
-  await db.exec('reset role');
 });

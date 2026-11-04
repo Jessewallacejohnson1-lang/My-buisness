@@ -3,42 +3,26 @@
 // live read rules (BP app docs/plans/school-activities, ticket 01). Run: `npm install && npm test` here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
+import { realDatabase } from './fixture.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const file = readdirSync(migrations).find((f) => f.endsWith('_team_activities.sql'));
-
-const db = await PGlite.create();
+const db = await realDatabase();
 await db.exec(`
-  create role anon; create role authenticated; create schema private;
-  -- public.teams and public.club_events, only the columns an activity reads.
-  create table public.teams (id text primary key, name text not null, short_name text not null,
-    local boolean not null default false, nickname text);
   insert into public.teams (id, name, short_name, local) values
-    ('apollo', 'Apollo', 'Apollo', true), ('tech', 'Tech', 'Tech', true), ('kennedy', 'Kennedy', 'Kennedy', false),
+    ('apollo', 'Apollo', 'Apollo', true), ('tech', 'Tech', 'Tech', true),
     ('cathedral', 'Cathedral', 'Cathedral', true), ('apollo-cathedral', 'Apollo-Cathedral', 'Apollo-Cathedral', true),
     ('rocori', 'ROCORI', 'ROCORI', true), ('sartell', 'Sartell', 'Sartell', true),
     ('sauk-rapids-rice', 'Sauk Rapids-Rice', 'Sauk Rapids-Rice', true),
     ('saint-benedict', 'Saint Benedict', 'Saint Benedict', true), ('saint-johns', 'Saint John''s', 'Saint John''s', true),
-    ('albany', 'Albany', 'Albany', false);
-  create table public.club_events (id uuid primary key default gen_random_uuid(), title text not null,
-    sport text, team_ids text[]);
-  grant select on public.teams, public.club_events to anon, authenticated;
-  grant usage on schema private to anon, authenticated;
+    ('albany', 'Albany', 'Albany', false)
+  on conflict (id) do nothing;
 `);
-await db.exec(readFileSync(join(migrations, file), 'utf8'));
-
 // The activities of `school` that a game of `sport` between `teams` belongs to, as anyone reads them.
 async function activitiesOf(school, sport, teams) {
   await db.exec('set role anon');
   const { rows } = await db.query(
-    `with e as (select gen_random_uuid() id, 'game'::text title, $2::text sport, $3::text[] team_ids)
-     select a.name from public.team_activities a, e
-     where a.team_id = $1 and public.activity_has_event(a, e::public.club_events) order by a.sort`,
+    `select a.name from public.team_activities a,
+       jsonb_populate_record(null::public.club_events, jsonb_build_object('title', 'game', 'sport', $2::text, 'team_ids', $3::text[])) e
+     where a.team_id = $1 and public.activity_has_event(a, e) order by a.sort`,
     [school, sport, teams]);
   await db.exec('reset role');
   return rows.map((r) => r.name);

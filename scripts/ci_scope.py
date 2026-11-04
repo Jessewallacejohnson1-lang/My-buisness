@@ -19,7 +19,7 @@ import sys
 # the app or a test starts reading a file the rule would skip; that file goes in TESTS_READ.
 SAFE_FOLDERS = ("supabase/", "sources/", "rules/", "scripts/", "refs/", ".claude/", ".agents/", "docs/")
 SAFE_FILES = {"AGENTS.md", "CLAUDE.md", "MEMORY.md", "DECISIONS.md", "DESIGN.md", "PRODUCT.md",
-              "REVIEW.md", "ONBOARDING.md"}
+              "REVIEW.md", "ONBOARDING.md", "BlockPartyUITests/FLAKY.md"}
 TESTS_READ = {"docs/debug-flags.md"}  # LaunchFlagsTests reads it; lower case, as a Mac ignores case
 
 
