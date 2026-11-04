@@ -842,7 +842,7 @@ private struct GoingChatBirthday: View {
     @State private var failures = 0
 
     /// Its height: the words, field and button over the wheel (picked); the button as Onboarding's.
-    private static let height: CGFloat = OnboardingBirthdayWheel.height + 300
+    private static let height: CGFloat = OnboardingBirthdayWheel.height + 280
     private static let button: CGFloat = 50
 
     var body: some View {
@@ -853,7 +853,8 @@ private struct GoingChatBirthday: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, FeedEventDetailDestination.Metric.inset)
-            Text("Going chats are for 18 and over. Only you see your birthday.")
+            // Never says why: naming the age would tell someone under 18 which answer gets them in (Jesse, 2026-11-04).
+            Text("Only you see your birthday.")
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, ChatMetric.chipGap)
