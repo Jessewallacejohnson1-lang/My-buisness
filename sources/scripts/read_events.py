@@ -73,6 +73,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from run import fetch, read_page, to_text, deadline, late, part_state, resume_part
+from morning_run import Part
 from towns import TOWNS
 
 DAYS_AHEAD = 90
@@ -1519,6 +1520,42 @@ def t_rec1():
     assert rec1_clock("9:30am") == (9, 30) and rec1_clock("12pm") == (12, 0) and rec1_clock("TBD") is None
 
 
+def t_part_file():
+    """main in timed parts, on a fake clock: the first reads one source and says run again, with what it read in
+    the part's file; the next reads only the other, then writes every item."""
+    import contextlib, io, run, sys as system, tempfile
+    global load, find_root
+    clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
+    reads = []
+
+    def slow(s, e, t):
+        reads.append(s["url"])
+        clock.t += 200
+        return [{"kind": "news", "title": s["url"], "source_name": e["_name"]}, {"listing": {"day": TODAY}}]  # a date, as the league's
+    entries = [{"_name": n, "_town": "st-joseph-mn", "status": "active", "sources": [{"url": f"https://{n}", "reader": "slow"}]}
+               for n in ("a", "b")]
+    saved = load, find_root, system.argv, run.time
+    READERS["slow"] = slow
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            part, got = Path(tmp) / "part.json", Path(tmp) / "items.jsonl"
+            load, find_root, run.time = (lambda root: (entries, [])), (lambda *a: Path(tmp)), clock
+            system.argv = ["read_events.py", "--part", str(part), "--items", str(got), "--minutes", "1", "--today", "2026-11-03"]
+            said = [io.StringIO(), io.StringIO()]
+            with contextlib.redirect_stdout(said[0]):
+                main()
+            kept, written = json.loads(part.read_text()), got.exists()
+            with contextlib.redirect_stdout(said[1]):
+                main()
+            items = [json.loads(ln)["title"] for ln in got.read_text().splitlines()]
+    finally:
+        load, find_root, system.argv, run.time = saved
+        del READERS["slow"]
+    assert said[0].getvalue() == "[read] run again: 1 of 2 sources read\n" and not written, said[0].getvalue()
+    assert list(kept["sources"]) == ["a|https://a"] and "robots" in kept["state"], kept
+    assert reads == ["https://a", "https://b"] and items == ["https://a", "https://b"], (reads, items)
+
+
 def t_failure_in_summary():
     def boom(*_):
         raise TimeoutError("the site took too long")
@@ -1776,7 +1813,7 @@ def t_games_complete():
 
 TESTS = [t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
-         t_failure_in_summary, t_items_fit_the_writer, t_parts]
+         t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file]
 
 
 def selftest():
@@ -1815,14 +1852,14 @@ def main():
                                 if (not args.reader or reader_of(s) == args.reader)
                                 and (not args.skip_reader or reader_of(s) != args.skip_reader)])
                for e in load(find_root(args.root))[0] if e.get("_town") == args.town and e.get("status") in statuses]
-    part = Path(args.part) if args.part else None
-    saved = json.loads(part.read_text()) if part and part.exists() else {"sources": {}, "state": {}}
-    resume_part(saved["state"])
-    items, summary = read_all(entries, today, saved=saved["sources"], stop=deadline(args.minutes))
-    if part:
-        part.write_text(json.dumps({"sources": saved["sources"], "state": part_state()}, default=str))
+    part = Part(args.part, deadline(args.minutes), {"sources": {}, "state": {}})
+    resume_part(part.saved["state"])
+    items, summary = read_all(entries, today, saved=part.saved["sources"], stop=part.stop)
+    if args.part:
+        part.saved["state"] = part_state()
+        part.save()
         every = {source_key(e, s) for e in entries for s in e["sources"] if reader_of(s)}
-        left = every - set(saved["sources"])
+        left = every - set(part.saved["sources"])
         if left:
             return print(f"[read] run again: {len(every) - len(left)} of {len(every)} sources read")
     shown = [i for i in items if i["kind"] != "schedule"]

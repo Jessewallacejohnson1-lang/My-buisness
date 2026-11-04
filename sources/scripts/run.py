@@ -440,6 +440,13 @@ def selftest():
         (one_bad_row_is_one_line(), "a row the database refuses is one report line, still named by a later part; the rest are recorded"),
         (polite_across_parts(), "a timed run's next part reads no robots.txt again and waits out its Crawl-delay"),
         (one_at_a_time(), "a second prepare beside one still running is refused, and runs once that one ends"),
+        (failing(2, None, True) == (0, "clear") and failing(2, "2026-10-20", True) == (0, "back"),
+         "the set-aside rule: a good read clears a page's misses, and brings a set-aside page back"),
+        (failing(0, None, False) == (1, "missed") and failing(1, None, False) == (2, "missed")
+         and failing(ASIDE_AFTER - 1, None, False) == (ASIDE_AFTER, "set"), f"{ASIDE_AFTER} misses in a row set a page aside"),
+        (failing(1, None, False, counted=False) == (1, None) and failing(3, "2026-10-20", False, counted=False) == (3, None),
+         "a read not counted changes nothing"),
+        (failing(3, "2026-10-20", False) == (3, "still"), "a set-aside page that fails again stays set aside"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -594,25 +601,38 @@ def day(stamp):
     return datetime.fromisoformat(stamp).astimezone(CHICAGO).date()
 
 
+def failing(misses, aside, ok, counted=True):
+    """The one set-aside rule, for the watched pages (set_aside) and the social pages (social.tally): what
+    one read does to a page's misses in a row. Returns the new count and what happened: "clear" or "back"
+    (a set-aside page) on a good read; "missed", or "set" on the ASIDE_AFTER-th in a row; "still" for a
+    set-aside page that fails again; None for a read not counted, which changes nothing."""
+    if ok:
+        return 0, "back" if aside else "clear"
+    if not counted:
+        return misses, None
+    if aside:
+        return misses, "still"
+    return misses + 1, "set" if misses + 1 >= ASIDE_AFTER else "missed"
+
+
 def set_aside(r, was, today, counted=True):
     """The fetch table's memory of a failing page, as the fields to record with this result and
     its mark for the report: since when it has been failing and how many mornings' reads in a row
-    (both cleared by a good read), and when it was set aside, on its ASIDE_AFTER-th failed morning.
-    A morning's second read (a rerun) adds nothing, nor does a read where most pages failed at once
-    (`counted` False: the network, not the pages). A set-aside page that reads is back; one tried
-    and failing again is "still"."""
+    (both cleared by a good read), and when it was set aside (failing). A morning's second read (a
+    rerun) adds nothing, nor does a read where most pages failed at once (`counted` False: the
+    network, not the pages)."""
     reads, since, aside = was.get("failing_reads") or 0, was.get("failing_since"), was.get("set_aside_at")
-    if r["ok"]:
+    rerun = reads and not aside and was.get("last_checked_at") and day(was["last_checked_at"]) == today
+    misses, happened = failing(reads, aside, r["ok"], counted and not rerun)
+    if happened in ("clear", "back"):
         return ({"failing_since": None, "failing_reads": 0, "set_aside_at": None} if reads or since or aside else {},
-                {"aside": "back", "since": aside} if aside else {})
-    if not counted:
-        return {}, {}
-    if aside:
+                {"aside": "back", "since": aside} if happened == "back" else {})
+    if happened == "still":
         return {}, {"aside": "still"}
-    if reads and was.get("last_checked_at") and day(was["last_checked_at"]) == today:
+    if not happened:
         return {}, {}
-    memo = {"failing_reads": reads + 1, "failing_since": since or NOW.isoformat()}
-    if reads + 1 < ASIDE_AFTER:
+    memo = {"failing_reads": misses, "failing_since": since or NOW.isoformat()}
+    if happened == "missed":
         return memo, {}
     return {**memo, "set_aside_at": NOW.isoformat()}, {"aside": "set", "since": memo["failing_since"]}
 
