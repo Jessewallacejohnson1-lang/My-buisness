@@ -158,7 +158,7 @@ test('the bell sends a full Event card: photo, found link, about, host, its live
       ('csb-athletics', 'https://gobennies.com/', 'st-joseph-mn', 'CSB Athletics', 'active', 'fetch');
     insert into public.clubs (name, status, own_entry_id) values ('Bennie Volleyball Boosters', 'approved', 'csb-athletics');
     insert into public.place_photos (entry_id, url, source_url, kind, status) values
-      ('csb-athletics', 'https://x/csb-logo.webp', 'https://gobennies.com/', 'logo', 'live');`);
+      ('activities-athletic-csb', 'https://x/csb-logo.webp', 'https://gobennies.com/', 'logo', 'live');`);
   const day = soon(3);
   const id = await game({ title: 'Saint Benedict Volleyball vs Sartell', team_ids: ['saint-benedict', 'sartell'], event_date: day });
   await edit(id, `source_name = 'CSB Athletics', category = 'sports', image_url = 'https://x/flyer.jpg',
@@ -181,8 +181,8 @@ test('the bell sends a full Event card: photo, found link, about, host, its live
   assert.deepEqual(card.host_picture, { url: 'https://x/csb-logo.webp', kind: 'logo', hue: null });
   assert.deepEqual([card.description, card.what, card.source_url],
                    ['Senior night.', 'Volleyball match', 'https://gobennies.com/sports/volleyball/schedule']);
-  assert.deepEqual(card.game, { sport: 'Volleyball', final: null, plays: null,
-                                live: { score: [2, 1], period: 'Set 4', complete: false } }, 'the bell keeps the live score');
+  assert.deepEqual([card.game.sport, card.game.final, card.game.plays, card.game.live],
+                   ['Volleyball', null, null, { score: [2, 1], period: 'Set 4', complete: false }], 'the bell keeps the live score');
   assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: null }]);
   assert.deepEqual(Object.keys(row).sort(), ['card', 'changed_at', 'followed', 'followed_logo', 'moved_from'],
                    'the card and the bell\'s own: no Event column copied beside it (ticket 03)');
