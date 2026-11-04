@@ -24,8 +24,10 @@ and about 41 extras a reading.
 
 The same prompt read again that evening: 319 of 369 (86%), readings 101, 109 and 109, mistakes stopped 18 of 27.
 That failed the first bar of 87.5%, so the bar is 85% (Jesse, 2026-11-04), and a change runs side by side with
-today's prompt, not against a number written here. Most of that swing is one message: in 2 of 12 readings the
-judge wrote about 20 items where it usually writes 30 on Oct 29's 30 posts (ticket 17; ticket 18 looks into it).
+today's prompt, not against a number written here. Most of that swing is one message, Oct 29's 30 posts: usually
+about 29 items, but about 20 in 2 of 27 readings. Those two weren't cut off: they left out the nearby schools' posts,
+as if those were in another town. The one real run holding those posts kept them, and something this rare can't be
+proved gone at 12 readings a side, so there is no fix (ticket 18).
 
 A message with a found event whose "Where" is empty also shows the registry's place names. The judge then reads
 St. John the Baptist Parish's Craft Fair as listed too, so that label comes out right here; with file search, as
