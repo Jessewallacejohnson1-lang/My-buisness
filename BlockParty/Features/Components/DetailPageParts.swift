@@ -24,10 +24,9 @@ struct PhotoPager: View {
     /// One photo still rubber-bands sideways, so a sideways swipe moves it instead of reaching
     /// what's under it: on a Town card, the link that opens the Event page (event-card 02).
     var bounces = false
-    /// The page that is a flyer, shown whole over its blurred copy (BP app event-photos 16), and how much of
-    /// the page's foot it keeps clear: on the Event page, what runs on under the sheet.
+    /// The page that is a flyer, shown whole over its blurred copy, clear of what runs on under the Event
+    /// page's sheet (BP app event-photos 16).
     var flyer: URL? = nil
-    var flyerClear: CGFloat = 0
     /// How far along the pages the finger has taken them, in pages, to the nearest twentieth: enough
     /// for what fades with a swipe, without redrawing the page on every frame of it.
     var onSwipe: ((CGFloat) -> Void)? = nil
@@ -67,7 +66,7 @@ struct PhotoPager: View {
     private func photo(_ url: URL) -> some View {
         let isShown = Self.isShown(url, in: shown)
         return FeedCardURLPhoto(url: url, onReady: { shown.insert(url) }, onFailure: { onFailure(url) },
-                                whole: url == flyer ? flyerClear : nil)
+                                whole: url == flyer ? EventPage.Metric.heroUnderlap : nil)
             .frame(maxHeight: .infinity)
             .clipped()
             .overlay {

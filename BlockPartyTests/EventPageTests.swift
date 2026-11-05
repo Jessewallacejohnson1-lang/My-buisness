@@ -130,14 +130,13 @@ final class EventPageTests: XCTestCase {
     /// A flyer on the poster stops above the words, and pressing Attend doesn't move it: the going
     /// line's room is kept whether it shows or not (370 x 470 on a 402 pt phone).
     func testAPostersFlyerKeepsClearOfItsWordsAndAttendDoesntMoveIt() {
-        let side: CGFloat = 370, copy: CGFloat = 210
-        let notGoing = EventOfTheDayPoster.wholeFoot(side: side, copy: copy, goingShown: false)
-        let going = EventOfTheDayPoster.wholeFoot(side: side, copy: copy + 34, goingShown: true)
-        XCTAssertEqual(notGoing, 470 - 210 - 34 - 8, accuracy: 0.01)
-        XCTAssertEqual(going, notGoing, accuracy: 0.01, "pressing Attend never moves the flyer")
+        let side: CGFloat = 370
+        // 120 pt of words, the going line's 34, the Attend row's 16 + 38, the words' 15 + 15 and an 8 pt gap.
+        let foot = EventOfTheDayPoster.wholeFoot(side: side, words: 120)
+        XCTAssertEqual(foot, 470 - 120 - 34 - 54 - 30 - 8, accuracy: 0.01, "the same with Attend pressed or not")
 
-        let stops = EventOfTheDayPoster.wholeFade(foot: notGoing, side: side)
-        XCTAssertEqual(stops.first?.location ?? 0, notGoing / side, accuracy: 0.001, "clear down to the flyer's foot")
+        let stops = EventOfTheDayPoster.wholeFade(foot: foot, side: side)
+        XCTAssertEqual(stops.first?.location ?? 0, foot / side, accuracy: 0.001, "clear down to the flyer's foot")
         XCTAssertEqual(stops.map(\.location), stops.map(\.location).sorted(), "a gradient's stops only go down")
         XCTAssertLessThanOrEqual(stops.last?.location ?? 2, 1)
     }

@@ -51,11 +51,12 @@ struct EventOfTheDayPoster: View {
         static let flyerFade: CGFloat = 48
     }
 
-    /// Where a flyer's room ends, from the poster's top: above the words, with the going line's room
-    /// kept whether it shows or not, so pressing Attend never moves the flyer (BP app event-photos 16).
-    static func wholeFoot(side: CGFloat, copy: CGFloat, goingShown: Bool) -> CGFloat {
-        let going = goingShown ? 0 : Metric.goingTop + Metric.goingHeight
-        return side / Metric.aspect - copy - going - Metric.flyerGap
+    /// Where a flyer's room ends, from the poster's top: above `words` (what it is, title, when, place) and
+    /// the going line's room and the Attend row under them, whether the line shows or not, so pressing
+    /// Attend never moves the flyer (BP app event-photos 16).
+    static func wholeFoot(side: CGFloat, words: CGFloat) -> CGFloat {
+        let under = Metric.goingTop + Metric.goingHeight + Metric.rowTop + RSVPArea.Size.card.pillHeight
+        return side / Metric.aspect - words - under - 2 * Metric.copyInset - Metric.flyerGap
     }
 
     /// The square's dark over a flyer: none down to its foot, then as the poster's fade, full by the words.
@@ -78,14 +79,12 @@ struct EventOfTheDayPoster: View {
     /// `actions.heartFailureCount` at the last heart tap: a tap mid-shake stills it.
     @State private var heartTappedAt = 0
     /// The words' height and the poster's width, for where a flyer's room ends.
-    @State private var copyHeight: CGFloat = 0
+    @State private var wordsHeight: CGFloat = 0
     @State private var side: CGFloat = 0
 
     private var item: FeedCardItem { event.item }
 
-    private var flyerFoot: CGFloat {
-        Self.wholeFoot(side: side, copy: copyHeight, goingShown: actions.rsvp(item, town: true)?.top != nil)
-    }
+    private var flyerFoot: CGFloat { Self.wholeFoot(side: side, words: wordsHeight) }
 
     /// The event's own photo, else its place's, credited, else its place's logo, as the Town card
     /// shows them. One photo: the poster doesn't swipe.
@@ -97,9 +96,7 @@ struct EventOfTheDayPoster: View {
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
-            .overlay(alignment: .bottom) {
-                copy.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
-            }
+            .overlay(alignment: .bottom) { copy }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
@@ -190,6 +187,7 @@ struct EventOfTheDayPoster: View {
             .foregroundStyle(.white)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
 
             if let words, words.top != nil {
                 goingLine(words)

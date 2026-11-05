@@ -277,9 +277,6 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(news("sunday", nil).cardFacts, "Open 10 to 6 through Sunday.", "the facts name it already")
     }
 
-    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
-    /// while its page keeps the cover and the place's other photos and `image` stays for every other
-    /// screen. The Event's own photo still wins over the cover.
     /// A flyer shows whole only while it is the card's picture: an Event's own photo beats it, and
     /// a picture that doesn't say so fills as ever (BP app event-photos 16).
     func testAFlyerIsWholeOnlyWhileItIsTheCardsPicture() throws {
@@ -299,6 +296,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(cards[0].isPhotoless, "a flyer is a photo of the Event: its Town card stays a photo card")
     }
 
+    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
+    /// while its page keeps the cover and the place's other photos and `image` stays for every other
+    /// screen. The Event's own photo still wins over the cover.
     func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
