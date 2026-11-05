@@ -29,7 +29,7 @@ final class LoadingGuardTests: XCTestCase {
         "Features/Onboarding/OnboardingChrome.swift", // the Next bar on Log in, mid-request
         "Features/Profile/EditProfileView.swift", // save button, mid-save
         "Features/Components/InlineAction.swift", // the shared inline button itself
-        "Features/Home/NewPost.swift",            // Post, mid-post; a post on its way (as AddFormView's was)
+        "Features/Town/NewPost.swift",            // Post, mid-post; a post on its way (as AddFormView's was)
     ]
 
     func testNoSpinnersOutsideTappedControls() throws {

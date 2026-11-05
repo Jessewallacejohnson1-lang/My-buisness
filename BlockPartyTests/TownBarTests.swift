@@ -1,6 +1,6 @@
 //
-//  TodayHeaderTests.swift
-//  BlockPartyTests — the Town tab's top bar (`TodayHeader`).
+//  TownBarTests.swift
+//  BlockPartyTests — the Town tab's top bar (`TownBarRules`).
 //
 //  The chrome fades and the bar collapses off ONE scroll number, and the
 //  interesting input is the NEGATIVE one: a rubber-banded overscroll (pull to
@@ -13,7 +13,7 @@ import UIKit     // UIUserInterfaceStyle, ditto
 @testable import BlockParty
 
 @MainActor
-final class TodayHeaderTests: XCTestCase {
+final class TownBarTests: XCTestCase {
 
     // MARK: - Geometry constants
 
@@ -22,11 +22,11 @@ final class TodayHeaderTests: XCTestCase {
         // rather than an accidental drift back toward the old scrolling masthead.
         // Grown on 2026-09-18 with the larger map disc (50pt). The guard stays a
         // guard — it just guards the new numbers.
-        XCTAssertEqual(TodayHeader.contentHeight, 58)
+        XCTAssertEqual(TownBarRules.contentHeight, 58)
 
         // The bar clears the 50pt map disc it carries. `maxHeight` and
         // `collapsedHeight` are gone with the collapse itself (2026-09-19).
-        XCTAssertGreaterThan(TodayHeader.contentHeight, 50)
+        XCTAssertGreaterThan(TownBarRules.contentHeight, 50)
     }
 
     // MARK: - The chrome leaves on a downward scroll and comes back on an upward one
@@ -36,18 +36,18 @@ final class TodayHeaderTests: XCTestCase {
     /// it could only bring the bar back by scrolling all the way home.
     func testScrollingDownHidesTheChromeAndScrollingUpBringsItBack() {
         // Down, well past the threshold, deep in the feed.
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 360))
+        XCTAssertTrue(TownBarRules.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 360))
         // Up again, without going anywhere near the top.
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 360, offset: 300))
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: true, floating: true, anchor: 360, offset: 300))
     }
 
     /// The top always shows the bar, including through a rubber-band pull past it —
     /// a bounce must not read as "scrolling down" and take the chrome with it.
     func testTheChromeIsAlwaysHomeAtTheTopOfTheFeed() {
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 40, offset: 0))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 0, offset: -80),
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: true, floating: true, anchor: 40, offset: 0))
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: true, floating: true, anchor: 0, offset: -80),
                        "a rubber-band pull past the top is not a downward scroll")
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 20),
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 20),
                        "the bar's own height belongs to the top of the feed")
     }
 
@@ -55,14 +55,14 @@ final class TodayHeaderTests: XCTestCase {
     /// the bar flickers: a finger resting on the glass and the last millimetres of
     /// inertia both deliver a stream of sub-point deltas in both directions.
     func testTinyMovementsDoNotFlipTheChrome() {
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 302))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 298))
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 300))
+        XCTAssertTrue(TownBarRules.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 302))
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 298))
+        XCTAssertTrue(TownBarRules.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 300))
     }
 
     // MARK: - Any speed: slow drags count, jitter does not (taste.md, 2026-09-24)
 
-    /// Feeds a run of scroll offsets through the rule exactly as `FeedView` does,
+    /// Feeds a run of scroll offsets through the rule exactly as `TownView` does,
     /// frame by frame, and returns whether the bar is hidden after each frame.
     /// Mid-feed runs start floating: a bar mid-feed has been away and come back.
     private func drive(_ offsets: [CGFloat], startHidden: Bool, startFloating: Bool = true) -> [Bool] {
@@ -72,9 +72,9 @@ final class TodayHeaderTests: XCTestCase {
         var anchor = offsets[0]
         var states: [Bool] = []
         for offset in offsets.dropFirst() {
-            anchor = TodayHeader.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
-            hidden = TodayHeader.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
-            floating = TodayHeader.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
+            anchor = TownBarRules.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
+            hidden = TownBarRules.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
+            floating = TownBarRules.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
             previous = offset
             states.append(hidden)
         }
@@ -107,18 +107,18 @@ final class TodayHeaderTests: XCTestCase {
     /// Out of home the bar rides the scroll 1:1, and only its own height of it:
     /// half a bar of scroll is half the bar gone, and a rubber-band pull is home.
     func testTheFeedCarriesTheBarOutOneToOne() {
-        XCTAssertEqual(TodayHeader.homeTravel(offset: 0), 0)
-        XCTAssertEqual(TodayHeader.homeTravel(offset: -40), 0, "a pull past home is home")
-        XCTAssertEqual(TodayHeader.homeTravel(offset: 29), 29, "the bar follows the finger")
-        XCTAssertEqual(TodayHeader.homeTravel(offset: 400), TodayHeader.contentHeight)
+        XCTAssertEqual(TownBarRules.barTravel(offset: 0), 0)
+        XCTAssertEqual(TownBarRules.barTravel(offset: -40), 0, "a pull past home is home")
+        XCTAssertEqual(TownBarRules.barTravel(offset: 29), 29, "the bar follows the finger")
+        XCTAssertEqual(TownBarRules.barTravel(offset: 400), TownBarRules.contentHeight)
     }
 
     /// The direction rule never fights the carry: inside the bar's own height the
     /// bar is carried, not hidden, whichever way the finger last went.
     func testTheDirectionRuleWaitsUntilTheBarHasBeenCarriedAway() {
-        XCTAssertEqual(TodayHeader.hideAfter, TodayHeader.contentHeight)
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 50))
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 58, offset: 59),
+        XCTAssertEqual(TownBarRules.hideAfter, TownBarRules.contentHeight)
+        XCTAssertFalse(TownBarRules.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 50))
+        XCTAssertTrue(TownBarRules.chromeHidden(wasHidden: false, floating: false, anchor: 58, offset: 59),
                       "carried its full height, the bar is away at once")
     }
 
@@ -136,13 +136,13 @@ final class TodayHeaderTests: XCTestCase {
         var previous = offsets[0], anchor = offsets[0]
         var awayAtDeepest = false
         for offset in offsets.dropFirst() {
-            anchor = TodayHeader.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
-            hidden = TodayHeader.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
-            floating = TodayHeader.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
+            anchor = TownBarRules.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
+            hidden = TownBarRules.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
+            floating = TownBarRules.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
             if offset == deepest { awayAtDeepest = hidden }
             previous = offset
         }
-        XCTAssertGreaterThan(deepest - 30, TodayHeader.hideAfter, "the run back up stays mid-feed")
+        XCTAssertGreaterThan(deepest - 30, TownBarRules.hideAfter, "the run back up stays mid-feed")
         XCTAssertTrue(awayAtDeepest, "away once carried off, wobbles and all")
         XCTAssertFalse(hidden, "a scroll back up mid-feed brings it back")
         XCTAssertTrue(floating, "and it comes back floating, not still carried off")
@@ -154,19 +154,19 @@ final class TodayHeaderTests: XCTestCase {
     /// frosted circles once the bar comes back over the feed. The whole trip:
     /// home, the first scroll down, away mid-feed, back mid-feed, home again.
     func testTheButtonsFloatOnlyAfterTheBarHasLeftMidFeed() {
-        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: false, hidden: false, offset: 0),
+        XCTAssertFalse(TownBarRules.chromeFloating(wasFloating: false, hidden: false, offset: 0),
                        "home is bare")
-        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: false, hidden: false, offset: 30),
+        XCTAssertFalse(TownBarRules.chromeFloating(wasFloating: false, hidden: false, offset: 30),
                        "the first scroll down, before the bar leaves, stays bare")
-        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: false, hidden: true, offset: 400),
+        XCTAssertTrue(TownBarRules.chromeFloating(wasFloating: false, hidden: true, offset: 400),
                       "the bar leaves floating, so it comes back with its circles")
-        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 380),
+        XCTAssertTrue(TownBarRules.chromeFloating(wasFloating: true, hidden: false, offset: 380),
                       "back over the feed, the circles stay")
-        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 10),
+        XCTAssertTrue(TownBarRules.chromeFloating(wasFloating: true, hidden: false, offset: 10),
                       "still over the feed near the top")
-        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 0),
+        XCTAssertFalse(TownBarRules.chromeFloating(wasFloating: true, hidden: false, offset: 0),
                        "home again is bare")
-        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: -60),
+        XCTAssertFalse(TownBarRules.chromeFloating(wasFloating: true, hidden: false, offset: -60),
                        "a rubber-band pull past home is home")
     }
 
@@ -174,7 +174,7 @@ final class TodayHeaderTests: XCTestCase {
 
     /// The bar's height is a CONSTANT, and this is the guard on that.
     ///
-    /// `TodayHeader` deliberately exposes nothing derived from the scroll at all now
+    /// `TownBarRules` deliberately exposes nothing derived from the scroll at all now
     /// — the fade went with the lock (2026-09-21) and no height function preceded
     /// it. The bar is a `safeAreaInset` on the feed's scroll, so its height IS that
     /// scroll's top inset: anything read back off that scroll and fed to the height
@@ -182,7 +182,7 @@ final class TodayHeaderTests: XCTestCase {
     /// would not scroll at all). If a height is ever derived from scroll again, it
     /// has to be driven by something the scroll does not read back.
     func testTheBarsHeightDoesNotFollowTheScroll() {
-        XCTAssertEqual(TodayHeader.contentHeight, 58)
+        XCTAssertEqual(TownBarRules.contentHeight, 58)
     }
 
     // MARK: - The soft top edge
@@ -260,7 +260,7 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertGreaterThan(
             inkPixelCount,
             400,
-            "The centred Block Party wordmark must render in the Today bar"
+            "The centred Block Party wordmark must render in the Town bar"
         )
     }
 
@@ -275,7 +275,7 @@ final class TodayHeaderTests: XCTestCase {
     func testMapDiscIsExactBrandYellow() throws {
         let bitmap = try renderedHeaderBitmap()
         let scale = 2.0
-        let centre = (x: 304.0, y: Double(TodayHeader.contentHeight) / 2)
+        let centre = (x: 304.0, y: Double(TownBarRules.contentHeight) / 2)
 
         for step in 0..<8 {
             let angle = Double(step) * .pi / 4
@@ -291,8 +291,8 @@ final class TodayHeaderTests: XCTestCase {
 
     private func renderedHeaderBitmap() throws -> HeaderBitmap {
         let renderer = ImageRenderer(
-            content: TodayTopBar()
-                .frame(width: 390, height: TodayHeader.contentHeight)
+            content: TownBar()
+                .frame(width: 390, height: TownBarRules.contentHeight)
                 .background(Hue.paper)
         )
         renderer.scale = 2

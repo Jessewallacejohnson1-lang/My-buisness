@@ -1,6 +1,6 @@
 //
-//  DailyFixtures.swift
-//  Block Party — invented content for the Daily feed while there is no backend.
+//  TownFixtures.swift
+//  Block Party — invented content for the Town feed while there is no backend.
 //
 //  INVENTED, not real. Names, captions and events here are made up; only the town
 //  is real (St. Joseph, Minnesota — Millstream Park, Saint Ben's, Saint John's
@@ -16,9 +16,9 @@
 #if DEBUG
 import Foundation
 
-enum DailyFixtures {
+enum TownFixtures {
     /// Everything: the postings, then the events still on.
-    static func all(now: Date = Date()) -> [DailyFeedItem] {
+    static func all(now: Date = Date()) -> [TownFeedItem] {
         postings(now: now).map { .posting($0) } + events(now: now)
     }
 
@@ -91,9 +91,9 @@ enum DailyFixtures {
 
     // MARK: - Events
 
-    /// The sample events still on, as feed items (`-daily-feed-preview`).
-    static func events(now: Date = Date()) -> [DailyFeedItem] {
-        townEntries(now: now).filter { $0.leavesAt > now }.compactMap { $0.card.map(DailyFeedItem.event) }
+    /// The sample events still on, as feed items (`-town-feed-preview`).
+    static func events(now: Date = Date()) -> [TownFeedItem] {
+        townEntries(now: now).filter { $0.leavesAt > now }.compactMap { $0.card.map(TownFeedItem.event) }
     }
 
     /// The sample events as the Town feed gets them (`-town-samples`): soonest first,

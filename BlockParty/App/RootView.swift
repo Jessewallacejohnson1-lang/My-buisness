@@ -91,10 +91,10 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
-            } else if LaunchFlags.has(.dailyFeedPreview) {
-                // The Daily social feed over fixtures, without auth or network, so
+            } else if LaunchFlags.has(.townFeedPreview) {
+                // The Town feed over fixtures, without auth or network, so
                 // both card shapes and the ranked order can be screenshotted.
-                DailyFeedPreview()
+                TownFeedPreview()
             } else if LaunchFlags.has(.reviewQueuePreview) {
                 // The admin Review queue over the City's real found events, without
                 // auth or network. Its only real entry is the admin's profile, which a
@@ -603,7 +603,7 @@ struct MainTabsView: View {
                     Group {
                         switch tab {
                         case .town:
-                            HomeView(
+                            TownView(
                                 onOpenMap: { showMap = true },
                                 onOpenNotifications: { path.append(NotificationsRoute()) },
                                 onCreate: create,

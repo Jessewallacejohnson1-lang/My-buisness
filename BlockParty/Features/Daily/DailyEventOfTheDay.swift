@@ -79,7 +79,7 @@ struct DailyEvent: Identifiable {
     #if DEBUG
     /// INVENTED: three events today, morning, afternoon and evening, at real St. Joseph
     /// places with the bundled town photos. The titles and hosts are the Town feed's
-    /// fixtures (`DailyFixtures`); the times are made up.
+    /// fixtures (`TownFixtures`); the times are made up.
     static func samples(on date: Date) -> [DailyEvent] {
         let day = Town.gregorian.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
@@ -248,7 +248,7 @@ struct EventOfTheDaySection: View {
         }
         // Town's sides, so the poster is Town's 370 on a 402 pt phone, as on the draft Jesse
         // picked (picked: Daily's other sections sit at `DailyMetric.side`).
-        .contentMargins(.horizontal, DailyFeedMetric.contentInset, for: .scrollContent)
+        .contentMargins(.horizontal, TownFeedMetric.contentInset, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         .scrollDisabled(events.count < 2)
     }

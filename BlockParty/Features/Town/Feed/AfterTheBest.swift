@@ -20,7 +20,7 @@ struct CaughtUpLine: View {
                 .fixedSize()
             hairline
         }
-        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .padding(.horizontal, TownFeedMetric.contentInset)
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -79,7 +79,7 @@ struct PlaceCard: View {
                         .trackFrame(frame)
                         .padding(.leading, NoPhotoCard.Metric.horizontal)
                 }
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+                .padding(.horizontal, TownFeedMetric.contentInset)
         }
     }
 
@@ -146,7 +146,7 @@ struct PlaceCard: View {
             .allowsHitTesting(false)
             .padding(16)
         }
-        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// Its business page, through the shell's opener, as a host's logo opens it.

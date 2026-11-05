@@ -204,7 +204,7 @@ dependency**. `[prose]`
 
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
 class … ObservableObject`) that owns state and API calls. Top-level folders: `Auth`,
-`Components`, `Daily`, `Follows`, `Friends`, `Groups`, `Home` (the Town tab), `Map`,
+`Components`, `Daily`, `Follows`, `Friends`, `Groups`, `Town` (the Town tab), `Map`,
 `Notifications`, `Onboarding`, `Place`, `Profile`, `Search`, `Share`, `You`.
 
 - **The parked utility row (`Civic/Parked/`) was deleted on 2026-10-25** (BP app
@@ -217,11 +217,10 @@ class … ObservableObject`) that owns state and API calls. Top-level folders: `
   moves between steps (only its title and enabled state change), with the shell owning the
   chrome and footer so step views cannot draw their own button.
 
-### Town feed (`Features/Home/Feed/`)
+### Town feed (`Features/Town/Feed/`)
 
 The Town tab's list of everything coming up in the Town, in an order worked out for each
-person (BP app `docs/plans/town-feed`). `HomeView` is a compatibility shell over `FeedView`,
-which holds `TodayTopBar` and the feed.
+person (BP app `docs/plans/town-feed`). `TownView` holds `TownBar` and the feed.
 
 - **What is in it and in what order is the database's** `[test]`: `get_town_feed`
   (`supabase/migrations/20261008120000_town_feed.sql`, stories in `supabase/tests/`) applies
@@ -242,7 +241,7 @@ which holds `TodayTopBar` and the feed.
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
   the feed reads again then and on return to the foreground. Its read is injected: live, DEBUG
   `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing). It
-  also records views and opens (ticket 20; `DECISIONS.md` 2026-10-13): `DailyFeedColumn`
+  also records views and opens (ticket 20; `DECISIONS.md` 2026-10-13): `TownFeedColumn`
   reports each card crossing half on screen, the shell's Event page route reports an open
   from the Town tab, and the shell sends a batch every 30 s and on going to the background.
   Its sender is injected too: live, or nowhere for tests, previews and the sample modes.
@@ -273,7 +272,7 @@ which holds `TodayTopBar` and the feed.
   lose. The last list is kept on disk (`TownFeedCache`, raw bytes,
   cleared on sign-out), so a relaunch shows it at once, offline too. Overlapping reads keep
   only the newest one's answer.
-- `DailyFeedColumn` shows its items in the order given. Events only for now; posts, updates
+- `TownFeedColumn` shows its items in the order given. Events only for now; posts, updates
   and news join when they exist.
 
 **No module machinery and no briefing call** (deleted 2026-10-25, BP app codebase-health 09).
@@ -284,7 +283,7 @@ gone: the Town tab is the top bar over the Town feed, and a load makes no
 `briefing-reconcile` job was switched off on 2026-10-30. `docs/archive/GUTTING-LEDGER.md`
 says how to get the client back.
 
-### Town top bar (`Features/Home/TodayTopBar.swift`)
+### Town top bar (`Features/Town/TownBar.swift`)
 
 Chrome that **leaves on a downward scroll and comes back on an upward one** (Jesse,
 2026-09-21, naming Instagram). The brand mark is **centred against the bar** rather than laid
@@ -305,7 +304,7 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **Every material blurs ~19pt, so the edge is not a material** `[test]`. It is a stack of
   UIKit blurs, each stopped part of the way in by a paused `UIViewPropertyAnimator`
   (`PartialBlurView`), masked into bands so their sigmas add up to a straight line
-  (`EdgeBlur.layers`, `TodayHeaderTests.testStackedBlursThinInAStraightLine`). Two traps:
+  (`EdgeBlur.layers`, `TownBarTests.testStackedBlursThinInAStraightLine`). Two traps:
   the animator must start on the NEXT run-loop turn after the view lands in a window (SwiftUI
   inserts views with UIKit animations off, and the effect jumps to full), and one blur must
   span the whole height (two stacked views meeting mid-edge drew a seam, each blurring only
@@ -313,27 +312,27 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   timeout before every step: the UI tests launch with `-ui-tests`, which leaves the blur
   off (finishing the animator at its current point instead drops the blur to nothing).
   `ImageRenderer` draws the UIKit blur as a placeholder.
-- **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `FeedView`
+- **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `TownView`
   on appear, cleared on disappear). With no colour scheme requested, iOS 26 inks the status
   bar from whatever scrolls under it and the clock went white over dark photos; while held,
   System requests the phone's own scheme, which pins it. Released under a pushed event page,
   whose hero photo keeps the white clock it had (2026-09-27).
 - **Out of home the feed CARRIES the bar, 1:1** (Jesse, 2026-09-27, Instagram's header).
-  `TodayHeader.homeTravel` is the offset clamped to the bar's 58pt: the controls move up by
+  `TownBarRules.barTravel` is the offset clamped to the bar's 58pt: the controls move up by
   it and fade with it, riding up under the status edge, which blurs and pales them on the
   way out as Instagram's header is. It reaches the bar through an `@Observable` box
   (`BarTravel`) that only the bar reads, so the feed's body does not re-run per frame.
-  Carried its full height, the bar leaves WITHOUT the slide (`FeedView` sets that state in
+  Carried its full height, the bar leaves WITHOUT the slide (`TownView` sets that state in
   a transaction with animations off): animated, it snapped back to rest as it started
   floating and slid out again over the first post.
-- **Past that, the rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:
+- **Past that, the rule is DIRECTION, not distance.** `TownBarRules.chromeHidden(wasHidden:
   floating:anchor:offset:)` is pure and total: inside `hideAfter` (the bar's own height) and
   any rubber-band pull it always shows; a bar carried its full height out of home counts as
   away at once; a floating bar hides after `flipDistance` (12pt) of one-way travel down and
-  comes back after 12pt up, and jitter holds the current state. `FeedView` writes each state
+  comes back after 12pt up, and jitter holds the current state. `TownView` writes each state
   only when it flips.
 - **The chrome is REMOVED when hidden, not faded in place, and it has to be** `[prose]` — the
-  glass-compositing rule is in `docs/rules/swift-traps.md`. `TodayTopBar` branches on
+  glass-compositing rule is in `docs/rules/swift-traps.md`. `TownBar` branches on
   `chromeHidden` inside a fixed-height `ZStack` and animates the `.transition`. Note the
   offset expression it keeps: `contentOffset.y` rests at `-contentInsets.top`, so the
   `+ geometry.contentInsets.top` term is what makes 0 mean "at rest" — drop it and the trace
@@ -346,24 +345,24 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   the wordmark centres, a notifications bell holds the trailing corner, and the map disc sits
   inboard of it. The + and the bell are
   **bare ink at home and sit in frosted circles while the bar floats** over the feed
-  (`TodayHeader.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
+  (`TownBarRules.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
   home again) — a material circle, not Liquid Glass, so it slides and fades with its mark
   (see the glass rule in `docs/rules/swift-traps.md`). A disc **leading** trips
-  `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`.
+  `TownBarTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`.
 - **The map button is a true circle, 44×44** (Instagram's button size, Jesse 2026-09-27;
   50 before) — the one deliberate exception to this system's 12pt rounded squares.
 - **The map disc is a solid `Hue.brandDisc` circle, exactly #FCE804, carrying
   `Hue.onBrandDisc` ink — no glass, no material, no tint** (2026-09-24). `[test]`
-  `TodayHeaderTests.testMapDiscIsExactBrandYellow` pixel-samples the colour. The translucent
+  `TownBarTests.testMapDiscIsExactBrandYellow` pixel-samples the colour. The translucent
   `mapWash` disc before it went mustard over photographs, and a Liquid Glass surface
   composites outside its own view's layer, so it arrived and left out of step with the rest
   of the bar.
 - **The bar's glyphs are drawn in-house** (`MapPinGlyph`, and `MagnifierGlyph` / `BellGlyph`
-  in `Features/Home/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
+  in `Features/Town/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
   as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
   The + is `PlusGlyph`, in the same file. **The bell carries a dot** while Notifications or the
-  hello pill hold something unseen (`TodayTopBar.bellButton`); no number. A new friend
+  hello pill hold something unseen (`TownBar.bellButton`); no number. A new friend
   request puts Instagram's unread dot on the Friends tab, in exact BP yellow (`FriendsBook.dot`,
   BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
 

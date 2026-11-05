@@ -90,7 +90,7 @@ allowlist of the palettes named below). A call split across lines is still caugh
   `scripts/brand/wordmark.py`, whose `AppIcon`/`LaunchMark` outputs are retired.
   **Two views, two meanings:** `BlockPartyMark` is the app icon, field and all,
   squircle-clipped (launch loader, invite card); `BlockPartyWordmark` is the logo on the
-  app's own page, ink on nothing, and it is what the Today bar centres. Every live brand
+  app's own page, ink on nothing, and it is what the Town bar centres. Every live brand
   surface uses the exact raster. On a wordmark re-export, regenerate `Wordmark` plus the
   waitlist site's favicons from the same master and re-measure `BlockPartyWordmark.aspect`
   (the script prints it).

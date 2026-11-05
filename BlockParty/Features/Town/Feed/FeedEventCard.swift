@@ -33,7 +33,7 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     /// Which action controls this card offers. Defaults to `.posting` so the Town
     /// pipeline and the DEBUG galleries keep the row they were built against; the
-    /// Daily feed passes `.event`, which drops comments but keeps the heart.
+    /// Town feed passes `.event`, which drops comments but keeps the heart.
     let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
@@ -123,7 +123,7 @@ struct FeedEventCard: View {
                 if actions.canAct {
                     // Rides the photo's corner in as it sinks.
                     photoHeart
-                        .padding(.trailing, DailyFeedMetric.contentInset
+                        .padding(.trailing, TownFeedMetric.contentInset
                                  + (item.isPhotoless ? Self.whiteHeartInset : Self.photoHeartInset))
                         .padding(.bottom, item.isPhotoless ? 0 : Self.photoHeartInset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
@@ -136,7 +136,7 @@ struct FeedEventCard: View {
             .overlay(alignment: .leading) {
                 if item.isPhotoless, marksHost {
                     whiteCardMark
-                        .padding(.leading, DailyFeedMetric.contentInset + NoPhotoCard.Metric.horizontal)
+                        .padding(.leading, TownFeedMetric.contentInset + NoPhotoCard.Metric.horizontal)
                         .offset(x: photoSize.width * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
@@ -147,7 +147,7 @@ struct FeedEventCard: View {
                 if showsHostMark {
                     // Rides the photo's corner in as it sinks.
                     hostMark
-                        .padding(.trailing, DailyFeedMetric.contentInset + PhotoChip.inset)
+                        .padding(.trailing, TownFeedMetric.contentInset + PhotoChip.inset)
                         .padding(.top, PhotoChip.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: photoSize.height * (1 - pressScale) / 2)
@@ -162,13 +162,13 @@ struct FeedEventCard: View {
             if let rsvp = actions.rsvp(item, town: true) {
                 RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true, onMenu: openMenu)
                     .padding(.top, 12)
-                    .padding(.horizontal, DailyFeedMetric.contentInset)
+                    .padding(.horizontal, TownFeedMetric.contentInset)
                     .transition(.opacity)
             } else {
                 // Signed out: no Attend and no heart, the send and the ••• alone.
                 actionRow
                     .padding(.top, 2)
-                    .padding(.horizontal, DailyFeedMetric.contentInset)
+                    .padding(.horizontal, TownFeedMetric.contentInset)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,7 +295,7 @@ struct FeedEventCard: View {
         .grayscale(item.cancelled ? 1 : 0)
         // A double tap likes, as on a photo; a tap opens the Event once that has failed.
         .gesture(PhotoDoubleTap { _ in performImageLike(at: nil) })
-        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The white card's logo opens the host's page, as the mark on a photo does, wherever a host
@@ -442,7 +442,7 @@ struct FeedEventCard: View {
         // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
         // double tap likes without opening it (`EventCardPhotoTapTests`).
         .gesture(PhotoDoubleTap { performImageLike(at: $0) })
-        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     @ViewBuilder

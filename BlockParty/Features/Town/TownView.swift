@@ -1,11 +1,11 @@
 //
-//  FeedView.swift
+//  TownView.swift
 //  Block Party — the Town tab body: the top bar over the Town feed.
 //
 
 import SwiftUI
 
-struct FeedView: View {
+struct TownView: View {
     /// The top bar's controls. The shell owns every presentation; the feed
     /// only forwards the taps.
     var onOpenMap: () -> Void = {}
@@ -77,17 +77,17 @@ struct FeedView: View {
     }
 
     /// Is the top bar off the screen right now? Driven by scroll DIRECTION —
-    /// `TodayHeader.chromeHidden` holds the rule — and written only when it flips,
+    /// `TownBarRules.chromeHidden` holds the rule — and written only when it flips,
     /// so a scroll does not invalidate this view on every frame.
     @State private var chromeHidden = false
-    /// Where the current scroll direction started (`TodayHeader.directionAnchor`).
+    /// Where the current scroll direction started (`TownBarRules.directionAnchor`).
     /// Written only when the direction reverses, or at home, where it tracks the
     /// offset — never touches the bar's height.
     @State private var chromeAnchor: CGFloat = 0
     /// Is the bar floating over the feed rather than at home on the paper
-    /// (`TodayHeader.chromeFloating`)? Written only when it flips.
+    /// (`TownBarRules.chromeFloating`)? Written only when it flips.
     @State private var chromeFloating = false
-    /// How far the feed has carried the bar off the top (`TodayHeader.homeTravel`).
+    /// How far the feed has carried the bar off the top (`TownBarRules.barTravel`).
     /// Written here, read only by the bar, so this view does not re-run per frame.
     @State private var barTravel = BarTravel()
 
@@ -144,7 +144,7 @@ struct FeedView: View {
                                 if case .eventOfTheDay(let event) = item { return event.id }
                                 return nil
                             }
-                            DailyFeedColumn(items: items,
+                            TownFeedColumn(items: items,
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
                                             now: townFeed.posterClock(at: context.date),
@@ -171,10 +171,10 @@ struct FeedView: View {
                             Task { await townFeed.reload() }
                         }
                         .padding(.top, 72)
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                        .padding(.horizontal, TownFeedMetric.contentInset)
                         .transition(.opacity)
                     } else {
-                        DailyFeedSkeleton()
+                        TownFeedSkeleton()
                             .transition(.opacity)
                     }
                 }
@@ -198,18 +198,18 @@ struct FeedView: View {
         //
         // NOTHING here may touch the bar's HEIGHT: this bar is the scroll's own top
         // inset, so height-from-scroll closes a loop that rings rather than settling
-        // (see `TodayHeader.contentHeight`). Opacity and offset are free.
+        // (see `TownBarRules.contentHeight`). Opacity and offset are free.
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previousOffset, offset in
-            let anchor = TodayHeader.directionAnchor(anchor: chromeAnchor,
+            let anchor = TownBarRules.directionAnchor(anchor: chromeAnchor,
                                                      previousOffset: previousOffset,
                                                      offset: offset)
-            let hidden = TodayHeader.chromeHidden(wasHidden: chromeHidden,
+            let hidden = TownBarRules.chromeHidden(wasHidden: chromeHidden,
                                                   floating: chromeFloating,
                                                   anchor: anchor,
                                                   offset: offset)
-            let floating = TodayHeader.chromeFloating(wasFloating: chromeFloating,
+            let floating = TownBarRules.chromeFloating(wasFloating: chromeFloating,
                                                       hidden: hidden,
                                                       offset: offset)
             if anchor != chromeAnchor { chromeAnchor = anchor }
@@ -223,7 +223,7 @@ struct FeedView: View {
                 if hidden != chromeHidden { chromeHidden = hidden }
                 if floating != chromeFloating { chromeFloating = floating }
             }
-            barTravel.points = TodayHeader.homeTravel(offset: offset)
+            barTravel.points = TownBarRules.barTravel(offset: offset)
             townFeed.scrolled(to: offset)
             #if DEBUG
             if LaunchFlags.has(.scrollLog) {
@@ -238,7 +238,7 @@ struct FeedView: View {
         // the bar brings its own soft edge instead (`StatusEdge`, `BarEdge`), which
         // also covers the status band when the bar is away. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
-            TodayTopBar(onOpenMap: onOpenMap,
+            TownBar(onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         onCreate: onCreate,
                         onOpenPage: onOpenPage,
@@ -272,7 +272,7 @@ struct FeedView: View {
                     chromeHidden = true
                     chromeFloating = true
                     chromeAnchor = returnY
-                    barTravel.points = TodayHeader.homeTravel(offset: returnY)
+                    barTravel.points = TownBarRules.barTravel(offset: returnY)
                 }
             }
         }
