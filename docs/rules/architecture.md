@@ -198,7 +198,7 @@ dependency**. `[prose]`
   read rule, with the row's primary key:** a table in the publication never has a key that says anything
   (`chat_reads` has its own id for this reason). A column no client should see isn't granted, since
   Realtime sends what the role may select (`chat_messages.held`).
-- **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
+- **`SupabaseConfig`** — project URL + **publishable key** (safe to ship; RLS is the real
   boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
 - Supporting: `Session`, `Reminders`, `Interests`, `TrailServices`,
   `KnownVenues`, `DateHelpers`, `Models`, `LocationPermission` + `UserLocation`.

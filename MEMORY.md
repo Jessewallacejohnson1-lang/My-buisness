@@ -121,8 +121,8 @@ or its `docs/rules/` file and leaves here.
   without an email quietly makes an anonymous account. Proof accounts sign up with email and
   password (sign-up confirms itself); delete their avatar files through the Storage API (SQL
   deletes on `storage.objects` are refused) before deleting the users.
-- The Supabase anon key ships in the app for reads. The service role key is server-side only
-  and never enters the client, a screenshot, or a commit.
+- 2026-11-05 — Supabase's publishable key ships in the app, on `apikey` only (BP app backlog 11). The
+  master key is server-side only and never enters the client, a screenshot, or a commit.
 - Both apps share one Supabase project. Logic belongs in Supabase and edge functions; do not
   re-implement server behaviour in the client.
 
