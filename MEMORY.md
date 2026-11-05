@@ -69,6 +69,15 @@ or its `docs/rules/` file and leaves here.
 
 ## Data and backend
 
+- 2026-11-05 — **The Town feed sinks what you've seen** (Jesse; BP app town-feed 41, `supabase/town_feed.sql`). Each open you've
+  seen a card counts × 0.6, down to × 0.3, by series. It comes back once on its own day (a real happening only) and when a friend
+  taps Going. Up to 3 live cards lead, then points; every 5th card is News you haven't seen. A fresh order comes after 10 minutes.
+- 2026-11-05 — **Live and "Now" mean a real happening** (Jesse: "has to be like an event or actually action"; the talk at the
+  gallery could be live, the gallery shouldn't last 5 days): `private.is_live_kind`, on every Event card as `live_kind`. Exhibits,
+  sales, open houses, promotions, routine meetings and runs over days never are. **Supersedes** "the whole of something that
+  runs over days" in earlier notes.
+- 2026-11-05 — **Middle school sports reach only those who picked Middle school, follow the team or school, have a friend Going,
+  or are Going** (Jesse: "junior high sports typically are not gonna be very popular"). Its concerts and shows stay in the Town feed.
 - 2026-11-05 — **A school's club meetings, assemblies and PTO meetings reach only those following the school** (Jesse:
   "following"; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
 - 2026-11-05 — **Every game between two teams draws the white card, at every level, and says its level**
