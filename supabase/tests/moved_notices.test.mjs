@@ -201,6 +201,6 @@ test('the bell sends a bare Event card with empties, never a missing key', async
     id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
     going_count: 2, going: true, cancelled: true, place_picture: null, host_picture: null, description: null,
-    what: null, source_url: null, game: null, friends_going: [{ name: 'Anna', photo: null }],
+    what: null, source_url: null, game: null, friends_going: [{ name: 'Anna', photo: null }], live_kind: false, friends_going_at: card.friends_going_at,
   });
 });

@@ -13,14 +13,6 @@ import { CARD_KEYS } from './event_card.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const db = await realDatabase();
 const ADMIN = await adminClaims(db);
-// The two functions as they were before feed-load (20261102155729_feed_once_per_open.sql), kept under
-// other names so the stories can hold the new ones to them: the whole feed with its own body, and the
-// Event of the day that worked it all out.
-const before = (file, fn, as) => readFileSync(join(migrations, file), 'utf8')
-  .match(new RegExp(`create or replace function public\\.${fn}\\([\\s\\S]*?\\n\\$\\$;`))[0]
-  .replace(`public.${fn}(`, `public.${as}(`).replaceAll('public.get_town_feed(', 'public.old_town_feed(');
-await db.exec(before('20261102005713_post_screen_feed.sql', 'get_town_feed', 'old_town_feed'));
-await db.exec(before('20261026132204_activity_follow_lift.sql', 'get_event_of_the_day', 'old_event_of_the_day'));
 // The feed and the Event of the day as they read before codebase-health-2 03, for the stories about what an
 // Event row says: each read's own answer, its Event card unpacked into the columns the card replaced (news' and
 // posts' own as they come, with the old zeros). It reads the answer only; what each read sends beside the card is
@@ -398,7 +390,7 @@ test("nobody reads who is Going, saved or hearted: only their own rows, and the 
   assert.deepEqual(rows.map((r) => r.nspname), ['private', 'private']);
 });
 
-test("every interest the tagger gave an Event matches, two at most; an untagged one matches by its category", async () => {
+test("every interest the tagger gave an Event matches, and a second adds nothing; an untagged one matches by its category", async () => {
   await reset();
   const trivia = await add('Trivia at the taproom', '2026-10-09', { start_time: '7 PM' });
   await add('Pancake breakfast', '2026-10-09', { start_time: '8 AM', category: 'dining', source_name: 'Fire hall' });
@@ -411,7 +403,7 @@ test("every interest the tagger gave an Event matches, two at most; an untagged 
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.interest]),
-                   [['Trivia at the taproom', 'interest', 'bars', 6], ['Pancake breakfast', 'interest', 'dining', 3],
+                   [['Pancake breakfast', 'interest', 'dining', 3], ['Trivia at the taproom', 'interest', 'bars', 3],
                     ['Council meeting', 'tomorrow', null, 0]]);
 });
 
@@ -731,7 +723,7 @@ test('New ends once you have seen it, and a view in the last 30 minutes is not a
   assert.equal((await feed('2026-10-08 12:00'))[0].reason, 'new');
   await viewed(fresh, YOU, '2026-10-08 11:55');
   await signIn(YOU);
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Old', 'Posted since']);
+  assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'));
 });
 
 test('your own posting is never New to you, only to everyone else', async () => {
@@ -768,7 +760,7 @@ test("someone else's views make nothing New for you, and nobody reads anyone's v
   await signIn(YOU);
   assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'));
   await db.exec(`reset role; set role anon; reset request.jwt.claim.sub`);
-  assert.deepEqual((await db.query('select * from private.my_views()')).rows, [], 'signed out reads no views');
+  assert.deepEqual((await db.query('select * from private.my_seen(now())')).rows, [], 'signed out reads no views');
 });
 
 // New lasts a day (town-feed 38): in the feed in the last 24 hours counts even with no last visit,
@@ -820,7 +812,8 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
+    interest: 3, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, live: false,
+    popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
     soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
   });
 });
@@ -2035,7 +2028,7 @@ test('an app that does not ask for news gets none, and signed out all news sits 
   assert.equal(rows[1].description, 'Flight Friday, in a line.');
 });
 
-test('news sharing your interests sits below an equal event, above one days off, and the rest goes last', async () => {
+test('every 5th card is News, and the first goes to your interests, then town news, then a place', async () => {
   await reset();
   await add('Fish fry dinner', '2026-10-08', { start_time: '7 PM', category: 'dining' });
   await add('Council meeting', '2026-10-20', { start_time: '6 PM' });
@@ -2043,11 +2036,15 @@ test('news sharing your interests sits below an equal event, above one days off,
   await news('Fall arrivals', '2026-10-08 17:50', { source_name: 'White Peony Boutique' });
   await news('Halloween cookies', '2026-10-08 17:40', { interests: ['coffee'], source_name: 'The Local Blend' });
   await signIn(ME, ['dining']);
+  await news('Road closed', '2026-10-08 12:00', { category: 'road' });
+  for (const n of [1, 2, 3, 4, 5, 6, 7]) await add(`Event ${n}`, '2026-10-12', { start_time: `${n} PM`, source_name: `Host ${n}` });
   const rows = await withNews('2026-10-08 18:00');
-  assert.deepEqual(rows.map((r) => r.title),
-                   ['Fish fry dinner', 'Taco Tuesday', 'Council meeting', 'Fall arrivals', 'Halloween cookies']);
-  assert.deepEqual([rows[1].reason, rows[1].reason_name], ['interest', 'dining']);
-  assert.equal(rows[3].reason, null);
+  assert.deepEqual(rows.map((r) => r.title).slice(0, 13),
+                   ['Fish fry dinner', 'Event 1', 'Event 2', 'Event 3', 'Taco Tuesday', 'Event 4', 'Event 5', 'Event 6', 'Event 7',
+                    'Road closed', 'Council meeting', 'Fall arrivals', 'Halloween cookies'],
+                   'with no 10th Event, the next card moves up');
+  assert.deepEqual([rows[4].reason, rows[4].reason_name], ['interest', 'dining']);
+  assert.equal(rows[9].reason, null);
 });
 
 test('a place\'s news spreads apart at the bottom, newest first', async () => {
@@ -2673,7 +2670,7 @@ test("your own posting is never lifted by what it's at, and a Group's Event neve
   await db.query('delete from auth.users where id = $1', [SAM]);
 });
 
-test('the Score line gives the follow lift to what the card names, a friend Going or not', async () => {
+test('a place you follow and a friend Going add up, and the Score line names both', async () => {
   await reset();
   // Friends Going counts only Events not over by the real clock, so this one is days from now.
   const show = await atPlace('Trunk show', day(3));
@@ -2686,7 +2683,7 @@ test('the Score line gives the follow lift to what the card names, a friend Goin
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const [row] = await lifted(`${day(0)} 12:00`);
   assert.deepEqual([row.reason, row.score.follow, row.score.friend, row.score.yours, row.friends_going.length],
-                   ['follow', 3, 0, 3, 1]);
+                   ['follow', 3, 3, 6, 1]);
   await db.exec('reset request.jwt.claims; reset role');
   await db.query('delete from auth.users where id = $1', [FRIEND]);
   await noPlaces();
@@ -3001,7 +2998,6 @@ const MOMENTS = ['00:00', '07:00', '10:30', '15:00', '18:30', '21:30', '23:30']
 // category left the answer with codebase-health-2 03 (no app read it), so the old feed's is read as none.
 const rowsOf = async (fn, at) => (await db.query(
   `select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
-const noNewsCategory = (rows) => rows.map((r) => (r.kind === 'news' ? { ...r, category: null } : r));
 
 test('feed-load: Event of the day picks what it did when it read the whole feed: signed out, signed in, admin, every day and time', async () => {
   const e = await busyWeekend();
@@ -3010,7 +3006,6 @@ test('feed-load: Event of the day picks what it did when it read the whole feed:
     await asViewer(who, e);
     for (const at of MOMENTS) {
       const now = await rowsOf('flat_event_of_the_day', at);
-      assert.deepEqual(now, await rowsOf('old_event_of_the_day', at), `${who} at ${at}`);
       seen[`${who} ${at}`] = now.map((r) => r.title);
     }
   }
@@ -3029,25 +3024,7 @@ test('feed-load: Event of the day picks what it did when it read the whole feed:
   assert.ok(seen['admin 2026-10-09 07:00'].length === 3);
 });
 
-test('feed-load: get_town_feed gives the same rows in the same order as before it moved to private.town_feed', async () => {
-  const e = await busyWeekend();
-  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Taproom', interests: ['dining'] });
-  await news('Road work on Minnesota St', '2026-10-08 09:00', { category: 'road' });
-  for (const who of ['out', 'in', 'admin']) {
-    await asViewer(who, e);
-    for (const at of ['2026-10-08 12:00', '2026-10-09 07:00', '2026-10-09 15:00', '2026-10-10 18:30']) {
-      for (const n of [false, true]) {
-        // And after the best (town-feed 23): the later Events, which ignore news.
-        for (const later of [false, true]) {
-          const sql = (fn) => db.query(`select * from public.${fn}(($1::timestamp at time zone 'America/Chicago'), $2, $3)`,
-                                       [at, n, later]);
-          const [a, b] = [(await sql('flat_town_feed')).rows, noNewsCategory((await sql('old_town_feed')).rows)];
-          if (!later) assert.ok(a.length > 3);
-          assert.deepEqual(a, b, `${who} at ${at}, news ${n}, later ${later}`);
-        }
-      }
-    }
-  }
+test('feed-load: get_town_feed is private.town_feed', async () => {
   await db.exec('reset role; reset request.jwt.claims');
   // A later migration that gives get_town_feed a body of its own again would leave Event of the day
   // reading the old one: change private.town_feed instead.
@@ -3057,7 +3034,7 @@ test('feed-load: get_town_feed gives the same rows in the same order as before i
 
 // Calls to each function during one read, counted by Postgres itself (track_functions): the counts
 // after it less those before it.
-async function callsDuring(sql, as, names = ['get_town_feed', 'old_town_feed', 'town_feed']) {
+async function callsDuring(sql, as, names = ['get_town_feed', 'town_feed']) {
   const counts = async () => Object.fromEntries((await db.query(`select funcname, calls::int from pg_stat_xact_user_functions
     where funcname in (${names.map((n) => `'${n}'`).join(', ')})`)).rows.map((r) => [r.funcname, r.calls]));
   await db.exec(`reset role; begin; set local track_functions = 'all'`);
@@ -3081,7 +3058,6 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   // heart_count runs once for each Event a read works out: Postgres's own count, the same on any machine.
   const worked = async (fn, when) => (await callsDuring(q(fn, when), as, ['heart_count'])).heart_count;
   // No picks written (Daily's other days, or a morning the job didn't run): the day's Events.
-  assert.deepEqual((await eotd('flat_event_of_the_day')).rows, (await eotd('old_event_of_the_day')).rows);
   assert.equal((await eotd('get_event_of_the_day')).rows.length, 1);
   const noPicks = [await worked('get_event_of_the_day', at), await worked('get_town_feed', at)];
   // The morning's picks: four of the day's Events.
@@ -3090,10 +3066,8 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
   await standouts('2026-10-08', today.map((r) => r.id));
   await signIn(READER);
   const picked = (await eotd('flat_event_of_the_day', morning)).rows;
-  assert.deepEqual(picked, (await eotd('old_event_of_the_day', morning)).rows);
   assert.ok(picked.length >= 1);
-  // Postgres's own count: the old one ran the whole feed once a read; the new one never does.
-  assert.deepEqual(await callsDuring(q('old_event_of_the_day'), as), { old_town_feed: 1 });
+  // Postgres's own count: it never runs the whole feed.
   assert.deepEqual(await callsDuring(q('get_event_of_the_day'), as), { town_feed: 1 });
   assert.deepEqual(await callsDuring(q('get_town_feed'), as), { get_town_feed: 1, town_feed: 1 });
   // Each read works out a slice, fewer Events than the whole feed, either way.
@@ -3331,7 +3305,7 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
     id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
     going_count: 0, going: false, cancelled: false, place_picture: null, host_picture: null, description: null,
-    what: null, source_url: null, game: null, friends_going: [],
+    what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null,
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
   assert.deepEqual([by.news.card, by.post.card], [null, null]);
@@ -3362,4 +3336,263 @@ test("Daily's Event of the day sends the Event card, with the found link and hos
   assert.equal(card.source_url, 'https://cow/events/sundae');
   assert.deepEqual(card.host_picture, { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 });
   assert.deepEqual([card.going, card.going_count, card.friends_going], [false, 0, []], 'signed out');
+});
+
+// Fresh every open (town-feed 41; Jesse, 2026-11-05).
+const set = async (id, fields) => {
+  await db.exec('reset role');
+  for (const [k, v] of Object.entries(fields)) await db.query(`update public.club_events set ${k} = $1 where id = $2`, [v, id]);
+};
+const NOW = '2026-10-08 12:00';
+const twoDays = '2026-10-10';
+
+test('a card you have seen sinks each open you saw it, down to a floor, and never leaves', async () => {
+  await reset();
+  const first = await add('First', twoDays, { start_time: '10 AM', source_name: 'A' });
+  await add('Second', twoDays, { start_time: '11 AM', source_name: 'B' });
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  assert.deepEqual(await titles(NOW), ['First', 'Second']);
+  await viewed(first, YOU, '2026-10-05 09:00');
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${JSON.stringify({ ...JSON.parse(ADMIN), sub: YOU })}'`);
+  let rows = await feed(NOW);
+  assert.deepEqual(rows.map((r) => r.title), ['Second', 'First']);
+  assert.equal(rows[1].score.seen, 0.6);
+  await viewed(first, YOU, '2026-10-06 09:00');
+  await viewed(first, YOU, '2026-10-07 09:00');
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${JSON.stringify({ ...JSON.parse(ADMIN), sub: YOU })}'`);
+  rows = await feed(NOW);
+  assert.equal(rows[1].score.seen, 0.3, '0.6 three times is under the floor');
+  assert.equal(rows.length, 2);
+  await db.exec('reset request.jwt.claims');
+});
+
+test('a view again the same day counts as another open, 10 minutes or more on', async () => {
+  await reset();
+  const first = await add('First', twoDays, { start_time: '10 AM', source_name: 'A' });
+  await viewed(first, YOU, '2026-10-08 09:00');
+  await viewed(first, YOU, '2026-10-08 09:05');
+  await viewed(first, YOU, '2026-10-08 09:20');
+  await db.exec('reset role');
+  const { rows } = await db.query(`select times from public.feed_actions where item_id = $1`, [first]);
+  assert.deepEqual(rows, [{ times: 2 }], 'still one row a day');
+  await signIn(YOU);
+  assert.deepEqual((await db.query(`select times from private.my_seen(($1::timestamp at time zone 'America/Chicago'))`, [NOW])).rows, [{ times: 2 }]);
+});
+
+test('seeing one date of a repeating Event is seeing them all, and only its first date is New', async () => {
+  await reset();
+  const monday = await add('Reflection', '2026-10-05', { start_time: '10 AM', source_name: 'Gallery' });
+  await add('Reflection', '2026-10-09', { start_time: '10 AM', source_name: 'Gallery', created_at: '2026-10-08 06:00-05' });
+  await add('Brand new', '2026-10-09', { start_time: '10 AM', source_name: 'Other', created_at: '2026-10-08 06:00-05' });
+  await add('Old', '2026-10-10', { start_time: '10 AM', source_name: 'Third' });
+  await db.exec('set role anon');
+  assert.deepEqual((await feed(NOW)).map((r) => [r.title, r.reason === 'new']),
+                   [['Brand new', true], ['Reflection', false], ['Old', false]], 'a daily exhibit reads New only once');
+  await viewed(monday, YOU, '2026-10-05 12:00');
+  await signIn(YOU);
+  assert.deepEqual((await titles(NOW)), ['Brand new', 'Old', 'Reflection'], 'seen last week, sunk this week');
+});
+
+test('on its own day a real happening comes back once; an exhibit does not', async () => {
+  await reset();
+  const bingo = await add('Bingo', '2026-10-08', { start_time: '7 PM', source_name: 'Hall' });
+  const show = await add('Bréagán', '2026-10-08', { start_time: '2 PM', source_name: 'Gallery' });
+  await set(show, { what: 'Art exhibit' });
+  await add('Tomorrow', '2026-10-09', { start_time: '7 PM', source_name: 'Other' });
+  await viewed(bingo, YOU, '2026-10-05 12:00');
+  await viewed(show, YOU, '2026-10-05 12:00');
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 09:00'), ['Bingo', 'Tomorrow', 'Bréagán']);
+  await viewed(bingo, YOU, '2026-10-08 09:30');
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 10:00'), ['Tomorrow', 'Bréagán', 'Bingo'], 'seen today, it sinks again');
+});
+
+test("a friend's Going since you saw it brings a card back, until you see it again", async () => {
+  await reset();
+  const friend = '00000000-0000-0000-0000-0000000000e7';
+  const when = day(3);
+  const show = await add('Show', when, { start_time: '7 PM', source_name: 'A' });
+  await add('Other', when, { start_time: '7 PM', source_name: 'B' });
+  await neighbour(friend, 'Kate Moss');
+  await befriend(ME, friend);
+  await viewed(show, ME, `${day(0)} 08:00`);
+  await signIn(ME);
+  assert.deepEqual(await titles(`${day(0)} 12:00`), ['Other', 'Show']);
+  await goes(show, friend, `${day(0)} 09:00-05`);
+  await signIn(ME);
+  assert.deepEqual(await titles(`${day(0)} 12:00`), ['Show', 'Other'], 'back, with the friend lift');
+  await db.exec(`reset role; update public.club_events set start_time = '7 PM' where id = '${show}'`);
+  await viewed(show, ME, `${day(1)} 08:00`);
+  await signIn(ME);
+  const again = (await feed(`${day(1)} 12:00`)).find((r) => r.title === 'Show');
+  assert.equal(again.friends_going.length, 1);
+  await db.exec('reset role');
+  await db.query('delete from auth.users where id = $1', [friend]);
+});
+
+test('live: up to 3 on right now lead, your Going first, then most Going, then the draw, your town counting more', async () => {
+  await reset();
+  const LIVE = ['Concert', 'Game', 'Talk', 'Bingo'];
+  const ids = {};
+  for (const t of LIVE) ids[t] = await add(t, '2026-10-08', { start_time: '6 PM', source_name: `Host ${t}` });
+  await add('Later tonight', '2026-10-08', { start_time: '9 PM', source_name: 'Late' });
+  await set(ids.Game, { draw: 3 });
+  await set(ids.Talk, { lat: 45.56, lng: -94.32 });
+  await signIn(YOU);
+  await goes(ids.Bingo, YOU);
+  await neighbour(ME, 'Mia Lee');
+  await goes(ids.Concert, ME);
+  await signIn(YOU);
+  const rows = await titles('2026-10-08 18:30');
+  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Concert', 'Game'], 'yours, then most Going, then the draw of 3 over 2 × 1.5 on a tie of newest');
+  await db.exec('reset role');
+});
+
+test('live: a card leaves the top after you have seen it on 2 opens', async () => {
+  await reset();
+  const concert = await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
+  await add('Festival', '2026-10-09', { start_time: '6 PM', source_name: 'B' });
+  await set(concert, { draw: 1 + 1 });
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 18:30'))[0], 'Concert');
+  await viewed(concert, YOU, '2026-10-08 18:31');
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 18:45'))[0], 'Concert', 'seen on one open, still live');
+  await viewed(concert, YOU, '2026-10-08 18:46');
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 19:00'))[0], 'Festival', 'seen on two, it leaves the top');
+});
+
+test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
+  await reset();
+  const kinds = [
+    ['Concert', 'Concert', 2, true], ['Talk', 'Talk', 2, true], ['Gallery reception', 'Gallery reception', 2, true],
+    ['Basketball', 'Basketball game', 2, true], ['Market', 'Holiday market', 2, true], ['Bingo', 'Bingo night', 2, true],
+    ['Bréagán', 'Art exhibit', 2, false], ['Treasure sale', 'Church sale', 2, false], ['Open house', 'Open house', 2, false],
+    ['Dysport', 'Promotion', 2, false], ['Hooplah', 'Holiday shopping', 2, false], ['Board', 'Board meeting', 2, false],
+    ['Saleh talk', 'Talk', 2, true], ['Council', 'Meeting', 1, false], ['Trivia', 'Trivia', 1, false],
+  ];
+  for (const [title, what, draw, want] of kinds) {
+    const { rows: [{ live }] } = await db.query(`select private.is_live_kind($1, $2, $3, false, '7 PM', '2026-10-08', null) as live`, [what, title, draw]);
+    assert.equal(live, want, title);
+  }
+  const q = (args) => db.query(`select private.is_live_kind(${args}) as live`);
+  assert.equal((await q(`null, 'Sidewalk Sale', 2, false, '7 PM', '2026-10-08', null`)).rows[0].live, false, 'its title until tagged');
+  assert.equal((await q(`'Concert', 'x', 2, true, null, '2026-10-08', null`)).rows[0].live, false, 'all day');
+  assert.equal((await q(`'Concert', 'x', 2, false, null, '2026-10-08', null`)).rows[0].live, false, 'no start');
+  assert.equal((await q(`'Festival', 'x', 2, false, '7 PM', '2026-10-08', '2026-10-09 01:00-05'`)).rows[0].live, true, 'past midnight');
+  assert.equal((await q(`'Festival', 'x', 2, false, '7 PM', '2026-10-08', '2026-10-13 21:00-05'`)).rows[0].live, false, 'over days');
+});
+
+test('your town counts more, by its own map point or its place: within 4.5 miles', async () => {
+  await reset();
+  const here = await add('Here', twoDays, { start_time: '10 AM', source_name: 'A' });
+  const place = await add('At a place here', twoDays, { start_time: '10 AM', source_name: 'B' });
+  const far = await add('St. Cloud', twoDays, { start_time: '10 AM', source_name: 'C' });
+  await add('Nowhere known', twoDays, { start_time: '10 AM', source_name: 'D' });
+  await set(here, { lat: 45.5807, lng: -94.3925 });
+  await set(far, { lat: 45.5579, lng: -94.1632 });
+  await db.query(`insert into public.places (lat, lon, family, name, entry_id) values (45.56, -94.32, 'business', 'A shop', 'shop-41')`);
+  await set(place, { place_entry_id: 'shop-41' });
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  const rows = await feed(NOW);
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.title, r.score.town])),
+                   { Here: 1.5, 'At a place here': 1.5, 'St. Cloud': 1, 'Nowhere known': 1 });
+  await db.exec(`reset request.jwt.claims; reset role; delete from public.places where entry_id = 'shop-41'`);
+});
+
+test('each further card of a kind counts 0.8, so one kind can not fill the top', async () => {
+  await reset();
+  for (const n of [1, 2, 3]) await add(`Market ${n}`, twoDays, { start_time: `${n} PM`, source_name: `Market ${n}`, category: 'markets' });
+  await add('Concert', twoDays, { start_time: '4 PM', source_name: 'Hall', category: 'live_music' });
+  await db.exec('set role anon');
+  assert.deepEqual(await titles(NOW), ['Market 1', 'Concert', 'Market 2', 'Market 3']);
+});
+
+test('News you have seen leaves the feed, and see_news takes only your own', async () => {
+  await reset();
+  await add('Event', twoDays, { start_time: '1 PM', source_name: 'A' });
+  await news('First story', '2026-10-08 11:00', { source_name: 'One' });
+  await news('Second story', '2026-10-08 10:00', { source_name: 'Two' });
+  const { rows: [{ id }] } = await db.query(`select id from public.board_items where title = 'First story'`);
+  await signIn(YOU);
+  assert.deepEqual(await newsTitles(NOW), ['Event', 'First story', 'Second story']);
+  await db.query(`select public.see_news($1::uuid[])`, [[id, '00000000-0000-0000-0000-000000000999']]);
+  assert.deepEqual(await newsTitles(NOW), ['Event', 'Second story']);
+  assert.equal((await db.query(`select * from public.news_views`)).rows.length, 1);
+  await signIn(ME);
+  assert.deepEqual(await newsTitles(NOW), ['Event', 'First story', 'Second story'], 'yours is yours');
+  assert.deepEqual((await db.query(`select * from public.news_views`)).rows, [], 'nobody reads anyone else');
+  await db.exec('set role anon; reset request.jwt.claim.sub');
+  await assert.rejects(db.query(`select public.see_news($1::uuid[])`, [[id]]), 'signed out sends none');
+  await db.exec('reset role; delete from public.news_views');
+});
+
+test('middle school goes only to those who picked it, follow it, have a friend Going, or are Going', async () => {
+  await reset();
+  const game = await add('Girls Basketball · MS', day(2), { start_time: '4 PM', source_name: 'Kennedy' });
+  await db.query(`update public.club_events set interests = '{watch_sports,middle_school}', interests_tagged_at = now() where id = $1`, [game]);
+  await add('Concert', day(2), { start_time: '7 PM', source_name: 'Hall' });
+  const at = `${day(0)} 12:00`;
+  await db.exec('set role anon');
+  assert.deepEqual(await titles(at), ['Concert'], 'signed out');
+  await signIn(YOU, ['watch_sports']);
+  assert.deepEqual(await titles(at), ['Concert'], 'a sports fan who did not pick it');
+  await signIn(YOU, ['middle_school']);
+  assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'picked Middle school');
+  await signIn(YOU);
+  await goes(game, YOU);
+  await signIn(YOU);
+  assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'Going');
+  await db.exec('reset role; delete from public.event_rsvps');
+  const friend = '00000000-0000-0000-0000-0000000000e8';
+  await neighbour(friend, 'Kate Moss');
+  await befriend(YOU, friend);
+  await goes(game, friend);
+  await signIn(YOU);
+  assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'a friend Going');
+  await db.exec('reset role');
+  await db.query('delete from auth.users where id = $1', [friend]);
+});
+
+test('what you have seen never moves the Event of the day', async () => {
+  await reset();
+  const a = await add('Morning market', '2026-10-08', { start_time: '8 AM', source_name: 'A' });
+  await add('Morning walk', '2026-10-08', { start_time: '9 AM', source_name: 'B' });
+  await signIn(YOU);
+  const before = (await rowsOf('flat_event_of_the_day', '2026-10-08 07:00')).map((r) => r.title);
+  await viewed(a, YOU, '2026-10-08 06:00');
+  await viewed(a, YOU, '2026-10-08 06:30');
+  await signIn(YOU);
+  assert.deepEqual((await rowsOf('flat_event_of_the_day', '2026-10-08 07:00')).map((r) => r.title), before);
+});
+
+test('an Exhibition game is live; an exhibition is not', async () => {
+  const q = (game) => db.query(`select private.is_live_kind('Exhibition game', 'Exhibition', 1, false, '7 PM', '2026-10-08', null, $1) as live`, [game]);
+  assert.equal((await q(true)).rows[0].live, true);
+  assert.equal((await q(false)).rows[0].live, false);
+});
+
+test('the later list comes up full with middle school gone', async () => {
+  await reset();
+  for (const n of [1, 2, 3]) {
+    const id = await add(`Game ${n}`, '2026-12-01', { start_time: '4 PM', source_name: `School ${n}`, shows_from: '2026-11-20' });
+    await db.query(`update public.club_events set interests = '{middle_school}', interests_tagged_at = now() where id = $1`, [id]);
+  }
+  await add('Concert', '2026-12-02', { start_time: '7 PM', source_name: 'Hall', shows_from: '2026-11-20' });
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select card->>'title' as title from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true, true)`, [NOW]);
+  assert.deepEqual(rows.map((r) => r.title), ['Concert']);
+});
+
+test('seen counts the last 60 days', async () => {
+  await reset();
+  const old = await add('Yearly fair', twoDays, { start_time: '10 AM', source_name: 'A' });
+  await add('Other', twoDays, { start_time: '11 AM', source_name: 'B' });
+  await viewed(old, YOU, '2026-07-01 09:00');
+  await signIn(YOU);
+  assert.deepEqual(await titles(NOW), ['Yearly fair', 'Other']);
 });

@@ -35,12 +35,14 @@ security invoker
 set search_path = public
 as $$
   with weights as (
-    -- The simple recipe's weights (town-feed 36). Changing one is a migration.
-    select '{"yours":3,"interest":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"news":0.5,"meeting":0.3}'::jsonb as w
+    -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0.3,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveOpens":2,"newsEvery":5}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
-           (p_now at time zone 'America/Chicago')::date as today
+           (p_now at time zone 'America/Chicago')::date as today,
+           -- Downtown St. Joseph: everyone counts as St. Joseph until a second town opens (town-feed 41).
+           45.5641::float8 as lat, -94.3183::float8 as lng
   ),
   -- p_only (feed-load): only these Events and every other Event of their hosts, each host as the spacing
   -- rule keys it (`pool` below: the campus as one, else who puts it on). An Event's points and its
@@ -108,11 +110,24 @@ as $$
   -- The caller's last visit (town-feed 36): their newest view at least 30 minutes before p_now, so
   -- the visit they're on doesn't count. None yet (a first open, signed out): New reaches back the last
   -- 24 hours only (town-feed 38, `counted`).
-  my_views as materialized (
-    select v.item_id from private.my_views() v
-  ),
   last_visit as (
     select private.my_last_visit(p_now - interval '30 minutes') as at
+  ),
+  -- What the caller has seen (town-feed 41), by item and Town day. Not for the Event of the day (p_only),
+  -- whose order holds through the day.
+  my_seen_rows as materialized (
+    select v.item_id, v.day, v.times, v.last_at from private.my_seen(p_now) v where p_only is null
+  ),
+  -- By series, so seeing one date of a repeating Event is seeing them all; a post goes by its own id.
+  my_seen as materialized (
+    select lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as series,
+           sum(v.times)::int as times,
+           coalesce(sum(v.times) filter (where v.day = town.today), 0)::int as today,
+           max(v.last_at) as last_at
+    from my_seen_rows v
+    join public.club_events e on e.id = v.item_id and e.kind = 'event'
+    cross join town
+    group by 1
   ),
   -- Hosts the caller muted (ticket 21).
   muted as (
@@ -261,7 +276,8 @@ as $$
     from real_events r, town
   ),
   labels as (
-    select t.series, public.town_feed_series_label(array_agg(t.event_date)) as recurrence
+    select t.series, public.town_feed_series_label(array_agg(t.event_date)) as recurrence,
+           min(t.event_date) as first_date
     from timed t, town
     where t.event_date >= town.today - 60
     group by t.series
@@ -301,6 +317,9 @@ as $$
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
+      -- Middle school (`scored`) goes before the limit below, or the later list comes up short.
+      and (not p_later or not ('middle_school' = any(tg.tags) and e.interests_tagged_at is not null)
+           or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved)
     -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
     order by case when p_later then 1 end, sort_at
     limit case when p_later then 20 end
@@ -311,14 +330,22 @@ as $$
     select s.*,
            ec.card,
            (ec.card->>'going_count')::int as going_n,
-           -- New (town-feed 36, 38): in the feed, posted or its show-from day come, since the caller's
+           -- New (town-feed 36, 38, 41): in the feed, posted or its show-from day come, since the caller's
            -- last visit or in the last 24 hours, whichever reaches further back (least() skips a missing
-           -- last visit), and not yet seen by them. Signed out, a found Event has no poster and no caller:
-           -- still New.
+           -- last visit), its series' first date, and no date of it seen yet. Signed out, a found Event has
+           -- no poster and no caller: still New.
            coalesce(greatest(s.created_at, coalesce(s.shows_from, s.event_date - 14)::timestamp at time zone town.zone) > least(lv.at, p_now - interval '24 hours')
                     and s.cancelled_at is null and not s.going and not s.saved
                     and coalesce(s.submitted_by <> auth.uid(), true)
-                    and not exists (select 1 from my_views v where v.item_id = s.id), false) as is_new,
+                    and s.event_date = lb.first_date
+                    and sn.series is null, false) as is_new,
+           -- What it takes to be live (town-feed 41): its card says so, as every screen reads "Now".
+           coalesce((ec.card->>'live_kind')::boolean, false) as live_kind,
+           sn.times as seen_times, sn.today as seen_today, sn.last_at as seen_at,
+           (ec.card->>'friends_going_at')::timestamptz as friend_at,
+           -- How far from town: its own map point, else its place's (town-feed 41).
+           sqrt(power((coalesce(s.lat, pt.lat) - town.lat) * 69, 2)
+                + power((coalesce(s.lng, pt.lon) - town.lng) * 69 * cos(radians(town.lat)), 2)) as miles,
            coalesce(jsonb_array_length(ec.card->'friends_going'), 0) as friends_n,
            coalesce(ec.card->'friends_going', '[]'::jsonb) as friends_people,
            -- How many of the host's other Events the caller tapped (ticket 30). A game counts the other
@@ -366,15 +393,20 @@ as $$
     cross join town
     -- The Event card, friends Going (ticket 28) with it: asked once for every shown Event.
     left join private.event_cards(array(select x.id from shown x)) ec on ec.id = s.id
+    left join labels lb on lb.series = s.series
+    left join my_seen sn on sn.series = lower(btrim(s.title)) || '|' || s.host
+    left join lateral (select pl.lat, pl.lon from public.places pl where pl.entry_id = s.place_entry_id limit 1) pt on true
   ),
   scored as (
     select c.*,
-           (w->>'interest')::float8 * least(coalesce(array_length(c.matched, 1), 0), 2) as interest_pts,
-           -- Yours (town-feed 36): a friend Going (ticket 28), something you follow (school-activities 03,
-           -- town-feed 37), or a host you've been into (ticket 30), never routine business
-           -- (draw 1). Counts once, whichever it is.
-           case when c.friends_n > 0 or c.followed is not null or (c.tapped_n > 0 and coalesce(c.draw, 2) <> 1)
-                then (w->>'yours')::float8 else 0 end as yours_pts,
+           -- Interests, friends and following count the same and add up (town-feed 41); a second interest
+           -- adds nothing.
+           (w->>'interest')::float8 * least(coalesce(array_length(c.matched, 1), 0), 1) as interest_pts,
+           case when c.friends_n > 0 then (w->>'friend')::float8 else 0 end as friend_pts,
+           -- Something you follow (school-activities 03, town-feed 37), or a host you've been into (ticket 30),
+           -- never routine business (draw 1).
+           case when c.followed is not null or (c.tapped_n > 0 and coalesce(c.draw, 2) <> 1)
+                then (w->>'follow')::float8 else 0 end as follow_pts,
            case when c.is_new then (w->>'new')::float8 else 0 end as new_pts,
            -- How much it draws a town out, the tagger's 1-3 (ticket 34): everyone's starting point,
            -- 0, 1.5 or 3 points; one not rated yet counts as 2.
@@ -386,25 +418,42 @@ as $$
            -- A host you said Not interested to (ticket 21): × 0.3 for its other Events, with no fade
            -- (town-feed 36). A report hides its item only and lowers nothing (town-feed 22).
            case when exists (select 1 from hidden h where h.lowers and h.host <> '' and h.host = c.host)
-                then (w->>'notInterested')::float8 else 1 end as hidden_x
+                then (w->>'notInterested')::float8 else 1 end as hidden_x,
+           case when c.miles <= (w->>'townMiles')::float8 then (w->>'town')::float8 else 1 end as town_x,
+           -- Each open you've seen it, down to a floor (town-feed 41). On its own day a real happening counts
+           -- only that day's, and a friend's Going since you saw it brings it back: both until you see it again.
+           greatest((w->>'seenFloor')::float8, power((w->>'seen')::float8,
+             case when c.seen_times is null or c.friend_at > c.seen_at then 0
+                  when c.live_kind and c.days_off = 0 then c.seen_today
+                  else c.seen_times end)) as seen_x
     from counted c, weights
+    -- Middle school (Jesse, 2026-11-05: "junior high sports typically are not gonna be very popular"): only for
+    -- those who picked it, follow it, have a friend Going, or are Going to it or saved it.
+    where not ('middle_school' = any(c.tags) and c.interests_tagged_at is not null)
+       or 'middle_school' = any(c.matched)
+       or c.followed is not null or c.friends_n > 0 or c.going or c.saved
   ),
   totals as (
     select c.*,
            -- Called off and still here (Hearted): never promoted, so it goes last.
            case when c.cancelled_at is null
-                then (1 + c.yours_pts + c.interest_pts + c.new_pts + c.draw_pts) * c.soon * c.acted * c.hidden_x * c.meeting_x
+                then (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.new_pts + c.draw_pts)
+                     * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x
                 else 0 end as base,
            -- Which pool it is in, for the Score line: yours or discovery; your own Going and saves,
            -- and a called-off one, in neither.
            case when c.going or c.saved or c.cancelled_at is not null then null
-                else c.yours_pts > 0 end as yours,
+                else c.friend_pts + c.follow_pts > 0 end as yours,
+           -- A real happening on right now, seen on fewer than 2 opens today (town-feed 41).
+           p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
+             and c.final_score is null and c.cancelled_at is null
+             and coalesce(c.seen_today, 0) < (select (w->>'liveOpens')::int from weights) as live_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
            case when c.cancelled_at is not null then null
                 when c.followed is not null then 'follow'
                 when c.friends_n > 0 then 'friend'
-                when c.yours_pts > 0 then 'tapped'
+                when c.follow_pts > 0 then 'tapped'
                 when c.is_new then 'new'
                 when c.interest_pts > 0 then 'interest' end as lift
     from scored c
@@ -433,15 +482,17 @@ as $$
       and (me.adult or not private.adults_only(b.place_entry_id, null, b.title || ' ' || coalesce(b.blurb, '')))
   ),
   news_scored as (
-    -- Below the Events (Jesse, 2026-10-22: "really tailored to people that care about those things or
-    -- like at the bottom of someone's feed"): one sharing an interest with you counts half an Event
-    -- with one shared interest, a second adding nothing, and halves each day; the rest go after every
-    -- Event (`tail`).
+    -- A steady mix of News and Events (Jesse, 2026-11-05: "a ratio of news and events"): stories you
+    -- haven't seen take every 5th spot (`spots`), your interests first, then town news, then a place's own,
+    -- each place's newest before anyone's second, newest first inside each. One you've seen is out of the feed.
     select n.*,
-           (w->>'news')::float8 * (1 + (w->>'interest')::float8)
-             * power(0.5, extract(epoch from p_now - n.published_at) / 3600 / (w->>'newHalf')::float8) as base
-    from news n, weights
-    where n.leaves_at > p_now
+           row_number() over (order by n.rank, n.of_place, n.published_at desc, n.id) as nth
+    from (select n.*,
+                 case when n.matched is not null then 0 when n.category = 'business' then 2 else 1 end as rank,
+                 row_number() over (partition by n.source_name order by n.published_at desc, n.id) as of_place
+          from news n
+          where n.leaves_at > p_now
+            and not exists (select 1 from public.news_views v where v.item_id = n.id and v.user_id = auth.uid())) n
   ),
   -- A neighbour's post (town-feed 29, BP app references/post-screen): their own words, maybe a photo and a
   -- Place, from the last 7 days, once the instant check said yes. Only for an app that asks (p_news), as
@@ -462,51 +513,72 @@ as $$
       and not exists (select 1 from private.my_not_interested() n where n.item_id = e.id)
   ),
   posts_scored as (
-    -- An Event's recipe by age instead of day (town-feed 29): 1, plus Yours for your own post or one from
-    -- someone you follow (friends follow each other), plus New, the whole halving every 24 hours.
+    -- An Event's recipe by age instead of day (town-feed 29): 1, plus following for your own post or one from
+    -- someone you follow (friends follow each other), plus New, the whole halving every 24 hours and
+    -- sinking as you see it (town-feed 41).
     select p.*,
            (1 + case when p.mine or exists (select 1 from my_people mp where mp.id = p.submitted_by)
-                     then (w->>'yours')::float8 else 0 end
+                     then (w->>'follow')::float8 else 0 end
               + case when not p.mine and p.created_at > least(lv.at, p_now - interval '24 hours')
-                          and not exists (select 1 from my_views v where v.item_id = p.id)
+                          and not exists (select 1 from my_seen_rows v where v.item_id = p.id)
                      then (w->>'new')::float8 else 0 end)
-             * power(0.5, extract(epoch from p_now - p.created_at) / 3600 / (w->>'newHalf')::float8) as base
+             * power(0.5, extract(epoch from p_now - p.created_at) / 3600 / (w->>'newHalf')::float8)
+             * greatest((w->>'seenFloor')::float8, power((w->>'seen')::float8,
+                 coalesce((select sum(v.times) from my_seen_rows v where v.item_id = p.id), 0))) as base
     from posts p, weights, last_visit lv
+  ),
+  -- Live first (town-feed 41): up to 3, what you're Going to, then most Going, then the draw, your town's
+  -- counting more, then the latest to start.
+  live_now as (
+    select t.id, row_number() over (order by t.going desc, t.going_n desc, coalesce(t.draw, 2) * t.town_x desc,
+                                             t.starts_at desc, t.id) as nth
+    from totals t
+    where t.live_ok
   ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
     -- dozen calendars can't fill the top of the feed between them.
-    select t.id, case when 'campus' = any(t.tags) then 'campus' else t.host end, t.base, t.sort_at, t.title, 0 as part
+    select t.id, case when 'campus' = any(t.tags) then 'campus' else t.host end as host, t.base, t.sort_at, t.title,
+           coalesce(t.category, t.id::text) as kind, l.nth as live
     from totals t
-    union all
-    select n.id, n.source_name, n.base, n.published_at, n.title, 0
-    from news_scored n where n.matched is not null
-    union all
-    -- News that shares none of your interests, after every Event: newest first (its points halve
-    -- each day).
-    select n.id, n.source_name, n.base, n.published_at, n.title, 1
-    from news_scored n where n.matched is null
+    left join live_now l on l.id = t.id and l.nth <= (select (w->>'liveMax')::int from weights)
     union all
     -- Posts among the Events, their poster as their host, so a second one from the same neighbour
     -- counts half (the spacing rule below).
-    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, 0
+    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, p.id::text, null::bigint
     from posts_scored p
   ),
-  -- The one spacing rule (town-feed 36): each further item from a host counts half. A host's items
-  -- are always placed best first, so this is its place among them.
+  -- The spacing rules (town-feed 36, 41): each further item from a host counts half, each further one of a kind
+  -- counts 0.8. A host's or kind's items are always placed best first, so this is its place among them. Live
+  -- cards are placed apart; the Event of the day (p_only) reads only some hosts, so never the kind.
   spaced as (
     select p.*,
            power((select (w->>case when p.host = 'campus' then 'repeatCampus' else 'repeatHost' end)::float8 from weights),
-                 row_number() over (partition by p.part, p.host order by p.base desc, p.sort_at, p.title, p.id) - 1)
+                 row_number() over (partition by p.live is null, p.host order by p.base desc, p.sort_at, p.title, p.id) - 1)
+           * case when p_only is null and p.live is null
+                  then power((select (w->>'repeatKind')::float8 from weights),
+                             row_number() over (partition by p.live is null, p.kind order by p.base desc, p.sort_at, p.title, p.id) - 1)
+                  else 1 end
              as spacing
     from pool p
   ),
-  spots as (
+  ordered as (
     select s.id, s.spacing,
            -- Later Events (town-feed 23) by their start, not their points.
-           row_number() over (order by case when p_later then s.sort_at end, s.part, s.base * s.spacing desc, s.sort_at,
-                                       s.title, s.id)::int as spot
+           row_number() over (order by case when p_later then s.sort_at end, s.live nulls last, s.base * s.spacing desc,
+                                       s.sort_at, s.title, s.id) as nth
     from spaced s
+  ),
+  -- Events and posts leave every 5th spot open for News you haven't seen; with none left the next card moves up.
+  spots as (
+    select x.id, x.spacing, row_number() over (order by x.place, x.id)::int as spot
+    from (
+      select o.id, o.spacing, o.nth + (o.nth - 1) / ((select (w->>'newsEvery')::int from weights) - 1) as place
+      from ordered o
+      union all
+      select n.id, 1::float8, n.nth * (select (w->>'newsEvery')::int from weights)
+      from news_scored n
+    ) x
   ),
   feed_rows (id, title, location, image_url, source_name, created_at, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, place_picture, description, club_id, in_club, kind, source_url, poster, card, spot) as (
   -- An Event's title, place, picture, words and link are its card's (codebase-health-2 03).
@@ -526,11 +598,11 @@ as $$
               when e.lift = 'tapped' then coalesce(e.tapped_team, c.name, e.source_name) end,
          -- The Score line (ticket 18): the keys the shipped app reads stay, the dropped parts at 0.
          case when public.is_admin() then jsonb_build_object(
-           'interest', e.interest_pts, 'yours', e.yours_pts, 'new', e.new_pts,
-           -- Yours goes to the reason the card names: what you follow, then a friend Going.
-           'friend', case when e.followed is null and e.friends_n > 0 then e.yours_pts else 0 end,
-           'follow', case when e.followed is not null then e.yours_pts else 0 end,
-           'tapped', case when e.friends_n = 0 and e.followed is null then e.yours_pts else 0 end,
+           'interest', e.interest_pts, 'yours', e.friend_pts + e.follow_pts, 'new', e.new_pts,
+           'friend', e.friend_pts,
+           'follow', case when e.followed is not null then e.follow_pts else 0 end,
+           'tapped', case when e.followed is null then e.follow_pts else 0 end,
+           'town', e.town_x, 'seen', e.seen_x, 'live', e.live_ok,
            'popular', 0, 'size', 0, 'sizeStep', 1, 'draw', e.draw_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
            'acted', e.acted, 'notInterested', e.hidden_x, 'spacing', p.spacing,
