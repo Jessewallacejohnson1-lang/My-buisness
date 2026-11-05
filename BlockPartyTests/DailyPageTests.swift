@@ -190,7 +190,7 @@ final class DailyPageTests: XCTestCase {
     /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
                                   leaves: String, picture: [String: Any]? = nil,
-                                  game: [String: Any]? = nil) throws -> TownFeedRow {
+                                  game: [String: Any]? = nil, liveKind: Bool? = nil) throws -> TownFeedRow {
         let id = "11111111-2222-3333-4444-555555555555"
         var card: [String: Any] = [
             "id": id, "title": "Sartell Boys Soccer vs ROCORI",
@@ -200,6 +200,7 @@ final class DailyPageTests: XCTestCase {
             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "going": true]
         card["place_picture"] = picture
         card["game"] = game
+        card["live_kind"] = liveKind
         let json: [String: Any] = ["id": id, "recurrence": NSNull(), "leaves_at": leaves, "card": card]
         let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
         return try XCTUnwrap(rows.first)
@@ -249,14 +250,19 @@ final class DailyPageTests: XCTestCase {
 
     /// A one-day all-day pick is never Now, however long the feed keeps it; a run over days is,
     /// as on the Town card and the map (codebase-health 10).
-    func testOnlyARunOverDaysIsNowAllDay() throws {
+    /// A listing with no hours, or a run over days, is a place being open, never Now (town-feed 41).
+    func testOnlyARealHappeningIsNow() throws {
         let noon = Date(timeIntervalSince1970: 1_792_472_400 + 12 * 3600)
         let oneDay = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(
             start: nil, allDay: true, leaves: "2026-10-22T05:00:00+00:00")))
         XCTAssertEqual(oneDay.startTime(now: noon), "All day")
         let week = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(
             start: nil, allDay: true, endAt: "2026-10-26T05:00:00+00:00", leaves: "2026-10-26T05:00:00+00:00")))
-        XCTAssertEqual(week.startTime(now: noon), "Now")
+        XCTAssertEqual(week.startTime(now: noon), "All day")
+        let talk = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(
+            start: "7 AM", endAt: "2026-10-20T23:00:00+00:00", leaves: "2026-10-20T23:00:00+00:00", liveKind: true)))
+        XCTAssertTrue(talk.isNow(talk.starts.addingTimeInterval(60)))
+        XCTAssertEqual(talk.startTime(now: talk.starts.addingTimeInterval(60)), "Now")
     }
 
     /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since

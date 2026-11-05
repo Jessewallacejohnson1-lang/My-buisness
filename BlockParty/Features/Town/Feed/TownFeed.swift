@@ -78,8 +78,9 @@ struct FeedAction: Equatable {
 }
 
 /// Which Events of the day have had their one showing as the poster (town-feed 41). In memory unless
-/// `onThisPhone`, so a test's never reaches the next test or the next run.
-final class PosterShowings {
+/// `onThisPhone`, so a test's never reaches the next test or the next run. Only the feed, on the main
+/// actor, touches one; nonisolated so it can be a default argument.
+nonisolated final class PosterShowings: @unchecked Sendable {
     private var ids: Set<String> = []
     private let keep: Bool
 
@@ -488,12 +489,12 @@ final class TownFeed {
     func reload(at now: Date = Date()) async {
         countOnScreen(at: now)
         let sending = Task { await send(at: now, always: true) }
-        await withTaskGroup(of: Void.self) { wait in
-            wait.addTask { await sending.value }
-            wait.addTask { try? await Task.sleep(for: Self.sendWait) }
-            await wait.next()
-            wait.cancelAll()
+        let giveUp = Task {
+            try? await Task.sleep(for: Self.sendWait)
+            sending.cancel()
         }
+        await sending.value
+        giveUp.cancel()
         await readAgain(at: now, freshOrder: true)
     }
 
@@ -600,7 +601,7 @@ final class TownFeed {
             try await sender(batch)
         } catch {
             Log.network("TownFeed: \(batch.count) views and opens not sent: \(error)")
-            if SupabaseHTTP.noAnswer(error) { unsent = batch + unsent }
+            if SupabaseHTTP.noAnswer(error) || Task.isCancelled { unsent = batch + unsent }
         }
     }
 

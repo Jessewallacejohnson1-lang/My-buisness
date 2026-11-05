@@ -458,6 +458,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now.addingTimeInterval(60))
         XCTAssertEqual(reads, 2)
         XCTAssertLessThan(started.duration(to: .now), .seconds(10))
+        XCTAssertEqual(town.unsent, [FeedAction(itemID: "a", kind: .open)], "it goes again with the next batch")
     }
 
     /// A new account starts with nothing on screen and no posters shown.
@@ -1279,14 +1280,14 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(stale.entries)
     }
 
-    /// Back within 30 minutes it lands where it was; after, from the top.
+    /// Back within 10 minutes it lands where it was; after, from the top.
     func testComingBackLandsWhereItWasUnlessLongAway() {
         let town = feed(answers: [])
         town.cameBack(at: now)
         town.scrolled(to: 900)
         town.left(at: now)
         town.scrolled(to: 0)    // the rebuilt screen starts at the top
-        town.cameBack(at: now.addingTimeInterval(10 * 60))
+        town.cameBack(at: now.addingTimeInterval(9 * 60))
         XCTAssertEqual(town.returnY, 900)
 
         town.scrolled(to: 900)
@@ -1388,7 +1389,8 @@ final class TownFeedEventsTests: XCTestCase {
     /// A tab switch rebuilds the screen: its cards never report going off, so they're
     /// forgotten, and a later feed load counts only what the rebuilt screen reports.
     func testCardsFromAScreenThatWentAreNotCountedAgain() async {
-        let town = await shownFeed(Sender())
+        let sender = Sender()
+        let town = await shownFeed(sender)
         town.cardOnScreen("c", true, at: now)
         town.left(at: now.addingTimeInterval(2), viewGone: true)
         XCTAssertEqual(views(town), ["c"])
@@ -1396,17 +1398,19 @@ final class TownFeedEventsTests: XCTestCase {
         town.cameBack(at: now.addingTimeInterval(31 * 60))
         await town.reload(at: now.addingTimeInterval(31 * 60))
         town.left(at: now.addingTimeInterval(32 * 60))
-        XCTAssertEqual(views(town), ["c"], "c was never on the rebuilt screen")
+        XCTAssertEqual(sender.batches.flatMap { $0 }.map(\.itemID) + views(town), ["c"],
+                       "c was never on the rebuilt screen")
     }
 
     func testAFreshOrderStartsANewFeedLoad() async {
-        let town = await shownFeed(Sender())
+        let sender = Sender()
+        let town = await shownFeed(sender)
         town.cardOnScreen("a", true, at: now)
         town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
         await town.reload(at: now.addingTimeInterval(60))
         town.cardOnScreen("a", true, at: now.addingTimeInterval(61))
         town.cardOnScreen("a", false, at: now.addingTimeInterval(62))
-        XCTAssertEqual(views(town), ["a", "a"])
+        XCTAssertEqual(sender.batches.flatMap { $0 }.map(\.itemID) + views(town), ["a", "a"])
     }
 
     func testACardNoLongerInTheListIsNotCounted() async {
