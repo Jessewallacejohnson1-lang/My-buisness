@@ -27,12 +27,12 @@ struct DailyEvent: Identifiable {
     /// the Agenda or in Saved. nil for a logo and for none.
     var photo: URL? { item.image.url }
 
-    /// The card's time: "Now" while it's on (a run over days too, as the Town card), else when
+    /// The card's time: "Now" while a real happening is on, as the Town card, else when
     /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
     /// organizer's own words, or "All day".
     /// Working words; Jesse writes the final ones.
     func startTime(now: Date) -> String {
-        if isOn(now) { return "Now" }
+        if isNow(now) { return "Now" }
         return timed ? Town.clock(starts) : item.startTime ?? "All day"
     }
 
@@ -40,6 +40,9 @@ struct DailyEvent: Identifiable {
     func isOn(_ now: Date) -> Bool {
         (when ?? EventWhen(start: starts, end: ends, timed: timed)).isOn(now)
     }
+
+    /// On now and a real happening: what says "Now" (town-feed 41).
+    func isNow(_ now: Date) -> Bool { item.liveKind && isOn(now) }
 
     /// What a section shows: the ones on now or still to come, soonest first, leaving out
     /// any a section above it already shows, `limit` at most. When one ends the next

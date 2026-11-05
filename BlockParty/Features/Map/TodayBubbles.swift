@@ -40,7 +40,9 @@ enum TodayBubbleRules {
         if event.cancelled || event.game?.final != nil { return .ended }
         guard let when = event.when, when.timed else { return .untimed }
         if now < when.start { return .upcoming(secondsLeft: Int(when.start.timeIntervalSince(now).rounded(.up))) }
-        return when.isOn(now) ? .live : .ended
+        // On, but a place being open rather than a real happening (town-feed 41): no live ring.
+        if when.isOn(now) { return event.liveKind ? .live : .untimed }
+        return .ended
     }
 
     /// Its start, for ordering; untimed ones last.

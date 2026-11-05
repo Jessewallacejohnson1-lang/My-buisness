@@ -71,7 +71,7 @@ struct TownFeedColumn: View {
                             onReveal: { revealedIDs.insert(item.id) }
                         ))
                         .onScrollVisibilityChange(threshold: 0.5) { visible in
-                            if let id = item.eventID { onCardOnScreen?(id, visible) }
+                            if let id = item.seenID { onCardOnScreen?(id, visible) }
                         }
                         // Five from the end, so the next round is in before the last card.
                         .onAppear { if index >= items.count - Self.nearEnd { onNearEnd?() } }

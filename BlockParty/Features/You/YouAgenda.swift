@@ -263,7 +263,7 @@ private struct AgendaCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let started = event.isOn(now)
+        let started = event.isNow(now)
         let card = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         HStack(alignment: .top, spacing: AgendaMetric.textGap) {
             Hue.fill
@@ -362,7 +362,7 @@ private struct AgendaCard: View {
     /// shows only its day), and how VoiceOver reads it ("Saturday, October 17 at Noon").
     /// Beside the pill it's always the date, so "Tomorrow" never shows twice.
     private var when: (text: String, spoken: String) {
-        if withDay, !event.isOn(now),
+        if withDay, !event.isNow(now),
            let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
                                    now: now, relative: pill == nil) {
             return (line.text, line.spoken)

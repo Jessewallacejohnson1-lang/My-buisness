@@ -42,6 +42,7 @@ extension FeedCardItem {
             coverOnly: event.placePicture?.cover == true && image == place,
             game: event.game,
             what: Self.nonempty(event.what),
+            liveKind: event.liveKind,
             createdAt: DateHelpers.timestamp(event.createdAt),
             found: Self.nonempty(event.sourceName) != nil,
             sourceURL: event.sourceURL

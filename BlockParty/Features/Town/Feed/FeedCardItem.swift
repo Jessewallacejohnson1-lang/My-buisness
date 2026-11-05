@@ -67,6 +67,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var game: Game? = nil
     /// What it is in one to three words ("Lecture"), the morning tagger's (event-card 05).
     var what: String? = nil
+    /// A real happening rather than a place being open (`private.is_live_kind`, town-feed 41).
+    var liveKind = true
     /// When it was added (`club_events.created_at`): the hello drop counts what's new since your
     /// last open (BP app hello-drop 01). nil on cards not read from the database.
     var createdAt: Date? = nil
@@ -111,14 +113,13 @@ struct FeedCardItem: Identifiable, Hashable {
         FeedWhenLine(eventDate: eventDate, startTime: game?.final == nil ? shareTime : nil, fallbackDate: dateChip)
     }
 
-    /// On right now, so the card's chip says Now (Jesse, 2026-10-20): from its start to its end,
-    /// two hours when it gives no end (as the map's pins), and the whole of something that runs
-    /// over days (the Johanna Kiln, Oct 16 to 25). A one-day all-day listing gives no hours, so
-    /// it never is. In the town's time, as its end is: a phone set to Pacific still sees a 10 AM
-    /// class turn Now at 10 in St. Joseph.
+    /// On right now, so the card's chip says Now: from its start to its end, two hours when it gives
+    /// no end (as the map's pins), and only a real happening (Jesse, 2026-11-05: the talk at the gallery
+    /// could be live, the gallery shouldn't last 5 days). In the town's time, as its end is: a phone set
+    /// to Pacific still sees a 10 AM class turn Now at 10 in St. Joseph.
     func isNow(at now: Date = .now) -> Bool {
         // A game whose final is in is over, whatever its hours say (game-card 02).
-        guard !cancelled, game?.final == nil else { return false }
+        guard !cancelled, game?.final == nil, liveKind else { return false }
         return when?.isOn(now) ?? false
     }
 

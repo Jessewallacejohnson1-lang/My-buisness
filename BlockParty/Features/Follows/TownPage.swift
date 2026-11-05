@@ -504,7 +504,7 @@ struct TownEventRow: View {
         feed?.cards.first { $0.id == event.id }
             ?? FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date,
                                           startTime: event.time, location: event.location, goingCount: 0,
-                                          createdAt: ""))
+                                          createdAt: "", liveKind: false))
     }
 
     @ViewBuilder private var row: some View {

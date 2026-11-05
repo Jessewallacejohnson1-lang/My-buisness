@@ -143,7 +143,7 @@ struct DailyTownCard: View {
                                    startPoint: .top, endPoint: .bottom)
                 }
                 .overlay(alignment: .topLeading) {
-                    PhotoChip(text: when, dot: event.isOn(now) ? Hue.now : nil).padding(PhotoChip.inset)
+                    PhotoChip(text: when, dot: event.isNow(now) ? Hue.now : nil).padding(PhotoChip.inset)
                 }
                 .overlay(alignment: .bottomLeading) { words }
                 .clipShape(shape)

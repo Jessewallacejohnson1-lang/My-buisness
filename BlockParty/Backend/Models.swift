@@ -160,6 +160,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// Up to three of the caller's friends Going, newest Going first: every Event read's card sends them
     /// (`private.event_cards`; BP app you-tab 07, town-feed 28 and friends-on-event-page).
     var friendsGoing: [FeedFriend] = []
+    /// A real happening (`private.is_live_kind`, town-feed 41): what "Now" and live mean on every screen.
+    /// A row with no card to say so isn't (`init(from:)`, `TownPage`).
+    var liveKind: Bool = true
 }
 
 /// Where an event happens, as a picture (`public.place_picture`, BP app

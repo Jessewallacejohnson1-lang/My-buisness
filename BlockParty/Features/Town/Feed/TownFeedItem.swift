@@ -61,6 +61,17 @@ enum TownFeedItem: Identifiable {
         }
     }
 
+    /// What a view of it counts against: an Event, a neighbour's post or a news item (town-feed 41).
+    var seenID: String? {
+        switch self {
+        case .posting, .caughtUp, .place, .again: return nil
+        case .event(let item): return item.id
+        case .eventOfTheDay(let event): return event.id
+        case .news(let news): return news.id
+        case .post(let post): return post.id
+        }
+    }
+
     /// The id Not interested and Mute fold it by: the Event's, or the news item's (news-menu). Not
     /// `eventID`, whose ids go to the views table, which takes Events only.
     var hideID: String? {

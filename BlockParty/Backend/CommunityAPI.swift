@@ -62,7 +62,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
-             game, friendsGoing
+             game, friendsGoing, liveKind
     }
 
     init(from decoder: Decoder) throws {
@@ -82,7 +82,8 @@ extension UpcomingEvent: Decodable {
                   description: try text(.description),
                   game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
                   sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
-                  friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed))
+                  friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),
+                  liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false)
     }
 }
 
@@ -343,14 +344,16 @@ struct CommunityAPI {
                           prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
-    /// The Town feed's views and opens (ticket 20), in one insert. Who and when are set by
-    /// the database; nobody reads them back. Ids that aren't Events (samples) are skipped.
+    /// The Town feed's views and opens (ticket 20), in one insert, and which News went by (town-feed 41).
+    /// Who and when are set by the database; nobody reads them back. Ids that aren't real (samples) are
+    /// skipped.
     func recordFeedActions(_ batch: [FeedAction]) async throws {
         guard !Self.isSimulator else { return }
-        let rows = batch.filter { UUID(uuidString: $0.itemID) != nil }
-            .map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
-        guard !rows.isEmpty else { return }
-        try await db.rest("feed_actions", method: "POST", body: rows, prefer: "return=minimal")
+        let real = batch.filter { UUID(uuidString: $0.itemID) != nil }
+        let news = real.filter { $0.kind == .news }.map(\.itemID)
+        let rows = real.filter { $0.kind != .news }.map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
+        if !rows.isEmpty { try await db.rest("feed_actions", method: "POST", body: rows, prefer: "return=minimal") }
+        if !news.isEmpty { _ = try await db.rpc("see_news", ["p_items": news]) }
     }
 
     /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet

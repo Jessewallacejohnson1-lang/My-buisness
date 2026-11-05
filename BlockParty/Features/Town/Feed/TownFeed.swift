@@ -71,9 +71,34 @@ extension TownFeedEntry {
 /// What the feed showed (a view), what was opened, or an Event shared from the app (ticket 26),
 /// for `feed_actions` (ticket 20).
 struct FeedAction: Equatable {
-    enum Kind: String { case view, open, share }
+    /// `news` is a view of Town news, which goes apart from the rest (`see_news`, town-feed 41).
+    enum Kind: String { case view, open, share, news }
     let itemID: String
     let kind: Kind
+}
+
+/// Which Events of the day have had their one showing as the poster (town-feed 41). In memory unless
+/// `onThisPhone`, so a test's never reaches the next test or the next run.
+final class PosterShowings {
+    private var ids: Set<String> = []
+    private let keep: Bool
+
+    init(keep: Bool = false) { self.keep = keep }
+
+    static let onThisPhone = PosterShowings(keep: true)
+    private static let key = "town.postersShown"
+
+    /// Today's. An Event of the day is only ever that day's, so yesterday's go.
+    func read(today: String = Town.day(Date())) -> Set<String> {
+        guard keep else { return ids }
+        let kept = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
+        return kept.first == today ? Set(kept.dropFirst()) : []
+    }
+
+    func write(_ shown: Set<String>, today: String = Town.day(Date())) {
+        ids = shown
+        if keep { UserDefaults.standard.set([today] + shown.sorted(), forKey: Self.key) }
+    }
 }
 
 /// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
@@ -159,13 +184,15 @@ final class TownFeed {
     @ObservationIgnored private var heldClock = Date()
     /// At the top is the only place a fresh order may replace the list.
     var atTop: Bool { scrollY <= 1 }
-    /// Where the screen was when the feed went away, so coming back within 30 minutes
+    /// A finger on the list: a fresh order waits, or it could land under a press (town-feed 41).
+    @ObservationIgnored var fingerDown = false
+    /// Where the screen was when the feed went away, so coming back within 10 minutes
     /// lands there. Kept apart from `scrollY`, which a rebuilt screen resets to 0
     /// before it can scroll back.
     @ObservationIgnored private(set) var returnY: CGFloat = 0
 
-    /// Away this long, coming back brings a fresh order (ticket 11).
-    static let awayLimit: TimeInterval = 30 * 60
+    /// Away this long, coming back brings a fresh order (ticket 11; Jesse, 2026-11-05, from 30).
+    static let awayLimit: TimeInterval = 10 * 60
 
     /// When the feed went off screen; a launch counts as long away.
     @ObservationIgnored private var awaySince: Date? = .distantPast
@@ -180,6 +207,8 @@ final class TownFeed {
     static let viewAfter: TimeInterval = 1
     /// Views and opens go up at most this often, and when the app leaves the screen.
     nonisolated static let sendEvery: TimeInterval = 30
+    /// How long a pull waits for what you just saw to go up, before it reads anyway.
+    nonisolated static let sendWait: Duration = .seconds(1)
 
     /// Cards half on screen now, and since when (reset when the feed comes back).
     @ObservationIgnored private var onScreen: [String: Date] = [:]
@@ -229,6 +258,14 @@ final class TownFeed {
     private let opened: () -> [String]
     /// Where your own post's Delete goes (town-feed 29).
     private let deletePost: (TownPost) async throws -> Void
+    /// Which Events of the day have had their one showing (town-feed 41): kept on the phone for the day.
+    private let posters: PosterShowings
+    /// Those shown so far, and those that have left the top: they go only when a fresh order lands, so
+    /// nothing changes under the finger.
+    @ObservationIgnored private var postersShown: Set<String>
+    private var postersGone: Set<String>
+    /// The pick on top now: its view is its showing.
+    @ObservationIgnored private var posterOnTop: String?
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
     /// first read, so it is built with the account that read sees.
@@ -242,7 +279,11 @@ final class TownFeed {
          readLater: @escaping () async throws -> [TownFeedEntry] = { [] },
          readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
          opened: @escaping () -> [String] = { [] },
-         deletePost: @escaping (TownPost) async throws -> Void = { _ in }) {
+         deletePost: @escaping (TownPost) async throws -> Void = { _ in },
+         posters: PosterShowings = PosterShowings()) {
+        self.posters = posters
+        postersShown = posters.read()
+        postersGone = postersShown
         self.read = read
         self.kept = kept
         self.actions = actions
@@ -290,7 +331,8 @@ final class TownFeed {
                   readLater: { try await api.getTownFeedLater().map(TownFeed.entry) },
                   readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids },
-                  deletePost: { try await api.deletePost($0.id, photo: $0.photo != nil) })
+                  deletePost: { try await api.deletePost($0.id, photo: $0.photo != nil) },
+                  posters: .onThisPhone)
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -318,11 +360,14 @@ final class TownFeed {
     }
 
     /// The Town feed's column at `now`: your Event of the day on top, the first of `picks` still
-    /// on or to come, never one you hid or whose host you muted (ticket 21); then the list.
+    /// on or to come that hasn't had its one showing, unless you're Going (town-feed 41), never one you
+    /// hid or whose host you muted (ticket 21); then the list.
     /// Past the ranked list, its places as Search holds them (`places`, by `places.id`), town-feed 23.
     func column(eventOfTheDay picks: [DailyEvent], now: Date,
                 places: (String) -> SearchItem? = { _ in nil }) -> [TownFeedItem] {
-        let top = DailyEvent.showing(picks.filter { !isHidden($0.item) }, now: posterClock(at: now), limit: 1).first
+        let top = DailyEvent.showing(picks.filter { !isHidden($0.item) && (!postersGone.contains($0.id) || $0.item.isJoined) },
+                                     now: posterClock(at: now), limit: 1).first
+        posterOnTop = top?.id
         let ranked = shown
         return TownFeedItem.town(ranked, eventOfTheDay: top) + past(ranked, places: places)
     }
@@ -402,7 +447,8 @@ final class TownFeed {
     }
 
     /// The feed went off screen: another tab, the map, an Event page, or the app left the
-    /// foreground. Cards on screen long enough count first; timing stops while away.
+    /// foreground. Cards on screen long enough count first (a first card you never scrolled past too:
+    /// Jesse, 2026-11-05); timing stops while away.
     /// `viewGone`: the screen itself went (a tab switch rebuilds it), so its cards will
     /// never report going off; they are forgotten, and a rebuilt screen's report again.
     func left(at now: Date = Date(), viewGone: Bool = false) {
@@ -410,14 +456,14 @@ final class TownFeed {
             if viewGone { onScreen = [:] }
             return
         }
-        for (id, since) in onScreen where now.timeIntervalSince(since) >= Self.viewAfter { counted(id) }
+        countOnScreen(at: now)
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
         holdGames(at: now)
     }
 
-    /// The feed is back on screen. After 30 minutes away the next read may bring a
+    /// The feed is back on screen. After 10 minutes away the next read may bring a
     /// fresh order, from the top; sooner, it lands where it was.
     func cameBack(at now: Date = Date()) {
         guard let since = awaySince else { return }
@@ -437,8 +483,17 @@ final class TownFeed {
         await readAgain(at: now, freshOrder: false)
     }
 
-    /// Pull to refresh, retry, a new account: the new order, whatever is on screen.
+    /// Pull to refresh, retry, a new account: the new order, whatever is on screen. What you just saw
+    /// goes up first, so the new order knows it, without holding the read up on a bad network.
     func reload(at now: Date = Date()) async {
+        countOnScreen(at: now)
+        let sending = Task { await send(at: now, always: true) }
+        await withTaskGroup(of: Void.self) { wait in
+            wait.addTask { await sending.value }
+            wait.addTask { try? await Task.sleep(for: Self.sendWait) }
+            await wait.next()
+            wait.cancelAll()
+        }
         await readAgain(at: now, freshOrder: true)
     }
 
@@ -473,10 +528,12 @@ final class TownFeed {
             }
             actions?.read(new.compactMap(\.card))
             actions?.read(posts: new.compactMap(\.post))
-            if entries == nil || freshOrder || (freshDue && atTop) {
+            if entries == nil || freshOrder || (freshDue && atTop && !fingerDown) {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
                 clearMore()
+                postersShown = posters.read()
+                postersGone = postersShown
             } else {
                 let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 // Scrolled down, a card the read no longer has (called off, say) keeps its place,
@@ -508,6 +565,11 @@ final class TownFeed {
     }
 
     // MARK: Views and opens (ticket 20)
+
+    /// Cards on screen long enough count now, as they would going off.
+    private func countOnScreen(at now: Date) {
+        for (id, since) in onScreen where now.timeIntervalSince(since) >= Self.viewAfter { counted(id) }
+    }
 
     /// A card crossed half on screen, either way (`onScrollVisibilityChange`). Off after a
     /// second or more on screen, with the feed showing, is one view.
@@ -547,6 +609,10 @@ final class TownFeed {
         clearMore()
         unsent = []
         viewed = []
+        onScreen = [:]
+        posters.write([])
+        postersShown = []
+        postersGone = []
         hiddenIDs = []
         reportedIDs = []
         mutedNames = []
@@ -694,12 +760,21 @@ final class TownFeed {
         }
     }
 
-    /// Once per card per feed load, and only for a card still in the list.
+    /// Once per card per feed load, and only for a card still in the list or on top as the poster.
     private func counted(_ id: String) {
-        guard !viewed.contains(id), cards.contains(where: { $0.id == id }) || later.contains(where: { $0.id == id })
-        else { return }
+        guard !viewed.contains(id) else { return }
+        if id == posterOnTop {
+            postersShown.insert(id)
+            posters.write(postersShown)
+        }
+        let here = shown.first { $0.id == id } ?? later.first { $0.id == id }
+        guard here != nil || id == posterOnTop else { return }
         viewed.insert(id)
-        unsent.append(FeedAction(itemID: id, kind: .view))
+        if case .news = here?.item {
+            unsent.append(FeedAction(itemID: id, kind: .news))
+        } else {
+            unsent.append(FeedAction(itemID: id, kind: .view))
+        }
     }
 
     /// The list the last live read left on disk, or nil when there is none or it no

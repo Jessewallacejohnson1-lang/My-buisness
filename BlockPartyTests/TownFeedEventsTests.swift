@@ -375,6 +375,133 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.heldAt, now.addingTimeInterval(180), "leaving the top again holds from then")
     }
 
+    // MARK: Fresh every open (town-feed 41)
+
+    /// A finger on the list when the fresh order lands: nothing moves under it.
+    func testAFreshOrderWaitsWhileAFingerIsDown() async {
+        let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])
+        town.cameBack(at: now)
+        await town.reload(at: now)
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(60 * 60))
+        town.fingerDown = true
+        await town.refresh(at: now.addingTimeInterval(60 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
+    }
+
+    /// News and a neighbour's post count as seen too, News apart, as it goes to `see_news`.
+    func testNewsAndPostsCountAsSeen() async throws {
+        let post = TownPost(id: "p1", poster: .init(id: "me", name: "Jesse"), words: "Hi", posted: now,
+                            leavesAt: .distantFuture)
+        let news = TownNews(id: "n1", place: "The Wandering Cow", words: "Four scoops",
+                            post: try XCTUnwrap(URL(string: "https://x.example/p")), leavesAt: .distantFuture)
+        let town = TownFeed(read: { [TownFeedEntry(item: .post(post), leavesAt: .distantFuture),
+                                     TownFeedEntry(item: .news(news), leavesAt: .distantFuture)] })
+        await town.reload(at: now)
+        town.cameBack(at: now)
+        for id in ["p1", "n1"] {
+            town.cardOnScreen(id, true, at: now)
+            town.cardOnScreen(id, false, at: now.addingTimeInterval(2))
+        }
+        XCTAssertEqual(town.unsent, [FeedAction(itemID: "p1", kind: .view), FeedAction(itemID: "n1", kind: .news)])
+    }
+
+    /// The column reports each of them by its own id; nothing else counts.
+    func testWhatAViewCountsAgainst() throws {
+        let news = TownNews(id: "n1", place: "Cow", words: "Scoops", post: try XCTUnwrap(URL(string: "https://x.example/p")),
+                            leavesAt: .distantFuture)
+        XCTAssertEqual(TownFeedItem.news(news).seenID, "n1")
+        XCTAssertNil(TownFeedItem.caughtUp.seenID)
+    }
+
+    /// A pull counts what's on screen and sends it before it reads, so the new order knows.
+    func testAPullSendsWhatYouJustSawBeforeItReads() async {
+        let sender = Sender()
+        var sentAtRead: [[FeedAction]] = []
+        let rows = ["a", "b"].map { row($0) }
+        let town = TownFeed(read: { sentAtRead = sender.batches; return rows.map(TownFeed.entry) }, send: sender.send)
+        await town.reload(at: now)
+        town.cameBack(at: now)
+        town.cardOnScreen("a", true, at: now)
+        await town.reload(at: now.addingTimeInterval(2))
+        XCTAssertEqual(sentAtRead, [[FeedAction(itemID: "a", kind: .view)]])
+    }
+
+    /// A send stuck on a bad network holds the pull a second at most.
+    func testAStuckSendDoesNotHoldThePull() async {
+        var reads = 0
+        let town = TownFeed(read: { reads += 1; return [] },
+                            send: { _ in try await Task.sleep(for: .seconds(30)) })
+        await town.reload(at: now)
+        town.cameBack(at: now)
+        town.opened("a")
+        let started = ContinuousClock.now
+        await town.reload(at: now.addingTimeInterval(60))
+        XCTAssertEqual(reads, 2)
+        XCTAssertLessThan(started.duration(to: .now), .seconds(10))
+    }
+
+    /// A new account starts with nothing on screen and no posters shown.
+    func testANewAccountForgetsWhatWasOnScreen() async throws {
+        let sender = Sender()
+        let town = await shownFeed(sender)
+        town.cardOnScreen("a", true, at: now)
+        town.accountChanged()
+        town.left(at: now.addingTimeInterval(5))
+        XCTAssertEqual(views(town), [])
+    }
+
+    /// Each Event of the day shows as the poster once, and goes when a fresh order lands, never under
+    /// the finger. The next pick takes the top, and with none left the cards open the feed.
+    func testEachPosterShowsOnceAndGoesWithAFreshOrder() async throws {
+        let town = await shownFeed(Sender())
+        let picks = [try pick("x", from: 1, to: 2), try pick("y", from: 3, to: 4)]
+        let top = { town.column(eventOfTheDay: picks, now: self.now).first?.id }
+        XCTAssertEqual(top(), "event-of-the-day:x")
+        town.cardOnScreen("x", true, at: now)
+        town.cardOnScreen("x", false, at: now.addingTimeInterval(0.5))
+        await town.reload(at: now.addingTimeInterval(60))
+        XCTAssertEqual(top(), "event-of-the-day:x", "under a second isn't a showing")
+        town.cardOnScreen("x", true, at: now.addingTimeInterval(61))
+        town.cardOnScreen("x", false, at: now.addingTimeInterval(63))
+        XCTAssertEqual(top(), "event-of-the-day:x", "it stays until a fresh order lands")
+        await town.reload(at: now.addingTimeInterval(120))
+        XCTAssertEqual(top(), "event-of-the-day:y")
+        town.cardOnScreen("y", true, at: now.addingTimeInterval(121))
+        town.cardOnScreen("y", false, at: now.addingTimeInterval(123))
+        await town.reload(at: now.addingTimeInterval(180))
+        XCTAssertEqual(top(), "event:a")
+    }
+
+    /// Going to it keeps it on top (event-card 03).
+    func testAPosterYouAreGoingToStays() async throws {
+        let town = await shownFeed(Sender())
+        var going = try pick("x", from: 1, to: 2)
+        going.item.isJoined = true
+        town.cardOnScreen("x", true, at: now)
+        _ = town.column(eventOfTheDay: [going], now: now)
+        town.cardOnScreen("x", false, at: now.addingTimeInterval(2))
+        await town.reload(at: now.addingTimeInterval(60))
+        XCTAssertEqual(town.column(eventOfTheDay: [going], now: now).first?.id, "event-of-the-day:x")
+    }
+
+    /// The card says whether it's a real happening; an older read's row isn't, so it never says Now wrongly.
+    func testNowFollowsWhatTheCardSays() throws {
+        func card(_ extra: String) throws -> UpcomingEvent {
+            let json = """
+            {"id":"e1","title":"Bréagán","event_date":"2026-10-12","start_time":"2 PM","going_count":0,
+             "created_at":"2026-10-06T16:08:20+00:00"\(extra)}
+            """
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(UpcomingEvent.self, from: Data(json.utf8))
+        }
+        let on = try XCTUnwrap(FeedCardItem(card(#","live_kind":true"#)).when).start.addingTimeInterval(60)
+        XCTAssertTrue(FeedCardItem(try card(#","live_kind":true"#)).isNow(at: on))
+        XCTAssertFalse(FeedCardItem(try card(#","live_kind":false"#)).isNow(at: on), "a gallery's hours")
+        XCTAssertFalse(FeedCardItem(try card("")).isNow(at: on), "a row from before the card sent it")
+    }
+
     /// An Event of the day pick from Parks, on from `start` to `end` hours after noon.
     private func pick(_ id: String, from start: Double, to end: Double) throws -> DailyEvent {
         let card = try XCTUnwrap(TownFeed.entry(row(id, source: "Parks")).card)
@@ -1059,7 +1186,7 @@ final class TownFeedEventsTests: XCTestCase {
         return TownFeed(read: { answers.removeFirst() }, kept: { kept })
     }
 
-    /// Back within 30 minutes, the order on screen stays: cards update in place, a
+    /// Back within 10 minutes, the order on screen stays: cards update in place, a
     /// card that went drops out, and a new one waits for the next fresh order.
     func testBackSoonKeepsTheOrderOnScreen() async {
         let town = feed(answers: [entries(["a", "b", "c"]),
@@ -1069,20 +1196,20 @@ final class TownFeedEventsTests: XCTestCase {
         town.scrolled(to: 300)
         town.left(at: now)
         town.scrolled(to: 0)  // another tab: the rebuilt screen starts at the top
-        town.cameBack(at: now.addingTimeInterval(29 * 60))
-        await town.refresh(at: now.addingTimeInterval(29 * 60))
+        town.cameBack(at: now.addingTimeInterval(9 * 60))
+        await town.refresh(at: now.addingTimeInterval(9 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
         XCTAssertEqual(town.cards.map(\.goingCount), [5, 5])
     }
 
-    /// Back after 30 minutes or more, still at the top: the fresh order.
-    func testBackAfterHalfAnHourAtTheTopTakesTheFreshOrder() async {
+    /// Back after 10 minutes or more, still at the top: the fresh order.
+    func testBackAfterTenMinutesAtTheTopTakesTheFreshOrder() async {
         let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])
         town.cameBack(at: now)
         await town.reload(at: now)
         town.left(at: now)
-        town.cameBack(at: now.addingTimeInterval(30 * 60))
-        await town.refresh(at: now.addingTimeInterval(30 * 60))
+        town.cameBack(at: now.addingTimeInterval(10 * 60))
+        await town.refresh(at: now.addingTimeInterval(10 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["new", "b", "a"])
     }
 

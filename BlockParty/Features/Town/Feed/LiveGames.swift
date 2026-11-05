@@ -129,7 +129,7 @@ final class LiveGames {
     /// On while a held game with no final is being played, or the map follows; never while away. A
     /// page opened before kickoff checks again at kickoff, and once more when the game's hours end.
     private func check(at now: Date) {
-        let playing = unfinished.contains { $0.game?.live != nil || $0.isNow(at: now) }
+        let playing = unfinished.contains { $0.game?.live != nil || $0.when?.isOn(now) == true }
         let on = !away && (playing || follower != nil)
         if on != listening {
             listening = on

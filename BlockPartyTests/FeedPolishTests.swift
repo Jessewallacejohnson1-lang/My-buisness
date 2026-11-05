@@ -239,6 +239,13 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertFalse(concert.isNow(at: at(24, 21, 30)))
     }
 
+    func testAPlaceBeingOpenIsNeverNow() {
+        var gallery = card("2026-09-24", "2 PM", endAt: at(24, 20))
+        gallery.liveKind = false
+        XCTAssertFalse(gallery.isNow(at: at(24, 15)))
+        XCTAssertEqual(TodayBubbleRules.phase(gallery, now: at(24, 15)), .untimed, "no live ring on the map")
+    }
+
     func testARunOverDaysIsNowTheWholeTime() {
         let kiln = card("2026-09-16", "4 PM", endAt: at(26, 0))
         XCTAssertFalse(kiln.isNow(at: at(16, 15, 59)))

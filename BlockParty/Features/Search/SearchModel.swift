@@ -498,7 +498,7 @@ final class SearchModel {
             guard item.card?.image.isPhoto == true, let when = item.card?.when, when.end > now, when.start < ends
             else { return nil }
             var item = item
-            item.sub = when.isOn(now) ? "Now" : when.timed ? Town.clock(when.start) : "All day"
+            item.sub = item.card?.isNow(at: now) == true ? "Now" : when.timed ? Town.clock(when.start) : "All day"
             return (item, when)
         }
         .sorted { a, b in
