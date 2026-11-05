@@ -9,7 +9,7 @@ It reads these sources, keeps what sits in the town's ZIP codes (ADR-019), and m
 them into one roster:
 
   * Overture Maps places and OpenStreetMap (Overpass), both free and storable.
-  * A Google Maps sweep, one search per category, through Composio (maps.py). Google may
+  * A Google Maps sweep, one search per category, through SerpApi (maps.py). Google may
     show that a place exists; it never names one (ADR-016).
   * The town's own directory pages (joetown.org/explore, the chamber, an old town
     directory), and the registry itself, to subtract what we already have.
@@ -374,7 +374,7 @@ def collect_sweep(label, lls, cache_dir, pages=3, refresh=False):
             if len(hs) < 20:
                 break
     if failed:
-        print(f"[discover] sweep: {len(failed)} searches failed, rerun to retry: {failed[:3]}")
+        raise RuntimeError(f"{len(failed)} searches failed: {failed[:3]}")
     return out
 
 
@@ -769,8 +769,8 @@ def main():
     ap.add_argument("--town", default="st-joseph-mn")
     ap.add_argument("--root", default=".")
     ap.add_argument("--refresh", action="store_true",
-                    help="re-fetch Overpass, Overture and every map search (~240 Composio "
-                         "calls); the chamber's saved list is kept either way")
+                    help="re-fetch Overpass, Overture and every map search (~240 of SerpApi's "
+                         "250 free a month); the chamber's saved list is kept either way")
     args = ap.parse_args()
 
     town = TOWNS.get(args.town)
@@ -783,6 +783,13 @@ def main():
     entries = [e for e in entries if e.get("_town") == args.town]
     have = registry_keys(entries)
     roster, notes = build_roster(town, refresh=args.refresh)
+    # A failed source leaves a hole, and verify would take the hole for places that aren't
+    # there. Stop before writing anything, so latest-<town> stays on the last whole run.
+    broken = [n for n in notes if "FAILED" in n]
+    if broken:
+        sys.exit(f"[discover] stopped, wrote nothing, latest-{town['id']} unchanged: "
+                 f"{'  '.join(broken)}\nSaved map answers are kept: a rerun without --refresh "
+                 "spends no searches on them.")
 
     def held(r):
         return r["key"] in have or any(match_key(a) in have for a in r.get("aka", ()))

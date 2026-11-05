@@ -3,10 +3,12 @@
 
 Run: python3 sources/scripts/test_census.py   (no network)
 """
-import sys
+import sys, tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import discover, maps
+from composio import ComposioError
 from discover import (changes_since, collect_chamber, in_town, merge, near_duplicates,
                       placed_elsewhere, zip_of)
 from maps import answered
@@ -102,6 +104,53 @@ assert asked == {("same phone", "Patents Minnesota", "Quill & Disc"),
 assert not answered('{"successful": false, "error": "getaddrinfo ENOTFOUND backend.composio.dev"}')
 assert not answered("Error: network unreachable")
 assert answered('{"successful": true, "data": {"results": {}}}')
+
+
+def refused(slug, args):
+    raise ComposioError("Toolkit is disabled for this session")
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    tmp = Path(tmp)
+    maps.execute = refused
+
+    # A failed --refresh keeps the saved answer; a bad saved file goes, so the next run asks.
+    good, bad = tmp / "pizza-0.json", tmp / "tacos-0.json"
+    good.write_text('{"successful": true, "data": {"results": {"local_results": [{"title": "A"}]}}}')
+    bad.write_text('{"successful": false}')
+    for q, f in (("pizza", good), ("tacos", bad)):
+        try:
+            maps.search(q, tmp, refresh=True)
+            raise AssertionError("a refused search looked like an answer")
+        except RuntimeError as ex:
+            assert "maps search failed" in str(ex), ex
+    assert maps.hits(maps.search("pizza", tmp)) == [{"title": "A"}]
+    assert not bad.exists()
+
+    # A sweep with a failed search fails whole, rather than returning a town with no Google places.
+    try:
+        discover.collect_sweep("St. Joseph MN", "@45.5,-94.3,14z", tmp / "sweep")
+        raise AssertionError("a sweep of refused searches came back as a sweep")
+    except RuntimeError as ex:
+        assert "searches failed" in str(ex), ex
+
+    # A failed source stops the run: nothing written, latest stays on the last whole run.
+    last = tmp / "discover-last"
+    last.mkdir()
+    latest = tmp / "latest-st-joseph-mn"
+    latest.symlink_to(last, target_is_directory=True)
+    keep = (discover.RUNS, discover.find_root, discover.load, discover.build_roster, sys.argv)
+    discover.RUNS, discover.find_root, discover.load = tmp, lambda root: tmp, lambda root: ([], [])
+    discover.build_roster = lambda town, refresh=False: ([], ["osm: 67", "maps: FAILED (no answer)"])
+    sys.argv = ["discover"]
+    try:
+        discover.main()
+        raise AssertionError("a run with a failed source carried on")
+    except SystemExit as ex:
+        assert "maps: FAILED" in str(ex.code), ex.code   # a message exits 1
+    discover.RUNS, discover.find_root, discover.load, discover.build_roster, sys.argv = keep
+    assert latest.resolve() == last.resolve()
+    assert sorted(p.name for p in tmp.glob("discover-*")) == ["discover-last"]
 
 # The chamber reader knows one site; another town's chamber gets the plain reader.
 try:

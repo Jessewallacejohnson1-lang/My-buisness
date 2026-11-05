@@ -98,7 +98,7 @@ or its `docs/rules/` file and leaves here.
   telling Jesse after. Google's closed list, goodbye posts and news stories are only hints.
 - 2026-10-26 — From Google, store only the place id, a place's weekly hours and whether it is
   still open (Jesse: "its a fact were not copying", "lets do ur rec"; ADR-016). Hours go in
-  `places.hours` via Composio's Google Maps tool, else the place's own site or Facebook, which
+  `places.hours` via the map search (`sources/scripts/maps.py`), else the place's own site or Facebook, which
   wins when newer (`hours_from: website`). Names, addresses, phones, photos, ratings and
   reviews never come from Google; the monthly accounts check reads a missing registry address
   from the app's `places` row and never writes it back. **Supersedes** "only `place_id`

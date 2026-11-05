@@ -1,13 +1,13 @@
 """
-maps.py — one cached Google Maps search through Composio (`COMPOSIO_SEARCH_GOOGLE_MAPS`).
+maps.py — one cached Google Maps search through SerpApi (`SERPAPI_GOOGLE_MAPS_SEARCH`), on
+Jesse's free account: 250 searches a month, so a town's full sweep is most of a month's.
 
 Discovery uses it to sweep a town category by category; verification uses it to ask
 "is this place still there?". ADR-016 sets the limits: a Google answer may show that a
 place exists or has closed, but a registry entry's name and address never come from it.
 
-Composio holds the credentials, so nothing here needs a key. Every answer is cached on
-disk, which is what makes a rerun cost nothing and keeps a sweep resumable after a
-network blip.
+Composio holds the key, so nothing here needs one. Every answer is cached on disk, which
+is what makes a rerun cost nothing and keeps a sweep resumable after a network blip.
 """
 import json, re
 from pathlib import Path
@@ -36,10 +36,12 @@ def search(q, cache_dir, ll=None, start=0, refresh=False):
         if ll:
             args["ll"] = ll
         try:
-            data = execute("COMPOSIO_SEARCH_GOOGLE_MAPS", args)
+            data = execute("SERPAPI_GOOGLE_MAPS_SEARCH", args)
         except ComposioError as ex:
-            # Leave no cache file behind, so the next run asks again.
-            f.unlink(missing_ok=True)
+            # A bad file goes, so the next run asks again. A real answer stays: a failed
+            # --refresh must not delete what took a month's searches to get.
+            if f.exists() and not answered(f.read_text()):
+                f.unlink()
             raise RuntimeError(f"maps search failed for {q!r}: {str(ex)[:200]}") from None
         f.write_text(json.dumps({"successful": True, "data": data}))
     raw = json.loads(f.read_text())
