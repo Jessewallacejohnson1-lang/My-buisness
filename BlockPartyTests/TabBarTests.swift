@@ -36,15 +36,15 @@ final class TabBarTests: XCTestCase {
     }
 
     func testTheBarDrawsOneSlotPerTab() throws {
-        let rootView = URL(fileURLWithPath: #filePath)
+        let tabBar = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()      // BlockPartyTests
             .deletingLastPathComponent()      // repo root
-            .appendingPathComponent("BlockParty/App/RootView.swift")
-        let source = try String(contentsOf: rootView, encoding: .utf8)
+            .appendingPathComponent("BlockParty/App/TabBar.swift")
+        let source = try String(contentsOf: tabBar, encoding: .utf8)
 
         // `BlockPartyTabBar`'s declaration, up to the first top-level closing brace.
         let start = try XCTUnwrap(source.range(of: "struct BlockPartyTabBar"),
-                                  "BlockPartyTabBar is no longer declared in RootView.swift")
+                                  "BlockPartyTabBar is no longer declared in TabBar.swift")
         let end = source.range(of: "\n}\n", range: start.upperBound..<source.endIndex)?.lowerBound
             ?? source.endIndex
         let bar = source[start.lowerBound..<end]
