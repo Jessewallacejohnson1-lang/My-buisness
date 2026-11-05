@@ -92,7 +92,10 @@ final class LaunchMotionTests: XCTestCase {
             XCTAssertEqual(f.lift, lift, accuracy: 1e-6, "lift at \(h)")
             XCTAssertEqual(f.dot.width, w, accuracy: 1e-6, "dot width at \(h)")
             XCTAssertEqual(f.dot.height, ht, accuracy: 1e-6, "dot height at \(h)")
-            XCTAssertEqual(f.line.height, ht, accuracy: 1e-6, "line height at \(h)")
+            // The line alone compresses on the way up, where the rest stretches.
+            let compressed = h == 0.23
+            XCTAssertEqual(f.line.height, compressed ? 0.94 : ht, accuracy: 1e-6, "line height at \(h)")
+            XCTAssertEqual(f.line.width, compressed ? 1.027 : w, accuracy: 1e-6, "line width at \(h)")
             XCTAssertEqual(f.b.height, k * ht, accuracy: 0.002, "B at \(h)")
             XCTAssertEqual(f.p.width, k * w, accuracy: 0.01, "p at \(h)")   // p's dip from its hit is still dying down
         }

@@ -212,7 +212,7 @@ final class AuthStore: ObservableObject, TokenProviding {
                 // Only a definitive token rejection (GoTrue 4xx) means the token family
                 // is dead; a transient/offline error must NOT destroy a still-valid
                 // session. Skip the clear if we've since signed out, too.
-                if generation == sessionGeneration, isTokenRejected(error) {
+                if generation == sessionGeneration, Self.isTokenRejected(error) {
                     // An anonymous account can't be signed back into: its Going goes
                     // with it. Logged so losses can be counted.
                     if isAnonymous { Log.network("AuthStore: anonymous session rejected and cleared: \(error)") }
@@ -226,11 +226,14 @@ final class AuthStore: ObservableObject, TokenProviding {
         try await task.value
     }
 
-    /// True only for a definitive token rejection (GoTrue 400/401/403, e.g.
-    /// invalid_grant / expired), not a transient transport error (offline, timeout,
-    /// 5xx, rate-limit). Only a definitive failure clears the session.
-    private func isTokenRejected(_ error: Error) -> Bool {
-        switch (error as? SupabaseError)?.status {
+    /// True only for a definitive token rejection: GoTrue's own 400/401/403 with its `error_code`
+    /// (`refresh_token_not_found`, `refresh_token_already_used`), not a transient transport error
+    /// (offline, timeout, 5xx, rate-limit). The gateway refusing the app's key answers 401 with no
+    /// `error_code` and says nothing about the login, so a key retired or mistyped can't log
+    /// everyone out (BP app backlog 11). Only a definitive failure clears the session.
+    static func isTokenRejected(_ error: Error) -> Bool {
+        guard let failure = error as? SupabaseError, failure.code != nil else { return false }
+        switch failure.status {
         case 400, 401, 403: return true
         default: return false
         }
