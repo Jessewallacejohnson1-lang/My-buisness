@@ -358,6 +358,7 @@ struct ChatGroupFace: View {
                 YouGroupPicture(group: group, logoSide: YouMetric.groupLogo * scale, glyph: YouMetric.groupGlyph * scale)
             }
             .clipShape(RoundedRectangle(cornerRadius: ChatMetric.eventFaceCorner * scale, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 

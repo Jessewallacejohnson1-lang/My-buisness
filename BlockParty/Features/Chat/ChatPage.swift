@@ -100,7 +100,7 @@ struct ChatPage: View {
             }
             guard let thread else { return }
             // The first read of the Groups failed: the bar's Group, its count and leaving it need them.
-            if clubID != nil, you?.groups == nil { await you?.refreshGroups() }
+            if clubID != nil, you?.groups == nil, let groups = await you?.refreshGroups() { actions.read(groups) }
             chats.open = thread
             // Back from the Profile of someone you've just blocked: their words go, the newest too.
             for person in thread.messages.compactMap(\.sender) where book.relation(person) == .blocked {
@@ -209,6 +209,7 @@ struct ChatPage: View {
                 } else if let townGroup {
                     NavigationLink(value: townGroup) { who }
                         .buttonStyle(.press(.dim))
+                        .accessibilityHint("Opens the group")
                 } else if !isGroup, let other = others.first {
                     NavigationLink(value: other) { who }
                         .buttonStyle(.press(.dim))
@@ -271,6 +272,7 @@ struct ChatPage: View {
                 }
             }
         }
+        .frame(minHeight: PageMetric.tapMin)
         .contentShape(Rectangle())
     }
 

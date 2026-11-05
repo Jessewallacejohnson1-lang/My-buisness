@@ -144,12 +144,11 @@ final class RealLifeActions {
     /// A kept tap older than this is dropped at launch: its Event has most likely gone
     /// from the feed, so no read will ever agree with it.
     private static let keepFor: TimeInterval = 24 * 3600
+    /// A Join or a Leave landed: a Group's chat comes or goes with it (the shell sets this).
+    @ObservationIgnored var memberWritten: (() -> Void)?
     /// Whose taps `chosen` holds, set only by `accountChanged`: until then nothing is
     /// kept or wiped, so a launch's first read can't erase taps not yet brought back,
     /// and one account's taps are never filed under the next.
-    /// A Join or a Leave landed: a Group's chat comes or goes with it (the shell sets this).
-    @ObservationIgnored var memberWritten: (() -> Void)?
-
     @ObservationIgnored private var keptFor: String?
     /// When each tap was made, for `keepFor`.
     @ObservationIgnored private var tappedOn: [Key: Date] = [:]

@@ -201,7 +201,9 @@ final class ChatThread {
     static let typingEvery: TimeInterval = 2
     static let typingShows: Duration = .seconds(4)
     /// The row comes with Attend's or Join's tap, so its write may still be on its way: a no is only believed after these.
-    static let joinRetries: [Duration] = [.milliseconds(700), .milliseconds(1400)]
+    static let joinRetries: [Duration] = [.milliseconds(700), .milliseconds(1400), .milliseconds(2800), .seconds(5)]
+    /// Those waits, short in a test.
+    @ObservationIgnored var joinWaits = ChatThread.joinRetries
 
     init(api: ChatAPI, me: String, chat: String?, to person: String? = nil, book: ChatBook? = nil,
          actions: RealLifeActions? = nil, going: String? = nil, club: String? = nil, isHost: Bool = false) {
@@ -270,7 +272,7 @@ final class ChatThread {
     }
 
     private func join() async throws -> String {
-        for wait in Self.joinRetries {
+        for wait in joinWaits {
             do {
                 return try await joinOnce()
             } catch let error as SupabaseError where error.message == "chat_not_going" {

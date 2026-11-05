@@ -150,11 +150,12 @@ final class ChatBookTests: XCTestCase {
     func testARefusedJoinIsBelievedOnlyAfterTheRetriesAndThePageGoes() async throws {
         server.answers["rpc/join_going_chat"] = .init(status: 403, body: #"{"message":"chat_not_going"}"#)
         let thread = ChatThread(api: api, me: "me", chat: nil, going: "e1")
+        thread.joinWaits = [.zero, .zero]
         await thread.read()
         XCTAssertTrue(thread.gone)
         XCTAssertEqual(thread.chatID, nil)
         XCTAssertEqual(server.requests.filter { $0.url?.path.contains("join_going_chat") == true }.count,
-                       ChatThread.joinRetries.count + 1)
+                       3)
     }
 
     func testAHostsSendIsAnUpdateAtOnceAndARefusalSendsThePageAway() async throws {
@@ -220,10 +221,11 @@ final class ChatBookTests: XCTestCase {
     func testARefusedGroupChatJoinIsBelievedOnlyAfterTheRetriesAndThePageGoes() async throws {
         server.answers["rpc/join_group_chat"] = .init(status: 403, body: #"{"message":"chat_not_going"}"#)
         let thread = ChatThread(api: api, me: "me", chat: nil, club: "g7")
+        thread.joinWaits = [.zero, .zero]
         await thread.read()
         XCTAssertTrue(thread.gone)
         XCTAssertEqual(server.requests.filter { $0.url?.path.contains("join_group_chat") == true }.count,
-                       ChatThread.joinRetries.count + 1)
+                       3)
     }
 
     func testAskingAboutAGroupChatReadsItsOwnFunction() async throws {
