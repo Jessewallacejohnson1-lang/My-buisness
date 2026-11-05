@@ -19,6 +19,10 @@
 //  in, 36 pt zoomed out to 46 at the opening zoom to 72 (Jesse's picks); the tag under it
 //  keeps its size. The tapped one grows 12% more and sits on top.
 //
+//  Friends on the map (BP app five-tabs 08, 2026-11-05): friends Going to an Event here today
+//  sit on the bubble's top right, up to two faces and then how many more, never anyone's
+//  location. The faces keep their size as the bubble grows, as the time tag does.
+//
 
 import SwiftUI
 import CoreLocation
@@ -89,6 +93,20 @@ enum TodayBubbleRules {
             .compactMap { e in rank(phase(e, now: now)).map { (e, $0) } }
             .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : starts($0.0) < starts($1.0) }
             .map(\.0)
+    }
+
+    /// Everyone Going to any of a spot's events, each once, in the card's order. The Town feed
+    /// already leaves out a friend with "Show my plans to friends" off. One event's friends are
+    /// all different people, even two Sams with no photo; across events only a name and photo say so.
+    static func friends(_ events: [FeedCardItem]) -> [FeedFriend] {
+        if events.count == 1 { return events[0].friendsGoing }
+        var seen = Set<FeedFriend>()
+        return events.flatMap(\.friendsGoing).filter { seen.insert($0).inserted }
+    }
+
+    /// The page a bubble's card opens on: the first event friends are Going to, else the first.
+    static func firstPage(_ events: [FeedCardItem]) -> Int {
+        events.firstIndex { !$0.friendsGoing.isEmpty } ?? 0
     }
 
     /// The bead's width at a zoom, in points: 46 at the opening zoom, growing two zoom steps
@@ -193,6 +211,12 @@ struct TodayEventBubble: View {
     var body: some View {
         // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo's dome.
         let scale = zoom.bead / Self.bead * (selected ? 1.12 : 1)
+        let friends = TodayBubbleRules.friends(bubble.events)
+        // Where the bubble's rim crosses its top right, at 45 degrees.
+        let rim = Self.bead * scale / 2 * 0.7071
+        // Room for the shadow bleed to spread (2.1x the bead) and the faces to reach past the rim
+        // without being clipped by the annotation's frame; only the bead and faces take touches.
+        let room = max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach))
         TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
             let phase = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(tick.date))
             ZStack {
@@ -203,13 +227,18 @@ struct TodayEventBubble: View {
                 .scaleEffect(scale)
                 tag(phase)
                     .offset(y: Self.bead * scale / 2 + 20)
+                if !friends.isEmpty {
+                    BubbleFaces(friends: friends)
+                        // A touch on a face is a touch on the bubble.
+                        .gesture(squish)
+                        // They follow a drag with the bubble (`pull` is in the bubble's own points).
+                        .offset(x: rim + pull.width * scale, y: -rim + pull.height * scale)
+                }
             }
-            // Room for the shadow bleed to spread (2.1x the bead) without being clipped
-            // by the annotation's frame; only the bead itself takes touches.
-            .frame(width: 104 * scale, height: 104 * scale)
+            .frame(width: room, height: room)
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.65), value: selected)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(a11yLabel(phase))
+            .accessibilityLabel(a11yLabel(phase, friends: friends))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
         }
@@ -396,13 +425,52 @@ struct TodayEventBubble: View {
             }
     }
 
-    private func a11yLabel(_ phase: TodayBubbleRules.Phase) -> String {
+    private func a11yLabel(_ phase: TodayBubbleRules.Phase, friends going: [FeedFriend]) -> String {
         let more = bubble.events.count > 1 ? ", and \(bubble.events.count - 1) more here" : ""
+        // "here": they may be Going to another of the spot's events than the one just named.
+        let friends = RSVPWords.friendsLine(going.map(\.name), bar: false).map { ", \($0) here" } ?? ""
         switch phase {
-        case .live: return "\(bubble.event.title), happening now\(more)"
-        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))\(more)"
-        default: return bubble.event.title + more
+        case .live: return "\(bubble.event.title), happening now\(more)\(friends)"
+        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))\(more)\(friends)"
+        default: return bubble.event.title + more + friends
         }
+    }
+}
+
+/// Friends Going, on a bubble's rim: up to two faces, then a white "+3". 20 pt, each tucked a third
+/// under the one before as `FriendFaces` does, the first face centred on the spot it's offset to
+/// (Jesse at five-tabs 08's Check-in 1, 2026-11-05: BP app references/friends-on-map).
+private struct BubbleFaces: View {
+    let friends: [FeedFriend]
+
+    private static let side: CGFloat = 20
+    private static let tuck: CGFloat = side * FriendFaces.overlap / FriendFaces.side
+    /// How far the widest stack can reach from its first face's centre: "+99" included.
+    static let reach: CGFloat = side / 2 + (side - tuck) + 40
+
+    var body: some View {
+        HStack(spacing: -Self.tuck) {
+            ForEach(Array(friends.prefix(2).enumerated()), id: \.offset) { index, friend in
+                Avatar(friend.photo, size: Self.side)
+                    .background { Circle().fill(.white).padding(-1.5) }
+                    .zIndex(Double(3 - index))
+            }
+            if friends.count > 2 {
+                Text("+\(friends.count - 2)")
+                    .font(.sansBold(11))
+                    .monospacedDigit()
+                    .foregroundStyle(MapBubbleInk.ink)
+                    .padding(.leading, Self.tuck + 3)
+                    .padding(.trailing, 5)
+                    .frame(minWidth: Self.side, minHeight: Self.side)
+                    .background { Capsule().fill(.white) }
+            }
+        }
+        .compositingGroup()
+        .shadow(color: MapBubbleInk.ink.opacity(0.3), radius: 1.5, x: 0, y: 1)
+        .fixedSize()
+        .contentShape(Capsule())
+        .frame(width: Self.side, height: Self.side, alignment: .leading)
     }
 }
 

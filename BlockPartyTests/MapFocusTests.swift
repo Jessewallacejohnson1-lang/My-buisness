@@ -91,13 +91,40 @@ final class MapFocusTests: XCTestCase {
     func testAMergedBubbleKeepsTheCardWithoutAMove() {
         var focus = MapFocus()
         _ = focus.open(bubble("reflection", at: obbink), from: here, mapWidth: width)
-        focus.page = 1
-        let merged = bubble("reflection", at: sals)
+        var merged = bubble("vocal", at: sals)
+        merged.events += bubble("reflection", at: obbink).events
 
-        focus.follow(merged)
+        focus.follow(merged, on: "reflection")
 
         XCTAssertEqual(focus.selectedID, merged.id)
-        XCTAssertEqual(focus.page, 1, "the card stays on the page it was on")
+        XCTAssertEqual(focus.page, 1, "the card stays on the Event it showed, at its new page")
+    }
+
+    /// Pinching in splits a merged bubble: the card stays on the Event it showed, on page 0 of its own bubble.
+    func testASplitBubbleKeepsTheCardOnItsEvent() {
+        var focus = MapFocus()
+        var merged = bubble("reflection", at: obbink)
+        merged.events += bubble("vocal", at: sals).events
+        _ = focus.open(merged, from: here, mapWidth: width)
+        focus.page = 1
+        let alone = bubble("vocal", at: sals)
+
+        focus.follow(alone, on: "vocal")
+
+        XCTAssertEqual(focus.selectedID, alone.id)
+        XCTAssertEqual(focus.page, 0)
+    }
+
+    /// The first event friends are Going to is the page a card opens on.
+    func testACardOpensOnTheEventFriendsAreGoingTo() {
+        var focus = MapFocus()
+        var merged = bubble("reflection", at: obbink)
+        merged.events += bubble("vocal", at: sals).events
+        merged.events[1].friendsGoing = [FeedFriend(name: "Sam", photo: nil)]
+
+        _ = focus.open(merged, from: here, mapWidth: width)
+
+        XCTAssertEqual(focus.page, 1)
     }
 
     func testTheCompassLevelsInPlaceAndLeavesTheCard() {

@@ -61,10 +61,11 @@ struct MapFocus {
     /// The lifted bubble clears the top chrome by this much.
     static let liftTop: CGFloat = 110
 
-    /// Open `bubble`'s card on its first page and lift the bubble above it, at today's zoom.
+    /// Open `bubble`'s card on the first event friends are Going to, else its first, and lift the
+    /// bubble above it, at today's zoom.
     mutating func open(_ bubble: TodayBubble, from camera: Camera, mapWidth: CGFloat) -> Move {
         selectedID = bubble.id
-        page = 0
+        page = TodayBubbleRules.firstPage(bubble.events)
         return Move(center: bubble.coordinate, zoom: camera.zoom, bearing: nil, pitch: nil,
                     lift: Self.lift(mapWidth: mapWidth), glide: .settle)
     }
@@ -84,9 +85,11 @@ struct MapFocus {
         return Move(center: MapSpots.center, zoom: SJMapView.openZoom, bearing: nil, pitch: nil, lift: 0, glide: .home)
     }
 
-    /// The card stays open on the bubble its event merged into; the camera stays where it is.
-    mutating func follow(_ bubble: TodayBubble) {
+    /// The card stays open on the Event it showed, in the bubble that Event is in now, however
+    /// bubbles merged or split; the camera stays where it is.
+    mutating func follow(_ bubble: TodayBubble, on eventID: String) {
         selectedID = bubble.id
+        page = bubble.events.firstIndex { $0.id == eventID } ?? 0
     }
 
     /// The compass's tap: face north and level, in place. The card is left as it is.

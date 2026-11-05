@@ -198,7 +198,15 @@ struct MapEventCard: View {
                 Text(place).lineLimit(1)
             }
             Text(Self.timeLine(item, now: TodayBubbleClock.now()))
-            if going > 0 {
+            if let said = Self.friendWords(item.friendsGoing.map(\.name)) {
+                HStack(spacing: 7) {
+                    FriendFaces(friends: item.friendsGoing, ring: Hue.surface)
+                        // Taller than the line by this much: a card keeps its height paging to "6 going".
+                        .padding(.vertical, -2.5)
+                    Text("\(Text(said.names).font(.sansBold(16)).foregroundStyle(Hue.ink))\(said.rest)")
+                        .lineLimit(1)
+                }
+            } else if going > 0 {
                 Text("\(Text("\(going)").font(.sansBold(16)).foregroundStyle(Hue.ink)) going")
             }
         }
@@ -221,6 +229,14 @@ struct MapEventCard: View {
             @unknown default: break
             }
         }
+    }
+
+    /// The last line with friends Going, in the Event page's words (`RSVPWords.friendsLine`), split
+    /// where the bold ends: "Sam and Sarah" + " are going", "Sarah" + " and 4 friends are going".
+    static func friendWords(_ names: [String]) -> (names: String, rest: String)? {
+        guard let line = RSVPWords.friendsLine(names, bar: false), let first = names.first else { return nil }
+        let bold = names.count == 2 ? "\(first) and \(names[1])" : first
+        return (bold, String(line.dropFirst(bold.count)))
     }
 
     /// "Tonight, 7 – 10 PM", "Today, 10 AM – 9 PM", "Tonight, 7 PM" with no end given,

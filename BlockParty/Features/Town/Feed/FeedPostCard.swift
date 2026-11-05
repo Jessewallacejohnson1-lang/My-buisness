@@ -117,9 +117,9 @@ struct FeedPostCard: View {
         return line
     }
 
-    /// "2h · St. Joseph", or "· Friends" when only friends see it.
+    /// "2h · Public", or "· Friends" when only friends see it.
     private var subLine: String {
-        PostingCard.relativeLabel(for: post.posted) + " · " + (post.friendsOnly ? "Friends" : Town.everyday)
+        PostingCard.relativeLabel(for: post.posted) + " · " + (post.friendsOnly ? NewPostCopy.friends : NewPostCopy.everyone)
     }
 
     // MARK: - Words and photo
