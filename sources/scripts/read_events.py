@@ -430,6 +430,9 @@ def read_roads(src, entry, today):
 # Kennedy: Finalsite ----------------------------------------------------------------------
 
 OCCURRENCE = re.compile(r'<a [^>]*data-occur-id="([^"]+)"[^>]*>')
+# A school's own gatherings reach those following it (Jesse, 2026-11-05: "following"): a banquet, a club's
+# meeting, an assembly, the PTO. Its concerts, shows and school board stay everyone's.
+SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta)\b", re.I)
 
 
 def finalsite_calendar_items(page, url, entry, src, today):
@@ -458,7 +461,9 @@ def finalsite_calendar_items(page, url, entry, src, today):
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
                           title=title, start=start, end=times.get("End"), all_day="Start" not in times,
                           place="" if place.lower() in ("multiple", "tbd", "tba") else place,
-                          source_url=url, source_uid=occur))
+                          source_url=url, source_uid=occur,
+                          **({"followers_only": True, "activity_team": bound_team(entry)}
+                             if SCHOOL_ONLY.search(title) and not news else {})))
     return out
 
 
@@ -918,7 +923,7 @@ def bound_items(text, entry, src, today):
                     source_url=page_url(ev, src["url"]), source_uid=uid)
         if key in BOUND_ARTS or (not key and BOUND_SHOW.search(title)):
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
-                              followers_only=far or "banquet" in title.lower(),
+                              followers_only=far or bool(SCHOOL_ONLY.search(title)),
                               same=(start_at, key or name, level, place[:25]), **mark))
         elif key and " vs " in name:
             if level == "Varsity" and not far:
@@ -1339,7 +1344,11 @@ def t_kennedy_calendar():
     assert titles == ["League of Women Voters School Board Candidate Forum", "Walkathon",
                       "School Board Meeting and Work Session", "PTO Meeting at the House",
                       "No School - MEA Conference", "Trunk or Treat"], titles
-    forum, walk, _, _, no_school, trunk = got
+    forum, walk, _, pto, no_school, trunk = got
+    assert (pto["followers_only"], pto["activity_team"]) == (True, "kennedy"), "the PTO is for those following the school"
+    assert not forum.get("followers_only") and not trunk.get("followers_only"), "a forum and Trunk or Treat are everyone's"
+    assert SCHOOL_ONLY.search("Veterans Day Assembly") and SCHOOL_ONLY.search("Art Club")
+    assert not SCHOOL_ONLY.search("School Board Meeting and Work Session") and not SCHOOL_ONLY.search("Winter Concert")
     assert (forum["start"], forum["end"], forum["place"]) == ("2026-10-06T19:00:00-05:00", "2026-10-06T20:30:00-05:00",
                                                              "District Administration Office"), forum
     assert (walk["start"], walk["all_day"]) == ("2026-10-07", True), walk
@@ -1664,12 +1673,13 @@ def t_gobound():
         ev("a19", "Wrestling:", "wrestling", "Boys MS", "Wrestling"),
         ev("a20", "Basketball\\, Girls:  vs  (Girls Varsity)", "basketball", "Girls Varsity", "Basketball\\, Girls"),
         ev("a21", "Hockey\\, Boys: River Lakes vs  (Varsity)", "hockey", "Varsity", "Boys Hockey", geo="46.867588;-96.880953"),
+        ev("a22", "Art Club"),
     ])
     src = {"url": "https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical", "trust": "official"}
     got = bound_items(ics, {"_name": "Apollo High School"}, src, date(2026, 10, 25))
     events = [i for i in got if i["kind"] == "event"]
-    # Everyone's: the plays, concerts and clubs within 20 miles. Followers only: the band festival 170 miles
-    # off, a middle school game that isn't Apollo's level, the JV game, the varsity game away, the banquet (school-activities 03). The varsity game at home
+    # Everyone's: the plays and concerts within 20 miles. Followers only: the band festival 170 miles off, a middle school
+    # game that isn't Apollo's level, the JV game, the varsity game away, the banquet, a club (school-activities 03). The varsity game at home
     # stays the league's; the season pass and the cancelled concert stay out.
     assert [(i["title"], i["followers_only"]) for i in events] == [
         ("The SpongeBob Musical", False), ("Detroit Lakes Band Festival", True),
@@ -1678,7 +1688,7 @@ def t_gobound():
         ("Apollo Volleyball vs Brainerd · JV", True), ("Fergus Falls Volleyball vs Apollo", True),
         ("Volleyball Banquet", True), ("Boys Soccer Banquet - Play Soccer", True),
         ("Robotics Competition", False), ("Apollo Girls Wrestling Meet", True),
-        ("Apollo Boys Wrestling Meet · MS", True)], events
+        ("Apollo Boys Wrestling Meet · MS", True), ("Art Club", True)], events
     assert [(i["activity_team"], i["activity_name"]) for i in events[:2]] == [("apollo", "Drama"), ("apollo", "Band")]
     assert events[8]["area"] == "announced", "an away game isn't the writer's 20-mile game"
     assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
