@@ -30,7 +30,11 @@ nothing else.
   by the zoom: 36 pt zoomed out, 46 at the opening zoom (14.6), 72 two steps in. `MapZoom` carries
   the zoom so a pinch redraws only the bubbles; the time tag keeps its size.
 - **`MapEventCard`** — Airbnb's map card, measured off Mobbin: photo, then title (with Now), place,
-  time, and the going count. Heart and close on the photo; it pages through a bubble's events.
+  time, and the friends Going, or else the going count. Heart and close on the photo; it pages
+  through a bubble's events, opening on the first one friends are Going to.
+- **Friends on the map** (BP app five-tabs 08) — a bubble shows friends Going to an Event there
+  today: up to two 20 pt faces on its top right, then "+3". They come with the Town feed's cards,
+  so a friend with "Show my plans to friends" off never shows. Going, never anyone's location.
 - **Where an event is** — the morning job writes `club_events.lat,lng` from the source registry's
   hand-checked coordinates (`at:` per entry, `venue_at:` per named venue): the venue the event's
   location names, or its Place's own spot when the location is empty or names that Place. No real
