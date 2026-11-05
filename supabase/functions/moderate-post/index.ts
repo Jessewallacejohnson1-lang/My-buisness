@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   let body: any
   try { body = await req.json() } catch { return json({ ok: false, reason: 'Bad request.' }, 400) }
 
-  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}')['default'])
 
   // The model's yes or no on one posting, read here and never taken from the caller; null when it
   // gave no answer.

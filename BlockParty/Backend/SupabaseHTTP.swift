@@ -32,21 +32,22 @@ enum SupabaseHTTP {
     /// "token?grant_type=password" — split it so the "?" stays a real query
     /// separator (appendingPathComponent would percent-encode it into the path).
     /// Its 401s never reach `TokenProviding.handleUnauthorized`: the sign-in and
-    /// refresh flows handle them inline.
+    /// refresh flows handle them inline. With no `bearer`, the publishable key goes alone.
     static func auth(_ path: String, method: String = "POST",
-                     body: [String: Any]? = nil, bearer: String? = nil) async throws -> Data {
+                     body: [String: Any]? = nil, bearer: String? = nil,
+                     send: Supabase.Send? = nil) async throws -> Data {
         let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
         var comps = URLComponents(url: SupabaseConfig.authURL.appendingPathComponent(String(parts[0])),
                                   resolvingAgainstBaseURL: false)!
         if parts.count > 1 { comps.percentEncodedQuery = String(parts[1]) }
         var req = URLRequest(url: comps.url!)
         req.httpMethod = method
-        req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        req.setValue(SupabaseConfig.publishableKey, forHTTPHeaderField: "apikey")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(bearer ?? SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
+        if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
         if let body { req.httpBody = try JSONSerialization.data(withJSONObject: body) }
 
-        let (data, resp) = try await Supabase.Send.live.run(req)
+        let (data, resp) = try await (send ?? .live).run(req)
         let code = resp.statusCode
         if !(200..<300).contains(code) {
             let errorCode = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error_code"] as? String
@@ -198,14 +199,15 @@ struct Supabase {
 
     /// Every call's one way out. A 401 (a token the server refused though the phone still
     /// thinks it good) tells `auth`, which refreshes it or signs out, without holding up the
-    /// caller.
+    /// caller. A read open to everyone (`anon`) from someone with no login sends the publishable
+    /// key alone.
     @discardableResult
     private func perform(_ request: URLRequest, type: String, anon: Bool = false) async throws -> Data {
-        let token = anon ? ((try? await auth.validAccessToken()) ?? SupabaseConfig.anonKey)
-                         : try await auth.validAccessToken()
+        let token: String? = anon ? (try? await auth.validAccessToken())
+                                  : try await auth.validAccessToken()
         var request = request
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(SupabaseConfig.publishableKey, forHTTPHeaderField: "apikey")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue(type, forHTTPHeaderField: "Content-Type")
         let (data, response) = try await send.run(request)
         let code = response.statusCode

@@ -40,15 +40,15 @@ final class SupabaseRequestTests: XCTestCase {
 
     // MARK: - Reads
 
-    func testMapSpotsSignedOutReadWithThePublicKey() async throws {
+    func testMapSpotsSignedOutReadWithThePublicKeyAlone() async throws {
         auth.throwOnToken = true
         auth.userId = nil
         _ = try await community.eventSpots(["a1", "b2"])
         XCTAssertEqual(server.requests.count, 1)
         XCTAssertEqual(last.httpMethod, "GET")
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_events?select=id,lat,lng&lat=not.is.null&id=in.(a1,b2)")
-        XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer \(SupabaseConfig.anonKey)")
-        XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.anonKey)
+        XCTAssertNil(last.value(forHTTPHeaderField: "Authorization"), "no login: the public key alone")
+        XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.publishableKey)
     }
 
     func testMapSpotsSignedInReadWithTheTokenAndNoneAskNothing() async throws {
@@ -57,6 +57,55 @@ final class SupabaseRequestTests: XCTestCase {
         _ = try await community.eventSpots(["a1"])
         XCTAssertEqual(server.requests.count, 1)
         XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer test-access-token")
+        XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.publishableKey)
+    }
+
+    // MARK: - Accounts
+
+    func testSignUpLogInAndRefreshSendThePublicKeyAlone() async throws {
+        server.answers["signup"] = .init(body: "{}")
+        server.answers["token"] = .init(body: "{}")
+        for path in ["signup", "token?grant_type=password", "token?grant_type=refresh_token"] {
+            _ = try await SupabaseHTTP.auth(path, body: [:], send: server.send)
+            XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.publishableKey, path)
+            XCTAssertNil(last.value(forHTTPHeaderField: "Authorization"), path)
+        }
+    }
+
+    func testLogOutSendsTheLogin() async throws {
+        server.answers["logout"] = .init(status: 204, body: "")
+        _ = try await SupabaseHTTP.auth("logout", bearer: "a-login", send: server.send)
+        XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer a-login")
+        XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.publishableKey)
+    }
+
+    /// What the server said for each, read live on 2026-11-05 (BP app backlog 11).
+    private func refreshAnswer(_ status: Int, _ body: String) async throws -> Error {
+        server.answers["token"] = .init(status: status, body: body)
+        do {
+            _ = try await SupabaseHTTP.auth("token?grant_type=refresh_token", body: [:], send: server.send)
+        } catch {
+            return error
+        }
+        throw SupabaseError(message: "The refresh should have failed", status: nil)
+    }
+
+    func testARefusedKeyDoesNotEndTheLogin() async throws {
+        let refused = try await refreshAnswer(401, #"{"message":"Invalid API key","hint":"Double check your API key."}"#)
+        XCTAssertFalse(AuthStore.isTokenRejected(refused))
+    }
+
+    func testADeadRefreshTokenEndsTheLogin() async throws {
+        let dead = try await refreshAnswer(400, #"{"code":400,"error_code":"refresh_token_not_found","msg":"Invalid Refresh Token: Refresh Token Not Found"}"#)
+        XCTAssertTrue(AuthStore.isTokenRejected(dead))
+    }
+
+    func testNoAnswerAndABusyServerDoNotEndTheLogin() async throws {
+        XCTAssertFalse(AuthStore.isTokenRejected(URLError(.notConnectedToInternet)))
+        let down = try await refreshAnswer(503, #"{"message":"upstream down"}"#)
+        XCTAssertFalse(AuthStore.isTokenRejected(down))
+        let limited = try await refreshAnswer(429, #"{"code":429,"error_code":"over_request_rate_limit","msg":"slow down"}"#)
+        XCTAssertFalse(AuthStore.isTokenRejected(limited))
     }
 
     func testUpcomingTagsAndKnownEventsAskExactly() async throws {
