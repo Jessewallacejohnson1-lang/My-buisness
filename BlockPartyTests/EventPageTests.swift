@@ -118,6 +118,41 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardItem(event).description, "Plant bingo for Angel Reins Stable.", "the You tab's page has its About")
     }
 
+    /// The place's lettering is gone on a flyer's page and follows the finger back on the next
+    /// photo; with no flyer it never moves (BP app event-photos 16).
+    func testTheLetteringFollowsTheSwipeOffAFlyerOnly() {
+        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0), 0)
+        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0.5), 0.5)
+        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 2), 1, "on any later page")
+        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: false, swipe: 0), 1)
+    }
+
+    /// A flyer on the poster stops above the words, and pressing Attend doesn't move it: the going
+    /// line's room is kept whether it shows or not (370 x 470 on a 402 pt phone).
+    func testAPostersFlyerKeepsClearOfItsWordsAndAttendDoesntMoveIt() {
+        let side: CGFloat = 370, copy: CGFloat = 210
+        let notGoing = EventOfTheDayPoster.wholeFoot(side: side, copy: copy, goingShown: false)
+        let going = EventOfTheDayPoster.wholeFoot(side: side, copy: copy + 34, goingShown: true)
+        XCTAssertEqual(notGoing, 470 - 210 - 34 - 8, accuracy: 0.01)
+        XCTAssertEqual(going, notGoing, accuracy: 0.01, "pressing Attend never moves the flyer")
+
+        let stops = EventOfTheDayPoster.wholeFade(foot: notGoing, side: side)
+        XCTAssertEqual(stops.first?.location ?? 0, notGoing / side, accuracy: 0.001, "clear down to the flyer's foot")
+        XCTAssertEqual(stops.map(\.location), stops.map(\.location).sorted(), "a gradient's stops only go down")
+        XCTAssertLessThanOrEqual(stops.last?.location ?? 2, 1)
+    }
+
+    /// A town card's flyer stops above its words, and they keep the shade today's card gives them.
+    func testATownCardsFlyerKeepsItsWordsReadable() {
+        let height: CGFloat = 300, words: CGFloat = 52
+        let foot = DailyTownCard.wholeFoot(height: height, words: words)
+        XCTAssertEqual(foot, 300 - 52 - 12 - 6, accuracy: 0.01)
+        let stops = DailyTownCard.wholeShade(foot: foot, height: height, words: words)
+        XCTAssertEqual(stops.map(\.location), stops.map(\.location).sorted())
+        XCTAssertEqual(stops.first?.location ?? 0, foot / height, accuracy: 0.001)
+        XCTAssertEqual(stops[1].location, (300 - 52 - 12) / 300, accuracy: 0.001, "as dark as today's card by the words' top")
+    }
+
     func testPhotoListPutsEventPhotoFirstDedupesAndCapsAtThree() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")

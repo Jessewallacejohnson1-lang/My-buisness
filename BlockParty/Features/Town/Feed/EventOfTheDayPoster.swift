@@ -45,6 +45,25 @@ struct EventOfTheDayPoster: View {
         static let heartGlyph: CGFloat = 18
         static let dotsGlyph: CGFloat = 18
         static let nowDot: CGFloat = 8
+        /// A flyer stops this far above the words, and the dark is whole this far under its foot (picked on
+        /// the mock, BP app `references/whole-flyer-frames/`).
+        static let flyerGap: CGFloat = 8
+        static let flyerFade: CGFloat = 48
+    }
+
+    /// Where a flyer's room ends, from the poster's top: above the words, with the going line's room
+    /// kept whether it shows or not, so pressing Attend never moves the flyer (BP app event-photos 16).
+    static func wholeFoot(side: CGFloat, copy: CGFloat, goingShown: Bool) -> CGFloat {
+        let going = goingShown ? 0 : Metric.goingTop + Metric.goingHeight
+        return side / Metric.aspect - copy - going - Metric.flyerGap
+    }
+
+    /// The square's dark over a flyer: none down to its foot, then as the poster's fade, full by the words.
+    static func wholeFade(foot: CGFloat, side: CGFloat) -> [Gradient.Stop] {
+        let at = { (points: CGFloat) in min(max(points / max(side, 1), 0), 1) }
+        return [.init(color: Hue.poster.opacity(0), location: at(foot)),
+                .init(color: Hue.poster.opacity(0.82), location: at(foot + Metric.flyerFade / 2)),
+                .init(color: Hue.poster, location: at(foot + Metric.flyerFade))]
     }
 
     @Environment(RealLifeActions.self) private var actions
@@ -58,8 +77,15 @@ struct EventOfTheDayPoster: View {
     @State private var photoFailed = false
     /// `actions.heartFailureCount` at the last heart tap: a tap mid-shake stills it.
     @State private var heartTappedAt = 0
+    /// The words' height and the poster's width, for where a flyer's room ends.
+    @State private var copyHeight: CGFloat = 0
+    @State private var side: CGFloat = 0
 
     private var item: FeedCardItem { event.item }
+
+    private var flyerFoot: CGFloat {
+        Self.wholeFoot(side: side, copy: copyHeight, goingShown: actions.rsvp(item, town: true)?.top != nil)
+    }
 
     /// The event's own photo, else its place's, credited, else its place's logo, as the Town card
     /// shows them. One photo: the poster doesn't swipe.
@@ -71,7 +97,10 @@ struct EventOfTheDayPoster: View {
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
-            .overlay(alignment: .bottom) { copy }
+            .overlay(alignment: .bottom) {
+                copy.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
@@ -117,14 +146,17 @@ struct EventOfTheDayPoster: View {
             .overlay {
                 if let url = picture.url {
                     FeedCardURLPhoto(url: url, onReady: { photoShown = true }, onFailure: { photoFailed = true },
-                                     loadingFill: Hue.poster)
+                                     loadingFill: Hue.poster, whole: item.whole ? max(side - flyerFoot, 0) : nil)
                 } else if let logo = picture.logo {
                     FeedCardPlaceLogo(logo: logo, topClear: Metric.chipInset + PhotoChip.height)
                 }
             }
             .clipped()
             .grayscale(item.cancelled ? 1 : 0)
-            .overlay { LinearGradient(stops: Metric.fade, startPoint: .top, endPoint: .bottom) }
+            .overlay {
+                LinearGradient(stops: item.whole ? Self.wholeFade(foot: flyerFoot, side: side) : Metric.fade,
+                               startPoint: .top, endPoint: .bottom)
+            }
     }
 
     // MARK: - The words and buttons over it

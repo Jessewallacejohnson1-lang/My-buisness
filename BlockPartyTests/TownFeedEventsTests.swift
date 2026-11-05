@@ -280,6 +280,25 @@ final class TownFeedEventsTests: XCTestCase {
     /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
     /// while its page keeps the cover and the place's other photos and `image` stays for every other
     /// screen. The Event's own photo still wins over the cover.
+    /// A flyer shows whole only while it is the card's picture: an Event's own photo beats it, and
+    /// a picture that doesn't say so fills as ever (BP app event-photos 16).
+    func testAFlyerIsWholeOnlyWhileItIsTheCardsPicture() throws {
+        let row = { (id: String, image: String, whole: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Pizza night","event_date":"2026-10-31","start_time":null,
+         "location":"Bakery","image_url":\(image),"category":null,"club_name":null,"source_name":"Bakery",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false,
+         "place_picture":{"url":"https://x/flyer.webp","kind":"photo","w":1080,"h":1080\(whole),
+                          "more":[{"url":"https://x/oven.webp","kind":"photo"}]}}}
+        """ }
+        let json = "[" + row("flyer", "null", #","whole":true"#) + "," + row("own", #""https://x/own.jpg""#, #","whole":true"#)
+            + "," + row("photo", "null", "") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+
+        XCTAssertEqual(cards.map(\.whole), [true, false, false])
+        XCTAssertFalse(cards[0].isPhotoless, "a flyer is a photo of the Event: its Town card stays a photo card")
+    }
+
     func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",

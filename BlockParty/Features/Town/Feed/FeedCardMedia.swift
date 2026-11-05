@@ -24,6 +24,10 @@ struct FeedCardURLPhoto: View {
     /// What shows while the photo loads. Ink suits a card whose white title already
     /// sits on top; Search's tiles keep their own lighter fill showing through instead.
     var loadingFill: Color = Hue.ink
+    /// Not nil, a flyer: whole above this many points at the frame's foot, reaching two opposite edges of
+    /// what's left with even gaps on the other two, over a blurred copy of itself that fills the frame
+    /// (Jesse, 2026-11-05, BP app event-photos 16). Nil fills, as every other photo does.
+    var whole: CGFloat? = nil
 
     @Environment(\.displayScale) private var displayScale
 
@@ -37,7 +41,8 @@ struct FeedCardURLPhoto: View {
                 box: proxy.size,
                 onReady: onReady,
                 onFailure: onFailure,
-                loadingFill: loadingFill
+                loadingFill: loadingFill,
+                whole: whole
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -71,6 +76,7 @@ private struct FeedCardDownsampledPhoto: View {
     var onReady: (() -> Void)? = nil
     var onFailure: (() -> Void)? = nil
     var loadingFill: Color = Hue.ink
+    var whole: CGFloat? = nil
 
     /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
     /// shows the old photo.
@@ -85,7 +91,10 @@ private struct FeedCardDownsampledPhoto: View {
 
     var body: some View {
         Group {
-            if let image {
+            if let image, let whole {
+                flyer(image, clear: whole)
+                    .transition(.opacity)
+            } else if let image {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .scaledToFill()
@@ -110,6 +119,25 @@ private struct FeedCardDownsampledPhoto: View {
             if image != nil { onReady?() } else { onFailure?() }
         }
     }
+
+    /// One bitmap drawn twice, so a flyer costs one download and one decode: blurred to fill the frame, as
+    /// Instagram's wash behind a whole post, and whole over it. Opaque, so the blur's edges don't fade.
+    private func flyer(_ image: CGImage, clear: CGFloat) -> some View {
+        let bitmap = Image(decorative: image, scale: 1).resizable()
+        return ZStack(alignment: .top) {
+            bitmap
+                .scaledToFill()
+                .frame(width: box.width, height: box.height)
+                .clipped()
+                .blur(radius: Self.flyerBlur, opaque: true)
+            bitmap
+                .scaledToFit()
+                .frame(width: box.width, height: max(box.height - clear, 0))
+        }
+    }
+
+    /// PICKED on the mock (BP app `references/whole-flyer-frames/`): the flyer's words are gone from the wash.
+    private static let flyerBlur: CGFloat = 30
 }
 
 private nonisolated struct FeedCardImageRequest: Hashable, Sendable {

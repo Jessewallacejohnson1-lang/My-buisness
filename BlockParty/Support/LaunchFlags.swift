@@ -93,6 +93,7 @@ nonisolated enum LaunchFlags {
         case townVolleyball = "-town-volleyball"
         case uiTests = "-ui-tests"
         case youFreeToday = "-you-free-today"
+        case wholeFlyer = "-whole-flyer"
     }
 
     /// Whether the launch passed the flag.

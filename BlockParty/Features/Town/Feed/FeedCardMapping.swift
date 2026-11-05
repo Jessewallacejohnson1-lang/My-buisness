@@ -40,6 +40,7 @@ extension FeedCardItem {
             place: place,
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
             coverOnly: event.placePicture?.cover == true && image == place,
+            whole: event.placePicture?.whole == true && image == place,
             game: event.game,
             what: Self.nonempty(event.what),
             createdAt: DateHelpers.timestamp(event.createdAt),
