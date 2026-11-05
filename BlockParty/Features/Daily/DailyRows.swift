@@ -24,9 +24,9 @@ nonisolated enum DailyRowMetric {
     static let wordsInset: CGFloat = 14
     static let wordsBottom: CGFloat = 12
     static let wordsGap: CGFloat = 5
-    /// A flyer stops this far above the words (picked on the mock, BP app `references/whole-flyer-frames/`),
-    /// and by the words' top the shade is what today's card gives them at the same spot.
-    static let flyerGap: CGFloat = 6
+    /// A flyer stops this far above the words, room for the shade to come in softly (picked on the eyes sim: at
+    /// 6 pt it drew a hard line over the title), and by the words' top it is what today's card gives them there.
+    static let flyerGap: CGFloat = 20
     static let flyerShadeAtWords: Double = 0.41
     /// From the friends' faces to their words, as on the Town card.
     static let facesGap: CGFloat = 7

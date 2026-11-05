@@ -146,7 +146,7 @@ final class EventPageTests: XCTestCase {
     func testATownCardsFlyerKeepsItsWordsReadable() {
         let height: CGFloat = 300, words: CGFloat = 52
         let foot = DailyTownCard.wholeFoot(height: height, words: words)
-        XCTAssertEqual(foot, 300 - 52 - 12 - 6, accuracy: 0.01)
+        XCTAssertEqual(foot, 300 - 52 - 12 - 20, accuracy: 0.01)
         let stops = DailyTownCard.wholeShade(foot: foot, height: height, words: words)
         XCTAssertEqual(stops.map(\.location), stops.map(\.location).sorted())
         XCTAssertEqual(stops.first?.location ?? 0, foot / height, accuracy: 0.001)
