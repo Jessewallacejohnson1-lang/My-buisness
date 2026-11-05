@@ -42,6 +42,19 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await apply(game('2026-10-21'), [], [], []);
   assert.equal(await place(), 'rocori-high-school', 'an older writer keeps the place');
 
+  // A new team takes the short name the writer gives it, and one that exists keeps its own (game-card 16).
+  await db.exec(`insert into public.teams (id, name, short_name) values ('kept-team', 'Kept Team', 'Kept')`);
+  const named = placed('2026-10-20').map((g) => ({ ...g, source_uid: 'bound:short', sport: 'Boys Basketball · JV',
+    team_ids: ['litchfield-dassel-cokato', 'kept-team'], team_names: ['Litchfield-Dassel-Cokato', 'Kept Team'],
+    team_shorts: ['Litchfield', 'Kept Team'] }));
+  await apply(named, [], [], []);
+  assert.deepEqual((await db.query(`select id, name, short_name from public.teams
+                                    where id in ('litchfield-dassel-cokato', 'kept-team') order by id`)).rows,
+    [{ id: 'kept-team', name: 'Kept Team', short_name: 'Kept' },
+     { id: 'litchfield-dassel-cokato', name: 'Litchfield-Dassel-Cokato', short_name: 'Litchfield' }]);
+  await db.exec(`delete from public.club_events where source_uid = 'bound:short'`);
+  await db.exec(`delete from public.teams where id in ('litchfield-dassel-cokato', 'kept-team')`);
+
   // A game names its sport and two teams (game-card 01): a team it hasn't seen gets its row, no
   // logo or color yet, and one already there keeps its own; a re-read without the game clears it.
   const seeded = (await db.query('select id from public.teams')).rows.map((r) => r.id);

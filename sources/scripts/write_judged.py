@@ -145,7 +145,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from read_events import LOCAL, clock
+from read_events import BOUND_GENERIC, LOCAL, SCHOOL_KIND, clock
 from run import Supabase
 from towns import TOWNS, DEFAULT, lookup
 import registry
@@ -417,6 +417,11 @@ CAMPUS_TEAMS = {"SJU Athletics": ("SJU", "Saint John's"), "CSB Athletics": ("CSB
 CAMPUS_GAME = re.compile(r"^(?P<host>CSB|SJU) (?P<sport>.+?) vs\.? (?P<them>.+?)(?:: (?P<night>.+))?$")
 # An opponent that names an event, not a team: a meet, a finale, a championship.
 NOT_A_TEAM = re.compile(r"\b(meet|finale|invitational|invite|championships?|tournament|classic|relays|open)\b", re.I)
+# What can't be a new team's name: what a schedule writes before it knows the team, and what no school's name has.
+NOT_A_NAME = re.compile(r"\b(tbd|tba|winner|loser|seed|section|pool|bracket|consolation|semi-?finals?|quarter-?finals?|"
+                        r"finals?|playoffs?|opponent|bye|alumni|varsity|jv)\b|[\d#,&()/:@]", re.I)
+DIRECTIONS = {"north", "south", "east", "west", "central"}  # "West Junior High": alone, a direction names no school
+SHORT_MAX = 20  # characters: what the white card's 112 pt column holds at 13 pt, shrunk to 80%
 
 
 def team_id(name):
@@ -424,18 +429,61 @@ def team_id(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower().replace("'", "")).strip("-")
 
 
+def team_name(name):
+    """A team's name with no ranking ("#21 ") and nothing in brackets at its end, even a bracket a feed
+    cut off ("Kennedy Community MS (Mid")."""
+    return re.sub(r"(?:\s*\([^)]*\)?)+\s*$", "", re.sub(r"^#\d+\s+", "", name.strip()))
+
+
 def team_key(name):
-    """A team name as a lookup key: no ranking ("#21 "), nothing in brackets at its end, even a
-    bracket a feed cut off ("Kennedy Community MS (Mid")."""
-    return team_id(re.sub(r"\s*\([^)]*\)?\s*$", "", re.sub(r"^#\d+\s+", "", name.strip())))
+    """A team name as a lookup key."""
+    return team_id(team_name(name))
 
 
 def known_teams(db=None):
-    """Every name a team goes by -> its id (public.teams: id, name, short name, aliases). Only a
-    name here gets a game card: no reader makes a team (Jesse, 2026-10-26)."""
+    """Every name a team goes by -> its id (public.teams: id, name, short name, aliases). A team's own id and
+    name come first: a co-op's short name ("Brainerd") never takes the name of a team that has it."""
     rows = (db or Supabase()).rest("GET", "teams?select=id,name,short_name,aliases") or []
-    return {team_key(n): r["id"] for r in rows
-            for n in (r["id"], r["name"], r.get("short_name"), *(r.get("aliases") or [])) if n}
+    known = {team_key(n): r["id"] for r in rows for n in (r["id"], r["name"]) if n}
+    for r in rows:
+        for n in (r.get("short_name"), *(r.get("aliases") or [])):
+            if n:
+                known.setdefault(team_key(n), r["id"])
+    return known
+
+
+def could_be_a_team(name):
+    """Whether a name no team goes by can be a new team (not a placeholder or a kind of event)."""
+    return 3 <= len(name) <= 60 and name[0].isupper() and name.lower() not in BOUND_GENERIC \
+        and not NOT_A_TEAM.search(name) and not NOT_A_NAME.search(name)
+
+
+def team_short(name):
+    """A new team's short name: whole if it fits, else a co-op's first school, else cut at a word."""
+    if len(name) <= SHORT_MAX:
+        return name
+    name = re.sub(r"^Minneapolis ", "Mpls ", name)
+    if len(name) <= SHORT_MAX:
+        return name
+    first = name.split("-")[0].strip()
+    return first if len(first) <= SHORT_MAX else name[:SHORT_MAX + 1].rsplit(" ", 1)[0]
+
+
+def team_of(name, teams, may_make):
+    """The team a schedule's name means, as (id, name, is it new), or None. A new team goes by its name with its
+    school's kind off ("Breck School" is Breck), so the next spelling finds it; every game's row carries the name,
+    and public.apply_judged makes the team with the first row kept (Jesse, 2026-11-05: "create the teams profile
+    and card whenever theres a new one that comes up", replacing 2026-10-26's no reader makes a team)."""
+    clean = team_name(name)
+    bare = SCHOOL_KIND.sub("", clean)
+    for known in (clean, bare):
+        if team_id(known) in teams:
+            return teams[team_id(known)], known, False
+    if not may_make or not could_be_a_team(clean):
+        return None
+    new = clean if bare.lower() in DIRECTIONS else bare
+    teams[team_id(new)] = teams[team_id(clean)] = team_id(new)
+    return team_id(new), new, True
 
 
 def game_of(it, title):
@@ -694,17 +742,22 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None):
            "description": clip(it.get("blurb"), 1000) or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
-           "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "occasion": None,
-           "followers_only": it.get("followers_only") is True, "activity_team": it.get("activity_team"),
+           "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "team_shorts": None,
+           "occasion": None, "followers_only": it.get("followers_only") is True, "activity_team": it.get("activity_team"),
            "activity_name": it.get("activity_name")}
     game = game_of(it, title)
     if game:
-        ids = [team_id(t) if teams is None else teams.get(team_key(t)) for t in game["teams"]]
-        for t, i in zip(game["teams"], ids):
-            if not i:
+        # A name from a schedule can make a team; the judge's stays a normal card until someone adds it.
+        may_make = str(it.get("source_uid") or "").startswith(("mshsl:", "bound:")) or row["source_name"] in CAMPUS_TEAMS
+        found = [(team_id(t), t, False) if teams is None else team_of(t, teams, may_make) for t in game["teams"]]
+        for t, f in zip(game["teams"], found):
+            if not f:
                 notes.append(f"who is this: {t!r} ({title!r}) is no team's name, so a normal card until it's added")
-        if all(ids):
-            row.update(sport=game["sport"], team_ids=ids, team_names=game["teams"], occasion=game["occasion"])
+            elif f[2]:
+                notes.append(f"new team: {f[1]!r} ({title!r})")
+        if all(found):
+            row.update(sport=game["sport"], team_ids=[f[0] for f in found], team_names=[f[1] for f in found],
+                       team_shorts=[team_short(f[1]) for f in found], occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
              "game": bool(game) or is_game(row)}
@@ -1813,26 +1866,59 @@ def t_followers_only():
     assert "followers_only = club_events.followers_only and excluded.followers_only" in sql, "once public, stays public"
 
 
-def t_teams_only_from_their_names():
-    """A game's two names are looked up in the teams' names; a name no team goes by makes no team
-    and no game card, and is reported (Jesse, 2026-10-26: 11 cut-off copies in one morning)."""
+def t_teams_from_their_names():
+    """A game's two names are looked up in the teams' names. A name no team goes by makes a team when a schedule
+    wrote it, once, and is reported (Jesse, 2026-11-05), and a cut-off or placeholder name makes none."""
     teams = {"kennedy": "kennedy", "kennedy-community-ms": "kennedy", "stride-academy": "stride-academy",
-             "saint-johns": "saint-johns", "carleton": "carleton"}
-    g = lambda title, names, host="Kennedy Community School": item(
-        title=title, place="Kennedy Community School", area="game", source_name=host, interest="watch_sports",
-        game={"sport": "Girls Basketball", "teams": names})
+             "saint-johns": "saint-johns", "carleton": "carleton", "willmar": "willmar",
+             "north-junior-high": "north-junior-high"}
+    g = lambda title, names, uid="": item(
+        title=title, place="Kennedy Community School", area="game", source_name="Kennedy Community School",
+        source_uid=uid, interest="watch_sports", game={"sport": "Girls Basketball", "teams": names})
     r = plan([g("Kennedy Girls Basketball vs Stride Academy", ["Kennedy Community MS (Middle", "Stride Academy"]),
               g("Kennedy Girls Basketball vs Holdingford", ["Kennedy", "Holdingford"]),
+              g("Kennedy Girls Basketball vs Breck", ["Kennedy", "Breck School"], "bound:a"),
+              g("Stride Girls Basketball vs Breck", ["Stride Academy", "Breck"], "mshsl:1:b"),
+              g("Kennedy Girls Basketball vs Willmar", ["Kennedy", "Willmar MS"], "bound:c"),
+              g("Kennedy Girls Basketball vs North", ["Kennedy", "North Junior High"], "bound:d"),
+              g("Kennedy Girls Basketball vs West", ["Kennedy", "West Junior High"], "bound:e"),
+              g("Kennedy Girls Basketball vs Heritage", ["Kennedy", "Heritage Christian Academy Maple Grove"], "bound:f"),
+              g("Kennedy Girls Basketball vs Litchfield", ["Kennedy", "Litchfield-Dassel-Cokato"], "bound:g"),
+              *[g(f"Kennedy Girls Basketball vs {n}", ["Kennedy", n], f"bound:no{i}") for i, n in enumerate(
+                  ("TBD", "Winner of Game 3", "Section 6AA #2", "Tournament", "Quad", "Girls Varsity", "Pool A"))],
               item(title="SJU Soccer vs #21 Carleton", place="Clemens Stadium", town="Collegeville", area="campus",
                    source_name="SJU Athletics", interest="watch_sports")], [], TODAY, INTERESTS, teams=teams)
     rows = {e["row"]["title"]: e["row"] for e in r["events"]}
     assert rows["Kennedy Girls Basketball vs Stride Academy"]["team_ids"] == ["kennedy", "stride-academy"], "a cut-off alias"
     assert rows["SJU Soccer vs #21 Carleton"]["team_ids"] == ["saint-johns", "carleton"]
-    unknown = rows["Kennedy Girls Basketball vs Holdingford"]
-    assert unknown["team_ids"] is None and unknown["sport"] is None, "an unknown name makes no team"
+    judge = rows["Kennedy Girls Basketball vs Holdingford"]
+    assert judge["team_ids"] is None and judge["sport"] is None, "the judge's name makes no team"
     assert [n for n in r["notes"] if n.startswith("who is this: 'Holdingford'")], r["notes"]
+    breck = rows["Kennedy Girls Basketball vs Breck"]
+    assert breck["team_ids"] == ["kennedy", "breck"] and breck["team_names"] == ["Kennedy", "Breck"], "its kind off"
+    assert rows["Stride Girls Basketball vs Breck"]["team_ids"] == ["stride-academy", "breck"], "the next spelling finds it"
+    assert sum(n.startswith("new team: 'Breck'") for n in r["notes"]) == 1, "reported once"
+    assert rows["Kennedy Girls Basketball vs Willmar"]["team_ids"] == ["kennedy", "willmar"], "a school's kind folds"
+    assert rows["Kennedy Girls Basketball vs North"]["team_ids"] == ["kennedy", "north-junior-high"], "its own name wins"
+    assert rows["Kennedy Girls Basketball vs West"]["team_ids"] == ["kennedy", "west-junior-high"], "a direction keeps its kind"
+    assert rows["Kennedy Girls Basketball vs Heritage"]["team_shorts"][1] == "Heritage Christian", "cut at a word"
+    assert rows["Kennedy Girls Basketball vs Litchfield"]["team_shorts"][1] == "Litchfield", "a co-op's first school"
+    assert team_short("Minneapolis Southwest") == "Mpls Southwest" and team_short("Minneapolis North") == "Minneapolis North"
+    for n in ("TBD", "Winner of Game 3", "Section 6AA #2", "Tournament", "Quad", "Girls Varsity", "Pool A"):
+        assert rows[f"Kennedy Girls Basketball vs {n}"]["team_ids"] is None, n
+        assert [x for x in r["notes"] if x.startswith(f"who is this: {n!r}")], n
+    assert could_be_a_team("Tri-City United") and could_be_a_team("St. Paul Johnson") and could_be_a_team("Paynesville Area-EVW")
     assert r["teams_checked"] and not run([])["teams_checked"]
     assert team_key("#21 Saint John's") == "saint-johns" and team_key("Kennedy Community MS (Mid") == "kennedy-community-ms"
+    assert team_key("St. Cloud Tech (Varsity) (Time TBA)") == "st-cloud-tech"
+
+    class Db:
+        rest = staticmethod(lambda *_: [
+            {"id": "brainerd-little-falls", "name": "Brainerd-Little Falls", "short_name": "Brainerd", "aliases": []},
+            {"id": "brainerd", "name": "Brainerd", "short_name": "Brainerd", "aliases": ["Forestview MS"]}])
+    known = known_teams(Db)
+    assert known["brainerd"] == "brainerd" and known["brainerd-little-falls"] == "brainerd-little-falls", known
+    assert known["forestview-ms"] == "brainerd", "an alias still counts"
 
 
 def t_one_place_two_names():
@@ -2059,7 +2145,7 @@ TESTS = [t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_anoth
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_only_from_their_names, t_all_day_run_keeps_its_last_day,
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day,
          t_long_titles_shortened_and_kept, t_short_levels_kept_apart]
 
 

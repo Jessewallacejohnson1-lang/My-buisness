@@ -823,6 +823,8 @@ BOUND_TEAMS = {"Kennedy Community MS": "Kennedy"}
 # C team plays beside its first, same time and gym, so its title says so (2026-10-29: 14 pairs).
 BOUND_LEVEL_WORDS = {"Junior Varsity": "JV", "JV": "JV", "C": "C-squad", "C2": "C2-squad", "C Team": "C-squad",
                      "B": "B-squad", "Middle School": "Middle school", "9th Grade": "9th grade", "MS": "Middle school"}
+# The adapted sports' divisions, not levels: the title keeps them, and a card wouldn't say what they mean.
+CARD_SAYS_NO_LEVEL = {"CI", "PI"}
 # A level that only says who plays ("Girls Varsity", "Boys MS"), posted where a meet's name goes.
 BOUND_WHO = re.compile(r"(girls|boys)\s+(varsity|jv|ms|c|b)", re.I)
 BOUND_MEET = re.compile(r"wrestl|swim|diving|cross country|track|gymnast|ski|golf|dance", re.I)
@@ -923,7 +925,9 @@ def bound_items(text, entry, src, today):
                 continue  # the league's
             # Bound names the visitors first ("Brainerd vs St. Cloud Apollo" at Apollo); a title and a game
             # card put the home team first, as the league's do.
-            away, home = [BOUND_TEAMS.get(t.strip(), short_team(t)) for t in name.split(" vs ", 1)]
+            # Its own brackets stay out of a name: "St. Cloud Tech (Varsity) (Time TBA) vs Osseo".
+            away, home = [BOUND_TEAMS.get(t, short_team(t)) for t in
+                          (re.sub(r"\s*\([^)]*\)?", "", n).strip() for n in name.split(" vs ", 1))]
             if {away.lower(), home.lower()} & PLACEHOLDERS or UNDECIDED.search(name):
                 continue  # an opponent not named yet
             sport = bound_sport(get("X-BND-ACTIVITYNAME"))
@@ -951,6 +955,10 @@ def bound_items(text, entry, src, today):
         ours = [n for n, t in enumerate(teams) if bound_team({"_name": t}) == bound_team(entry)] \
             or [n for n, t in enumerate(teams) if seen[(act, t)] * 2 > played[act]]
         g["title"] = game_title(teams, g["game"]["sport"], ours[0] if len(ours) == 1 else None, words)
+        # The white card says only its sport, so the sport says the level (Jesse, 2026-11-05, game-card 16): five
+        # games between two schools in one night read alike otherwise. private.sport_base leaves it out.
+        if words and words not in CARD_SAYS_NO_LEVEL and not g["game"]["sport"].startswith("MS "):
+            g["game"]["sport"] += f" · {words}"
     # The whole schedule was read: an event of this school's gone from it was called off. A schedule
     # with nothing on it is a feed that came back empty, not a school that called off everything.
     if not out:
@@ -1721,11 +1729,21 @@ def t_gobound():
     # The home team first, as the league's (Bound names the visitors first); too long for both, the
     # school's own team leaves the title, since the host line names it (smooth-mornings 06).
     assert [(i["title"], i["game"], i["followers_only"], i["blurb"]) for i in game if "Melrose" in i["title"]] == [
-        ("Boys Soccer vs Melrose · Middle school", {"sport": "Boys Soccer", "teams": ["Kennedy", "Melrose"]}, False,
+        ("Boys Soccer vs Melrose · Middle school", {"sport": "Boys Soccer · Middle school", "teams": ["Kennedy", "Melrose"]}, False,
          "Middle school boys soccer: Kennedy hosts Melrose at Kennedy Community School Kennedy Field.")], game
     assert "Girls Basketball vs Holdingford · MS" in [i["title"] for i in game], \
         "a title Bound cut off loses its stub"
+    # A game's sport says its level, and only a level; a name keeps none of Bound's brackets (game-card 16).
+    tech = one("Basketball\\, Boys: St. Cloud Tech (Junior Varsity) (Time TBA) vs Osseo (Junior Varsity)", "basketball",
+               "Junior Varsity", "Basketball\\, Boys")
+    assert tech["game"] == {"sport": "Boys Basketball · JV", "teams": ["Osseo", "Tech"]}, tech["game"]
+    assert tech["title"] == "Osseo Boys Basketball vs Tech · JV" and "(Time TBA)" not in tech["blurb"], tech
+    for name, level, want in (("Adapted Floor Hockey", "CI", "Adapted Floor Hockey"),
+                              ("MS Coed Wrestling", "Middle School", "MS Coed Wrestling")):
+        got = one(f"{name}: Moorhead vs St. Cloud ({level})", "x", level, name)
+        assert got["game"]["sport"] == want and level.split()[0] in got["title"] + got["blurb"], got
     away = next(i for i in events if "Fergus" in i["title"])
+    assert away["game"]["sport"] == "Volleyball", "varsity says no level"
     assert (away["game"]["teams"], away["blurb"]) == (["Fergus Falls", "Apollo"], "Varsity volleyball: Fergus Falls "
                                                       "hosts Apollo at Fergus Falls High School Gold Gym."), away
     assert bound_team({"_name": "Kennedy Community School"}) == "kennedy"

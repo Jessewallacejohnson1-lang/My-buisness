@@ -403,6 +403,8 @@ struct FeedEventDetailDestination: View {
                     .font(.sansMedium(15))
                     .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
+                    // "Boys Basketball · Middle school" still fits between the buttons, as on the white card.
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, 2 * Metric.tapBox + Metric.inset)
                     .accessibilityHidden(true)
             }

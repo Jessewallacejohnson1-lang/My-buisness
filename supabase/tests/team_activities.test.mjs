@@ -34,6 +34,24 @@ test('a gendered game is the school activity of that sport and gender', async ()
   assert.deepEqual(await activitiesOf('rocori', 'Girls Swim', ['rocori', 'albany']), ['Swimming & Diving - Girls']);
 });
 
+test('a sport that says its level is still that sport', async () => {
+  assert.deepEqual(await activitiesOf('apollo', 'Girls Soccer · JV', ['apollo', 'albany']), ['Girls Soccer']);
+  assert.deepEqual(await activitiesOf('rocori', 'Girls Swim · Middle school', ['rocori', 'albany']), ['Swimming & Diving - Girls']);
+  assert.deepEqual(await activitiesOf('apollo', 'Volleyball · C-squad', ['apollo', 'albany']), ['Volleyball (girls)']);
+});
+
+test("a school's own calendar names its activity's games, whatever team plays them", async () => {
+  await db.exec('set role anon');
+  const { rows } = await db.query(
+    `select a.team_id, a.name from public.team_activities a,
+       jsonb_populate_record(null::public.club_events, jsonb_build_object('title', 'game', 'sport', 'Boys Swim · JV',
+         'team_ids', array['st-cloud-rocori', 'albany']::text[], 'activity_team', 'apollo')) e
+     where public.activity_has_event(a, e) order by 1, 2`);
+  await db.exec('reset role');
+  assert.deepEqual(rows, [{ team_id: 'apollo', name: 'Boys Swim & Dive' },
+                          { team_id: 'kennedy', name: 'Boys Swimming 7-12' }]);
+});
+
 test("a game's words for a sport meet the school's: Dance Team is Dance, Rugby is SJU Rugby", async () => {
   assert.deepEqual(await activitiesOf('apollo', 'Dance Team', ['apollo', 'albany']), ['Dance']);
   assert.deepEqual(await activitiesOf('saint-johns', 'Rugby', ['saint-johns', 'albany']), ['SJU Rugby']);
