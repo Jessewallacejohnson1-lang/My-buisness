@@ -161,7 +161,8 @@ struct EventOfTheDayPoster: View {
     private var copy: some View {
         let words = actions.rsvp(item, town: true)
         return VStack(alignment: .leading, spacing: 0) {
-            Group {
+            // A stack, not a Group: measured as a Group, its lines would land on top of each other.
+            VStack(alignment: .leading, spacing: 0) {
                 // What it is, plain, as DICE sets "Popular" over its title; none yet, the title leads.
                 if let what = item.whatLine {
                     Text(what)
