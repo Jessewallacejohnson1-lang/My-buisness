@@ -570,7 +570,7 @@ struct FeedEventDetailDestination: View {
             .contentShape(Capsule())
             // A little glass, as Meetup's (Jesse at Check-in 2): the words behind it show through
             // blurred and faint. Apple's Liquid Glass over a white layer that keeps it light,
-            // the tab bar's way (RootView), since the glass alone darkens over dark content.
+            // the tab bar's way (TabBar), since the glass alone darkens over dark content.
             .glassEffect(.regular, in: Capsule())
             .background {
                 Capsule()

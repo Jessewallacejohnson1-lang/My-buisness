@@ -130,7 +130,7 @@ Business has no slot.
   icons** (2026-09-27; Apple's `TabView` was rejected on 2026-09-25, the why is in
   `DECISIONS.md`). One floating glass capsule, the same gap from each side and from the
   physical bottom edge. **Every size, inset, scale and timing is a `TabBarMetric` constant**
-  (`RootView.swift`), capsule-local, with its source in its comment; the slot rule is
+  (`TabBar.swift`), capsule-local, with its source in its comment; the slot rule is
   `[test]` pinned. Change a number there, not in a doc. **It never hides, but it shrinks**
   to `TabBarMetric.compactScale` while the Town feed reads down, on the same signal that
   sends the top bar away (`TabBarCompactKey`), and a finger on it brings it back.

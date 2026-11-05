@@ -145,7 +145,7 @@ Settle it on a screenshot, not on paper.
 
 ## Tab bar — Tripadvisor (Mobbin) and Apple's own bar, measured 2026-09-25/26
 
-BP's values live in one place: `TabBarMetric` in `BlockParty/App/RootView.swift`, in
+BP's values live in one place: `TabBarMetric` in `BlockParty/App/TabBar.swift`, in
 capsule-local points (x = 0 at the capsule's leading edge). Each constant's comment says
 whether it is MEASURED, ESTIMATED or GUESSED and cites its source; this section repeats
 none of them. Sources, all in `/Users/owner/BP app/references/`:
