@@ -60,6 +60,41 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.phase(off, now: sevenPM), .ended, "called off is over")
     }
 
+    /// Friends on the map (five-tabs 08): each friend once across a spot's events, in the card's order.
+    func testABubblesFriendsAreEveryoneGoingThereEachOnce() {
+        let sam = FeedFriend(name: "Sam", photo: nil), sarah = FeedFriend(name: "Sarah", photo: nil), blake = FeedFriend(name: "Blake", photo: nil)
+        var on = ev("on", "6 PM"), next = ev("next", "8 PM")
+        XCTAssertEqual(TodayBubbleRules.friends([on, next]), [])
+        on.friendsGoing = [sam, sarah]
+        next.friendsGoing = [sarah, blake]
+        XCTAssertEqual(TodayBubbleRules.friends([on, next]), [sam, sarah, blake])
+    }
+
+    /// The card opens on the first event friends are Going to, however the bubble orders them.
+    func testTheCardOpensOnTheEventFriendsAreGoingTo() {
+        var on = ev("on", "6 PM"), next = ev("next", "8 PM"), later = ev("later", "9 PM")
+        XCTAssertEqual(TodayBubbleRules.firstPage([on, next, later]), 0, "no friends: its first")
+        later.friendsGoing = [FeedFriend(name: "Sam", photo: nil)]
+        XCTAssertEqual(TodayBubbleRules.firstPage([on, next, later]), 2)
+        next.friendsGoing = later.friendsGoing
+        XCTAssertEqual(TodayBubbleRules.firstPage([on, next, later]), 1)
+        on.friendsGoing = later.friendsGoing
+        XCTAssertEqual(TodayBubbleRules.firstPage([on, next, later]), 0)
+    }
+
+    /// The card's last line, in the Event page's words, bold up to where the names end.
+    func testTheCardsLastLineNamesFriends() {
+        XCTAssertNil(MapEventCard.friendWords([]))
+        for (names, bold, rest) in [(["Blake"], "Blake", " is going"),
+                                    (["Sam", "Sarah"], "Sam and Sarah", " are going"),
+                                    (["Sarah", "Sam", "Blake", "Mia", "Theo"], "Sarah", " and 4 friends are going")] {
+            let said = MapEventCard.friendWords(names)
+            XCTAssertEqual(said?.names, bold)
+            XCTAssertEqual(said?.rest, rest)
+            XCTAssertEqual(said.map { $0.names + $0.rest }, RSVPWords.friendsLine(names, bar: false))
+        }
+    }
+
     /// Jesse's sizes: 36 pt zoomed out, 46 at the opening zoom, 72 two steps in, held past either end.
     func testTheBeadGrowsWithTheZoomFrom36To72() {
         let open = SJMapView.openZoom
