@@ -227,8 +227,11 @@ final class ChatThread {
     func read() async {
         if isRoom, !joined {
             do {
-                chatID = try await join()
+                let id = try await join()
+                chatID = id
                 joined = true
+                // A Leave just undone: the list hears now, so its row and the page's aren't a step behind.
+                if book?.chats?.contains(where: { $0.id == id }) == false { Task { await book?.refresh() } }
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.network("ChatThread join: \(error)")
