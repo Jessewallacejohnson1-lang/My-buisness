@@ -201,7 +201,7 @@ private struct FollowingRow: View {
             if let url = item.photo {
                 Hue.fill
                     .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
-                    .overlay { FeedCardURLPhoto(url: url) }
+                    .overlay { FeedCardURLPhoto(url: url, whole: item.event?.item.whole == true ? 0 : nil) }
                     .clipShape(RoundedRectangle(cornerRadius: DailyMetric.followingPhotoRadius, style: .continuous))
             }
         }

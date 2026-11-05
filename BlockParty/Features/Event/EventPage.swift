@@ -45,6 +45,8 @@ struct EventPage: View {
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
+    /// How far the hero's pages have been swiped, for the lettering a flyer's page goes without.
+    @State private var heroSwipe: CGFloat = 0
     /// The Event's place's name in its own lettering, once read (follows 02).
     @State private var placeName: PlaceName?
     /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
@@ -301,6 +303,8 @@ struct EventPage: View {
                             PlaceNameArt(name: placeName, spoken: item.whereLine ?? "")
                                 .padding(.bottom, PlaceNameArt.bottom)
                         }
+                        // Over a flyer it would cover the flyer's words (Jesse, 2026-11-05).
+                        .opacity(Self.letteringOpacity(flyerFirst: flyer != nil, swipe: heroSwipe))
                         .transition(.opacity)
                     }
                 }
@@ -319,8 +323,15 @@ struct EventPage: View {
             if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
         } else {
             PhotoPager(urls: photos.compactMap(\.url), page: $photoPage, shown: $shownPhotos,
-                       value: photoValue, onFailure: drop)
+                       value: photoValue, onFailure: drop, flyer: flyer, flyerTop: HelloDropView.safeTop,
+                       onSwipe: flyer == nil ? nil : { heroSwipe = $0 })
         }
+    }
+
+    /// The first photo, when it is a flyer (BP app event-photos 16): one that failed to load has left the list.
+    private var flyer: URL? {
+        guard item.whole, let url = item.image.url, photos.first?.url == url else { return nil }
+        return url
     }
 
     /// The credit shows wherever its photo does (a site, or a free photo's author and
@@ -478,7 +489,7 @@ struct EventPage: View {
                 .padding(.top, game == nil ? 0 : Metric.sectionTop - Metric.rowsTop)
 
             // Who hosts it, with Follow (follows 02), in Meetup's grey card.
-            EventHostRow(item: item, top: Metric.hostTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
+            EventHostRow(item: item, top: Metric.hostTop, placeNamed: placeName?.emblem == false && !photos.isEmpty && flyer == nil)
 
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
@@ -614,6 +625,11 @@ struct EventPage: View {
             list.append(photo)
         }
         return list
+    }
+
+    /// The place's lettering: gone on a flyer's page, back with the finger as it swipes to the next photo.
+    static func letteringOpacity(flyerFirst: Bool, swipe: CGFloat) -> Double {
+        flyerFirst ? Double(min(max(swipe, 0), 1)) : 1
     }
 
     /// "2/3" on the second of three; nil when there is only one photo to show.

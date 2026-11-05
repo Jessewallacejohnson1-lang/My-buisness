@@ -111,15 +111,19 @@ struct DailyEvent: Identifiable {
         time.locale = Locale(identifier: "en_US")
         time.timeZone = Town.timeZone
         time.dateFormat = "h:mm a"
+        // `-whole-flyer <url>`: every sample wears that flyer, so each frame can be shot with one no Event in the
+        // Town feed shows today.
+        let flyer = LaunchFlags.value(.wholeFlyer).flatMap { URL(string: $0) }
         var item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
-            image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
+            image: flyer.map { .placePhoto($0, credit: nil) } ?? url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
             eventDate: Town.day(starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )
         item.what = what
+        item.whole = flyer != nil
         return DailyEvent(item: item, starts: starts, ends: ends)
     }
     #endif

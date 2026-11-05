@@ -24,6 +24,13 @@ struct FeedCardURLPhoto: View {
     /// What shows while the photo loads. Ink suits a card whose white title already
     /// sits on top; Search's tiles keep their own lighter fill showing through instead.
     var loadingFill: Color = Hue.ink
+    /// Not nil, a flyer: whole above this many points at the frame's foot, reaching two opposite edges of
+    /// what's left with even gaps on the other two, over a blurred copy of itself that fills the frame
+    /// (Jesse, 2026-11-05, BP app event-photos 16). Nil fills, as every other photo does.
+    var whole: CGFloat? = nil
+    /// With `whole`, what a flyer that reaches its frame's top rather than its sides starts under: on the
+    /// Event page the clock, so the island never covers a tall poster's title (Jesse, 2026-11-05).
+    var wholeTop: CGFloat = 0
 
     @Environment(\.displayScale) private var displayScale
 
@@ -37,7 +44,9 @@ struct FeedCardURLPhoto: View {
                 box: proxy.size,
                 onReady: onReady,
                 onFailure: onFailure,
-                loadingFill: loadingFill
+                loadingFill: loadingFill,
+                whole: whole,
+                wholeTop: wholeTop
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -48,6 +57,13 @@ struct FeedCardURLPhoto: View {
     /// its card's 1260, so one photo decoded twice and took two of the cache's slots.
     static func pixelWidth(points: CGFloat, scale: CGFloat) -> Int {
         max(1, Int(points.rounded() * scale))
+    }
+
+    /// What a flyer keeps clear above it: `top` when it would reach the top and foot of its room, none
+    /// when it reaches the sides, since a wide one sits with even gaps, clear of the island anyway.
+    nonisolated static func flyerTop(image: CGSize, room: CGSize, top: CGFloat) -> CGFloat {
+        guard image.height > 0, room.height > 0 else { return 0 }
+        return image.width / image.height < room.width / room.height ? top : 0
     }
 
     /// How far to move a photo filling `box` so its focus sits as near the middle as the photo's
@@ -71,6 +87,8 @@ private struct FeedCardDownsampledPhoto: View {
     var onReady: (() -> Void)? = nil
     var onFailure: (() -> Void)? = nil
     var loadingFill: Color = Hue.ink
+    var whole: CGFloat? = nil
+    var wholeTop: CGFloat = 0
 
     /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
     /// shows the old photo.
@@ -85,7 +103,10 @@ private struct FeedCardDownsampledPhoto: View {
 
     var body: some View {
         Group {
-            if let image {
+            if let image, let whole {
+                flyer(image, clear: whole)
+                    .transition(.opacity)
+            } else if let image {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .scaledToFill()
@@ -110,6 +131,29 @@ private struct FeedCardDownsampledPhoto: View {
             if image != nil { onReady?() } else { onFailure?() }
         }
     }
+
+    /// One bitmap drawn twice, so a flyer costs one download and one decode: blurred to fill the frame, as
+    /// Instagram's wash behind a whole post, and whole over it. Opaque, so the blur's edges don't fade.
+    private func flyer(_ image: CGImage, clear: CGFloat) -> some View {
+        let bitmap = Image(decorative: image, scale: 1).resizable()
+        let room = max(box.height - clear, 0)
+        let top = FeedCardURLPhoto.flyerTop(image: CGSize(width: image.width, height: image.height),
+                                            room: CGSize(width: box.width, height: room), top: wholeTop)
+        return ZStack(alignment: .top) {
+            bitmap
+                .scaledToFill()
+                .frame(width: box.width, height: box.height)
+                .clipped()
+                .blur(radius: Self.flyerBlur, opaque: true)
+            bitmap
+                .scaledToFit()
+                .frame(width: box.width, height: max(room - top, 0))
+                .padding(.top, top)
+        }
+    }
+
+    /// PICKED on the mock (BP app `references/whole-flyer-frames/`): the flyer's words are gone from the wash.
+    private static let flyerBlur: CGFloat = 30
 }
 
 private nonisolated struct FeedCardImageRequest: Hashable, Sendable {

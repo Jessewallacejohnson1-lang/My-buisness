@@ -98,7 +98,9 @@ THE RULES
     already in the list and this morning's items; every mention is kept (event_mentions) and
     counts toward the two-mention rule. A pair short of that stays two events, and one on the
     same day at the same place or under the same title is named for Jesse to settle: a
-    duplicate stays visible, a wrong merge hides a real event (ADR-021).
+    duplicate stays visible, a wrong merge hides a real event (ADR-021). One source's own two ids
+    join only when posted twice (the very same listing) or listed twice (listed_twice: one host, one
+    start, one place, one name inside the other, in the Town feed).
   Two hosts (BP app smooth-mornings 08, two_hosts): copies from two hosts on the same day are one
     Event when they are at one place (a registry place both lines name, an address naming the
     shops in its building, or a spot the registry doesn't know on the host's own grounds, where
@@ -262,6 +264,16 @@ def posted_twice(a, b):
     return a["title"] == b["title"] and a["day"] == b["day"] and a["at"] == b["at"] and same_event(a, b)
 
 
+def listed_twice(a, b):
+    """One host's Event under two of its own ids and two wordings (BP app loopholes 11; Jesse, 2026-11-05): the same
+    host, start to the minute and place, one name inside the other with the same team words (same_event). Cathedral's
+    calendar listed its Knowledge Bowl meet three times, each with its own id and a longer name, and all three showed
+    in the Town feed. Never a game or a followers-only listing: a school's meets look alike and aren't, as Sartell's
+    "Mora Invite" (boys, Welia Center) and "Mora Invitational" (girls, main gym)."""
+    return a["poster"] == b["poster"] and a["at"] is not None and a["at"] == b["at"] \
+        and not (a["game"] or b["game"] or a["followers"] or b["followers"]) and same_event(a, b)
+
+
 def two_hosts(a, b):
     """One Event from two hosts (BP app smooth-mornings 08): "one" when two copies fall on the same day,
     at one place, under the same name at agreeing times; "maybe" when the day, a place both lines
@@ -344,10 +356,11 @@ def place_facts(place, poster):
 
 
 def own_ids_differ(g, source, uid, facts):
-    """The source itself gave the two their own ids: two events, however alike, unless posted twice."""
+    """The source itself gave the two their own ids: two events, however alike, unless posted or listed twice."""
     seen = ([g["old"]] if g["old"] else []) + g["mentions"]
     return real_uid(uid) and any(m["source_name"] == source and real_uid(m.get("source_uid"))
-                                 and m["source_uid"] != uid for m in seen) and not posted_twice(g["facts"], facts)
+                                 and m["source_uid"] != uid for m in seen) \
+        and not posted_twice(g["facts"], facts) and not listed_twice(g["facts"], facts)
 
 
 def town_key(name):
@@ -616,7 +629,8 @@ def listed_facts(row, home=HOME):
     place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster), home)
     return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
             "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
-            "own_id": real_uid(row.get("source_uid")), "game": is_game(row), "poster": poster.strip()}
+            "own_id": real_uid(row.get("source_uid")), "game": is_game(row), "poster": poster.strip(),
+            "followers": row.get("followers_only") is True}
 
 
 def show_from(day, size, signup_by):
@@ -770,7 +784,8 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
                        team_shorts=[team_short(f[1]) for f in found], occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
-             "game": bool(game) or is_game(row), "poster": it["source_name"].strip()}
+             "game": bool(game) or is_game(row), "poster": it["source_name"].strip(),
+             "followers": it.get("followers_only") is True}
     return {"row": row, "facts": facts}, None
 
 
@@ -1448,8 +1463,8 @@ def t_merge_near_miss_kept_apart():
     levels = [item(title="Sartell vs Tech football", **game),
               item(title="Sartell vs Tech JV football", source_name="SRT", **dict(game, start="2026-10-23T18:00:00-05:00"))]
     assert len(run(levels)["events"]) == 2, "JV and varsity are two games"
-    one_source = [item(source_uid="a1"), item(source_uid="a2", title="Plant Bingo night")]
-    assert len(run(one_source)["events"]) == 2, "a source's own two ids are two events"
+    one_source = [item(source_uid="a1"), item(source_uid="a2", title="Plant Bingo night", start="2026-10-24T17:00:00-05:00")]
+    assert len(run(one_source)["events"]) == 2, "a source's own two ids at two starts are two events"
     board = listed(title="School Board meeting", event_date="2026-10-21", start_time="6:30 PM",
                    location="Colman Theatre, Benedicta Arts Center", source_name="Kennedy", source_uid="board:532f")
     feed = item(title="School Board Meeting", start="2026-10-21T18:30:00-05:00", place="Colman Theater",
@@ -2135,6 +2150,31 @@ def t_one_host_two_names():
         assert len(run(pair)["events"]) == 2, [i["title"] for i in pair]
 
 
+def t_one_host_listed_twice():
+    """Cathedral's Knowledge Bowl meet, Nov 10 at 4 PM, listed three times with three ids and a longer name each time
+    (2026-11-05): one Event, new or already listed. Another level, start, place or word, a game, or a followers-only
+    listing stays two."""
+    meet = dict(place="St. Cloud Cathedral High School Commons", source_name="Cathedral High School", interest=None,
+                start="2026-11-10T16:00:00-06:00", end=None, size="everyday", area="announced")
+    one, two, three = (item(title=t, source_uid=f"bound:h{n}", source_url=f"https://gobound.com/direct/comps/h{n}/show", **meet)
+                       for n, t in enumerate(("Cathedral Knowledge Bowl Meet", "Cathedral Knowledge Bowl",
+                                              "St. Cloud Cathedral Knowledge Bowl Meet")))
+    r = run([one, two, three])
+    assert len(r["events"]) == 1 and len(r["events"][0]["mentions"]) == 3, r["outcomes"]
+    kept = listed(title="Cathedral Knowledge Bowl Meet", source_uid="bound:h0", location=meet["place"],
+                  source_name=meet["source_name"], event_date="2026-11-10", start_time="4 PM",
+                  mentions=[{"source_name": meet["source_name"], "source_url": one["source_url"], "source_uid": "bound:h0",
+                             "trust": "official", "sure": True}])
+    g = run([two], [kept])["events"]
+    assert len(g) == 1 and g[0]["id"] == kept["id"], g
+    for other in (dict(two, title="Knowledge Bowl Meet · JV"), dict(two, start="2026-11-10T17:00:00-06:00"),
+                  dict(two, place="Sartell High School Commons"), dict(two, title="Cathedral Science Bowl Meet"),
+                  dict(two, title="Cathedral Knowledge Bowl vs Sartell", interest="watch_sports")):
+        assert len(run([one, other])["events"]) == 2, other["title"]
+    hidden = dict(followers_only=True, activity_team="sartell", activity_name="Wrestling")
+    assert len(run([dict(one, **hidden), dict(two, **hidden)])["events"]) == 2, "a school's meets look alike and aren't"
+
+
 COPIES = Path(__file__).resolve().parents[1] / "evals" / "copies" / "copies.json"
 
 
@@ -2198,7 +2238,7 @@ TESTS = [t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day,
-         t_long_titles_shortened_and_kept, t_short_levels_kept_apart]
+         t_long_titles_shortened_and_kept, t_short_levels_kept_apart, t_one_host_listed_twice]
 
 
 def selftest():

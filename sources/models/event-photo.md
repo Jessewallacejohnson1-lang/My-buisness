@@ -29,10 +29,12 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
   it shows this kind of Event at this place: the play's rehearsal for the play, last year's contest for this
   year's, the class in its own studio for the class. Never a different kind of thing (a sports photo for a
   concert, a kindergarten photo for a parents' class), and never a portrait or headshot for an Event.
-- No real photo among them: a flyer or poster, marked `"flyer": true`. Best is the Event's own, from its own
-  `post`, `page` or `listing`; else an `other post` flyer for this same kind of event at this place (Jesse,
-  2026-11-03, kept a past show's poster for this year's play and past concerts' posters for a concert). Never
-  one for a different kind of event, and never one that is mostly small print.
+- No real photo among them: a flyer or poster, marked `"flyer": true`, and only one whose words are true of this
+  Event. It shows whole, so every word gets read: check them against the Event's title and date. Another show,
+  another performer or group (a Band Concert graphic on an Orchestra Concert) or another date means none (Jesse,
+  2026-11-05, on Apollo's Addams Family poster over its SpongeBob Musical: "make sure agents can judge that").
+  Best is the Event's own, from its own `post`, `page` or `listing`; else an `other post` flyer whose words still
+  hold, like a schedule that lists this date. Never one that is mostly small print.
 - Never any of these as a real photo: a flyer, poster or graphic, any picture with words, prices, dates, a QR
   code or a slogan set over or around it (a sign that is part of the place in a photo, like a shop's sign,
   is fine). And never any of these at all, however good it looks:

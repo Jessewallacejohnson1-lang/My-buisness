@@ -687,6 +687,25 @@ def finish(run):
           f"{datetime.fromisoformat(prep['read_until']).astimezone(LOCAL):%a %b %-d %-I:%M %p}")
 
 
+def missed_checks(now=None):
+    """Social checks that should have finished by this morning and didn't, for the morning report (BP app loopholes 09;
+    Jesse, 2026-11-05: the Oct 22 refusal went unnoticed). A check's mark is the last Apify run it read, and the next
+    check reads what a refused one left, so only the evening's last check counts: the busy mark should be past last
+    night's 9 PM run and, on a Friday, the weekly mark past Thursday's 3 PM run."""
+    now = (now or datetime.now(LOCAL)).astimezone(LOCAL)
+    yesterday = (now - timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+    due = [("busy", "last evening's check", yesterday.replace(hour=21))]
+    if now.weekday() == 4:
+        due.append(("weekly", "Thursday's weekly check", yesterday.replace(hour=15)))
+    out = []
+    for run, name, by in due:
+        mark = last_read(run)
+        if not mark or mark < by:
+            read = f"read up to {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "never read"
+            out.append(f"{name} didn't finish ({read})")
+    return out
+
+
 def spend_line(used, cap):
     line = f"Apify: ${used:.2f} of ${cap:.0f} this month"
     if used >= cap - 0.01:
@@ -714,6 +733,21 @@ def selftest():
             sys.exit(f"selftest failed: {what}")
         ok += 1
     t = lambda d, h, m: datetime(2026, 10, d, h, m, tzinfo=LOCAL)
+    real_last_read = globals()["last_read"]
+    def missed(busy, weekly, now):
+        globals()["last_read"] = {"busy": busy, "weekly": weekly}.get
+        try:
+            return missed_checks(now)
+        finally:
+            globals()["last_read"] = real_last_read
+    thu, fri = t(29, 6, 0), t(30, 6, 0)  # Oct 29, 2026 is a Thursday
+    check(missed(t(28, 21, 1), t(22, 15, 1), thu) == [], "the 9 PM run read by morning: nothing to say, and no weekly word on a Thursday")
+    check(missed(t(28, 18, 1), t(22, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 6:01 PM)"],
+          "only the 6 PM run read: last evening's last check didn't finish")
+    check(missed(t(29, 21, 1), t(29, 15, 1), fri) == [], "a Friday with both read")
+    check(missed(t(29, 21, 1), t(22, 15, 1), fri) == ["Thursday's weekly check didn't finish (read up to Thu Oct 22 3:01 PM)"],
+          "a Friday with Thursday's weekly unread")
+    check(missed(None, t(29, 15, 1), fri) == ["last evening's check didn't finish (never read)"], "no mark at all")
     check(actor_input("facebook", ["u"], "4 hours")["onlyPostsNewerThan"] == "4 hours", "a task reads a window back from now")
     check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["22 hours", "4 hours"], "6pm reads back past last night's 9pm, 9pm past 6pm")
     check(task_name("weekly", "events") == "bp-weekly-events", "a task's name")

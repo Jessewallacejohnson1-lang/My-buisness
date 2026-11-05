@@ -191,9 +191,12 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     /// This is the place's cover, not a photo of the Event (`public.event_picture`, BP app town-feed
     /// 40): its Town card goes white, its page still shows it. nil on every other picture.
     var cover: Bool? = nil
+    /// This is a flyer or event graphic: its words matter, so it shows whole rather than cropped (BP app
+    /// event-photos 16). nil on every other picture.
+    var whole: Bool? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case url, kind, credit, site, hue, cover
+        case url, kind, credit, site, hue, cover, whole
         case width = "w", height = "h", others = "more"
     }
 

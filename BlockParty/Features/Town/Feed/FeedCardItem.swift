@@ -59,6 +59,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// its Event of the day is passed over; its page and every other screen still show the cover
     /// (Jesse, 2026-11-04, BP app town-feed 40).
     var coverOnly = false
+    /// `image` is a flyer: the Event page and the Block Party tab's cards show it whole, over a blurred copy
+    /// of itself (Jesse, 2026-11-05, BP app event-photos 16).
+    var whole = false
     /// The approved group putting it on, as the Town feed names it, and whether the read said
     /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
     var groupID: String? = nil

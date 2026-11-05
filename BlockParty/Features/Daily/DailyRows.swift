@@ -24,6 +24,10 @@ nonisolated enum DailyRowMetric {
     static let wordsInset: CGFloat = 14
     static let wordsBottom: CGFloat = 12
     static let wordsGap: CGFloat = 5
+    /// A flyer stops this far above the words, room for the shade to come in softly (picked on the eyes sim: at
+    /// 6 pt it drew a hard line over the title), and by the words' top it is what today's card gives them there.
+    static let flyerGap: CGFloat = 20
+    static let flyerShadeAtWords: Double = 0.41
     /// From the friends' faces to their words, as on the Town card.
     static let facesGap: CGFloat = 7
     static let friendsTitle: CGFloat = 21
@@ -130,16 +134,39 @@ struct DailyTownCard: View {
     let showsFriends: Bool
     let now: Date
 
+    /// The words' height, for where a flyer's room ends.
+    @State private var wordsHeight: CGFloat = 0
+
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: DailyRowMetric.radius, style: .continuous) }
 
+    /// Where a flyer's room ends, from the card's top: above its words (BP app event-photos 16).
+    static func wholeFoot(height: CGFloat, words: CGFloat) -> CGFloat {
+        height - words - DailyRowMetric.wordsBottom - DailyRowMetric.flyerGap
+    }
+
+    /// Clear down to the flyer's foot, today's dark by the words' top, today's 62% at the card's bottom.
+    static func wholeShade(foot: CGFloat, height: CGFloat, words: CGFloat) -> [Gradient.Stop] {
+        let at = { (points: CGFloat) in min(max(points / max(height, 1), 0), 1) }
+        return [.init(color: .black.opacity(0), location: at(foot)),
+                .init(color: .black.opacity(DailyRowMetric.flyerShadeAtWords), location: at(height - words - DailyRowMetric.wordsBottom)),
+                .init(color: .black.opacity(DailyRowMetric.shade), location: 1)]
+    }
+
     var body: some View {
+        let foot = Self.wholeFoot(height: size.height, words: wordsHeight)
         NavigationLink(value: event.item) {
             Hue.ink
                 .frame(width: size.width, height: size.height)
-                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
                 .overlay {
-                    LinearGradient(stops: [.init(color: .black.opacity(0), location: DailyRowMetric.shadeFrom),
-                                           .init(color: .black.opacity(DailyRowMetric.shade), location: 1)],
+                    if let url = event.photo {
+                        FeedCardURLPhoto(url: url, whole: event.item.whole ? max(size.height - foot, 0) : nil)
+                    }
+                }
+                .overlay {
+                    LinearGradient(stops: event.item.whole
+                                   ? Self.wholeShade(foot: foot, height: size.height, words: wordsHeight)
+                                   : [.init(color: .black.opacity(0), location: DailyRowMetric.shadeFrom),
+                                      .init(color: .black.opacity(DailyRowMetric.shade), location: 1)],
                                    startPoint: .top, endPoint: .bottom)
                 }
                 .overlay(alignment: .topLeading) {
@@ -188,6 +215,7 @@ struct DailyTownCard: View {
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .feedCardPhotoTypeShadow()
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
         .padding(.horizontal, DailyRowMetric.wordsInset)
         .padding(.bottom, DailyRowMetric.wordsBottom)
     }
