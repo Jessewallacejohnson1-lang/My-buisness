@@ -902,7 +902,7 @@ def finish(run, dry_run):
         if got and got[0].startswith("[morning] run again"):
             return print(got[0])
         lines += got
-    report = "\n".join(lines + [spend_line()])
+    report = "\n".join(lines + social_lines() + [spend_line()])
     if not dry_run:
         try:  # one row a morning, so the chat that reports to Jesse reads it, not the run's log (smooth-mornings 10)
             db.rest("POST", "morning_reports?on_conflict=day", {"day": str(today), "report": report,
@@ -912,6 +912,16 @@ def finish(run, dry_run):
             report += "\n" + failed("report row", e)
     print(report)
     run.finished()
+
+
+def social_lines():
+    """A social check that should have finished and didn't, for the report and so the 8 AM email, which reads any
+    "[morning] ... failed: ..." line (BP app loopholes 09; Jesse, 2026-11-05). Asked by finish itself, as spend_line."""
+    try:
+        missed = social.missed_checks()
+    except Exception as e:  # no network, no key: a line, never a lost report
+        missed = [f"couldn't read its mark ({' '.join(str(e).split())[:120]})"]
+    return [f"[morning] social check failed: {m}" for m in missed]
 
 
 def spend_line():
@@ -1035,6 +1045,17 @@ def selftest():
                               '{"message":"canceling statement due to statement timeout"}']
                    and not re.findall(r"^\[morning\]", "\n".join(lines), re.M),
                    "a page the database refused to record is one line in the saved report, and the 8 AM check reads it"))
+    real_missed = social.missed_checks
+    try:
+        social.missed_checks = lambda: ["last evening's check didn't finish (read up to Wed Nov 4 6:01 PM)"]
+        missed = re.findall(r"^\[morning\] (.+ failed: .*)$", "\n".join(social_lines()), re.M)
+        social.missed_checks = lambda: 1 / 0
+        unread = social_lines()
+    finally:
+        social.missed_checks = real_missed
+    checks.append((missed == ["social check failed: last evening's check didn't finish (read up to Wed Nov 4 6:01 PM)"]
+                   and unread == ["[morning] social check failed: couldn't read its mark (division by zero)"],
+                   "a social check that didn't finish is one line the 8 AM check reads, and an unreadable mark never loses the report"))
     run_ = {"event_date": "2026-10-26", "end_at": "2026-10-31T00:00:00-05:00", "all_day": True, "start_time": None,
             "title": "Bootique Week", "location": "White Peony Boutique", "source_name": "White Peony Boutique"}
     night = {"event_date": "2026-10-24", "end_at": "2026-10-25T01:00:00-05:00", "all_day": False, "start_time": "9 PM",
@@ -1657,9 +1678,9 @@ def steps_alone():
         except SystemExit as e:
             printed.write(f"exit {e.code}\n")
         return printed.getvalue()
-    saved = spots.fill, apple_maps.check, social.limits, write_judged.interest_ids, own_page
+    saved = spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page
     spots.fill, apple_maps.check = (lambda db, today, write: ["- Map spots"]), (lambda db, write, today: ["- Apple Maps"])
-    social.limits = lambda: {"current": {"monthlyUsageUsd": 1}, "limits": {"maxMonthlyUsageUsd": 25}}
+    social.limits, social.missed_checks = (lambda: {"current": {"monthlyUsageUsd": 1}, "limits": {"maxMonthlyUsageUsd": 25}}), (lambda: [])
     write_judged.interest_ids, own_page = (lambda: ["dining"]), (lambda url: (200, "<p>nothing about it</p>"))
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1716,7 +1737,7 @@ def steps_alone():
             said(finish, run(), False)
             caught_up = db.writes()[n:]
     finally:
-        spots.fill, apple_maps.check, social.limits, write_judged.interest_ids, own_page = saved
+        spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page = saved
     ids = lambda calls, key: [p.rsplit("=", 1)[1][-2:] for _, p, b in calls if p.startswith("club_events?id=eq.") and key in b]
     return [
         (listed == long_title + "\n" and titled[0] == titled[1] and not titled_wrote,
@@ -2029,8 +2050,9 @@ def whole_morning():
         while "run again" in said[-1] and len(said) < 4:
             said.append(command(*argv))
         return said
-    saved = (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
-             start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids)
+    saved = (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
+             Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids)
+    social.missed_checks = lambda: []
     try:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / ".runs" / "morning"
@@ -2088,8 +2110,8 @@ def whole_morning():
     finally:
         spots.fill = real_fill
         apple_maps.check = real_check
-        (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, Supabase, load,
-         start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids) = saved
+        (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
+         Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids) = saved
     report = finished[-1].splitlines()
     return [
         (readied == "[ready] ready", f"Ready says ready: {readied}"),
