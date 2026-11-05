@@ -244,6 +244,11 @@ nonisolated struct LaunchMotion {
                                            (1.14, 0.06, .linear), (0.97, 0.08, lift), (1, 0.08, .linear)]
     private static let jumpHeight: [Key] = [(0.86, 0.07, .linear), (1.08, 0.16, lift), (1, 0.14, .linear), (1.05, 0.12, fall),
                                             (0.84, 0.06, .linear), (1.04, 0.08, lift), (1, 0.08, .linear)]
+    /// The !'s line alone on the way up: 6% short and a little wide where everything else stretches,
+    /// full height by the end of the hang, then back with the rest (Jesse, 2026-11-05: "when the !
+    /// bounces up very slightly compress the top line", then "6 percent").
+    private static let jumpLineWidth: [Key] = [(1.10, 0.07, .linear), (1.027, 0.16, lift)] + jumpWidth.dropFirst(2)
+    private static let jumpLineHeight: [Key] = [(0.86, 0.07, .linear), (0.94, 0.16, lift)] + jumpHeight.dropFirst(2)
 
     private static func track(_ keys: [Key], from start: CGFloat, at time: Double) -> CGFloat {
         var from = start, t = time
@@ -402,8 +407,8 @@ nonisolated struct LaunchMotion {
         f.lift = jump(Self.jumpY, 0)
         f.dot = CGSize(width: jumpWidth, height: jumpHeight)
         if let popAt {
-            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(Self.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jumpHeight
-            f.line = CGSize(width: jumpWidth, height: h < 0 ? 0 : height)
+            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(Self.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(Self.jumpLineHeight, 1)
+            f.line = CGSize(width: jump(Self.jumpLineWidth, 1), height: h < 0 ? 0 : height)
             f.lineOpacity = clamp01((t - popAt) / 0.04)
         } else {
             f.lineOpacity = swapped ? 1 : 0
