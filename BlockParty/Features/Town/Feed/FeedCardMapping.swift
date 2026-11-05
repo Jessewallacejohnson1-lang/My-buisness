@@ -40,13 +40,22 @@ extension FeedCardItem {
             place: place,
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
             coverOnly: event.placePicture?.cover == true && image == place,
-            whole: event.placePicture?.whole == true && image == place,
+            whole: (event.placePicture?.whole == true || Self.everyPictureWhole) && image == place,
             game: event.game,
             what: Self.nonempty(event.what),
             createdAt: DateHelpers.timestamp(event.createdAt),
             found: Self.nonempty(event.sourceName) != nil,
             sourceURL: event.sourceURL
         )
+    }
+
+    /// DEBUG `-whole-flyer all`: every Event's picture reads as a flyer, to shoot a live page before its row is marked.
+    private static var everyPictureWhole: Bool {
+        #if DEBUG
+        LaunchFlags.value(.wholeFlyer) == "all"
+        #else
+        false
+        #endif
     }
 
     private static func nonempty(_ value: String?) -> String? {
