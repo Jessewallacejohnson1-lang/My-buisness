@@ -107,7 +107,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     @Namespace private var zoom
     @State private var showingPhoto = false
 
-    private typealias Event = FeedEventDetailDestination.Metric
+    private typealias Event = EventPage.Metric
     private typealias Sizes = GroupPage.Metric
 
     var body: some View {
@@ -376,7 +376,7 @@ private struct ProfilePhotoView: View {
             }
             .buttonStyle(.press(.squish))
             .accessibilityLabel("Close")
-            .padding(.trailing, FeedEventDetailDestination.Metric.inset - (PageMetric.tapMin - FeedEventDetailDestination.Metric.button) / 2)
+            .padding(.trailing, EventPage.Metric.inset - (PageMetric.tapMin - EventPage.Metric.button) / 2)
         }
     }
 }

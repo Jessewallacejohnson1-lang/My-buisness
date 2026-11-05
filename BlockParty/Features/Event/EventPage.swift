@@ -1,5 +1,5 @@
 //
-//  FeedEventDetailDestination.swift
+//  EventPage.swift
 //  Block Party — the Event page: the single event behind a card.
 //
 //  Laid out to the Fresha venue page Jesse picked (`references/fresha-venue-detail.png`,
@@ -21,7 +21,7 @@
 import EventKitUI
 import SwiftUI
 
-struct FeedEventDetailDestination: View {
+struct EventPage: View {
     let item: FeedCardItem
 
     @Environment(\.dismiss) private var dismiss
@@ -597,7 +597,7 @@ struct FeedEventDetailDestination: View {
         photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
     }
 
-    // MARK: Pure rules (EventDetailPageTests)
+    // MARK: Pure rules (EventPageTests)
 
     /// The hero's photos: the event's own first, then the venue's, the same picture
     /// only once, at most three. Anything that is not a photo yet, or that `failed`
@@ -714,7 +714,7 @@ struct FactRow: View {
     let glyph: String
     /// Two bubbles run wider than the page's other glyphs, and it's made to fit their box.
     var glyphSize: CGFloat = 19
-    let lines: FeedEventDetailDestination.FactLines
+    let lines: EventPage.FactLines
     let end: End?
     let hint: String
     /// A chat it pushes, instead of its action.
@@ -740,7 +740,7 @@ struct FactRow: View {
     }
 
     private var row: some View {
-        let m = FeedEventDetailDestination.Metric.self
+        let m = EventPage.Metric.self
         return HStack(spacing: m.rowGap) {
             Image(systemName: glyph)
                 .font(.sans(glyphSize))

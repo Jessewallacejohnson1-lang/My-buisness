@@ -153,7 +153,7 @@ struct FeedCardItem: Identifiable, Hashable {
     /// Its page's photos: the event's own first, then the place's, each once, at most three; ones
     /// that `failed` to load left out.
     func photos(failed: Set<URL> = []) -> [FeedCardImageSource] {
-        FeedEventDetailDestination.photoList(event: image, venue: venue, failed: failed)
+        EventPage.photoList(event: image, venue: venue, failed: failed)
     }
 }
 

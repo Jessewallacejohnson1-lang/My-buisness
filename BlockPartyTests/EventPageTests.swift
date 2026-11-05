@@ -1,5 +1,5 @@
 //
-//  EventDetailPageTests.swift
+//  EventPageTests.swift
 //  BlockPartyTests — what the event page is handed, and what it starts from.
 //
 //  Town and Your Day open the one event page from a `FeedCardItem`. These pin the
@@ -13,7 +13,7 @@ import XCTest
 @testable import BlockParty
 
 @MainActor
-final class EventDetailPageTests: XCTestCase {
+final class EventPageTests: XCTestCase {
 
     private static let photoURL = URL(string: "https://example.com/walk.jpg")!
 
@@ -121,7 +121,7 @@ final class EventDetailPageTests: XCTestCase {
     func testPhotoListPutsEventPhotoFirstDedupesAndCapsAtThree() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
 
         XCTAssertEqual(page.photoList(event: event, venue: [venue]), [event, venue],
                        "the event's own photo leads, the venue's follows")
@@ -140,7 +140,7 @@ final class EventDetailPageTests: XCTestCase {
     func testAPhotoThatFailsToLoadLeavesTheListAndTheCounter() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
 
         let list = page.photoList(event: event, venue: [venue], failed: [Self.url("park")])
         XCTAssertEqual(list, [event], "a venue photo that failed is dropped, not left as a skeleton")
@@ -183,7 +183,7 @@ final class EventDetailPageTests: XCTestCase {
     }
 
     func testCounterShowsOnlyForTwoOrMorePhotos() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
 
         XCTAssertNil(page.counterText(page: 0, count: 0))
         XCTAssertNil(page.counterText(page: 0, count: 1), "one photo has nothing to count")
@@ -194,7 +194,7 @@ final class EventDetailPageTests: XCTestCase {
     /// A found event links its page under About as the Business page links: Facebook and Instagram
     /// by name, a site by its own, and no row for a neighbour's event (Jesse, 2026-10-27).
     func testFoundPageLinkRow() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
         let row = { (s: String) in page.sourceLink(URL(string: s)) }
 
         XCTAssertEqual(row("https://www.milkandhoneyciders.com/events")?.text, "milkandhoneyciders.com")
@@ -207,7 +207,7 @@ final class EventDetailPageTests: XCTestCase {
     }
 
     func testEmptyFieldsHideTheirRows() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
 
         XCTAssertNil(page.aboutText(nil))
         XCTAssertNil(page.aboutText(" \n\t "), "whitespace is not an About")
@@ -225,7 +225,7 @@ final class EventDetailPageTests: XCTestCase {
     /// The day row (event-page-formats 06): the day in full over its hours, the end only when the
     /// Event gives one; its year only past six months; days it runs over, and words we can't read.
     func testTheDayRowSaysTheDayInFullOverItsHours() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
         let now = Town.midnight("2026-10-30")!.addingTimeInterval(12 * 3600)
         let nov30 = Town.midnight("2026-11-30")!
         var item = FeedCardItem(event(imageUrl: nil))
@@ -265,7 +265,7 @@ final class EventDetailPageTests: XCTestCase {
     /// The day row adds the Event to the phone's calendar only while it's still to come: not once
     /// it's called off or over (event-page-formats 05).
     func testTheDayRowAddsToTheCalendarOnlyWhileItsStillOn() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
         let start = Town.midnight("2026-11-30")!.addingTimeInterval(16.5 * 3600)
         var item = FeedCardItem(event(imageUrl: nil, location: "Saint John's Abbey Arboretum, Collegeville"))
         item.eventDate = "2026-11-30"
@@ -290,7 +290,7 @@ final class EventDetailPageTests: XCTestCase {
 
     /// The place row: the name over the rest after its first comma; one line without one.
     func testThePlaceRowSplitsAtTheFirstComma() {
-        let page = FeedEventDetailDestination.self
+        let page = EventPage.self
 
         XCTAssertEqual(page.placeLines("Saint John's Abbey Arboretum, Collegeville"),
                        .init(first: "Saint John's Abbey Arboretum", second: "Collegeville"))

@@ -64,7 +64,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ChatPage.swift:$open": .notYetAudited(reason: "A chat's photo, whole, with only a close button: no text to scale."),
         "RootView.swift:$helloLink": .notYetAudited(reason: "Safari view on the hello pill's news post (hello-drop 03) — system UI, scales on its own."),
         "ChatRoomRow.swift:$asking": .notYetAudited(reason: "A Going or Group chat's one birthday ask (five-tabs 06 and 07): a headline, a line, onboarding's own field and Apple's wheel, as its birthday step."),
-        "FeedEventDetailDestination.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
+        "EventPage.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
     ]
 
     /// A new screen must be a deliberate decision, not a silent gap.

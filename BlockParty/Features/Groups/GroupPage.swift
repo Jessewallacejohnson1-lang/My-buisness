@@ -33,7 +33,7 @@ struct GroupPage: View {
     @State private var failedPhotos: Set<URL> = []
 
     /// The Figma frame's sizes, on a 420 pt phone. The round buttons, the sheet's corner, its
-    /// side inset and the title's rhythm are the Event page's (`FeedEventDetailDestination.Metric`).
+    /// side inset and the title's rhythm are the Event page's (`EventPage.Metric`).
     enum Metric {
         /// The sheet's edge 256 pt down a 420 pt phone; other widths keep the ratio.
         static let heroAspect: CGFloat = 420.0 / 256.0
@@ -58,7 +58,7 @@ struct GroupPage: View {
         static let fadeAbovePill: CGFloat = 23
     }
 
-    private typealias Event = FeedEventDetailDestination.Metric
+    private typealias Event = EventPage.Metric
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -148,7 +148,7 @@ struct GroupPage: View {
     }
 
     @ViewBuilder private var counter: some View {
-        if let text = FeedEventDetailDestination.counterText(page: photoPage ?? 0, count: photos.count) {
+        if let text = EventPage.counterText(page: photoPage ?? 0, count: photos.count) {
             PhotoCounter(text: text)
                 .padding(.trailing, Event.inset)
                 .padding(.bottom, Event.counterBottom)
@@ -170,9 +170,9 @@ struct GroupPage: View {
 
     private var topButtons: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
+            EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
-            FeedEventDetailDestination.circleButton(
+            EventPage.circleButton(
                 glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share"
             ) {
                 ShareCenter.shared.present(.group(group))
@@ -339,7 +339,7 @@ struct GroupPage: View {
             .accessibilityLabel(isMember ? "Invite" : "Join group")
             .accessibilityValue(isMember ? "Joined" : "")
         }
-        // In the group: the Event page's capsule (`FeedEventDetailDestination.rsvpBar`), the words 24 pt
+        // In the group: the Event page's capsule (`EventPage.rsvpBar`), the words 24 pt
         // in, the pill 5.5 pt from its end, 57 pt tall, a little glass over a white layer.
         .padding(.leading, isMember ? Event.barWordsInset : 0)
         .padding(.trailing, isMember ? Event.barPillInset : 0)

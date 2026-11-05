@@ -635,18 +635,18 @@ struct NeighborPage: View {
         TimelineView(.everyMinute) { context in
             ProfilePage(face: face(now: context.date)) {
                 HStack(spacing: 0) {
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
+                    EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
                     if book.relation(neighbor) != .blocked, !book.isAnonymous() {
-                        FeedEventDetailDestination.circleButton(
+                        EventPage.circleButton(
                             glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
                             label: "Message \(neighbor.firstName)"
                         ) { chats.push?(.person(neighbor)) }
                         .padding(.trailing, FriendsMetric.buttonGap)
                     }
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "ellipsis"),
-                                                            label: "More options, \(neighbor.displayName)") { book.menu = neighbor }
+                    EventPage.circleButton(glyph: Image(systemName: "ellipsis"),
+                                           label: "More options, \(neighbor.displayName)") { book.menu = neighbor }
                 }
             } bar: {
                 ProfilePillBar {
@@ -658,7 +658,7 @@ struct NeighborPage: View {
                 .animation(Motion.smooth, value: settled)
             } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
-        .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }
+        .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         // Blocked: back to where you came from, as on Facebook, once the sheet is down (ticket 04).
         .onChange(of: book.relation(neighbor) == .blocked && !book.menuOnScreen) { _, gone in

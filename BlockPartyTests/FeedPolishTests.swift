@@ -1,7 +1,7 @@
 //
 //  FeedPolishTests.swift
 //  BlockPartyTests — the Town feed's Reduce Motion contract, its "no placeholder
-//  values" product rule and the event-detail route.
+//  values" product rule and the Event page route.
 //
 //  These are the parts of the polish pass that are decidable without a screenshot.
 //  Layout and feel are verified in the simulator; the rules below are verified here

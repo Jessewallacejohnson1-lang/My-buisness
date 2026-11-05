@@ -206,7 +206,7 @@ struct BusinessPage: View {
     /// centre, as `PlaceNameArt` sits, 84 pt square.
     static func bottomCentre(width: CGFloat) -> CGRect {
         let side = PlaceNameArt.emblemSide
-        let edge = width / FeedEventDetailDestination.Metric.heroAspect
+        let edge = width / EventPage.Metric.heroAspect
         return CGRect(x: (width - side) / 2, y: edge - PlaceNameArt.bottom - side, width: side, height: side)
     }
 
@@ -214,7 +214,7 @@ struct BusinessPage: View {
     /// photo for (`FeedCardPlaceLogo`, 29% down a hero as tall as the photos and the sheet's
     /// underlap, at most 43% of it), so the two pages agree.
     static func middle(width: CGFloat) -> CGRect {
-        let m = FeedEventDetailDestination.Metric.self
+        let m = EventPage.Metric.self
         let hero = width / m.heroAspect + m.heroUnderlap
         let top = hero * 0.29, room = hero - top - 8
         let side = min(hero * 0.43, width * 0.4, room)
@@ -291,7 +291,7 @@ private struct BusinessPageBody: View {
     }
 }
 
-/// The page itself, laid out like the Event page (`FeedEventDetailDestination`): its photos at
+/// The page itself, laid out like the Event page (`EventPage`): its photos at
 /// the top, and a sheet over their bottom edge with its name, what it is, its street, its About
 /// and its links. Every row is absent when its data is.
 private struct BusinessPageContent: View {
@@ -305,7 +305,7 @@ private struct BusinessPageContent: View {
     /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
     @State private var failed: Set<URL> = []
 
-    private typealias Metric = FeedEventDetailDestination.Metric
+    private typealias Metric = EventPage.Metric
 
     private var photos: [PlacePicture] { item.photos.filter { !failed.contains($0.url) } }
 
@@ -386,7 +386,7 @@ private struct BusinessPageContent: View {
     }
 
     @ViewBuilder private var counter: some View {
-        if let text = FeedEventDetailDestination.counterText(page: photoPage ?? 0, count: photos.count) {
+        if let text = EventPage.counterText(page: photoPage ?? 0, count: photos.count) {
             PhotoCounter(text: text)
                 .padding(.trailing, Metric.inset)
                 .padding(.bottom, Metric.counterBottom)
@@ -476,7 +476,7 @@ private struct HoursPill: View {
 
     @State private var expanded = false
 
-    private typealias Metric = FeedEventDetailDestination.Metric
+    private typealias Metric = EventPage.Metric
 
     var body: some View {
         TimelineView(.everyMinute) { context in
@@ -655,9 +655,9 @@ private struct BackCircle: View {
 
     var body: some View {
         let p = opener.progress.value
-        let m = FeedEventDetailDestination.Metric.self
+        let m = EventPage.Metric.self
         let pad = (m.tapBox - m.button) / 2
-        FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { opener.close() }
+        EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { opener.close() }
             .opacity(min(max(p * 2 - 1, 0), 1))
             .scaleEffect(lerp(SearchMetric.bizBackFrom, 1, min(max(p, 0), 1)))
             .offset(x: m.inset - pad, y: top + m.buttonTop - pad)

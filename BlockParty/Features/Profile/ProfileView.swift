@@ -57,19 +57,19 @@ struct ProfileView: View {
             ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 })) {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile") {
+                    EventPage.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile") {
                         Haptics.selection()
                         editing = true
                     }
-                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "line.3.horizontal"),
-                                                            label: "Settings") {
+                    EventPage.circleButton(glyph: Image(systemName: "line.3.horizontal"),
+                                           label: "Settings") {
                         Haptics.selection()
                         settings = true
                     }
                 }
             } bar: {
                 // Room for the tab bar under your Groups, as every tab leaves.
-                Color.clear.frame(height: DailyMetric.tabBarClearance - FeedEventDetailDestination.Metric.contentBottom)
+                Color.clear.frame(height: DailyMetric.tabBarClearance - EventPage.Metric.contentBottom)
             } addBio: {
                 Haptics.selection()
                 editing = true
@@ -78,7 +78,7 @@ struct ProfileView: View {
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage }
-        .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }
+        .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
     }

@@ -375,7 +375,7 @@ struct MainTabsView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
-                    FeedEventDetailDestination(item: item)
+                    EventPage(item: item)
                         // Its menu's Not interested and Report.
                         .environment(townFeed)
                         // An open, for popularity (ticket 20): only from the Town feed,
@@ -422,7 +422,7 @@ struct MainTabsView: View {
                 // The bell's page (school-activities 04).
                 .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage().environment(townFeed) }
                 .navigationDestination(for: NoticeEventRoute.self) { route in
-                    FeedEventDetailDestination(item: route.item).environment(townFeed)
+                    EventPage(item: route.item).environment(townFeed)
                 }
         }
         // A host's name on a card or an Event page opens its own page (follows 08).

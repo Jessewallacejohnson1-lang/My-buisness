@@ -238,7 +238,7 @@ struct CodeScanner: View {
     let found: (Neighbor) -> Void
 
     enum Camera { case asking, ready, off, missing }
-    private typealias Round = FeedEventDetailDestination.Metric
+    private typealias Round = EventPage.Metric
 
     @State private var camera = Camera.asking
     @State private var pill: String?
@@ -266,7 +266,7 @@ struct CodeScanner: View {
                     .frame(maxHeight: .infinity)
             }
             // The Event page's white round button, where its back sits.
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "xmark"), label: "Close") { dismiss() }
+            EventPage.circleButton(glyph: Image(systemName: "xmark"), label: "Close") { dismiss() }
                 .padding(.leading, Round.inset - (Round.tapBox - Round.button) / 2)
                 .padding(.top, Round.buttonTop - (Round.tapBox - Round.button) / 2)
         }

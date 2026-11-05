@@ -36,14 +36,14 @@ struct ChatRoomRow: View {
         return read.isHost || isIn
     }
 
-    private var lines: FeedEventDetailDestination.FactLines {
+    private var lines: EventPage.FactLines {
         .init(first: title, second: chat.map { ChatWords.preview($0) } ?? quiet)
     }
 
     private var opens: ChatRoute { route(read?.isHost ?? chat?.isHost == true) }
 
     var body: some View {
-        let m = FeedEventDetailDestination.Metric.self
+        let m = EventPage.Metric.self
         // A stack, not a Group: a Group with nothing in it runs no `.task`, and the read is what brings the row.
         VStack(spacing: 0) {
             if shows {
@@ -109,7 +109,7 @@ private struct ChatBirthday: View {
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.top, FeedEventDetailDestination.Metric.inset)
+                .padding(.top, EventPage.Metric.inset)
             // Never says why: naming the age would tell someone under 18 which answer gets them in (Jesse, 2026-11-04).
             Text("Only you see your birthday.")
                 .font(.sans(15))
@@ -131,7 +131,7 @@ private struct ChatBirthday: View {
             .padding(.top, ChatMetric.side)
             Spacer(minLength: ChatMetric.side)
         }
-        .padding(.horizontal, FeedEventDetailDestination.Metric.inset)
+        .padding(.horizontal, EventPage.Metric.inset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             OnboardingBirthdayWheel(date: $date, now: .now)

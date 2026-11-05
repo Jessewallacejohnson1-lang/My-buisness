@@ -37,7 +37,7 @@ struct SavedPage: View {
         .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Saved") { dismiss() } }
         .background(Hue.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
+        .navigationDestination(item: $pushed) { EventPage(item: $0) }
         // On every visit, the list on screen staying meanwhile; no account, nothing to read.
         .task { if actions.canAct { await model.refresh() } }
         .onChange(of: scenePhase) { _, phase in

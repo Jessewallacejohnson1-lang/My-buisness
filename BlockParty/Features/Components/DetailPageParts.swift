@@ -1,9 +1,9 @@
 //
 //  DetailPageParts.swift
-//  Block Party — the pieces the Event page (`FeedEventDetailDestination`) and a business's page
+//  Block Party — the pieces the Event page (`EventPage`) and a business's page
 //  in Search (`BusinessPage`) share: the photos that swipe at the top, their counter, the grey
 //  rows that open something outside the app, and the About that clamps at four lines. Sizes are
-//  the Event page's Reference's (Fresha's venue page, `FeedEventDetailDestination.Metric`).
+//  the Event page's Reference's (Fresha's venue page, `EventPage.Metric`).
 //
 
 import SwiftUI
@@ -84,8 +84,8 @@ struct PhotoCounter: View {
             .font(.sansSemibold(13))
             .monospacedDigit()
             .foregroundStyle(.white)
-            .frame(minWidth: FeedEventDetailDestination.Metric.counterSize.width,
-                   minHeight: FeedEventDetailDestination.Metric.counterSize.height)
+            .frame(minWidth: EventPage.Metric.counterSize.width,
+                   minHeight: EventPage.Metric.counterSize.height)
             // The Reference's chip is ink at about 55% over a light photo. Black rather than
             // `Hue.ink` so it stays dark in the dark ramp, like `PhotoCredit`.
             .background(.black.opacity(0.55), in: Capsule())
@@ -119,14 +119,14 @@ struct InfoPill: View {
     let hint: String
     /// The glyph's box. The pin's is the Reference's 10.7 pt, putting the words 35 pt in; a page
     /// with wider glyphs widens every row's, so their words line up.
-    var glyphBox = FeedEventDetailDestination.Metric.pinBox
+    var glyphBox = EventPage.Metric.pinBox
     /// Marks a row that leaves the app with an arrow at its end.
     var leaves = false
 
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        let m = FeedEventDetailDestination.Metric.self
+        let m = EventPage.Metric.self
         Button {
             if let url { openURL(url) }
         } label: {
@@ -167,7 +167,7 @@ struct AboutSection: View {
     @State private var clampedHeight: CGFloat = 0
 
     private static let lines = 4
-    /// About → its first line, tuned with the page's rhythm (`FeedEventDetailDestination.Metric`).
+    /// About → its first line, tuned with the page's rhythm (`EventPage.Metric`).
     private static let bodyTop: CGFloat = 12.7
 
     var body: some View {

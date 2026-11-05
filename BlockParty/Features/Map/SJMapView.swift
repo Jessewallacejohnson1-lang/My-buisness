@@ -78,7 +78,7 @@ struct SJMapView: View {
             .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
             .toolbar(.hidden, for: .navigationBar)
             .background { SwipeBack().frame(width: 0, height: 0) }
-            .navigationDestination(for: FeedCardItem.self) { FeedEventDetailDestination(item: $0, goingChat: false) }
+            .navigationDestination(for: FeedCardItem.self) { EventPage(item: $0, goingChat: false) }
         }
         .onAppear {
             model.start(auth: auth, feed: townFeed, live: liveGames)

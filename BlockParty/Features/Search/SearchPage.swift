@@ -105,7 +105,7 @@ nonisolated enum SearchMetric {
     static let shineFadeAt: CGFloat = 0.7
 
     // The business page (`BusinessPage`). Laid out with the Event page's sizes
-    // (`FeedEventDetailDestination.Metric`); these are its own.
+    // (`EventPage.Metric`); these are its own.
     static let openResponse: CGFloat = 0.5
     static let openDamping: CGFloat = 0.84
     static let closeResponse: CGFloat = 0.4

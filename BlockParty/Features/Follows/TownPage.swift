@@ -282,12 +282,12 @@ struct TownPageView: View {
         .sensoryFeedback(.selection, trigger: model.shown)
     }
 
-    private typealias Event = FeedEventDetailDestination.Metric
+    private typealias Event = EventPage.Metric
 
     /// Back, and the switch centred on the photo; outside the scroll, so they stay put.
     private var top: some View {
         HStack(spacing: 0) {
-            FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
+            EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
         }
         .overlay {
@@ -329,7 +329,7 @@ private struct TownPagePhoto: View {
 
     private var credit: String? { kind.photo?.credit ?? page?.pictureCredit }
 
-    private typealias Event = FeedEventDetailDestination.Metric
+    private typealias Event = EventPage.Metric
 
     var body: some View {
         Color.clear
