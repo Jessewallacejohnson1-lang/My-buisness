@@ -73,7 +73,8 @@ or its `docs/rules/` file and leaves here.
   (Jesse: "create the teams profile and card whenever theres a new one that comes up. they should all be white
   cards"). A name a schedule writes makes its own team in the morning run (`write_judged.team_of`); a placeholder stays
   a plain card with a "who is this" line. A game shows nowhere until both teams have logos (status `waiting_logo`, set by a
-  trigger; the morning report names them; Jesse chose hidden over plain). A team from out of town gets no page of its own
+  trigger; the morning report names them; Jesse chose hidden over plain), except at middle school level or younger, where a
+  team with no logo shows its first letter (Jesse: "letters are fine that should only be for middle school or younger"). A team from out of town gets no page of its own
   (Jesse: "dont give them their own page"). **Supersedes** "no reader makes a team" of 2026-10-26.
 - 2026-11-01 — Venue photos come only from our own store (`public.place_photos`): the app has
   no Google Places code, call or key (Jesse: "I don't want any of the Google photos

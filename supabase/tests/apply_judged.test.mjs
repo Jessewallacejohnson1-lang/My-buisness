@@ -69,6 +69,16 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await db.exec(`update public.club_events set status = 'rejected' where source_uid = 'bound:short'`);
   await db.exec(`update public.teams set logo_url = 'l' where id = 'kept-team'`);
   assert.equal(await status(), 'rejected', "a decline stands");
+  // Middle school or younger shows with a letter; 9th grade and up waits (Jesse, 2026-11-05).
+  await db.exec(`update public.club_events set status = 'approved' where source_uid = 'bound:short'`);
+  await db.exec(`update public.teams set logo_url = null where id = 'kept-team'`);
+  for (const [sport, want] of [['Girls Basketball · 7th Grade', 'approved'], ['Boys Swim · MS', 'approved'],
+    ['Girls Basketball · Middle school', 'approved'], ['MS Coed Wrestling', 'approved'], ['Boys Basketball · 6th', 'approved'],
+    ['Boys Basketball · 9th Grade', 'waiting_logo'], ['Boys Basketball · JV', 'waiting_logo'], ['Boys Basketball · C-squad', 'waiting_logo'],
+    ['Boys Basketball', 'waiting_logo'], ['Adapted Floor Hockey', 'waiting_logo']]) {
+    await db.query(`update public.club_events set sport = $1 where source_uid = 'bound:short'`, [sport]);
+    assert.equal(await status(), want, sport);
+  }
   await db.exec('alter table public.club_events disable trigger game_waits_for_logos');
   await db.exec(`delete from public.club_events where source_uid = 'bound:short'`);
   await db.exec(`delete from public.teams where id in ('litchfield-dassel-cokato', 'kept-team')`);
