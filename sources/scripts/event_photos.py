@@ -283,8 +283,8 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 
 def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
-    of its own pictures, each group once. A flyer from another post of the place counts too, for the same kind of
-    event (Jesse kept a past show's poster for this year's play, 2026-11-03)."""
+    of its own pictures, each group once. A flyer from another post of the place counts too, when its words still
+    hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
