@@ -68,6 +68,9 @@ final class TodayBubblesTests: XCTestCase {
         on.friendsGoing = [sam, sarah]
         next.friendsGoing = [sarah, blake]
         XCTAssertEqual(TodayBubbleRules.friends([on, next]), [sam, sarah, blake])
+        // One event's friends are all different people, however alike they read.
+        on.friendsGoing = [sam, sam]
+        XCTAssertEqual(TodayBubbleRules.friends([on]).count, 2)
     }
 
     /// The card opens on the first event friends are Going to, however the bubble orders them.
