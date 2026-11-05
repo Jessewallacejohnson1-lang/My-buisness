@@ -78,6 +78,8 @@ export async function realDatabase() {
     }
   }
   await db.exec('reset session_replication_role');
+  // Most stories' teams have no logos, and their games would wait for them. The story about that turns it on.
+  await db.exec('alter table public.club_events disable trigger game_waits_for_logos');
   return db;
 }
 

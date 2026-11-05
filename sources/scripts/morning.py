@@ -346,6 +346,19 @@ def new_event(row):
                                   row["title"], row["location"]) if x)
 
 
+def waiting_lines(db):
+    """Games held back until both teams have logos (Jesse, 2026-11-05, game-card 16), so a logo never found is seen:
+    they show nowhere else. A read that fails is one line, never a lost report."""
+    try:
+        rows = db.rest("GET", "club_events?select=team_ids&status=eq.waiting_logo&kind=eq.event&cancelled_at=is.null") or []
+        bare = {t["id"]: t["name"] for t in db.rest("GET", "teams?select=id,name&logo_url=is.null") or []}
+    except Exception as e:
+        return [f"- Waiting on a logo: couldn't read them ({e})"]
+    teams = collections.Counter(t for r in rows for t in r["team_ids"] or [] if t in bare)
+    named = ", ".join(f"{bare[t]} {n}" for t, n in teams.most_common(10))
+    return [f"- Waiting on a logo: {len(rows)} games, teams {named}" + (", and more" if len(teams) > 10 else "")] if rows else []
+
+
 def photo_lines(db, today):
     """Every Event added since the last morning's report whose card shows its place's photo or logo, not a photo
     of what it is: this morning's, the social watch's of the evening before, and any a chat added (Jesse,
@@ -456,7 +469,8 @@ def write(run, dry_run):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
+        lines = summary_lines(prep, result, written) + ([] if prep.get("run") else waiting_lines(db)) \
+            + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
         return lines
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
@@ -895,6 +909,11 @@ def selftest():
                    and "Fresh food" not in seasons and "https://o/" not in seasons,
                    "a seasonal place's changed page lists its dated lines beside the app's season"))
     checks.append((season_pages(market, {}) == "", "no seasonal place changed, nothing to compare"))
+    waiting = lambda rows: type("Db", (), {"rest": staticmethod(
+        lambda m, p: rows if p.startswith("club_events") else [{"id": "pierz", "name": "Pierz"}])})
+    checks.append((waiting_lines(waiting([{"team_ids": ["a", "pierz"]}, {"team_ids": ["pierz", "b"]}]))
+                   == ["- Waiting on a logo: 2 games, teams Pierz 2"] and waiting_lines(waiting([])) == [],
+                   "the morning report names the games waiting on a logo, and says nothing with none"))
     tmp = Path(__file__).resolve().parents[2] / ".runs" / "morning-selftest.md"
     tmp.parent.mkdir(exist_ok=True)
     tmp.write_text("---\nentry_id: milk\nurl: https://m\n---\n\nPlant Bingo Oct 24\n")
@@ -1566,7 +1585,8 @@ def steps_alone():
             out = Path(tmp) / "morning"
             out.mkdir()
             db = FakeDb({"milk|https://m/events": {"last_hash": "old", "last_checked_at": "2026-10-19"}},
-                        {"club_events?select=": lambda *a: [dict(r) for r in rows], "rpc/apply_judged": added, "rpc/event_picture": {}})
+                        {"club_events?select=team_ids": lambda *a: [], "club_events?select=": lambda *a: [dict(r) for r in rows],
+                         "rpc/apply_judged": added, "rpc/event_picture": {}})
             run = lambda minutes=None: Run(out, day, db, minutes=minutes)
             run().prepared({"today": str(day), "fetched": 2, "changed": 1, "to_read": 1, "failed": [], "readers": []})
             (out / "judged.jsonl").write_text(json.dumps(write_judged.item(title=long_title)) + "\n")
@@ -1875,7 +1895,7 @@ def whole_morning():
             elif path.startswith("morning_reports?on_conflict=day"):
                 self.reports[body["day"]] = body["report"]
             elif path.startswith("club_events"):
-                return [dict(e) for e in self.events if
+                return [dict(e) for e in self.events if "status=eq.waiting_logo" not in path and
                         ("event_date=eq.2026-11-03" not in path or e["event_date"] == "2026-11-03")
                         and ("described_at=is.null" not in path or not e["described_at"])
                         and ("interests_tagged_at.is.null" not in path or not (e["interests_tagged_at"] and e["what"]))]

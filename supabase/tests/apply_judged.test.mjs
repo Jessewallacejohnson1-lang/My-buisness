@@ -43,8 +43,9 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal(await place(), 'rocori-high-school', 'an older writer keeps the place');
 
   // A new team takes the short name the writer gives it, and one that exists keeps its own (game-card 16).
+  await db.exec('alter table public.club_events enable trigger game_waits_for_logos');
   await db.exec(`insert into public.teams (id, name, short_name) values ('kept-team', 'Kept Team', 'Kept')`);
-  const named = placed('2026-10-20').map((g) => ({ ...g, source_uid: 'bound:short', sport: 'Boys Basketball · JV',
+  const named = placed('2030-01-07').map((g) => ({ ...g, source_uid: 'bound:short', sport: 'Boys Basketball · JV',
     team_ids: ['litchfield-dassel-cokato', 'kept-team'], team_names: ['Litchfield-Dassel-Cokato', 'Kept Team'],
     team_shorts: ['Litchfield', 'Kept Team'] }));
   await apply(named, [], [], []);
@@ -52,6 +53,23 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
                                     where id in ('litchfield-dassel-cokato', 'kept-team') order by id`)).rows,
     [{ id: 'kept-team', name: 'Kept Team', short_name: 'Kept' },
      { id: 'litchfield-dassel-cokato', name: 'Litchfield-Dassel-Cokato', short_name: 'Litchfield' }]);
+  // It waits until both teams have logos, whatever writes it, then shows; a taken-down logo sends it back (Jesse, 2026-11-05).
+  const status = async () => (await db.query(`select status from public.club_events where source_uid = 'bound:short'`)).rows[0].status;
+  assert.equal(await status(), 'waiting_logo', 'a new team has no logo');
+  await apply(named, [], [], []);
+  assert.equal(await status(), 'waiting_logo', 'a re-read keeps it waiting');
+  await db.exec(`update public.teams set logo_url = 'l' where id = 'kept-team'`);
+  assert.equal(await status(), 'waiting_logo', 'one logo is not both');
+  await db.exec(`update public.teams set logo_url = 'l' where id = 'litchfield-dassel-cokato'`);
+  assert.equal(await status(), 'approved', 'both logos show it');
+  await apply(named, [], [], []);
+  assert.equal(await status(), 'approved', 'a re-read leaves it showing');
+  await db.exec(`update public.teams set logo_url = null where id = 'kept-team'`);
+  assert.equal(await status(), 'waiting_logo', 'a logo taken down hides it again');
+  await db.exec(`update public.club_events set status = 'rejected' where source_uid = 'bound:short'`);
+  await db.exec(`update public.teams set logo_url = 'l' where id = 'kept-team'`);
+  assert.equal(await status(), 'rejected', "a decline stands");
+  await db.exec('alter table public.club_events disable trigger game_waits_for_logos');
   await db.exec(`delete from public.club_events where source_uid = 'bound:short'`);
   await db.exec(`delete from public.teams where id in ('litchfield-dassel-cokato', 'kept-team')`);
 

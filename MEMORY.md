@@ -71,9 +71,10 @@ or its `docs/rules/` file and leaves here.
 
 - 2026-11-05 — **Every game between two teams draws the white card, at every level, and says its level**
   (Jesse: "create the teams profile and card whenever theres a new one that comes up. they should all be white
-  cards"). A name a schedule writes makes its own team in the morning run (`write_judged.team_of`), with a
-  letter until its logo is found; a placeholder stays a plain card with a "who is this" line. A team from out of town
-  gets no page of its own (Jesse: "dont give them their own page"). **Supersedes** "no reader makes a team" of 2026-10-26.
+  cards"). A name a schedule writes makes its own team in the morning run (`write_judged.team_of`); a placeholder stays
+  a plain card with a "who is this" line. A game shows nowhere until both teams have logos (status `waiting_logo`, set by a
+  trigger; the morning report names them; Jesse chose hidden over plain). A team from out of town gets no page of its own
+  (Jesse: "dont give them their own page"). **Supersedes** "no reader makes a team" of 2026-10-26.
 - 2026-11-01 — Venue photos come only from our own store (`public.place_photos`): the app has
   no Google Places code, call or key (Jesse: "I don't want any of the Google photos
   anymore"; Google at runtime cost about $40,000 a month at 10,000 users). Photos from a

@@ -1,6 +1,6 @@
--- Every game between two teams draws white, says its level, and a new team makes itself (BP app docs/plans/game-card,
--- ticket 16; Jesse, 2026-11-05: "create the teams profile and card whenever theres a new one that comes up. they should
--- all be white cards"). This goes live before write_judged.py and read_events.py reach main: until then the old
+-- Every game between two teams draws white, says its level, and a new team makes itself, and a game waits for its logos
+-- (BP app docs/plans/game-card, ticket 16; Jesse, 2026-11-05: "create the teams profile and card whenever theres a new one
+-- that comes up. they should all be white cards"). This goes live before write_judged.py and read_events.py reach main: until then the old
 -- sport_base would read a game's new "Boys Basketball · JV" as "basketball jv", and stars would lose it.
 
 -- 20261102174037_apply_judged_only_writes.sql's apply_judged line for line but for step 0: a new team takes the short
@@ -199,6 +199,40 @@ language sql stable set search_path = '' as $$
     end
   from (select coalesce(e.sport, e.activity_name) as n) x
 $$;
+
+-- A game waits until both its teams have logos (Jesse, 2026-11-05, turning down the first letter on the white card: "games
+-- wont load till" they have logos, hidden rather than plain). A status of its own, since everything that shows a game
+-- already reads status = 'approved' and the Review queue reads 'pending'. A row trigger decides on every write, so the
+-- writer needs no rule of its own; a team's logo arriving or leaving asks its games again. An admin's decline is left alone.
+alter table public.club_events drop constraint club_events_status_check;
+alter table public.club_events add constraint club_events_status_check
+  check (status in ('pending', 'approved', 'rejected', 'waiting_logo'));
+
+create or replace function private.game_waits_for_logos() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status in ('approved', 'waiting_logo') then
+    new.status := case when new.sport is not null and cardinality(new.team_ids) = 2 and exists (
+        select 1 from unnest(new.team_ids) as k(id) left join public.teams t on t.id = k.id where t.logo_url is null)
+      then 'waiting_logo' else 'approved' end;
+  end if;
+  return new;
+end
+$$;
+create trigger game_waits_for_logos before insert or update of status, sport, team_ids on public.club_events
+  for each row execute function private.game_waits_for_logos();
+
+create or replace function private.team_logo_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.club_events set status = 'approved'
+  where status in ('approved', 'waiting_logo') and new.id = any(team_ids)
+    and event_date >= (now() at time zone 'America/Chicago')::date - 1;
+  return null;
+end
+$$;
+create trigger team_logo_changed after insert or update of logo_url on public.teams
+  for each row execute function private.team_logo_changed();
 
 -- What no rule can tell from a name: Forestview is Brainerd's middle school, Discovery is Alexandria's, and two co-ops
 -- are written with and without their mascot. Brainerd-Little Falls reads as Brainerd under the rule for a short name.
