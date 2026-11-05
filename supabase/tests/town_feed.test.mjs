@@ -631,6 +631,23 @@ test('a friend Going lifts an Event and names them, newest Going first; three fr
   assert.deepEqual([(await feed(nowTown()))[0].score.friend, (await feed(nowTown()))[0].score.yours], [3, 3]);
 });
 
+test('every friend Going comes with the Event, not the first three, newest first (five-tabs 08)', async () => {
+  await reset();
+  const quiz = await add('Quiz night', day(2), { start_time: '7 PM' });
+  const five = ['c1', 'c2', 'c3', 'c4', 'c5'].map((x) => `00000000-0000-0000-0000-0000000000${x}`);
+  for (const [i, f] of five.entries()) {
+    await neighbour(f, ['Anna', 'Ben', 'Cal', 'Dee', 'Eve'][i]);
+    await befriend(ME, f);
+    await goes(quiz, f, `2026-10-0${i + 1} 10:00-05`);
+  }
+  await signIn(ME);
+  const row = (await feed(nowTown()))[0];
+  assert.deepEqual(row.friends_going.map((f) => f.name), ['Eve', 'Dee', 'Cal', 'Ben', 'Anna']);
+  assert.equal(row.reason_name, 'Eve');
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  assert.equal((await feed(nowTown()))[0].score.friend, 3, 'many friends lift it no more than three did');
+});
+
 test("a friend who hides their plans, a blocked friend and a stranger only count", async () => {
   await reset();
   const quiz = await add('Quiz night', day(3), { start_time: '7 PM' });
