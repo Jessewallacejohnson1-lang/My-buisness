@@ -37,7 +37,7 @@ struct ChatRoomRow: View {
     }
 
     private var lines: FeedEventDetailDestination.FactLines {
-        .init(first: title, second: chat.map(ChatWords.preview) ?? quiet)
+        .init(first: title, second: chat.map { ChatWords.preview($0) } ?? quiet)
     }
 
     private var opens: ChatRoute { route(read?.isHost ?? chat?.isHost == true) }
