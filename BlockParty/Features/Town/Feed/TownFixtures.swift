@@ -172,8 +172,9 @@ enum TownFixtures {
               let data = try? Data(contentsOf: url),
               let all = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
         let first = LaunchFlags.has(.townVolleyball) ? "v1" : LaunchFlags.has(.townSoccer) ? "s1"
-            : LaunchFlags.has(.townBasketball) ? "b1" : LaunchFlags.has(.townShootout) ? "p1" : "g1"
-        let samples = all.filter { !["v1", "s1", "b1", "g1", "p1"].contains($0.id) || $0.id == first }
+            : LaunchFlags.has(.townBasketball) ? "b1" : LaunchFlags.has(.townShootout) ? "p1"
+            : LaunchFlags.has(.townLevel) ? "l1" : "g1"
+        let samples = all.filter { !["v1", "s1", "b1", "g1", "p1", "l1"].contains($0.id) || $0.id == first }
         // `-town-live`: the first game started an hour ago today; TownFeed plays its score (game-card 03).
         let live = LaunchFlags.has(.townLive)
         let today = Self.townClock("yyyy-MM-dd", now)

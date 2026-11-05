@@ -184,6 +184,32 @@
    }
  },
  {
+  "id": "l1",
+  "title": "Basketball vs Prince of Peace Lutheran",
+  "host": "Kennedy Community School",
+  "place": "Kennedy Community School Kennedy Gym",
+  "day": "2026-11-30",
+  "time": "4 PM",
+  "hoursUntil": 620,
+  "went": 0,
+  "game": {
+   "sport": "Girls Basketball · Middle school",
+   "teams": [
+    {
+     "name": "Kennedy Community School",
+     "short": "Kennedy",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/kennedy-community-school/logo-14e0e9e7e8.webp",
+     "colors": ["#1B2859", "#1C532F", "#CDCECF"],
+     "local": true
+    },
+    {
+     "name": "Prince of Peace Lutheran",
+     "short": "Prince of Peace"
+    }
+   ]
+  }
+ },
+ {
   "id": "g1",
   "title": "SJU Football vs Gustavus Adolphus",
   "host": "SJU Athletics",
