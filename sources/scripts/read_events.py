@@ -869,6 +869,22 @@ def bound_with_sport(name, activity):
     return f"{name[:kind.start()]} {family}{kind[0]}" if kind else f"{name} {family}"
 
 
+def bound_meet_title(name, activity, level):
+    """A meet's title, saying its level as a game's does: "Albany Dance Invitational · JV", "Mora Wrestling
+    Invitational · Girls"; varsity, a level it doesn't know and a word the name already has say nothing. Two levels of
+    one meet are two cards, each saying its own (BP app loopholes 11; Jesse, 2026-11-05). Cathedral's dance levels
+    name the routine first: "High Kick JV", "Jazz V"."""
+    title = bound_with_sport(name, activity)
+    who = BOUND_WHO.fullmatch(level.strip())
+    rank = who[2] if who else re.sub(r"^(high kick|jazz) ", "", level.strip(), flags=re.I)
+    rank = BOUND_LEVEL_WORDS.get(rank.upper() if len(rank) <= 2 else rank.title(), "")
+    have = set(re.findall(r"[a-z0-9-]+", title.lower()))
+    if {"junior", "varsity"} <= have:
+        have.add("jv")
+    said = [w for w in (who[1].title() if who else "", LEVEL_SHORT.get(rank, rank)) if w and w.lower() not in have]
+    return f"{title} · {' '.join(said)}" if said else title
+
+
 def bound_team(entry):
     """The school's row in public.teams: "Apollo High School" is apollo, "Kennedy Community School" kennedy."""
     return re.sub(r"[^a-z0-9]+", "-", re.sub(r" (High|Community) School$", "", entry["_name"]).lower()).strip("-")
@@ -948,7 +964,7 @@ def bound_items(text, entry, src, today):
         elif key:
             # A banquet, a meeting: for those following its activity or school. The school's own days
             # with no activity ("No School", "Mass", "Conferences") stay out.
-            out.append(judged(entry, src, title=bound_with_sport(name, get("X-BND-ACTIVITYNAME")), start=start_at,
+            out.append(judged(entry, src, title=bound_meet_title(name, get("X-BND-ACTIVITYNAME"), level), start=start_at,
                               all_day=all_day, place=place, followers_only=True,
                               same=(start_at, key or name, level, place[:25]), **mark))
     # The school's own team, which a title too long for both leaves out: its own name, or a co-op's
@@ -1709,7 +1725,18 @@ def t_gobound():
             ("Girls Nordic Ski: Central Lakes Nordic Championship (Varsity)", "Girls Nordic Ski", "Varsity",
              "Central Lakes Nordic Championship"),
             ("Dance: Conference Kick (Varsity)", "Dance", "Varsity", "Conference Kick"),
-            ("Dance: Edina Invite (Varsity) (Time TBA)", "Dance", "Varsity", "Edina Dance Invite")]:
+            ("Dance: Edina Invite (Varsity) (Time TBA)", "Dance", "Varsity", "Edina Dance Invite"),
+            # Two levels of one meet say which (2026-11-05, ROCORI's and Sartell's calendars).
+            ("Dance: Albany Dance Invitational (Junior Varsity)", "Dance", "Junior Varsity", "Albany Dance Invitational · JV"),
+            ("Competitive Dance: Albany Dance Invitational (Varsity)", "Competitive Dance", "Varsity",
+             "Albany Dance Invitational"),
+            ("Wrestling: Mora Invitational (Girls Varsity)", "Wrestling", "Girls Varsity", "Mora Wrestling Invitational · Girls"),
+            ("Wrestling: Girls Sectional (Girls JV)", "Wrestling", "Girls JV", "Girls Sectional Wrestling · JV"),
+            ("Wrestling: Defender Invite (Middle School)", "Wrestling", "Middle School", "Defender Wrestling Invite · MS"),
+            ("Dance: Conference Kick (High Kick JV)", "Dance", "High Kick JV", "Conference Kick · JV"),
+            ("Dance: Conference Kick (High Kick V)", "Dance", "High Kick V", "Conference Kick"),
+            ("Dance: Junior Varsity Jazz Dance (Jazz JV)", "Dance", "Jazz JV", "Junior Varsity Jazz Dance"),
+            ("Wrestling: Wrestling Invitational (Girls JH)", "Wrestling", "Girls JH", "Wrestling Invitational")]:
         assert one(summary, name.split("\\")[0].split()[0].lower(), level, name)["title"] == want, summary
     game = one("Basketball\\, Boys: Osseo vs St. Cloud Tech (B) (Time TBA)", "basketball", "B", "Basketball\\, Boys")
     assert game["game"]["teams"][0] == "Tech" and "TBA" not in game["title"], game["title"]
