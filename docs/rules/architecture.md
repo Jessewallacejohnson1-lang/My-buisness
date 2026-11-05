@@ -207,8 +207,8 @@ dependency**. `[prose]`
 
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
 class … ObservableObject`) that owns state and API calls. Top-level folders: `Auth`,
-`Components`, `Daily`, `Event`, `Follows`, `Friends`, `Groups`, `Town` (the Town tab), `Map`,
-`Notifications`, `Onboarding`, `Place`, `Profile`, `Search`, `Share`, `You`.
+`Chat`, `Components`, `Daily`, `Event`, `Follows`, `Friends`, `Groups`, `Town` (the Town tab),
+`Launch`, `Map`, `Notifications`, `Onboarding`, `Profile`, `Search`, `Share`, `You`.
 
 - **The parked utility row (`Civic/Parked/`) was deleted on 2026-10-25** (BP app
   codebase-health 09). `user_utility_prefs` still holds real per-user configuration: a Civic
