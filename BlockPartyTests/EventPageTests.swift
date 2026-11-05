@@ -127,6 +127,17 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: false, swipe: 0), 1)
     }
 
+    /// A tall flyer starts under the clock, so the island never covers its title; a wide one sits with
+    /// even gaps, on the Event page's 402 x 310 frame (Jesse, 2026-11-05).
+    func testATallFlyerStartsUnderTheClockAndAWideOneDoesnt() {
+        let room = CGSize(width: 402, height: 310)
+        XCTAssertEqual(FeedCardURLPhoto.flyerTop(image: CGSize(width: 1254, height: 1568), room: room, top: 62), 62)
+        XCTAssertEqual(FeedCardURLPhoto.flyerTop(image: CGSize(width: 1080, height: 1080), room: room, top: 62), 62)
+        XCTAssertEqual(FeedCardURLPhoto.flyerTop(image: CGSize(width: 1600, height: 960), room: room, top: 62), 0)
+        XCTAssertEqual(FeedCardURLPhoto.flyerTop(image: CGSize(width: 1254, height: 1568), room: room, top: 0), 0,
+                       "the Block Party tab's cards start at their own top")
+    }
+
     /// A flyer on the poster stops above the words, and pressing Attend doesn't move it: the going
     /// line's room is kept whether it shows or not (370 x 470 on a 402 pt phone).
     func testAPostersFlyerKeepsClearOfItsWordsAndAttendDoesntMoveIt() {

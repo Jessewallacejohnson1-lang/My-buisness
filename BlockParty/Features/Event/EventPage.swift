@@ -323,7 +323,7 @@ struct EventPage: View {
             if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
         } else {
             PhotoPager(urls: photos.compactMap(\.url), page: $photoPage, shown: $shownPhotos,
-                       value: photoValue, onFailure: drop, flyer: flyer,
+                       value: photoValue, onFailure: drop, flyer: flyer, flyerTop: HelloDropView.safeTop,
                        onSwipe: flyer == nil ? nil : { heroSwipe = $0 })
         }
     }
