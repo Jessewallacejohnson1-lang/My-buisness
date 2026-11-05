@@ -3490,7 +3490,7 @@ test('live: up to 3 on right now lead, your Going first, then most Going, then t
   await reset();
   const LIVE = ['Concert', 'Game', 'Talk', 'Bingo'];
   const ids = {};
-  for (const t of LIVE) ids[t] = await add(t, '2026-10-08', { start_time: '6 PM', source_name: `Host ${t}` });
+  for (const t of LIVE) ids[t] = await add(t, '2026-10-08', { start_time: t === 'Game' ? '6:15 PM' : '6 PM', source_name: `Host ${t}` });
   await add('Later tonight', '2026-10-08', { start_time: '9 PM', source_name: 'Late' });
   await set(ids.Game, { draw: 3 });
   await set(ids.Talk, { lat: 45.56, lng: -94.32 });
@@ -3500,7 +3500,7 @@ test('live: up to 3 on right now lead, your Going first, then most Going, then t
   await goes(ids.Concert, ME);
   await signIn(YOU);
   const rows = await titles('2026-10-08 18:30');
-  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Concert', 'Game'], 'yours, then most Going, then the draw of 3 over 2 × 1.5 on a tie of newest');
+  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Concert', 'Game'], 'yours, then most Going, then the draw: 3 ties 2 in your town, and the later start wins');
   await db.exec('reset role');
 });
 

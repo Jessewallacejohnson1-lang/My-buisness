@@ -14,7 +14,7 @@
 -- Old apps get the new order at once and send no News views, so News they've shown stays unseen for them.
 --
 -- Roll back: `20261103004625_event_card_feed_only.sql` for the feed, `20261102174133_event_card_going.sql` for the card
--- and `20261016180000_friends_shape_feed.sql` for friends_going, after dropping friends_going. The new columns and
+-- and `20261105205038_friends_going_everyone.sql` for friends_going, after dropping friends_going. The new columns and
 -- table can stay.
 
 alter table public.feed_actions add column times int not null default 1, add column last_at timestamptz;
@@ -105,7 +105,7 @@ $$;
 revoke execute on function private.is_live_kind(text, text, int, boolean, text, date, timestamptz, boolean) from public;
 grant execute on function private.is_live_kind(text, text, int, boolean, text, date, timestamptz, boolean) to anon, authenticated;
 
--- 20261016180000_friends_shape_feed.sql but for last_at.
+-- 20261105205038_friends_going_everyone.sql but for last_at.
 drop function private.friends_going(uuid[]);
 create function private.friends_going(p_events uuid[])
 returns table (event_id uuid, friends int, people jsonb, last_at timestamptz)
@@ -139,7 +139,7 @@ as $$
     from going g
   )
   select r.event_id, count(*)::int,
-         jsonb_agg(jsonb_build_object('name', r.name, 'photo', r.photo) order by r.n) filter (where r.n <= 3),
+         jsonb_agg(jsonb_build_object('name', r.name, 'photo', r.photo) order by r.n),
          max(r.created_at)
   from ranked r
   group by r.event_id
