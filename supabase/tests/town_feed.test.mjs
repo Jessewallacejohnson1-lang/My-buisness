@@ -3584,16 +3584,18 @@ test('News you have seen leaves the feed, and see_news takes only your own', asy
   await db.exec('reset role; delete from public.news_views');
 });
 
-test('middle school goes only to those who picked it, follow it, have a friend Going, or are Going', async () => {
+test('middle school sports go only to those who picked it, follow it, have a friend Going, or are Going; a concert stays', async () => {
   await reset();
   const game = await add('Girls Basketball · MS', day(2), { start_time: '4 PM', source_name: 'Kennedy' });
   await db.query(`update public.club_events set interests = '{watch_sports,middle_school}', interests_tagged_at = now() where id = $1`, [game]);
+  const band = await add('6th Grade Band', day(2), { start_time: '7 PM', source_name: 'Kennedy' });
+  await db.query(`update public.club_events set interests = '{live_music,middle_school}', interests_tagged_at = now() where id = $1`, [band]);
   await add('Concert', day(2), { start_time: '7 PM', source_name: 'Hall' });
   const at = `${day(0)} 12:00`;
   await db.exec('set role anon');
-  assert.deepEqual(await titles(at), ['Concert'], 'signed out');
+  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert'], 'signed out');
   await signIn(YOU, ['watch_sports']);
-  assert.deepEqual(await titles(at), ['Concert'], 'a sports fan who did not pick it');
+  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert'], 'a sports fan who did not pick it');
   await signIn(YOU, ['middle_school']);
   assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'picked Middle school');
   await signIn(YOU);
@@ -3629,11 +3631,11 @@ test('an Exhibition game is live; an exhibition is not', async () => {
   assert.equal((await q(false)).rows[0].live, false);
 });
 
-test('the later list comes up full with middle school gone', async () => {
+test('the later list comes up full with middle school sports gone', async () => {
   await reset();
   for (const n of [1, 2, 3]) {
     const id = await add(`Game ${n}`, '2026-12-01', { start_time: '4 PM', source_name: `School ${n}`, shows_from: '2026-11-20' });
-    await db.query(`update public.club_events set interests = '{middle_school}', interests_tagged_at = now() where id = $1`, [id]);
+    await db.query(`update public.club_events set interests = '{watch_sports,middle_school}', interests_tagged_at = now() where id = $1`, [id]);
   }
   await add('Concert', '2026-12-02', { start_time: '7 PM', source_name: 'Hall', shows_from: '2026-11-20' });
   await db.exec('set role anon');

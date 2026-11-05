@@ -317,8 +317,8 @@ as $$
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
-      -- Middle school (`scored`) goes before the limit below, or the later list comes up short.
-      and (not p_later or not ('middle_school' = any(tg.tags) and e.interests_tagged_at is not null)
+      -- Middle school sports (`scored`) go before the limit below, or the later list comes up short.
+      and (not p_later or not ('middle_school' = any(tg.tags) and 'watch_sports' = any(tg.tags) and e.interests_tagged_at is not null)
            or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved)
     -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
     order by case when p_later then 1 end, sort_at
@@ -427,9 +427,10 @@ as $$
                   when c.live_kind and c.days_off = 0 then c.seen_today
                   else c.seen_times end)) as seen_x
     from counted c, weights
-    -- Middle school (Jesse, 2026-11-05: "junior high sports typically are not gonna be very popular"): only for
-    -- those who picked it, follow it, have a friend Going, or are Going to it or saved it.
-    where not ('middle_school' = any(c.tags) and c.interests_tagged_at is not null)
+    -- Middle school sports (Jesse, 2026-11-05: "junior high sports typically are not gonna be very popular"): only
+    -- for those who picked Middle school, follow it, have a friend Going, or are Going to it or saved it. A school's
+    -- concerts and shows stay (MEMORY.md, 2026-11-05).
+    where not ('middle_school' = any(c.tags) and 'watch_sports' = any(c.tags) and c.interests_tagged_at is not null)
        or 'middle_school' = any(c.matched)
        or c.followed is not null or c.friends_n > 0 or c.going or c.saved
   ),
