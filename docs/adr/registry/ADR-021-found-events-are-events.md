@@ -22,6 +22,11 @@ two-week 1-in-20 measurement below is not running. Turning review back on is one
 link, and are listed in the Review queue so a wrong one can be declined afterwards. The
 point of those checks is same-evening events; waiting for review would defeat it.
 
+**Amended 2026-11-05 (Jesse, BP app loopholes 11):** one host's own two listings merge when they
+share the start to the minute and the place and one name sits inside the other, in the Town feed
+only. Everything short of that still shows both until the morning review settles it, and no found
+event waits for its host's own page.
+
 ## Context
 
 ADR-013 split events from places and left their table, review, dedupe and repeats for
