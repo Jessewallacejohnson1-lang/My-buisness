@@ -94,8 +94,10 @@ enum TodayBubbleRules {
     }
 
     /// Everyone Going to any of a spot's events, each once, in the card's order. The Town feed
-    /// already leaves out a friend with "Show my plans to friends" off.
+    /// already leaves out a friend with "Show my plans to friends" off. One event's friends are
+    /// all different people, even two Sams with no photo; across events only a name and photo say so.
     static func friends(_ events: [FeedCardItem]) -> [FeedFriend] {
+        if events.count == 1 { return events[0].friendsGoing }
         var seen = Set<FeedFriend>()
         return events.flatMap(\.friendsGoing).filter { seen.insert($0).inserted }
     }
@@ -210,6 +212,9 @@ struct TodayEventBubble: View {
         let friends = TodayBubbleRules.friends(bubble.events)
         // Where the bubble's rim crosses its top right, at 45 degrees.
         let rim = Self.bead * scale / 2 * 0.7071
+        // Room for the shadow bleed to spread (2.1x the bead) and the faces to reach past the rim
+        // without being clipped by the annotation's frame; only the bead and faces take touches.
+        let room = max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach))
         TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
             let phase = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(tick.date))
             ZStack {
@@ -222,17 +227,16 @@ struct TodayEventBubble: View {
                     .offset(y: Self.bead * scale / 2 + 20)
                 if !friends.isEmpty {
                     BubbleFaces(friends: friends)
+                        // A touch on a face is a touch on the bubble.
+                        .gesture(squish)
                         // They follow a drag with the bubble (`pull` is in the bubble's own points).
                         .offset(x: rim + pull.width * scale, y: -rim + pull.height * scale)
                 }
             }
-            // Room for the shadow bleed to spread (2.1x the bead) and the faces to reach past the
-            // rim without being clipped by the annotation's frame; only the bead itself takes touches.
-            .frame(width: max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach)),
-                   height: max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach)))
+            .frame(width: room, height: room)
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.65), value: selected)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(a11yLabel(phase))
+            .accessibilityLabel(a11yLabel(phase, friends: friends))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
         }
@@ -419,10 +423,10 @@ struct TodayEventBubble: View {
             }
     }
 
-    private func a11yLabel(_ phase: TodayBubbleRules.Phase) -> String {
+    private func a11yLabel(_ phase: TodayBubbleRules.Phase, friends going: [FeedFriend]) -> String {
         let more = bubble.events.count > 1 ? ", and \(bubble.events.count - 1) more here" : ""
-        let friends = RSVPWords.friendsLine(TodayBubbleRules.friends(bubble.events).map(\.name), bar: false)
-            .map { ", \($0)" } ?? ""
+        // "here": they may be Going to another of the spot's events than the one just named.
+        let friends = RSVPWords.friendsLine(going.map(\.name), bar: false).map { ", \($0) here" } ?? ""
         switch phase {
         case .live: return "\(bubble.event.title), happening now\(more)\(friends)"
         case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))\(more)\(friends)"
@@ -446,7 +450,7 @@ private struct BubbleFaces: View {
         HStack(spacing: -Self.tuck) {
             ForEach(Array(friends.prefix(2).enumerated()), id: \.offset) { index, friend in
                 Avatar(friend.photo, size: Self.side)
-                    .background { Circle().fill(.white).padding(-1.5).modifier(FaceShadow()) }
+                    .background { Circle().fill(.white).padding(-1.5) }
                     .zIndex(Double(3 - index))
             }
             if friends.count > 2 {
@@ -457,19 +461,14 @@ private struct BubbleFaces: View {
                     .padding(.leading, Self.tuck + 3)
                     .padding(.trailing, 5)
                     .frame(minWidth: Self.side, minHeight: Self.side)
-                    .background { Capsule().fill(.white).modifier(FaceShadow()) }
+                    .background { Capsule().fill(.white) }
             }
         }
+        .compositingGroup()
+        .shadow(color: MapBubbleInk.ink.opacity(0.3), radius: 1.5, x: 0, y: 1)
         .fixedSize()
+        .contentShape(Capsule())
         .frame(width: Self.side, height: Self.side, alignment: .leading)
-        .allowsHitTesting(false)
-    }
-}
-
-/// Lifts a face off the map, as the mock's: a small shadow under its white ring.
-private struct FaceShadow: ViewModifier {
-    func body(content: Content) -> some View {
-        content.shadow(color: MapBubbleInk.ink.opacity(0.3), radius: 1.5, x: 0, y: 1)
     }
 }
 

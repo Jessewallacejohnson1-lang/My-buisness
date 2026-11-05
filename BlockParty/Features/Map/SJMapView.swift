@@ -162,15 +162,16 @@ struct SJMapView: View {
             TodayPlaces.merge(bubbles, at: bubbles.map { map.point(for: $0.coordinate) },
                               within: zoom.bead * 1.5, now: now)
         } ?? bubbles
-        let wasOpen = selected
+        // The Event on the open card, which it keeps however the bubbles merge or split.
+        let onCard = selected.map { $0.events[min(max(focus.page, 0), $0.events.count - 1)].id }
         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) { shown = merged }
         #if DEBUG
         debugOpenBubble()
         #endif
-        guard let wasOpen, selected == nil else { return }
-        if let into = merged.first(where: { $0.events.contains { $0.id == wasOpen.event.id } }) {
-            focus.follow(into)
-        } else {
+        guard let onCard else { return }
+        if let into = merged.first(where: { $0.events.contains { $0.id == onCard } }) {
+            focus.follow(into, on: onCard)
+        } else if selected == nil {
             select(nil)
         }
     }

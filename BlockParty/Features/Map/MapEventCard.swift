@@ -201,6 +201,8 @@ struct MapEventCard: View {
             if let said = Self.friendWords(item.friendsGoing.map(\.name)) {
                 HStack(spacing: 7) {
                     FriendFaces(friends: item.friendsGoing, ring: Hue.surface)
+                        // Taller than the line by this much: a card keeps its height paging to "6 going".
+                        .padding(.vertical, -2.5)
                     Text("\(Text(said.names).font(.sansBold(16)).foregroundStyle(Hue.ink))\(said.rest)")
                         .lineLimit(1)
                 }
