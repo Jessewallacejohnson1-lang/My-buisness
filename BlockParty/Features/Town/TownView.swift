@@ -283,7 +283,7 @@ struct TownView: View {
         .scrollPosition($feedPosition)
         .onScrollPhaseChange { _, phase in townFeed.fingerDown = phase == .tracking || phase == .interacting }
         .refreshable {
-            await townFeed.reload()
+            await townFeed.pulled()
         }
         .tint(.clear)
         .background(Hue.paper)

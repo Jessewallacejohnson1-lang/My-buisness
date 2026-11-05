@@ -484,9 +484,14 @@ final class TownFeed {
         await readAgain(at: now, freshOrder: false)
     }
 
-    /// Pull to refresh, retry, a new account: the new order, whatever is on screen. What you just saw
-    /// goes up first, so the new order knows it, without holding the read up on a bad network.
+    /// Retry, a new account: the new order, whatever is on screen.
     func reload(at now: Date = Date()) async {
+        await readAgain(at: now, freshOrder: true)
+    }
+
+    /// Pull to refresh: what you just saw goes up first, so the new order knows it, without holding
+    /// the read up on a bad network.
+    func pulled(at now: Date = Date()) async {
         countOnScreen(at: now)
         let sending = Task { await send(at: now, always: true) }
         let giveUp = Task {
@@ -495,7 +500,7 @@ final class TownFeed {
         }
         await sending.value
         giveUp.cancel()
-        await readAgain(at: now, freshOrder: true)
+        await reload(at: now)
     }
 
     /// A failed read keeps the list already showing, minus what has left; with no

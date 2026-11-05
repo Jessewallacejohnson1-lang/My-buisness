@@ -442,7 +442,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         town.cameBack(at: now)
         town.cardOnScreen("a", true, at: now)
-        await town.reload(at: now.addingTimeInterval(2))
+        await town.pulled(at: now.addingTimeInterval(2))
         XCTAssertEqual(sentAtRead, [[FeedAction(itemID: "a", kind: .view)]])
     }
 
@@ -455,7 +455,7 @@ final class TownFeedEventsTests: XCTestCase {
         town.cameBack(at: now)
         town.opened("a")
         let started = ContinuousClock.now
-        await town.reload(at: now.addingTimeInterval(60))
+        await town.pulled(at: now.addingTimeInterval(60))
         XCTAssertEqual(reads, 2)
         XCTAssertLessThan(started.duration(to: .now), .seconds(10))
         XCTAssertEqual(town.unsent, [FeedAction(itemID: "a", kind: .open)], "it goes again with the next batch")
@@ -1389,8 +1389,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// A tab switch rebuilds the screen: its cards never report going off, so they're
     /// forgotten, and a later feed load counts only what the rebuilt screen reports.
     func testCardsFromAScreenThatWentAreNotCountedAgain() async {
-        let sender = Sender()
-        let town = await shownFeed(sender)
+        let town = await shownFeed(Sender())
         town.cardOnScreen("c", true, at: now)
         town.left(at: now.addingTimeInterval(2), viewGone: true)
         XCTAssertEqual(views(town), ["c"])
@@ -1398,19 +1397,17 @@ final class TownFeedEventsTests: XCTestCase {
         town.cameBack(at: now.addingTimeInterval(31 * 60))
         await town.reload(at: now.addingTimeInterval(31 * 60))
         town.left(at: now.addingTimeInterval(32 * 60))
-        XCTAssertEqual(sender.batches.flatMap { $0 }.map(\.itemID) + views(town), ["c"],
-                       "c was never on the rebuilt screen")
+        XCTAssertEqual(views(town), ["c"], "c was never on the rebuilt screen")
     }
 
     func testAFreshOrderStartsANewFeedLoad() async {
-        let sender = Sender()
-        let town = await shownFeed(sender)
+        let town = await shownFeed(Sender())
         town.cardOnScreen("a", true, at: now)
         town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
         await town.reload(at: now.addingTimeInterval(60))
         town.cardOnScreen("a", true, at: now.addingTimeInterval(61))
         town.cardOnScreen("a", false, at: now.addingTimeInterval(62))
-        XCTAssertEqual(sender.batches.flatMap { $0 }.map(\.itemID) + views(town), ["a", "a"])
+        XCTAssertEqual(views(town), ["a", "a"])
     }
 
     func testACardNoLongerInTheListIsNotCounted() async {
