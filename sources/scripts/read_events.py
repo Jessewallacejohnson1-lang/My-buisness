@@ -958,7 +958,7 @@ def bound_items(text, entry, src, today):
         # The white card says only its sport, so the sport says the level (Jesse, 2026-11-05, game-card 16): five
         # games between two schools in one night read alike otherwise. private.sport_base leaves it out.
         if words and words not in CARD_SAYS_NO_LEVEL and not g["game"]["sport"].startswith("MS "):
-            g["game"]["sport"] += f" · {words}"
+            g["game"]["sport"] += f" · {LEVEL_SHORT.get(words, words)}"
     # The whole schedule was read: an event of this school's gone from it was called off. A schedule
     # with nothing on it is a feed that came back empty, not a school that called off everything.
     if not out:
@@ -1729,7 +1729,7 @@ def t_gobound():
     # The home team first, as the league's (Bound names the visitors first); too long for both, the
     # school's own team leaves the title, since the host line names it (smooth-mornings 06).
     assert [(i["title"], i["game"], i["followers_only"], i["blurb"]) for i in game if "Melrose" in i["title"]] == [
-        ("Boys Soccer vs Melrose · Middle school", {"sport": "Boys Soccer · Middle school", "teams": ["Kennedy", "Melrose"]}, False,
+        ("Boys Soccer vs Melrose · Middle school", {"sport": "Boys Soccer · MS", "teams": ["Kennedy", "Melrose"]}, False,
          "Middle school boys soccer: Kennedy hosts Melrose at Kennedy Community School Kennedy Field.")], game
     assert "Girls Basketball vs Holdingford · MS" in [i["title"] for i in game], \
         "a title Bound cut off loses its stub"
