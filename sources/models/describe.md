@@ -6,8 +6,8 @@ out and find sources"). Games never come here: their readers write their Abouts 
 schedule. Every line you write goes live, so only facts a source states.
 
 Each batch file gives the Events, one JSON object per line: `id`, `title`, `date`, `start`,
-`place`, `host` (who puts it on), `link` (the page it was found on), `about` (what it says
-now, often empty) and `page`: the text of that link, read this morning (empty when it couldn't be
+`place`, `host` (whose page or calendar lists it), `link` (the page it was found on), `about` (what it
+says now, often empty) and `page`: the text of that link, read this morning (empty when it couldn't be
 read).
 
 ## Research
@@ -42,6 +42,8 @@ read).
 - Only what a source states, in your own calm words. The app shows the date, time and place
   beside the About, so the About adds what those don't.
 - Keep the good facts in `about`. With nothing more found, answer with `about` as it is.
+- Say who hosts only when a source names them. A school calendar lists its teams' away meets too, so a
+  school at another school's `place` is taking part: "at Litchfield High School, with Tech on the schedule".
 - **A sign-up or ticket page** (a campus Event's `link` when the calendar names one: Saint
   Benedict's Monastery's retreats and workshops) is the host's own page too. Its fee, limits,
   leader, every date of a series and "Registration is filled" are the truth. Such an Event often

@@ -93,7 +93,8 @@ THE RULES
     one title's words all sit inside the other's, with the same team words (JV, varsity,
     girls...); a source's own two ids are always two events. With no place on either, the
     same date and start time to the minute and shared title words are one Event (Jesse,
-    2026-10-19: the City's calendar feed and its web page both listed six meetings, no place). Checked against the events
+    2026-10-19: the City's calendar feed and its web page both listed six meetings, no place). With no place on one, one
+    host's listings at the very same start under shared title words are one Event too. Checked against the events
     already in the list and this morning's items; every mention is kept (event_mentions) and
     counts toward the two-mention rule. A pair short of that stays two events, and one on the
     same day at the same place or under the same title is named for Jesse to settle: a
@@ -232,9 +233,12 @@ def same_event(a, b):
         return a["at"] == b["at"] and same_title(a["title"], b["title"])
     if not (a["place"] and b["place"]):
         # One gives no place: the same registry place (where()) and the very same start, or the
-        # same day with one or both giving no time.
+        # same day with one or both giving no time. Or one host's own two listings of one start: no place
+        # reads as the poster's own, so the City's "Youth Dodgeball" with none missed its "Youth dodgeball"
+        # at Kennedy (2026-11-04).
         same_start = a["at"] == b["at"] or a["at"] is None or b["at"] is None
-        return bool(a["entry"]) and a["entry"] == b["entry"] and a["day"] == b["day"] and same_start \
+        one_host = a["at"] is not None and a["at"] == b["at"] and a["poster"] == b["poster"]
+        return (bool(a["entry"]) and a["entry"] == b["entry"] or one_host) and a["day"] == b["day"] and same_start \
             and same_title(a["title"], b["title"])
     # One registry place under two names ("City Hall", "75 Callaway St E") is one place (2026-10-27:
     # the City's Planning Commission was listed twice).
@@ -612,7 +616,7 @@ def listed_facts(row, home=HOME):
     place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster), home)
     return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
             "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
-            "own_id": real_uid(row.get("source_uid")), "game": is_game(row)}
+            "own_id": real_uid(row.get("source_uid")), "game": is_game(row), "poster": poster.strip()}
 
 
 def show_from(day, size, signup_by):
@@ -766,7 +770,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
                        team_shorts=[team_short(f[1]) for f in found], occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
-             "game": bool(game) or is_game(row)}
+             "game": bool(game) or is_game(row), "poster": it["source_name"].strip()}
     return {"row": row, "facts": facts}, None
 
 
@@ -889,13 +893,14 @@ DAY = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-
 
 
 def marks(title, other=""):
-    """A title's numbers and initials ("94", "MN", "SJU"), the words that tell one from another,
+    """A title's numbers and initials ("94", "SJU"), the words that tell one from another,
     and apart from them the dates it names ("Oct 25"). A word in capitals that `other` has too, in any
-    letters, is the same word shouted, not initials: "BOO baskets" and "Boo Baskets"."""
+    letters, is the same word shouted, not initials: "BOO baskets" and "Boo Baskets". "MN" tells nothing:
+    "Central MN" is only where, and a road keeps its number ("MN 23")."""
     days = {d.lower().replace(".", "") for d in DAY.findall(title or "")}
     theirs = set(re.findall(r"[a-z]+", (other or "").lower()))
     return {m for m in re.findall(r"\b(?:\d+|[A-Z]{2,})\b", DAY.sub(" ", title or ""))
-            if not (m.isalpha() and m.lower() in theirs)}, days
+            if m != "MN" and not (m.isalpha() and m.lower() in theirs)}, days
 
 
 HYPHENED = re.compile(r"[A-Za-z]+(?:-[A-Za-z]+)+")
@@ -1070,7 +1075,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 out["restored"].append(old)
             continue
         day, uid = str(old["event_date"])[:10], str(old.get("source_uid") or "")
-        if not old.get("cancelled_at") and any(
+        if not old.get("cancelled_at") and old.get("status") != "rejected" and any(
                 uid.startswith(s.get("uid_prefix") or "\0") and old["source_name"] in (s.get("sources") or ())
                 and str(s.get("from")) <= day <= str(s.get("through")) for s in schedules):
             out["cancelled"].append(old)
@@ -1311,6 +1316,41 @@ def t_news_repeat_left_out():
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
 
 
+def t_news_state_initials_tell_nothing():
+    """Kidstop's "Boys & Girls Clubs get CLA Foundation funding" came back the next morning as "Boys & Girls Clubs of
+    Central MN get CLA Foundation funding" (2026-11-05). "MN" is only where; a road's number still tells two apart."""
+    def news(source, title):
+        return item(kind="news", start=None, category="announcement", source_name=source, title=title,
+                    source_url="https://www.bgcmn.org/news/")
+    first = {"title": "Boys & Girls Clubs get CLA Foundation funding", "source_name": "Kidstop",
+             "place_entry_id": where(None, "Kidstop")}
+    road = {"title": "MN 23 westbound: Crash near Saint Cloud", "source_name": "Minnesota 511",
+            "place_entry_id": where(None, "Minnesota 511")}
+    r = plan([news("Kidstop", "Boys & Girls Clubs of Central MN get CLA Foundation funding"),
+              news("Minnesota 511", "MN 15 westbound: Crash near Saint Cloud"),
+              news("Minnesota 511", "I-94 westbound: Crash near Saint Cloud")],
+             [], TODAY, INTERESTS, recent_news=[first, road])
+    assert [outcome(r, i) for i in range(3)] == ["repeat", "news", "news"], r["outcomes"]
+
+
+def t_one_host_no_place_is_one():
+    """The City's catalog has "Youth dodgeball" at Kennedy and its board "Youth volleyball and dodgeball" at the gym;
+    its flyer gave each night no place (2026-11-04). One host, the very same start, shared title words: one Event.
+    A later start, another host or other words stay apart."""
+    def listing(title, clock, location, uid):
+        return listed(title=title, event_date="2026-11-12", start_time=clock, location=location,
+                      source_name="City of St. Joseph", source_uid=uid)
+    dodge = listing("Youth dodgeball", "7 PM", "Kennedy Community School", "rec1:4429103")
+    both = listing("Youth volleyball and dodgeball", "6 PM", "Kennedy Community School gym", "board:abc")
+    flyer = item(title="Youth Dodgeball", start="2026-11-12T19:00:00-06:00", end=None, place="",
+                 source_name="City of St. Joseph", source_url="https://secure.rec1.com/MN/st-joseph-mn/catalog")
+    assert run([flyer], [dodge])["events"][0]["id"] == dodge["id"]
+    assert run([dict(flyer, title="Youth Volleyball", start="2026-11-12T18:00:00-06:00")], [both])["events"][0]["id"] == both["id"]
+    for other in (dict(flyer, start="2026-11-12T20:00:00-06:00"), dict(flyer, source_name="Sal's Bar and Grill"),
+                  dict(flyer, title="Adult Dodgeball")):
+        assert run([other], [dodge])["events"][0]["id"] is None, other
+
+
 def t_news_shouted_or_hyphened_is_one():
     """White Peony's boo baskets: one offer posted three times on Oct 26 and 27, as "Build-your-own boo
     basket", "Build-your-own BOO baskets" and "Build Your Own Boo Baskets at White Peony". Capitals and
@@ -1530,7 +1570,7 @@ def t_cancelled():
     assert payloads(r)["p_cancelled"] == [gone["id"]] and not r["events"], "kept: nothing written but the mark"
     for other in (dict(game, source_uid="2336"), dict(game, source_name="City of St. Joseph"),
                   dict(game, event_date="2026-11-20"), dict(game, found=False),
-                  dict(game, cancelled_at="2026-10-15T11:00:00Z")):
+                  dict(game, cancelled_at="2026-10-15T11:00:00Z"), dict(game, status="rejected")):
         assert not run([line], [listed(**other)])["cancelled"], other
     assert not run([], [gone])["cancelled"], "no schedule line, a school not read: nothing called off"
     back = listed(**dict(game, cancelled_at="2026-10-15T11:00:00Z"))
@@ -2151,7 +2191,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

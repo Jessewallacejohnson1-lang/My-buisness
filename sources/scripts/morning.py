@@ -317,8 +317,29 @@ def summary_lines(prep, result, written):
     notes = result.get("notes", [])
     pairs, rest = maybe_same(notes), [n for n in notes if not n.startswith("kept apart: ")]
     lines += ["Maybe the same:"] * bool(pairs) + [f"- {p}" for p in pairs]
+    rest = short_notes(rest, events)
     lines += ["Notes:"] * bool(rest) + [f"- {n}" for n in rest]
     return lines
+
+
+ROUTINE_NOTES = ("place not in the registry: ", "who is this: ")
+
+
+def short_notes(notes, events):
+    """The writer says these of every calendar item it re-reads, the same ones each morning: 1,104 of the report's 1,198
+    lines on Nov 5, 125 KB of its 133. Those on today's new Events stay by name, the rest are a count."""
+    titles, places = {repr(e["title"]) for e in events}, "\n".join(e.get("location") or "" for e in events)
+
+    def on_new_event(n):
+        if n.startswith("who is this: "):
+            return any(t in n for t in titles)
+        return n.split(": ", 1)[1].rsplit(" (", 1)[0][1:-1] in places
+
+    kept = [n for n in notes if not n.startswith(ROUTINE_NOTES) or on_new_event(n)]
+    older = {n for n in notes if n.startswith(ROUTINE_NOTES)} - set(kept)
+    missing = sum(n.startswith(ROUTINE_NOTES[0]) for n in older)
+    return list(dict.fromkeys(kept)) + [f"On Events already listed, places not in the registry: {missing}, "
+                                        f"names that are no team's: {len(older) - missing}"] * bool(older)
 
 
 def maybe_same(notes):
@@ -357,6 +378,26 @@ def waiting_lines(db):
     teams = collections.Counter(t for r in rows for t in r["team_ids"] or [] if t in bare)
     named = ", ".join(f"{bare[t]} {n}" for t, n in teams.most_common(10))
     return [f"- Waiting on a logo: {len(rows)} games, teams {named}" + (", and more" if len(teams) > 10 else "")] if rows else []
+
+
+def since_lines(db, today):
+    """What the evening's social watches and any chat wrote after the last report and before this morning's run, still
+    showing: Nov 4's evening wrote 5 Events and 5 News, 2 of them doubles, and no list named them. A read that fails is
+    one line, never a lost report."""
+    head = "Since the last report:"
+    try:
+        last = db.rest("GET", f"morning_reports?select=saved_at&day=lt.{today}&order=day.desc&limit=1") or []
+        if not last:
+            return []
+        day = date.fromisoformat(str(today))
+        span = (f"&created_at=gt.{quote(last[0]['saved_at'])}"
+                f"&created_at=lt.{quote(datetime(day.year, day.month, day.day, 5, tzinfo=LOCAL).isoformat())}")
+        events = db.rest("GET", "club_events?select=event_date,end_at,all_day,start_time,title,location,source_name"
+                                f"&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.{day}{span}") or []
+        news = db.rest("GET", f"board_items?select=title,source_name&status=eq.published{span}") or []
+    except Exception as e:
+        return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
+    return [head] * bool(events or news) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news]
 
 
 def photo_lines(db, today):
@@ -850,6 +891,7 @@ def finish(run, dry_run):
     # then the places Apple Maps calls closed for good, hidden (Jesse, 2026-11-01).
     for what, step in (("tags", lambda: tag(run, dry_run)), ("Abouts", lambda: describe(run, dry_run)),
                        ("standouts", lambda: standouts(run, dry_run)),
+                       ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: spots.fill(db, today, not dry_run)),
                        ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today))):
@@ -941,8 +983,47 @@ def selftest():
                                   "restored": [{"id": "r", "event_date": "2026-11-02", "title": "Bingo"}],
                                   "notes": ["place not in the registry: 'Barn' (Sal's picture stands in)"]}, None)
     checks.append(("- Cancelled: 2026-10-30 Fall Play, gone from its schedule" in called and "- Back on: 2026-11-02 Bingo" in called
-                   and called[-2:] == ["Notes:", "- place not in the registry: 'Barn' (Sal's picture stands in)"],
-                   "the summary names what its schedules called off or brought back, and the writer's notes"))
+                   and called[-2:] == ["Notes:", "- On Events already listed, places not in the registry: 1, "
+                                                 "names that are no team's: 0"],
+                   "the summary names what its schedules called off or brought back, and counts the writer's routine notes"))
+    routine = ["place not in the registry: 'Barn' (Sal's picture stands in)",
+               "place not in the registry: \"Ben's Mall\" (CSB's picture stands in)",
+               "place not in the registry: 'Far Gym' (Apollo's picture stands in)",
+               "place not in the registry: 'Far Gym' (Apollo's picture stands in)",
+               "who is this: 'Anoka' ('Anoka Hockey vs Apollo') is no team's name, so a normal card until it's added",
+               "who is this: 'Roseau' ('Roseau Hockey vs Apollo') is no team's name, so a normal card until it's added",
+               "interest 'bars' is not on the list ('Holiday Market'): left empty"]
+    new_today = [{"title": "Anoka Hockey vs Apollo", "location": "Anoka Ice Arena"}, {"title": "Bingo", "location": "Barn, Albany"},
+                 {"title": "Lights", "location": "Ben's Mall"}]
+    checks.append((short_notes(routine, new_today) == routine[:2] + routine[4:5] + routine[6:] + [
+                       "On Events already listed, places not in the registry: 1, names that are no team's: 1"],
+                   "routine notes on today's new Events stay by name, any other note stays, and the rest are one count"))
+    checks.append((short_notes(routine[6:], []) == routine[6:] and short_notes([], new_today) == [], "no routine notes, no count line"))
+
+    class SinceDb:
+        def __init__(self, last=True, down=False):
+            self.last, self.down, self.asked = last, down, []
+
+        def rest(self, method, path, body=None, prefer=None):
+            if self.down:
+                raise DbError("GET", "club_events", 503, "Service\n Unavailable")
+            self.asked.append(path)
+            if path.startswith("morning_reports?"):
+                return [{"saved_at": "2026-11-04T12:15:00+00:00"}] if self.last else []
+            if path.startswith("club_events?"):
+                return [{"event_date": "2026-11-12", "end_at": None, "all_day": False, "start_time": "7 PM",
+                         "title": "Youth Dodgeball", "location": None, "source_name": "City of St. Joseph"}]
+            return [{"title": "Krewe's Brussels Sprouts", "source_name": "Krewe"}]
+    since = SinceDb()
+    checks.append((since_lines(since, date(2026, 11, 5)) == ["Since the last report:", "- Thu Nov 12 · 7 PM · Youth Dodgeball",
+                                                             "- Krewe's Brussels Sprouts (Krewe)"],
+                   "the report names what was written after the last report"))
+    checks.append((all(f"created_at=gt.{quote('2026-11-04T12:15:00+00:00')}" in p and f"created_at=lt.{quote('2026-11-05T05:00:00-06:00')}" in p
+                       for p in since.asked[1:]), "from the last report's save to before this morning's run, Chicago time"))
+    checks.append((since_lines(SinceDb(last=False), date(2026, 11, 5)) == [], "no earlier report, no such list"))
+    checks.append((since_lines(SinceDb(down=True), date(2026, 11, 5)) == [
+                       "Since the last report: not read (Supabase GET club_events failed 503: Service Unavailable)"],
+                   "a read that fails is one line"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
     refused = {"entry_id": "b", "url": "https://b/",
