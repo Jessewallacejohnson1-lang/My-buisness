@@ -2,7 +2,7 @@
 //  NewPost.swift
 //  Block Party — New post, from the Town bar's + (BP app references/post-screen, town-feed 29; Jesse
 //  2026-11-01: draft 1, Facebook's, "yes to all and start"). A neighbour's own words, maybe one photo,
-//  a Place and the friends they're with, for the Town or only their Friends. Post saves it pending and
+//  a Place and the friends they're with, Public or only their Friends. Post saves it pending and
 //  the sheet closes; the instant check (`moderate-post` `submit`) answers on Town, where it waits faded
 //  until it's up. The Event chip makes it town-plus's New event instead: a name, a day and time and a
 //  Place, shared as an Event, the sheet waiting for the check.
@@ -613,18 +613,18 @@ struct NewPostSheet: View {
         return line
     }
 
-    /// Facebook's audience pill: the Town or Friends, from Apple's menu. Event on locks it to the Town.
+    /// Facebook's audience pill: Public or Friends, from Apple's menu. Event on locks it to Public.
     private var audience: some View {
         Menu {
             Picker(NewPostCopy.who, selection: $model.draft.friendsOnly) {
-                Label(Town.everyday, systemImage: "house").tag(false)
+                Label(NewPostCopy.everyone, systemImage: "globe.americas").tag(false)
                 Label(NewPostCopy.friends, systemImage: "person.2").tag(true)
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: model.draft.friendsOnly ? "person.2.fill" : "house.fill")
+                Image(systemName: model.draft.friendsOnly ? "person.2.fill" : "globe.americas.fill")
                     .font(.glyph(12, weight: .semibold))
-                Text(model.draft.friendsOnly ? NewPostCopy.friends : Town.everyday)
+                Text(model.draft.friendsOnly ? NewPostCopy.friends : NewPostCopy.everyone)
                     .font(.apple(13, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.glyph(10, weight: .bold))
@@ -643,7 +643,7 @@ struct NewPostSheet: View {
         .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
         .disabled(model.event)
         .accessibilityLabel(NewPostCopy.who)
-        .accessibilityValue(model.draft.friendsOnly ? NewPostCopy.friends : Town.everyday)
+        .accessibilityValue(model.draft.friendsOnly ? NewPostCopy.friends : NewPostCopy.everyone)
     }
 
     // MARK: Chips
@@ -890,6 +890,7 @@ enum NewPostCopy {
     static let about = "Say something about it…"
     static let eventName = "Name your event"
     static let who = "Who can see this"
+    static let everyone = "Public"
     static let friends = "Friends"
     static let tag = "Tag friends"
     static let event = "Event"
