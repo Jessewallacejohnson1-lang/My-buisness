@@ -446,7 +446,9 @@ def known_teams(db=None):
     rows = (db or Supabase()).rest("GET", "teams?select=id,name,short_name,aliases") or []
     known = {team_key(n): r["id"] for r in rows for n in (r["id"], r["name"]) if n}
     for r in rows:
-        for n in (r.get("short_name"), *(r.get("aliases") or [])):
+        # A co-op's short name is often its first school's ("Centennial"), which isn't the co-op.
+        short = [] if "-" in r["name"] else [r.get("short_name")]
+        for n in (*short, *(r.get("aliases") or [])):
             if n:
                 known.setdefault(team_key(n), r["id"])
     return known
@@ -469,21 +471,25 @@ def team_short(name):
     return first if len(first) <= SHORT_MAX else name[:SHORT_MAX + 1].rsplit(" ", 1)[0]
 
 
-def team_of(name, teams, may_make):
+def team_of(name, teams, may_make, made):
     """The team a schedule's name means, as (id, name, is it new), or None. A new team goes by its name with its
-    school's kind off ("Breck School" is Breck), so the next spelling finds it; every game's row carries the name,
-    and public.apply_judged makes the team with the first row kept (Jesse, 2026-11-05: "create the teams profile
-    and card whenever theres a new one that comes up", replacing 2026-10-26's no reader makes a team)."""
+    school's kind off ("Breck School" is Breck), so the next spelling finds it. `made` holds this run's new teams,
+    so every game's row carries one name for each, and public.apply_judged makes the team with the first row kept
+    (Jesse, 2026-11-05: "create the teams profile and card whenever theres a new one that comes up", replacing
+    2026-10-26's no reader makes a team)."""
     clean = team_name(name)
     bare = SCHOOL_KIND.sub("", clean)
     for known in (clean, bare):
         if team_id(known) in teams:
-            return teams[team_id(known)], known, False
+            i = teams[team_id(known)]
+            return i, made.get(i, known), False
     if not may_make or not could_be_a_team(clean):
         return None
     new = clean if bare.lower() in DIRECTIONS else bare
-    teams[team_id(new)] = teams[team_id(clean)] = team_id(new)
-    return team_id(new), new, True
+    i = team_id(new)
+    teams[i] = teams[team_id(clean)] = i
+    made[i] = new
+    return i, new, True
 
 
 def game_of(it, title):
@@ -689,7 +695,7 @@ def places():
     return _PLACES
 
 
-def event_of(it, today, interests, home, notes, titles=None, teams=None):
+def event_of(it, today, interests, home, notes, titles=None, teams=None, made=None):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
         until = it.get("end") or ""
@@ -749,7 +755,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None):
     if game:
         # A name from a schedule can make a team; the judge's stays a normal card until someone adds it.
         may_make = str(it.get("source_uid") or "").startswith(("mshsl:", "bound:")) or row["source_name"] in CAMPUS_TEAMS
-        found = [(team_id(t), t, False) if teams is None else team_of(t, teams, may_make) for t in game["teams"]]
+        found = [(team_id(t), t, False) if teams is None else team_of(t, teams, may_make, made) for t in game["teams"]]
         for t, f in zip(game["teams"], found):
             if not f:
                 notes.append(f"who is this: {t!r} ({title!r}) is no team's name, so a normal card until it's added")
@@ -918,6 +924,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
            "teams_checked": teams is not None}
+    made = {}  # this run's new teams, by id: their one name
     schedules = []
     groups, by_uid, news, also = [group(row, home=home) for row in existing], {}, {}, {}
     for g in groups:
@@ -934,7 +941,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
         if not why and it["kind"] == "news":
             n, why = news_of(it, interests, out["notes"])
         elif not why:
-            ev, why = event_of(it, today, interests, home, out["notes"], titles, teams)
+            ev, why = event_of(it, today, interests, home, out["notes"], titles, teams, made)
         if why:
             out["outcomes"][i] = ("skipped", why)
         elif it["kind"] == "news":
@@ -1879,6 +1886,7 @@ def t_teams_from_their_names():
               g("Kennedy Girls Basketball vs Holdingford", ["Kennedy", "Holdingford"]),
               g("Kennedy Girls Basketball vs Breck", ["Kennedy", "Breck School"], "bound:a"),
               g("Stride Girls Basketball vs Breck", ["Stride Academy", "Breck"], "mshsl:1:b"),
+              g("Stride Girls Basketball vs Breck School", ["Stride Academy", "Breck School"], "bound:b2"),
               g("Kennedy Girls Basketball vs Willmar", ["Kennedy", "Willmar MS"], "bound:c"),
               g("Kennedy Girls Basketball vs North", ["Kennedy", "North Junior High"], "bound:d"),
               g("Kennedy Girls Basketball vs West", ["Kennedy", "West Junior High"], "bound:e"),
@@ -1897,6 +1905,7 @@ def t_teams_from_their_names():
     breck = rows["Kennedy Girls Basketball vs Breck"]
     assert breck["team_ids"] == ["kennedy", "breck"] and breck["team_names"] == ["Kennedy", "Breck"], "its kind off"
     assert rows["Stride Girls Basketball vs Breck"]["team_ids"] == ["stride-academy", "breck"], "the next spelling finds it"
+    assert rows["Stride Girls Basketball vs Breck School"]["team_names"] == ["Stride Academy", "Breck"], "one name each run"
     assert sum(n.startswith("new team: 'Breck'") for n in r["notes"]) == 1, "reported once"
     assert rows["Kennedy Girls Basketball vs Willmar"]["team_ids"] == ["kennedy", "willmar"], "a school's kind folds"
     assert rows["Kennedy Girls Basketball vs North"]["team_ids"] == ["kennedy", "north-junior-high"], "its own name wins"
@@ -1915,10 +1924,13 @@ def t_teams_from_their_names():
     class Db:
         rest = staticmethod(lambda *_: [
             {"id": "brainerd-little-falls", "name": "Brainerd-Little Falls", "short_name": "Brainerd", "aliases": []},
-            {"id": "brainerd", "name": "Brainerd", "short_name": "Brainerd", "aliases": ["Forestview MS"]}])
+            {"id": "brainerd", "name": "Brainerd", "short_name": "Brainerd", "aliases": ["Forestview MS"]},
+            {"id": "centennial-spring-lake-park", "name": "Centennial-Spring Lake Park", "short_name": "Centennial", "aliases": []},
+            {"id": "gustavus-adolphus", "name": "Gustavus Adolphus", "short_name": "Gustavus", "aliases": []}])
     known = known_teams(Db)
     assert known["brainerd"] == "brainerd" and known["brainerd-little-falls"] == "brainerd-little-falls", known
     assert known["forestview-ms"] == "brainerd", "an alias still counts"
+    assert "centennial" not in known and known["gustavus"] == "gustavus-adolphus", "a co-op's short name isn't looked up"
 
 
 def t_one_place_two_names():

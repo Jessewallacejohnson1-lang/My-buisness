@@ -36,6 +36,9 @@ struct GameMatchup: View {
         static let middle: CGFloat = 112
         /// The line under Final, wider than the column: the room between the numbers on the smallest phone.
         static let penalties: CGFloat = 190
+        /// The day and time before it starts ("Thu, Nov 12 · 4:15 PM"), also wider than the column: the room between
+        /// the logos on the smallest phone.
+        static let when: CGFloat = 148
         /// The chip and the clock line 4 pt into the number's line, 10 pt apart.
         static let middleTop: CGFloat = 4
         static let middleGap: CGFloat = 10
@@ -189,7 +192,7 @@ struct GameMatchup: View {
                 if fresh { NightChip(text: "Live", dot: Hue.live) }
                 MomentLine(style: .onNight) { Text(live.line(at: now)).monospacedDigit() }
             } else {
-                if let when { NightChip(text: when) }
+                if let when { NightChip(text: when).frame(width: Metric.when) }
                 Text("VS")
                     .font(.eventDisplay(26))
                     .foregroundStyle(.white)

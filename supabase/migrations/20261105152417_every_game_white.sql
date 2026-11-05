@@ -201,9 +201,10 @@ language sql stable set search_path = '' as $$
 $$;
 
 -- What no rule can tell from a name: Forestview is Brainerd's middle school, Discovery is Alexandria's, and two co-ops
--- are written with and without their mascot.
+-- are written with and without their mascot. Brainerd-Little Falls reads as Brainerd under the rule for a short name.
 insert into public.teams (id, name, short_name, aliases) values
   ('brainerd', 'Brainerd', 'Brainerd', array['Forestview MS']),
+  ('brainerd-little-falls', 'Brainerd-Little Falls', 'Brainerd-LF', '{}'),
   ('northern-lakes', 'Northern Lakes', 'Northern Lakes', array['Northern Lakes Lightning']),
   ('annandale-maple-lake', 'Annandale-Maple Lake', 'Annandale-ML', array['Annandale-Maple Lake Lightning'])
 on conflict (id) do update set aliases = excluded.aliases;

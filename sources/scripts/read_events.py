@@ -822,7 +822,7 @@ BOUND_TEAMS = {"Kennedy Community MS": "Kennedy"}
 # A lower level as its title says it: "Apollo Girls Volleyball vs Brainerd · JV". A school's second
 # C team plays beside its first, same time and gym, so its title says so (2026-10-29: 14 pairs).
 BOUND_LEVEL_WORDS = {"Junior Varsity": "JV", "JV": "JV", "C": "C-squad", "C2": "C2-squad", "C Team": "C-squad",
-                     "B": "B-squad", "Middle School": "Middle school", "9th Grade": "9th grade", "MS": "Middle school"}
+                     "B": "B-squad", "Middle School": "Middle school", "MS": "Middle school"}
 # The adapted sports' divisions, not levels: the title keeps them, and a card wouldn't say what they mean.
 CARD_SAYS_NO_LEVEL = {"CI", "PI"}
 # A level that only says who plays ("Girls Varsity", "Boys MS"), posted where a meet's name goes.
