@@ -1,5 +1,5 @@
-// Fixed stories for Contacts (supabase/migrations/*_match_contacts.sql): who your scrambled contacts
-// find, everyone they never find, the 5-a-day and 2,000-a-check limits, and that nothing the phone
+// Fixed stories for Contacts (supabase/migrations/*_contacts_checked_numbers_only.sql): who your scrambled
+// contacts find (a checked phone number; no email until sign-up checks one: BP app loopholes 14), everyone they never find, the 5-a-day and 2,000-a-check limits, and that nothing the phone
 // sends is kept (BP app docs/plans/friends, ticket 06). Run in PGlite like the others:
 // `npm install && npm test` in this folder.
 import { test } from 'node:test';
@@ -9,27 +9,30 @@ import { realDatabase } from './fixture.mjs';
 
 const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
-const [ANA, BEN, CAL, DEE, EVE, ANON, NONAME] = [1, 2, 3, 4, 5, 6, 7].map(id);
+const [ANA, BEN, CAL, DEE, EVE, ANON, NONAME, FAY] = [1, 2, 3, 4, 5, 6, 7, 8].map(id);
 /** What the phone sends: SHA-256 hex of the lower-cased, trimmed email, or of a number's digits. */
 const code = (s) => createHash('sha256').update(s).digest('hex');
 const email = (e) => code(e.trim().toLowerCase());
+/** Each person's number, n as in `id(n)`, and what the phone sends for it. */
+const number = (n) => `1555123000${n}`;
+const phone = (n) => code(number(n));
 
 async function reset() {
   await db.exec(`reset role; reset request.jwt.claims;
     delete from private.contact_checks; delete from private.blocks; delete from private.friend_requests;
     delete from private.friendships; delete from public.town_follows; delete from public.town_profiles;
     delete from auth.users;`);
-  const people = [[ANA, 'Ana Lee', 'ana@example.com', null], [BEN, 'Ben Ortiz', 'Ben@Example.com', null],
-                  [CAL, 'Cal Ruiz', 'cal@example.com', '15551230003'], [DEE, 'Dee Moss', 'dee@example.com', '15551230004'],
-                  [EVE, 'Eve Park', 'eve@example.com', null]];
-  for (const [who, name, mail, phone] of people) {
-    // Only Cal's number was checked by a text code.
+  const people = [[ANA, 'Ana Lee', 'ana@example.com', number(1)], [BEN, 'Ben Ortiz', 'Ben@Example.com', number(2)],
+                  [CAL, 'Cal Ruiz', 'cal@example.com', number(3)], [DEE, 'Dee Moss', 'dee@example.com', number(4)],
+                  [EVE, 'Eve Park', 'eve@example.com', number(5)], [FAY, 'Fay Dunn', 'fay@example.com', number(8)]];
+  for (const [who, name, mail, num] of people) {
+    // Every number but Fay's was checked by a text code.
     await db.query(`insert into auth.users (id, email, email_confirmed_at, phone, phone_confirmed_at)
-                    values ($1, $2, now(), $3, case when $4 then now() end)`, [who, mail, phone, who === CAL]);
+                    values ($1, $2, now(), $3, case when $4 then now() end)`, [who, mail, num, who !== FAY]);
     await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [who, name]);
   }
-  await db.query(`insert into auth.users (id, is_anonymous, email, email_confirmed_at) values ($1, true, 'anon@example.com', now())`, [ANON]);
-  await db.query(`insert into auth.users (id, email, email_confirmed_at) values ($1, 'noname@example.com', now())`, [NONAME]);
+  await db.query(`insert into auth.users (id, is_anonymous, phone, phone_confirmed_at) values ($1, true, $2, now())`, [ANON, number(6)]);
+  await db.query(`insert into auth.users (id, phone, phone_confirmed_at) values ($1, $2, now())`, [NONAME, number(7)]);
   await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [NONAME, '  ']);
 }
 
@@ -46,35 +49,33 @@ const match = async (who, emails = [], phones = []) =>
 
 test('an anonymous account matches nothing', async () => {
   await reset();
-  await assert.rejects(as(ANON, 'select * from public.match_contacts($1, $2)', [[email('ana@example.com')], []],
+  await assert.rejects(as(ANON, 'select * from public.match_contacts($1, $2)', [[], [phone(1)]],
                           { anonymous: true }));
 });
 
-test('an email finds its account, whatever its case and spaces, A to Z', async () => {
+test('a number finds its account, A to Z', async () => {
   await reset();
-  assert.deepEqual(await match(ANA, [email(' BEN@example.COM '), email('eve@example.com'), email('nobody@example.com')]),
-                   ['Ben Ortiz', 'Eve Park']);
+  assert.deepEqual(await match(ANA, [], [phone(5), phone(2), code('15559990000')]), ['Ben Ortiz', 'Eve Park']);
   // Each row names the code that found it, so the phone leaves that contact out of Invite.
-  const rows = await as(ANA, 'select display_name, code from public.match_contacts($1, $2)',
-                        [[email('eve@example.com')], [code('15551230003')]]);
-  assert.deepEqual(rows.map((r) => [r.display_name, r.code]),
-                   [['Cal Ruiz', code('15551230003')], ['Eve Park', email('eve@example.com')]]);
+  const rows = await as(ANA, 'select display_name, code from public.match_contacts($1, $2)', [[], [phone(3), phone(5)]]);
+  assert.deepEqual(rows.map((r) => [r.display_name, r.code]), [['Cal Ruiz', phone(3)], ['Eve Park', phone(5)]]);
+});
+
+test('an email finds nobody, even a confirmed one, because sign-up does not check it yet', async () => {
+  await reset();
+  assert.deepEqual(await match(ANA, [email('ben@example.com'), email('eve@example.com')]), []);
+  // Sent beside a number that matches, it adds no one.
+  assert.deepEqual(await match(ANA, [email('eve@example.com')], [phone(3)]), ['Cal Ruiz']);
 });
 
 test('a phone number finds its account only once a text code checked it', async () => {
   await reset();
-  assert.deepEqual(await match(ANA, [], [code('15551230003'), code('15551230004')]), ['Cal Ruiz']);
-});
-
-test('an email nobody confirmed matches nothing', async () => {
-  await reset();
-  await db.query('update auth.users set email_confirmed_at = null where id = $1', [EVE]);
-  assert.deepEqual(await match(ANA, [email('eve@example.com'), email('ben@example.com')]), ['Ben Ortiz']);
+  assert.deepEqual(await match(ANA, [], [phone(3), phone(8)]), ['Cal Ruiz']);
 });
 
 test('the day of the count is St. Joseph\'s', async () => {
   await reset();
-  await match(ANA, [email('eve@example.com')]);
+  await match(ANA, [], [phone(5)]);
   const { rows } = await db.query(`select day = (now() at time zone 'America/Chicago')::date as ours from private.contact_checks`);
   assert.equal(rows[0].ours, true);
 });
@@ -84,9 +85,7 @@ test('never yourself, anonymous, nameless, blocked either way, or someone who tu
   await as(ANA, 'select public.block_neighbor($1)', [BEN]);
   await as(CAL, 'select public.block_neighbor($1)', [ANA]);
   await db.query('update public.town_profiles set suggest_me = false where user_id = $1', [DEE]);
-  const all = ['ana@example.com', 'ben@example.com', 'cal@example.com', 'dee@example.com', 'eve@example.com',
-               'anon@example.com', 'noname@example.com'].map(email);
-  assert.deepEqual(await match(ANA, all), ['Eve Park']);
+  assert.deepEqual(await match(ANA, [], [1, 2, 3, 4, 5, 6, 7].map(phone)), ['Eve Park']);
 });
 
 test('a friend comes back marked as a friend, a request as asked', async () => {
@@ -95,7 +94,7 @@ test('a friend comes back marked as a friend, a request as asked', async () => {
   await as(BEN, 'select public.confirm_friend_request($1)', [ANA]);
   await as(ANA, 'select public.send_friend_request($1)', [EVE]);
   const rows = await as(ANA, 'select display_name, relation from public.match_contacts($1, $2)',
-                        [[email('ben@example.com'), email('eve@example.com')], []]);
+                        [[], [phone(2), phone(5)]]);
   const relations = rows.map((r) => [r.display_name, r.relation]);
   assert.equal(relations.length, 2);
   assert.equal(relations[0][0], 'Ben Ortiz');
@@ -104,12 +103,12 @@ test('a friend comes back marked as a friend, a request as asked', async () => {
 
 test('5 checks a day, then refused, and the count stays at 5', async () => {
   await reset();
-  for (let i = 0; i < 5; i++) await match(ANA, [email('eve@example.com')]);
-  await assert.rejects(match(ANA, [email('eve@example.com')]), /contacts_limit/);
-  await assert.rejects(match(ANA, [email('eve@example.com')]), /contacts_limit/);
+  for (let i = 0; i < 5; i++) await match(ANA, [], [phone(5)]);
+  await assert.rejects(match(ANA, [], [phone(5)]), /contacts_limit/);
+  await assert.rejects(match(ANA, [], [phone(5)]), /contacts_limit/);
   assert.equal((await db.query('select checks from private.contact_checks where user_id = $1', [ANA])).rows[0].checks, 5);
   // Another account has its own 5.
-  assert.deepEqual(await match(BEN, [email('eve@example.com')]), ['Eve Park']);
+  assert.deepEqual(await match(BEN, [], [phone(5)]), ['Eve Park']);
 });
 
 test('more than 2,000 contacts in one check is refused and not counted', async () => {
