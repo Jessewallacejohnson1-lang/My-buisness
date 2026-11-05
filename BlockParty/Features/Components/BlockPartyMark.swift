@@ -21,7 +21,7 @@
 //
 //  The yellow ground is KEPT ON PURPOSE here. This view means "the app icon", so it
 //  ships the icon whole, the way the home screen shows it. Where the logo is meant to
-//  sit on the app's own page instead — the Today bar — use `BlockPartyWordmark`,
+//  sit on the app's own page instead — the Town bar — use `BlockPartyWordmark`,
 //  which is the letterforms alone on alpha.
 //
 

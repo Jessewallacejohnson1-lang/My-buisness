@@ -1,6 +1,6 @@
 //
-//  TodayTopBar.swift
-//  Block Party — Today's fixed top bar: the wordmark centred, the map disc and a
+//  TownBar.swift
+//  Block Party — the Town tab's fixed top bar: the wordmark centred, the map disc and a
 //  notifications bell trailing.
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
@@ -31,14 +31,14 @@
 
 import SwiftUI
 
-/// The Today bar's pure, testable pieces: its geometry and the uppercase date
+/// The Town bar's pure, testable pieces: its geometry and the uppercase date
 /// eyebrow.
 ///
 /// `nonisolated` because the constants are read from `nonisolated` contexts (and from
 /// the test target) — the module defaults to MainActor isolation, so an isolated enum
 /// here would trip the zero-warning bar. See the CLAUDE.md MainActor-default-argument
 /// gotcha.
-nonisolated enum TodayHeader {
+nonisolated enum TownBarRules {
     /// The bar's height, below the safe-area top inset. **Constant, and it must
     /// stay constant.**
     ///
@@ -57,7 +57,7 @@ nonisolated enum TodayHeader {
 
     /// How far down the feed must be before the direction rule may take the chrome
     /// away: the bar's own height. Up to there the feed carries the bar out 1:1
-    /// (`homeTravel`), as Instagram's header rides the scroll out of the top of its
+    /// (`barTravel`), as Instagram's header rides the scroll out of the top of its
     /// feed (Jesse, 2026-09-27); was 24 while the bar left on a spring instead.
     static let hideAfter: CGFloat = contentHeight
 
@@ -66,7 +66,7 @@ nonisolated enum TodayHeader {
     /// and fades with it, so it follows the finger and stops where the finger stops
     /// (`references/soft-top-edge/instagram-top.mov`, the first 0.7 s). An offset,
     /// never a height — see `contentHeight`.
-    static func homeTravel(offset: CGFloat) -> CGFloat {
+    static func barTravel(offset: CGFloat) -> CGFloat {
         min(max(offset, 0), contentHeight)
     }
 
@@ -104,9 +104,9 @@ nonisolated enum TodayHeader {
     /// the only inputs are where the current direction started (`anchor`, from
     /// `directionAnchor`), where the scroll is, and what the bar was doing.
     static func chromeHidden(wasHidden: Bool, floating: Bool, anchor: CGFloat, offset: CGFloat) -> Bool {
-        // Home, and anywhere a rubber-band pull takes you above it, always shows
+        // The top of the feed, and anywhere a rubber-band pull takes you above it, always shows
         // the bar — there is nothing below to read yet. Inside its own height the
-        // feed carries it (`homeTravel`).
+        // feed carries it (`barTravel`).
         guard offset > hideAfter else { return false }
         // Carried its full height out of home, the bar has already gone: it counts
         // as away at once, however the finger wobbled on the way down, so the next
@@ -134,8 +134,8 @@ nonisolated enum TodayHeader {
 }
 
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
-/// `TodayHeader`: these are constants, not state.
-private nonisolated enum TodayBarMetric {
+/// `TownBarRules`: these are constants, not state.
+private nonisolated enum TownBarMetric {
     /// The map button's disc: Instagram's button circle, 44pt (MEASURED 2026-09-27,
     /// `references/soft-top-edge/instagram-top.mov`; Jesse: same size as theirs).
     /// Was 50 until then.
@@ -232,7 +232,7 @@ final class BarTravel {
     var points: CGFloat = 0
 }
 
-struct TodayTopBar: View {
+struct TownBar: View {
     /// The bell's dot; absent in previews and demo screens.
     @Environment(Notices.self) private var notices: Notices?
     /// The map button → the town map. No longer the trailing control: it slid left
@@ -245,14 +245,14 @@ struct TodayTopBar: View {
     /// The wordmark's menu → the Town's own page or its City's (follows 04).
     var onOpenPage: (TownPageKind) -> Void = { _ in }
     /// True once a downward scroll has sent the chrome off the top of the screen;
-    /// false the moment the feed is scrolled back up. `FeedView` owns the state,
-    /// `TodayHeader.chromeHidden` owns the rule.
+    /// false the moment the feed is scrolled back up. `TownView` owns the state,
+    /// `TownBarRules.chromeHidden` owns the rule.
     var chromeHidden: Bool = false
     /// True while the bar floats over the feed rather than sitting at home on the
     /// paper: the bell sits in a frosted circle, as Instagram's buttons do.
-    /// `TodayHeader.chromeFloating` owns the rule.
+    /// `TownBarRules.chromeFloating` owns the rule.
     var chromeFloating: Bool = false
-    /// How far the feed has carried the bar off the top (`TodayHeader.homeTravel`).
+    /// How far the feed has carried the bar off the top (`TownBarRules.barTravel`).
     /// Written every frame of the first 58pt of scroll, so it arrives in its own
     /// observable box: this bar reads it and nothing above it re-runs.
     var travel = BarTravel()
@@ -282,12 +282,12 @@ struct TodayTopBar: View {
         // at all: the feed carries the bar, 1:1 with the finger.
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
-        // anything is inside it. See `TodayHeader.contentHeight` for why a height
+        // anything is inside it. See `TownBarRules.contentHeight` for why a height
         // derived from this scroll rings instead of settling.
         ZStack {
             if !chromeHidden {
                 controls
-                    .frame(height: TodayHeader.contentHeight)
+                    .frame(height: TownBarRules.contentHeight)
                     // Behind the bar while it floats over the feed: the part of
                     // Instagram's edge that belongs to the bar, so it leaves and comes
                     // back with it. At home there is only the page behind the bar.
@@ -304,17 +304,17 @@ struct TodayTopBar: View {
                     .overlay(alignment: .bottom) {
                         if offline {
                             OfflinePill()
-                                .offset(y: TodayBarMetric.offlinePillHeight + TodayBarMetric.offlinePillGap)
+                                .offset(y: TownBarMetric.offlinePillHeight + TownBarMetric.offlinePillGap)
                                 .transition(.opacity)
                         }
                     }
                     .animation(motion, value: offline)
                     .offset(y: -carried)
-                    .opacity(1 - carried / TodayHeader.contentHeight)
-                    .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
+                    .opacity(1 - carried / TownBarRules.contentHeight)
+                    .transition(.offset(y: -TownBarRules.contentHeight).combined(with: .opacity))
             }
         }
-        .frame(height: TodayHeader.contentHeight)
+        .frame(height: TownBarRules.contentHeight)
         .frame(maxWidth: .infinity)
         // NOT clipped at the bar's edge: Instagram's header slides up under the clock
         // and comes back down from behind it whole (recorded 2026-09-27). A clip
@@ -359,7 +359,7 @@ struct TodayTopBar: View {
     /// The bell is a bare mark at home and only sits in a frosted circle
     /// while the bar floats (`chromeFloating`), as Instagram's do. The map disc is
     /// the one control that is always an object. (A disc LEADING would trip
-    /// `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
+    /// `TownBarTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
     /// allows under 20 saturated pixels in the leading 18% of the bar against the
     /// roughly 7,800 a yellow disc puts there.)
     private var controls: some View {
@@ -367,16 +367,16 @@ struct TodayTopBar: View {
             plusButton
             Spacer(minLength: 0)
             mapButton
-            Spacer(minLength: 0).frame(width: TodayBarMetric.controlGap)
+            Spacer(minLength: 0).frame(width: TownBarMetric.controlGap)
             bellButton
         }
-        .padding(.horizontal, TodayBarMetric.rowInset)
+        .padding(.horizontal, TownBarMetric.rowInset)
         .overlay {
             // Only the lockup takes a touch; the controls either side keep theirs. On a phone too
             // narrow for it beside the map disc (under 384pt) it shrinks to fit rather than overlap.
             GeometryReader { proxy in
                 pagesMenu
-                    .scaleEffect(TodayBarMetric.lockupScale(barWidth: proxy.size.width))
+                    .scaleEffect(TownBarMetric.lockupScale(barWidth: proxy.size.width))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -402,7 +402,7 @@ struct TodayTopBar: View {
                 // The circle is always light, so the ink on it is the light-canvas
                 // ink; bare on the paper it stays the page's own ink.
                 .foregroundStyle(chromeFloating ? Hue.ink.onLightCanvas : Hue.ink)
-                .frame(width: TodayBarMetric.glyphTap, height: TodayBarMetric.glyphTap)
+                .frame(width: TownBarMetric.glyphTap, height: TownBarMetric.glyphTap)
                 .background {
                     if chromeFloating {
                         Frosted(shape: Circle()).transition(.opacity)
@@ -433,11 +433,11 @@ struct TodayTopBar: View {
         let dot = notices?.dot == true || HelloInbox.shared.next != nil
         return glyphButton(label: dot ? "Notifications, new" : "Notifications", hint: "What you have missed",
                            action: onOpenNotifications) {
-            BellGlyph(size: TodayBarMetric.bellGlyphSize)
+            BellGlyph(size: TownBarMetric.bellGlyphSize)
                 .overlay(alignment: .topTrailing) {
                     if dot {
                         UnreadDot(ring: chromeFloating ? Hue.surface : Hue.paper,
-                                  inkRight: TodayBarMetric.bellInkRight, inkTop: TodayBarMetric.bellInkTop)
+                                  inkRight: TownBarMetric.bellInkRight, inkTop: TownBarMetric.bellInkTop)
                     }
                 }
         }
@@ -449,19 +449,19 @@ struct TodayTopBar: View {
     private var pagesMenu: some View {
         Menu {
             Button { onOpenPage(.town) } label: {
-                Label { Text(TownPageKind.town.name) } icon: { TodayTopBar.townIcon }
+                Label { Text(TownPageKind.town.name) } icon: { TownBar.townIcon }
             }
             Button { onOpenPage(.city) } label: {
-                Label { Text(TownPageKind.city.name) } icon: { TodayTopBar.cityIcon }
+                Label { Text(TownPageKind.city.name) } icon: { TownBar.cityIcon }
             }
         } label: {
-            HStack(spacing: TodayBarMetric.chevronGap) {
+            HStack(spacing: TownBarMetric.chevronGap) {
                 brandMark
                 Image(systemName: "chevron.down")
-                    .font(.glyph(TodayBarMetric.chevronSize, weight: .bold))
+                    .font(.glyph(TownBarMetric.chevronSize, weight: .bold))
                     .foregroundStyle(Hue.ink)
             }
-            .frame(height: TodayHeader.contentHeight)
+            .frame(height: TownBarRules.contentHeight)
             .contentShape(Rectangle())
         }
         .menuStyle(.button)
@@ -485,7 +485,7 @@ struct TodayTopBar: View {
     }
 
     @MainActor private static func menuIcon<Content: View>(@ViewBuilder _ content: () -> Content) -> Image {
-        let side = TodayBarMetric.menuIcon
+        let side = TownBarMetric.menuIcon
         let renderer = ImageRenderer(content: content().frame(width: side, height: side).clipShape(Circle()))
         renderer.scale = 3
         guard let image = renderer.uiImage else { return Image(systemName: "circle") }
@@ -499,7 +499,7 @@ struct TodayTopBar: View {
     /// The Sep 19 logo is flat two-colour art, so `wordmark.py` could resolve the
     /// yellow field into alpha and the lockup now sits directly on the bar.
     private var brandMark: some View {
-        BlockPartyWordmark(height: TodayBarMetric.wordmarkHeight)
+        BlockPartyWordmark(height: TownBarMetric.wordmarkHeight)
             .foregroundStyle(Hue.ink)
     }
 
@@ -519,14 +519,14 @@ struct TodayTopBar: View {
     /// mustard over photos, and taste.md says exactly `#FCE804`, never a tint), and
     /// glass composites outside the view's own layer, so it arrived and left out of
     /// step with the rest of the bar. A plain view fades, slides and clips with its
-    /// neighbours. `TodayHeaderTests.testMapDiscIsExactBrandYellow` guards the colour.
+    /// neighbours. `TownBarTests.testMapDiscIsExactBrandYellow` guards the colour.
     ///
     /// The press is the squish without the haptic: opening the map is not a
     /// commit (Jesse, Q4 A).
     private var mapButton: some View {
-        let side = TodayBarMetric.mapSide
+        let side = TownBarMetric.mapSide
         return Button(action: onOpenMap) {
-            MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
+            MapPinGlyph(size: TownBarMetric.mapGlyphSize)
                 .foregroundStyle(Hue.onBrandDisc)
                 .frame(width: side, height: side)
                 .background(Self.mapShape.fill(Hue.brandDisc))
@@ -539,25 +539,25 @@ struct TodayTopBar: View {
 
 /// Instagram's status-bar edge: the feed under the clock blurred and mixed toward
 /// the page, both thinning to nothing just below the status bar. Always there, and
-/// over the bar (`TodayTopBar.body`). Mixed toward the page's own colour, so over the
+/// over the bar (`TownBar.body`). Mixed toward the page's own colour, so over the
 /// page at home it is invisible, in either appearance.
 ///
 /// Not a material: every material blurs ~19pt and fogs the photo grey (the edge
 /// shipped that way 2026-09-27), where Instagram's blurs 5–9pt and keeps the colour.
 /// Not the system soft scroll edge either: it needs `.safeAreaBar`, which flipped the
 /// bar dark over photos (2026-09-24), and it cannot shrink when the bar leaves, since
-/// the bar's height is the scroll's inset (`TodayHeader.contentHeight`).
+/// the bar's height is the scroll's inset (`TownBarRules.contentHeight`).
 private struct StatusEdge: View {
     var body: some View {
-        ProgressiveBlur(top: TodayBarMetric.statusBlurTop)
-            .overlay(LinearGradient(colors: [Hue.paper.opacity(TodayBarMetric.statusHaze),
+        ProgressiveBlur(top: TownBarMetric.statusBlurTop)
+            .overlay(LinearGradient(colors: [Hue.paper.opacity(TownBarMetric.statusHaze),
                                              Hue.paper.opacity(0)],
                                     startPoint: .top, endPoint: .bottom))
     }
 }
 
 extension View {
-    /// The status edge laid over the top of a screen: Today's bar, and Daily's page.
+    /// The status edge laid over the top of a screen: the Town bar, and Daily's page.
     /// Daily fades it out at rest, over its yellow: the haze would make a near-yellow,
     /// and so does the blur, which pulls in a lighter band at the screen's top
     /// (measured 2026-10-01: #F7E61F over #FAE703). Faded, not masked: a SwiftUI mask
@@ -566,7 +566,7 @@ extension View {
     func statusEdge(opacity: Double = 1) -> some View {
         overlay(alignment: .top) {
             Color.clear
-                .frame(height: TodayBarMetric.statusEdgeTail)
+                .frame(height: TownBarMetric.statusEdgeTail)
                 .background(StatusEdge().ignoresSafeArea(edges: .top))
                 .opacity(opacity)
                 .allowsHitTesting(false)
@@ -582,10 +582,10 @@ private struct BarEdge: View {
     var body: some View {
         // One blur over the whole height: two stacked blurs meeting at the status
         // bar's edge drew a seam there, each blurring only what was on its own side.
-        ProgressiveBlur(top: TodayBarMetric.barBlurTop)
+        ProgressiveBlur(top: TownBarMetric.barBlurTop)
             .overlay(LinearGradient(stops: [
-                .init(color: Hue.paper.opacity(TodayBarMetric.barHaze), location: 0),
-                .init(color: Hue.paper.opacity(TodayBarMetric.barHaze), location: TodayBarMetric.barHazeEnds),
+                .init(color: Hue.paper.opacity(TownBarMetric.barHaze), location: 0),
+                .init(color: Hue.paper.opacity(TownBarMetric.barHaze), location: TownBarMetric.barHazeEnds),
                 .init(color: Hue.paper.opacity(0), location: 1),
             ], startPoint: .top, endPoint: .bottom))
     }
@@ -625,7 +625,7 @@ private struct ProgressiveBlur: UIViewRepresentable {
         let stack = UIView()
         stack.isUserInteractionEnabled = false
         for layer in EdgeBlur.layers(top: top, steps: 2) {
-            let blur = PartialBlurView(fraction: layer.sigma / TodayBarMetric.blurAtFull,
+            let blur = PartialBlurView(fraction: layer.sigma / TownBarMetric.blurAtFull,
                                        solidTo: layer.solidTo, clearAt: layer.clearAt)
             blur.frame = stack.bounds
             blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -713,7 +713,7 @@ private struct Frosted<S: InsettableShape>: View {
     var body: some View {
         shape
             .fill(.ultraThinMaterial)
-            .overlay(shape.fill(Hue.surface.onLightCanvas.opacity(TodayBarMetric.discWhite)))
+            .overlay(shape.fill(Hue.surface.onLightCanvas.opacity(TownBarMetric.discWhite)))
             // Instagram's brighter rim, as the tab bar draws it.
             .overlay(shape.strokeBorder(Hue.surface.onLightCanvas.opacity(0.75), lineWidth: 1))
             .environment(\.colorScheme, .light)
@@ -733,13 +733,13 @@ private struct OfflinePill: View {
         .font(.sans(13))
         .foregroundStyle(Hue.ink.onLightCanvas)
         .padding(.horizontal, 14)
-        .frame(height: TodayBarMetric.offlinePillHeight)
+        .frame(height: TownBarMetric.offlinePillHeight)
         .background(Frosted(shape: Capsule()))
         // The frosted white alone barely shows on the paper at the top of the feed.
-        .shadow(color: .black.opacity(TodayBarMetric.offlinePillShadow), radius: 8, y: 2)
+        .shadow(color: .black.opacity(TownBarMetric.offlinePillShadow), radius: 8, y: 2)
         // A label, not a control: taps go through to the card under it.
         .allowsHitTesting(false)
-        // VoiceOver hears it once as an announcement when it appears (FeedView).
+        // VoiceOver hears it once as an announcement when it appears (TownView).
         .accessibilityElement(children: .combine)
     }
 }

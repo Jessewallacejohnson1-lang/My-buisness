@@ -56,7 +56,7 @@ struct TownNewsCard: View {
                     onMenu: { menuPresented = true }
                 )
                 .padding(.top, 2)
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+                .padding(.horizontal, TownFeedMetric.contentInset)
                 .modifier(FeedCardMenuSheet(isPresented: $menuPresented, news: news))
             }
         }
@@ -67,7 +67,7 @@ struct TownNewsCard: View {
     private var face: some View {
         NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
                     title: news.headline, facts: news.cardFacts, factsLines: 2)
-            .padding(.horizontal, DailyFeedMetric.contentInset)
+            .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in

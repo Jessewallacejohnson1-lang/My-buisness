@@ -453,7 +453,7 @@ see *Decided 2026-09-25* below.
   became `Hue.brandDisc` / `onBrandDisc` / `onBrandDiscHex`, and `CreateDiscContrastTests`
   became `BrandDiscContrastTests` (same pbxproj IDs, same four pinned numbers). The Town
   bar's map disc is the ONE control that wears it, still exactly `#FCE804`
-  (`TodayHeaderTests.testMapDiscIsExactBrandYellow`).
+  (`TownBarTests.testMapDiscIsExactBrandYellow`).
   **Superseded 2026-09-25:** the map disc is no longer the only one. `brandDisc` also
   fills the selected tab-bar icon (Jesse); see *Decided 2026-09-25* below.
 - **Deleted:** `Features/Add/` (`AddView`, `AddFormView`, `AddModel`, `AddKind`),

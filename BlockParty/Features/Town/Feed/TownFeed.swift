@@ -265,12 +265,12 @@ final class TownFeed {
         switch LaunchFlags.backend {
         case .offline:
             self.init(read: { throw URLError(.notConnectedToInternet) },
-                      kept: { DailyFixtures.townEntries() }, actions: actions, live: live)
+                      kept: { TownFixtures.townEntries() }, actions: actions, live: live)
             return
         case .samples:
             // Mute and the Muted list kept in memory, so the Eyes pass shows both (ticket 21).
             let mutes = SampleMutes()
-            self.init(read: { DailyFixtures.townEntries() }, actions: actions,
+            self.init(read: { TownFixtures.townEntries() }, actions: actions,
                       choose: mutes.choose, readMuted: { mutes.list }, live: live)
             return
         case .live:
@@ -321,10 +321,10 @@ final class TownFeed {
     /// on or to come, never one you hid or whose host you muted (ticket 21); then the list.
     /// Past the ranked list, its places as Search holds them (`places`, by `places.id`), town-feed 23.
     func column(eventOfTheDay picks: [DailyEvent], now: Date,
-                places: (String) -> SearchItem? = { _ in nil }) -> [DailyFeedItem] {
+                places: (String) -> SearchItem? = { _ in nil }) -> [TownFeedItem] {
         let top = DailyEvent.showing(picks.filter { !isHidden($0.item) }, now: posterClock(at: now), limit: 1).first
         let ranked = shown
-        return DailyFeedItem.town(ranked, eventOfTheDay: top) + past(ranked, places: places)
+        return TownFeedItem.town(ranked, eventOfTheDay: top) + past(ranked, places: places)
     }
 
     // MARK: After the best (town-feed 23)
@@ -343,13 +343,13 @@ final class TownFeed {
     /// already above and not hidden, then each round's places Search can open and repeats of what the
     /// list above still shows, so a hidden or muted one never comes back. Nothing past an empty list,
     /// which keeps its own quiet screen.
-    func past(_ ranked: [TownFeedEntry], places: (String) -> SearchItem?) -> [DailyFeedItem] {
+    func past(_ ranked: [TownFeedEntry], places: (String) -> SearchItem?) -> [TownFeedItem] {
         guard !ranked.isEmpty else { return [] }
         let above = Dictionary(ranked.map { ($0.id, $0.item) }, uniquingKeysWith: { first, _ in first })
         let at = holding ? heldClock : clock
-        var items: [DailyFeedItem] = [.caughtUp]
+        var items: [TownFeedItem] = [.caughtUp]
         items += later.filter { $0.leavesAt > at && above[$0.id] == nil }
-            .compactMap(\.card).filter { !isHidden($0) }.map(DailyFeedItem.event)
+            .compactMap(\.card).filter { !isHidden($0) }.map(TownFeedItem.event)
         for (round, rows) in rounds.enumerated() {
             for row in rows {
                 switch row.kind {
@@ -745,7 +745,7 @@ final class TownFeed {
 private final class SampleMutes {
     var list = [MutedHost(host: "sample-library", name: "St. Joe Public Library")]
     /// Each sample's host by its id, news by its place (news-menu).
-    private let names = Dictionary(DailyFixtures.townEntries().map { entry in
+    private let names = Dictionary(TownFixtures.townEntries().map { entry in
         switch entry.item {
         case .event(let card): (card.id, card.hostName)
         case .news(let news): (news.id, news.place)

@@ -284,7 +284,7 @@ enum YouCalendar {
             (15, "5 PM", "Trail cleanup", "boardwalk-loop-trail", "Boardwalk Loop Trail", .service),
         ]
         // `-town-live`: today's game, Going, first (codebase-health-2 08).
-        let live = [DailyFixtures.liveGameGoing(now: now)].compactMap { $0 }
+        let live = [TownFixtures.liveGameGoing(now: now)].compactMap { $0 }
         return live + rows.enumerated().compactMap { index, row in
             guard let date = day(row.0 == 0 && freeToday ? 2 : row.0) else { return nil }
             let photo = row.3.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }

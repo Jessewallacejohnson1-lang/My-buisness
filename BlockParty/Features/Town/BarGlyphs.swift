@@ -1,7 +1,7 @@
 //
 //  BarGlyphs.swift
 //  Block Party — two traced marks: the search magnifier (the tab bar's Search tab
-//  since 2026-09-29; the Today bar's leading control before that) and the Today
+//  since 2026-09-29; the Town bar's leading control before that) and the Town
 //  bar's notifications bell. Plus the Town tab's house, drawn rather than traced,
 //  and the Daily tab's Bp! whose ! hops (2026-10-30, at the end of this file).
 //

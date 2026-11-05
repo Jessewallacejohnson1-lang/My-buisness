@@ -228,7 +228,7 @@ struct DailyPostPage: View {
 
     var body: some View {
         ScrollView {
-            PostingCard(posting: posting, onShare: { DailyFeedColumn.share(posting) })
+            PostingCard(posting: posting, onShare: { TownFeedColumn.share(posting) })
         }
         .background(Hue.paper.ignoresSafeArea())
         .safeAreaInset(edge: .top, spacing: 0) {

@@ -344,10 +344,10 @@ final class DailyPageTests: XCTestCase {
             return all
         }
         let cards = [card("a"), card(pick.id), card("b")]
-        XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.id),
+        XCTAssertEqual(TownFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.id),
                        ["event-of-the-day:\(pick.id)", "event:a", "news:n", "event:b"])
-        XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.eventID), [pick.id, "a", nil, "b"])
-        XCTAssertEqual(DailyFeedItem.town(entries(cards), eventOfTheDay: nil).map(\.id),
+        XCTAssertEqual(TownFeedItem.town(entries(cards), eventOfTheDay: pick).map(\.eventID), [pick.id, "a", nil, "b"])
+        XCTAssertEqual(TownFeedItem.town(entries(cards), eventOfTheDay: nil).map(\.id),
                        ["event:a", "event:\(pick.id)", "news:n", "event:b"])
     }
 

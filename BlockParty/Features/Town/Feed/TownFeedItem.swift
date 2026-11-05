@@ -1,5 +1,5 @@
 //
-//  DailyFeedItem.swift
+//  TownFeedItem.swift
 //  Block Party — what a feed column carries: neighbour postings and town events,
 //  one stream, two shapes.
 //
@@ -22,7 +22,7 @@ struct PostingItem: Identifiable, Hashable {
     var isFollowed = false
 }
 
-enum DailyFeedItem: Identifiable {
+enum TownFeedItem: Identifiable {
     case posting(PostingItem)
     case event(FeedCardItem)
     /// The Town feed's top: your Event of the day as its poster (BP app event-card 03).
@@ -76,7 +76,7 @@ enum DailyFeedItem: Identifiable {
 
     /// The Town feed's column: your Event of the day on top, then the events and news in the feed's
     /// order, leaving out the event the poster shows, so it never shows twice (Jesse, 2026-10-21).
-    static func town(_ entries: [TownFeedEntry], eventOfTheDay: DailyEvent?) -> [DailyFeedItem] {
+    static func town(_ entries: [TownFeedEntry], eventOfTheDay: DailyEvent?) -> [TownFeedItem] {
         let below = entries.filter { entry in eventOfTheDay.map { entry.card?.id != $0.id } ?? true }
         return (eventOfTheDay.map { [.eventOfTheDay($0)] } ?? []) + below.map { entry in
             switch entry.item {

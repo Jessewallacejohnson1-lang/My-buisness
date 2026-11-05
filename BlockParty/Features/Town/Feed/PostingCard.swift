@@ -1,6 +1,6 @@
 //
 //  PostingCard.swift
-//  Block Party — a neighbour's post in the Daily feed.
+//  Block Party — a neighbour's post in the Town feed.
 //
 //  Instagram proportions on purpose: a 4:5 portrait frame is what a phone camera
 //  hands you and what everyone's thumb already knows how to read. The chrome around
@@ -75,10 +75,10 @@ struct PostingCard: View {
                 onShare: onShare
             )
             .padding(.top, 2)
-            .padding(.horizontal, DailyFeedMetric.contentInset)
+            .padding(.horizontal, TownFeedMetric.contentInset)
 
             caption
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+                .padding(.horizontal, TownFeedMetric.contentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -196,7 +196,7 @@ struct PostingCard: View {
             // being under the header overlay means it slides beneath the avatar row
             // on its way out rather than colliding with the Follow button.
             .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
-            .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: TownFeedMetric.mediaRadius, style: .continuous))
             .overlay(alignment: .top) {
                 header
                     .padding(.horizontal, Metric.overlayInset)

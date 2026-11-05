@@ -1429,7 +1429,7 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     func testTheUndoLineFindsNewsByItsOwnID() {
-        let news = DailyFeedItem.news(TownNews(id: "p1", place: "Parks", words: "x", post: URL(string: "https://x")!,
+        let news = TownFeedItem.news(TownNews(id: "p1", place: "Parks", words: "x", post: URL(string: "https://x")!,
                                                leavesAt: .distantFuture))
         XCTAssertEqual(news.hideID, "p1")
         XCTAssertNil(news.eventID, "views still go for Events only")

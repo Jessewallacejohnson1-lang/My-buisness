@@ -1,11 +1,11 @@
 //
-//  DailyFeedColumn.swift
+//  TownFeedColumn.swift
 //  Block Party — the social feed's card column, without a scroll view of its own.
 //
-//  Split out of `DailyView` so the feed can live inside the Town tab's existing
-//  scroll (under `TodayTopBar`, which owns the only production route into the map)
-//  rather than replacing it. `DailyView` is now just this column in its own scroll,
-//  kept for the `-daily-feed-preview` flag.
+//  Split out of `TownFeedScroll` so the feed can live inside the Town tab's existing
+//  scroll (under `TownBar`, which owns the only production route into the map)
+//  rather than replacing it. `TownFeedScroll` is now just this column in its own scroll,
+//  kept for the `-town-feed-preview` flag.
 //
 
 import SwiftUI
@@ -15,7 +15,7 @@ import SwiftUI
 /// `nonisolated` because these are constants, not main-actor state — the module
 /// defaults to MainActor isolation and an isolated enum here would trip the
 /// zero-warning bar at every call site.
-nonisolated enum DailyFeedMetric {
+nonisolated enum TownFeedMetric {
     /// The inset for a card's copy and controls — and, on an EVENT, for the picture
     /// too. A posting's photo is the one thing that still runs to both screen edges
     /// (Jesse, 2026-09-20: Instagram's feed, which is what a posting is).
@@ -28,9 +28,9 @@ nonisolated enum DailyFeedMetric {
 
 }
 
-struct DailyFeedColumn: View {
+struct TownFeedColumn: View {
     /// What to show, in the order to show it.
-    var items: [DailyFeedItem]
+    var items: [TownFeedItem]
     /// The first cards rise in as the column appears. Off when the Town feed comes
     /// back partway down, where they would fade in after the tab had slid in.
     var entrance = true
@@ -58,13 +58,13 @@ struct DailyFeedColumn: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 28) {
             if items.isEmpty {
-                DailyFeedEmptyState()
+                TownFeedEmptyState()
                     .padding(.top, 72)
-                    .padding(.horizontal, DailyFeedMetric.contentInset)
+                    .padding(.horizontal, TownFeedMetric.contentInset)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     card(for: item)
-                        .modifier(DailyCardEntrance(
+                        .modifier(TownCardEntrance(
                             index: index,
                             enabled: entrance && index < Self.entranceCardCount && !reduceMotion,
                             revealed: revealedIDs.contains(item.id),
@@ -80,18 +80,18 @@ struct DailyFeedColumn: View {
                     // The next card's shape, as the feed's own skeleton draws one (never a spinner).
                     SkeletonBlock(cornerRadius: Radius.card)
                         .aspectRatio(3.0 / 2.0, contentMode: .fit)
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                        .padding(.horizontal, TownFeedMetric.contentInset)
                         .accessibilityLabel("Loading more")
                 }
             }
         }
         // NO horizontal inset: the cards' media runs edge to edge. Each card insets
-        // its own copy and controls by `DailyFeedMetric.contentInset`.
+        // its own copy and controls by `TownFeedMetric.contentInset`.
         .padding(.top, 12)
     }
 
     @ViewBuilder
-    private func card(for item: DailyFeedItem) -> some View {
+    private func card(for item: TownFeedItem) -> some View {
         if let feed, let hide = feed.undo, hide.id == item.hideID {
             FeedUndoLine(hide: hide, feed: feed)
         } else {
@@ -100,7 +100,7 @@ struct DailyFeedColumn: View {
     }
 
     @ViewBuilder
-    private func plainCard(for item: DailyFeedItem) -> some View {
+    private func plainCard(for item: TownFeedItem) -> some View {
         switch item {
         case .posting(let posting):
             PostingCard(
@@ -115,7 +115,7 @@ struct DailyFeedColumn: View {
             )
         case .eventOfTheDay(let event):
             EventOfTheDayPoster(event: event, now: now)
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+                .padding(.horizontal, TownFeedMetric.contentInset)
         case .news(let news), .again(.news(let news), _):
             TownNewsCard(news: news)
         case .post(let post), .again(.post(let post), _):
@@ -177,7 +177,7 @@ struct FeedUndoLine: View {
             }
             .buttonStyle(.press(.squish))
         }
-        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .padding(.horizontal, TownFeedMetric.contentInset)
         .frame(height: Self.height)
         .transition(.opacity)
         // The feed ends the line after 5 seconds (`TownFeed.hide`), so scrolling it away can't keep it.
@@ -187,7 +187,7 @@ struct FeedUndoLine: View {
 
 /// Not an error — nothing is broken when the block is quiet, there is simply
 /// nothing planned in the Town yet. Words from BP app's words page (`town-empty`).
-struct DailyFeedEmptyState: View {
+struct TownFeedEmptyState: View {
     var body: some View {
         VStack(spacing: 8) {
             BlockPartyGlyph(side: 40)
@@ -210,7 +210,7 @@ struct DailyFeedEmptyState: View {
 /// Two event cards' shapes while the Town's events load: host row, picture and room
 /// for the action row, at the card's own sizes, so the cards land where these stood.
 /// No going line: a card shows one only once someone is going.
-struct DailyFeedSkeleton: View {
+struct TownFeedSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             ForEach(0..<2, id: \.self) { _ in
@@ -221,12 +221,12 @@ struct DailyFeedSkeleton: View {
                         SkeletonCircle(diameter: 32)
                         SkeletonLine(widthFraction: 0.4)
                     }
-                    .padding(.horizontal, DailyFeedMetric.contentInset)
+                    .padding(.horizontal, TownFeedMetric.contentInset)
 
                     // Each card takes its photo's shape; 3:2 is the one it has without a size.
                     SkeletonBlock(cornerRadius: Radius.card)
                         .aspectRatio(3.0 / 2.0, contentMode: .fit)
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                        .padding(.horizontal, TownFeedMetric.contentInset)
                         .padding(.top, 10)
 
                     // The heart, share and bookmark row: no shapes, its height only.
@@ -246,7 +246,7 @@ struct DailyFeedSkeleton: View {
 /// Its own modifier rather than `staggeredAppear` because that one caps its delay
 /// for a fixed block of rows inside a card; this is a scrolling column where a card
 /// must reveal once and then stay revealed as the LazyVStack recycles it.
-struct DailyCardEntrance: ViewModifier {
+struct TownCardEntrance: ViewModifier {
     let index: Int
     let enabled: Bool
     let revealed: Bool
