@@ -299,6 +299,7 @@ as $$
            greatest(0, extract(epoch from coalesce(e.starts_at, e.event_date::timestamp at time zone town.zone) - p_now) / 86400)
              as days_away,
            tg.tags,
+           yg.young,
            (select array_agg(x order by x) from unnest(tg.tags) x where x = any(me.interests)) as matched,
            -- The group that posted it, else, for a found Event, the group it was found for: worked out
            -- once here (`shown` is read twice, so kept) for the Group lift and the card's Join.
@@ -308,7 +309,11 @@ as $$
          -- Every interest the tagger gave the Event (ticket 33); one it hasn't reached yet has
          -- its writer's one.
          lateral (select case when e.interests_tagged_at is not null then e.interests
-                              else array[e.category] end as tags) tg
+                              else array[e.category] end as tags) tg,
+         -- Middle school sports and Knowledge Bowl (Jesse, 2026-11-05: "junior high sports typically are not gonna
+         -- be very popular"), for those who care (`scored`). A school's concerts and shows stay (MEMORY.md).
+         lateral (select 'middle_school' = any(tg.tags) and e.interests_tagged_at is not null
+                         and ('watch_sports' = any(tg.tags) or coalesce(e.what, e.title) ~* 'knowledge bowl') as young) yg
     where e.nth = 1
       -- After the best (town-feed 23): p_later asks for the Events not yet in, past their show-from day.
       and (town.today >= coalesce(e.shows_from, e.event_date - 14)) <> p_later
@@ -317,8 +322,8 @@ as $$
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
-      -- Middle school sports (`scored`) go before the limit below, or the later list comes up short.
-      and (not p_later or not ('middle_school' = any(tg.tags) and 'watch_sports' = any(tg.tags) and e.interests_tagged_at is not null)
+      -- These go before the limit below, or the later list comes up short.
+      and (not p_later or not yg.young
            or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved
            or exists (select 1 from private.friends_going(array[e.id])))
     -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
@@ -428,10 +433,8 @@ as $$
                   when c.live_kind and c.days_off = 0 then c.seen_today
                   else c.seen_times end)) as seen_x
     from counted c, weights
-    -- Middle school sports (Jesse, 2026-11-05: "junior high sports typically are not gonna be very popular"): only
-    -- for those who picked Middle school, follow it, have a friend Going, or are Going to it or saved it. A school's
-    -- concerts and shows stay (MEMORY.md, 2026-11-05).
-    where not ('middle_school' = any(c.tags) and 'watch_sports' = any(c.tags) and c.interests_tagged_at is not null)
+    -- Only for those who picked Middle school, follow it, have a friend Going, or are Going to it or saved it.
+    where not c.young
        or 'middle_school' = any(c.matched)
        or c.followed is not null or c.friends_n > 0 or c.going or c.saved
   ),

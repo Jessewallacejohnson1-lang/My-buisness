@@ -3598,12 +3598,14 @@ test('News you have seen leaves the feed, and see_news takes only your own', asy
   await db.exec('reset role; delete from public.news_views');
 });
 
-test('middle school sports go only to those who picked it, follow it, have a friend Going, or are Going; a concert stays', async () => {
+test('middle school sports and Knowledge Bowl go only to those who picked it, follow it, have a friend Going, or are Going; a concert stays', async () => {
   await reset();
   const game = await add('Girls Basketball · MS', day(2), { start_time: '4 PM', source_name: 'Kennedy' });
   await db.query(`update public.club_events set interests = '{watch_sports,middle_school}', interests_tagged_at = now() where id = $1`, [game]);
   const band = await add('6th Grade Band', day(2), { start_time: '7 PM', source_name: 'Kennedy' });
   await db.query(`update public.club_events set interests = '{live_music,middle_school}', interests_tagged_at = now() where id = $1`, [band]);
+  const bowl = await add('JH Knowledge Bowl', day(2), { start_time: '9 AM', source_name: 'Kennedy' });
+  await db.query(`update public.club_events set interests = '{games,middle_school}', interests_tagged_at = now(), what = 'Knowledge bowl' where id = $1`, [bowl]);
   await add('Concert', day(2), { start_time: '7 PM', source_name: 'Hall' });
   const at = `${day(0)} 12:00`;
   await db.exec('set role anon');
@@ -3612,6 +3614,7 @@ test('middle school sports go only to those who picked it, follow it, have a fri
   assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert'], 'a sports fan who did not pick it');
   await signIn(YOU, ['middle_school']);
   assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'picked Middle school');
+  assert.ok((await titles(at)).includes('JH Knowledge Bowl'), 'picked Middle school');
   await signIn(YOU);
   await goes(game, YOU);
   await signIn(YOU);

@@ -76,8 +76,9 @@ or its `docs/rules/` file and leaves here.
   gallery could be live, the gallery shouldn't last 5 days): `private.is_live_kind`, on every Event card as `live_kind`. Exhibits,
   sales, open houses, promotions, routine meetings and runs over days never are. **Supersedes** "the whole of something that
   runs over days" in earlier notes.
-- 2026-11-05 — **Middle school sports reach only those who picked Middle school, follow the team or school, have a friend Going,
-  or are Going** (Jesse: "junior high sports typically are not gonna be very popular"). Its concerts and shows stay in the Town feed.
+- 2026-11-05 — **Middle school sports and Knowledge Bowl reach only those who picked Middle school, follow the team or school,
+  have a friend Going, or are Going** (Jesse: "junior high sports typically are not gonna be very popular"; yes to Knowledge Bowl).
+  Its concerts and shows stay in the Town feed.
 - 2026-11-05 — **A school's club meetings, assemblies and PTO meetings reach only those following the school** (Jesse:
   "following"; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
 - 2026-11-05 — **Every game between two teams draws the white card, at every level, and says its level**
