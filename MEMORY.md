@@ -116,7 +116,8 @@ or its `docs/rules/` file and leaves here.
 - 2026-11-05 — Two Events with the same date, start time and place are one Event (Jesse).
   When the titles match, a missing place on either still counts as the same place
   (`write_judged.same_event`). A host's own two ids count too when one name sits inside the other, in
-  the Town feed only (`listed_twice`). Two levels of one meet stay two cards, each saying its level
+  the Town feed only (`listed_twice`). One host's same Facebook event link on one day, at agreeing times, is one
+  Event whatever its titles (`one_facebook_event`). Two levels of one meet stay two cards, each saying its level
   (`read_events.bound_meet_title`). A close call shows both until the morning review settles it, never
   hidden (BP app loopholes 11).
 - 2026-10-17 — Before a migration that drops and remakes a database function, copy that

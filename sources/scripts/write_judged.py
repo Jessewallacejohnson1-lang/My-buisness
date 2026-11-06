@@ -108,6 +108,8 @@ THE RULES
     out, and their times agree (an all-day copy agrees with a timed one). A copy joins that way
     only when it matches every copy already in the Event (joins). The same day, a place both lines name and the time, with names
     sharing only a word, are named for Jesse ("kept apart", the morning report's "Maybe the same"), and both stay.
+  One Facebook event (one_facebook_event): the same host's same event number on the same day, at agreeing times, is one
+    Event whatever its titles.
   Which copy is kept: an event already listed stays the Event and every new copy is its Mention.
     Among new copies, the official one, then its place's own host's (not a town calendar's), then
     a timed one, then one with a place; kept all day, it takes the time another copy gives that day.
@@ -329,6 +331,24 @@ def renamed(a, b):
     return (a["names"] == b["names"] and a["own_id"] != b["own_id"] and a["at"] is not None and a["at"] == b["at"]
             and bool(a["place"]) and a["place"] == b["place"] and not (a["game"] or b["game"])
             and not (a["title"] - a["names"]) & (b["title"] - b["names"]))
+
+
+def facebook_event(url):
+    """A Facebook event's own number, from its link. A post's link doesn't count: one post can be two things."""
+    found = re.search(r"facebook\.com/events/(\d+)", url or "")
+    return found and found[1]
+
+
+def one_facebook_event(g, row, facts):
+    """One host's one Facebook event under a new name: the same event number on the same day, at agreeing times,
+    whatever the titles (Jesse, 2026-11-05). The judge words a title anew on each read, and two names that don't fit
+    inside each other showed as two Events: Stone Road's "Stone Road Live" and "Stone Road at The La Playette".
+    A host under two spellings is one host (Jeanne B's Tours, and Tours & Shoppe). Times must agree because one
+    event page can list a matinee and an evening show. Another host's listing of it stays a question for the review."""
+    number = facebook_event(row["source_url"])
+    return bool(number) and g["facts"]["day"] == facts["day"] and within_hour(g["facts"], facts) and any(
+        facebook_event(m.get("source_url")) == number
+        and same_title(words(m.get("source_name")), words(row["source_name"])) for m in g["mentions"])
 
 
 def spots(place):
@@ -983,7 +1003,8 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
         else:
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
-            g = by_uid.get(key) or min((g for g in groups if joins(g, ev["facts"])
+            g = by_uid.get(key) or min((g for g in groups if (joins(g, ev["facts"])
+                                                              or one_facebook_event(g, ev["row"], ev["facts"]))
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
                                                       g["facts"]["at"] is None), default=None)
@@ -2072,6 +2093,62 @@ def t_two_hosts_maybe_the_same():
     assert len(r["events"]) == 2 and any("Splintered Harmony" in n for n in r["notes"] if n.startswith("kept apart")), r["notes"]
 
 
+def t_one_facebook_event_is_one():
+    """The judge words a title anew on each read, so one Facebook event came back under two names that don't fit
+    inside each other, and both showed: Stone Road's "Stone Road Live" and "Stone Road at The La Playette", Grey
+    Face's "Fresh Skin Tattoos Fundraiser" and "Grey Face Flash Tattoos & Raffle" (2026-11-05)."""
+    link = "https://www.facebook.com/events/1401297332070761/"
+    show = dict(start="2026-11-07T20:30:00-06:00", end=None, place="The La Playette", source_name="Stone Road",
+                source_url=link)
+    seen = {"source_name": "Stone Road", "source_url": link, "source_uid": "page:2026-11-07T2030:live-road-stone",
+            "trust": "official", "sure": True}
+    old = listed(title="Stone Road Live", event_date="2026-11-07", start_time="8:30 PM", location="The La Playette",
+                 source_name="Stone Road", source_uid=seen["source_uid"], mentions=[seen])
+
+    r = run([item(title="Stone Road at The La Playette", **show)], [old])
+    assert outcome(r, 0) == "merged" and [g["id"] for g in r["events"]] == [old["id"]], r["outcomes"]
+    assert not any(n.startswith("kept apart") for n in r["notes"]), r["notes"]
+
+    # Its link written another way is the same event.
+    r = run([item(title="Stone Road at The La Playette", **dict(show, source_url=link.rstrip("/") + "?ref=newsfeed"))], [old])
+    assert outcome(r, 0) == "merged", r["outcomes"]
+
+    # A copy with no time takes the read's: Grey Face's Oct 29 copy had none, its Nov 5 read said 2 PM.
+    r = run([item(title="Stone Road at The La Playette", **show)], [dict(old, start_time=None, all_day=True)])
+    assert outcome(r, 0) == "merged" and r["events"][0]["row"]["start_time"] == "8:30 PM", r["events"][0]["row"]
+
+    # Jeanne B's Tours and Jeanne B's Tours & Shoppe: one host under two spellings.
+    r = run([item(title="Some Other Name", **dict(show, source_name="Stone Road & Friends"))], [old])
+    assert outcome(r, 0) == "merged" and r["events"][0]["id"] == old["id"], r["outcomes"]
+
+    # The shown copy takes it, not one taken out: Stone Road's second copy is rejected and stays so.
+    gone = dict(old, id="22222222-2222-2222-2222-222222222222", status="rejected", review_reason="other",
+                title="Stone Road at The La Playette", source_uid="page:2026-11-07T2030:la-playette-road-stone",
+                mentions=[dict(seen, source_uid="page:2026-11-07T2030:la-playette-road-stone")])
+    r = run([item(title="Stone Road Tonight", **show)], [gone, old])
+    assert [g["id"] for g in r["events"]] == [old["id"]], r["events"]
+
+    # Two reads in one run are one Event.
+    r = run([item(title="Stone Road Live", **show), item(title="Stone Road at The La Playette", **show)])
+    assert len(r["events"]) == 1 and outcome(r, 1) == "merged", r["outcomes"]
+
+    # Still two: one event page's matinee and evening show,
+    r = run([item(title="The Curious Incident, matinee", **dict(show, start="2026-11-07T14:00:00-06:00")),
+             item(title="The Curious Incident, evening", **dict(show, start="2026-11-07T19:00:00-06:00"))])
+    assert len(r["events"]) == 2, r["events"]
+    # its other days,
+    r = run([item(title="Stone Road Encore", **dict(show, start="2026-11-08T20:30:00-06:00"))], [old])
+    assert r["events"][0]["id"] is None, r["events"]
+    # another host's listing, which stays a question for the morning review,
+    r = run([item(title="Stone Road at The La Playette", **dict(show, source_name="JoeTown"))], [old])
+    assert r["events"][0]["id"] is None and any(n.startswith("kept apart") for n in r["notes"]), r["notes"]
+    # and two things from one post: a post's link can carry both.
+    post = "https://www.facebook.com/stoneroad/posts/1"
+    seen_post = dict(seen, source_url=post)
+    r = run([item(title="Stone Road at The La Playette", **dict(show, source_url=post))], [dict(old, mentions=[seen_post])])
+    assert r["events"][0]["id"] is None, r["events"]
+
+
 def t_two_hosts_no_place_asked():
     """Sal's page gave "Puzzle Mania" no place; the City listed its "Fall Adult Puzzle Competition" at Sal's the
     same day and hour (smooth-mornings 13, 2026-11-03). The names share a word: both stay, and Jesse is asked."""
@@ -2231,7 +2308,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
