@@ -115,7 +115,7 @@ THE RULES
     a timed one, then one with a place; kept all day, it takes the time another copy gives that day.
   Filled in (Jesse, 2026-10-27): a listed event with no time takes the time another source gives
     it later, keeping its own source, uid and title; a mention with no time joins a shown, timed
-    listing before a hidden copy.
+    listing before a hidden copy, and leaves its time alone (Jesse, 2026-11-06).
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
     the source has none) updates its event instead of adding it twice. Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
@@ -1037,7 +1037,11 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             # The listed row's own source re-reading it: by the same uid, by the second id it posted the
             # row under (posted_twice; the campus calendar lists only the new one), or (no ids on that
             # source) the same event a little reworded or retimed. It keeps its uid.
-            mine = [(i, ev) for i, ev in g["items"] if ev["row"]["source_name"] == old["source_name"]]
+            # A read that gives no time says nothing of a timed Event's time or end: a Mention only (Jesse, 2026-11-06).
+            # A listing with its own id speaks for itself when it drops its time, and a run over days changes the Event.
+            mine = [(i, ev) for i, ev in g["items"] if ev["row"]["source_name"] == old["source_name"]
+                    and not (g["facts"]["at"] and ev["facts"]["at"] is None and not ev["row"]["end_at"]
+                             and not real_uid(ev["row"]["source_uid"]))]
             uid = old.get("source_uid")
             primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == uid),
                            next(((i, ev) for i, ev in mine if real_uid(ev["row"]["source_uid"]) == real_uid(uid)
@@ -2149,6 +2153,36 @@ def t_one_facebook_event_is_one():
     assert r["events"][0]["id"] is None, r["events"]
 
 
+def t_read_with_no_time_keeps_the_listed_time():
+    """A host's post that gives no time says nothing of its Event's time. It used to overwrite the time with all day,
+    and the end with nothing: 11:30 AM read as all day (2026-11-05). Now it is a Mention only (Jesse, 2026-11-06)."""
+    old = listed(title="Holiday Porch Pot Workshop", event_date="2026-11-22", start_time="11:30 AM",
+                 location="Northern Hallow Winery, Foley", source_name="Holistic Flower Farm",
+                 source_uid="page:2026-11-22T1130:holiday-porch-pot-workshop")
+    post = item(title="Holiday Porch Pot Workshop", start="2026-11-22", end=None, all_day=True,
+                place="Northern Hallow Winery, Foley", town="Foley", area="announced",
+                source_name="Holistic Flower Farm", source_url="https://www.facebook.com/holistic/posts/9")
+    r = run([post], [old])
+    g = r["events"][0]
+    assert outcome(r, 0) == "merged" and g["id"] == old["id"] and g["row"] is None, (r["outcomes"], g["row"])
+    assert any(m["source_url"] == post["source_url"] and m.get("new") for m in g["mentions"]), g["mentions"]
+
+    # A copy taken out stays out: no time read is no change to send back to Review.
+    g = run([post], [dict(old, status="rejected", review_reason="other")])["events"][0]
+    assert g["status"] == "rejected" and g["row"] is None, g["status"]
+
+    # Still updates: a read that gives a time,
+    g = run([dict(post, start="2026-11-22T13:00:00-06:00", all_day=False)], [old])["events"][0]
+    assert g["row"]["start_time"] == "1 PM" and not g["row"]["all_day"], g["row"]
+    # a listing with its own id, which speaks for itself when it drops its time,
+    own = dict(old, source_uid="4168764")
+    g = run([dict(post, source_uid="4168764")], [own])["events"][0]
+    assert g["id"] == own["id"] and g["row"]["all_day"], g["row"]
+    # and a read that makes it a run over days.
+    g = run([dict(post, end="2026-11-24")], [old])["events"][0]
+    assert g["id"] == old["id"] and g["row"]["all_day"] and g["row"]["end_at"], g["row"]
+
+
 def t_two_hosts_no_place_asked():
     """Sal's page gave "Puzzle Mania" no place; the City listed its "Fall Adult Puzzle Competition" at Sal's the
     same day and hour (smooth-mornings 13, 2026-11-03). The names share a word: both stay, and Jesse is asked."""
@@ -2308,7 +2342,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

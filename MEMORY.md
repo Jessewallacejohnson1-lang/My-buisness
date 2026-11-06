@@ -120,6 +120,8 @@ or its `docs/rules/` file and leaves here.
   Event whatever its titles (`one_facebook_event`). Two levels of one meet stay two cards, each saying its level
   (`read_events.bound_meet_title`). A close call shows both until the morning review settles it, never
   hidden (BP app loopholes 11).
+- 2026-11-06 — A host's read that gives no time leaves its Event's time alone (Jesse: "yes i agree"): a Mention
+  only (`write_judged.plan`). A listing with its own id still updates when it drops its time.
 - 2026-10-17 — Before a migration that drops and remakes a database function, copy that
   function from the newest migration on `origin/main` that makes it (Town feed:
   `supabase/town_feed.sql`), then apply. A copy of an older version once took the friends lift
