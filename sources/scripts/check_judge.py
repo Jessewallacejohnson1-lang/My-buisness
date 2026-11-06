@@ -16,18 +16,26 @@ It scores the judge's keep or drop, Event or News, and the day; merging is the w
 
 Run it after any change to judge.md, social.md's judging rules or the routine's model. A model reads
 the same flags differently from one run to the next, so it reads them three times through Claude Code on
-Jesse's plan (no API key, no bill) and scores all three together: about 640,000 tokens and 7 minutes. It
+Jesse's plan (no API key, no bill) and scores all three together: about 430,000 tokens and 6 minutes. It
 exits 1 below the bar.
 
-The first baseline (2026-11-03): 332 of 369 right (90%), with keeps 313 of 342, mistakes stopped 19 of 27
-and about 41 extras a reading.
+The judge gets one line per flag and none of a post's words, because that is what a real run reads: real weeklies
+opened 7 posts for 1,097 flags (ticket 19). The line is the one Nov 5's weekly printed for itself. A real run picks
+its own line, and one with no `when` loses clock times and days. The fixture keeps the words only to decide which
+labels the judge could get right.
 
-The same prompt read again that evening: 319 of 369 (86%), readings 101, 109 and 109, mistakes stopped 18 of 27.
-That failed the first bar of 87.5%, so the bar is 85% (Jesse, 2026-11-04), and a change runs side by side with
-today's prompt, not against a number written here. Most of that swing is one message, Oct 29's 30 posts: usually
-about 29 items, but about 20 in 2 of 27 readings. Those two weren't cut off: they left out the nearby schools' posts,
-as if those were in another town. The one real run holding those posts kept them, and something this rare can't be
-proved gone at 12 readings a side, so there is no fix (ticket 18).
+The baseline on lines (2026-11-05, ticket 21): 319 of 369 right (86%), readings 106, 103 and 110, keeps 302 of 342,
+mistakes stopped 17 of 27, about 48 extras a reading.
+
+With every post's words the same prompt read 332 of 369 (90%), then 319 of 369 (86%), mistakes stopped 19 and 18 of
+27, about 40 extras a reading. The 319s match with different misses: on lines fewer labels dropped (12 against 22) and
+more News written as Events (11 against 1). The second reading failed the first bar of 87.5%, so the bar is 85%
+(Jesse, 2026-11-04), and a change runs side by side with today's prompt, not against a number written here.
+
+Most of the swing between readings is one message, Oct 29's 30 posts: about 9 labels lost in 2 of 27 readings with
+the words and 1 of 6 on lines. None was cut off: they left out the nearby schools' posts or marked them outside, as
+if those were in another town. The one real run holding those posts kept them, and something this rare can't be
+proved gone at 12 readings a side, so there is no fix (tickets 18 and 19).
 
 A message with a found event whose "Where" is empty also shows the registry's place names. The judge then reads
 St. John the Baptist Parish's Craft Fair as listed too, so that label comes out right here; with file search, as
@@ -62,10 +70,11 @@ THIS_CHECK = """
 
 ## This run is a check
 
-The files named above aren't here: the message below holds the pages and the flags on them. You can't open
-a post's pictures: a flag's note starting "From the picture:" has been checked. Skip the title skill. Give
-every item `interest` null. Answer with the judged items only, one JSON object per line and nothing else,
-and give each item one more field: `page`, the page id of the flag it came from.
+The files named above aren't here: the message below holds one line per flag, as a real run prints them for itself. A
+post's words and pictures can't be opened in this check, so judge from the lines. A flag's note starting "From the
+picture:" has been checked. Skip the title skill. Give every item `interest` null, and leave `source_url` and `trust`
+empty: this check doesn't score them. Answer with the judged items only, one JSON object per line and nothing else, and
+give each item one more field: `page`, the page id on the flag's line.
 """
 
 
@@ -81,22 +90,29 @@ def listed_places():
                             for n in [e["_name"], *(e.get("aka") or [])]))
 
 
+def flag_line(page, flag):
+    """One flag as Nov 5's real weekly printed it for itself, with the whole page id so the score can find its post."""
+    return "|".join([flag["page"], page["name"][:22], flag["kind"][0], (flag.get("title") or "")[:60],
+                     (flag.get("when") or "")[:40], flag.get("date") or "", (flag.get("place") or "")[:40],
+                     (flag.get("note") or "")[:70]])
+
+
 def messages(fixture):
     """The judge's messages: each day's flagged posts, a place's posts together (the rules fold them), in
-    chunks of CHUNK. A post with no flags never reaches the judge. A message holding a found event with an
-    empty "Where" also carries the registry's place names, since the rule sends the judge to that file."""
+    chunks of CHUNK, one line per flag and none of a post's words. A post with no flags never reaches the
+    judge. A message holding a found event with an empty "Where" also carries the registry's place names,
+    since the rule sends the judge to that file."""
     out = []
     for group in fixture["groups"]:
         flagged = sorted((p for p in group["pages"] if p["flags"]), key=lambda p: p["name"])
         day = date.fromisoformat(group["day"])
         for i in range(0, len(flagged), CHUNK):
             part = flagged[i:i + CHUNK]
-            pages = "\n".join(f"=== PAGE {p['file']} ===\nName: {p['name']}\nURL: {p['url']}\nCategory: {p['category']}\n"
-                              f"Trust: {p['trust']}\n{p['text']}\n" for p in part)
-            flags = "".join(json.dumps(f, ensure_ascii=False) + "\n" for p in part for f in p["flags"])
-            listed = f"\nTHE PLACES sources/st-joseph-mn.md LISTS\n\n{listed_places()}\n" if NO_WHERE.search(pages) else ""
+            lines = "\n".join(flag_line(p, f) for p in part for f in p["flags"])
+            no_where = any(NO_WHERE.search(p["text"]) for p in part)
+            listed = f"\nTHE PLACES sources/st-joseph-mn.md LISTS\n\n{listed_places()}\n" if no_where else ""
             out.append(f"Today is {day:%A, %B %-d, %Y}. The town is {TOWNS[DEFAULT]['display']}, Minnesota.\n\n"
-                       f"THE PAGES\n\n{pages}\nTHE FLAGS\n\n{flags}{listed}")
+                       f"THE FLAGS\n\n{lines}\n{listed}")
     return out
 
 
@@ -234,13 +250,17 @@ def selftest():
     text = {"flags": [{"kind": "event", "date": "2026-11-02", "when": "Monday"}], "text": "Sale Nov. 7 at the shop"}
     social = SOCIAL.read_text()
     fixture = {"groups": [{"day": "2026-10-29", "pages": [
-        {"file": "z", "name": "Zed", "url": "u", "category": None, "trust": "official", "text": "t", "flags": [{"page": "z"}]},
-        {"file": "a", "name": "Abe", "url": "u", "category": None, "trust": "official", "text": "t", "flags": [{"page": "a"}]},
+        {"file": "z", "name": "Zed", "url": "u", "category": None, "trust": "official", "text": "A post's own words",
+         "flags": [{"page": "z", "kind": "event", "title": "Fair", "when": "Friday at 6", "date": "2026-10-30",
+                    "place": "The Hall", "note": "n" * 80}]},
+        {"file": "a", "name": "Abe", "url": "u", "category": None, "trust": "official", "text": "t",
+         "flags": [{"page": "a", "kind": "news"}]},
         {"file": "q", "name": "Quiet", "url": "u", "category": None, "trust": "official", "text": "t", "flags": []}]}]}
     msg = messages(fixture)
     found = {"groups": [{"day": "2026-11-03", "pages": [
         {"file": "s", "name": "Stone Road", "url": "u", "category": None, "trust": "official",
-         "text": "Event: Stone Road @ The La Playette!\nWhen: Saturday\nWhere: \n\nCome out", "flags": [{"page": "s"}]}]}]}
+         "text": "Event: Stone Road @ The La Playette!\nWhen: Saturday\nWhere: \n\nCome out",
+         "flags": [{"page": "s", "kind": "event"}]}]}]}
     checks = [
         ((s["keeps"], s["keeps_right"]) == (10, 6), "an Event on its day and a News are keeps; the rest are misses"),
         ((s["mistakes"], s["mistakes_right"]) == (5, 3), "outside, closed and a fair title stop a mistake; a kept one and a wrong town don't"),
@@ -258,7 +278,10 @@ def selftest():
         (RULES_FROM in social and RULES_TO in social and "Keep everything" in system_prompt(), "social.md's rules are found"),
         (len(msg) == 1 and "Quiet" not in msg[0] and msg[0].index("Abe") < msg[0].index("Zed")
          and "Thursday, October 29, 2026" in msg[0], "the day, a place's posts together, an unflagged post left out"),
-        ("The La Playette" in messages(found)[0] and "PLACES" not in msg[0], "the registry's names come only with an empty Where"),
+        ("A post's own words" not in msg[0] and "Come out" not in messages(found)[0] and "THE PAGES" not in msg[0],
+         "none of a post's words reach the judge"),
+        (f"z|Zed|e|Fair|Friday at 6|2026-10-30|The Hall|{'n' * 70}\n" in msg[0], "a flag's line, its note cut at 70"),
+        ("PLACES" in messages(found)[0] and "PLACES" not in msg[0], "the registry's names come only with an empty Where"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:
@@ -310,7 +333,7 @@ def main():
     k, m = s["keeps"] * args.runs, s["mistakes"] * args.runs
     right = (keeps + mistakes) / (k + m)
     print(f"[judge] {'PASS' if right >= BAR else 'FAIL'}: {keeps + mistakes} of {k + m} right ({right:.0%}); bar {BAR:.1%}. "
-          f"Keeps {keeps} of {k} ({keeps / k:.0%}), mistakes stopped {mistakes} of {m} ({mistakes / m:.0%}), "
+          f"Keeps {keeps} of {k} ({keeps / max(k, 1):.0%}), mistakes stopped {mistakes} of {m} ({mistakes / max(m, 1):.0%}), "
           f"{extras / args.runs:.0f} extras a reading; right per reading {rights}. Items kept in {run}")
     sys.exit(0 if right >= BAR else 1)
 
