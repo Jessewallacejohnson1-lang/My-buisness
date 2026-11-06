@@ -153,6 +153,9 @@ struct ProfileView: View {
                 debugScrollBottom(proxy)
             }
         }
+        // While a delete runs nothing here takes a tap, so its answer can't go unseen.
+        .disabled(model.deletingAccount)
+        .onDisappear { model.deleteFailed = false }
         .background(Hue.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showAbout) {
@@ -166,9 +169,10 @@ struct ProfileView: View {
             Button("Log out", role: .destructive) { Task { await model.signOut(); settings = false } }
             Button("Cancel", role: .cancel) {}
         }
-        // Dot's dialog and Superlist's words (BP app references/delete-account): one question, no second
-        // screen (Jesse, 2026-11-06).
-        .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+        // Superlist's words (BP app references/delete-account): one question, no second screen (Jesse,
+        // 2026-11-06). An alert, not Log out's confirmationDialog: on iOS 26.5 that shows no Cancel, and the
+        // only button in sight is the one that can't be undone.
+        .alert("Delete your account?", isPresented: $confirmDelete) {
             Button("Delete account", role: .destructive) {
                 Task { if await model.deleteAccount() { settings = false } }
             }
@@ -352,7 +356,6 @@ struct ProfileView: View {
             .glassPanel(Radius.card)
         }
         .buttonStyle(.press(.squish))
-        .disabled(model.deletingAccount)
         .opacity(model.deletingAccount ? 0.45 : 1)
     }
 
@@ -369,7 +372,6 @@ struct ProfileView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.dim))
-        .disabled(model.deletingAccount)
         .turnBackShake(failures: model.deleteFailures, shakes: !reduceMotion)
     }
 

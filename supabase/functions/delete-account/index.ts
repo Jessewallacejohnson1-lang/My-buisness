@@ -5,10 +5,6 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 //
 // Rows, then files, then the account, so a failure leaves a person who can still sign in and try again, and the retry
 // finishes the job. `public.delete_my_account` stays for "Come back when you're 13", which has no posts or files yet.
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 // Every bucket a person's own files sit in, each under a folder named by their id. SQL deletes on storage.objects are
 // refused, and only the service key can remove from `avatars` and `chat-photos`.
@@ -16,9 +12,8 @@ const BUCKETS = ['avatars', 'event-images', 'chat-photos']
 const PAGE = 100
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
   const auth = req.headers.get('Authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
@@ -68,8 +63,9 @@ Deno.serve(async (req) => {
     return json({ ok: false }, 502)
   }
 
+  // A 404 is a retry after a reply that got lost: the account already went, which is what they asked for.
   const { error: gone } = await admin.auth.admin.deleteUser(caller)
-  if (gone) {
+  if (gone && gone.status !== 404) {
     console.error('delete-account: account failed', gone.status)
     return json({ ok: false }, 502)
   }

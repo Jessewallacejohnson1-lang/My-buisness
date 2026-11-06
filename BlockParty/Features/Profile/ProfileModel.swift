@@ -38,9 +38,10 @@ final class ProfileModel {
     /// Delete account: a call out, whether the last one failed, and a count of failures, each of which
     /// shakes the button.
     private(set) var deletingAccount = false
-    private(set) var deleteFailed = false
+    var deleteFailed = false
     private(set) var deleteFailures = 0
-    static let deleteFailedLine = "Couldn't delete your account. Check your connection and try again."
+    /// Says "finish" because a failure can come partway: their posts may already be gone.
+    static let deleteFailedLine = "Couldn't finish deleting your account. Try again."
 
     /// This account's row has been read, landed or failed: a sheet waiting on it opens, offline too.
     var loaded = false
