@@ -432,7 +432,7 @@ def read_roads(src, entry, today):
 OCCURRENCE = re.compile(r'<a [^>]*data-occur-id="([^"]+)"[^>]*>')
 # A school's own gatherings reach those following it (Jesse, 2026-11-05: "following"): a banquet, a club's
 # meeting, an assembly, the PTO. Its concerts, shows and school board stay everyone's.
-SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta)\b", re.I)
+SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent meeting|parent planning meeting|signing day)\b", re.I)
 
 
 def finalsite_calendar_items(page, url, entry, src, today):
@@ -1364,6 +1364,7 @@ def t_kennedy_calendar():
     assert (pto["followers_only"], pto["activity_team"]) == (True, "kennedy"), "the PTO is for those following the school"
     assert not forum.get("followers_only") and not trunk.get("followers_only"), "a forum and Trunk or Treat are everyone's"
     assert SCHOOL_ONLY.search("Veterans Day Assembly") and SCHOOL_ONLY.search("Art Club")
+    assert SCHOOL_ONLY.search("Grad Party Parent Meeting") and SCHOOL_ONLY.search("Kindergarten Signing Day")
     assert not SCHOOL_ONLY.search("School Board Meeting and Work Session") and not SCHOOL_ONLY.search("Winter Concert")
     assert (forum["start"], forum["end"], forum["place"]) == ("2026-10-06T19:00:00-05:00", "2026-10-06T20:30:00-05:00",
                                                              "District Administration Office"), forum
