@@ -46,7 +46,8 @@ seeder, and mounts `RootView` inside `LaunchHost`.
   "Bp" at 90%. The app loads underneath from the first frame and never waits on it; a tap
   skips it, Reduce Motion fades it, UI tests skip it (`-ui-tests`) unless they ask
   (`-launch-play`), and the app shows within 6 s whatever happens. The math is
-  `LaunchMotion`, the drawing `LaunchBall`.
+  `LaunchMotion`, the drawing `LaunchBall`. Back within 10 minutes of iOS shutting the app down
+  it doesn't play, and the app opens as you left it (`LeftOff`, BP app backlog 21).
 - **Nobody gets past the Welcome without an account** (Jesse, 2026-11-02, BP app onboarding 27;
   sign-in was off from 2026-09-18). `RootView` shows onboarding until `AuthStore.hasAccount`, a
   session that isn't a quiet anonymous one: the Welcome's Continue with email opens Create account,

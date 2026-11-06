@@ -199,12 +199,11 @@ final class FeedCardImageLoader {
         ) { _ in
             MainActor.assumeIsolated { FeedCardImageLoader.shared.letGo() }
         }
-        // Leaving, too: cards on screen hold their own bitmaps, so coming back shows no fade.
         _ = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
         ) { _ in
             MainActor.assumeIsolated {
-                FeedCardImageLoader.shared.letGo()
+                FeedCardImageLoader.shared.trimForLeaving()
                 FeedCardImageLoader.shared.keepFocuses()
             }
         }
@@ -213,6 +212,26 @@ final class FeedCardImageLoader {
     private func letGo() {
         cache.removeAll()
         cacheOrder.removeAll()
+    }
+
+    /// Leaving, it keeps the newest few photos and every face: cards on screen hold their own bitmaps,
+    /// but those behind an Event page or another tab have let go, and these are what coming back draws.
+    private static let keptOnLeaving = 6
+
+    private func trimForLeaving() {
+        for index in Self.droppedOnLeaving(cacheOrder.map(\.maxPixelSize)).sorted(by: >) {
+            cache.removeValue(forKey: cacheOrder.remove(at: index))
+        }
+    }
+
+    /// Which entries leaving drops, given each one's pixel size, oldest first.
+    static func droppedOnLeaving(_ sizes: [Int]) -> [Int] {
+        var photos = 0, drop: [Int] = []
+        for index in sizes.indices.reversed() where sizes[index] > smallPixels {
+            photos += 1
+            if photos > keptOnLeaving { drop.append(index) }
+        }
+        return drop
     }
 
     /// Past this it starts over: a photo looked at again costs a moment, hundreds of old ones every launch.
@@ -325,7 +344,8 @@ final class FeedCardImageLoader {
             }
             return data
         } catch {
-            return nil
+            // No signal: the copy on the phone, however old, rather than a card losing its photo.
+            return try? await photos.data(for: URLRequest(url: url, cachePolicy: .returnCacheDataDontLoad)).0
         }
     }
 

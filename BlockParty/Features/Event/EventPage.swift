@@ -174,13 +174,20 @@ struct EventPage: View {
         }
         // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
         // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height - $0.containerSize.height } action: { _, room in
+        .onScrollGeometryChange(for: CGFloat.self) {
+            $0.contentSize.height + $0.contentInsets.top + $0.contentInsets.bottom - $0.containerSize.height
+        } action: { _, room in
             guard let y = landAt, room > 0 else { return }
             position.scrollTo(y: min(y, room))
             if room >= y { landAt = nil }
         }
-        // A finger on the page ends the landing.
+        // A finger on the page ends the landing, and so does a second: "Read more" mustn't jump it later.
         .onScrollPhaseChange { _, phase in if phase == .tracking { landAt = nil } }
+        .task {
+            guard landAt != nil else { return }
+            try? await Task.sleep(for: .seconds(1))
+            landAt = nil
+        }
         .scrollPosition($position)
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.

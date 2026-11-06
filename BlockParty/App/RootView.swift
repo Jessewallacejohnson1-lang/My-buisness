@@ -237,15 +237,11 @@ struct RootView: View {
 
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
-    /// A link whose app isn't on the phone, in the in-app browser: the hello pill's news post, and
-    /// any page's link (`opensLinks`).
-    @State private var helloLink: SafariLink?
-
     /// In its own app when that's on the phone, else in the in-app browser.
     private func openLink(_ url: URL) {
         Task {
             if await !UIApplication.shared.open(url, options: [.universalLinksOnly: true]) {
-                helloLink = SafariLink(url: url)
+                InAppBrowser.open(url)
             }
         }
     }
@@ -305,9 +301,11 @@ struct MainTabsView: View {
         if let left = LeftOff.claim() {
             session.townFeed.resume(left)
             session.eventOfTheDay.showKept()
+            if let tab = Tab(rawValue: left.tab) { _tab = State(initialValue: tab) }
             if let id = left.event, let card = session.townFeed.cards.first(where: { $0.id == id }) {
                 _path = State(initialValue: NavigationPath([card]))
                 _reopened = State(initialValue: id)
+                LeftOff.pageToReopen = id
             }
         }
     }
@@ -330,7 +328,7 @@ struct MainTabsView: View {
             }
         }
         #endif
-        return LeftOff.current.flatMap { Tab(rawValue: $0.tab) } ?? .town
+        return .town
     }
 
     /// The models every tab shares, and what an account change, coming back and going away do
@@ -505,7 +503,6 @@ struct MainTabsView: View {
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
             HelloDropView(pill: session.helloPill, open: openHello)
-            .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }

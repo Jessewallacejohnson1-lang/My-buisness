@@ -227,6 +227,14 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 24) + [96]), [])
     }
 
+    /// Leaving keeps the six newest photos, for what coming back draws, and every face.
+    func testLeavingKeepsTheNewestPhotosAndEveryFace() {
+        let sizes = [96] + Array(repeating: 1260, count: 8) + [96]
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(sizes).sorted(), [1, 2])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 1260, count: 6)), [])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 96, count: 50)), [])
+    }
+
     func testCounterShowsOnlyForTwoOrMorePhotos() {
         let page = EventPage.self
 

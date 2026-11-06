@@ -56,8 +56,8 @@ struct LeftOff: Codable, Equatable {
         return unclaimed
     }
 
-    /// The Event page reopening, once, so the same page opened later starts at its top.
-    private static var pageToReopen = current?.event
+    /// The Event page the shell just put back, once, so the same page opened later starts at its top.
+    static var pageToReopen: String?
     static func reopening(_ id: String) -> Bool {
         guard pageToReopen == id else { return false }
         pageToReopen = nil

@@ -71,6 +71,16 @@ final class LeftOffTests: XCTestCase {
         XCTAssertFalse(LeftOff.reopening("e2"))
     }
 
+    /// A page the shell put back lands once; the same page opened later starts at its top. One the
+    /// shell couldn't put back was never armed.
+    func testAReopenedPageLandsOnce() {
+        addTeardownBlock { await MainActor.run { LeftOff.pageToReopen = nil } }
+        LeftOff.pageToReopen = "e2"
+        XCTAssertFalse(LeftOff.reopening("e1"))
+        XCTAssertTrue(LeftOff.reopening("e2"))
+        XCTAssertFalse(LeftOff.reopening("e2"))
+    }
+
     // MARK: The feed
 
     /// The kept copy is the last read's answer, not what was on screen: the list comes back in the
