@@ -779,6 +779,8 @@ final class TownFeedEventsTests: XCTestCase {
         }
         XCTAssertNil(try on(100), "even strength")
         XCTAssertEqual(try on(224), .init(side: 0, left: 84), "36 s in: the draft's 1:24")
+        XCTAssertEqual(try on(224)?.share, 0.7, "the draft's bar, 112 of 160 pt")
+        XCTAssertEqual(try on(1226)?.share, 0, "a major's bar past 2:00 sits empty")
         XCTAssertEqual(try on(300), .init(side: 0, left: 8))
         XCTAssertNil(try on(308), "its End")
         XCTAssertEqual(try on(470), .init(side: 1, left: 114), "the other team's, in its color")
@@ -799,6 +801,7 @@ final class TownFeedEventsTests: XCTestCase {
         // No End in 5:00: it was missed. Overtime can't say what's left.
         XCTAssertNil(try hockey(at: 500, lines: [(0, true, 200)]).powerPlay)
         XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay, .init(side: 1, left: nil))
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay?.share, 1)
         XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, 3590)], period: 4).powerPlay, .init(side: 1, left: nil), "from the 3rd into overtime")
     }
 

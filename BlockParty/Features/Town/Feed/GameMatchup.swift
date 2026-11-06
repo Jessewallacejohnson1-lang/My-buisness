@@ -771,7 +771,6 @@ private struct ShotsAndPowerPlay: View {
         static let track: Double = 0.14
         static let wordsGap: CGFloat = 8
         static let words: Double = 0.85
-        static let minor: Double = 120
     }
 
     var body: some View {
@@ -789,7 +788,7 @@ private struct ShotsAndPowerPlay: View {
             if game.final == nil { bar.transition(.opacity) }
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: game.final == nil)
-        .onChange(of: power) { if let power { last = power } }
+        .onChange(of: power, initial: true) { if let power { last = power } }
         // "Shots on goal: Saint John's 24, UW-Superior 19. Saint John's on a power play, 1:24 left".
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)
@@ -808,7 +807,7 @@ private struct ShotsAndPowerPlay: View {
     /// As far as the clock has run as last sent: it stops on every whistle. Past 2:00 (a major) it sits empty and the time goes.
     private var bar: some View {
         let shown = power ?? last
-        let filled = power.map { $0.left.map { Double($0) / Metric.minor } ?? 1 } ?? 0
+        let filled = power?.share ?? 0
         return VStack(spacing: Metric.wordsGap) {
             Capsule()
                 .fill(.white.opacity(Metric.track))
@@ -868,27 +867,22 @@ private struct RinkLines: View {
     }
 }
 
-/// The rink's center circle round Live and the clock (game-card 09's draft), and its dot, while the game is on. The draft draws
-/// them at 9% white and 35% blue under the page's wash; over it here, as basketball's court is, they take the wash's share.
+/// The rink's center circle round Live and the clock (game-card 09's draft), while the game is on. The draft draws it at 9% white
+/// under the page's wash; over it here, as basketball's court is, it takes the wash's share. The draft's dot isn't drawn: on
+/// today's page, with no record line, the clock sits on it.
 private struct RinkCircle: View {
-    /// The draft's SVG: r 64, a 2 pt line and an r 5 dot, 54 pt under the score's top.
+    /// The draft's SVG: r 64, a 2 pt line, 54 pt under the score's top.
     static let centerY: CGFloat = 54
     static let circle: CGFloat = 128
     static let line: CGFloat = 2
-    static let dot: CGFloat = 10
     /// 9% times what the wash leaves at each height on a 402 pt phone: the circle 109 to 238 pt down.
     private static let stroke = LinearGradient(colors: [.white.opacity(0.081), .white.opacity(0.075), .white.opacity(0.061)],
                                                startPoint: .top, endPoint: .bottom)
-    private static let dotFill: Double = 0.29
 
     var body: some View {
-        ZStack {
-            Circle().stroke(Self.stroke, lineWidth: Self.line)
-                .frame(width: Self.circle, height: Self.circle)
-            Circle().fill(Hue.rinkBlue.opacity(Self.dotFill))
-                .frame(width: Self.dot, height: Self.dot)
-        }
-        .frame(width: 0, height: 0)
+        Circle().stroke(Self.stroke, lineWidth: Self.line)
+            .frame(width: Self.circle, height: Self.circle)
+            .frame(width: 0, height: 0)
         .offset(y: Self.centerY)
         .frame(maxWidth: .infinity, alignment: .top)
         .allowsHitTesting(false)

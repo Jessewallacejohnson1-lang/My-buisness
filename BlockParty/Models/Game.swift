@@ -128,6 +128,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             /// Seconds left of a minor's 2:00 by the clock as last sent, 0 past it (a major, which SIDEARM's words don't
             /// tell from a minor); nil when the clock can't say (overtime).
             let left: Int?
+
+            /// How full its bar is, 0 to 1: full when the clock can't say.
+            var share: Double { left.map { Double($0) / Double(Live.minorPenalty) } ?? 1 }
         }
 
         /// Shots on goal in `teams` order: SIDEARM's own with the final, else each side's saves and goals, which matched
@@ -168,7 +171,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         }
 
         /// A hockey period, a minor and a major, in seconds.
-        private static let hockeyPeriod = 1200, minorPenalty = 120, longestPenalty = 300
+        fileprivate static let minorPenalty = 120
+        private static let hockeyPeriod = 1200, longestPenalty = 300
 
         /// Basketball's periods as SIDEARM sends them (`private.sidearm_live`).
         nonisolated struct Bar: Hashable, Sendable {
