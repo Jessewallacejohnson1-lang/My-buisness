@@ -25,6 +25,9 @@ struct SmallLine: View {
             // short (139.66666666666663 of 139.66666666666666, through a padding) and `ViewThatFits`
             // would take the next try: the game card lost its town that way (2026-11-06).
             fitted.frame(maxWidth: .infinity, alignment: alignment)
+                // VoiceOver hears it whole, whichever try is drawn.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(tries.first ?? "")
         }
     }
 

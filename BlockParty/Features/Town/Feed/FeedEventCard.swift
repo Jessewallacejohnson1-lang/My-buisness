@@ -288,7 +288,7 @@ struct FeedEventCard: View {
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         pill: now ? "Now" : line?.text, pillSpoken: now ? "Happening now" : line?.spoken,
-                        pillDot: now ? Hue.now : nil, title: item.title, facts: nil, factsTries: item.smallLines,
+                        pillDot: now ? Hue.now : nil, title: item.title, factsTries: item.smallLines,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
                 .animation(motionIsReduced ? nil : Motion.smooth, value: now)
         }

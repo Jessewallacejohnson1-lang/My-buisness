@@ -178,7 +178,7 @@ struct EventOfTheDayPoster: View {
                     .padding(.top, Metric.whenTop)
                 let places = item.shortPlaces
                 if !places.isEmpty {
-                    SmallLine(tries: places)
+                    SmallLine(tries: places, wraps: true)
                         .font(.sans(16))
                         .foregroundStyle(.white.opacity(0.55))
                         .padding(.top, Metric.placeTop)

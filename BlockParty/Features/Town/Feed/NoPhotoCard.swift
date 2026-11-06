@@ -24,7 +24,7 @@ struct NoPhotoCard: View {
     /// "Now" behind Apple's green, as the photo chip has it (event-card 04).
     var pillDot: Color? = nil
     let title: String
-    let facts: String?
+    var facts: String? = nil
     var factsLines = 1
     /// An Event's small line, in place of `facts`.
     var factsTries: [String] = []

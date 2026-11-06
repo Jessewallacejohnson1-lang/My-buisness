@@ -661,8 +661,7 @@ struct EventPage: View {
     /// follows its hours, "9 AM · Every Sunday" (BP app inside-cards 11).
     static func dayLines(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
         dayAndHours(item, now: now).map { lines in
-            let repeats = nonempty(item.recurrence)
-            guard repeats != nil else { return lines }
+            guard let repeats = nonempty(item.recurrence) else { return lines }
             return FactLines(first: lines.first, second: [lines.second, repeats].compactMap { $0 }.joined(separator: " · "))
         }
     }
