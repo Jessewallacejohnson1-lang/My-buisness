@@ -176,6 +176,7 @@ final class AppSession {
 
     /// Back to the app: today's open, the friends dot and the bell, and on Daily today's picks.
     func cameForward(on tab: Tab) {
+        LeftOff.clear(phone)
         liveGames.away(false)
         recordOpen()
         Task { await friendsBook.refreshDot() }
@@ -188,11 +189,18 @@ final class AppSession {
         if tab == .search { Task { await townFeed.refresh() } }
     }
 
-    /// Off to the background: the Town feed's views and opens go up now.
-    func wentAway() {
+    /// Off to the background: the Town feed's views and opens go up now, and where you were stays
+    /// on the phone in case iOS shuts the app down while it's away (`LeftOff`).
+    func wentAway(on tab: Tab) {
         liveGames.away(true)
         chats.stop()
         Task { await townFeed.send(always: true) }
+        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0 is UIWindowScene })?
+            .session.persistentIdentifier else { return }
+        let spot = townFeed.spot
+        LeftOff.save(LeftOff(at: Date(), scene: scene, tab: tab.rawValue,
+                             event: LeftOff.page, eventY: LeftOff.page.flatMap { LeftOff.pageY[$0] } ?? 0,
+                             feed: spot.feed, top: spot.top, feedY: spot.y, poster: spot.poster), to: phone)
     }
 
     /// Today's open, for the weekly numbers' reach (town-feed 26); a failed one is dropped.

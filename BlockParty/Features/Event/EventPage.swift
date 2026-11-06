@@ -56,6 +56,9 @@ struct EventPage: View {
     /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
     /// fade of its dark comes in behind them (game-card 08).
     @State private var scrolled = false
+    /// How far down the page is, for coming back to it after a restart (`LeftOff`): its link row
+    /// sits low, and that's the tap that leaves the app.
+    @State private var position = ScrollPosition()
     @Environment(\.openURL) private var openURL
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
@@ -165,6 +168,10 @@ struct EventPage: View {
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
             scrolled = now
         }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+            LeftOff.pageY[item.id] = y
+        }
+        .scrollPosition($position)
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
         .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
@@ -224,8 +231,11 @@ struct EventPage: View {
         .onAppear {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
+            LeftOff.page = item.id
+            if LeftOff.reopening(item.id), let y = LeftOff.current?.eventY, y > 0 { position.scrollTo(y: y) }
         }
         .onDisappear {
+            if LeftOff.page == item.id { LeftOff.page = nil }
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
@@ -506,7 +516,7 @@ struct EventPage: View {
 
             // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
             if let link {
-                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
+                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
                          glyphBox: SearchMetric.bizGlyphBox, leaves: true)
                     .padding(.top, SearchMetric.bizLinksTop)
             }

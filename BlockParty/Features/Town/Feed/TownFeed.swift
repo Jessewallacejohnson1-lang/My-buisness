@@ -171,6 +171,11 @@ final class TownFeed {
     /// lands there. Kept apart from `scrollY`, which a rebuilt screen resets to 0
     /// before it can scroll back.
     @ObservationIgnored private(set) var returnY: CGFloat = 0
+    /// The card that topped the screen when the feed went away: where a restart lands, since rows
+    /// not yet measured would put `returnY` somewhere else.
+    @ObservationIgnored private var returnCard: String?
+    /// A restart brought this list back (`resume`), and the screen hasn't landed on it yet.
+    @ObservationIgnored private var resumed = false
 
     /// Away this long, coming back brings a fresh order (ticket 11; Jesse, 2026-11-05, from 30).
     static let awayLimit: TimeInterval = 10 * 60
@@ -447,10 +452,54 @@ final class TownFeed {
             return
         }
         countOnScreen(at: now)
+        // Not when a tab's slide-out has already reported every card off (swift-traps).
+        if let top = topOnScreen { returnCard = top }
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
         holdGames(at: now)
+    }
+
+    /// The first card half on screen, in the list's order.
+    private var topOnScreen: String? {
+        shown.first { onScreen[$0.id] != nil }?.id
+    }
+
+    /// What `LeftOff` keeps of the feed, whichever of the shell and the feed hears of leaving first.
+    var spot: (feed: [String], top: String?, y: CGFloat, poster: String?) {
+        (shown.map(\.id), topOnScreen ?? returnCard, awaySince == nil ? scrollY : returnY, posterOnTop)
+    }
+
+    /// iOS shut the app down and you came back inside `awayLimit`: the list you left, in its order,
+    /// minus what has left or you hid since, with what shows at launch here rather than a read's
+    /// worth later. What reads behind it treats it as any short time away: no fresh order.
+    func resume(_ left: LeftOff, at now: Date = Date()) {
+        awaySince = left.at
+        returnY = left.feedY
+        returnCard = left.top
+        resumed = true
+        if let poster = left.poster { postersGone.remove(poster) }
+        keptChecked = true
+        guard let kept = kept() else { return }
+        let byID = Dictionary(kept.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let list = left.feed.compactMap { byID[$0] }
+        guard list.contains(where: { $0.leavesAt > now }) else { return }
+        actions?.read(list.compactMap(\.card))
+        actions?.read(posts: list.compactMap(\.post))
+        entries = list
+        clock = now
+    }
+
+    /// Whether this screen is the first after a restart: it draws as it was, with no rise-in. Once,
+    /// so a tab switch later rises as ever.
+    func takeResumed() -> Bool {
+        defer { resumed = false }
+        return resumed
+    }
+
+    /// The row `returnCard` is, as the column names it; nil once it's gone or past the kept list.
+    var returnRow: String? {
+        TownFeedItem.town(shown, eventOfTheDay: nil).first { $0.seenID == returnCard }?.id
     }
 
     /// The feed is back on screen. After 10 minutes away the next read may bring a
