@@ -215,13 +215,13 @@ final class FeedCardImageLoader {
         cacheOrder.removeAll()
     }
 
-    private static let focusKey = "feed.photoFocus"
     /// Past this it starts over: a photo looked at again costs a moment, hundreds of old ones every launch.
     private static let maxKeptFocuses = 1000
 
     /// Kept on the phone, or after a restart each photo waits on Vision again with ink showing.
     private static func keptFocuses() -> [URL: UnitPoint] {
-        let kept = UserDefaults.standard.dictionary(forKey: focusKey) as? [String: [Double]] ?? [:]
+        guard let data = TownFeedCache.load(.photoFocus),
+              let kept = try? JSONDecoder().decode([String: [Double]].self, from: data) else { return [:] }
         return Dictionary(uniqueKeysWithValues: kept.compactMap { key, spot in
             guard let url = URL(string: key), spot.count == 2 else { return nil }
             return (url, UnitPoint(x: spot[0], y: spot[1]))
@@ -231,7 +231,7 @@ final class FeedCardImageLoader {
     private func keepFocuses() {
         if focuses.count > Self.maxKeptFocuses { focuses.removeAll() }
         let kept = Dictionary(uniqueKeysWithValues: focuses.map { ($0.key.absoluteString, [Double($0.value.x), Double($0.value.y)]) })
-        UserDefaults.standard.set(kept, forKey: Self.focusKey)
+        if let data = try? JSONEncoder().encode(kept) { TownFeedCache.save(data, .photoFocus) }
     }
 
     /// The largest bitmap decoded for this photo at any size. Largest, so a host's

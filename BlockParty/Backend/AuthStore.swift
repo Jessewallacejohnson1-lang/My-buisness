@@ -250,7 +250,6 @@ final class AuthStore: ObservableObject, TokenProviding {
         Keychain.clear()
         ProfileModel.forget()
         TownFeedCache.clear()
-        LeftOff.clear()
     }
 
     private func setSession(from data: Data) throws {

@@ -545,8 +545,13 @@ struct MainTabsView: View {
         .onChange(of: profile.lateLandings) { Task { await townFeed.reload() } }
         .task { await session.launched() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { session.wentAway(on: tab) }
+            if phase == .background { session.wentAway() }
             if phase == .active { session.cameForward(on: tab) }
+        }
+        // The notification, not `scenePhase`: that waits on a redraw, and on a busy phone iOS can
+        // suspend the app first (measured, 2026-11-06).
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            session.keepSpot(on: tab)
         }
         .onAppear { openLaunchPages() }
         .environment(\.openURL, opensLinks)

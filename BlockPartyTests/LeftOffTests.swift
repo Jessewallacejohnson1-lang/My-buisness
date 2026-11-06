@@ -49,15 +49,20 @@ final class LeftOffTests: XCTestCase {
         XCTAssertFalse(left(at: now.addingTimeInterval(60)).usable(now: now, scenes: ["scene"]))
     }
 
-    func testItSurvivesThePhoneAndClears() throws {
-        let name = "LeftOffTests.\(UUID().uuidString)"
-        let phone = try XCTUnwrap(UserDefaults(suiteName: name))
-        addTeardownBlock { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+    func testItSurvivesThePhoneAndClears() {
+        addTeardownBlock { await MainActor.run { LeftOff.clear() } }
         let spot = left(feed: ["e1", "e2"], top: "e2", y: 812, poster: "e9")
-        LeftOff.save(spot, to: phone)
-        XCTAssertEqual(LeftOff.saved(in: phone), spot)
-        LeftOff.clear(phone)
-        XCTAssertNil(LeftOff.saved(in: phone))
+        LeftOff.save(spot)
+        XCTAssertEqual(LeftOff.saved(), spot)
+        LeftOff.clear()
+        XCTAssertNil(LeftOff.saved())
+    }
+
+    /// Signing out takes it with the kept feed, so the next account starts fresh.
+    func testSigningOutClearsIt() {
+        LeftOff.save(left())
+        TownFeedCache.clear()
+        XCTAssertNil(LeftOff.saved())
     }
 
     /// A test run never comes back to whatever the simulator's last run left.

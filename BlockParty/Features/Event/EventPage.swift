@@ -229,7 +229,10 @@ struct EventPage: View {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
             LeftOff.page = item.id
-            if LeftOff.reopening(item.id), let y = LeftOff.current?.eventY, y > 0 { position.scrollTo(y: y) }
+            if LeftOff.reopening(item.id), let y = LeftOff.current?.eventY, y > 0 {
+                // A turn later: in this one the page's height isn't laid out, so the jump stops at its top.
+                Task { position.scrollTo(y: y) }
+            }
         }
         .onDisappear {
             if LeftOff.page == item.id { LeftOff.page = nil }

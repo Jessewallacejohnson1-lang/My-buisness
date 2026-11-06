@@ -37,8 +37,6 @@ struct LeftOff: Codable, Equatable {
         scenes.contains(scene) && now >= at && now.timeIntervalSince(at) < TownFeed.awayLimit
     }
 
-    private static let key = "app.leftOff"
-
     /// What this launch comes back to, read once, before anything draws. It leaves the phone as
     /// it's read, so a page that crashes on the way back can't catch the app in a loop.
     static let current: LeftOff? = {
@@ -47,11 +45,10 @@ struct LeftOff: Codable, Equatable {
         // A screenshot run passes flags and expects a plain launch; `-left-off` is how a proof asks.
         if CommandLine.arguments.count > 1, !LaunchFlags.has(.leftOff) { return nil }
         #endif
-        let phone = UserDefaults.standard
-        let saved = phone.data(forKey: key).flatMap { try? JSONDecoder().decode(LeftOff.self, from: $0) }
-        phone.removeObject(forKey: key)
+        let left = saved()
+        clear()
         let scenes = Set(UIApplication.shared.openSessions.map(\.persistentIdentifier))
-        return saved?.usable(now: Date(), scenes: scenes) == true ? saved : nil
+        return left?.usable(now: Date(), scenes: scenes) == true ? left : nil
     }()
 
     /// The shell's one claim on `current`: its init runs on every redraw above it.
@@ -73,15 +70,18 @@ struct LeftOff: Codable, Equatable {
     static var page: String?
     static var pageY: [String: CGFloat] = [:]
 
-    static func save(_ left: LeftOff, to phone: UserDefaults = .standard) {
-        phone.set(try? JSONEncoder().encode(left), forKey: key)
+    /// A file, written before this returns: iOS suspends the app under half a second after it
+    /// leaves, and `UserDefaults` hadn't passed the write on by then (measured, 2026-11-06).
+    /// Signing out clears it with the kept feed (`TownFeedCache`).
+    static func save(_ left: LeftOff) {
+        if let data = try? JSONEncoder().encode(left) { TownFeedCache.save(data, .leftOff) }
     }
 
-    static func clear(_ phone: UserDefaults = .standard) {
-        phone.removeObject(forKey: key)
+    static func clear() {
+        TownFeedCache.remove(.leftOff)
     }
 
-    static func saved(in phone: UserDefaults) -> LeftOff? {
-        phone.data(forKey: key).flatMap { try? JSONDecoder().decode(LeftOff.self, from: $0) }
+    static func saved() -> LeftOff? {
+        TownFeedCache.load(.leftOff).flatMap { try? JSONDecoder().decode(LeftOff.self, from: $0) }
     }
 }

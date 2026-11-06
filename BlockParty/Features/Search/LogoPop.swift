@@ -34,7 +34,7 @@ final class LogoReveal {
     func open(after urls: [URL]) async {
         let clock = ContinuousClock(), end = clock.now + Self.gateWait
         // ponytail: polls every 50 ms; the cache's publisher if this ever shows in a profile.
-        while !open, clock.now < end, !urls.allSatisfy({ POILogoCache.shared.image(for: $0) != nil || POILogoCache.shared.failed.contains($0) }) {
+        while !open, clock.now < end, !urls.allSatisfy({ POILogoCache.shared.images[$0] != nil || POILogoCache.shared.failed.contains($0) }) {
             try? await Task.sleep(for: .milliseconds(50))
         }
         open = true
