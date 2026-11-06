@@ -14,8 +14,9 @@
 //  else on the card, carries a 20pt corner and takes the photo's own shape, so an
 //  event reads as a cut card sunk into the page rather than a photo running off both
 //  bezels. The day and time ride a white chip on its top left; the title and place
-//  stay over it; going, Attend, the heart and send sit under it (Jesse, 2026-10-19,
-//  BP app docs/plans/event-card; postings still run edge to edge).
+//  stay over it; the send and who's going sit under it (Jesse, 2026-10-19, BP app
+//  docs/plans/event-card; postings still run edge to edge). Attend is the Event page's, and
+//  the Event of the day poster's (Jesse, event-card 07).
 //
 //  The headline face is the SYSTEM face (`.sansBold`), not the display face: Apple
 //  News sets its headlines in SF, and that is the reference Jesse gave.
@@ -155,17 +156,16 @@ struct FeedEventCard: View {
                 }
             }
 
-            // One line under the photo (event-card 06): the send, the •••, the faces, the count and
-            // Attend (rsvp-and-groups 01; 12 pt below the photo). Called off,
-            // a red "Canceled" pill and no count. Going, the pill turns into the X that leaves
-            // (attend-x) and the send into the yellow share beside it. The heart is on the photo.
-            if let rsvp = actions.rsvp(item, town: true) {
+            // One line under the photo (event-card 06): the send, the •••, the faces and the count, its
+            // middle 24 pt under the photo as Instagram's is (event-card 07). Going, "You're going!".
+            // Called off, a red "Canceled" pill 12 pt below the photo and no count. The heart is on the photo.
+            if let rsvp = actions.rsvp(item, card: true) {
                 RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true, onMenu: openMenu)
-                    .padding(.top, 12)
+                    .padding(.top, rsvp.pill == nil ? 2 : 12)
                     .padding(.horizontal, TownFeedMetric.contentInset)
                     .transition(.opacity)
             } else {
-                // Signed out: no Attend and no heart, the send and the ••• alone.
+                // Nobody going yet, or signed out: the send and the ••• alone.
                 actionRow
                     .padding(.top, 2)
                     .padding(.horizontal, TownFeedMetric.contentInset)
@@ -516,14 +516,13 @@ struct FeedEventCard: View {
 
     // MARK: - Actions
 
-    /// The heart and send. No bookmark: RSVP took its place on the card, and saving stays on
-    /// the Event page (Jesse, 2026-10-17).
+    /// The send and the •••. The heart is on the photo (event-card 06), and saving stays on the
+    /// Event page (Jesse, 2026-10-17).
     private var actionRow: some View {
         FeedEventCardActionRow(
             kind: actionKind,
-            showsHeart: actions.canAct,
+            showsHeart: false,
             showsSave: false,
-            heartFailures: actions.heartFailureCount(item.id),
             state: rowState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
