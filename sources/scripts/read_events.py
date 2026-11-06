@@ -80,7 +80,7 @@ DAYS_AHEAD = 90
 LOCAL = ZoneInfo("America/Chicago")
 # A day a place is shut or a school day runs short. It waits until a week before (BP app town-feed 50). "Holiday" alone
 # isn't one: "Holiday Door Hangers" and "Holiday Sales" are News from the day they're read.
-CLOSING = re.compile(r"\b(closed|closure|no school|no classes|late start|early (release|dismissal))\b", re.I)
+CLOSING = re.compile(r"\b(closed(?! caption)|closure|no school|no classes|late start|early (release|dismissal))\b", re.I)
 CLOSING_DAYS = 7
 # Something to know rather than go to is News, even with a date (ADR-021).
 NEWS = re.compile(CLOSING.pattern + r"|\bholiday\b", re.I)
@@ -452,7 +452,8 @@ SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent me
 
 def finalsite_calendar_items(page, url, entry, src, today):
     """Each occurrence once (a long event repeats in every day box it spans), with the exact
-    times from <time datetime>; an all-day one takes its day from the occurrence id. An event
+    times from <time datetime>; an all-day one takes its days from the occurrence id, whose end is the
+    morning after the last ("Winter Break", Dec 21 to Jan 2, is out through Jan 1). An event
     on the place's own calendar (`own_calendar`) with no place given is at the place."""
     out, seen = [], set()
     tags = list(OCCURRENCE.finditer(page))
@@ -463,9 +464,11 @@ def finalsite_calendar_items(page, url, entry, src, today):
         seen.add(occur)
         body = page[m.end():tags[i + 1].start() if i + 1 < len(tags) else len(page)]
         times = dict((k, v) for v, k in re.findall(r'<time datetime="([^"]+)" class="fs(Start|End)Time"', body))
-        start = times.get("Start") or occur.split("_")[1][:10]
+        _, first, after = occur.split("_")
+        start = times.get("Start") or first[:10]
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
+        last = (date.fromisoformat(after[:10]) - timedelta(1)).isoformat()
         title = html.unescape(re.search(r'title="([^"]*)"', m.group(0)).group(1)).strip()
         place = re.search(r'<div class="fsLocation">(.*?)</div>', body, re.S)
         place = plain(place.group(1)) if place else ""
@@ -474,7 +477,7 @@ def finalsite_calendar_items(page, url, entry, src, today):
             place = entry["_name"]
         news = bool(NEWS.search(title))
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
-                          title=title, start=start, end=times.get("End"), all_day="Start" not in times,
+                          title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
                           place="" if place.lower() in ("multiple", "tbd", "tba") else place,
                           source_url=url, source_uid=occur,
                           **({"followers_only": True, "activity_team": bound_team(entry)}
@@ -1233,6 +1236,14 @@ def t_robots():
 
 def t_closings_wait():
     """A calendar's closing goes up a week before its day (BP app town-feed 50). Titles from the live calendars."""
+    days = lambda occur: finalsite_calendar_items(
+        f'<a class="x" title="No School - Winter Break" data-occur-id="{occur}" href="#"></a>',
+        "https://k/calendar", CITY, {"url": "https://k/calendar"}, date(2026, 11, 6))[0]
+    winter = days("774605_2026-12-21T00:00:00Z_2027-01-02T00:00:00Z")
+    assert (winter["start"], winter["end"], winter["shows_from"], winter["blurb"]) == (
+        "2026-12-21", "2027-01-01", "2026-12-14", "Dec 21 to Jan 1"), winter
+    workshop = days("774603_2026-11-25T00:00:00Z_2026-11-26T00:00:00Z")
+    assert (workshop["end"], workshop["blurb"]) == (None, "Wednesday, Nov 25"), workshop
     src, say = {"url": "https://x.org"}, lambda title, **more: judged(CITY, src, kind="news", title=title, **more)
     for title in ("Holiday - City Offices Closed", "Alcuin and Clemens Library Closed", "No School - Winter Break",
                   "No Classes", "Late Start", "Two-hour Early Dismissal", "Early Release"):
@@ -1242,7 +1253,7 @@ def t_closings_wait():
     assert say("Winter Break", start="2026-12-21").get("shows_from") is None, "the words have to say so"
     assert "shows_from" not in say("City Offices Closed"), "no day to wait for"
     assert "shows_from" not in say("Highway 23 closure", start="2026-12-21", category="road"), "a road report goes up"
-    assert "shows_from" not in judged(CITY, src, title="Closed Captioned Film", start="2026-12-21"), "an Event"
+    assert not NEWS.search("Closed Captioned Film") and "shows_from" not in judged(CITY, src, title="Closed", start="2026-12-21")
     timed = say("Late Start", start="2026-12-21T10:00:00-06:00", end="2026-12-21T15:00:00-06:00")
     assert (timed["shows_from"], timed["blurb"]) == ("2026-12-14", "Monday, Dec 21"), timed
     run = say("Library Closed", start="2026-11-25", end="2026-11-28")

@@ -7,7 +7,9 @@
 update public.board_items b
 set published_at = (v.on_day - 7)::timestamp at time zone 'America/Chicago',
     ends_on = v.last_day,
-    blurb = coalesce(b.blurb, to_char(v.on_day, 'FMDay, Mon FMDD'))
+    blurb = coalesce(b.blurb, case when v.last_day > v.on_day
+                                   then to_char(v.on_day, 'Mon FMDD') || ' to ' || to_char(v.last_day, 'Mon FMDD')
+                                   else to_char(v.on_day, 'FMDay, Mon FMDD') end)
 from (values
   ('City of St. Joseph', 'Holiday: City Offices Closed', date '2026-11-11', null::date),
   ('City of St. Joseph', 'Holiday: City Offices Closed', date '2026-11-26', null::date),
@@ -20,7 +22,7 @@ from (values
   ('CSB SJU Libraries', 'Alcuin and Clemens Library Closed', date '2026-12-20', null::date),
   ('CSB SJU Libraries', 'Alcuin and Clemens Library Closed, December 24, 2026-January 3', date '2026-12-24', date '2027-01-03'),
   ('Kennedy Community School', 'No School: Teacher Workshop, Half Day, Morning', date '2026-11-25', null::date),
-  ('Kennedy Community School', 'No School: Thanksgiving Break', date '2026-11-26', null::date)
+  ('Kennedy Community School', 'No School: Thanksgiving Break', date '2026-11-26', date '2026-11-27')
 ) v(source_name, title, on_day, last_day)
 where b.source_name = v.source_name and b.title = v.title
   and (b.starts_at at time zone 'America/Chicago')::date = v.on_day;

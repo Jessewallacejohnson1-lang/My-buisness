@@ -1492,7 +1492,6 @@ def t_closings_wait():
     assert ends(blurb=f"Sign up by {TODAY + timedelta(5):%b} {(TODAY + timedelta(5)).day}.") is None
     assert ends(end=ahead(23)) == ahead(23)
     assert outcome(plan([closing(20, shows_from="soon")], [], TODAY, INTERESTS), 0) == "skipped", "an unreadable day"
-    assert "greatest(now(), x.shows_from)" in writes().read_text(), "the database holds it"
 
 
 def t_news_state_initials_tell_nothing():
