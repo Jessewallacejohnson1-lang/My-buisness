@@ -742,8 +742,8 @@ private struct BasketballCourt: View {
 struct WhiteGameCard: View {
     let item: FeedCardItem
     let game: Game
-    /// "Homecoming · Clemens Stadium", under the matchup.
-    let place: String
+    /// The small line under the matchup: "Homecoming · Clemens Stadium" if it fits.
+    let place: [String]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -789,7 +789,7 @@ struct WhiteGameCard: View {
     private func spoken(at date: Date) -> String {
         let live = game.live?.isLive(at: date) == true
         let before = game.final == nil && game.live == nil ? status(at: date)?.text : nil
-        return [live ? "Live" : nil, game.spoken, before, place].compactMap { $0 }.filter { !$0.isEmpty }
+        return [live ? "Live" : nil, game.spoken, before, place.first].compactMap { $0 }.filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
 
@@ -814,10 +814,9 @@ struct WhiteGameCard: View {
             .animation(reduceMotion ? nil : Motion.smooth, value: game.final)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.live == nil)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.shootout)
-            Text(place)
+            SmallLine(tries: place)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
                 .padding(.horizontal, Metric.placeInset)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, Metric.placeBottom)

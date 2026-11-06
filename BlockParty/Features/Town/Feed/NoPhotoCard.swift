@@ -26,6 +26,8 @@ struct NoPhotoCard: View {
     let title: String
     let facts: String?
     var factsLines = 1
+    /// An Event's small line, in place of `facts`.
+    var factsTries: [String] = []
     /// Room kept on the right for a control laid over the card: the Event card's heart.
     var trailingRoom: CGFloat = 0
     /// Off when the Event card lays the mark over the card as its own button (the host's page),
@@ -62,7 +64,12 @@ struct NoPhotoCard: View {
                     .foregroundStyle(Hue.ink.onLightCanvas)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
-                if let facts, !facts.isEmpty {
+                if !factsTries.isEmpty {
+                    SmallLine(tries: factsTries, wraps: true)
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.inkSecondary.onLightCanvas)
+                        .padding(.top, 3)
+                } else if let facts, !facts.isEmpty {
                     Text(facts)
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary.onLightCanvas)

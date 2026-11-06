@@ -307,6 +307,19 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(lines()?.first, "Tuesday, June 1, 2027")
     }
 
+    /// The repeat left the card's small line for the day row, after the hours (BP app inside-cards 11).
+    func testTheDayRowSaysHowItRepeatsAfterItsHours() {
+        let now = Town.midnight("2026-11-01")!
+        var item = FeedCardItem(event(imageUrl: nil), recurrence: "Every Sunday")
+        item.eventDate = "2026-11-08"
+        item.startTime = "9 AM"
+        XCTAssertEqual(EventPage.dayLines(item, now: now), .init(first: "Sunday, November 8", second: "9 AM · Every Sunday"))
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(EventPage.dayLines(item, now: now), .init(first: "Sunday, November 8", second: "Every Sunday"),
+                       "no hours: the repeat alone")
+    }
+
     /// The day row adds the Event to the phone's calendar only while it's still to come: not once
     /// it's called off or over (event-page-formats 05).
     func testTheDayRowAddsToTheCalendarOnlyWhileItsStillOn() {

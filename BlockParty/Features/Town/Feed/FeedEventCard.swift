@@ -288,7 +288,7 @@ struct FeedEventCard: View {
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         pill: now ? "Now" : line?.text, pillSpoken: now ? "Happening now" : line?.spoken,
-                        pillDot: now ? Hue.now : nil, title: item.title, facts: metaSummary,
+                        pillDot: now ? Hue.now : nil, title: item.title, facts: nil, factsTries: item.smallLines,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
                 .animation(motionIsReduced ? nil : Motion.smooth, value: now)
         }
@@ -450,7 +450,7 @@ struct FeedEventCard: View {
     @ViewBuilder
     private var imageContent: some View {
         if let game = item.game {
-            WhiteGameCard(item: item, game: game, place: metaSummary)
+            WhiteGameCard(item: item, game: game, place: item.smallLines)
         } else if let url = displayImage.url {
             // The Event page's carousel with the Event's one photo: it rubber-bands (a sideways swipe
             // used to open the Event page as if it were a tap, 2026-10-20). The place's other photos stay
@@ -487,31 +487,17 @@ struct FeedEventCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !metaSummary.isEmpty {
-                Text(metaSummary)
+            // What it is and a short place: "Lecture · Escher Auditorium". Date and time ride the chip on
+            // the photo (Jesse, 2026-10-19), which replaced their line, which replaced the yellow date
+            // banner (2026-09-24).
+            let lines = item.smallLines
+            if !lines.isEmpty {
+                SmallLine(tries: lines, wraps: true)
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
-                    // Unbounded at accessibility sizes, not two lines: measured
-                    // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
-                    // it was the LAST finding left on Town at both AX3 and AX5. A
-                    // meta line that runs to three lines covers a little more of the
-                    // photograph; a clipped one loses the place.
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .feedCardPhotoTypeShadow()
-    }
-
-    /// What it is, recurrence and place, under the title: "Lecture · Escher Auditorium". The words
-    /// lead and the place gives way at the end when it runs long (Jesse, event-card 05). Date and
-    /// time ride the chip on the photo (Jesse, 2026-10-19), which replaced their line, which
-    /// replaced the yellow date banner (2026-09-24).
-    private var metaSummary: String {
-        [item.whatLine, item.game?.occasion, item.recurrence, item.whereLine]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
     }
 
     // MARK: - Actions

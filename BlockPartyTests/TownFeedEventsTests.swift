@@ -6,6 +6,7 @@
 //  supabase/tests/town_feed.test.mjs.
 //
 
+import SwiftUI
 import XCTest
 @testable import BlockParty
 
@@ -377,6 +378,102 @@ final class TownFeedEventsTests: XCTestCase {
                      "every word already in the title, though not side by side")
         XCTAssertEqual(card("Martin's exhibit", what: "Art exhibit").whatLine, "Art exhibit",
                        "whole words: \"art\" isn't in \"Martin's\"")
+        XCTAssertNil(card("Group Birth Classes", what: "Birth class").whatLine, "a plural counts as the same word")
+    }
+
+    /// Real places from the 2026-11-06 read, as a neighbour would say them (BP app inside-cards 11).
+    func testTheShortPlaceCutsWhatANeighbourWouldnt() {
+        let places: [(String?, String, String)] = [
+            ("St. Joseph American Legion, St. Joseph, MN", "American Legion", ""),
+            ("St. Cloud Apollo High School Performing Arts Center/Auditorium", "Apollo High School", ""),
+            ("St. Cloud Cathedral High School Commons, lunchroom", "Cathedral High School", ""),
+            ("Sartell High School Gym, Main", "Sartell High School", ""),
+            ("Foley Intermediate School Foley Field House, Court 1", "Foley Intermediate School", ""),
+            ("Cathedral High School, St. Cloud", "Cathedral High School", "St. Cloud"),
+            ("Saint John's School of Theology", "Saint John's School of Theology", ""),
+            ("Saint John's Prep Theatre, Collegeville", "Saint John's Prep Theatre", "Collegeville"),
+            ("Gorecki 204, CSB", "Gorecki 204", "CSB"),
+            ("Majestic Oaks Golf Course, Ham Lake", "Majestic Oaks Golf Course", "Ham Lake"),
+            ("Downtown St. Cloud", "Downtown St. Cloud", ""),
+            ("St. Joseph, MN", "St. Joseph", ""),
+            (nil, "", ""),
+        ]
+        for (written, venue, town) in places {
+            let short = FeedCardItem.shortPlace(written)
+            XCTAssertEqual(short.venue, venue, written ?? "nil")
+            XCTAssertEqual(short.town, town, written ?? "nil")
+        }
+    }
+
+    /// Real rows from the 2026-11-06 read (BP app inside-cards 07, `assets/07-words/result.json`): every
+    /// small line to try, longest first.
+    func testTheSmallLineTriesWhatItIsAndAShortPlaceInOrder() throws {
+        func lines(_ title: String, what: String? = nil, at location: String? = nil, host: String = "",
+                   night: String? = nil, game isGame: Bool = false) throws -> [String] {
+            var item = FeedCardItem(id: "c", title: title, dateChip: "", metaLine: "", image: .fallback,
+                                    recurrence: "Every Sunday", goingCount: 0, goingAvatars: [], likeCount: 0,
+                                    isLiked: false, isSaved: false, isJoined: false)
+            item.what = what
+            item.location = location
+            item.hostName = host
+            if isGame {
+                let occasion = night.map { "\"\($0)\"" } ?? "null"
+                item.game = try JSONDecoder().decode(Game.self, from: Data(#"{"sport":"Hockey","occasion":\#(occasion),"teams":[]}"#.utf8))
+            }
+            return item.smallLines
+        }
+        XCTAssertEqual(try lines("Monthly Meeting", what: "Club meeting", at: "St. Joseph American Legion, St. Joseph, MN"),
+                       ["Club meeting · American Legion", "American Legion", "Club meeting"], "the repeat is off the line")
+        XCTAssertEqual(try lines("The Curious Incident", what: "Play", at: "Saint John's Prep Theatre, Collegeville"),
+                       ["Play · Saint John's Prep Theatre, Collegeville", "Play · Saint John's Prep Theatre",
+                        "Saint John's Prep Theatre, Collegeville", "Saint John's Prep Theatre", "Play"])
+        XCTAssertEqual(try lines("SJU Hockey vs UW-Superior: Senior Night", at: "Herb Brooks National Hockey Center, St. Cloud",
+                                 night: "Senior Night", game: true),
+                       ["Senior Night · Herb Brooks National Hockey Center, St. Cloud",
+                        "Senior Night · Herb Brooks National Hockey Center", "Senior Night",
+                        "Herb Brooks National Hockey Center, St. Cloud", "Herb Brooks National Hockey Center"],
+                       "a game's special night comes before its place")
+        XCTAssertEqual(try lines("CSB Hockey vs Lake Forest", at: "Ritsche Arena, St. Cloud", host: "CSB Athletics", game: true),
+                       ["Ritsche Arena, St. Cloud", "Ritsche Arena"])
+        XCTAssertEqual(try lines("Heim-Kins Rescued Treasures", what: "Sale", at: "Heim-Kins Rescued Treasures"), ["Sale"],
+                       "a place the title already says leaves when a what remains")
+        XCTAssertEqual(try lines("Group Birth Classes", what: "Birth class", host: "True Freedom Physical Therapy"),
+                       ["True Freedom Physical Therapy"], "no place written: the host stands in")
+        XCTAssertEqual(try lines("Grounding Our Emotions", what: "Class", host: "Sisters of the Order of Saint Benedict"),
+                       ["Class · Sisters of the Order of Saint Benedict", "Sisters of the Order of Saint Benedict", "Class"])
+        XCTAssertEqual(try lines("Ptanyetu Powwow", what: "Powwow", host: "CSB SJU Campus Events"), [],
+                       "a calendar isn't somewhere you can go")
+        var poster = FeedCardItem(id: "c", title: "Cathedral Evening Open House", dateChip: "", metaLine: "", image: .fallback,
+                                  recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
+                                  isLiked: false, isSaved: false, isJoined: false)
+        poster.location = "Cathedral High School, St. Cloud"
+        XCTAssertEqual(poster.shortPlaces, ["Cathedral High School, St. Cloud", "Cathedral High School"])
+        poster.location = nil
+        XCTAssertEqual(poster.shortPlaces, [], "the poster's line says nothing with no place")
+    }
+
+    /// Apple's `ViewThatFits` takes the first that fits at the card's real widths, and shows nothing, never
+    /// a cut line, when none does: rows and widths from BP app inside-cards 07 (white card 242 and 215 pt,
+    /// photo card 296 and 269, game card 246, all in the app's own font).
+    func testTheSmallLineShowsTheFirstThatFitsAndNothingElse() {
+        func size(_ view: some View, in room: CGFloat) -> CGSize {
+            UIHostingController(rootView: view.font(.sans(13))).sizeThatFits(in: CGSize(width: room, height: 1000))
+        }
+        func assertShows(_ line: String, of tries: [String], in room: CGFloat, line place: UInt = #line) {
+            XCTAssertEqual(size(SmallLine(tries: tries), in: room).width, size(Text(line).lineLimit(1), in: 10000).width,
+                           accuracy: 0.5, "\(line) at \(room)", line: place)
+        }
+        let workshop = ["Writing workshop · Saint Benedict's Monastery", "Saint Benedict's Monastery", "Writing workshop"]
+        assertShows(workshop[0], of: workshop, in: 296)
+        assertShows(workshop[1], of: workshop, in: 269)
+        let meet = ["Majestic Oaks Golf Course, Ham Lake", "Majestic Oaks Golf Course"]
+        assertShows(meet[0], of: meet, in: 242)
+        assertShows(meet[1], of: meet, in: 215)
+        let night = ["Senior Night · Herb Brooks National Hockey Center, St. Cloud", "Senior Night · Herb Brooks National Hockey Center",
+                     "Senior Night", "Herb Brooks National Hockey Center, St. Cloud", "Herb Brooks National Hockey Center"]
+        assertShows("Senior Night", of: night, in: 246)
+        let tooLong = ["Prime West Runestone Community Center Old National Bank Arena"]
+        XCTAssertEqual(size(SmallLine(tries: tooLong), in: 246).width, 0, "nothing, not a cut line")
     }
 
     /// Scrolled down, the Event of the day poster holds at when the feed left the top (event-card
