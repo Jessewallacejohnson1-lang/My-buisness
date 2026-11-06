@@ -205,7 +205,7 @@ struct EventOfTheDayPoster: View {
                     // Going, the yellow share pops up right of the X (event-card 06). Attend is yellow on the dark
                     // (attend-yellow).
                     AttendPill(item: item, words: words,
-                               onInvite: { ShareCenter.shared.present(.event(item)) }, shareBeside: .trailing,
+                               onInvite: { ShareCenter.shared.present(.event(item)) }, showsShare: true,
                                yellow: true)
                 }
                 Spacer(minLength: 0)
@@ -263,7 +263,7 @@ struct EventOfTheDayPoster: View {
                                tint: .white.opacity(0.6)) {
                     actions.toggleGoing(item)
                 }
-            } else if let names = actions.rsvp(item, bar: true)?.second {
+            } else if let bar = actions.rsvp(item, bar: true), !bar.canLeave, let names = bar.second {
                 Text("· \(names)")
                     .font(.sans(15))
                     .foregroundStyle(.white.opacity(0.6))
