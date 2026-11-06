@@ -98,8 +98,8 @@ final class FriendsBook {
     private let write: (Action, String) async throws -> Neighbor.Relation
     private let readSuggestions: () async throws -> [Neighbor]
     private let writeHide: (String) async throws -> Void
-    /// No real account: nothing is asked, and taps open Log in.
-    let isAnonymous: () -> Bool
+    /// A real account: with none, nothing is asked and taps do nothing.
+    let hasAccount: () -> Bool
     private let hold: Duration
     private let flip: Duration
 
@@ -110,7 +110,7 @@ final class FriendsBook {
          write: @escaping (Action, String) async throws -> Neighbor.Relation,
          readSuggestions: @escaping () async throws -> [Neighbor] = { [] },
          writeHide: @escaping (String) async throws -> Void = { _ in },
-         isAnonymous: @escaping () -> Bool,
+         hasAccount: @escaping () -> Bool,
          hold: Duration? = nil, flip: Duration? = nil) {
         self.read = read
         self.readBlocked = readBlocked
@@ -119,7 +119,7 @@ final class FriendsBook {
         self.write = write
         self.readSuggestions = readSuggestions
         self.writeHide = writeHide
-        self.isAnonymous = isAnonymous
+        self.hasAccount = hasAccount
         // Join's hold and flip unless a test passes shorter ones.
         self.hold = hold ?? RealLifeActions.hold
         self.flip = flip ?? .seconds(RealLifeActions.flip)
@@ -140,7 +140,7 @@ final class FriendsBook {
                       write: { try await api().friendWrite($0, $1) },
                       readSuggestions: { try await api().peopleYouMayKnow() },
                       writeHide: { try await api().hideSuggestion($0) },
-                      isAnonymous: { !supabase.auth.isSignedIn || supabase.auth.isAnonymous })
+                      hasAccount: { supabase.auth.hasAccount })
         case .samples:
             // DEBUG `-friends-fail` makes every tap fail, `-friends-limit` every Add friend hit
             // the daily limit, so the flip back, the shake and the alert can be recorded.
@@ -155,13 +155,13 @@ final class FriendsBook {
                       },
                       readSuggestions: { Neighbor.sampleSuggestions },
                       writeHide: { _ in if fails { throw URLError(.notConnectedToInternet) } },
-                      isAnonymous: { false })
+                      hasAccount: { true })
         case .offline:
             let offline = URLError(.notConnectedToInternet)
             self.init(read: { throw offline }, readBlocked: { throw offline },
                       readDot: { throw offline }, markSeen: { throw offline },
                       write: { _, _ in throw offline }, readSuggestions: { throw offline },
-                      writeHide: { _ in throw offline }, isAnonymous: { false })
+                      writeHide: { _ in throw offline }, hasAccount: { true })
         }
     }
 
@@ -229,7 +229,7 @@ final class FriendsBook {
     /// Daily opened (or came back): read People you may know again. A failed read keeps the
     /// last one; an Anonymous account has none.
     func refreshSuggestions() async {
-        guard !isAnonymous() else { suggestionsRead = []; return }
+        guard hasAccount() else { suggestionsRead = []; return }
         guard let people = try? await readSuggestions() else { return }
         // The read is the truth for whom it returned; a tap still being sent keeps its answer.
         let read = Set(people.map(\.id))
@@ -261,7 +261,7 @@ final class FriendsBook {
 
     /// The Friends page opened (or came back): read it again.
     func refresh() async {
-        guard !isAnonymous() else { reset(); return }
+        guard hasAccount() else { reset(); return }
         do {
             let rows = try await read()
             var next = Page()
@@ -287,7 +287,7 @@ final class FriendsBook {
 
     /// Profile's Blocked list opened (or came back): read it again.
     func refreshBlocked() async {
-        guard !isAnonymous() else { return }
+        guard hasAccount() else { return }
         do {
             let people = try await readBlocked()
             let read = Set(people.map(\.id))
@@ -303,7 +303,7 @@ final class FriendsBook {
     /// The page has drawn what it read: the dot clears here and on the server, and the
     /// accepted lines count as seen (they go on the next read).
     func seen() async {
-        guard loaded, !failed, !isAnonymous() else { return }
+        guard loaded, !failed, hasAccount() else { return }
         dot = false
         // Shown here, so the hello pill never says them after (hello-drop 06).
         HelloInbox.shared.tellAccepted(Set(page.accepted.map(\.id)))
@@ -312,7 +312,7 @@ final class FriendsBook {
 
     /// The dot, read on launch, on coming back to the app and on each visit to Town.
     func refreshDot() async {
-        guard !isAnonymous() else { dot = false; return }
+        guard hasAccount() else { dot = false; return }
         if let fresh = try? await readDot() { withAnimation(.snappy) { dot = fresh } }
     }
 
@@ -333,6 +333,13 @@ final class FriendsBook {
 
     func screenOpened() { open += 1 }
     func screenClosed() { open = max(0, open - 1) }
+
+    /// A neighbour's code opened with no account: the request goes by itself once they have one
+    /// (Jesse, 2026-11-06), and only to someone they don't stand anywhere with yet: logging in can
+    /// bring an account that's already their friend, or that blocked them.
+    func requestFromCode(_ person: Neighbor) {
+        if relation(person) == .stranger { act(.add, person) }
+    }
 
     /// One tap on Add friend, Cancel, Confirm or Delete, or a confirmed Unfriend, Block or
     /// Unblock. A tap on someone whose last tap is still being sent does nothing: the button

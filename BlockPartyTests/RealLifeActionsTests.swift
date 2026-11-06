@@ -96,7 +96,7 @@ final class RealLifeActionsTests: XCTestCase {
     private func actions(_ server: Server, signedIn: Bool = true, anonymous: Bool = false,
                          keep: UserDefaults? = nil, flip: Duration? = nil,
                          owner: @escaping () -> String? = { nil }) -> RealLifeActions {
-        RealLifeActions(signedIn: signedIn, needsAccount: true, isAnonymous: { anonymous },
+        RealLifeActions(signedIn: signedIn, needsAccount: true, realAccount: { !anonymous },
                         hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
@@ -260,10 +260,16 @@ final class RealLifeActionsTests: XCTestCase {
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item), RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
         XCTAssertEqual(actions.going(item).count, 4, "the count includes you")
-        XCTAssertEqual(actions.rsvp(item, bar: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
-                       "the Event page's bar reads the same Going, in fewer words")
+        XCTAssertEqual(actions.rsvp(item, bar: true, at: .distantPast),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite),
+                       "the Event page's bar reads the same Going")
+        XCTAssertEqual(actions.rsvp(item, bar: true, at: .distantFuture),
+                       RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
+                       "once it has ended there's nothing left to leave")
         XCTAssertEqual(actions.rsvp(item, town: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave),
-                       "and the Town card's, with the X that leaves")
+                       "and the poster's, with the X that leaves")
+        XCTAssertEqual(actions.rsvp(item, card: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: nil),
+                       "and the Town card's, with no pill")
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
     }
@@ -305,6 +311,7 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.rsvp(item)?.top, "2 going")
         XCTAssertEqual(actions.rsvp(card(going: 0)), RSVPWords(top: nil, second: nil, canLeave: false, pill: .rsvp),
                        "never a count at zero: RSVP alone")
+        XCTAssertNil(actions.rsvp(card(going: 0), card: true), "nobody going: a Town card has no words and no pill")
     }
 
     /// The account changes while a write is out (the quiet account replacing a cleared
@@ -1102,15 +1109,33 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.follows, ["activity \(soccer.id) true", "activity \(soccer.id) false"])
     }
 
-    /// Following needs a signed-up account: the quiet Anonymous one, or none, opens sign-up.
-    func testOnlyASignedUpAccountFollowsOrJoins() {
-        XCTAssertTrue(actions(Server(), anonymous: true).needsSignUp, "Anonymous: sign up first")
-        XCTAssertTrue(actions(Server(), signedIn: false).needsSignUp, "no account at all")
-        XCTAssertFalse(actions(Server()).needsSignUp)
-        let samples = RealLifeActions(signedIn: false, needsAccount: false, isAnonymous: { true }, hold: Self.hold,
+    /// Following needs a real account: with the quiet Anonymous one, or none, it isn't there.
+    func testOnlyARealAccountFollowsOrJoins() {
+        XCTAssertFalse(actions(Server(), anonymous: true).hasAccount, "Anonymous isn't one")
+        XCTAssertFalse(actions(Server(), signedIn: false).hasAccount, "no account at all")
+        XCTAssertTrue(actions(Server()).hasAccount)
+        let samples = RealLifeActions(signedIn: false, needsAccount: false, realAccount: { false }, hold: Self.hold,
                                       flip: Self.flip, setGoing: { _, _ in }, setHeart: { _, _ in },
                                       setSave: { _, _ in }, knownEvents: { _ in [] })
-        XCTAssertFalse(samples.needsSignUp, "sample writes go nowhere and need none")
+        XCTAssertTrue(samples.hasAccount, "sample writes go nowhere and need none")
+    }
+
+    /// With no real account, Follow and Join do nothing and show nothing; a Group you're in can
+    /// still be left.
+    func testNoRealAccountFollowAndJoinDoNothing() async throws {
+        let server = Server()
+        let actions = actions(server, anonymous: true)
+        let place = FollowTarget(type: .place, id: "p1")
+        actions.toggleFollow(place)
+        XCTAssertFalse(actions.follow(place).isFollowing)
+        actions.toggleMember(groupID: Self.groupID, inGroup: false)
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: false).isMember)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, [])
+        XCTAssertEqual(server.memberships, [])
+
+        actions.toggleMember(groupID: Self.groupID, inGroup: true)
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: true).isMember, "leaving still works")
     }
 
     /// The Following list: everything on it is followed. A tap there unfollows at once, and the
@@ -1222,8 +1247,9 @@ final class RSVPWordsTests: XCTestCase {
         XCTAssertEqual(over(false, 0, []), RSVPWords(top: nil, second: nil, canLeave: false, pill: nil))
     }
 
-    /// The Event page's bar says less (Jesse at rsvp-and-groups 02's Check-in 2): no "Can't go?",
-    /// and beside the friends' faces only their names, so they fit by the bigger words.
+    /// The Event page's bar says less (Jesse at rsvp-and-groups 02's Check-in 2): beside the friends'
+    /// faces only their names, so they fit by the bigger words. Its "Can't go?" is where you leave an
+    /// Event (Jesse at event-card 07's Check-in 1).
     func testTheEventPageBarSaysLess() {
         func bar(_ top: String?, _ second: String? = nil, pill: RSVPWords.Pill = .rsvp) -> RSVPWords {
             RSVPWords(top: top, second: second, canLeave: false, pill: pill)
@@ -1234,9 +1260,11 @@ final class RSVPWordsTests: XCTestCase {
             ("a friend", false, 41, ["Avery"], false, bar("41 going", "Avery")),
             ("two friends", false, 41, ["Sam", "Marlene"], false, bar("41 going", "Sam and Marlene")),
             ("three friends", false, 41, ["Sam", "Marlene", "Dale"], false, bar("41 going", "Sam and 2 friends")),
-            ("going: no Can't go?", true, 42, ["Avery"], false, bar("You're going!", pill: .invite)),
+            ("going: Can't go? leaves", true, 42, ["Avery"], false,
+             RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite)),
             ("called off", false, 41, ["Avery"], true, bar(nil, pill: .canceled)),
-            ("called off while going", true, 42, [], true, bar("You're going!", pill: .canceled)),
+            ("called off while going: can still leave", true, 42, [], true,
+             RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled)),
         ]
         for (name, isGoing, count, friends, cancelled, want) in table {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true),
@@ -1244,7 +1272,24 @@ final class RSVPWordsTests: XCTestCase {
         }
     }
 
-    /// On Town, Going turns the pill into the round X that leaves, with no "Can't go?" (attend-x,
+    /// A Town card has no Attend and no X, Going or not (Jesse, event-card 07): just who's going, with the
+    /// friends' names left off. Canceled stays. Nobody going: no words, so `rsvp` gives the card nothing to draw.
+    func testATownCardHasNoAttendAndNoX() {
+        func card(_ isGoing: Bool, count: Int = 42, cancelled: Bool = false, over: Bool = false) -> RSVPWords {
+            RSVPWords.make(isGoing: isGoing, count: count, friends: count > 0 ? ["Avery"] : [], cancelled: cancelled,
+                           card: true, over: over)
+        }
+        XCTAssertEqual(card(false), RSVPWords(top: "42 going", second: nil, canLeave: false, pill: nil))
+        XCTAssertEqual(card(true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: nil))
+        XCTAssertTrue(card(true).goingLine, "You're going! still cross-fades in over the count")
+        XCTAssertEqual(card(false, count: 0), RSVPWords(top: nil, second: nil, canLeave: false, pill: nil))
+        XCTAssertEqual(card(false, cancelled: true), RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled))
+        XCTAssertEqual(card(true, cancelled: true),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled))
+        XCTAssertEqual(card(false, count: 212, over: true), RSVPWords(top: "212 went", second: nil, canLeave: false, pill: nil))
+    }
+
+    /// On the poster, Going turns the pill into the round X that leaves, with no "Can't go?" (attend-x,
     /// 2026-10-21); the check shows on Attend first, as before Invite. Called off, the pill stays
     /// Canceled and "Can't go?" still leaves. Not going, the count without the friends' names.
     func testOnTownThePillTurnsIntoTheXThatLeaves() {
@@ -1256,7 +1301,7 @@ final class RSVPWordsTests: XCTestCase {
         XCTAssertEqual(town(true).shownPill(checking: true), .rsvp, "the check shows on Attend")
         XCTAssertEqual(town(true).shownPill(checking: false), .leave, "then the X")
         XCTAssertEqual(town(false), RSVPWords(top: "42 going", second: nil, canLeave: false, pill: .rsvp),
-                       "the count alone: the names don't fit on the card's one line (event-card 06)")
+                       "the count alone: no friends' names on Town (event-card 06)")
         XCTAssertFalse(town(false).goingLine)
         XCTAssertEqual(town(true, cancelled: true),
                        RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled))

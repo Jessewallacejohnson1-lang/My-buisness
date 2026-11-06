@@ -69,12 +69,11 @@ struct BookmarkGlyph: View {
 /// The floating bookmark on a card photo: an ink outline, brand yellow inside when saved,
 /// in a white circle the size of Airbnb's heart on its cards (Daily's Suggestions,
 /// measured 2026-10-05). The tap area around it is 44pt. Saved is the shared one
-/// (`RealLifeActions`); with no account yet, a tap opens sign in.
+/// (`RealLifeActions`).
 struct SaveBookmarkButton: View {
     let item: FeedCardItem
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var signInShown = false
     /// `actions.saveFailureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
 
@@ -82,7 +81,6 @@ struct SaveBookmarkButton: View {
         let saved = actions.saved(item)
         let failures = actions.saveFailureCount(item.id)
         Button {
-            guard actions.canAct else { signInShown = true; return }
             tappedAt = failures
             withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { actions.toggleSave(item) }
         } label: {
@@ -101,7 +99,6 @@ struct SaveBookmarkButton: View {
         .buttonStyle(.press(.squish))
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
-        .signInSheet(isPresented: $signInShown)
         // On screen: a save that fails may shake here.
         .onAppear { actions.bookmarkOpened(item.id) }
         .onDisappear { actions.bookmarkClosed(item.id) }

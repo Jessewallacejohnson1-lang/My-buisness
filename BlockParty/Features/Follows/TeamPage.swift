@@ -326,13 +326,11 @@ private struct SchoolFollow: View {
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tappedAt = 0
-    @State private var signingIn = false
 
     var body: some View {
         let following = actions.follow(target).isFollowing
         let failures = actions.followFailureCount(target)
         Button {
-            guard !actions.needsSignUp else { signingIn = true; return }
             tappedAt = failures
             actions.toggleFollow(target)
         } label: {
@@ -352,7 +350,6 @@ private struct SchoolFollow: View {
         .accessibilityAddTraits(following ? .isSelected : [])
         .onAppear { actions.followOpened(target) }
         .onDisappear { actions.followClosed(target) }
-        .signInSheet(isPresented: $signingIn)
     }
 }
 
@@ -366,13 +363,11 @@ private struct ActivityStar: View {
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tappedAt = 0
-    @State private var signingIn = false
 
     var body: some View {
         let following = actions.follow(target).isFollowing
         let failures = actions.followFailureCount(target)
         Button {
-            guard !actions.needsSignUp else { signingIn = true; return }
             tappedAt = failures
             toggle()
         } label: {
@@ -391,7 +386,6 @@ private struct ActivityStar: View {
         .accessibilityAddTraits(following ? .isSelected : [])
         .onAppear { actions.followOpened(target) }
         .onDisappear { actions.followClosed(target) }
-        .signInSheet(isPresented: $signingIn)
     }
 }
 

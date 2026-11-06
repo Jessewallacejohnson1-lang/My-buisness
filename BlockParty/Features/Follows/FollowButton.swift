@@ -3,8 +3,7 @@
 //  Block Party — Follow, Instagram's button in the Friends buttons' family (BP app docs/plans/follows,
 //  ticket 02; taste/buttons-and-pills.md, 2026-10-19): ink "Follow", grey "Following" once you do.
 //  One tap follows with a light tick, one tap on Following undoes it with no question, and a tap
-//  the server refuses turns back with Join's hold, flip, shake and buzz (`RealLifeActions`). With
-//  no signed-up account it opens sign-up and sends nothing.
+//  the server refuses turns back with Join's hold, flip, shake and buzz (`RealLifeActions`).
 //
 //  Sizes off the Check-in 1 mock (Figma BP · Follows, `references/follows/figma/build.js`): 36 pt
 //  with 12 pt corners on a page, Instagram's 32 pt pill in a list, and on a person's page a smaller
@@ -72,7 +71,6 @@ struct FollowButton: View {
     /// `followFailureCount` at the last tap: equal means a tap since the last turn back, so its
     /// shake stops (as the RSVP pill's).
     @State private var tappedAt = 0
-    @State private var signingIn = false
 
     var body: some View {
         let following = actions.follow(target).isFollowing
@@ -96,7 +94,6 @@ struct FollowButton: View {
         .accessibilityAddTraits(following ? .isSelected : [])
         .onAppear { actions.followOpened(target) }
         .onDisappear { actions.followClosed(target) }
-        .signInSheet(isPresented: $signingIn)
     }
 
     private var height: CGFloat { size == .row ? FollowMetric.rowHeight : FollowMetric.pageHeight }
@@ -113,9 +110,7 @@ struct FollowButton: View {
         size == .row ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 
-    /// `follow-signup`: only signed-up accounts follow (follows spec), so the sign-up sheet opens.
     private func tap() {
-        guard !actions.needsSignUp else { signingIn = true; return }
         tappedAt = actions.followFailureCount(target)
         actions.toggleFollow(target)
     }

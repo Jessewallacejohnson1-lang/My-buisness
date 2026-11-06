@@ -84,6 +84,18 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.chips.contains(.businesses))
     }
 
+    /// A cidery reads as one and stays with the town's drink places: onboarding's Bars pick, the
+    /// wineglass on the map and a search for "brewery" (BP app backlog 23).
+    func testCidery() {
+        let item = SearchModel.places(from: [poi("stjoe-milk-honey-ciders", "Milk & Honey Ciders", .food, "cidery")])[0]
+        XCTAssertEqual(item.sub, "Cidery")
+        XCTAssertEqual(item.kind, .restaurant)
+        XCTAssertTrue(item.keywords.contains("brewery"))
+        XCTAssertEqual(PlaceCategoryMap.family(primaryType: "cidery"), .food)
+        XCTAssertEqual(PlaceCategoryMap.glyph(primaryType: "cidery", family: .food), "wineglass.fill")
+        XCTAssertEqual(FollowSuggestions.interests(ofKind: "cidery"), ["bars"])
+    }
+
     /// Restaurants and coffee shops with a logo open their page as a business does.
     func testWhatOpens() {
         let items = SearchModel.places(from: [

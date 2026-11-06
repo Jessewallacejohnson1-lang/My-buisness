@@ -205,7 +205,7 @@ final class AppSession {
     /// Onboarding's Follow 3 picks wait on the phone until a signed-up account can take them (BP
     /// app onboarding 22): at launch, and when one arrives.
     private func takeFollows() {
-        guard !actions.needsSignUp else { return }
+        guard actions.hasAccount else { return }
         for target in OnboardingStore.takeFollows(phone) { actions.followOn(target) }
     }
 }

@@ -13,7 +13,6 @@ import SwiftUI
 struct FriendsGroups: View {
     let mine: [TownGroup]
     let open: [TownGroup]
-    let logIn: () -> Void
     /// A Join that took: the page holds the row's Joined before moving it up.
     var joined: (TownGroup) -> Void = { _ in }
 
@@ -29,7 +28,7 @@ struct FriendsGroups: View {
                     .padding(.bottom, FriendsMetric.subBottom)
                     .accessibilityAddTraits(.isHeader)
             }
-            ForEach(open) { GroupJoinRow(group: $0, logIn: logIn, joined: joined) }
+            ForEach(open) { GroupJoinRow(group: $0, joined: joined) }
         }
     }
 }
@@ -60,7 +59,6 @@ struct GroupCircles: View {
 /// Once you're in, the pill says Joined in the light face and a tap leaves (the See all page).
 struct GroupJoinRow: View {
     let group: TownGroup
-    let logIn: () -> Void
     var joined: (TownGroup) -> Void = { _ in }
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -109,9 +107,8 @@ struct GroupJoinRow: View {
 
     private func toggle() {
         let joining = !actions.member(group).isMember
-        guard !joining || !actions.needsSignUp else { logIn(); return }
         actions.toggleMember(group)
-        if joining { joined(group) }
+        if joining, actions.member(group).isMember { joined(group) }
     }
 
     /// Its next get-together still to come: a timed one before it starts, an untimed one through
@@ -146,7 +143,6 @@ struct FriendsAllPage: View {
     let groups: Bool
     @Environment(FriendsBook.self) private var book
     @Environment(YouModel.self) private var you
-    @State private var signingIn = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -155,10 +151,10 @@ struct FriendsAllPage: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if groups {
                         ForEach(FriendsHomePage.groups(you.groups ?? [], member: { _ in false }, now: Date()).open) {
-                            GroupJoinRow(group: $0) { signingIn = true }
+                            GroupJoinRow(group: $0)
                         }
                     } else {
-                        ForEach(book.friends) { PersonRow(person: $0, waiting: false) { signingIn = true } }
+                        ForEach(book.friends) { PersonRow(person: $0, waiting: false) }
                     }
                 }
                 .padding(.top, PageMetric.bar + FriendsMetric.resultsTop)
@@ -166,6 +162,5 @@ struct FriendsAllPage: View {
             FriendsTitleBar(title: groups ? "Groups" : "Your friends", titleUnder: true).accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .signInSheet(isPresented: $signingIn)
     }
 }
