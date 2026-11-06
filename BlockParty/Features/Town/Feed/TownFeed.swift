@@ -181,6 +181,12 @@ final class TownFeed {
     @ObservationIgnored private var keptChecked = false
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
+    /// The read out now and when it left. `refresh` shares it: an open's triggers overlap (the feed
+    /// opening, the foreground, the leave timer), and one read costs the server a second or more
+    /// (BP app town-feed 48).
+    @ObservationIgnored private var readOut: (task: Task<Void, Never>, since: Date)?
+    /// A read out this long may be dying (the phone slept mid-read), so a refresh asks again.
+    static let joinFor: TimeInterval = 10
     /// When the feed last came on screen, for the speed log.
     @ObservationIgnored private var cameBackAt: Date?
 
@@ -464,6 +470,13 @@ final class TownFeed {
 
     /// Reads behind the list on screen (coming back, a card leaving).
     func refresh(at now: Date = Date()) async {
+        if let readOut, now.timeIntervalSince(readOut.since) < Self.joinFor {
+            await readOut.task.value
+            // That read left earlier, and this caller may be the leave timer: a card whose time is
+            // up still goes, though no read carried this moment.
+            clock = max(clock, now)
+            return
+        }
         await readAgain(at: now, freshOrder: false)
     }
 
@@ -513,6 +526,13 @@ final class TownFeed {
         // that lands last must not overwrite a newer one's answer.
         latestRead &+= 1
         let thisRead = latestRead
+        // Its own task, not the caller's: a view going away must not end a read others share.
+        let task = Task { await land(thisRead, at: now, freshOrder: freshOrder) }
+        readOut = (task, now)
+        await task.value
+    }
+
+    private func land(_ thisRead: Int, at now: Date, freshOrder: Bool) async {
         do {
             let new = try await read()
             guard thisRead == latestRead else { return }
@@ -541,13 +561,12 @@ final class TownFeed {
             failed = false
             holdGames(at: now)
         } catch {
-            // Left mid-read (the tab went away): not a failure; the read runs again
-            // when the feed comes back.
-            guard !Task.isCancelled, thisRead == latestRead else { return }
+            guard thisRead == latestRead else { return }
             Log.network("TownFeed: \(error)")
             failed = true
         }
         clock = now
+        readOut = nil
     }
 
     // MARK: Live scores (codebase-health-2 08)

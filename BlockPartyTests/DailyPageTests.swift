@@ -265,6 +265,55 @@ final class DailyPageTests: XCTestCase {
 
     /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since
     /// each read works the whole Town feed out on the server; a failed read keeps the picks.
+    /// An open's triggers overlap: they share one read (BP app town-feed 48).
+    @MainActor
+    func testOverlappingEventOfTheDayRefreshesShareOneRead() async throws {
+        let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let model = EventOfTheDay(read: {
+            gate.calls += 1
+            await withCheckedContinuation { done in gate.open = { done.resume() } }
+            return [pick]
+        })
+        let noon = Date(timeIntervalSince1970: 1_792_515_600)
+        let first = Task { await model.refresh(now: noon) }
+        while gate.open == nil { await Task.yield() }
+        let second = Task { await model.refresh(now: noon) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.open?()
+        await first.value
+        await second.value
+        XCTAssertEqual(gate.calls, 1)
+        XCTAssertEqual(model.events?.map(\.id), [pick.id])
+    }
+
+    /// A new account never shares the old account's read, and that read's answer doesn't land.
+    @MainActor
+    func testANewAccountDoesNotShareTheOldAccountsEventOfTheDayRead() async throws {
+        let old = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
+        let mine = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "8 PM", leaves: "2026-10-21T03:00:00+00:00")))
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let model = EventOfTheDay(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                return [old]
+            }
+            return [mine]
+        })
+        let noon = Date(timeIntervalSince1970: 1_792_515_600)
+        let first = Task { await model.refresh(now: noon) }
+        while gate.open == nil { await Task.yield() }
+        model.accountChanged()
+        await model.refresh(now: noon)
+        XCTAssertEqual(gate.calls, 2)
+        gate.open?()
+        await first.value
+        XCTAssertEqual(model.events?.map(\.starts), [mine.starts])
+    }
+
     @MainActor
     func testEventOfTheDayReadsAgainOnlyWhenItMatters() async throws {
         let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
