@@ -44,7 +44,7 @@ final class FriendsBookTests: XCTestCase {
                     readDot: { server.dot },
                     markSeen: { server.seen += 1 },
                     write: { try await server.write($0, $1) },
-                    isAnonymous: { anonymous },
+                    hasAccount: { !anonymous },
                     hold: Self.hold, flip: Self.flip)
     }
 
@@ -55,6 +55,26 @@ final class FriendsBookTests: XCTestCase {
     /// Past the hold, the flip and a little more.
     private func waitOutTurnBack() async {
         await wait(Self.hold + Self.flip + .milliseconds(150))
+    }
+
+    // MARK: A neighbour's code
+
+    func testACodesRequestGoesByItselfOnlyToAStranger() async {
+        let server = Server()
+        let b = book(server)
+        let ana = Self.person("Ana")
+        b.requestFromCode(ana)
+        XCTAssertEqual(b.relation(ana), .sent, "the page opens on Cancel request")
+        await wait()
+        b.requestFromCode(ana)
+        await wait()
+        XCTAssertEqual(server.writes, ["add Ana"], "once, however often it's asked")
+
+        b.requestFromCode(Self.person("Friend", .friends))
+        b.requestFromCode(Self.person("Blocked", .blocked))
+        b.requestFromCode(Self.person("Asked", .received))
+        await wait()
+        XCTAssertEqual(server.writes, ["add Ana"], "only someone they don't stand anywhere with yet")
     }
 
     // MARK: The button
@@ -259,7 +279,7 @@ final class FriendsBookTests: XCTestCase {
     func testAFailedReadIsNotEmptyItSaysItFailed() async {
         let server = Server()
         let b = FriendsBook(read: { throw URLError(.notConnectedToInternet) }, readDot: { false },
-                            markSeen: { server.seen += 1 }, write: { _, _ in .stranger }, isAnonymous: { false })
+                            markSeen: { server.seen += 1 }, write: { _, _ in .stranger }, hasAccount: { true })
         await b.refresh()
         XCTAssertFalse(b.loaded, "never 'No friends yet' after a failed read")
         XCTAssertTrue(b.failed)
@@ -485,7 +505,7 @@ final class FriendsBookTests: XCTestCase {
 
     func testAFailedBlockedReadSaysItFailed() async {
         let b = FriendsBook(read: { [] }, readBlocked: { throw URLError(.notConnectedToInternet) },
-                            readDot: { false }, markSeen: {}, write: { _, _ in .stranger }, isAnonymous: { false })
+                            readDot: { false }, markSeen: {}, write: { _, _ in .stranger }, hasAccount: { true })
         await b.refreshBlocked()
         XCTAssertFalse(b.blockedLoaded)
         XCTAssertTrue(b.blockedFailed)
@@ -509,7 +529,7 @@ final class FriendsBookSuggestionTests: XCTestCase {
                       anonymous: Bool = false) -> FriendsBook {
         FriendsBook(read: { [] }, readDot: { false }, markSeen: {}, write: write,
                     readSuggestions: { people }, writeHide: hides,
-                    isAnonymous: { anonymous }, hold: .milliseconds(50), flip: .milliseconds(30))
+                    hasAccount: { !anonymous }, hold: .milliseconds(50), flip: .milliseconds(30))
     }
 
     func testTheReasonLineIsFriendsSharedThenTheGroupThenInstagramsLine() {
@@ -566,7 +586,7 @@ final class FriendsBookSuggestionTests: XCTestCase {
         var people = [Self.person("Kim"), Self.person("Hal")]
         let b = FriendsBook(read: { [] }, readDot: { false }, markSeen: {},
                             write: { action, _ in FriendsBook.answer(to: action) },
-                            readSuggestions: { people }, isAnonymous: { false },
+                            readSuggestions: { people }, hasAccount: { true },
                             hold: .milliseconds(50), flip: .milliseconds(30))
         await b.refreshSuggestions()
         b.act(.add, Self.person("Kim"))

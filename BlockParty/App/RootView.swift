@@ -167,7 +167,16 @@ struct RootView: View {
     private var signedOut: Bool { !auth.booting && !hasAccount }
 
     /// Onboarding is up: the Welcome with no account, else until the flow is done.
-    private var flowUp: Bool { onboardingUp || !hasAccount }
+    private var flowUp: Bool { !Self.tabsUp(hasAccount: hasAccount, onboardingUp: onboardingUp) }
+
+    /// The tabs come up only with an account and with onboarding done.
+    nonisolated static func tabsUp(hasAccount: Bool, onboardingUp: Bool) -> Bool { hasAccount && !onboardingUp }
+
+    /// A neighbour's code from the iPhone camera (friends 07). The tabs open it (`MainTabsView.openCode`)
+    /// but it's caught here, above the gate, so it's known whether it came with no account and it's
+    /// let go when an account ends. Left to SwiftUI, a link opened behind the Welcome waits for the
+    /// next `onOpenURL` to appear, whoever's account that is.
+    @State private var code = WaitingCode()
 
     /// Onboarding's steps and answers on the phone; its finish hands them to Your profile, which
     /// stamps and saves them once an account exists (BP app codebase-health-2 10).
@@ -195,10 +204,11 @@ struct RootView: View {
                     .allowsHitTesting(!onboarding.finished || !hasAccount)
                     .transition(.opacity)
             } else {
-                MainTabsView(profile: profile).transition(.opacity)
+                MainTabsView(profile: profile, code: $code, welcoming: onboarding.welcoming).transition(.opacity)
             }
         }
         .animation(.smooth(duration: 0.35), value: flowUp)
+        .onOpenURL { code.opened($0, signedOut: signedOut) }
         .overlay {
             if onboarding.welcoming {
                 OnboardingDone(name: onboarding.displayName ?? "") { onboarding.welcoming = false }
@@ -207,7 +217,15 @@ struct RootView: View {
         // The launch's account, or a new one: your profile's read, and what onboarding owes it.
         .task(id: auth.userId) { await profile.arrived(onboarding) }
         // Signed out, or a token the server turned down: the next account starts on a clean Welcome.
-        .onChange(of: signedOut, initial: true) { _, out in if out { onboarding.reset(); profile.forgetOnboarding() } }
+        .onChange(of: signedOut, initial: true) { _, out in
+            guard out else { return }
+            onboarding.reset()
+            profile.forgetOnboarding()
+            code.foundNoAccount()
+        }
+        // An account ended (under-13's Close, a token the server turned down): a code still waiting
+        // isn't the next person's. Not on `signedOut`, which fires as the launch finishes looking.
+        .onChange(of: auth.userId) { old, new in if old != nil, new == nil { code.forget() } }
         .onChange(of: onboarding.finished) { _, done in
             guard done, onboarding.finishedHere else { return }
             // Here, before the tabs come up, so the hello pill doesn't say a second welcome.
@@ -250,8 +268,15 @@ struct MainTabsView: View {
     @State private var tab: Tab
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
+    /// A neighbour's code waiting for these tabs (`RootView`).
+    @Binding private var code: WaitingCode
+    /// Onboarding's Done island is up.
+    private let welcoming: Bool
+    private let launch = LaunchStage.shared
 
-    init(profile: ProfileModel) {
+    init(profile: ProfileModel, code: Binding<WaitingCode>, welcoming: Bool) {
+        _code = code
+        self.welcoming = welcoming
         // Town, or a DEBUG `-open-tab` override.
         _tab = State(initialValue: MainTabsView.initialTab())
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
@@ -309,14 +334,8 @@ struct MainTabsView: View {
     /// The map, presented full-screen from the map disc in the Town bar rather than
     /// living in the tab bar. Its own state belongs to `SJMapView`.
     @State private var showMap = false
-    /// Log in, for an Anonymous account that opened a neighbour's code.
-    @State private var signingIn = false
-    /// That code's neighbour, opened once the login lands.
-    @State private var codeAfterLogin: String?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
-    /// The + asked for an account first: New post opens once the login lands.
-    @State private var createAfterLogin = false
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -427,15 +446,10 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
-        // A neighbour's code from the iPhone camera (friends 07): their page once it's read. An
-        // Anonymous account logs in first, as Add friend asks; your own code opens your Profile.
-        .onOpenURL { url in
-            if let id = YourCode.userID(from: url) { openCode(id) }
-        }
-        .signInSheet(isPresented: $signingIn) {
-            if createAfterLogin, auth.isSignedIn, !auth.isAnonymous { creating = true }
-            createAfterLogin = false
-        }
+        // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
+        // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
+        .onChange(of: code.id, initial: true) { openWaitingCode() }
+        .onChange(of: codeReady) { openWaitingCode() }
         .sheet(isPresented: $creating) {
             NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
@@ -447,13 +461,6 @@ struct MainTabsView: View {
             if LaunchFlags.has(.newPost) { creating = true }
         }
         #endif
-        // Logged in from that ask: the neighbour whose code it was.
-        .onChange(of: auth.accountKey) {
-            if let id = codeAfterLogin, auth.isSignedIn, !auth.isAnonymous {
-                codeAfterLogin = nil
-                openCode(id)
-            }
-        }
         .overlay { BusinessPage().environment(placeOpener) }
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
@@ -550,14 +557,9 @@ struct MainTabsView: View {
         return DailyWeek.friendsGoing(in: townFeed.cards)
     }
 
-    /// The Town bar's +: New post for a real account; anyone else signs in first (Jesse,
-    /// 2026-11-01: "anyone signed in"), and New post opens once they have.
+    /// The Town bar's +: New post, for a real account (Jesse, 2026-11-01: "anyone signed in").
     private func create() {
-        guard auth.isSignedIn, !auth.isAnonymous else {
-            createAfterLogin = true
-            signingIn = true
-            return
-        }
+        guard auth.hasAccount else { return }
         creating = true
     }
 
@@ -572,21 +574,29 @@ struct MainTabsView: View {
         Task { await townFeed.reload() }
     }
 
+    private var codeReady: Bool { launch.finished && !welcoming }
+
+    private func openWaitingCode() {
+        if let taken = code.take(ready: codeReady) { openCode(taken.id, addFriend: taken.addFriend) }
+    }
+
     /// A neighbour's code (friends 07): their page on the shell's stack, over the map, once
-    /// `get_neighbor` answers; your own opens your Profile, the You tab.
-    private func openCode(_ id: String) {
+    /// `get_neighbor` answers; your own opens your Profile, the You tab. With no signal then, nothing
+    /// opens and they scan again (Jesse, 2026-11-06). `addFriend`: the request goes first, so the
+    /// page opens on Cancel request.
+    private func openCode(_ id: String, addFriend: Bool) {
         showMap = false
         if id == auth.userId?.lowercased() {
             path = NavigationPath()
             tab = .you
             return
         }
-        guard auth.isSignedIn, !auth.isAnonymous else {
-            codeAfterLogin = id
-            signingIn = true
-            return
+        guard auth.hasAccount else { return }
+        Task {
+            guard let neighbor = try? await Neighbor.read(id) else { return }
+            if addFriend { friendsBook.requestFromCode(neighbor) }
+            path.append(neighbor)
         }
-        Task { if let neighbor = try? await Neighbor.read(id) { path.append(neighbor) } }
     }
 
     private var shell: some View {

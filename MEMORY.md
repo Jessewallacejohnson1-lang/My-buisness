@@ -41,6 +41,11 @@ or its `docs/rules/` file and leaves here.
   14). The map is not a tab: it opens full-screen from the yellow disc in the Town top bar.
   Business has no tab. **Supersedes** the Town top bar's friends mark and You as "the fourth
   tab" in `docs/rules/architecture.md`.
+- 2026-11-06 — **A neighbour's code opened with no account sends the friend request by itself** (Jesse:
+  "just goes to opening with onboarding then that person is automatically added as friend", BP app
+  codebase-health-2 15). The Welcome and onboarding come first, then their page opens on Cancel request, and
+  the neighbour still taps Confirm. Never friends at once: Share sends a picture of a code that never
+  changes. Someone who already has an account lands on the page and taps Add friend.
 - App Store target is spring 2027. The months before that are networking and local
   partnerships, not features.
 - 2026-11-01 — **Users never pay** (Jesse). Block Party is a passion project, not a

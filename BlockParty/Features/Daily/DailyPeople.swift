@@ -86,8 +86,7 @@ private struct SuggestionCard: View {
             .buttonStyle(.press(.dim))
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
-            // Never an Anonymous account here: the row is read only for a real one.
-            RelationButtons(person: person) {}
+            RelationButtons(person: person)
                 .padding(DailyPeopleMetric.buttonInset)
         }
         .frame(width: DailyPeopleMetric.card.width, height: DailyPeopleMetric.card.height)

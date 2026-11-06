@@ -13,6 +13,75 @@ final class YourCodeTests: XCTestCase {
 
     private let id = "6f1c2a9e-3b4d-4e8f-9a1b-2c3d4e5f6a7b"
 
+    // MARK: A code opened before the account exists (codebase-health-2 15)
+
+    private var link: URL { URL(string: "blockparty://neighbor/\(id)")! }
+
+    func testACodeOpenedWithNoAccountOpensOnceWhenReadyAndSendsTheRequest() {
+        var waiting = WaitingCode()
+        waiting.opened(link, signedOut: true)
+        XCTAssertNil(waiting.take(ready: false), "the launch or the Done island is still up")
+        XCTAssertEqual(waiting.id, id, "and it keeps waiting")
+        let taken = waiting.take(ready: true)
+        XCTAssertEqual(taken?.id, id)
+        XCTAssertEqual(taken?.addFriend, true)
+        XCTAssertNil(waiting.take(ready: true), "once")
+    }
+
+    /// Nothing shows that it was caught, so they may scan again once they have an account.
+    func testScanningAgainWithAnAccountStillSendsTheRequest() {
+        var waiting = WaitingCode()
+        waiting.opened(link, signedOut: true)
+        waiting.opened(link, signedOut: false)
+        XCTAssertEqual(waiting.take(ready: true)?.addFriend, true)
+    }
+
+    func testACodeOpenedWithAnAccountLeavesAddFriendToThem() {
+        var waiting = WaitingCode()
+        waiting.opened(link, signedOut: false)
+        XCTAssertEqual(waiting.take(ready: true)?.addFriend, false)
+    }
+
+    /// With the app closed, the code can land before the launch has looked for a kept account.
+    func testACodeOpenedWhileTheLaunchLooksSendsTheRequestOnlyIfItFindsNoAccount() {
+        var none = WaitingCode()
+        none.opened(link, signedOut: false)
+        none.foundNoAccount()
+        XCTAssertEqual(none.take(ready: true)?.addFriend, true)
+
+        var kept = WaitingCode()
+        kept.opened(link, signedOut: false)
+        XCTAssertEqual(kept.take(ready: true)?.addFriend, false)
+
+        var nothing = WaitingCode()
+        nothing.foundNoAccount()
+        XCTAssertNil(nothing.take(ready: true), "no code, nothing to open")
+    }
+
+    func testAnythingElseOpenedDoesNotWaitOrDisturbTheCode() {
+        var waiting = WaitingCode()
+        waiting.opened(URL(string: "https://example.com/n/\(id)")!, signedOut: true)
+        XCTAssertNil(waiting.id)
+        waiting.opened(link, signedOut: true)
+        waiting.opened(URL(string: "blockparty://neighbor/not-an-id")!, signedOut: true)
+        XCTAssertEqual(waiting.id, id)
+    }
+
+    func testAnAccountThatEndsForgetsTheCode() {
+        var waiting = WaitingCode()
+        waiting.opened(link, signedOut: true)
+        waiting.forget()
+        XCTAssertNil(waiting.take(ready: true), "not the next person's")
+    }
+
+    /// The tabs open the code, so nothing opens until they're up: an account and onboarding done.
+    func testTheTabsWaitForAnAccountAndForOnboarding() {
+        XCTAssertFalse(RootView.tabsUp(hasAccount: false, onboardingUp: true))
+        XCTAssertFalse(RootView.tabsUp(hasAccount: false, onboardingUp: false))
+        XCTAssertFalse(RootView.tabsUp(hasAccount: true, onboardingUp: true), "onboarding not finished")
+        XCTAssertTrue(RootView.tabsUp(hasAccount: true, onboardingUp: false))
+    }
+
     func testYourLinkIsTheAppLink() {
         XCTAssertEqual(YourCode.link(for: id).absoluteString, "blockparty://neighbor/\(id)")
         XCTAssertEqual(YourCode.link(for: id.uppercased()).absoluteString, "blockparty://neighbor/\(id)")

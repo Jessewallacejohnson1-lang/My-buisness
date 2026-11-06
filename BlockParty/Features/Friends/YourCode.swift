@@ -97,6 +97,41 @@ nonisolated enum YourCode {
     }
 }
 
+/// A neighbour's code from the iPhone camera, kept from the moment it opens until the tabs can open
+/// its page (BP app codebase-health-2 15). In memory only: if iOS closes the app first it's
+/// forgotten, and they scan again (Jesse, 2026-11-06).
+nonisolated struct WaitingCode {
+    private(set) var id: String?
+    /// Opened with no account, so the friend request goes by itself once they have one. Someone
+    /// who already had an account taps Add friend (Jesse, 2026-11-06).
+    private(set) var hadNoAccount = false
+
+    /// `signedOut`: the launch has looked and found no account. While it's still looking that's
+    /// false, and `foundNoAccount` puts it right.
+    mutating func opened(_ url: URL, signedOut: Bool) {
+        guard let read = YourCode.userID(from: url) else { return }
+        id = read
+        // Nothing shows that it was caught, so they may scan again once they have an account.
+        hadNoAccount = hadNoAccount || signedOut
+    }
+
+    /// The launch finished looking and found no account.
+    mutating func foundNoAccount() {
+        if id != nil { hadNoAccount = true }
+    }
+
+    /// The neighbour to open now, once. Nothing until `ready`, and it stays till then.
+    mutating func take(ready: Bool) -> (id: String, addFriend: Bool)? {
+        guard ready, let id else { return nil }
+        let taken = (id: id, addFriend: hadNoAccount)
+        self = WaitingCode()
+        return taken
+    }
+
+    /// An account ended: what it was waiting for isn't the next person's.
+    mutating func forget() { self = WaitingCode() }
+}
+
 /// You, as your code shows you.
 struct CodeOwner: Equatable {
     var id: String

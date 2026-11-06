@@ -235,7 +235,7 @@ final class ProfileModel {
         guard auth.userId != nil, await read() else { return }
         // A quiet account kept from before onboarding 27 is on the Welcome, not in: its stamp
         // mustn't finish the flow for the account made next, nor that flow's stamp land on it.
-        guard !auth.isAnonymous else { return }
+        guard auth.hasAccount else { return }
         if onboardedAt == nil, onboarding.finished, !onboarding.arrivedBefore {
             await stamp(onboarding)
         } else if onboardedAt != nil {
@@ -275,7 +275,7 @@ final class ProfileModel {
         await onboarding.saveAnswers { name, photo in
             try await saveAnswers(name: name, photo: photo, interests: onboarding.interests)
         }
-        guard auth.isSignedIn, !auth.isAnonymous else { return }
+        guard auth.hasAccount else { return }
         let community = CommunityAPI(supabase)
         await onboarding.sendRequests { _ = try await community.friendWrite(.add, $0) }
     }
@@ -298,7 +298,7 @@ final class ProfileModel {
     }
 
     /// Only a real account has a bio, a cover, friends and a `get_profile` to read.
-    var canDescribe: Bool { auth.isSignedIn && !auth.isAnonymous }
+    var canDescribe: Bool { auth.hasAccount }
 
     // MARK: - Edit / save
 
