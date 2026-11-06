@@ -41,10 +41,8 @@ struct LeftOff: Codable, Equatable {
     /// it's read, so a page that crashes on the way back can't catch the app in a loop.
     static let current: LeftOff? = {
         if AuthStore.isTestRun { return nil }
-        #if DEBUG
         // A screenshot run passes flags and expects a plain launch; `-left-off` is how a proof asks.
-        if CommandLine.arguments.count > 1, !LaunchFlags.has(.leftOff) { return nil }
-        #endif
+        if LaunchFlags.any, !LaunchFlags.has(.leftOff) { return nil }
         let left = saved()
         clear()
         let scenes = Set(UIApplication.shared.openSessions.map(\.persistentIdentifier))
