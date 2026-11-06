@@ -71,8 +71,17 @@ nonisolated struct GameMoment: Equatable, Sendable {
     static func words(of play: Game.Play, sport: String) -> (title: String, detail: String) {
         let sport = sport.lowercased()
         if sport.contains("soccer"), let goal = goal(in: play) { return goal }
+        if sport.contains("hockey") { return (hockeyTitle(play.text), play.when) }
         let title = sport.contains("football") ? footballTitle(play.text) : sport.contains("basketball") ? basketballTitle(play.text) : nil
         return (title ?? play.text, play.when)
+    }
+
+    /// "Goal by SUP Gibbs,Jordan (POWER-PLAY); Assist by ...", "GOAL by UConn Loranger, Jeremy (POWER-PLAY, GAME WINNING
+    /// GOAL); ...", and "CON Muldowney, Joey PENALTY SHOT GOAL off ...": a goal is all a hockey play is, so the draft's
+    /// "Goal · Burke (PP)", or just "Goal" when the name doesn't read.
+    private static func hockeyTitle(_ text: String) -> String {
+        let goal = scorer(in: text).map { "Goal · \($0)" } ?? "Goal"
+        return text.contains("POWER-PLAY") ? "\(goal) (PP)" : goal
     }
 
     /// "Shot by SJU Benson,Soren, high left, GOAL; Assist by SJU Holden,Laird", "Penalty kick taken by Cornett,Billy,

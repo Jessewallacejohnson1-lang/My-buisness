@@ -25,6 +25,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     /// A tied final settled on penalty kicks (game-card 15); nil for every other game. Kept after the final, which
     /// the live score is not.
     private(set) var shootout: Shootout?
+    /// Hockey's shots on goal in `teams` order (game-card 09); nil for any other sport. Kept after the final, which the
+    /// live score is not.
+    private(set) var shots: [Int]?
     /// SIDEARM's scoring plays, oldest first (ticket 05): every play that changed the score, in its words.
     private(set) var plays: [Play] = []
 
@@ -95,6 +98,77 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         let fouls: [Int]?
         /// Penalty kicks that settled a tie (game-card 15); nil for any other read, and for one that doesn't read.
         let shootout: Shootout?
+        /// The period being played, from 1: basketball's bar and hockey's power play count from it. Nil for any other sport.
+        let periodNumber: Int?
+        /// Hockey's saves and power plays (game-card 09); nil for any other sport and an old read.
+        let ice: Ice?
+        /// SIDEARM's own shots on goal in `teams` order, which come with the final; nil before it.
+        let finalShots: [Int]?
+
+        /// Hockey's plays the page counts, as `live_score.ice` keeps them (`private.sidearm_ice`), in SIDEARM's order.
+        nonisolated struct Ice: Decodable, Hashable, Sendable {
+            /// Each side's saves by play, in `teams` order.
+            let saves: [[String]]
+            /// Each power play's Start and End.
+            let power: [Line]
+
+            nonisolated struct Line: Decodable, Hashable, Sendable {
+                /// The team with the extra skater: 0 for the first team (the host), 1 for the other.
+                let side: Int
+                let start: Bool
+                /// The game's second, counting up over the three periods; nil in overtime, whose plays can say no clock.
+                let at: Int?
+            }
+        }
+
+        /// The power play on now (`Live.powerPlay`).
+        nonisolated struct PowerPlay: Hashable, Sendable {
+            /// The team with the extra skater, in `teams` order.
+            let side: Int
+            /// Seconds left of a minor's 2:00 by the clock as last sent, 0 past it (a major, which SIDEARM's words don't
+            /// tell from a minor); nil when the clock can't say (overtime).
+            let left: Int?
+        }
+
+        /// Shots on goal in `teams` order: SIDEARM's own with the final, else each side's saves and goals, which matched
+        /// its totals on 18 of 20 sides of 10 real games and was 1 off on the other 2. Nil for any other sport.
+        var shots: [Int]? {
+            if let finalShots { return finalShots }
+            guard let saves = ice?.saves, saves.count == 2 else { return nil }
+            return [saves[0].count + score[0], saves[1].count + score[1]]
+        }
+
+        /// The game's second by the clock as last sent, which counts down from 20:00 in each of the three periods. Nil in
+        /// overtime, whose length a push doesn't say.
+        private var gameSecond: Int? {
+            guard let periodNumber, (1...3).contains(periodNumber), let seconds else { return nil }
+            return periodNumber * Self.hockeyPeriod - seconds
+        }
+
+        /// The power play on now, from SIDEARM's Start and End plays, the one running out first; nil at even strength.
+        /// An End on a Start's own clock closes that Start: its penalty was matched by one on the other team, and the older
+        /// one runs on (Bethel v UW-Superior, 2026-10-31). Any other End closes the oldest of that team's, the penalty
+        /// that runs out first. A Start with no End in 5:00, the longest there is, was missed and is over.
+        var powerPlay: PowerPlay? {
+            guard let lines = ice?.power else { return nil }
+            var open: [Ice.Line] = []
+            for line in lines {
+                if line.start { open.append(line); continue }
+                let mine = open.indices.filter { open[$0].side == line.side }
+                guard let oldest = mine.first, let newest = mine.last else { continue }
+                open.remove(at: line.at != nil && open[newest].at == line.at ? newest : oldest)
+            }
+            let now = gameSecond
+            guard let line = open.first(where: { line in
+                guard let at = line.at, let now else { return true }
+                return now - at < Self.longestPenalty
+            }) else { return nil }
+            guard let at = line.at, let now else { return PowerPlay(side: line.side, left: nil) }
+            return PowerPlay(side: line.side, left: min(Self.minorPenalty, max(0, Self.minorPenalty - (now - at))))
+        }
+
+        /// A hockey period, a minor and a major, in seconds.
+        private static let hockeyPeriod = 1200, minorPenalty = 120, longestPenalty = 300
 
         /// Basketball's periods as SIDEARM sends them (`private.sidearm_live`).
         nonisolated struct Bar: Hashable, Sendable {
@@ -210,7 +284,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         var isHalftime: Bool { period == "1st half" && (seconds ?? 0) >= 2700 }
 
         private enum CodingKeys: String, CodingKey {
-            case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls, shootout
+            case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls, shootout, ice, shots
             case periodNumber = "period_n", length = "period_s"
         }
 
@@ -242,6 +316,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
             self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
             shootout = (try? c.decodeIfPresent(Shootout.self, forKey: .shootout)) ?? nil
+            periodNumber = int(.periodNumber)
+            ice = (try? c.decodeIfPresent(Ice.self, forKey: .ice)) ?? nil
+            finalShots = ((try? c.decodeIfPresent([Int].self, forKey: .shots)) ?? nil).flatMap { $0.count == 2 ? $0 : nil }
         }
     }
 
@@ -270,6 +347,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         self.live = final == nil ? live : nil
         self.periods = live?.periods ?? []
         self.shootout = final.flatMap { $0[0] == $0[1] ? live?.shootout : nil }
+        self.shots = live?.shots
         self.plays = plays.filter { $0.score.count == 2 && (0...1).contains($0.side) }
     }
 
@@ -294,6 +372,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     /// Basketball's page draws its quarters as a bar, the Bonus and a faint court (game-card 09).
     var isBasketball: Bool { sport.localizedCaseInsensitiveContains("basketball") }
+
+    /// Hockey's page draws a power-play bar, shots on goal and the rink's lines (game-card 09).
+    var isHockey: Bool { sport.localizedCaseInsensitiveContains("hockey") }
 
     /// Our team, in `teams` order: the one around St. Joseph; when both are, or neither, the home team, first
     /// (Jesse, game-card 12). Its color is the page's Attend.

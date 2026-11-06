@@ -758,6 +758,84 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(football.minute(at: .now), "a football clock is no minute")
     }
 
+    /// A hockey game's live score at the game's second, the rink's clock counting down, with its power-play lines so far.
+    private func hockey(at second: Int, lines: [(Int, Bool, Int?)] = [], saves: String = "[[],[]]", period: Int? = nil,
+                        extra: String = "") throws -> Game.Live {
+        let period = period ?? second / 1200 + 1, clock = period * 1200 - second
+        let power = lines.map { #"{"side":\#($0.0),"start":\#($0.1),"at":\#($0.2.map(String.init) ?? "null")}"# }.joined(separator: ",")
+        let json = #"{"sport":"Hockey","teams":[{"name":"Saint John's"},{"name":"UW-Superior"}],"live":{"score":[2,1],"period":"P\#(period)","clock":"8:31","clock_s":\#(clock),"complete":false,"at":"2026-11-06T20:30:00Z","period_n":\#(period),"ice":{"saves":\#(saves),"power":[\#(power)]}\#(extra)}}"#
+        return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+    }
+
+    /// Hockey's power play (game-card 09), from SIDEARM's Start and End plays: every one in Bethel 1-2 UW-Superior's real
+    /// file (2026-10-31), the bar on the one running out first. A second penalty matched at once closes itself, not the
+    /// older one; past 2:00 it's a major, which the words don't tell from a minor, so no time; 5:00 with no End was missed.
+    func testHockeysPowerPlayRunsDownFromItsStartAndAnEndClosesTheOneThatRanOut() throws {
+        let bethel: [(Int, Bool, Int?)] = [(0, true, 188), (0, false, 308), (1, true, 464), (1, false, 482), (0, true, 587), (0, true, 665),
+                                           (0, false, 665), (0, false, 707), (0, true, 832), (0, false, 888), (1, true, 952), (1, false, 1008),
+                                           (0, true, 1106), (0, false, 1406), (0, true, 1619), (0, false, 1669), (1, true, 1739), (1, false, 1789)]
+        func on(_ second: Int) throws -> Game.Live.PowerPlay? {
+            try hockey(at: second, lines: bethel.filter { ($0.2 ?? 0) <= second }).powerPlay
+        }
+        XCTAssertNil(try on(100), "even strength")
+        XCTAssertEqual(try on(224), .init(side: 0, left: 84), "36 s in: the draft's 1:24")
+        XCTAssertEqual(try on(300), .init(side: 0, left: 8))
+        XCTAssertNil(try on(308), "its End")
+        XCTAssertEqual(try on(470), .init(side: 1, left: 114), "the other team's, in its color")
+        XCTAssertNil(try on(482), "a power-play goal ends it")
+        XCTAssertEqual(try on(600), .init(side: 0, left: 107))
+        XCTAssertEqual(try on(665), .init(side: 0, left: 42), "a second penalty matched on its own clock: the first runs on")
+        XCTAssertNil(try on(707))
+        XCTAssertEqual(try on(1150), .init(side: 0, left: 76))
+        XCTAssertEqual(try on(1226), .init(side: 0, left: 0), "past 2:00, into the 2nd: a real 5:00 major")
+        XCTAssertNil(try on(1406))
+        XCTAssertNil(try on(3599), "none left at the end")
+        // Two at once: the first's End closes the oldest, and the second runs on.
+        let two: [(Int, Bool, Int?)] = [(0, true, 100), (0, true, 150)]
+        XCTAssertEqual(try hockey(at: 200, lines: two).powerPlay, .init(side: 0, left: 20))
+        XCTAssertEqual(try hockey(at: 230, lines: two + [(0, false, 220)]).powerPlay, .init(side: 0, left: 40))
+        // Both teams at once: the one running out first.
+        XCTAssertEqual(try hockey(at: 200, lines: [(1, true, 150), (0, true, 190)]).powerPlay, .init(side: 1, left: 70))
+        // No End in 5:00: it was missed. Overtime can't say what's left.
+        XCTAssertNil(try hockey(at: 500, lines: [(0, true, 200)]).powerPlay)
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay, .init(side: 1, left: nil))
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, 3590)], period: 4).powerPlay, .init(side: 1, left: nil), "from the 3rd into overtime")
+    }
+
+    /// Hockey's shots on goal (game-card 09): each side's saves and goals while it's on, SIDEARM's own with the final, and
+    /// they stay past the final, which the live score does not. None for another sport.
+    func testHockeysShotsCountSavesAndGoalsThenSidearmsOwnStayPastTheFinal() throws {
+        let live = try hockey(at: 2000, saves: #"[["1","2","3"],["4"]]"#)
+        XCTAssertEqual(live.shots, [5, 2], "the goals count")
+        let own = try hockey(at: 3600, saves: #"[["1","2","3"],["4"]]"#, extra: #","shots":[41,27]"#)
+        XCTAssertEqual(own.shots, [41, 27], "SIDEARM's own win")
+        let json = #"{"sport":"Hockey","teams":[{"name":"Saint John's"},{"name":"UW-Superior"}],"final":[2,1],"live":{"score":[2,1],"period":"P3","complete":true,"shots":[41,27]}}"#
+        let final = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        XCTAssertNil(final.live)
+        XCTAssertEqual(final.shots, [41, 27])
+        XCTAssertTrue(final.isHockey)
+        let other = #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","complete":false}}"#
+        XCTAssertNil(try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(other.utf8)).value).shots)
+    }
+
+    /// A hockey goal's card, in the draft's words, from SIDEARM's as both its scorers write them (game-card 09).
+    func testAHockeyGoalReadsAsTheDraftDoes() {
+        func words(_ text: String, clock: String? = "11:58") -> [String] {
+            let play = Game.Play(id: "1", text: text, period: clock == nil ? "OT" : "P1", clock: clock, side: 1, score: [1, 1])
+            let w = GameMoment.words(of: play, sport: "Hockey")
+            return [w.title, w.detail]
+        }
+        XCTAssertEqual(words("Goal by SUP Gibbs,Jordan (POWER-PLAY); Assist by Rozsival,Daniel and Reed,AJ; On ice for BET: 1, 37, 17, 12, 22; On ice for SUP: 33, 3, 9, 18, 17, 26."),
+                       ["Goal · Gibbs (PP)", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by BET Brazil,Connor (EVEN STRENGTH); Assist by Lindsey,Luke; On ice for BET: 1, 6, 37, 7, 19, 5; On ice for SUP: 33, 17, 26, 14, 2, 4."),
+                       ["Goal · Brazil", "P1 · 11:58"])
+        XCTAssertEqual(words("GOAL by UConn Loranger, Jeremy (POWER-PLAY, GAME WINNING GOAL); Assist by Scott, Trey and Blais, Alexandre; Goal number 3 for season."),
+                       ["Goal · Loranger (PP)", "P1 · 11:58"])
+        XCTAssertEqual(words("CON Muldowney, Joey PENALTY SHOT GOAL off Homer, Gibson; Goal number 5 for season."), ["Goal · Muldowney", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by SUP Reed,AJ (EVEN STRENGTH).", clock: nil), ["Goal · Reed", "OT"])
+        XCTAssertEqual(words("Goal by SUP (EVEN STRENGTH)."), ["Goal", "P1 · 11:58"], "no name to read")
+    }
+
     /// Basketball's bar (game-card 09): one part per quarter or half and one for overtime, the played ones full and
     /// the one being played as far as its clock has run; the Bonus from the other team's 5th foul of a quarter or 7th
     /// of a half, a count from a period that's over read as none; no bar for any other sport or an old read.

@@ -237,6 +237,9 @@ nonisolated enum Hue {
     /// game screen does (BP app game-card 08, measured off `references/game-page-blend/`). The same in
     /// both appearances: the page is always dark.
     static let gameNight     = Color(hex: 0x0B0A0D)
+    /// The rink's lines behind a hockey game's page, the Figma draft's (BP app game-card 09).
+    static let rinkRed       = Color(hex: 0xFF3B30)
+    static let rinkBlue      = Color(hex: 0x4D8DFF)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 
