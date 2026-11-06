@@ -132,6 +132,24 @@ struct FeedCardItem: Identifiable, Hashable {
         EventWhen(date: eventDate, time: startTime, endAt: endAt, allDay: allDay, game: game != nil)
     }
 
+    /// On by the clock, but a place being open rather than a real happening.
+    func isOpen(at now: Date) -> Bool {
+        !liveKind && !cancelled && when?.isOn(now) == true
+    }
+
+    /// The when line at `now`. A place open rather than a happening on says how long it's open, or its
+    /// start reads as over: "Until 9 PM", "Until Sat", "Until Dec 14" (town-feed 41).
+    func whenLine(at now: Date) -> FeedWhenLine? {
+        guard isOpen(at: now), let when else { return whenLine }
+        let last = when.end.addingTimeInterval(-60)  // a run's end at midnight is the day before
+        let until = switch Town.days(from: now, to: last) {
+        case 0: Town.clock(when.end)
+        case 1..<7: Town.format(last, "EEE")
+        default: Town.format(last, "MMMd")
+        }
+        return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
+    }
+
     /// The where line under the when line: just the venue, because the when line
     /// owns the time now. A mapped posting with a time but no venue has nothing
     /// here. Without that check `shareLocation` would hand back the whole meta line,
@@ -166,6 +184,11 @@ struct FeedCardItem: Identifiable, Hashable {
 struct FeedWhenLine: Equatable {
     let text: String
     let spoken: String
+
+    init(text: String, spoken: String) {
+        self.text = text
+        self.spoken = spoken
+    }
 
     /// `eventDate` is `yyyy-MM-dd`. `startTime` is the free-text display time that
     /// `EventWhen` reads. A time it can't read is shown as written rather

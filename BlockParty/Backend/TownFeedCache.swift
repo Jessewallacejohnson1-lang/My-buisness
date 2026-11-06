@@ -52,5 +52,18 @@ enum TownFeedCache {
             guard let file = file(kind) else { continue }
             try? FileManager.default.removeItem(at: file)
         }
+        UserDefaults.standard.removeObject(forKey: postersKey)
+    }
+
+    private static let postersKey = "town.postersShown"
+
+    /// Today's Events of the day that have had their one showing as the poster (BP app town-feed 41).
+    static func postersShown(today: String = Town.day(Date())) -> [String] {
+        let kept = UserDefaults.standard.stringArray(forKey: postersKey) ?? []
+        return kept.first == today ? Array(kept.dropFirst()) : []
+    }
+
+    static func save(postersShown ids: [String], today: String = Town.day(Date())) {
+        UserDefaults.standard.set([today] + ids, forKey: postersKey)
     }
 }

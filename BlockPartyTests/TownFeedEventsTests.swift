@@ -406,6 +406,22 @@ final class TownFeedEventsTests: XCTestCase {
         town.fingerDown = true
         await town.refresh(at: now.addingTimeInterval(60 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
+        town.fingerDown = false
+        await town.fingerLifted(at: now.addingTimeInterval(60 * 60 + 1))
+        XCTAssertEqual(town.cards.map(\.id), ["new", "b", "a"], "it lands when the finger lifts")
+    }
+
+    /// News you've seen stays gone past the list: repeats are asked of Events and posts only.
+    func testNewsIsNotAskedForAgainPastTheList() async throws {
+        let news = TownNews(id: "n1", place: "Cow", words: "Scoops", post: try XCTUnwrap(URL(string: "https://x.example/p")),
+                            leavesAt: .distantFuture)
+        let event = TownFeed.entry(row("e1"))
+        var asked: [String] = []
+        let town = TownFeed(read: { [event, TownFeedEntry(item: .news(news), leavesAt: .distantFuture)] },
+                            readMore: { _, _, shown in asked = shown; return [] })
+        await town.reload(at: now)
+        await town.loadMore()
+        XCTAssertEqual(asked, ["e1"])
     }
 
     /// News and a neighbour's post count as seen too, News apart, as it goes to `see_news`.

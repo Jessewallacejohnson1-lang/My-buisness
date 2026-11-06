@@ -246,14 +246,20 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.phase(gallery, now: at(24, 15)), .untimed, "no live ring on the map")
     }
 
-    func testARunOverDaysIsNowTheWholeTime() {
-        let kiln = card("2026-09-16", "4 PM", endAt: at(26, 0))
-        XCTAssertFalse(kiln.isNow(at: at(16, 15, 59)))
-        XCTAssertTrue(kiln.isNow(at: at(20, 3)), "the kiln burns through the night")
-        XCTAssertFalse(kiln.isNow(at: at(26, 0)))
-        let festival = card("2026-09-21", nil, endAt: at(27, 0), allDay: true)
-        XCTAssertTrue(festival.isNow(at: at(24, 10)), "an all-day run over days")
-        XCTAssertFalse(festival.isNow(at: at(27, 0)))
+    /// A place open rather than a happening on says how long, or its start reads as over.
+    func testAPlaceBeingOpenSaysUntilWhen() {
+        var gallery = card("2026-09-24", "2 PM", endAt: at(24, 20))
+        gallery.liveKind = false
+        XCTAssertEqual(gallery.whenLine(at: at(24, 15))?.text, "Until 8 PM")
+        XCTAssertEqual(gallery.whenLine(at: at(24, 15))?.spoken, "Open until 8 PM")
+        XCTAssertEqual(gallery.whenLine(at: at(24, 13)), gallery.whenLine, "not open yet")
+        var run = card("2026-09-16", "4 PM", endAt: at(26, 0))
+        run.liveKind = false
+        XCTAssertEqual(run.whenLine(at: at(24, 10))?.text, "Until Fri", "its end at midnight is the day before")
+        XCTAssertEqual(run.whenLine(at: at(17, 10))?.text, "Until Sep 25")
+        var concert = card("2026-09-24", "7 PM")
+        concert.liveKind = true
+        XCTAssertEqual(concert.whenLine(at: at(24, 19, 30)), concert.whenLine, "a happening says Now, elsewhere")
     }
 
     func testNowIsInTheTownsTimeWhateverThePhoneIsSetTo() {

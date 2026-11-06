@@ -55,6 +55,11 @@ struct TownFeedEntry: Identifiable {
         return nil
     }
 
+    var isNews: Bool {
+        if case .news = item { return true }
+        return false
+    }
+
     /// The neighbour's post; nil for the rest.
     var post: TownPost? {
         if case .post(let post) = item { return post }
@@ -75,31 +80,6 @@ struct FeedAction: Equatable {
     enum Kind: String { case view, open, share, news }
     let itemID: String
     let kind: Kind
-}
-
-/// Which Events of the day have had their one showing as the poster (town-feed 41). In memory unless
-/// `onThisPhone`, so a test's never reaches the next test or the next run. Only the feed, on the main
-/// actor, touches one; nonisolated so it can be a default argument.
-nonisolated final class PosterShowings: @unchecked Sendable {
-    private var ids: Set<String> = []
-    private let keep: Bool
-
-    init(keep: Bool = false) { self.keep = keep }
-
-    static let onThisPhone = PosterShowings(keep: true)
-    private static let key = "town.postersShown"
-
-    /// Today's. An Event of the day is only ever that day's, so yesterday's go.
-    func read(today: String = Town.day(Date())) -> Set<String> {
-        guard keep else { return ids }
-        let kept = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
-        return kept.first == today ? Set(kept.dropFirst()) : []
-    }
-
-    func write(_ shown: Set<String>, today: String = Town.day(Date())) {
-        ids = shown
-        if keep { UserDefaults.standard.set([today] + shown.sorted(), forKey: Self.key) }
-    }
 }
 
 /// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
@@ -259,8 +239,8 @@ final class TownFeed {
     private let opened: () -> [String]
     /// Where your own post's Delete goes (town-feed 29).
     private let deletePost: (TownPost) async throws -> Void
-    /// Which Events of the day have had their one showing (town-feed 41): kept on the phone for the day.
-    private let posters: PosterShowings
+    /// Keeps which Events of the day have had their one showing (town-feed 41), on the phone for the day.
+    private let keepPosters: ([String]) -> Void
     /// Those shown so far, and those that have left the top: they go only when a fresh order lands, so
     /// nothing changes under the finger.
     @ObservationIgnored private var postersShown: Set<String>
@@ -281,10 +261,11 @@ final class TownFeed {
          readMore: @escaping (Int, [String], [String]) async throws -> [TownMoreRow] = { _, _, _ in [] },
          opened: @escaping () -> [String] = { [] },
          deletePost: @escaping (TownPost) async throws -> Void = { _ in },
-         posters: PosterShowings = PosterShowings()) {
-        self.posters = posters
-        postersShown = posters.read()
-        postersGone = postersShown
+         postersShown: [String] = [],
+         keepPosters: @escaping ([String]) -> Void = { _ in }) {
+        self.keepPosters = keepPosters
+        self.postersShown = Set(postersShown)
+        postersGone = Set(postersShown)
         self.read = read
         self.kept = kept
         self.actions = actions
@@ -333,7 +314,8 @@ final class TownFeed {
                   readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids },
                   deletePost: { try await api.deletePost($0.id, photo: $0.photo != nil) },
-                  posters: .onThisPhone)
+                  postersShown: TownFeedCache.postersShown(),
+                  keepPosters: { TownFeedCache.save(postersShown: $0) })
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -416,7 +398,8 @@ final class TownFeed {
         let mine = moreRead, round = rounds.count
         do {
             let newLater = round == 0 ? try await readLater() : later
-            let rows = try await readMore(round, opened(), shown.map(\.id))
+            // Repeats past the list are Events and posts: News you've seen stays gone (town-feed 41).
+            let rows = try await readMore(round, opened(), shown.filter { !$0.isNews }.map(\.id))
             guard mine == moreRead else { return }
             if round == 0 {
                 actions?.read(newLater.compactMap(\.card))
@@ -484,6 +467,12 @@ final class TownFeed {
         await readAgain(at: now, freshOrder: false)
     }
 
+    /// The finger's off a list a fresh order was waiting on.
+    func fingerLifted(at now: Date = Date()) async {
+        guard freshDue, atTop else { return }
+        await refresh(at: now)
+    }
+
     /// Retry, a new account: the new order, whatever is on screen.
     func reload(at now: Date = Date()) async {
         await readAgain(at: now, freshOrder: true)
@@ -538,7 +527,6 @@ final class TownFeed {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
                 clearMore()
-                postersShown = posters.read()
                 postersGone = postersShown
             } else {
                 let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -548,7 +536,8 @@ final class TownFeed {
                     byID[$0.id] ?? (holding ? TownFeedEntry(item: $0.item, leavesAt: min($0.leavesAt, now)) : nil)
                 }
             }
-            freshDue = false
+            // A finger on the list holds the fresh order until it lifts (`fingerLifted`).
+            freshDue = freshDue && atTop && fingerDown
             failed = false
             holdGames(at: now)
         } catch {
@@ -616,7 +605,7 @@ final class TownFeed {
         unsent = []
         viewed = []
         onScreen = [:]
-        posters.write([])
+        keepPosters([])
         postersShown = []
         postersGone = []
         hiddenIDs = []
@@ -771,16 +760,12 @@ final class TownFeed {
         guard !viewed.contains(id) else { return }
         if id == posterOnTop {
             postersShown.insert(id)
-            posters.write(postersShown)
+            keepPosters(postersShown.sorted())
         }
         let here = shown.first { $0.id == id } ?? later.first { $0.id == id }
         guard here != nil || id == posterOnTop else { return }
         viewed.insert(id)
-        if case .news = here?.item {
-            unsent.append(FeedAction(itemID: id, kind: .news))
-        } else {
-            unsent.append(FeedAction(itemID: id, kind: .view))
-        }
+        unsent.append(FeedAction(itemID: id, kind: here?.isNews == true ? .news : .view))
     }
 
     /// The list the last live read left on disk, or nil when there is none or it no

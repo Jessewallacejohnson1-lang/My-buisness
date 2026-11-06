@@ -645,7 +645,8 @@ as $$
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
       -- Middle school sports (`scored`) go before the limit below, or the later list comes up short.
       and (not p_later or not ('middle_school' = any(tg.tags) and 'watch_sports' = any(tg.tags) and e.interests_tagged_at is not null)
-           or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved)
+           or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved
+           or exists (select 1 from private.friends_going(array[e.id])))
     -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
     order by case when p_later then 1 end, sort_at
     limit case when p_later then 20 end
@@ -773,7 +774,7 @@ as $$
                 else c.friend_pts + c.follow_pts > 0 end as yours,
            -- A real happening on right now, seen on fewer than 2 opens today (town-feed 41).
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
-             and c.final_score is null and c.cancelled_at is null
+             and c.final_score is null and c.cancelled_at is null and c.hidden_x = 1
              and coalesce(c.seen_today, 0) < (select (w->>'liveOpens')::int from weights) as live_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
@@ -903,8 +904,12 @@ as $$
       select o.id, o.spacing, o.nth + (o.nth - 1) / ((select (w->>'newsEvery')::int from weights) - 1) as place
       from ordered o
       union all
-      select n.id, 1::float8, n.nth * (select (w->>'newsEvery')::int from weights)
+      -- Only as many as the Events leave spots for, so never two together; the rest wait for a later open. A
+      -- town with next to no Events shows what it has.
+      select n.id, 1::float8, n.nth * c.every
       from news_scored n
+      cross join (select (select (w->>'newsEvery')::int from weights) as every, (select count(*) from ordered) as events) c
+      where c.events < c.every - 1 or n.nth <= c.events / (c.every - 1)
     ) x
   ),
   feed_rows (id, title, location, image_url, source_name, created_at, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, place_picture, description, club_id, in_club, kind, source_url, poster, card, spot) as (

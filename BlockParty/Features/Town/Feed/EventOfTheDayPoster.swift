@@ -235,7 +235,7 @@ struct EventOfTheDayPoster: View {
             }
             .font(.sans(16))
             .foregroundStyle(Hue.brandDisc)
-        } else if let when = event.dayLine(now: now) ?? item.whenLine?.text {
+        } else if let when = item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text {
             Text(when)
                 .font(.sans(16))
                 .foregroundStyle(Hue.brandDisc)
@@ -330,7 +330,7 @@ struct EventOfTheDayPoster: View {
     /// What VoiceOver reads for the link: what it is ("Lecture") and its name, then when and where, and
     /// who's going.
     private var spoken: String {
-        let when = item.isNow(at: now) ? "Happening now" : item.whenLine?.spoken
+        let when = item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken
         return ["Event of the day", item.whatLine, item.title, when, item.whereLine,
                 actions.rsvp(item)?.top].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }

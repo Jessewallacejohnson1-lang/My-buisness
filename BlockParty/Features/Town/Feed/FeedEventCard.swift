@@ -284,9 +284,10 @@ struct FeedEventCard: View {
     private var whiteCard: some View {
         TimelineView(.everyMinute) { context in
             let now = item.isNow(at: context.date)
+            let line = item.whenLine(at: context.date)
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
-                        pill: now ? "Now" : item.whenLine?.text, pillSpoken: now ? "Happening now" : item.whenLine?.spoken,
+                        pill: now ? "Now" : line?.text, pillSpoken: now ? "Happening now" : line?.spoken,
                         pillDot: now ? Hue.now : nil, title: item.title, facts: metaSummary,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
                 .animation(motionIsReduced ? nil : Motion.smooth, value: now)
@@ -386,6 +387,7 @@ struct FeedEventCard: View {
                     // Turns to Now at the start minute while you look at it (event-card 04).
                     TimelineView(.everyMinute) { context in
                         let now = item.isNow(at: context.date)
+                        let when = item.whenLine(at: context.date) ?? when
                         // A ZStack, not a Group: a Group hands the transition to each chip, and
                         // the one coming in never sees `now` change, so it would cut.
                         ZStack(alignment: .leading) {

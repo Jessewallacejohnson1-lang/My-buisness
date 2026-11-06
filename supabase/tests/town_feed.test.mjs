@@ -2092,10 +2092,10 @@ test('every 5th card is News, and the first goes to your interests, then town ne
   await news('Road closed', '2026-10-08 12:00', { category: 'road' });
   for (const n of [1, 2, 3, 4, 5, 6, 7]) await add(`Event ${n}`, '2026-10-12', { start_time: `${n} PM`, source_name: `Host ${n}` });
   const rows = await withNews('2026-10-08 18:00');
-  assert.deepEqual(rows.map((r) => r.title).slice(0, 13),
+  assert.deepEqual(rows.map((r) => r.title),
                    ['Fish fry dinner', 'Event 1', 'Event 2', 'Event 3', 'Taco Tuesday', 'Event 4', 'Event 5', 'Event 6', 'Event 7',
-                    'Road closed', 'Council meeting', 'Fall arrivals', 'Halloween cookies'],
-                   'with no 10th Event, the next card moves up');
+                    'Road closed', 'Council meeting'],
+                   'never two together: the stories past the spots wait for a later open');
   assert.deepEqual([rows[4].reason, rows[4].reason_name], ['interest', 'dining']);
   assert.equal(rows[9].reason, null);
 });
@@ -2335,23 +2335,26 @@ test('under 18 never sees an Event or news its place or host keeps to 18+ or 21+
   const label = await add('Comedy show', '2026-10-09', { start_time: '8 PM', source_name: "Sal's Bar and Grill" });
   await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
   await add('Haunted hayride', '2026-10-09', { start_time: '5 PM' });
+  // Enough Events to leave News its two spots.
+  for (const n of [1, 2, 3]) await add(`Walk ${n}`, '2026-10-09', { start_time: `${n} PM`, source_name: `Walkers ${n}` });
   await db.exec('reset role');
   await db.query(`update public.club_events set description = 'Tickets $18 and up at the door.' where title = 'Haunted hayride'`);
   await db.query(`update public.club_events set place_entry_id = 'middy' where id = $1`, [middy]);
   await db.query(`update public.club_events set place_entry_id = 'bar-grill-sals', description = 'Ages 21+ only.' where id = $1`, [label]);
   await news('Happy hour', '2026-10-08 17:00', { source_name: 'The Middy', place_entry_id: 'middy' });
   await news('Flight Friday', '2026-10-08 17:00');
-  const grown = ['Bake sale', 'Bingo Night', 'Comedy show', 'Haunted hayride', 'Trivia night', 'Flight Friday', 'Happy hour'];
+  const walks = ['Walk 1', 'Walk 2', 'Walk 3'];
+  const grown = ['Bake sale', 'Bingo Night', 'Comedy show', 'Haunted hayride', 'Trivia night', 'Flight Friday', 'Happy hour', ...walks];
 
   await db.exec('set role anon');
   assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
   await born(ME, '2010-03-01');   // 16
-  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Flight Friday', 'Haunted hayride']);
-  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Haunted hayride']);
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Flight Friday', 'Haunted hayride', ...walks].sort());
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Haunted hayride', ...walks].sort());
   await born(ME, '2008-10-08');   // 18 today
   assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
   await born(ME, '2008-10-09');   // 18 tomorrow
-  assert.equal((await newsTitles('2026-10-08 18:00')).length, 4);
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
   await db.exec('reset role; update public.town_profiles set birthday = null');
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
@@ -3502,6 +3505,17 @@ test('live: up to 3 on right now lead, your Going first, then most Going, then t
   const rows = await titles('2026-10-08 18:30');
   assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Concert', 'Game'], 'yours, then most Going, then the draw: 3 ties 2 in your town, and the later start wins');
   await db.exec('reset role');
+});
+
+test('live: a host you said Not interested to never leads', async () => {
+  await reset();
+  const other = await add('Other night', '2026-10-01', { start_time: '6 PM', source_name: 'A' });
+  await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
+  await add('Festival', '2026-10-09', { start_time: '6 PM', source_name: 'B' });
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 18:30'))[0], 'Concert');
+  await db.query(`select public.set_not_interested($1)`, [other]);
+  assert.equal((await titles('2026-10-08 18:30'))[0], 'Festival');
 });
 
 test('live: a card leaves the top after you have seen it on 2 opens', async () => {

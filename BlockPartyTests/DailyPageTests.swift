@@ -248,8 +248,6 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(event.startTime(now: event.starts), "All day")
     }
 
-    /// A one-day all-day pick is never Now, however long the feed keeps it; a run over days is,
-    /// as on the Town card and the map (codebase-health 10).
     /// A listing with no hours, or a run over days, is a place being open, never Now (town-feed 41).
     func testOnlyARealHappeningIsNow() throws {
         let noon = Date(timeIntervalSince1970: 1_792_472_400 + 12 * 3600)
