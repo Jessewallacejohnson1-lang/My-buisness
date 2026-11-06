@@ -23,7 +23,9 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   start        ISO 8601 with offset ("2026-10-24T16:00:00-05:00"), or a date ("2026-11-09")
                when all_day. Required for an event; optional for news (the day it is about).
   end          optional, the same form; a run over days, timed or all day, gives its last day
-               alone ("2026-10-25"), and lasts until the midnight after it
+               alone ("2026-10-25"), and lasts until the midnight after it. A News with none takes it from
+               a dated phrase in its title or blurb ("through Nov 29"; news_end), and the Town feed shows
+               it until then, up to 30 days (BP app town-feed 49)
   all_day      true | false (default false)
   place        the venue's name ("Clemens Stadium"), an address only when nothing names the place,
                "Online" for a webinar; "" if not said (.claude/skills/title-and-place)
@@ -817,12 +819,84 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
     return {"row": row, "facts": facts}, None
 
 
-def news_of(it, interests, notes):
+# How long the Town feed shows a News (town_feed.sql's `news`): a week, or to its date, up to a month.
+NEWS_DAYS, NEWS_MOST = 7, 30
+_MONTHS = "january february march april may june july august september october november december".split()
+_MONTH = r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?"
+_TO = r"\b(through|thru|until|till|ends?|ending|expires?|by|before)\s+(?:\w+day,?\s+)?(?:the\s+)?"
+_ON_A_DAY = re.compile(_TO + _MONTH + r"\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?", re.I)
+_DAY_TO_DAY = re.compile(r"\b" + _MONTH + r"\s+\d{1,2}(?:st|nd|rd|th)?\s*(?:to|-|–|—)\s*" + _MONTH + r"\s+(\d{1,2})\b", re.I)
+_ON_NUMBERS = re.compile(_TO + r"(\d{1,2})/(\d{1,2})\b(?:/(\d{2,4}))?", re.I)
+_A_MONTH = re.compile(r"\b(?:(?:through|thru|until|till)(?: the end of)?|all(?: of)?|(?:by|before) the end of)\s+(" + "|".join(_MONTHS) + r")\b(?!\.?\s+\d)", re.I)
+_YEAR_END = re.compile(r"\b(?:end of (?:the |this )?year|year[- ]end)\b", re.I)
+_MONTH_END = re.compile(r"\b(?:end of (?:the |this )?month|all month)\b", re.I)
+
+
+def _nearest(month, day, today):
+    """A day the words give with no year: the one closest to today, so "through Jan 5" in November is next year's
+    and "through Oct 31" read in November is over."""
+    days = []
+    for year in (today.year - 1, today.year, today.year + 1):
+        try:
+            days.append(date(year, month, day))
+        except ValueError:
+            pass
+    return min(days, key=lambda d: abs(d - today)) if days else None
+
+
+def _month_end(year, month):
+    return (date(year + (month == 12), month % 12 + 1, 1)) - timedelta(1)
+
+
+def news_end(it, today):
+    """The last day a News is true: the judge's `end`, else a dated phrase in its title or blurb ("through Nov 29",
+    "all November", "through the end of the year"; BP app town-feed 49). Words that give no date ("Tuesday through
+    Thursday", "preschool through fifth-grade", "until the season ends") give none, and the story has its week."""
+    if isinstance(it.get("end"), str):
+        try:
+            return when(it["end"], it.get("all_day"))[0]
+        except ValueError:
+            pass
+    words = f"{it.get('title') or ''}. {it.get('blurb') or ''}"
+    if m := _ON_A_DAY.search(words):
+        month = next(i + 1 for i, name in enumerate(_MONTHS) if name.startswith(m[2].lower()[:3]))
+        day = _nearest(month, int(m[3]), today if not m[4] else date(int(m[4]), 7, 1))
+        return day and (day - timedelta(1) if m[1].lower() == "before" else day)
+    if m := _DAY_TO_DAY.search(words):
+        return _nearest(next(i + 1 for i, name in enumerate(_MONTHS) if name.startswith(m[2].lower()[:3])), int(m[3]), today)
+    if m := _ON_NUMBERS.search(words):
+        day = _nearest(int(m[2]), int(m[3]), today) if 1 <= int(m[2]) <= 12 else None
+        return day and (day - timedelta(1) if m[1].lower() == "before" else day)
+    if m := _A_MONTH.search(words):
+        if m[1] != "may":  # "all may come"; "all May" is the month
+            month = _MONTHS.index(m[1].lower()) + 1
+            return _month_end(today.year + (month < today.month - 6), month)
+    if _YEAR_END.search(words):
+        return date(today.year, 12, 31)
+    if _MONTH_END.search(words):
+        return _month_end(today.year, today.month)
+    return None
+
+
+def news_lasts_until(old):
+    """How long a News in the app makes a new one its repeat: while the Town feed can still show it, and at least its
+    week. "Winter gymnastics registration opens Nov 16" went up three times from Oct 24, a week apart (2026-11-06)."""
+    made = local(old["created_at"])
+    last = date.fromisoformat(old["ends_on"][:10]) if old.get("ends_on") else None
+    if not last and old.get("starts_at"):
+        day = local(old["starts_at"]).date()
+        last = day if day >= made.date() else None
+    week = made + timedelta(NEWS_DAYS)
+    return max(week, min(made + timedelta(NEWS_MOST), datetime.combine(last + timedelta(1), time(), LOCAL))) if last else week
+
+
+def news_of(it, interests, notes, today):
     start = it.get("start")
     try:
         day, at = when(start, it.get("all_day")) if start else (None, None)
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
+    end = news_end(it, today)
     interest = it.get("interest")
     if interest is not None and interest not in interests:
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
@@ -834,6 +908,7 @@ def news_of(it, interests, notes):
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
             "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
+            "ends_on": end and end.isoformat(),
             # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
             "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
 
@@ -887,7 +962,7 @@ def mention(it, uid):
 def repeat_of(n, recent):
     """News already in the app from the same source this week with the same link of its own (own_link), whatever
     its title says: The North Table's brunch post (instagram.com/p/De3AnqRDaIV) was written twice on Oct 23 and
-    24 under two wordings. Only a published one created in the last 7 days counts (the Town feed's week, Chicago's
+    24 under two wordings. Only a published one the Town feed can still show counts (news_lasts_until, Chicago's
     now): a landing page (legion.org/sweepstakes) can carry a different News next month, and this morning's News
     from one post fold into one instead (plan).
     Or News already in the app from the same place this week, under much the same title
@@ -904,10 +979,10 @@ def repeat_of(n, recent):
     "Build Your Own Boo Baskets" were one offer posted three times (Oct 26 and 27). Weekdays and words
     like free and new say nothing of which offer: "FREE coffee Friday" is not "Free cookie Friday"."""
     stop = STOP | FILLER
-    since, linked = datetime.now(LOCAL) - timedelta(7), own_link(n["source_url"])
+    now, linked = datetime.now(LOCAL), own_link(n["source_url"])
     for old in recent:
         if (linked and old["source_name"] == n["source_name"] and same_link(old.get("source_url"), n["source_url"])
-                and old.get("status") == "published" and old.get("created_at") and local(old["created_at"]) >= since):
+                and old.get("status") == "published" and old.get("created_at") and now < news_lasts_until(old)):
             return old
         if (old.get("place_entry_id") or old["source_name"]) != (n["place_entry_id"] or n["source_name"]):
             continue
@@ -987,7 +1062,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             continue
         why = skip_reason(it, town)
         if not why and it["kind"] == "news":
-            n, why = news_of(it, interests, out["notes"])
+            n, why = news_of(it, interests, out["notes"], today)
         elif not why:
             ev, why = event_of(it, today, interests, home, out["notes"], titles, teams, made)
         if why:
@@ -1175,11 +1250,13 @@ def listed_in_db(db=None):
 
 
 def news_in_db(now=None, db=None):
-    """The News already in the app from the 7 days the Town feed shows it (Chicago's now minus 7 days),
-    with each one's link, status and created time, for repeat_of."""
-    since = ((now or datetime.now(LOCAL)) - timedelta(7)).replace(microsecond=0).isoformat()
-    return (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at"
-                                  f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
+    """The News already in the app that the Town feed can still show (Chicago's now), with each one's link, status,
+    created time and dates, for repeat_of."""
+    now = now or datetime.now(LOCAL)
+    since = (now - timedelta(NEWS_MOST)).replace(microsecond=0).isoformat()
+    rows = (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at,starts_at,ends_on"
+                                   f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
+    return [r for r in rows if now < news_lasts_until(r)]
 
 
 def report(items, r):
@@ -1798,17 +1875,75 @@ def t_one_post_is_one_news():
 
 
 def t_news_look_back_is_the_feeds_week():
-    """Both rules look back over the 7 days the Town feed shows News (smooth-mornings 05), not 6,
-    counted from Chicago's now rather than a midnight, and the link rule needs each one's link."""
+    """Both rules look back over as long as the Town feed can show a News (smooth-mornings 05, town-feed 49),
+    counted from Chicago's now rather than a midnight, and the link rule needs each one's link. A story with no date
+    counts for its 7 days, not 6, and one with a date until that date."""
+    now = datetime(2026, 10, 29, 21, 40, 12, 5, tzinfo=LOCAL)
+    made = lambda days: (now - timedelta(days)).isoformat()
+    rows = [{"title": "Plain, 6 days", "created_at": made(6)}, {"title": "Plain, 8 days", "created_at": made(8)},
+            {"title": "Ends in 3 days, 20 old", "created_at": made(20), "ends_on": "2026-11-01"},
+            {"title": "Ended, 20 old", "created_at": made(20), "ends_on": "2026-10-20"},
+            {"title": "About a day ahead, 10 old", "created_at": made(10), "starts_at": "2026-11-16T00:00:00-06:00"},
+            {"title": "Ends far off, 31 old", "created_at": made(31), "ends_on": "2027-04-30"}]
     global Supabase
     asked, saved = [], Supabase
-    Supabase = lambda: type("Db", (), {"rest": lambda self, method, path: asked.append(path) or []})()
+    Supabase = lambda: type("Db", (), {"rest": lambda self, method, path: asked.append(path) or rows})()
     try:
-        news_in_db(datetime(2026, 10, 29, 21, 40, 12, 5, tzinfo=LOCAL))
+        kept = [r["title"] for r in news_in_db(now)]
     finally:
         Supabase = saved
-    assert asked[0].endswith("&created_at=gte.2026-10-22T21:40:12-05:00"), asked
-    assert "select=title,source_name,place_entry_id,source_url,status,created_at&" in asked[0], asked
+    assert asked[0].endswith("&created_at=gte.2026-09-29T21:40:12-05:00"), asked
+    assert "select=title,source_name,place_entry_id,source_url,status,created_at,starts_at,ends_on&" in asked[0], asked
+    assert kept == ["Plain, 6 days", "Ends in 3 days, 20 old", "About a day ahead, 10 old"], kept
+
+
+def t_news_says_when_it_ends():
+    """A News keeps the last day it is true, so the Town feed shows it until then (Jesse, 2026-11-06; town-feed 49).
+    The phrases are live stories' own, and so are the ones that give no date."""
+    today = date(2026, 11, 6)
+    end = lambda blurb, **more: news_end({"title": "A story", "blurb": blurb, **more}, today)
+    for blurb, want in (("Open Fri-Sun 11-5 through Nov 29 with Haralson.", "2026-11-29"),
+                        ("Through Nov. 16: $1.79 egg rolls", "2026-11-16"),
+                        ("Offer through November 30.", "2026-11-30"),
+                        ("Through November 22, bring a food item", "2026-11-22"),
+                        ("Drop off food before November 23", "2026-11-22"),
+                        ("Tickets $35 until December 31st", "2026-12-31"),
+                        ("through Saturday, Nov. 7", "2026-11-07"),
+                        ("through 11/29", "2026-11-29"),
+                        ("Sunny Mary Meadow Nov 3 to Dec 22", "2026-12-22"),
+                        ("From Oct 1 to Apr 30 members", "2027-04-30"),
+                        ("Pass runs through March 31", "2027-03-31"),
+                        ("through Jan 5, 2028", "2028-01-05"),
+                        ("All November: Birthday Menu", "2026-11-30"),
+                        ("all of December", "2026-12-31"),
+                        ("through October, the rest of the deal", "2026-10-31"),
+                        ("$50 off through the end of the year.", "2026-12-31"),
+                        ("on sale all month", "2026-11-30")):
+        assert str(end(blurb)) == want, (blurb, end(blurb))
+    for blurb in ("All 30 taps are half off Tuesday through Thursday, 7pm to close.",
+                  "every preschool through fifth-grade student", "on until the season ends", "this Halloween weekend",
+                  "all may come", "book through the link in stories", "Rotate through the case.",
+                  "through Nov 45", None):
+        assert end(blurb) is None, (blurb, end(blurb))
+    assert str(end("through Oct 31")) == "2026-10-31", "over already: the nearest one, not next year's"
+    assert str(end("through Nov 29", end="2026-12-01")) == "2026-12-01", "the judge's end wins"
+    assert str(end("through Nov 29", end="soon")) == "2026-11-29", "an end that can't be read leaves the words"
+    r = run([item(kind="news", title="Orchard open", start=None, end=None, blurb=f"Fri-Sun through {TODAY:%b} {TODAY.day}.")])["news"][0]
+    assert r["ends_on"] == TODAY.isoformat() and r["starts_at"] is None, r
+    assert run([item(kind="news", title="Orchard open", start=None, end=None, blurb="Fri-Sun.")])["news"][0]["ends_on"] is None
+    assert "ends_on = coalesce(excluded.ends_on, board_items.ends_on)" in writes().read_text(), "a re-read with no date keeps the date"
+
+
+def t_a_dated_news_blocks_its_repeat_until_its_day():
+    made = (datetime.now(LOCAL) - timedelta(10)).isoformat()
+    ahead = (datetime.now(LOCAL) + timedelta(5)).date().isoformat()
+    gym = dict(kind="news", start=None, category="business", source_name="Granite City Gymnastics")
+    old = {"title": "Winter gymnastics registration opens Nov 16", "source_name": "Granite City Gymnastics",
+           "place_entry_id": where(None, "Granite City Gymnastics"), "source_url": "https://www.facebook.com/x/posts/1",
+           "status": "published", "created_at": made}
+    again = item(title="Next post", source_url=old["source_url"], **gym)
+    assert plan([again], [], TODAY, INTERESTS, recent_news=[dict(old, ends_on=ahead)])["outcomes"][0][0] == "repeat"
+    assert plan([again], [], TODAY, INTERESTS, recent_news=[old])["outcomes"][0][0] == "news", "no date: its week"
 
 
 def t_writes_are_one_safe_call():
@@ -2362,7 +2497,7 @@ def t_real_copies():
 
 TESTS = [t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_one_news_one_link, t_news_same_link_this_week, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
+         t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,

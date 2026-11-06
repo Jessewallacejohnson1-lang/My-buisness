@@ -109,6 +109,13 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
     `select interests, place_entry_id as place, status from public.board_items where title = 'Flight Friday'`)).rows;
   assert.equal((await apply([], [], [], special({ interests: ['dining'], place_entry_id: 'cow-wandering' }))).news, 1);
   assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);
+  // Its last day comes with it (BP app town-feed 49), and a re-read that gives none keeps it.
+  const lastDay = async () => (await db.query(
+    `select ends_on::text as d from public.board_items where title = 'Flight Friday'`)).rows[0].d;
+  await apply([], [], [], special({ ends_on: '2026-11-29' }));
+  assert.equal(await lastDay(), '2026-11-29');
+  await apply([], [], [], special());
+  assert.equal(await lastDay(), '2026-11-29');
   await apply([], [], [], special({ interests: ['coffee'], place_entry_id: 'cow-wandering' }));
   await apply([], [], [], special());
   assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);

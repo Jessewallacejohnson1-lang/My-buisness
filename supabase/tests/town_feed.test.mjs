@@ -2050,15 +2050,15 @@ test('Event of the day: neighbours read the standouts and never write them', asy
 // Town news (town-feed 35): published at a Town time, by a place, with a post to open.
 async function news(title, published, more = {}) {
   const row = { category: 'business', source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/x/',
-                status: 'published', starts_at: null, interests: null, place_entry_id: null, ...more };
+                status: 'published', starts_at: null, ends_on: null, interests: null, place_entry_id: null, ...more };
   await db.exec('reset role');
   await db.query(
     `insert into public.board_items (title, blurb, category, source_name, source_url, status, starts_at,
-       published_at, interests, place_entry_id)
+       published_at, interests, place_entry_id, ends_on)
      values ($1, $1 || ', in a line.', $2, $3, $4, $5, $6::timestamp at time zone 'America/Chicago',
-             $7::timestamp at time zone 'America/Chicago', $8, $9)`,
+             $7::timestamp at time zone 'America/Chicago', $8, $9, $10)`,
     [title, row.category, row.source_name, row.source_url, row.status, row.starts_at, published,
-     row.interests, row.place_entry_id]);
+     row.interests, row.place_entry_id, row.ends_on]);
 }
 // The feed with news, as the app asks for it.
 async function withNews(at) {
@@ -2120,6 +2120,27 @@ test('news leaves after 7 days, or once the day it is about is over', async () =
   assert.deepEqual((await newsTitles('2026-10-08 12:01')).sort(), ['Layer Up drop tonight', 'Life Saving Awards']);
   assert.deepEqual(await newsTitles('2026-10-09 00:01'), ['Life Saving Awards']);
   assert.deepEqual(await newsTitles('2026-10-15 09:01'), []);
+});
+
+test('news with a date stays until midnight after it, up to 30 days (Jesse, 2026-11-06)', async () => {
+  await reset();
+  await news('Orchard open', '2026-10-08 09:00', { ends_on: '2026-10-25' });
+  await news('Sign-up opens Oct 20', '2026-10-08 09:00', { starts_at: '2026-10-20 00:00' });
+  await news('Sale ends tomorrow', '2026-10-08 09:00', { ends_on: '2026-10-09' });
+  await news('Pass through spring', '2026-10-08 09:00', { ends_on: '2027-04-30' });
+  await news('Over already', '2026-10-08 09:00', { ends_on: '2026-10-01' });
+  await db.exec('set role anon');
+  assert.deepEqual((await newsTitles('2026-10-09 23:59')).sort(),
+                   ['Orchard open', 'Pass through spring', 'Sale ends tomorrow', 'Sign-up opens Oct 20']);
+  assert.deepEqual((await newsTitles('2026-10-20 23:59')).sort(), ['Orchard open', 'Pass through spring', 'Sign-up opens Oct 20']);
+  assert.deepEqual((await newsTitles('2026-10-21 00:01')).sort(), ['Orchard open', 'Pass through spring']);
+  assert.deepEqual((await newsTitles('2026-10-25 23:59')).sort(), ['Orchard open', 'Pass through spring']);
+  assert.deepEqual(await newsTitles('2026-10-26 00:01'), ['Pass through spring']);
+  assert.deepEqual(await newsTitles('2026-11-07 07:00'), ['Pass through spring'], 'its 30th day');
+  assert.deepEqual(await newsTitles('2026-11-07 11:00'), [], 'never past 30 days');
+  const { rows: [card] } = await db.query(
+    `select leaves_at from public.flat_town_feed(('2026-10-20 12:00'::timestamp at time zone 'America/Chicago'), true) where title = 'Orchard open'`);
+  assert.equal(card.leaves_at.toISOString(), '2026-10-26T05:00:00.000Z', 'the card says when it goes');
 });
 
 test('road work shows; unpublished news and news with no post to open stay out', async () => {

@@ -69,6 +69,7 @@ or its `docs/rules/` file and leaves here.
 
 ## Data and backend
 
+- 2026-11-06 — **News with a date stays in the Town feed until that date, up to 30 days; with none, 7 days** (Jesse: "yes to both"; BP app town-feed 49). The date is the writer's `news_end`, from the judge or the story's own words, or the day the story is about. A story that has left doesn't come back. Closings waiting until a week before their day is town-feed 50.
 - 2026-11-05 — **The Town feed sinks what you've seen** (Jesse; BP app town-feed 41, `supabase/town_feed.sql`). Each open you've
   seen a card counts × 0.6, down to × 0.3, by series. It comes back once on its own day (a real happening only) and when a friend
   taps Going. Up to 3 live cards lead, then points; every 5th card is News you haven't seen. A fresh order comes after 10 minutes.
