@@ -49,8 +49,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             (.runs/morning/standouts.jsonl) as today's daily_standouts, best first. It ends with the whole
             morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
             every Event added since the last report (the social watch's and a chat's too) whose card shows no
-            photo of what it is (BP app event-photos 08), and the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
-            step can skip it (Oct 29's run did). The routine answers with it (BP app smooth-mornings 07).
+            photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
+            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). The routine answers with it (BP app smooth-mornings 07).
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/, which morning_run.py owns: each step takes a Run (its folder, day,
@@ -67,7 +67,7 @@ town, part's clock and database). Every command needs SUPABASE_URL and a key in 
 --town names a sources/towns/ file (default st-joseph-mn, towns.DEFAULT).
 """
 
-import argparse, collections, contextlib, json, re, shutil, subprocess, sys, time, urllib.error
+import argparse, collections, contextlib, json, math, re, shutil, subprocess, sys, time, urllib.error
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -81,7 +81,7 @@ import social
 import spots
 import apple_maps
 from towns import TOWNS, DEFAULT, lookup
-from run import Supabase, fetch, fetch_watched, to_text, deadline, late, part_state, resume_part, aside_lines
+from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
 from db import DbError
 
@@ -902,7 +902,7 @@ def finish(run, dry_run):
         if got and got[0].startswith("[morning] run again"):
             return print(got[0])
         lines += got
-    report = "\n".join(lines + social_lines() + [spend_line()])
+    report = "\n".join(lines + social_lines() + [spend_line(), credits_line()])
     if not dry_run:
         try:  # one row a morning, so the chat that reports to Jesse reads it, not the run's log (smooth-mornings 10)
             db.rest("POST", "morning_reports?on_conflict=day", {"day": str(today), "report": report,
@@ -931,6 +931,69 @@ def spend_line():
         return social.spend()
     except Exception as e:  # no network, no key: a line, never a lost report
         return f"Apify: spend unknown ({' '.join(str(e).split())[:120]})"
+
+
+def credits_words(d, now):
+    """Firecrawl's line in the report. The heads-up goes by pace, as a flat 3/4 would fire late in every month, the
+    job spends so steadily (BP app backlog 12). Days are whole Chicago dates: the job spends a day's credits in one
+    lump at 6 AM, so counted by the clock a steady cycle's first week would read as too fast."""
+    day = lambda stamp: datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(LOCAL).date()
+    left, plan, today, end = d["remainingCredits"], d["planCredits"], now.astimezone(LOCAL).date(), day(d["billingPeriodEnd"])
+    line = f"Firecrawl: {left:,} of {plan:,} credits left (resets after {end:%b %-d})"
+    if left <= 0:
+        return line + ". Out of credits: pages read through Firecrawl will fail until the reset."
+    used, days_gone = plan - left, (today - day(d["billingPeriodStart"])).days
+    if used > 0 and days_gone > 0 and left * days_gone / used < (end - today).days:
+        out = today + timedelta(days=math.ceil(left * days_gone / used))
+        return line + f". Heads-up: at this pace they run out around {out:%b %-d}."
+    return line
+
+
+def credits_line():
+    """Firecrawl's credits for the report (Jesse, 2026-11-05), asked by finish itself, as spend_line."""
+    try:
+        return credits_words(firecrawl_credits(), datetime.now(timezone.utc))
+    except Exception as e:  # no network, no key: a line, never a lost report
+        return f"Firecrawl: credits unknown ({' '.join(str(e).split())[:120]})"
+
+
+def credits_told():
+    """Firecrawl's line: the plain one, the pace heads-up, no credits left, and a failed call."""
+    global firecrawl_credits
+    cycle = {"planCredits": 1000, "billingPeriodStart": "2026-10-21T01:45:31.463Z",
+             "billingPeriodEnd": "2026-11-21T01:45:31.463Z"}
+    first = datetime(2026, 10, 21, 12, 30, tzinfo=timezone.utc)  # 6:30 AM on the cycle's first morning here
+    on = lambda left, n: credits_words({**cycle, "remainingCredits": left}, first + timedelta(days=n))
+    # This cycle has 31 mornings: 32 a morning spends 992 and lasts, 33 runs out on the last one.
+    steady = lambda a_day: [on(1000 - a_day * (n + 1), n) for n in range(31)]
+    saved = firecrawl_credits
+
+    def told(answer):
+        global firecrawl_credits
+        firecrawl_credits = answer
+        return credits_line()
+
+    def refused():
+        raise urllib.error.HTTPError("u", 401, "Unauthorized", None, None)
+    try:
+        failed, odd = told(refused), told(lambda: {})
+    finally:
+        firecrawl_credits = saved
+    return [
+        (on(600, 16) == "Firecrawl: 600 of 1,000 credits left (resets after Nov 20)",
+         "the plain credits line, its reset in Chicago's date"),
+        (on(200, 11) == "Firecrawl: 200 of 1,000 credits left (resets after Nov 20). "
+                        "Heads-up: at this pace they run out around Nov 4.",
+         "spending too fast: the heads-up names the day they run out"),
+        (not any("Heads-up" in line for line in steady(32)), "a pace that lasts never warns, from its first morning on"),
+        (all("Heads-up" in line for line in steady(33)[:-1]) and "Out of credits" in steady(33)[-1],
+         "a pace that runs out warns from its first morning"),
+        (on(0, 26) == "Firecrawl: 0 of 1,000 credits left (resets after Nov 20). "
+                      "Out of credits: pages read through Firecrawl will fail until the reset.",
+         "no credits left says pages will fail until the reset"),
+        (failed == "Firecrawl: credits unknown (HTTP Error 401: Unauthorized)", f"a failed call is a line: {failed}"),
+        (odd == "Firecrawl: credits unknown ('remainingCredits')", f"an answer without the number is a line: {odd}"),
+    ]
 
 
 def selftest():
@@ -1141,7 +1204,7 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
-    checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told()
+    checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told() + credits_told()
     asked = []
 
     def get(url):
@@ -1960,7 +2023,7 @@ def whole_morning():
     main fails it."""
     import functools, io, tempfile, ready, run as runner
     from datetime import timezone
-    global Supabase, load, start_reader, fetch_watched, find_root, own_page
+    global Supabase, load, start_reader, fetch_watched, find_root, own_page, firecrawl_credits
     # The spots step reads the real registry; spots.py's own self-test covers it.
     real_fill, spots.fill = spots.fill, lambda db, today, write: ["- Map spots: set 4, 0 with no spot"]
     real_check, apple_maps.check = apple_maps.check, lambda db, write, today: ["- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place"]
@@ -2051,8 +2114,10 @@ def whole_morning():
             said.append(command(*argv))
         return said
     saved = (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
-             Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids)
+             Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits)
     social.missed_checks = lambda: []
+    firecrawl_credits = lambda: {"remainingCredits": 1000, "planCredits": 1000,  # none used, so the real clock can't change the line
+                                 "billingPeriodStart": "2026-10-21T01:45:31.463Z", "billingPeriodEnd": "2026-11-21T01:45:31.463Z"}
     try:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / ".runs" / "morning"
@@ -2111,7 +2176,7 @@ def whole_morning():
         spots.fill = real_fill
         apple_maps.check = real_check
         (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
-         Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids) = saved
+         Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits) = saved
     report = finished[-1].splitlines()
     return [
         (readied == "[ready] ready", f"Ready says ready: {readied}"),
@@ -2132,7 +2197,7 @@ def whole_morning():
         (len(broken) == 2 and broken[0] == "[morning] run again: 3 of 4 events tagged\n"
          and broken[1].startswith("Morning watch, 2026-11-03\n") and "New Events:" in broken[1]
          and all(f"[morning] {w} failed: Supabase " in broken[1] for w in ("tags", "Abouts", "standouts"))
-         and broken[1].rstrip().endswith("(resets after 2026-11-18)"),
+         and broken[1].rstrip().endswith("(resets after Nov 20)"),
          f"Finish takes two parts while the tags are written, and a timeout in any save is a line in the whole report: {broken}"),
         (list(Db.reports) == ["2026-11-03"] and Db.reports["2026-11-03"] + "\n" == third
          and "[morning] tags failed" not in third, "each finish saves its report as the morning's one row, the last one kept"),
@@ -2173,7 +2238,8 @@ def whole_morning():
                     "- Sat Nov 21 · 7 PM · Sacred Heart Chapel Anniversary · Sacred Heart Chapel",
                     "- Map spots: set 4, 0 with no spot",
                     "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
-                    "Apify: $4.20 of $25 this month (resets after 2026-11-18)"],
+                    "Apify: $4.20 of $25 this month (resets after 2026-11-18)",
+                    "Firecrawl: 1,000 of 1,000 credits left (resets after Nov 20)"],
          "Finish prints the whole report:\n" + "\n".join(report)),
         (stored, "Save wrote once and moved the changed pages' fingerprints; Finish saved the tags, the About and "
                  "the standout"),

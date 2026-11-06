@@ -339,6 +339,7 @@ def fetch(url, data=None, headers=None, timeout=TIMEOUT):
 # Jesse, 2026-10-22: "use for blocked and java", and later that day dropped the robots.txt and
 # feed limits: a page our own fetch must stay out of by robots.txt goes through Firecrawl too.
 FIRECRAWL = "https://api.firecrawl.dev/v1/scrape"
+FIRECRAWL_CREDITS = "https://api.firecrawl.dev/v2/team/credit-usage"
 FIRECRAWL_CAP = 30    # ponytail: credits per run (1 a page); the plan has 1,000 a month
 JS_TEXT = 200         # fewer characters than this from a plain fetch = built by JavaScript
 FEED_KINDS = {"ical", "rss"}             # read raw through Firecrawl, so the feed parser still sees items
@@ -373,6 +374,21 @@ def firecrawl(url, fmt="markdown"):
     if code >= 400 or not text.strip():
         raise RuntimeError(f"Firecrawl read nothing (HTTP {code})")
     return re.sub(r"(\]\([^)\s?]*)\?[^)\s]*", r"\1", text)
+
+
+def firecrawl_credits():
+    """This billing period's credits (remainingCredits, planCredits, billingPeriodStart, billingPeriodEnd),
+    asked the way firecrawl() reads a page. Asking costs no credit."""
+    key = os.environ.get("FIRECRAWL_API_KEY")
+    if key:
+        req = urllib.request.Request(FIRECRAWL_CREDITS, headers={"Authorization": f"Bearer {key}"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.load(r)
+    elif shutil.which("composio"):
+        d = composio.execute("FIRECRAWL_CREDIT_USAGE_GET", {}) or {}
+    else:
+        raise RuntimeError("no FIRECRAWL_API_KEY")
+    return d.get("data", d)
 
 
 def read_page(url, kind, get=None, scrape=None):
