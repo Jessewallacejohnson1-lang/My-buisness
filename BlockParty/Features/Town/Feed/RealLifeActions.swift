@@ -332,12 +332,19 @@ final class RealLifeActions {
     /// `bar`: the Event page's, in fewer words. `town`: the poster's, whose pill turns into the X that
     /// leaves. `card`: a Town card's, with no pill unless it's called off.
     /// A game whose final is in says who went and offers nothing to tap; with nobody, nothing.
-    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false) -> RSVPWords? {
+    /// Once an Event has ended the bar's "Can't go?" goes: there's nothing left to leave, and leaving
+    /// would take it off what you went to.
+    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false,
+              at now: Date = .now) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
-        let words = RSVPWords.make(isGoing: going.isGoing, count: going.count,
+        var words = RSVPWords.make(isGoing: going.isGoing, count: going.count,
                                    friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar,
                                    town: town, card: card, over: item.game?.final != nil)
+        if bar, words.canLeave, let end = item.when?.end, end <= now {
+            words.second = nil
+            words.canLeave = false
+        }
         return words.pill == nil && words.top == nil && words.second == nil ? nil : words
     }
 

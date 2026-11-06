@@ -844,17 +844,25 @@ private struct ChatEventCard: View {
                         .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, ChatMetric.eventInsetX)
+                    if !card.friendsGoing.isEmpty {
+                        FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
+                            .padding(.horizontal, ChatMetric.eventInsetX)
+                            .padding(.top, ChatMetric.chipGap)
+                    }
                 }
+                .padding(.bottom, ChatMetric.eventInsetY)
             }
             .buttonStyle(.press(.dim))
-            if !card.friendsGoing.isEmpty {
-                FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
+            // Called off, its red Canceled stays, as on a Town card (event-card 07).
+            if card.cancelled {
+                AttendPill(item: card, words: RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled),
+                           onInvite: nil)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.horizontal, ChatMetric.eventInsetX)
-                    .padding(.top, ChatMetric.chipGap)
+                    .padding(.bottom, ChatMetric.eventInsetY)
             }
         }
-        .padding(.bottom, ChatMetric.eventInsetY)
-        .frame(width: ChatMetric.eventWidth, alignment: .leading)
+        .frame(width: ChatMetric.eventWidth)
         .background(Hue.surface)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline))

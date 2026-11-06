@@ -260,8 +260,12 @@ final class RealLifeActionsTests: XCTestCase {
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item), RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
         XCTAssertEqual(actions.going(item).count, 4, "the count includes you")
-        XCTAssertEqual(actions.rsvp(item, bar: true), RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite),
+        XCTAssertEqual(actions.rsvp(item, bar: true, at: .distantPast),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite),
                        "the Event page's bar reads the same Going")
+        XCTAssertEqual(actions.rsvp(item, bar: true, at: .distantFuture),
+                       RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
+                       "once it has ended there's nothing left to leave")
         XCTAssertEqual(actions.rsvp(item, town: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave),
                        "and the poster's, with the X that leaves")
         XCTAssertEqual(actions.rsvp(item, card: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: nil),
