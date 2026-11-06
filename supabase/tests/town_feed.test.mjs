@@ -2357,7 +2357,7 @@ test('under 18 never sees an Event or news its place or host keeps to 18+ or 21+
   assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
   await db.exec('reset role; update public.town_profiles set birthday = null');
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, grown.length);
   await db.exec('reset role; delete from public.places');
 });
 
