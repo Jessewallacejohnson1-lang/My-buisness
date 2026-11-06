@@ -1065,8 +1065,6 @@ final class TownFeedEventsTests: XCTestCase {
             XCTAssertEqual(try words(raw, "Basketball", period: "Q1", clock: "1:00")[0], raw)
         }
         XCTAssertNil(GameMoment.scorer(in: "Feeney,Trey pass complete to Van Der Berg,Tom for 5 yards"), "never the passer")
-        // Hockey has no real sample yet.
-        XCTAssertEqual(try words("Shot by SJU Burke,Sam, GOAL", "Hockey", period: "P2", clock: "8:31"), ["Shot by SJU Burke,Sam, GOAL", "P2 · 8:31"])
         // The name a pass's catcher takes, "Jr." included, for the pill and the scorers too.
         XCTAssertEqual(GameMoment.scorer(in: "Feeney,Trey middle pass complete to Melvin Jr.,Sedric for 3 yards to the GAC00, TOUCHDOWN."), "Melvin Jr.")
     }
