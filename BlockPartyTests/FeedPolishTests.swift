@@ -239,6 +239,7 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertFalse(concert.isNow(at: at(24, 21, 30)))
     }
 
+    @MainActor
     func testAPlaceBeingOpenIsNeverNow() {
         var gallery = card("2026-09-24", "2 PM", endAt: at(24, 20))
         gallery.liveKind = false

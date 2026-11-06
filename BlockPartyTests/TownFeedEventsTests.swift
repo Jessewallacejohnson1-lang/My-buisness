@@ -398,7 +398,7 @@ final class TownFeedEventsTests: XCTestCase {
 
     /// A finger on the list when the fresh order lands: nothing moves under it.
     func testAFreshOrderWaitsWhileAFingerIsDown() async {
-        let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])
+        let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"]), entries(["new", "b", "a"])])
         town.cameBack(at: now)
         await town.reload(at: now)
         town.left(at: now)
