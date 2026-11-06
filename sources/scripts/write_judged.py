@@ -613,6 +613,13 @@ def tidy_place(place, home=HOME):
     return p if re.search(r"\b(?:of|in|at)$", left, re.I) else left or p  # "Church of Saint Joseph" keeps its name
 
 
+def without_town_start(place, town):
+    """A social flag starts its place with the town the post shows, so the judge sees it (social.md): "#duluthmn: The
+    Harbor Lofts", "Sartell: Oak Ridge". The judge copies it, and it stays off the card. A reader's "School: Main Gym" stays."""
+    start, colon, rest = (place or "").partition(":")
+    return rest.strip() if colon and (start.startswith("#") or town_key(start) == town_key(town)) else place
+
+
 def meets_at(place, host, title, home=HOME):
     """A meeting its host lists with no room is where it always meets (MEETS_AT)."""
     if words(place, PLACE_STOP):
@@ -759,7 +766,8 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
     if interest is not None and interest not in interests:
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
-    title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
+    place = without_town_start(it.get("place"), it.get("town") or home)
+    title, place = tidy_title(it["title"], it["source_name"]), tidy_place(place, home)
     title = (titles or {}).get(title, title)
     place = meets_at(place, it["source_name"], title, home)
     # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
@@ -1880,6 +1888,16 @@ def t_wording():
     assert [(g["row"]["title"], g["row"]["location"]) for g in r["events"]] == [
         ("Advent Sacred Pause", "Online"), ("CSB Soccer vs Hamline", "CSB Stadium")], r["events"]
     assert r["events"][0]["row"]["source_uid"].endswith(":advent-pause-sacred-virtual"), "the id keeps the source's words"
+    for place, town, want in (("#duluthmn #superiorwi: The Harbor Lofts", "St. Joseph", "The Harbor Lofts"),
+                              ("St. Joseph, MN: Clemens Library", "St. Joseph", "Clemens Library"),
+                              ("Sartell: Oak Ridge Early Learning Center", "Sartell", "Oak Ridge Early Learning Center"),
+                              ("#duluthmn:", "St. Joseph", ""),
+                              ("Long Prairie-Grey Eagle High School: Main Gym", "Long Prairie",
+                               "Long Prairie-Grey Eagle High School: Main Gym"),
+                              ("15 E Minnesota St #107", "St. Joseph", "15 E Minnesota St #107"), (None, "St. Joseph", None)):
+        assert without_town_start(place, town) == want, place
+    tagged = run([item(place="#duluthmn #superiorwi: The Harbor Lofts"), item(title="Fair", town=None, place="St. Joseph Mn: Clemens Library")])
+    assert [g["row"]["location"] for g in tagged["events"]] == ["The Harbor Lofts", "Clemens Library"], "a flag's town start stays off the card"
     news = run([item(kind="news", title="Farmers' Market — National Farmers Market Week, every stall open", start=None)])
     assert news["news"][0]["title"] == "Farmers' Market: National Farmers Market Week, every stall open", news["news"]
     reworded = listed(title="College of Saint Benedict Soccer vs Hamline", event_date="2026-10-25", start_time="4 PM",

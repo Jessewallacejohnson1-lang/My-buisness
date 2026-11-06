@@ -79,8 +79,8 @@ or its `docs/rules/` file and leaves here.
 - 2026-11-05 — **Middle school sports and Knowledge Bowl reach only those who picked Middle school, follow the team or school,
   have a friend Going, or are Going** (Jesse: "junior high sports typically are not gonna be very popular"; yes to Knowledge Bowl).
   Its concerts and shows stay in the Town feed.
-- 2026-11-05 — **A school's club meetings, assemblies and PTO meetings reach only those following the school** (Jesse:
-  "following"; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
+- 2026-11-06 — **A school's club meetings, assemblies, PTO and parent meetings and signing days reach only those following the school** (Jesse:
+  "following"; yes to parent meetings and signing days, 2026-11-06; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
 - 2026-11-05 — **Every game between two teams draws the white card, at every level, and says its level**
   (Jesse: "create the teams profile and card whenever theres a new one that comes up. they should all be white
   cards"). A name a schedule writes makes its own team in the morning run (`write_judged.team_of`); a placeholder stays

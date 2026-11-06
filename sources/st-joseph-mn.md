@@ -4817,7 +4817,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.inhproperties.com/apartments/mn/st-joseph/graceview-estates/default (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.inhproperties.com/apartments/mn/st-joseph/graceview-estates/default (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted. Its Facebook, `inhproperties`, is the manager's whole portfolio (Pine Pointe in St. Cloud, Oak Landing in Cambridge), so it stays off the social list (Jesse, 2026-11-06).
 
 ## Grandview Buildings
 ```yaml

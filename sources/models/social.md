@@ -44,9 +44,11 @@ carry on with the rest.
    will want it. Add this to each cheap-model helper's prompt: "These pages are a place's
    social posts. Flag every post with anything to know or do, including specials, deals, sales,
    new products, menu and seasonal items, pre-orders, contests and hours; only a post with
-   nothing to know or do is none. Some pages name pictures at their end: open each with the Read
-   tool and read every word on it as part of the post, and write what a flag takes from a picture
-   in its note, starting 'From the picture:'." In judging:
+   nothing to know or do is none. When the post shows a town that `place` doesn't name, a hashtag
+   or a signature included, start `place` with it exactly as written, then a colon: '#duluthmn: The
+   Harbor Lofts'. This overrides 'as written' for `place`. Some pages name pictures at their end:
+   open each with the Read tool and read every word on it as part of the post, and write what a
+   flag takes from a picture in its note, starting 'From the picture:'." In judging:
    - A page that opens "Found by searching Facebook's events" is an event its host listed in public: its
      `source_name` is the host `pages.json` names, and `area` is where it happens, `town` or `campus`, else
      `outside`, never `announced` (the host isn't a St. Joseph source). When that page's "Where" is empty, the
