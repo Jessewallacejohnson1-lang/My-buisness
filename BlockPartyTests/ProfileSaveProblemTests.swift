@@ -11,7 +11,7 @@ import XCTest
 final class ProfileSaveProblemTests: XCTestCase {
     /// The app's own no-session error, thrown before anything is sent.
     func testNoSessionIsSignedOut() {
-        let error = SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
+        let error = SupabaseError.sessionEnded
         XCTAssertEqual(ProfileModel.SaveProblem.of(error), .signedOut)
         XCTAssertEqual(ProfileModel.SaveProblem.of(error).line, "Couldn't save. Log in and try again.")
     }

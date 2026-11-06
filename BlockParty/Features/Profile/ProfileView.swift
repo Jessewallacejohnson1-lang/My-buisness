@@ -47,7 +47,7 @@ struct ProfileView: View {
     private static func debugModeration() -> Bool {
         LaunchFlags.has(.profileModeration)
     }
-    /// DEBUG-only: `-profile-settings` (and `-profile-bottom`, scrolled to Sign out) opens Settings.
+    /// DEBUG-only: `-profile-settings` (and `-profile-bottom`, scrolled to Log out) opens Settings.
     private static func debugSettings() -> Bool {
         LaunchFlags.has(.profileSettings) || LaunchFlags.has(.profileBottom)
     }
@@ -148,9 +148,9 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
-        .confirmationDialog("Sign out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+        .confirmationDialog("Log out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             // Back to You, which starts over for the account that follows (`AppSession`).
-            Button("Sign out", role: .destructive) { Task { await model.signOut(); settings = false } }
+            Button("Log out", role: .destructive) { Task { await model.signOut(); settings = false } }
             Button("Cancel", role: .cancel) {}
         }
     }
@@ -321,7 +321,7 @@ struct ProfileView: View {
         Button { Haptics.light(); confirmSignOut = true } label: {
             HStack(spacing: 8) {
                 Image(systemName: "rectangle.portrait.and.arrow.right").font(.sansSemibold(15))
-                Text("Sign out").font(.displaySemi(16))
+                Text("Log out").font(.displaySemi(16))
             }
             .foregroundStyle(Hue.ink)
             .frame(maxWidth: .infinity)

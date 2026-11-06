@@ -178,11 +178,11 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// A guaranteed-fresh access token for API calls. Refreshes if needed.
     func validAccessToken() async throws -> String {
         guard let s = session else {
-            throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
+            throw SupabaseError.sessionEnded
         }
         if s.isExpired { try await refresh() }
         guard let token = session?.accessToken else {
-            throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
+            throw SupabaseError.sessionEnded
         }
         return token
     }
@@ -197,7 +197,7 @@ final class AuthStore: ObservableObject, TokenProviding {
             return
         }
         guard let refreshToken = session?.refreshToken else {
-            throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
+            throw SupabaseError.sessionEnded
         }
         let generation = sessionGeneration
         let task = Task { () throws -> Void in

@@ -272,7 +272,7 @@ final class SupabaseRequestTests: XCTestCase {
         auth.userId = nil
         server.failure = nil
         let before = server.requests.count
-        await XCTAssertThrowsStatus(401, message: "Your session ended. Sign in and try again.") {
+        await XCTAssertThrowsStatus(401, message: "Your session ended. Log in again.") {
             _ = try await self.profiles.uploadPhoto(Data([1]))
         }
         XCTAssertEqual(server.requests.count, before, "no account: nothing sent")

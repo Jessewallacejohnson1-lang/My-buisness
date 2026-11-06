@@ -17,6 +17,9 @@ struct SupabaseError: LocalizedError {
     var code: String? = nil
     var errorDescription: String? { message }
 
+    /// No session to send a call with: the one line for it, so it can't drift (BP app backlog 08).
+    static let sessionEnded = SupabaseError(message: "Your session ended. Log in again.", status: 401)
+
     /// The row or file is already there: a retry of a send whose answer was lost. PostgREST
     /// answers 409; Storage answers 400 with "already exists" (BP app town-plus).
     var alreadyThere: Bool {
@@ -120,7 +123,7 @@ struct Supabase {
     var userID: String {
         get throws {
             guard let id = auth.userId else {
-                throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
+                throw SupabaseError.sessionEnded
             }
             return id
         }
