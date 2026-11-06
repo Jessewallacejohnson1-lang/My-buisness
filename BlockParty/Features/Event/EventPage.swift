@@ -57,6 +57,8 @@ struct EventPage: View {
     /// How far down the page is, for coming back to it after a restart (`LeftOff`): its link row
     /// sits low, and that's the tap that leaves the app.
     @State private var position = ScrollPosition()
+    /// Where it lands after a restart, while its height is still growing to let it.
+    @State private var landAt: CGFloat?
     @Environment(\.openURL) private var openURL
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
@@ -65,6 +67,7 @@ struct EventPage: View {
     init(item: FeedCardItem, goingChat: Bool = true) {
         self.item = item
         self.goingChat = goingChat
+        _landAt = State(initialValue: LeftOff.reopening(item.id) ? LeftOff.current?.eventY : nil)
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
@@ -169,6 +172,15 @@ struct EventPage: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             LeftOff.pageY[item.id] = y
         }
+        // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
+        // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height - $0.containerSize.height } action: { _, room in
+            guard let y = landAt, room > 0 else { return }
+            position.scrollTo(y: min(y, room))
+            if room >= y { landAt = nil }
+        }
+        // A finger on the page ends the landing.
+        .onScrollPhaseChange { _, phase in if phase == .tracking { landAt = nil } }
         .scrollPosition($position)
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
@@ -229,10 +241,6 @@ struct EventPage: View {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
             LeftOff.page = item.id
-            if LeftOff.reopening(item.id), let y = LeftOff.current?.eventY, y > 0 {
-                // A turn later: in this one the page's height isn't laid out, so the jump stops at its top.
-                Task { position.scrollTo(y: y) }
-            }
         }
         .onDisappear {
             if LeftOff.page == item.id { LeftOff.page = nil }
