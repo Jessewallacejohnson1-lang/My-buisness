@@ -233,7 +233,9 @@ person (BP app `docs/plans/town-feed`). `TownView` holds `TownBar` and the feed.
   hours after they start, else Town midnight); a series once, at its next date, worded
   "Every 1st & 3rd Monday"; soonest first, the ones you go to last. Android calls the same
   function. **Never filter, re-sort or re-word it in the app** `[prose]`: change the function
-  and its tests.
+  and its tests. News leaves at midnight after its date (`board_items.ends_on`, else the day it is
+  about), up to 30 days; with neither, after 7 days. A calendar's closing has a future `published_at`, 7 days
+  before its day, so it waits with no feed rule of its own.
 - **The feed's body is `private.town_feed`** `[test]` (feed-load, 2026-11-01): `get_town_feed`
   only calls it, and `get_event_of_the_day` asks it for just the day's picks and their hosts'
   Events instead of the whole feed. A change to the feed replaces `private.town_feed`; giving
