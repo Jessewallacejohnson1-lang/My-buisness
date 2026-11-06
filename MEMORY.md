@@ -41,6 +41,11 @@ or its `docs/rules/` file and leaves here.
   14). The map is not a tab: it opens full-screen from the yellow disc in the Town top bar.
   Business has no tab. **Supersedes** the Town top bar's friends mark and You as "the fourth
   tab" in `docs/rules/architecture.md`.
+- 2026-11-06 — **A neighbour's code opened with no account sends the friend request by itself** (Jesse:
+  "just goes to opening with onboarding then that person is automatically added as friend", BP app
+  codebase-health-2 15). The Welcome and onboarding come first, then their page opens on Cancel request, and
+  the neighbour still taps Confirm. Never friends at once: Share sends a picture of a code that never
+  changes. Someone who already has an account lands on the page and taps Add friend.
 - App Store target is spring 2027. The months before that are networking and local
   partnerships, not features.
 - 2026-11-01 — **Users never pay** (Jesse). Block Party is a passion project, not a
@@ -69,6 +74,7 @@ or its `docs/rules/` file and leaves here.
 
 ## Data and backend
 
+- 2026-11-06 — **News with a date stays in the Town feed until that date, up to 30 days; with none, 7 days** (Jesse: "yes to both"; BP app town-feed 49). The date is the writer's `news_end`, from the judge or the story's own words, or the day the story is about. A story that has left doesn't come back. A calendar's closing or no-school day shows from 7 days before its day until midnight after its last, with its day on the card (BP app town-feed 50): `read_events.judged` sets `shows_from`, and `apply_judged` makes that its `published_at`.
 - 2026-11-05 — **The Town feed sinks what you've seen** (Jesse; BP app town-feed 41, `supabase/town_feed.sql`). Each open you've
   seen a card counts × 0.6, down to × 0.3, by series. It comes back once on its own day (a real happening only) and when a friend
   taps Going. Up to 3 live cards lead, then points; every 5th card is News you haven't seen. A fresh order comes after 10 minutes.

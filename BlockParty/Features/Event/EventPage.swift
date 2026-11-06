@@ -36,8 +36,6 @@ struct EventPage: View {
     /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var saveTappedAt = 0
-    /// The bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
-    @State private var signInShown = false
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
     /// and a photo's credit waits for its photo.
@@ -222,7 +220,6 @@ struct EventPage: View {
         // A goal's scorer under the score and its play in the list move the rest of the page down together
         // (game-card 09), rather than the page jumping.
         .animation(reduceMotion ? nil : Motion.smooth, value: game?.plays.count)
-        .signInSheet(isPresented: $signInShown)
         .sheet(isPresented: $calendarShown) {
             if let adding { AddToCalendar(entry: adding) }
         }
@@ -435,9 +432,8 @@ struct EventPage: View {
     }
 
     /// A save is a commit, so it gets the light tap (taste.md, from `RealLifeActions`);
-    /// the fill springs in. With no account yet, sign in instead.
+    /// the fill springs in.
     private func toggleSave() {
-        guard actions.canAct else { signInShown = true; return }
         saveTappedAt = actions.saveFailureCount(item.id)
         withAnimation(Motion.snappy) { actions.toggleSave(item) }
     }

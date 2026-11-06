@@ -125,7 +125,7 @@ struct ProfileView: View {
                     // Hidden when there is no session to end. The quiet anonymous account every
                     // install gets counts as not signed in: signing out would only throw away
                     // its Going.
-                    if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
+                    if AuthStore.shared.hasAccount {
                         signOutButton.springReveal(2, revealed: revealed).id("bottom")
                     }
                     // Pushed over the tab bar, so it only needs breathing room.
@@ -197,7 +197,7 @@ struct ProfileView: View {
                 ProfileRowDivider()
                 // `plans-to-friends` (town-feed 28), beside the Calendar switch: only a real
                 // account can have friends.
-                if !friendsBook.isAnonymous() {
+                if friendsBook.hasAccount() {
                     plansRow
                     ProfileRowDivider()
                     // `suggest-me-switch` (daily-tab 22).
@@ -214,7 +214,7 @@ struct ProfileView: View {
                 ProfileRowDivider()
                 // `blocked-row` (BP app docs/plans/friends, ticket 04): only a real account can
                 // have blocked anyone.
-                if !friendsBook.isAnonymous() {
+                if friendsBook.hasAccount() {
                     // `following-row` (follows 02), beside Blocked.
                     NavigationLink { FollowingPage().environment(searchModel) } label: {
                         ProfileRow(icon: "person.2", title: "Following")

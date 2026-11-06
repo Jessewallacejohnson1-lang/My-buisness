@@ -31,7 +31,7 @@ const report = ({ pages = 242, failed = 2, events = 54, extra = '' } = {}) => [
 ].join('\n');
 const story = async (text = report()) => {
   await db.exec(`delete from fake.calls; delete from fake.answer; delete from public.morning_reports;
-    delete from public.club_events; delete from cron.job_run_details;
+    delete from public.club_events; delete from cron.job_run_details; delete from private.chat_reports;
     insert into fake.answer values (200, '{"successful":true,"error":null}');`);
   if (text) await db.query(`insert into public.morning_reports (day, report) values ('2026-11-02', $1)`, [text]);
 };
@@ -98,6 +98,58 @@ test("a neighbour's post waiting over a day is named; a newer one or a found Eve
     ('Dave''s Hot Chicken opening', 'pending', null, '2026-10-22 11:00+00')`);
   assert.deepEqual(await problems(),
     ['A neighbour\'s post has waited over a day for your approval: "Farmers market" (since Nov 1).']);
+});
+
+const SHOWING = '00000000-0000-0000-0000-0000000000e1';
+const reported = async () => {
+  await story();
+  await db.exec(`
+    insert into public.club_events (id, title, status, kind, submitted_by, created_at) values
+      ('${SHOWING}', 'Chi Kung', 'approved', 'event', null, '2026-10-20 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e2', 'Pancake breakfast', 'approved', 'event', null, '2026-10-20 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e3', 'my neighbor is awful', 'approved', 'post', '${POSTER}', '2026-10-20 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e4', 'Already down', 'rejected', 'event', null, '2026-10-20 15:00+00');
+    insert into public.reports (event_id, reason, at) values
+      ('${SHOWING}', 'wrong_photo', '2026-10-26 15:00+00'),
+      ('${SHOWING}', 'wrong_info', '2026-10-27 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e2', 'self_harm', '2026-10-28 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e3', 'bullying', '2026-10-29 15:00+00'),
+      ('00000000-0000-0000-0000-0000000000e4', 'scam', '2026-10-25 15:00+00');
+    insert into private.chat_reports (sender_name, kind, body, reason, at) values
+      ('Avery Test', 'text', 'private words', 'bullying', '2026-10-30 15:00+00'),
+      ('Blake Test', 'text', 'more private words', 'scam', '2026-10-31 15:00+00');
+    insert into private.chat_reports (sender_name, kind, body, reason, at, resolved_at) values
+      ('Casey Test', 'text', 'settled words', 'violence', '2026-10-25 15:00+00', '2026-10-26 15:00+00');
+  `);
+};
+
+test("reports waiting are named with their reasons, oldest first; one on a rejected Event or a settled chat isn't", async () => {
+  await reported();
+  assert.deepEqual(await problems(), [
+    'A report is waiting on "Chi Kung": wrong info, wrong photo. See the Review queue.',
+    'A report is waiting on "Pancake breakfast": self harm. See the Review queue.',
+    "A report is waiting on a neighbour's post: bullying. See the Review queue.",
+    '2 chat reports are waiting: bullying, scam. See the Review queue.',
+  ]);
+});
+
+test("a post's words, a chat's words and who sent them stay out of the email", async () => {
+  await reported();
+  await check();
+  const [call] = await sent();
+  assert.equal(JSON.parse(call.content).arguments.subject, 'Block Party: 4 things wrong this morning');
+  for (const word of ['my neighbor is awful', 'private words', 'Avery', 'Blake', 'Casey']) {
+    assert.ok(!call.content.includes(word), word);
+  }
+});
+
+test('a settled report stops the line, and one chat report reads as one', async () => {
+  await reported();
+  await db.exec(`delete from public.reports;
+    update private.chat_reports set resolved_at = '2026-11-01 15:00+00' where sender_name = 'Blake Test';`);
+  assert.deepEqual(await problems(), ['1 chat report is waiting: bullying. See the Review queue.']);
+  await db.exec(`update private.chat_reports set resolved_at = '2026-11-01 15:00+00';`);
+  assert.deepEqual(await problems(), []);
 });
 
 test('live scores: failures in the last day are counted by reason; a startup timeout or an older one is not', async () => {

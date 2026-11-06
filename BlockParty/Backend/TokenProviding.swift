@@ -21,3 +21,9 @@ protocol TokenProviding {
     /// The server refused a token the phone still thought good (a 401): refresh it, or sign out.
     func handleUnauthorized() async
 }
+
+extension TokenProviding {
+    /// An account someone made or logged into: the only way past the Welcome (Jesse, 2026-11-02:
+    /// "dont allow people in app without logged in", BP app onboarding 27).
+    var hasAccount: Bool { isSignedIn && !isAnonymous }
+}

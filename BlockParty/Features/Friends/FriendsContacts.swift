@@ -134,7 +134,7 @@ final class ContactsMatch {
     /// (hello-drop 04). Only with Contacts already allowed (it never asks) and a real account; it
     /// spends one of the day's 5 checks. nil when it can't check.
     static func joined(since: Date) async -> [Neighbor]? {
-        guard AuthStore.shared.isSignedIn, !AuthStore.shared.isAnonymous else { return nil }
+        guard AuthStore.shared.hasAccount else { return nil }
         switch CNContactStore.authorizationStatus(for: .contacts) {
         case .notDetermined, .denied, .restricted: return nil
         default: break
@@ -180,7 +180,6 @@ final class ContactsMatch {
 
 struct FriendsContactsPage: View {
     @State private var model = ContactsMatch()
-    @State private var signingIn = false
     @Environment(FriendsBook.self) private var book
     @Environment(\.openURL) private var openURL
 
@@ -195,7 +194,6 @@ struct FriendsContactsPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await model.load() }
-        .signInSheet(isPresented: $signingIn)
     }
 
     @ViewBuilder private var content: some View {
@@ -221,7 +219,7 @@ struct FriendsContactsPage: View {
             let people: [Neighbor] = if case .found(let people) = book.visible(.found(onApp)) { people } else { [] }
             if !people.isEmpty {
                 ContactsSectionTitle(text: "On Block Party")
-                ForEach(people) { ResultRow(person: $0) { signingIn = true } }
+                ForEach(people) { ResultRow(person: $0) }
             }
             if !invite.isEmpty {
                 ContactsSectionTitle(text: "Invite")

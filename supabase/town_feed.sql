@@ -469,12 +469,20 @@ as $$
   -- (p_news): an older one can't read a row without a date.
   news as (
     select b.id, b.title, b.blurb, b.category, b.source_name, b.source_url, b.published_at, b.place_entry_id,
-           least(b.published_at + interval '7 days',
-                 case when (b.starts_at at time zone town.zone)::date >= (b.published_at at time zone town.zone)::date
-                      then ((b.starts_at at time zone town.zone)::date + 1)::timestamp at time zone town.zone end)
-             as leaves_at,
+           l.leaves_at,
            (select array_agg(x order by x) from unnest(b.interests) x where x = any(me.interests)) as matched
-    from public.board_items b, town, me
+    from public.board_items b
+    cross join town
+    cross join me
+    -- A story stays until midnight after the day its words end, else the day it is about, up to 30 days. With neither,
+    -- 7 days (Jesse, 2026-11-06; BP app town-feed 49). write_judged.news_lasts_until says the same for its repeats.
+    cross join lateral (
+      select case when d.last_day is null then b.published_at + interval '7 days'
+                  else least(b.published_at + interval '30 days', (d.last_day + 1)::timestamp at time zone town.zone) end as leaves_at
+      from (select coalesce(b.ends_on,
+                            case when (b.starts_at at time zone town.zone)::date >= (b.published_at at time zone town.zone)::date
+                                 then (b.starts_at at time zone town.zone)::date end) as last_day) d
+    ) l
     where p_news and not p_later
       and b.status = 'published'
       and b.category in ('business', 'announcement', 'campus', 'school', 'road')
@@ -483,7 +491,8 @@ as $$
       and not exists (select 1 from muted m where m.host = b.source_name)
       -- Nor one you said Not interested to (news-menu).
       and not exists (select 1 from public.news_hides h where h.user_id = auth.uid() and h.item_id = b.id)
-      and b.published_at > p_now - interval '7 days' and b.published_at <= p_now
+      and b.published_at > p_now - interval '30 days' and b.published_at <= p_now
+      and l.leaves_at > p_now
       and (me.adult or not private.adults_only(b.place_entry_id, null, b.title || ' ' || coalesce(b.blurb, '')))
   ),
   news_scored as (
@@ -496,8 +505,7 @@ as $$
                  case when n.matched is not null then 0 when n.category = 'business' then 2 else 1 end as rank,
                  row_number() over (partition by n.source_name order by n.published_at desc, n.id) as of_place
           from news n
-          where n.leaves_at > p_now
-            and not exists (select 1 from public.news_views v where v.item_id = n.id and v.user_id = auth.uid())) n
+          where not exists (select 1 from public.news_views v where v.item_id = n.id and v.user_id = auth.uid())) n
   ),
   -- A neighbour's post (town-feed 29, BP app references/post-screen): their own words, maybe a photo and a
   -- Place, from the last 7 days, once the instant check said yes. Only for an app that asks (p_news), as

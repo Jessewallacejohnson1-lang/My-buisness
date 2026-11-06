@@ -303,7 +303,7 @@ struct OnboardingFlow: View {
     /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
     /// sign-in makes one at step 2 (onboarding 17) it finds nobody.
     @State private var contacts = ContactsMatch { emails, phones in
-        guard !AuthStore.shared.isAnonymous else { return [] }
+        guard AuthStore.shared.hasAccount else { return [] }
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
 
@@ -499,7 +499,7 @@ struct OnboardingFlow: View {
     /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask, and a
     /// phone with no numbers or emails asks nobody.
     private var firstHere: Bool {
-        guard store.step == .contacts, !AuthStore.shared.isAnonymous,
+        guard store.step == .contacts, AuthStore.shared.hasAccount,
               case .ready(let onApp, let invite) = contacts.state else { return false }
         return onApp.isEmpty && !invite.isEmpty
     }

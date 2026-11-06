@@ -78,14 +78,29 @@ from towns import TOWNS
 
 DAYS_AHEAD = 90
 LOCAL = ZoneInfo("America/Chicago")
+# A day a place is shut or a school day runs short. It waits until a week before (BP app town-feed 50). "Holiday" alone
+# isn't one: "Holiday Door Hangers" and "Holiday Sales" are News from the day they're read.
+CLOSING = re.compile(r"\b(closed(?! caption)|closure|no school|no classes|late start|early (release|dismissal))\b", re.I)
+CLOSING_DAYS = 7
 # Something to know rather than go to is News, even with a date (ADR-021).
-NEWS = re.compile(r"\b(closed|closure|holiday|no school|no classes|late start|early (release|dismissal))\b", re.I)
+NEWS = re.compile(CLOSING.pattern + r"|\bholiday\b", re.I)
 SAMPLES = Path(__file__).resolve().parent / "samples"
+
+
+def day_line(day, last=None):
+    """A closing's day on its card, which shows no date of its own: "Thursday, Nov 26", or "Nov 25 to Nov 28"."""
+    return f"{day:%b} {day.day} to {last:%b} {last.day}" if last and last > day else f"{day:%A, %b} {day.day}"
 
 
 def judged(entry, src, **kw):
     """One item in write_judged.py's contract. No model read it: it is sure, sized everyday,
-    and as trusted as the registry says its source is."""
+    and as trusted as the registry says its source is. A calendar's closing says when it goes up, and its day when
+    the calendar has no words for it (BP app town-feed 50); a road report is News as soon as it's known."""
+    if kw.get("kind") == "news" and kw.get("start") and kw.get("category") != "road" and CLOSING.search(kw["title"]):
+        day = date.fromisoformat(kw["start"][:10])
+        kw["shows_from"] = (day - timedelta(CLOSING_DAYS)).isoformat()
+        last = date.fromisoformat(kw["end"][:10]) if kw.get("end") else None
+        kw["blurb"] = kw.get("blurb") or day_line(day, last)
     return {"kind": "event", "all_day": False, "place": "", "town": None, "area": "announced",
             "source_name": entry["_name"], "trust": src.get("trust") or "official", "sure": True,
             "size": "everyday", "interest": None, **kw}
@@ -437,7 +452,8 @@ SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent me
 
 def finalsite_calendar_items(page, url, entry, src, today):
     """Each occurrence once (a long event repeats in every day box it spans), with the exact
-    times from <time datetime>; an all-day one takes its day from the occurrence id. An event
+    times from <time datetime>; an all-day one takes its days from the occurrence id, whose end is the
+    morning after the last ("Winter Break", Dec 21 to Jan 2, is out through Jan 1). An event
     on the place's own calendar (`own_calendar`) with no place given is at the place."""
     out, seen = [], set()
     tags = list(OCCURRENCE.finditer(page))
@@ -448,9 +464,11 @@ def finalsite_calendar_items(page, url, entry, src, today):
         seen.add(occur)
         body = page[m.end():tags[i + 1].start() if i + 1 < len(tags) else len(page)]
         times = dict((k, v) for v, k in re.findall(r'<time datetime="([^"]+)" class="fs(Start|End)Time"', body))
-        start = times.get("Start") or occur.split("_")[1][:10]
+        _, first, after = occur.split("_")
+        start = times.get("Start") or first[:10]
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
+        last = (date.fromisoformat(after[:10]) - timedelta(1)).isoformat()
         title = html.unescape(re.search(r'title="([^"]*)"', m.group(0)).group(1)).strip()
         place = re.search(r'<div class="fsLocation">(.*?)</div>', body, re.S)
         place = plain(place.group(1)) if place else ""
@@ -459,7 +477,7 @@ def finalsite_calendar_items(page, url, entry, src, today):
             place = entry["_name"]
         news = bool(NEWS.search(title))
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
-                          title=title, start=start, end=times.get("End"), all_day="Start" not in times,
+                          title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
                           place="" if place.lower() in ("multiple", "tbd", "tba") else place,
                           source_url=url, source_uid=occur,
                           **({"followers_only": True, "activity_team": bound_team(entry)}
@@ -1216,6 +1234,33 @@ def t_robots():
             assert said in str(e), (url, str(e))
 
 
+def t_closings_wait():
+    """A calendar's closing goes up a week before its day (BP app town-feed 50). Titles from the live calendars."""
+    days = lambda occur: finalsite_calendar_items(
+        f'<a class="x" title="No School - Winter Break" data-occur-id="{occur}" href="#"></a>',
+        "https://k/calendar", CITY, {"url": "https://k/calendar"}, date(2026, 11, 6))[0]
+    winter = days("774605_2026-12-21T00:00:00Z_2027-01-02T00:00:00Z")
+    assert (winter["start"], winter["end"], winter["shows_from"], winter["blurb"]) == (
+        "2026-12-21", "2027-01-01", "2026-12-14", "Dec 21 to Jan 1"), winter
+    workshop = days("774603_2026-11-25T00:00:00Z_2026-11-26T00:00:00Z")
+    assert (workshop["end"], workshop["blurb"]) == (None, "Wednesday, Nov 25"), workshop
+    src, say = {"url": "https://x.org"}, lambda title, **more: judged(CITY, src, kind="news", title=title, **more)
+    for title in ("Holiday - City Offices Closed", "Alcuin and Clemens Library Closed", "No School - Winter Break",
+                  "No Classes", "Late Start", "Two-hour Early Dismissal", "Early Release"):
+        assert NEWS.search(title) and say(title, start="2026-12-21")["shows_from"] == "2026-12-14", title
+    for title in ("Holiday Door Hangers for your Dorm!", "Holiday Sales at the Art and Heritage Place"):
+        assert NEWS.search(title) and "shows_from" not in say(title, start="2026-11-19"), title
+    assert say("Winter Break", start="2026-12-21").get("shows_from") is None, "the words have to say so"
+    assert "shows_from" not in say("City Offices Closed"), "no day to wait for"
+    assert "shows_from" not in say("Highway 23 closure", start="2026-12-21", category="road"), "a road report goes up"
+    assert not NEWS.search("Closed Captioned Film") and "shows_from" not in judged(CITY, src, title="Closed", start="2026-12-21")
+    timed = say("Late Start", start="2026-12-21T10:00:00-06:00", end="2026-12-21T15:00:00-06:00")
+    assert (timed["shows_from"], timed["blurb"]) == ("2026-12-14", "Monday, Dec 21"), timed
+    run = say("Library Closed", start="2026-11-25", end="2026-11-28")
+    assert run["blurb"] == "Nov 25 to Nov 28", run
+    assert say("Library Closed", start="2026-11-25", blurb="Back Sunday at 6pm.")["blurb"] == "Back Sunday at 6pm."
+
+
 def t_ical():
     ics = ("BEGIN:VEVENT\r\nUID:7\r\nSUMMARY:Fare for All\r\nDTSTART:20261207T153000\r\n"
            "DTEND:20261207T173000\r\nLOCATION: - 610 County Rd 2  St. Joseph MN \r\n 56374\r\n"
@@ -1235,6 +1280,8 @@ def t_ical():
     assert linked["blurb"] is None, "a description that is only a link is none"
     assert said("See https://x.org for more") == "See https://x.org for more"
     assert (closed["kind"], closed["start"], closed["all_day"]) == ("news", "2026-11-26", True), closed
+    assert (closed["shows_from"], closed["blurb"]) == ("2026-11-19", "Thursday, Nov 26"), "a closing waits and says its day"
+    assert "shows_from" not in fare, "an Event doesn't wait this way"
     assert film["place"].startswith("Saint John's University"), "a St. Joseph source's event is kept wherever it is"
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
     sals = ical_items("BEGIN:VEVENT\r\nUID:12\r\nSUMMARY:Bingo Night\r\nDTSTART;TZID=UTC:20261020T183000\r\n"
@@ -1932,7 +1979,7 @@ def t_games_complete():
         "a title that fits is never touched"
 
 
-TESTS = [t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
+TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file]
 
