@@ -68,7 +68,7 @@ enum PlaceCategoryMap {
         "cafe", "coffee_shop", "cafeteria", "tea_house",
         "bakery", "bagel_shop", "donut_shop", "dessert_shop",
         "sandwich_shop", "meal_takeaway", "meal_delivery", "fast_food_restaurant",
-        "ice_cream_shop", "juice_shop", "brewery", "food_court", "deli", "diner",
+        "ice_cream_shop", "juice_shop", "brewery", "cidery", "food_court", "deli", "diner",
     ]
 
     /// Google `primaryType` values that belong to Business / Retail / Services /
@@ -134,7 +134,7 @@ enum PlaceCategoryMap {
             return "cup.and.saucer.fill"
         case "bakery", "bagel_shop", "donut_shop", "dessert_shop", "dessert_restaurant", "ice_cream_shop":
             return "birthday.cake.fill"
-        case "bar", "pub", "wine_bar", "brewery", "night_club", "bar_and_grill":
+        case "bar", "pub", "wine_bar", "brewery", "cidery", "night_club", "bar_and_grill":
             return "wineglass.fill"
         case "fast_food_restaurant", "meal_takeaway", "meal_delivery",
              "sandwich_shop", "hamburger_restaurant":

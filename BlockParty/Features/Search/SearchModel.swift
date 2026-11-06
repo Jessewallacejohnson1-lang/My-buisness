@@ -373,7 +373,8 @@ final class SearchModel {
             let saved = poi.entryId.flatMap { photos[$0] } ?? []
             return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), sub: label(type), logo: logo,
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
-                              keywords: [type.replacingOccurrences(of: "_", with: " ")],
+                              // Someone looking for a brewery wants a cidery too.
+                              keywords: [type.replacingOccurrences(of: "_", with: " ")] + (type == "cidery" ? ["brewery"] : []),
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
                               about: nonempty(poi.about), links: poi.links ?? [],
                               hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
