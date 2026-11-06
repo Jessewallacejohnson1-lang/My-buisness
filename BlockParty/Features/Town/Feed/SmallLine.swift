@@ -13,6 +13,7 @@ import SwiftUI
 struct SmallLine: View {
     let tries: [String]
     var wraps = false
+    var alignment: Alignment = .leading
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -20,10 +21,17 @@ struct SmallLine: View {
         if wraps, dynamicTypeSize.isAccessibilitySize, let first = tries.first {
             Text(first).fixedSize(horizontal: false, vertical: true)
         } else {
-            ViewThatFits(in: .horizontal) {
-                ForEach(tries, id: \.self) { Text($0).lineLimit(1) }
-                Color.clear.frame(width: 0, height: 0)
-            }
+            // It fills its width. Hugging its words, a parent could hand its measured size back a hair
+            // short (139.66666666666663 of 139.66666666666666, through a padding) and `ViewThatFits`
+            // would take the next try: the game card lost its town that way (2026-11-06).
+            fitted.frame(maxWidth: .infinity, alignment: alignment)
+        }
+    }
+
+    var fitted: some View {
+        ViewThatFits(in: .horizontal) {
+            ForEach(tries, id: \.self) { Text($0).lineLimit(1) }
+            Color.clear.frame(width: 0, height: 0)
         }
     }
 }

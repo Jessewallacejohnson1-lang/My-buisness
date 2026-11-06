@@ -460,7 +460,7 @@ final class TownFeedEventsTests: XCTestCase {
             UIHostingController(rootView: view.font(.sans(13))).sizeThatFits(in: CGSize(width: room, height: 1000))
         }
         func assertShows(_ line: String, of tries: [String], in room: CGFloat, line place: UInt = #line) {
-            XCTAssertEqual(size(SmallLine(tries: tries), in: room).width, size(Text(line).lineLimit(1), in: 10000).width,
+            XCTAssertEqual(size(SmallLine(tries: tries).fitted, in: room).width, size(Text(line).lineLimit(1), in: 10000).width,
                            accuracy: 0.5, "\(line) at \(room)", line: place)
         }
         let workshop = ["Writing workshop · Saint Benedict's Monastery", "Saint Benedict's Monastery", "Writing workshop"]
@@ -473,7 +473,9 @@ final class TownFeedEventsTests: XCTestCase {
                      "Senior Night", "Herb Brooks National Hockey Center, St. Cloud", "Herb Brooks National Hockey Center"]
         assertShows("Senior Night", of: night, in: 246)
         let tooLong = ["Prime West Runestone Community Center Old National Bank Arena"]
-        XCTAssertEqual(size(SmallLine(tries: tooLong), in: 246).width, 0, "nothing, not a cut line")
+        XCTAssertEqual(size(SmallLine(tries: tooLong).fitted, in: 246).width, 0, "nothing, not a cut line")
+        XCTAssertEqual(size(SmallLine(tries: meet), in: 242).width, 242,
+                       "it fills its width, so no parent can hand its own size back a hair short")
     }
 
     /// Scrolled down, the Event of the day poster holds at when the feed left the top (event-card

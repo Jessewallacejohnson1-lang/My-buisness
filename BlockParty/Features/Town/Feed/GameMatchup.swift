@@ -814,7 +814,7 @@ struct WhiteGameCard: View {
             .animation(reduceMotion ? nil : Motion.smooth, value: game.final)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.live == nil)
             .animation(reduceMotion ? nil : Motion.smooth, value: game.shootout)
-            SmallLine(tries: place)
+            SmallLine(tries: place, alignment: .center)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.horizontal, Metric.placeInset)
