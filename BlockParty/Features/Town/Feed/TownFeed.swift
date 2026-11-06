@@ -620,6 +620,9 @@ final class TownFeed {
 
     /// A new account: the last one's waiting views and hidden cards are not this one's.
     func accountChanged() {
+        // The read out now was the old account's: it never lands, and nothing shares it.
+        latestRead &+= 1
+        readOut = nil
         clearMore()
         unsent = []
         viewed = []

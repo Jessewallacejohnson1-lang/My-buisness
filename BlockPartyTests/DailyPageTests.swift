@@ -263,8 +263,6 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(talk.startTime(now: talk.starts.addingTimeInterval(60)), "Now")
     }
 
-    /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since
-    /// each read works the whole Town feed out on the server; a failed read keeps the picks.
     /// An open's triggers overlap: they share one read (BP app town-feed 48).
     @MainActor
     func testOverlappingEventOfTheDayRefreshesShareOneRead() async throws {
@@ -314,6 +312,8 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(model.events?.map(\.starts), [mine.starts])
     }
 
+    /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since
+    /// each read works the whole Town feed out on the server; a failed read keeps the picks.
     @MainActor
     func testEventOfTheDayReadsAgainOnlyWhenItMatters() async throws {
         let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))

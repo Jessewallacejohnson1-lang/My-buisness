@@ -1383,6 +1383,28 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["a"])
     }
 
+    /// A new account never shares the old account's read, and that read's answer doesn't land.
+    func testANewAccountDoesNotShareTheOldAccountsRead() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                return self.entries(["old account"])
+            }
+            return self.entries(["mine"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.open == nil { await Task.yield() }
+        town.accountChanged()
+        await town.refresh(at: now)
+        XCTAssertEqual(gate.calls, 2)
+        gate.open?()
+        await first.value
+        XCTAssertEqual(town.cards.map(\.id), ["mine"])
+    }
+
     /// A read out this long may be dying (the phone slept mid-read), so a refresh asks again, and
     /// its answer stands when the old one finally lands.
     func testARefreshDoesNotShareAReadOutTooLong() async {
