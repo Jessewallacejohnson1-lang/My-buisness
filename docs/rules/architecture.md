@@ -113,8 +113,8 @@ Business has no slot.
   a direct chat with anyone under 18, or with no birthday, needs a friendship, and what's sent without one is
   `held`, seen only by its sender, who isn't told (Jesse, 2026-11-03). Block, Hide and Leave are in the
   messages' read rule itself. Photos are in the private `chat-photos` bucket, read through links signed for an
-  hour. No push yet: a closed app learns nothing until it opens. A deleted account's photos stay in the bucket,
-  which nobody but the admin can read (`~/.claude/PENDING.md`). **Rooms:** a Going chat (five-tabs 06) and a Group chat
+  hour. No push yet: a closed app learns nothing until it opens. Delete account (the `delete-account` edge function)
+  removes a person's photos, except one a chat report still open names. **Rooms:** a Going chat (five-tabs 06) and a Group chat
   (five-tabs 07) are worked out live from Going and `club_members`, so leaving leaves the chat. Their `chat_members` row
   holds only your read position and your Leave and admits no one: a new kind of room must stay out of `private.in_chat`'s
   member branch and `get_chats`' `others`, or everyone who ever opened it stays in and is listed.

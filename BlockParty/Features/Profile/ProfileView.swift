@@ -35,6 +35,7 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
+    @State private var confirmDelete = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
 
@@ -126,7 +127,19 @@ struct ProfileView: View {
                     // install gets counts as not signed in: signing out would only throw away
                     // its Going.
                     if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
-                        signOutButton.springReveal(2, revealed: revealed).id("bottom")
+                        VStack(spacing: 2) {
+                            signOutButton
+                            deleteAccountButton
+                            if model.deleteFailed {
+                                Text(ProfileModel.deleteFailedLine)
+                                    .font(.sans(13))
+                                    .foregroundStyle(Hue.inkSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 6)
+                            }
+                        }
+                        .springReveal(2, revealed: revealed)
+                        .id("bottom")
                     }
                     // Pushed over the tab bar, so it only needs breathing room.
                     Color.clear.frame(height: 40)
@@ -152,6 +165,16 @@ struct ProfileView: View {
             // Back to You, which starts over for the account that follows (`AppSession`).
             Button("Log out", role: .destructive) { Task { await model.signOut(); settings = false } }
             Button("Cancel", role: .cancel) {}
+        }
+        // Dot's dialog and Superlist's words (BP app references/delete-account): one question, no second
+        // screen (Jesse, 2026-11-06).
+        .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete account", role: .destructive) {
+                Task { if await model.deleteAccount() { settings = false } }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your profile, posts, messages and photos will be erased. This can't be undone.")
         }
     }
 
@@ -329,6 +352,25 @@ struct ProfileView: View {
             .glassPanel(Radius.card)
         }
         .buttonStyle(.press(.squish))
+        .disabled(model.deletingAccount)
+        .opacity(model.deletingAccount ? 0.45 : 1)
+    }
+
+    /// Under Log out, as Uxcel Go's (Jesse, 2026-11-06): quiet red words at Log out's height.
+    private var deleteAccountButton: some View {
+        Button { Haptics.light(); confirmDelete = true } label: {
+            HStack(spacing: 8) {
+                if model.deletingAccount { ProgressView().controlSize(.small) }
+                Text(model.deletingAccount ? "Deleting…" : "Delete account").font(.displaySemi(15))
+            }
+            .foregroundStyle(model.deletingAccount ? Hue.inkSecondary : Hue.canceled)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press(.dim))
+        .disabled(model.deletingAccount)
+        .turnBackShake(failures: model.deleteFailures, shakes: !reduceMotion)
     }
 
     // MARK: - Helpers

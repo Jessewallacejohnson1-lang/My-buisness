@@ -35,6 +35,12 @@ final class ProfileModel {
     /// "Suggest me to people I may know" (daily-tab 22), as `plansToFriends`.
     var suggestMe: Bool?
     private(set) var suggestFailures = 0
+    /// Delete account: a call out, whether the last one failed, and a count of failures, each of which
+    /// shakes the button.
+    private(set) var deletingAccount = false
+    private(set) var deleteFailed = false
+    private(set) var deleteFailures = 0
+    static let deleteFailedLine = "Couldn't delete your account. Check your connection and try again."
 
     /// This account's row has been read, landed or failed: a sheet waiting on it opens, offline too.
     var loaded = false
@@ -415,6 +421,26 @@ final class ProfileModel {
     }
 
     func signOut() async { await endSession() }
+
+    /// Settings' Delete account (BP app launch-ready 01; Apple 5.1.1(v)): the server takes the rows, the
+    /// files and the account, and only then does the phone sign out. A failure stays signed in and says
+    /// so, and another try finishes the job. True when the account is gone.
+    func deleteAccount() async -> Bool {
+        deletingAccount = true
+        deleteFailed = false
+        defer { deletingAccount = false }
+        do {
+            try await supabase.invoke("delete-account", [:])
+        } catch {
+            deleteFailed = true
+            deleteFailures += 1
+            Haptics.error()
+            AccessibilityNotification.Announcement(Self.deleteFailedLine).post()
+            return false
+        }
+        await endSession()
+        return true
+    }
 
     /// The switch answers at once. One write at a time: taps made while one is out are sent
     /// as their latest value when it returns, so the server ends where the switch does. A
