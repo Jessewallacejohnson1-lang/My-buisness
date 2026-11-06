@@ -2143,6 +2143,27 @@ test('news with a date stays until midnight after it, up to 30 days (Jesse, 2026
   assert.equal(card.leaves_at.toISOString(), '2026-10-26T05:00:00.000Z', 'the card says when it goes');
 });
 
+test('a closing shows from a week before its day until midnight after its last, and other dated news as posted (Jesse, 2026-11-06)', async () => {
+  await reset();
+  // What apply_judged and the 12 live rows hold: posted long before, up a week before the day.
+  await news('Offices Closed', '2026-11-19 00:00', { starts_at: '2026-11-26 00:00' });
+  await news('Library Closed', '2026-11-18 00:00', { starts_at: '2026-11-25 00:00', ends_on: '2026-11-28' });
+  await news('Long Closure', '2026-12-17 00:00', { starts_at: '2026-12-24 00:00', ends_on: '2027-01-03' });
+  await news('Free pie', '2026-10-22 09:00', { starts_at: '2026-11-22 00:00' });
+  await db.exec('set role anon');
+  assert.deepEqual(await newsTitles('2026-11-17 23:59'), ['Free pie'], 'none yet, while other news shows');
+  assert.deepEqual((await newsTitles('2026-11-18 00:01')).sort(), ['Free pie', 'Library Closed']);
+  assert.deepEqual((await newsTitles('2026-11-19 00:01')).sort(), ['Free pie', 'Library Closed', 'Offices Closed']);
+  assert.deepEqual((await newsTitles('2026-11-26 23:59')).sort(), ['Library Closed', 'Offices Closed']);
+  assert.deepEqual(await newsTitles('2026-11-27 00:01'), ['Library Closed'], 'its one day is over');
+  assert.deepEqual(await newsTitles('2026-11-28 23:59'), ['Library Closed']);
+  assert.deepEqual(await newsTitles('2026-11-29 00:01'), [], 'its last day is over');
+  assert.deepEqual(await newsTitles('2026-12-16 23:59'), []);
+  assert.deepEqual(await newsTitles('2026-12-17 00:01'), ['Long Closure']);
+  assert.deepEqual(await newsTitles('2027-01-03 23:59'), ['Long Closure']);
+  assert.deepEqual(await newsTitles('2027-01-04 00:01'), []);
+});
+
 test('road work shows; unpublished news and news with no post to open stay out', async () => {
   await reset();
   await news('Fiber installation underway', '2026-10-08 17:00', { category: 'road', source_name: 'City of St. Joseph' });

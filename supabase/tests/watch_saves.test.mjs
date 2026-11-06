@@ -137,7 +137,7 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     (select count(*) from public.event_rsvps r where r.event_id = e.id) as going,
     (select count(*) from public.event_likes l where l.event_id = e.id) as likes
     from public.club_events e left join public.clubs c on c.id = e.club_id`);
-  await asJob('reads: News', `select title, source_name, place_entry_id, source_url, status, created_at, starts_at, ends_on
+  await asJob('reads: News', `select title, source_name, place_entry_id, source_url, status, created_at, published_at, starts_at, ends_on
     from public.board_items`);
   await asJob('reads: teams', 'select id, name, short_name, aliases from public.teams');
   await asJob('event_picture', 'select public.event_picture($1)', [id]);

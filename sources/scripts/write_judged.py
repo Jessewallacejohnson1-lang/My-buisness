@@ -26,6 +26,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
                alone ("2026-10-25"), and lasts until the midnight after it. A News with none takes it from
                a dated phrase in its title or blurb ("through Nov 29"; news_end), and the Town feed shows
                it until then, up to 30 days (BP app town-feed 49)
+  shows_from   news, optional: the day a calendar's closing goes up, a week before its day. read_events.py sets
+               it (BP app town-feed 50); a judge never does. With none, a News goes up as it's written
   all_day      true | false (default false)
   place        the venue's name ("Clemens Stadium"), an address only when nothing names the place,
                "Online" for a webinar; "" if not said (.claude/skills/title-and-place)
@@ -686,7 +688,7 @@ def skip_reason(it, town):
     if PLACEHOLDER.fullmatch(it["title"]):
         return f"invalid: the title {it['title'].strip()!r} names nothing"
     for k in ("kind", "trust", "area", "start", "end", "place", "town", "blurb", "size",
-              "signup_by", "interest", "category", "activity_team", "activity_name"):
+              "signup_by", "interest", "category", "activity_team", "activity_name", "shows_from"):
         if it.get(k) is not None and not isinstance(it[k], str):
             return f"invalid: {k} must be text"
     for k in ("closed", "followers_only"):
@@ -881,7 +883,7 @@ def news_end(it, today):
 def news_lasts_until(old):
     """How long a News in the app makes a new one its repeat: while the Town feed can still show it, and at least its
     week. "Winter gymnastics registration opens Nov 16" went up three times from Oct 24, a week apart (2026-11-06)."""
-    made = local(old["created_at"])
+    made = local(old.get("published_at") or old["created_at"])  # a closing that waits counts from when it goes up
     last = date.fromisoformat(old["ends_on"][:10]) if old.get("ends_on") else None
     if not last and old.get("starts_at"):
         day = local(old["starts_at"]).date()
@@ -894,9 +896,12 @@ def news_of(it, interests, notes, today):
     start = it.get("start")
     try:
         day, at = when(start, it.get("all_day")) if start else (None, None)
+        shows = when(it["shows_from"], True)[0] if it.get("shows_from") else None
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
     end = news_end(it, today)
+    if shows and day and end and end < day:  # a closing's words saying "by Nov 20" can't end it before its day
+        end = None
     interest = it.get("interest")
     if interest is not None and interest not in interests:
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
@@ -909,6 +914,7 @@ def news_of(it, interests, notes, today):
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
             "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
             "ends_on": end and end.isoformat(),
+            "shows_from": shows and datetime.combine(shows, time()).replace(tzinfo=LOCAL).isoformat(),
             # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
             "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
 
@@ -959,6 +965,18 @@ def mention(it, uid):
             "source_uid": uid, "trust": TRUST[it["trust"]], "sure": it.get("sure") is not False, "new": True}
 
 
+def news_day(row):
+    return row.get("starts_at") and local(row["starts_at"]).date()
+
+
+def another_closing(n, old, now):
+    """A closing on another day is another closing, however alike the titles: every "Holiday: City Offices Closed" has
+    its own day, and "No School: Winter Break" was never written while it read as "No School: Thanksgiving Break"'s
+    repeat (BP app town-feed 50). And one still waiting to go up can't swallow a post about another day."""
+    waiting = old.get("shows_from") or (old.get("published_at") and local(old["published_at"]) > now)
+    return (n.get("shows_from") or waiting) and news_day(n) != news_day(old)
+
+
 def repeat_of(n, recent):
     """News already in the app from the same source this week with the same link of its own (own_link), whatever
     its title says: The North Table's brunch post (instagram.com/p/De3AnqRDaIV) was written twice on Oct 23 and
@@ -981,6 +999,8 @@ def repeat_of(n, recent):
     stop = STOP | FILLER
     now, linked = datetime.now(LOCAL), own_link(n["source_url"])
     for old in recent:
+        if another_closing(n, old, now):
+            continue
         if (linked and old["source_name"] == n["source_name"] and same_link(old.get("source_url"), n["source_url"])
                 and old.get("status") == "published" and old.get("created_at") and now < news_lasts_until(old)):
             return old
@@ -1254,8 +1274,8 @@ def news_in_db(now=None, db=None):
     created time and dates, for repeat_of."""
     now = now or datetime.now(LOCAL)
     since = (now - timedelta(NEWS_MOST)).replace(microsecond=0).isoformat()
-    rows = (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at,starts_at,ends_on"
-                                   f"&status=eq.published&created_at=gte.{quote(since, safe=':')}") or []
+    rows = (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at,published_at,starts_at,ends_on"
+                                   f"&status=eq.published&published_at=gte.{quote(since, safe=':')}") or []
     return [r for r in rows if now < news_lasts_until(r)]
 
 
@@ -1439,6 +1459,39 @@ def t_news_repeat_left_out():
     assert [outcome(r, i) for i in range(11)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news",
                                                   "repeat", "news", "news"], r["outcomes"]
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
+
+
+def t_closings_wait():
+    """A calendar's closing says when it goes up, and each day's is its own (BP app town-feed 50)."""
+    ahead = lambda days: (TODAY + timedelta(days)).isoformat()
+    city = dict(kind="news", category="announcement", source_name="City of St. Joseph", all_day=True,
+                source_url="https://www.stjosephmn.gov/Calendar.aspx", title="Holiday: City Offices Closed")
+    closing = lambda days, **more: item(**{**city, "start": ahead(days), "shows_from": ahead(days - 7),
+                                           "source_url": f"{city['source_url']}?EID={days}", **more})
+    r = plan([closing(20), closing(21), closing(20), item(**{**city, "start": None, "title": "City Offices Closed"})],
+             [], TODAY, INTERESTS)
+    assert [outcome(r, i) for i in range(4)] == ["news", "news", "repeat", "news"], r["outcomes"]
+    held = r["news"][0]
+    assert held["shows_from"] == datetime.combine(TODAY + timedelta(13), time()).replace(tzinfo=LOCAL).isoformat(), held
+    assert r["news"][2]["shows_from"] is None, "other News goes up as it's written"
+    # Another morning: one waiting in the app, read as the database gives it back.
+    now = datetime.now(LOCAL)
+    stamp = lambda days: (now + timedelta(days)).isoformat()
+    waiting = {"title": "Holiday: City Offices Closed", "source_name": "City of St. Joseph", "status": "published",
+               "place_entry_id": held["place_entry_id"], "source_url": city["source_url"],
+               "created_at": stamp(-60), "published_at": stamp(13), "starts_at": held["starts_at"]}
+    assert news_lasts_until(waiting) > now + timedelta(13), "it catches its repeats until it has gone up and left"
+    again = lambda **more: outcome(plan([item(**{**city, **more})], [], TODAY, INTERESTS, recent_news=[waiting]), 0)
+    assert again(start=ahead(20), shows_from=ahead(13)) == "repeat", "the same day, read again"
+    assert again(start=ahead(20)) == "repeat", "the City's post about that day"
+    assert again(start=ahead(21), shows_from=ahead(14)) == "news", "the next day's closing"
+    assert again(start=None, title="City Offices Closed") == "news", "a snow day it can't swallow"
+    assert again(start=ahead(3), title="City Offices Closed") == "news", "a post about another day"
+    # Words can't end a closing before its day; an end the calendar gives stands.
+    ends = lambda **more: plan([closing(20, **more)], [], TODAY, INTERESTS)["news"][0]["ends_on"]
+    assert ends(blurb=f"Sign up by {TODAY + timedelta(5):%b} {(TODAY + timedelta(5)).day}.") is None
+    assert ends(end=ahead(23)) == ahead(23)
+    assert outcome(plan([closing(20, shows_from="soon")], [], TODAY, INTERESTS), 0) == "skipped", "an unreadable day"
 
 
 def t_news_state_initials_tell_nothing():
@@ -1892,8 +1945,8 @@ def t_news_look_back_is_the_feeds_week():
         kept = [r["title"] for r in news_in_db(now)]
     finally:
         Supabase = saved
-    assert asked[0].endswith("&created_at=gte.2026-09-29T21:40:12-05:00"), asked
-    assert "select=title,source_name,place_entry_id,source_url,status,created_at,starts_at,ends_on&" in asked[0], asked
+    assert asked[0].endswith("&published_at=gte.2026-09-29T21:40:12-05:00"), asked
+    assert "select=title,source_name,place_entry_id,source_url,status,created_at,published_at,starts_at,ends_on&" in asked[0], asked
     assert kept == ["Plain, 6 days", "Ends in 3 days, 20 old", "About a day ahead, 10 old"], kept
 
 
@@ -2497,7 +2550,7 @@ def t_real_copies():
 
 TESTS = [t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
-         t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
+         t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
