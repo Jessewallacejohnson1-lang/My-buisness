@@ -3692,6 +3692,7 @@ async function hockeyGame() {
 }
 
 test("a hockey game is followed in each school's file, its periods P1 to P3 then OT, the clock as the rink's reads (game-card 09)", async () => {
+  await reset();
   const file = async (source) => (await db.query(`select private.sidearm_file($1, 'Hockey') as f`, [source])).rows[0].f;
   assert.equal(await file('SJU Athletics'), 'csbsju/mhockey');
   assert.equal(await file('CSB Athletics'), 'csb/whockey');
@@ -3758,6 +3759,7 @@ test("hockey keeps every save and power-play line however the plays come, and it
 });
 
 test("a file scored by Genius says its power plays in other words, and a penalty shot that scored is a scoring play (game-card 09)", async () => {
+  await reset();
   const ice = (await db.query('select private.sidearm_ice($1::jsonb, true, null) as i', [JSON.stringify(providenceFile.Plays)])).rows[0].i;
   assert.deepEqual(ice.saves.map((s) => s.length), [33, 19]);
   assert.equal(ice.power.filter((l) => l.start).length, 11, "SIDEARM's 0-5 and 2-6");
