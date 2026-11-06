@@ -96,7 +96,7 @@ final class RealLifeActionsTests: XCTestCase {
     private func actions(_ server: Server, signedIn: Bool = true, anonymous: Bool = false,
                          keep: UserDefaults? = nil, flip: Duration? = nil,
                          owner: @escaping () -> String? = { nil }) -> RealLifeActions {
-        RealLifeActions(signedIn: signedIn, needsAccount: true, isAnonymous: { anonymous },
+        RealLifeActions(signedIn: signedIn, needsAccount: true, realAccount: { !anonymous },
                         hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
@@ -1109,15 +1109,33 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.follows, ["activity \(soccer.id) true", "activity \(soccer.id) false"])
     }
 
-    /// Following needs a signed-up account: the quiet Anonymous one, or none, opens sign-up.
-    func testOnlyASignedUpAccountFollowsOrJoins() {
-        XCTAssertTrue(actions(Server(), anonymous: true).needsSignUp, "Anonymous: sign up first")
-        XCTAssertTrue(actions(Server(), signedIn: false).needsSignUp, "no account at all")
-        XCTAssertFalse(actions(Server()).needsSignUp)
-        let samples = RealLifeActions(signedIn: false, needsAccount: false, isAnonymous: { true }, hold: Self.hold,
+    /// Following needs a real account: with the quiet Anonymous one, or none, it isn't there.
+    func testOnlyARealAccountFollowsOrJoins() {
+        XCTAssertFalse(actions(Server(), anonymous: true).hasAccount, "Anonymous isn't one")
+        XCTAssertFalse(actions(Server(), signedIn: false).hasAccount, "no account at all")
+        XCTAssertTrue(actions(Server()).hasAccount)
+        let samples = RealLifeActions(signedIn: false, needsAccount: false, realAccount: { false }, hold: Self.hold,
                                       flip: Self.flip, setGoing: { _, _ in }, setHeart: { _, _ in },
                                       setSave: { _, _ in }, knownEvents: { _ in [] })
-        XCTAssertFalse(samples.needsSignUp, "sample writes go nowhere and need none")
+        XCTAssertTrue(samples.hasAccount, "sample writes go nowhere and need none")
+    }
+
+    /// With no real account, Follow and Join do nothing and show nothing; a Group you're in can
+    /// still be left.
+    func testNoRealAccountFollowAndJoinDoNothing() async throws {
+        let server = Server()
+        let actions = actions(server, anonymous: true)
+        let place = FollowTarget(type: .place, id: "p1")
+        actions.toggleFollow(place)
+        XCTAssertFalse(actions.follow(place).isFollowing)
+        actions.toggleMember(groupID: Self.groupID, inGroup: false)
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: false).isMember)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, [])
+        XCTAssertEqual(server.memberships, [])
+
+        actions.toggleMember(groupID: Self.groupID, inGroup: true)
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: true).isMember, "leaving still works")
     }
 
     /// The Following list: everything on it is followed. A tap there unfollows at once, and the

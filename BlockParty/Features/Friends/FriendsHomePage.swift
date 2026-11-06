@@ -62,8 +62,6 @@ extension FriendsMetric {
     /// "Groups to join" under your own Groups: 13pt grey, 6pt over the rows.
     static let subTop: CGFloat = 10
     static let subBottom: CGFloat = 6
-    /// A person's page: its button is at least the mock's 132pt wide.
-    static let pageButton: CGFloat = 132
     /// Ticket 04: Facebook's ••• on a friend's row ends 20pt from the screen's edge
     /// (fb-requests-4, 375pt at 1:1); its 44pt target leaves this much past it.
     static let moreTrail: CGFloat = 7
@@ -88,7 +86,6 @@ struct FriendsHomePage: View {
     @State private var words = Self.debugWords
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
-    @State private var signingIn = false
     /// Groups just joined, still in Groups to join showing Joined until `joinedHold` is up.
     @State private var holding: Set<String> = []
 
@@ -143,7 +140,7 @@ struct FriendsHomePage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: words, initial: true) { search.search(words) }
-        // Logging in from the line below asks again, as the account that now asks.
+        // Another account asks again, as itself.
         .onChange(of: auth.accountKey) {
             search.search(words)
             Task { await book.refresh() }
@@ -160,16 +157,14 @@ struct FriendsHomePage: View {
         .task { await refreshGroups() }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
-        .signInSheet(isPresented: $signingIn)
     }
 
     /// Nothing typed: the accepted lines, Requests, Friends are going, Groups, Suggested for you
     /// and Your friends, in one list keyed by person, so a confirmed request slides down into
     /// Your friends.
     @ViewBuilder private func home(groups: (mine: [TownGroup], open: [TownGroup]), going: [DailyEvent]) -> some View {
-        if search.state == .needsAccount {
-            LogInToFindRow { signingIn = true }
-            // Groups read with no account too, and Join asks for one: never an empty tab.
+        if !book.hasAccount() {
+            // A DEBUG run with no real account: Groups read with none too, so never an empty tab.
             if !groups.open.isEmpty {
                 FriendsSectionTitle(text: "Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil)
                 groupsBlock(groups)
@@ -189,7 +184,7 @@ struct FriendsHomePage: View {
                 switch row {
                 case .accepted(let person): AcceptedLine(person: person)
                 case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
-                case .person(let person, let waiting): PersonRow(person: person, waiting: waiting) { signingIn = true }
+                case .person(let person, let waiting): PersonRow(person: person, waiting: waiting)
                 case .going:
                     DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
                                  titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: Date(),
@@ -223,8 +218,7 @@ struct FriendsHomePage: View {
 
     /// Your groups' row and the first Groups to join, a join holding its Joined first.
     private func groupsBlock(_ groups: (mine: [TownGroup], open: [TownGroup])) -> some View {
-        FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown)),
-                      logIn: { signingIn = true }, joined: hold)
+        FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown)), joined: hold)
     }
 
     /// Joined shows on its row, then the group moves up into yours.
@@ -298,9 +292,7 @@ struct FriendsHomePage: View {
     @ViewBuilder private var results: some View {
         switch found {
         case .found(let people):
-            ForEach(people) { ResultRow(person: $0) { signingIn = true } }
-        case .needsAccount:
-            LogInToFindRow { signingIn = true }
+            ForEach(people) { ResultRow(person: $0) }
         case .failed:
             FailedLine()
         case .loading:
@@ -413,7 +405,6 @@ private struct AcceptedLine: View {
 struct PersonRow: View {
     let person: Neighbor
     let waiting: Bool
-    let logIn: () -> Void
     @Environment(FriendsBook.self) private var book
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -428,7 +419,7 @@ struct PersonRow: View {
                 NavigationLink(value: person) { NameAndMutual(person: person, grows: !waiting) }
                     .buttonStyle(.press(.dim))
                 if waiting {
-                    RelationButtons(person: person, logIn: logIn)
+                    RelationButtons(person: person)
                         .padding(.top, FriendsMetric.buttonTop)
                         .transition(.opacity)
                 }
@@ -470,7 +461,6 @@ struct ResultRow: View {
     let person: Neighbor
     var face: CGFloat = FriendsMetric.neighborFace
     var nameFont: Font = .sansSemibold(17)
-    let logIn: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: FriendsMetric.avatarGap) {
@@ -480,7 +470,7 @@ struct ResultRow: View {
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
                 NavigationLink(value: person) { NameAndMutual(person: person, nameFont: nameFont) }
                     .buttonStyle(.press(.dim))
-                RelationButtons(person: person, logIn: logIn)
+                RelationButtons(person: person)
                     .padding(.top, FriendsMetric.buttonTop)
             }
             .padding(.top, FriendsMetric.resultNameTop)
@@ -523,13 +513,11 @@ private struct NameAndMutual: View {
 /// The one button that follows where you two stand (ticket 03): Add friend; Request sent
 /// with Cancel; Confirm and Delete when they asked you; Friends, which opens the friend
 /// sheet (ticket 04). Facebook's shape, black for blue (Jesse, 2026-10-13). On a row the
-/// buttons fill the row; on a person's page they sit centred.
+/// buttons fill the row; a person's page has the one pill.
 struct RelationButtons: View {
     let person: Neighbor
-    var onPage = false
     /// The profile page's one pill at the bottom: Meetup's, as the Group page's Join group.
     var pill = false
-    let logIn: () -> Void
     @Environment(FriendsBook.self) private var book
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -540,8 +528,9 @@ struct RelationButtons: View {
             case .stranger:
                 face("Add friend", ink: true) { tap(.add) }
             case .sent:
-                // `friend-request-sent`: a row says Request sent over Cancel; a page, Cancel request.
-                face(onPage ? "Cancel request" : "Cancel", ink: false, spoken: "Cancel request") { tap(.cancel) }
+                // `friend-request-sent`: a row's button says Cancel; a Person page's pill, with nothing
+                // beside it to say what's cancelled, Cancel request (Jesse, 2026-11-06).
+                face(pill ? "Cancel request" : "Cancel", ink: false, spoken: "Cancel request") { tap(.cancel) }
             case .received:
                 // `friend-respond`
                 HStack(spacing: FriendsMetric.buttonGap) {
@@ -592,8 +581,7 @@ struct RelationButtons: View {
                 .foregroundStyle(ink ? Hue.surface : Hue.ink)
                 .lineLimit(1)
                 .padding(.horizontal, FriendsMetric.buttonPad)
-                .frame(maxWidth: onPage ? nil : .infinity, minHeight: FriendsMetric.button)
-                .frame(minWidth: onPage ? FriendsMetric.pageButton : nil)
+                .frame(maxWidth: .infinity, minHeight: FriendsMetric.button)
                 .background(ink ? Hue.ink : Hue.fill,
                             in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 // 36pt drawn, 44pt to the finger.
@@ -605,7 +593,7 @@ struct RelationButtons: View {
     }
 
     private func tap(_ action: FriendsBook.Action) {
-        guard !book.isAnonymous() else { logIn(); return }
+        guard book.hasAccount() else { return }
         book.act(action, person)
     }
 }
@@ -626,7 +614,6 @@ struct NeighborPage: View {
     @Environment(YouModel.self) private var you
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var signingIn = false
     @State private var extras: ProfileExtras?
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
@@ -638,7 +625,7 @@ struct NeighborPage: View {
                     EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
-                    if book.relation(neighbor) != .blocked, !book.isAnonymous() {
+                    if book.relation(neighbor) != .blocked, book.hasAccount() {
                         EventPage.circleButton(
                             glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
                             label: "Message \(neighbor.firstName)"
@@ -651,7 +638,7 @@ struct NeighborPage: View {
             } bar: {
                 ProfilePillBar {
                     if settled {
-                        RelationButtons(person: neighbor, pill: true) { signingIn = true }
+                        RelationButtons(person: neighbor, pill: true)
                             .transition(.opacity)
                     }
                 }
@@ -668,7 +655,6 @@ struct NeighborPage: View {
         .onDisappear { book.screenClosed() }
         .task { await actions.refreshFollow(follow) }
         .task(id: book.relation(neighbor)) { await read() }
-        .signInSheet(isPresented: $signingIn)
     }
 
     private var follow: FollowTarget { FollowTarget(type: .profile, id: neighbor.id) }
@@ -700,37 +686,12 @@ struct NeighborPage: View {
     /// Their extras, again when where you stand changes (a new friend sees your shared plans).
     /// An anonymous account can't ask; a failure keeps what's on screen.
     private func read() async {
-        guard !book.isAnonymous() else { return }
+        guard book.hasAccount() else { return }
         if you.groups == nil { await you.refreshGroups() }
         if you.going == nil { await you.refresh() }
         if let read = try? await ProfileAPI(auth: AuthStore.shared).getProfile(neighbor.userId) {
             extras = read
         }
-    }
-}
-
-/// `people-login`: an Anonymous account finds nobody, and this opens Log in.
-struct LogInToFindRow: View {
-    var font: Font = .sansSemibold(17)
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Text("Log in to find neighbors")
-                    .font(font)
-                    .foregroundStyle(Hue.ink)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.glyph(14, weight: .semibold))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, FriendsMetric.side)
-            .frame(height: SearchMetric.row)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.row))
     }
 }
 

@@ -55,7 +55,9 @@ seeder, and mounts `RootView` inside `LaunchHost`.
   tabs, any other to Name. No account once the launch has looked (`AuthStore.booting`), by sign-out
   or a token the server turned down, resets onboarding to a clean Welcome
   (`OnboardingStore.reset`). DEBUG `-skip-onboarding` and `-ui-tests` let screenshot runs and UI
-  tests in with no account. "Come back when you're 13"'s Close deletes the account it made
+  tests in with no account, where a tap that needs a real account does nothing. A neighbour's code
+  opened from the camera is caught above the gate (`RootView`, `WaitingCode`) and held in memory
+  until the tabs can open it; opened with no account, its friend request goes by itself. "Come back when you're 13"'s Close deletes the account it made
   (`delete_my_account()`).
 - **No more quiet anonymous accounts** (2026-11-02). From 2026-10-09 every install made one
   (`ensureAccount`); phones that still hold one keep `isAnonymous` true and land on the Welcome.

@@ -2,8 +2,7 @@
 //  LoginView.swift
 //  Block Party — Log in and Create account (BP app onboarding 27): onboarding's white screen with
 //  the wordmark, a header, Instagram's two boxes and the charcoal Next bar. No app icon (Jesse,
-//  2026-11-02: "no logo icon i dont like it"). Onboarding shows them from the Welcome; a tap that
-//  needs an account shows Log in alone in a sheet (`signInSheet`).
+//  2026-11-02: "no logo icon i dont like it"). Onboarding shows them from the Welcome.
 //
 
 import SwiftUI
@@ -168,64 +167,5 @@ struct AccountFields: View {
         .padding(.trailing, 4)
         .offset(y: -9)
         .accessibilityLabel(showPassword ? "Hide password" : "Show password")
-    }
-}
-
-/// Log in alone, over another screen: the tap needed an account. Since onboarding 27 nobody is in
-/// the app without one, so only DEBUG runs reach it; the sheets go in a follow-up.
-struct LoginView: View {
-    @EnvironmentObject private var auth: AuthStore
-    @State private var form = AccountForm()
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            OnboardingBackdrop()
-            VStack(alignment: .leading, spacing: 32) {
-                BlockPartyWordmark(height: 33)
-                    .foregroundStyle(Hue.ink)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(OnboardingAccount.logIn.title)
-                        .font(.display(30))
-                        .foregroundStyle(Hue.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    AccountFields(form: form, way: .logIn, submit: submit)
-                }
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 72)
-        }
-        .safeAreaInset(edge: .bottom) {
-            OnboardingNextBar(title: OnboardingAccount.logIn.button, allowed: form.canSubmit, busy: form.busy,
-                              refused: form.refusals, action: submit)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 12)
-        }
-    }
-
-    private func submit() {
-        // Signed in, the sheet closes itself (`SignInSheet`).
-        Task { await form.submit(.logIn, auth: auth) { nil } }
-    }
-}
-
-extension View {
-    /// Sign in over this screen, for a tap that needs an account while there is none:
-    /// a bookmark with no account yet opens it (Jesse, 2026-10-12), and so does finding
-    /// neighbours from an Anonymous one. It closes once a real account is signed in.
-    func signInSheet(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil) -> some View {
-        sheet(isPresented: isPresented, onDismiss: onDismiss) {
-            SignInSheet().environmentObject(AuthStore.shared)
-        }
-    }
-}
-
-private struct SignInSheet: View {
-    @EnvironmentObject private var auth: AuthStore
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        LoginView()
-            // A real account, not just a session: an Anonymous one is already signed in.
-            .onChange(of: auth.hasAccount) { _, real in if real { dismiss() } }
     }
 }

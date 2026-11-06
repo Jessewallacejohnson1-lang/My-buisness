@@ -21,9 +21,6 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// The session is a quiet account an install made for itself before 2026-11-02, not one
     /// someone signed into, so there is nothing to sign out of.
     var isAnonymous: Bool { session?.user.isAnonymous == true }
-    /// An account someone made or logged into: the only way past the Welcome (Jesse, 2026-11-02:
-    /// "dont allow people in app without logged in", BP app onboarding 27).
-    var hasAccount: Bool { isSignedIn && !isAnonymous }
     var email: String? { session?.user.email }
     var userId: String? { session?.user.id }
 

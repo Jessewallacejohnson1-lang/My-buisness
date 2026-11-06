@@ -158,8 +158,6 @@ struct SearchPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var auth: AuthStore
     @Environment(FriendsBook.self) private var book
-    /// Log in, from the People section's `people-login` line or a friend button.
-    @State private var signingIn = false
 
     private enum Mode: Hashable {
         case rest, wall, groups(SearchItem.Kind), recents, results(SearchChip)
@@ -214,7 +212,6 @@ struct SearchPage: View {
         .onChange(of: model.chip) { searchPeople() }
         .onChange(of: auth.accountKey) { searchPeople() }
         .onChange(of: cards, initial: true) { model.show(events: cards) }
-        .signInSheet(isPresented: $signingIn)
         // People rows carry the friend button; a failed tap shakes only while Search is open.
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
@@ -397,7 +394,7 @@ struct SearchPage: View {
                     if chip.resultKinds.count > 1 { SectionTitle(text: SearchPage.sectionTitle(section.kind)) }
                     ForEach(section.items) { ItemRow(item: $0) }
                 }
-                PeopleResults(state: people, titled: chip.resultKinds.count > 1) { signingIn = true }
+                PeopleResults(state: people, titled: chip.resultKinds.count > 1)
             }
         }
     }
@@ -709,12 +706,11 @@ struct PhotoCard: View {
 }
 
 /// Neighbours for the words typed, after the places, so the rows above stay put when they
-/// arrive (BP app docs/plans/friends, ticket 02). An Anonymous account gets `people-login`.
+/// arrive (BP app docs/plans/friends, ticket 02).
 /// Never saved to Recent: a neighbour's name and photo stay off the phone.
 private struct PeopleResults: View {
     let state: NeighborSearch.State
     let titled: Bool
-    let logIn: () -> Void
 
     var body: some View {
         if state.hasRows, titled { SectionTitle(text: SearchPage.sectionTitle(.person)) }
@@ -722,10 +718,8 @@ private struct PeopleResults: View {
         case .found(let people):
             // Facebook's result with its button under the name, in Search's smaller sizes.
             ForEach(people) { person in
-                ResultRow(person: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14), logIn: logIn)
+                ResultRow(person: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14))
             }
-        case .needsAccount:
-            LogInToFindRow(font: .sansSemibold(14), action: logIn)
         case .failed:
             // The Town feed's words for a read that failed, as on the Friends page.
             Text("Check your connection and try again.")

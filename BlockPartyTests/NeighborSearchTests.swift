@@ -30,7 +30,7 @@ final class NeighborSearchTests: XCTestCase {
     }
 
     private func search(_ server: Server, anonymous: Bool = false) -> NeighborSearch {
-        NeighborSearch(find: { try await server.find($0) }, isAnonymous: { anonymous })
+        NeighborSearch(find: { try await server.find($0) }, hasAccount: { !anonymous })
     }
 
     /// Waits past the typing pause and the answer.
@@ -70,13 +70,13 @@ final class NeighborSearchTests: XCTestCase {
         XCTAssertEqual(s.state, .none)
     }
 
-    func testAnAnonymousAccountIsAskedToLogInAndNeverAsksTheServer() async {
+    func testNoRealAccountShowsNothingAndNeverAsksTheServer() async {
         let server = Server()
         let s = search(server, anonymous: true)
         s.search("")
-        XCTAssertEqual(s.state, .needsAccount)
+        XCTAssertEqual(s.state, .idle)
         s.search("sam")
-        XCTAssertEqual(s.state, .needsAccount)
+        XCTAssertEqual(s.state, .idle)
         await settle()
         XCTAssertEqual(server.asked, [])
     }

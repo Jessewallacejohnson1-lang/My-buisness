@@ -57,16 +57,13 @@ final class NeighborSearch {
         case loading
         case found([Neighbor])
         case none
-        /// An Anonymous account: `people-login`.
-        case needsAccount
         /// The ask failed (offline); the next keystroke asks again.
         case failed
 
-        /// Something to list: people, the line asking to log in, or the one saying the ask
-        /// failed.
+        /// Something to list: people, or the line saying the ask failed.
         var hasRows: Bool {
             switch self {
-            case .found, .needsAccount, .failed: true
+            case .found, .failed: true
             default: false
             }
         }
@@ -78,12 +75,12 @@ final class NeighborSearch {
     static let pause: Duration = .milliseconds(250)
 
     private let find: (String) async throws -> [Neighbor]
-    private let isAnonymous: () -> Bool
+    private let hasAccount: () -> Bool
     @ObservationIgnored private var asking: Task<Void, Never>?
 
-    init(find: @escaping (String) async throws -> [Neighbor], isAnonymous: @escaping () -> Bool) {
+    init(find: @escaping (String) async throws -> [Neighbor], hasAccount: @escaping () -> Bool) {
         self.find = find
-        self.isAnonymous = isAnonymous
+        self.hasAccount = hasAccount
     }
 
     /// Asks Supabase; under DEBUG `-town-samples` the sample neighbours answer instead, and
@@ -93,19 +90,19 @@ final class NeighborSearch {
         case .live:
             // No session is no account either: offline at first launch, or a failed one.
             self.init(find: { try await CommunityAPI(auth: AuthStore.shared).searchNeighbors($0) },
-                      isAnonymous: { !AuthStore.shared.isSignedIn || AuthStore.shared.isAnonymous })
+                      hasAccount: { AuthStore.shared.hasAccount })
         case .samples:
-            self.init(find: { Self.samples(matching: $0) }, isAnonymous: { false })
+            self.init(find: { Self.samples(matching: $0) }, hasAccount: { true })
         case .offline:
-            self.init(find: { _ in throw URLError(.notConnectedToInternet) }, isAnonymous: { false })
+            self.init(find: { _ in throw URLError(.notConnectedToInternet) }, hasAccount: { true })
         }
     }
 
     /// The words typed so far. Results for older words never land over newer ones.
     func search(_ words: String) {
         asking?.cancel()
-        // An Anonymous account is asked to log in before it types anything.
-        guard !isAnonymous() else { state = .needsAccount; return }
+        // Only a real account finds anyone: a DEBUG run with none asks nothing.
+        guard hasAccount() else { state = .idle; return }
         let words = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { state = .idle; return }
         // What was found, or that nothing was, stays up while the next words are asked

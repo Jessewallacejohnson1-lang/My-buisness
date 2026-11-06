@@ -52,7 +52,7 @@ final class AppSessionTests: XCTestCase {
             }, actions: actions),
             searchModel: SearchModel(supabase: Supabase(auth: auth, send: server.send), defaults: phone, actions: actions),
             friendsBook: FriendsBook(read: { [] }, readDot: { _ = try await self.read("friends_dot"); return true },
-                                     markSeen: {}, write: { _, _ in .stranger }, isAnonymous: { false }),
+                                     markSeen: {}, write: { _, _ in .stranger }, hasAccount: { true }),
             you: YouModel(read: { _, _ in
                 let who = try await self.read("get_my_going")
                 return [self.event("going-\(who)")]
@@ -236,7 +236,7 @@ final class AppSessionTests: XCTestCase {
         signIn("a")
         auth.isAnonymous = true
         var written: [FollowTarget] = []
-        let actions = RealLifeActions(signedIn: true, needsAccount: true, isAnonymous: { self.auth.isAnonymous },
+        let actions = RealLifeActions(signedIn: true, needsAccount: true, realAccount: { !self.auth.isAnonymous },
                                       hold: .zero, flip: .zero,
                                       setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
                                       setFollow: { target, _ in written.append(target) },
@@ -247,7 +247,7 @@ final class AppSessionTests: XCTestCase {
         let launch = Task { await session.launched() }
         await session.accountChanged(from: nil, to: "a", signedIn: true).value
         XCTAssertEqual(written, [])
-        XCTAssertTrue(actions.needsSignUp)
+        XCTAssertFalse(actions.hasAccount)
 
         // The same account logs in for real: this is the one that takes them.
         auth.isAnonymous = false

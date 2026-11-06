@@ -60,9 +60,9 @@ final class RealLifeActions {
     /// May act: has an account, or writes go nowhere and need none (`Backend`).
     private(set) var canAct: Bool
 
-    /// Following and joining a Group need a signed-up account (follows 02): true with none, or
-    /// with only the quiet Anonymous one, where writes need an account. Those taps open sign-up.
-    var needsSignUp: Bool { !canAct || (needsAccount && isAnonymous()) }
+    /// Following and joining a Group need a real account (follows 02), or writes that go nowhere.
+    /// Without one those taps do nothing: only a DEBUG run gets past the Welcome that way.
+    var hasAccount: Bool { canAct && (!needsAccount || realAccount()) }
 
     /// What a neighbour does with an Event, with a group (`member`), or with a Place or person
     /// (`followPlace`, `followPerson`). Each keeps its own state, writes and shakes.
@@ -154,7 +154,7 @@ final class RealLifeActions {
     @ObservationIgnored private var tappedOn: [Key: Date] = [:]
 
     private let needsAccount: Bool
-    private let isAnonymous: () -> Bool
+    private let realAccount: () -> Bool
     private let holdFor: Duration
     private let flipFor: Duration
     /// The first wait before trying a write again after no answer; it doubles to five
@@ -175,7 +175,7 @@ final class RealLifeActions {
 
     /// `hold`, `flip` and `retry` come in here so tests run fast; the app passes the
     /// measured ones.
-    init(signedIn: Bool, needsAccount: Bool, isAnonymous: @escaping () -> Bool = { false },
+    init(signedIn: Bool, needsAccount: Bool, realAccount: @escaping () -> Bool = { true },
          hold: Duration, flip: Duration,
          retry: Duration = .seconds(2), keep: UserDefaults? = nil,
          owner: @escaping () -> String? = { nil },
@@ -190,7 +190,7 @@ final class RealLifeActions {
          knownEvents: @escaping (_ ids: [String]) async throws -> Set<String>) {
         self.canAct = signedIn || !needsAccount
         self.needsAccount = needsAccount
-        self.isAnonymous = isAnonymous
+        self.realAccount = realAccount
         self.holdFor = hold
         self.flipFor = flip
         self.retryFor = retry
@@ -279,7 +279,7 @@ final class RealLifeActions {
         let keeps = backend == .live && !AuthStore.isTestRun
         let auth = supabase.auth
         self.init(signedIn: auth.isSignedIn, needsAccount: backend == .live,
-                  isAnonymous: { auth.isAnonymous }, hold: Self.hold, flip: .seconds(Self.flip),
+                  realAccount: { auth.hasAccount }, hold: Self.hold, flip: .seconds(Self.flip),
                   keep: keeps ? .standard : nil, owner: { auth.userId },
                   setGoing: setGoing, setHeart: setHeart, setSave: setSave, setMember: setMember,
                   setFollow: setFollow, readFollow: readFollow, knownEvents: knownEvents)
@@ -427,12 +427,15 @@ final class RealLifeActions {
 
     /// Join or leave a Town card's group, the same entry as its Group page's.
     func toggleMember(groupID: String, inGroup: Bool) {
-        toggle(Key(kind: .member, id: groupID), from: member(groupID: groupID, inGroup: inGroup).isMember)
+        let isMember = member(groupID: groupID, inGroup: inGroup).isMember
+        guard isMember || hasAccount else { return }
+        toggle(Key(kind: .member, id: groupID), from: isMember)
     }
 
     /// Follow or unfollow, shown at once with a light tick, turned back the same way as Join. One
     /// tap undoes it, with no question.
     func toggleFollow(_ target: FollowTarget, unread: Bool = false) {
+        guard hasAccount else { return }
         let wasFollowing = follow(target, unread: unread).isFollowing
         toggle(Self.key(target), from: wasFollowing)
         guard !wasFollowing, canAct else { return }
@@ -449,7 +452,7 @@ final class RealLifeActions {
     /// Follows with no tap and never unfollows: onboarding's Follow 3 picks (BP app onboarding 22),
     /// once a signed-up account can take them. Written, and kept until written, as a tap is.
     func followOn(_ target: FollowTarget) {
-        guard !needsSignUp, !follow(target).isFollowing else { return }
+        guard hasAccount, !follow(target).isFollowing else { return }
         choose(Self.key(target), true)
     }
 
