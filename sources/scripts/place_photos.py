@@ -4,8 +4,8 @@ stale one. The monthly photo refresh (sources/models/photos.md) runs it in the c
 place-photos skill imports its picture-finding, an Event's picture subjects and the one way to save a
 picture (save_picture) from here, so there is one copy.
 
-    python3 sources/scripts/place_photos.py check [--logos]      every live photo (or logo) against its page:
-                                                                  .runs/photos/check-<kind>.json, stale ones printed
+    python3 sources/scripts/place_photos.py check [--logos | --scenes]   every live photo (or logo, or scene) against
+                                                                  its page: .runs/photos/check-<kind>.json, stale ones printed
     python3 sources/scripts/place_photos.py candidates           the pages of each stale photo and of every place
                                                                   still without a real photo, their pictures drawn
                                                                   on .runs/photos/sheet-<n>.png
@@ -27,7 +27,8 @@ Any of them takes --town T (a sources/towns/ file's name): a proposal goes in th
 keys); pages and pictures are read with run.py's polite fetch (robots.txt, crawl-delay, one request
 per server). A photo is matched by its fingerprint (a difference hash), so the check works however the
 photo was added. Jesse's own walk photos have no page, and a Facebook or Instagram page is read only
-through Apify (ADR-020): both are skipped.
+through Apify (ADR-020): both are skipped. A scene is checked the same way, except that age never makes
+one stale and a Forum paper's story counts as ok when its page answers (too_slow_to_read).
 """
 import concurrent.futures as cf
 import hashlib
@@ -249,12 +250,15 @@ def same_picture(a, b):
 
 def verdict(row, page_hashes, today, complete=True):
     """ok; gone (its page answers 404 or 410); changed (every picture on the page was read and none is
-    it); old (over a year); or unsure (the page or some of its pictures didn't answer, so the photo may
-    be among them: a slow city site timed out 16 times on 2026-10-18 and each looked "changed")."""
+    it); old (over a year, never a scene: a two-year-old hockey photo still shows hockey); or unsure (the
+    page or some of its pictures didn't answer, so the photo may be among them: a slow city site timed
+    out 16 times on 2026-10-18 and each looked "changed")."""
     if page_hashes is None:
         return 'gone' if complete else 'unsure'
     if not any(same_picture(row['hash'], h) for h in page_hashes):
         return 'changed' if complete else 'unsure'
+    if row.get('kind') == 'scene':
+        return 'ok'
     return 'old' if (today - date.fromisoformat(row['added_at'][:10])).days > STALE_DAYS else 'ok'
 
 
@@ -508,17 +512,26 @@ def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), ro
 # --- The monthly check ----------------------------------------------------------------------------
 
 deadline, late = run.deadline, run.late  # timed parts, as the morning job's
+PAGE_ALONE = 'page answers; its pictures not read'
 
 
-def check(logos=False, rows=None, minutes=None):
-    """Every live photo (or logo) against its page: .runs/photos/check-<kind>.json, one row each with its
-    verdict. Changes nothing. `rows` lets the skill pass its own read of the table. With `minutes`, it
-    reads pages for about that long and saves them (.runs/photos/pages-<kind>.json); run it again
+def too_slow_to_read(urls):
+    """A Forum Communications paper's story (St. Cloud LIVE, West Central Tribune): 40+ pictures at 10 seconds each.
+    Reading them took 97 minutes for 83 of 143 pages (2026-11-05), and of its 63 scenes read, 34 were found, none
+    was shown changed and 29 ran out of time. A story keeps its photos; its page going is what happens."""
+    return any('//cdn.forumcomm.com/' in u for u in urls)
+
+
+def check(logos=False, rows=None, minutes=None, scenes=False):
+    """Every live photo (or logo, or scene) against its page: .runs/photos/check-<kind>.json, one row each
+    with its verdict. Changes nothing. `rows` lets the skill pass its own read of the table. With `minutes`,
+    it reads pages for about that long and saves them (.runs/photos/pages-<kind>.json); run it again
     until it prints its summary (a cloud command must end within 10 minutes)."""
-    kind_ = 'logo' if logos else 'photo'
+    kind_ = 'logo' if logos else 'scene' if scenes else 'photo'
+    flag = ' --logos' if logos else ' --scenes' if scenes else ''
     stop = deadline(minutes)
     if rows is None:
-        rows = db().rest('GET', f'place_photos?select=id,entry_id,position,url,source_url,credit,added_at'
+        rows = db().rest('GET', f'place_photos?select=id,entry_id,position,url,source_url,credit,added_at,description'
                           f'&status=eq.live&kind=eq.{kind_}&order=entry_id,position')
     skipped = [r for r in rows if r['credit'] == WALK_CREDIT or SOCIAL.search(urllib.parse.urlparse(r['source_url']).netloc)]
     rows = [r for r in rows if r not in skipped]
@@ -552,6 +565,8 @@ def check(logos=False, rows=None, minutes=None):
         except Exception as x:
             return page, None, str(x)[:80], False
         urls = (logo_urls(html, base)[:6] if logos else []) + photo_urls(from_page(html, base))
+        if scenes and too_slow_to_read(urls):
+            return page, [r['hash'] for r in mine], PAGE_ALONE, True
         hashes, failed = [], 0
         for i, u in enumerate(urls):
             if late(stop, 180):
@@ -590,22 +605,25 @@ def check(logos=False, rows=None, minutes=None):
     saved_f.write_text(json.dumps(saved))
     left = [p for p in pages if p not in saved['pages']]
     if left:
-        print(f"{len(pages) - len(left)} of {len(pages)} pages read; run check{' --logos' if logos else ''} again")
+        print(f"{len(pages) - len(left)} of {len(pages)} pages read; run check{flag} again")
         return None
     today = date.today()
     out = []
     for r in rows:
         hashes, why, complete = saved['pages'][r['source_url']]
         out.append({k: r[k] for k in ('id', 'entry_id', 'position', 'url', 'source_url', 'credit', 'added_at', 'hash')}
-                   | {'kind': kind_, 'verdict': verdict(r, hashes, today, complete), 'why': why})
+                   | {'kind': kind_, 'description': r.get('description'),
+                      'verdict': verdict(r | {'kind': kind_}, hashes, today, complete), 'why': why})
     by = Counter(o['verdict'] for o in out)
-    print(f"{len(out)} live {kind_}s checked against {len(pages)} pages: {by['ok']} ok, {by['changed']} changed, "
+    alone = sum(o['why'] == PAGE_ALONE for o in out)
+    print(f"{len(out)} live {kind_}s checked against {len(pages)} pages: {by['ok']} ok"
+          f"{f' ({alone} by their page answering: a news story, its pictures too slow to read)' if alone else ''}, {by['changed']} changed, "
           f"{by['gone']} page gone, {by['old']} over a year old, {by['unsure']} unsure (their page or pictures "
           f"didn't answer); {len(skipped)} skipped (walk or social)")
     for o in out:
         if o['verdict'] != 'ok':
             print(f"  {o['verdict']:8} {o['entry_id']} (row {o['id']}, {kind_} {o['position']}) {o['source_url']}"
-                  + (f" ({o['why']})" if o['why'] else ''))
+                  + (f" ({o['why']})" if o['why'] else '') + (f" \"{o['description']}\"" if o['description'] else ''))
     (OUT / f'check-{kind_}.json').write_text(json.dumps(out, indent=1))
     return out
 
@@ -970,6 +988,14 @@ def selftest():
           [('2026-10-01', [5], True), ('2026-10-01', [2 ** 40 - 1], True), ('2026-10-01', None, True),
            ('2025-09-01', [5], True), ('2026-10-01', [2 ** 40 - 1], False), ('2026-10-01', None, False)]] ==
          ['ok', 'changed', 'gone', 'old', 'unsure', 'unsure']),
+        ('a scene is ok, changed, gone or unsure the same way, and an old one stays ok',
+         [verdict({'hash': 5, 'kind': 'scene', 'added_at': a}, h, date(2026, 10, 18), c) for a, h, c in
+          [('2026-10-01', [5], True), ('2026-10-01', [2 ** 40 - 1], True), ('2026-10-01', None, True),
+           ('2024-09-01', [5], True), ('2026-10-01', None, False)]] ==
+         ['ok', 'changed', 'gone', 'ok', 'unsure']),
+        ("a Forum paper's story is too slow to read picture by picture; a school's page is not",
+         too_slow_to_read(['https://www.stcloudlive.com/a.jpg', 'https://cdn.forumcomm.com/dims4/default/1/x.jpg'])
+         and not too_slow_to_read(['https://www.csbsju.edu/a.jpg', 'https://x.com/cdn.forumcomm.com.jpg'])),
         ('a logo is saved square, a photo at most 1600 px',
          Image.open(io.BytesIO(webp(red, logo=True))).size[0] == Image.open(io.BytesIO(webp(red, logo=True))).size[1]
          and max(Image.open(io.BytesIO(webp(Image.new('RGB', (4000, 3000))))).size) == 1600),
@@ -1043,7 +1069,8 @@ if __name__ == '__main__':
     if a == ['--selftest']:
         selftest()
     elif a[:1] == ['check']:
-        check('--logos' in a, minutes=6)  # each part ends within 9 minutes: the cloud stops a command at 10
+        # each part ends within 9 minutes, the cloud stops a command at 10; a scene part's 6 minutes ran to 9.6, its slow sites queueing
+        check('--logos' in a, minutes=4 if '--scenes' in a else 6, scenes='--scenes' in a)
     elif a == ['live-sheets']:
         live_sheets()
     elif a == ['candidates']:

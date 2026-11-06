@@ -3,7 +3,8 @@
 Every picture Block Party shows for a place is a photo it saved once (BP app docs/plans/place-photos).
 Once a month you check each live photo against the page it came from and propose a replacement for
 each stale one, and re-read every place that still has no real photo for one it may have gained
-(Jesse, 2026-10-18). Nothing changes in the app: a proposal waits for Jesse's yes on his review page. You
+(Jesse, 2026-10-18). You also check the scene photos Event cards pick from, and only name the stale ones:
+scenes are kept by eye. Nothing changes in the app: a proposal waits for Jesse's yes on his review page. You
 run it in the cloud, in a fresh copy of this repository. Work through the steps in order; a place
 that fails is a line in the answer, and you carry on with the rest.
 
@@ -50,10 +51,16 @@ that fails is a line in the answer, and you carry on with the rest.
 **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
    saves the picture as a proposal; the app never shows a proposal.
 
-**Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
+**Answer.** First run `python3 sources/scripts/place_photos.py check --scenes` the same way, last
+   because nothing else waits on it: about 25 minutes, in parts of about 7. Run it again while it
+   prints `… run check --scenes again`, at most six times in all, so a slow month can't run on; if it
+   still says so after the sixth, the answer says how many pages it read.
+   Then answer with `check`'s line; then one line per stale photo (the place, why it is stale, what
    you proposed or why nothing); then the places without a photo you proposed one for; then, if
    you made any proposals, "Swaps waiting for Jesse: N"; then each take-down you saved (Look over
-   the live photos: the place, row id and reason) under "To take down: N".
+   the live photos: the place, row id and reason) under "To take down: N"; then `check --scenes`'s
+   line and each scene it lists (the place, what the photo shows, why it is stale). A scene gets no
+   proposal and no take-down: it is kept by eye, and its age alone never makes it stale.
    With any proposals or any photo to take down, also send Jesse one push notification saying how
    many of each wait for him; none otherwise.
 
