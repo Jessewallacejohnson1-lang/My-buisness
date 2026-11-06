@@ -234,11 +234,11 @@ final class LiveGames {
             let lines = power.map { #"{"side":\#($0.0),"start":\#($0.1),"at":\#($0.2.map(String.init) ?? "null")}"# }.joined(separator: ",")
             return #"\#(score),"period":"\#(period > 3 ? "OT" : "P\(period)")","clock":"\#(clock / 60):\#(String(format: "%02d", clock % 60))","clock_s":\#(clock),"period_n":\#(period),"ice":{"saves":[\#(ids(saves.0)),\#(ids(saves.1))],"power":[\#(lines)]}"#
         }
-        // SJU's power plays at 12:40 and 9:55 of the 2nd, St. Olaf's at 6:40, SJU's major from 15:00 of the 3rd.
+        // SJU's power plays at 12:40 and 9:07 of the 2nd, St. Olaf's at 6:40, SJU's major from 15:00 of the 3rd.
         let first: [(Int, Bool, Int?)] = [(0, true, 1640), (0, false, 1735)]
-        let second = first + [(0, true, 1805)]
-        let third = second + [(0, false, 1925), (1, true, 1960)]
-        let fourth = third + [(1, false, 2080), (0, true, 2700)]
+        let second = first + [(0, true, 1853)]
+        let third = second + [(0, false, 1973), (1, true, 2000)]
+        let fourth = third + [(1, false, 2120), (0, true, 2700)]
         let periods: [(String, String?)] = [
             (rink("[0,0]", 1, 1200, (0, 0), []), nil),
             (rink("[1,0]", 1, 913, (4, 2), []), basket(1, "Goal by SJU Thoreson,Evan (EVEN STRENGTH); Assist by Burke,Sam.", "P1", "15:13", 0, "[1,0]")),
@@ -246,7 +246,7 @@ final class LiveGames {
             (rink("[1,1]", 2, 760, (16, 12), [(0, true, 1640)]), nil),
             (rink("[2,1]", 2, 665, (17, 13), first), basket(3, "Goal by SJU Burke,Sam (POWER-PLAY); Assist by Thoreson,Evan.", "P2", "11:05", 0, "[2,1]")),
             (rink("[2,1]", 2, 620, (18, 15), first), nil),
-            (rink("[2,1]", 2, 595, (19, 16), second), nil),
+            (rink("[2,1]", 2, 547, (19, 16), second), nil),
             // The draft's moment: P2 · 8:31, 1:24 left, shots 24 and 19.
             (rink("[2,1]", 2, 511, (22, 18), second), nil),
             (rink("[2,1]", 2, 455, (23, 18), second), nil),
