@@ -41,7 +41,7 @@ enum FollowSuggestions {
     static let kinds: [String: [String]] = [
         "coffee_shop": ["coffee"], "cafe": ["coffee"], "bakery": ["coffee", "dining"],
         "restaurant": ["dining"], "sandwich_shop": ["dining"], "ice_cream_shop": ["dining", "families_kids"],
-        "bar": ["bars"], "pub": ["bars"], "wine_bar": ["bars"], "brewery": ["bars"],
+        "bar": ["bars"], "pub": ["bars"], "wine_bar": ["bars"], "brewery": ["bars"], "cidery": ["bars"],
         "bar_and_grill": ["bars", "dining"],
         "market": ["markets"], "florist": ["markets"], "gift_shop": ["markets"], "butcher_shop": ["markets"],
         "garden_center": ["markets", "outdoors"], "farm": ["markets", "outdoors"],
