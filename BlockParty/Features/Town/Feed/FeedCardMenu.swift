@@ -24,6 +24,10 @@
 //  then to a thank-you once the report has gone; one that doesn't go shakes the list and stays.
 //  Where Report shows, Report photo is its Wrong photo reason.
 //
+//  On a Town card the ••• went (inside-cards 24, Jesse 2026-11-07): holding the card opens Apple's
+//  context menu (`TownCardHold`) with Share, Not interested, Mute and Report, and Report opens this
+//  sheet at its reasons. A neighbour's post keeps its •••.
+//
 
 import SwiftUI
 
@@ -37,12 +41,15 @@ struct FeedCardMenu: View {
     /// The reasons Report offers, and where a picked one goes; nil, no Report row.
     var reasons: [ReportReason] = []
     var onReport: ((ReportReason) async throws -> Void)? = nil
+    /// Report from a held Town card: the sheet opens at the reasons, its close the way out.
+    var opensOnReasons = false
 
     private enum Pane { case menu, reasons, thanks }
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
-    @State private var pane = Pane.menu
+    /// nil until a row moves it: the menu, or the reasons when it opens on them.
+    @State private var pane: Pane?
     @State private var sending: ReportReason?
     @State private var failures = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -60,7 +67,7 @@ struct FeedCardMenu: View {
 
     var body: some View {
         Group {
-            switch pane {
+            switch pane ?? (opensOnReasons ? .reasons : .menu) {
             case .menu: menu
             case .reasons: reasonList.transition(slide)
             case .thanks: thanks.transition(slide)
@@ -369,25 +376,17 @@ struct FeedCardMenuSheet: ViewModifier {
     let card: FeedCardItem?
     /// A neighbour's post (town-feed 29): Not interested and Report, by its id alone.
     var post: TownPost? = nil
+    /// A Town card's sheet opens only for Report, from its hold menu, so at the reasons.
+    var reasonsFirst = false
 
     init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?) {
         _isPresented = isPresented
+        reasonsFirst = true
         id = item.id
         hostName = item.hostName
         why = item.why
         self.report = report
         card = item
-    }
-
-    /// News says the interest it shares with you, else only that it's News (Jesse at news-menu's
-    /// Check-in 1: "just do news").
-    init(isPresented: Binding<Bool>, news: TownNews) {
-        _isPresented = isPresented
-        id = news.id
-        hostName = news.place
-        why = news.interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News"
-        report = nil
-        card = nil
     }
 
     /// Someone else's post (town-feed 29): Not interested and Report, by its id, and no Mute; your own
@@ -421,7 +420,7 @@ struct FeedCardMenuSheet: ViewModifier {
                          onHide: onHide,
                          reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) }
                             ?? (post == nil ? [] : ReportReason.offered(photo: false, found: false)),
-                         onReport: onReport)
+                         onReport: onReport, opensOnReasons: reasonsFirst)
         }
     }
 
@@ -458,5 +457,111 @@ struct FeedCardMenuSheet: ViewModifier {
         chosen = nil
         Haptics.light()
         Task { await feed.hide(id: id, host: hostName, mute: mute) }
+    }
+}
+
+extension TownNews {
+    /// The interest it shares with you, else only that it's News (Jesse at news-menu's Check-in 1:
+    /// "just do news").
+    var why: String { interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News" }
+}
+
+/// A Town card held (inside-cards 24; Jesse, 2026-11-07: "if you hold down the card, it lets you share
+/// it"): Apple's context menu, the card lifted as itself over the blurred feed, as the App Store's cards
+/// do (`references/town-card-buttons/hold/`). It took the send and the ••• off the card: Share and View
+/// on Map first (Jesse: "also add view in Map to share dropdown"), then the sheet's Not interested and
+/// Mute, then Report, which opens the sheet at its reasons. Its grey title is the sheet's top line, why
+/// the card is there. Signed out, or off the Town feed, Share and View on Map alone.
+struct TownCardHold: ViewModifier {
+    let id: String
+    let hostName: String
+    let why: String?
+    let share: (() -> Void)?
+    /// Report's sheet, opened at its reasons; nil, no Report (News).
+    var report: Binding<Bool>? = nil
+    /// The Event View on Map shows; nil for News.
+    var event: FeedCardItem? = nil
+
+    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.viewOnMap) private var viewOnMap
+
+    /// Apple's lift of the whole card, its heart, Attend and host's mark included, which keep their own
+    /// taps. No `contentShape(.contextMenuPreview, …)`: with one, no button on a held card took a tap
+    /// (`EventCardPhotoTapTests`).
+    func body(content: Content) -> some View {
+        content.contextMenu { items }
+    }
+
+    @ViewBuilder private var items: some View {
+        if let why {
+            Section(why) { shareButton }
+        } else {
+            shareButton
+        }
+        if let feed, actions.canAct {
+            Section {
+                Button("Not interested", systemImage: "eye.slash") { hide(feed, mute: false) }
+                if !hostName.isEmpty {
+                    Button("Mute \(hostName)", systemImage: "speaker.slash") { hide(feed, mute: true) }
+                }
+            }
+            // Once per card, as the sheet: a second report from the same phone would only add to its count.
+            if let report, !feed.reportedIDs.contains(id) {
+                Section {
+                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
+                        report.wrappedValue = true
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var shareButton: some View {
+        if let share {
+            Button("Share", systemImage: "square.and.arrow.up", action: share)
+        }
+        if let event, let viewOnMap, EventMapRoute.route(event, now: TodayBubbleClock.now(), spot: true) != nil {
+            Button("View on Map", systemImage: "map") { viewOnMap.open(event) }
+        }
+    }
+
+    /// The card folds into "Hidden · Undo" as it does from the sheet.
+    private func hide(_ feed: TownFeed, mute: Bool) {
+        Haptics.light()
+        Task { await feed.hide(id: id, host: hostName, mute: mute) }
+    }
+}
+
+/// View on Map from a held Town card: the shell's (`MainTabsView`), which can open the map. A class
+/// made once, as `HostOpener` is, so the cards that read it don't redraw each time the shell does.
+final class EventMapOpener {
+    let open: (FeedCardItem) -> Void
+    /// The Event View on Map asked for, until the map has opened its card on it. Kept here, not in the
+    /// shell's state: set there, the map opened with none (a live run, 2026-11-07).
+    var eventID: String?
+    init(_ open: @escaping (FeedCardItem) -> Void) { self.open = open }
+}
+
+extension EnvironmentValues {
+    @Entry var viewOnMap: EventMapOpener? = nil
+}
+
+/// Where View on Map takes an Event (inside-cards 24): Block Party's map, on its bubble and card, when
+/// it's there today; else Apple Maps at its place, as the Event page's place does until our map shows
+/// every day and every Event has a spot (inside-cards 06, 19 and 20).
+enum EventMapRoute: Equatable {
+    case ourMap
+    case appleMaps(URL)
+
+    /// Today's and not over: the map shows it once its spot is read.
+    static func today(_ event: FeedCardItem, now: Date) -> Bool {
+        event.eventDate == Town.day(now) && TodayBubbleRules.phase(event, now: now) != .ended
+    }
+
+    /// `spot`: the map has a spot for it. Nil, nowhere to show it, so the menu leaves the row out.
+    static func route(_ event: FeedCardItem, now: Date, spot: Bool) -> EventMapRoute? {
+        if spot && today(event, now: now) { return .ourMap }
+        return Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
     }
 }

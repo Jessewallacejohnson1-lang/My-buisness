@@ -4,8 +4,8 @@
 //
 //  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
 //  logo on the left, else its first letter with its name starting the facts; NEW in the grey pill; the
-//  headline and the facts beside them; the send and the ••• under it (news-menu: Not interested and Mute its place, as an Event
-//  card's). Never a photo: a post has no Event, so the only photo it could show is its place's cover
+//  headline and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
+//  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never a photo: a post has no Event, so the only photo it could show is its place's cover
 //  (Jesse, 2026-11-04, BP app town-feed 40). No time: Block Party knows when it saved a post, not when
 //  the place posted it. A tap opens the post in Instagram or Facebook when that app is on the phone,
 //  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
@@ -15,14 +15,10 @@ import SwiftUI
 
 struct TownNewsCard: View {
     let news: TownNews
-    /// Off in the share reveal's picture, which draws the post without its controls.
-    var sendable = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pressed = false
     @State private var link: SafariLink?
-    /// The •••'s sheet, an Event card's: Not interested and Mute its place (news-menu).
-    @State private var menuPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -40,25 +36,8 @@ struct TownNewsCard: View {
                 .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
-
-            if sendable {
-                FeedEventCardActionRow(
-                    kind: .event,
-                    showsHeart: false,
-                    showsSave: false,
-                    state: .constant(FeedCardActionState(likeCount: 0, isLiked: false, isSaved: false)),
-                    reduceMotion: reduceMotion,
-                    autoplayStep: 0,
-                    onLike: nil,
-                    onSave: nil,
-                    onComment: {},
-                    onShare: share,
-                    onMenu: { menuPresented = true }
-                )
-                .padding(.top, 2)
-                .padding(.horizontal, TownFeedMetric.contentInset)
-                .modifier(FeedCardMenuSheet(isPresented: $menuPresented, news: news))
-            }
+            .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: share))
+            .padding(.horizontal, TownFeedMetric.contentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
@@ -67,7 +46,6 @@ struct TownNewsCard: View {
     private var face: some View {
         NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
                     title: news.headline, facts: news.cardFacts, factsLines: 2)
-            .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
@@ -88,7 +66,9 @@ struct TownNewsCard: View {
             SharePayload(title: news.place,
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
-                TownNewsCard(news: news, sendable: false)
+                // The card alone: the share window has none of the app's environment its hold reads.
+                face
+                    .padding(.horizontal, TownFeedMetric.contentInset)
                     .frame(width: 320)
                     .padding(.vertical, 16)
                     .background(Hue.surface)
