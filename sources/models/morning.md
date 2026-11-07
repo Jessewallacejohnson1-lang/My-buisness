@@ -67,6 +67,10 @@ model, at most 10 running at once:
 - for each `.runs/morning/dig/batch-N.txt`, one helper with: "Read `sources/models/event-photo.md`, then
   the Pick part of `sources/models/dig.md`, and follow them for `.runs/morning/dig/batch-N.txt`. Answer
   with the JSON lines only." Their lines go to `.runs/morning/dig/picks.jsonl`.
+- then run `python3 sources/scripts/event_photos.py dig-posts` until it prints its `[dig] posts laid out`
+  line: the titles still bare get their places' own posts read through Apify (dig-deeper 23);
+- for each `.runs/morning/dig/posts/batch-N.txt`, one helper with the same words for that batch. Their
+  lines go to `.runs/morning/dig/posts/picks.jsonl`.
 - then run `python3 sources/scripts/event_photos.py dig-keep`.
 
 **Finish.** Run `python3 sources/scripts/morning.py finish` until it prints the report. It saves
