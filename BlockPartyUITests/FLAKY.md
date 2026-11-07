@@ -18,6 +18,12 @@ flake moves to Fixed, dated, and stays there.
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
 
+- 2026-11-07 · `morning.py --selftest` "finish once more writes nothing new but the report's one row, and
+  says the same" · red once on the Mac on feat/never-blind (a change to `live_lines` only), green on the next
+  two runs · the report's Firecrawl line ("credits unknown (... Could not reach the Composio Dashboard ...)")
+  comes from a live call, so two runs a moment apart can word it differently · no fix yet: fake the credits read
+  in the self-test
+
 ## Fixed
 
 - 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
