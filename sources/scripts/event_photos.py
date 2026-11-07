@@ -814,9 +814,9 @@ def dig_keep(out, dry_run=False, db=None, now=None):
 
     def tried(g):
         rungs = [r for r in RUNGS if any(p["from"] == r for p in pages_of(found.get(g["key"], {})))]
-        rungs += ["posts"] if g["key"] in sent else []
         return (f"pages on {', '.join(rungs)}" if rungs else "no page found") + (
-            "; the month's money for posts was spent" if g["key"] in skipped else "")
+            "; its place's posts read" if g["key"] in sent else "; the month's money for posts was spent"
+            if g["key"] in skipped else "")
 
     def why_waiting(g):
         k = g["key"]
