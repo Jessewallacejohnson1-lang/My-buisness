@@ -81,7 +81,10 @@ as $$
     || case when sport like '%hockey' then jsonb_build_object('period_n', per) else '{}' end
   from (select coalesce(p_game->'Game', p_game) as g, split_part(p_file, '/', 2) as sport) f,
        lateral (select case when g->>'Period' ~ '^\d+$' then (g->>'Period')::int end as per,
-                       case when g->>'ClockSeconds' ~ '^-?\d+$' then (g->>'ClockSeconds')::int end as cs) n,
+                       -- A hockey period just over can read 20:00 until the next begins (CSB, 2026-11-06): it's at 0.
+                       case when sport like '%hockey' and g->'LastPlays'->0->>'Narrative' = 'Period END.'
+                                 and g->'LastPlays'->0->>'Period' = g->>'Period' then 0
+                            when g->>'ClockSeconds' ~ '^-?\d+$' then (g->>'ClockSeconds')::int end as cs) n,
        lateral (select case when g->>'PeriodsRegulation' ~ '^\d+$' then (g->>'PeriodsRegulation')::int end as reg,
                        case when g->'Rules'->>'PeriodMinutes' ~ '^\d+$' then (g->'Rules'->>'PeriodMinutes')::int end as len,
                        case when g->'Rules'->>'OTMinutes' ~ '^\d+$' then (g->'Rules'->>'OTMinutes')::int end as ot) r,
@@ -94,6 +97,8 @@ as $$
   where g->>'HasStarted' = 'true'
     and g->>'Date' ~ '^\d{1,2}/\d{1,2}/\d{4}$' and to_date(g->>'Date', 'MM/DD/YYYY') = p_day
     and h.ours <> v.ours and h.score is not null and v.score is not null and n.per is not null
+    -- A hockey file opens half an hour before the puck with only "Game START." in it (SJU, CSB, 2026-11-06): not on yet.
+    and (sport not like '%hockey' or coalesce(g->'LastPlays'->0->>'Narrative', '') <> 'Game START.')
 $$;
 
 create or replace function private.sidearm_scoring(p_plays jsonb, p_host_home boolean, p_file text)

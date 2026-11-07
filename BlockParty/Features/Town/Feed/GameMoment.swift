@@ -123,9 +123,14 @@ nonisolated struct GameMoment: Equatable, Sendable {
     /// Berg,Sam"), else the first "Last,First" (SIDEARM's live words), else "J. Jeffrey" (its summary's).
     /// None beats a wrong name: a pass's other player, or an assist after the ";", is never the answer.
     static func scorer(in text: String) -> String? {
-        let play = text.split(separator: ";").first.map { String($0) } ?? text
+        let play = unmangled(text.split(separator: ";").first.map { String($0) } ?? text)
         if play.contains("complete to") { return capture("complete to \(name),", in: play) }
         return capture(#"\#(name),\s?\p{Lu}"#, in: play) ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: play)
+    }
+
+    /// SIDEARM's files can spell a name's letters twice over: "MuÃ±oz" (Lake Forest's file, 2026-11-06) is "Muñoz".
+    private static func unmangled(_ text: String) -> String {
+        text.data(using: .isoLatin1).flatMap { String(data: $0, encoding: .utf8) } ?? text
     }
 
     private static func capture(_ pattern: String, in text: String) -> String? {

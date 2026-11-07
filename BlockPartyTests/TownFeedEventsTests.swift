@@ -837,6 +837,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(words("CON Muldowney, Joey PENALTY SHOT GOAL off Homer, Gibson; Goal number 5 for season."), ["Goal · Muldowney", "P1 · 11:58"])
         XCTAssertEqual(words("Goal by SUP Reed,AJ (EVEN STRENGTH).", clock: nil), ["Goal · Reed", "OT"])
         XCTAssertEqual(words("Goal by SUP (EVEN STRENGTH)."), ["Goal", "P1 · 11:58"], "no name to read")
+        XCTAssertEqual(words("Goal by LFC MuÃ±oz,Gracia (POWER-PLAY); Assist by Luke,Alex."), ["Goal · Muñoz (PP)", "P1 · 11:58"], "as SIDEARM's file spells it")
+        XCTAssertEqual(words("Goal by UWD Moore III,George (EVEN STRENGTH)."), ["Goal · Moore III", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by SJU Kernan,Chris (EVEN STRENGTH); Assist by Opgrand,Logan and Wandmacher,Jack; On ice for SJU: 29, 11, 10, 6, 12, 26; On ice for UWS: 33, 7, 8, 9, 11, 21."),
+                       ["Goal · Kernan", "P1 · 11:58"], "Friday's")
     }
 
     /// Basketball's bar (game-card 09): one part per quarter or half and one for overtime, the played ones full and

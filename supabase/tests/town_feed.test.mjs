@@ -3844,3 +3844,55 @@ test("a hockey final brings SIDEARM's own shots on goal; a failed read leaves th
   assert.equal(kept.live_score.shots, undefined);
   assert.equal(kept.live_score.ice.saves[0].length > 0, true, 'the plays keep counting for it');
 });
+
+// Friday's two real games, listened to from the first push (2026-11-06): SIDEARM's whole files at the final.
+const fridayFiles = [
+  { name: 'Saint John\'s 1-6 UW-Superior', source: 'SJU Athletics', ours: 'saint-johns', them: 'uw-superior', host: 'john', sport: 'csbsju/mhockey',
+    file: JSON.parse(readFileSync(join(here, 'sidearm-final-csbsju-mhockey.json'), 'utf8')), shots: [36, 31], score: [1, 6], powerPlays: 9, goals: 7 },
+  { name: 'Saint Benedict 4-1 Lake Forest', source: 'CSB Athletics', ours: 'saint-benedict', them: 'lake-forest', host: 'benedict', sport: 'csb/whockey',
+    file: JSON.parse(readFileSync(join(here, 'sidearm-final-csb-whockey.json'), 'utf8')), shots: [42, 18], score: [4, 1], powerPlays: 4, goals: 5 },
+];
+
+for (const f of fridayFiles) {
+  test(`${f.name}, every play in turn: its shots, power plays, goals and final (game-card 09)`, async () => {
+    await reset();
+    await db.exec(`insert into public.teams (id, name, short_name, logo_url) values
+      ('${f.ours}', 'Ours', 'Ours', 'https://x/a.png'), ('${f.them}', 'Them', 'Them', 'https://x/b.png')`);
+    const game = await add(f.name, '2026-11-06', { start_time: '7 PM', source_name: f.source });
+    await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['${f.ours}', '${f.them}'] where id = $1`, [game]);
+    const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r', [game, JSON.stringify(g)])).rows[0].r;
+    const row = async () => (await db.query('select live_score, scoring_plays, final_score from public.club_events where id = $1', [game])).rows[0];
+    const plays = f.file.Plays;
+    for (let i = 0; i < plays.length; i++) {
+      await record({ Game: { ...f.file.Game, IsComplete: false, Period: plays[i].Period, ClockSeconds: 1200 - plays[i].ClockSeconds,
+                             LastPlays: plays.slice(Math.max(0, i - 4), i + 1).reverse() } });
+    }
+    const { live_score: live, scoring_plays: goals } = await row();
+    const score = live.score;
+    assert.deepEqual([live.ice.saves[0].length + score[0], live.ice.saves[1].length + score[1]], f.shots, "saves and goals are SIDEARM's own shots on goal");
+    assert.equal(live.ice.power.filter((l) => l.start).length, f.powerPlays, "SIDEARM's own count of power plays");
+    assert.equal(live.ice.power.filter((l) => !l.start).length, f.powerPlays);
+    assert.equal(goals.length, f.goals);
+    await db.exec('delete from fake.answer');
+    await db.query('insert into fake.answer values (200, $1)', [JSON.stringify(f.file)]);
+    await record({ Game: f.file.Game });
+    assert.equal(await record({ Game: f.file.Game }), 'final');
+    const done = await row();
+    assert.deepEqual(done.final_score, f.score);
+    assert.deepEqual(done.live_score.shots, f.shots);
+  });
+}
+
+test("a hockey file open before the puck is not on yet, and a period just over reads 0:00 until the next begins (game-card 09)", async () => {
+  await reset();
+  const { file, host, sport } = fridayFiles[1];
+  const start = { Narrative: 'Game START.', Period: 1, ClockSeconds: 0 };
+  const end = (period) => ({ Narrative: 'Period END.', Period: period, ClockSeconds: 1200 });
+  const live = (period, clock, last) => sidearmLiveAll({ Game: { ...file.Game, IsComplete: false, Period: period, ClockSeconds: clock, LastPlays: last } }, '2026-11-06', host, sport);
+  assert.equal(await live(1, 0, [start]), null, "SJU's, half an hour early");
+  assert.equal(await live(1, 1200, [start]), null, "Hamline's, the same with its clock set");
+  assert.equal((await live(1, 1200, [{ Narrative: 'Faceoff', Period: 1 }, { Narrative: 'Period START.', Period: 1 }, start])).clock, '20:00', 'the puck is down');
+  assert.equal((await live(2, 1200, [end(2)])).clock_s, 0, "CSB's after the 2nd");
+  assert.equal((await live(1, 0, [end(1)])).clock_s, 0, "SJU's after the 1st");
+  assert.equal((await live(3, 1200, [end(2)])).clock_s, 1200, 'the next period set up, its clock full');
+});
