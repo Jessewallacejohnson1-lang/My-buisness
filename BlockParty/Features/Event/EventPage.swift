@@ -36,8 +36,6 @@ struct EventPage: View {
     /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var saveTappedAt = 0
-    /// The bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
-    @State private var signInShown = false
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
     /// and a photo's credit waits for its photo.
@@ -56,6 +54,11 @@ struct EventPage: View {
     /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
     /// fade of its dark comes in behind them (game-card 08).
     @State private var scrolled = false
+    /// How far down the page is, for coming back to it after a restart (`LeftOff`): its link row
+    /// sits low, and that's the tap that leaves the app.
+    @State private var position = ScrollPosition()
+    /// Where it lands after a restart, while its height is still growing to let it.
+    @State private var landAt: CGFloat?
     @Environment(\.openURL) private var openURL
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
@@ -64,6 +67,7 @@ struct EventPage: View {
     init(item: FeedCardItem, goingChat: Bool = true) {
         self.item = item
         self.goingChat = goingChat
+        _landAt = State(initialValue: LeftOff.reopening(item.id) ? LeftOff.current?.eventY : nil)
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
@@ -165,6 +169,26 @@ struct EventPage: View {
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
             scrolled = now
         }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+            LeftOff.pageY[item.id] = y
+        }
+        // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
+        // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
+        .onScrollGeometryChange(for: CGFloat.self) {
+            $0.contentSize.height + $0.contentInsets.top + $0.contentInsets.bottom - $0.containerSize.height
+        } action: { _, room in
+            guard let y = landAt, room > 0 else { return }
+            position.scrollTo(y: min(y, room))
+            if room >= y { landAt = nil }
+        }
+        // A finger on the page ends the landing, and so does a second: "Read more" mustn't jump it later.
+        .onScrollPhaseChange { _, phase in if phase == .tracking { landAt = nil } }
+        .task {
+            guard landAt != nil else { return }
+            try? await Task.sleep(for: .seconds(1))
+            landAt = nil
+        }
+        .scrollPosition($position)
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
         .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
@@ -215,7 +239,6 @@ struct EventPage: View {
         // A goal's scorer under the score and its play in the list move the rest of the page down together
         // (game-card 09), rather than the page jumping.
         .animation(reduceMotion ? nil : Motion.smooth, value: game?.plays.count)
-        .signInSheet(isPresented: $signInShown)
         .sheet(isPresented: $calendarShown) {
             if let adding { AddToCalendar(entry: adding) }
         }
@@ -224,8 +247,10 @@ struct EventPage: View {
         .onAppear {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
+            LeftOff.page = item.id
         }
         .onDisappear {
+            if LeftOff.page == item.id { LeftOff.page = nil }
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
@@ -425,9 +450,8 @@ struct EventPage: View {
     }
 
     /// A save is a commit, so it gets the light tap (taste.md, from `RealLifeActions`);
-    /// the fill springs in. With no account yet, sign in instead.
+    /// the fill springs in.
     private func toggleSave() {
-        guard actions.canAct else { signInShown = true; return }
         saveTappedAt = actions.saveFailureCount(item.id)
         withAnimation(Motion.snappy) { actions.toggleSave(item) }
     }
@@ -506,7 +530,7 @@ struct EventPage: View {
 
             // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
             if let link {
-                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
+                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
                          glyphBox: SearchMetric.bizGlyphBox, leaves: true)
                     .padding(.top, SearchMetric.bizLinksTop)
             }

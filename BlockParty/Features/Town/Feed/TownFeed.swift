@@ -171,6 +171,11 @@ final class TownFeed {
     /// lands there. Kept apart from `scrollY`, which a rebuilt screen resets to 0
     /// before it can scroll back.
     @ObservationIgnored private(set) var returnY: CGFloat = 0
+    /// The card that topped the screen when the feed went away: where a restart lands, since rows
+    /// not yet measured would put `returnY` somewhere else.
+    @ObservationIgnored private var returnCard: String?
+    /// A restart brought this list back (`resume`), and the screen hasn't landed on it yet.
+    @ObservationIgnored private var resumed = false
 
     /// Away this long, coming back brings a fresh order (ticket 11; Jesse, 2026-11-05, from 30).
     static let awayLimit: TimeInterval = 10 * 60
@@ -181,6 +186,12 @@ final class TownFeed {
     @ObservationIgnored private var keptChecked = false
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
+    /// The read out now and when it left. `refresh` shares it: an open's triggers overlap (the feed
+    /// opening, the foreground, the leave timer), and one read costs the server a second or more
+    /// (BP app town-feed 48).
+    @ObservationIgnored private var readOut: (task: Task<Void, Never>, since: Date)?
+    /// A read out this long may be dying (the phone slept mid-read), so a refresh asks again.
+    static let joinFor: TimeInterval = 10
     /// When the feed last came on screen, for the speed log.
     @ObservationIgnored private var cameBackAt: Date?
 
@@ -441,10 +452,54 @@ final class TownFeed {
             return
         }
         countOnScreen(at: now)
+        // Not when a tab's slide-out has already reported every card off (swift-traps).
+        if let top = topOnScreen { returnCard = top }
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
         holdGames(at: now)
+    }
+
+    /// The first card half on screen, in the list's order.
+    private var topOnScreen: String? {
+        shown.first { onScreen[$0.id] != nil }?.id
+    }
+
+    /// What `LeftOff` keeps of the feed, whichever of the shell and the feed hears of leaving first.
+    var spot: (feed: [String], top: String?, y: CGFloat, poster: String?) {
+        (shown.map(\.id), topOnScreen ?? returnCard, awaySince == nil ? scrollY : returnY, posterOnTop)
+    }
+
+    /// iOS shut the app down and you came back inside `awayLimit`: the list you left, in its order,
+    /// minus what has left or you hid since, with what shows at launch here rather than a read's
+    /// worth later. What reads behind it treats it as any short time away: no fresh order.
+    func resume(_ left: LeftOff, at now: Date = Date()) {
+        awaySince = left.at
+        returnY = left.feedY
+        returnCard = left.top
+        resumed = true
+        if let poster = left.poster { postersGone.remove(poster) }
+        keptChecked = true
+        guard let kept = kept() else { return }
+        let byID = Dictionary(kept.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let list = left.feed.compactMap { byID[$0] }
+        guard list.contains(where: { $0.leavesAt > now }) else { return }
+        actions?.read(list.compactMap(\.card))
+        actions?.read(posts: list.compactMap(\.post))
+        entries = list
+        clock = now
+    }
+
+    /// Whether this screen is the first after a restart: it draws as it was, with no rise-in. Once,
+    /// so a tab switch later rises as ever.
+    func takeResumed() -> Bool {
+        defer { resumed = false }
+        return resumed
+    }
+
+    /// The row `returnCard` is, as the column names it; nil once it's gone or past the kept list.
+    var returnRow: String? {
+        TownFeedItem.town(shown, eventOfTheDay: nil).first { $0.seenID == returnCard }?.id
     }
 
     /// The feed is back on screen. After 10 minutes away the next read may bring a
@@ -464,6 +519,13 @@ final class TownFeed {
 
     /// Reads behind the list on screen (coming back, a card leaving).
     func refresh(at now: Date = Date()) async {
+        if let readOut, now.timeIntervalSince(readOut.since) < Self.joinFor {
+            await readOut.task.value
+            // That read left earlier, and this caller may be the leave timer: a card whose time is
+            // up still goes, though no read carried this moment.
+            clock = max(clock, now)
+            return
+        }
         await readAgain(at: now, freshOrder: false)
     }
 
@@ -513,6 +575,13 @@ final class TownFeed {
         // that lands last must not overwrite a newer one's answer.
         latestRead &+= 1
         let thisRead = latestRead
+        // Its own task, not the caller's: a view going away must not end a read others share.
+        let task = Task { await land(thisRead, at: now, freshOrder: freshOrder) }
+        readOut = (task, now)
+        await task.value
+    }
+
+    private func land(_ thisRead: Int, at now: Date, freshOrder: Bool) async {
         do {
             let new = try await read()
             guard thisRead == latestRead else { return }
@@ -541,13 +610,12 @@ final class TownFeed {
             failed = false
             holdGames(at: now)
         } catch {
-            // Left mid-read (the tab went away): not a failure; the read runs again
-            // when the feed comes back.
-            guard !Task.isCancelled, thisRead == latestRead else { return }
+            guard thisRead == latestRead else { return }
             Log.network("TownFeed: \(error)")
             failed = true
         }
         clock = now
+        readOut = nil
     }
 
     // MARK: Live scores (codebase-health-2 08)
@@ -601,6 +669,9 @@ final class TownFeed {
 
     /// A new account: the last one's waiting views and hidden cards are not this one's.
     func accountChanged() {
+        // The read out now was the old account's: it never lands, and nothing shares it.
+        latestRead &+= 1
+        readOut = nil
         clearMore()
         unsent = []
         viewed = []

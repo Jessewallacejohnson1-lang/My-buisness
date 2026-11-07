@@ -1,11 +1,11 @@
 //
 //  RSVPArea.swift
-//  Block Party — RSVP on the Town card and in the Event page's floating bar (BP app
+//  Block Party — the going words on the Town card, and RSVP in the Event page's floating bar (BP app
 //  docs/plans/rsvp-and-groups, tickets 01 and 02): the going words at the left, Meetup's pill
 //  at the right, as the Figma page "Meetup depth" draws it. One tap on Attend and you're Going:
 //  "You're going!", "Can't go?" under it to leave, a check on the pill's calendar, and then the
-//  pill becomes Invite; on Town it shrinks into a round X that leaves instead (attend-x). Going
-//  itself is `RealLifeActions`'.
+//  pill becomes Invite; on the Event of the day poster it shrinks into a round X that leaves instead
+//  (attend-x). The Town card has no Attend (BP app event-card 07). Going itself is `RealLifeActions`'.
 //
 
 import SwiftUI
@@ -27,21 +27,25 @@ nonisolated struct RSVPWords: Equatable {
     /// game is over (game-card 02).
     var pill: Pill?
 
-    /// `bar`: the Event page's floating bar says less (Jesse at rsvp-and-groups 02's Check-in 2):
-    /// no "Can't go?" (leaving stays on the Town card), and beside the friends' faces only
-    /// their names, which fit by its bigger words where "… are going" didn't.
-    /// `town`: the Town card and the poster on top of Town. Going, the pill turns into a round X
-    /// that leaves, so there's no "Can't go?", and a yellow share comes up beside it (event-card 06).
-    /// No friends' names: the count alone.
+    /// `bar`: the Event page's floating bar: beside the friends' faces only their names, which fit by
+    /// its bigger words where "… are going" didn't (Jesse at rsvp-and-groups 02's Check-in 2). Its
+    /// "Can't go?" is where you leave an Event (Jesse at event-card 07's Check-in 1).
+    /// `town`: the poster on top of Town. Going, the pill turns into a round X that leaves, so there's
+    /// no "Can't go?", and a yellow share comes up beside it (event-card 06). No friends' names: the
+    /// count alone.
+    /// `card`: a Town card, the same words with no Attend and no X: those are the poster's and the Event
+    /// page's (Jesse, event-card 07). Canceled stays, with its photo the only sign it's called off.
     /// Called off, the pill says Canceled and "Can't go?" still leaves.
     /// `over`: a game whose final is in, "212 went" and no pill, whoever went (game-card 02).
     static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false,
-                     town: Bool = false, over: Bool = false) -> RSVPWords {
+                     town: Bool = false, card: Bool = false, over: Bool = false) -> RSVPWords {
+        let onTown = town || card
         var words = unshortened(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: bar,
-                                town: town, over: over)
-        // On Town the words share one line with the send and the pill, so the friends' names go and
-        // the count stays (Jesse at event-card 06's Check-in 1, 2026-10-21). "Can't go?" stays.
-        if town && !words.canLeave { words.second = nil }
+                                town: onTown, over: over)
+        // On Town the words share one line, so the friends' names go and the count stays (Jesse at
+        // event-card 06's Check-in 1, 2026-10-21). "Can't go?" stays.
+        if onTown && !words.canLeave { words.second = nil }
+        if card && words.pill != .canceled { words.pill = nil }
         return words
     }
 
@@ -56,7 +60,7 @@ nonisolated struct RSVPWords: Equatable {
             return RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave)
         }
         if isGoing {
-            return RSVPWords(top: "You're going!", second: bar ? nil : "Can't go?", canLeave: !bar,
+            return RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true,
                              pill: cancelled ? .canceled : .invite)
         }
         if cancelled { return RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled) }
@@ -90,7 +94,7 @@ nonisolated struct RSVPWords: Equatable {
     }
 
     /// "You're going!" is its own line, which cross-fades in over the count instead of rolling.
-    var goingLine: Bool { canLeave || pill == .leave }
+    var goingLine: Bool { top == "You're going!" }
 }
 
 /// The RSVP area: friends' faces (the card's only), the words, and the pill. A called-off
@@ -124,14 +128,10 @@ struct RSVPArea: View {
     var tint: UInt32?
     /// The card's send: Invite opens the same invite card.
     let onInvite: (() -> Void)?
-    /// The Town card: its send leads the line, and once you're going it leaves for the yellow share
-    /// beside the X (event-card 06).
+    /// The Town card: its send leads the line.
     var leadingSend = false
-    /// The Town card's •••, after the send (found-posts): it stays when the send leaves.
+    /// The Town card's •••, after the send (found-posts).
     var onMenu: (() -> Void)? = nil
-
-    /// The yellow share is up beside the X, so the send at the left has gone.
-    @State private var shareUp = false
 
     /// The glyph sits 7 pt from the word (Figma "Meetup depth").
     static let glyphGap: CGFloat = 7
@@ -146,7 +146,7 @@ struct RSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
-            if leadingSend && !shareUp, let onInvite {
+            if leadingSend, let onInvite {
                 Button(action: onInvite) {
                     FeedActionGlyphView(glyph: .send, size: Self.sendGlyph)
                         .foregroundStyle(Hue.ink)
@@ -156,13 +156,11 @@ struct RSVPArea: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share")
-                // Out the way it came: to the left, as the share pops up beside the X.
-                .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
             if let onMenu {
                 FeedCardMenuButton(action: onMenu)
-                    .padding(.leading, leadingSend && !shareUp && onInvite != nil ? FeedCardMenuButton.gap : 0)
+                    .padding(.leading, leadingSend && onInvite != nil ? FeedCardMenuButton.gap : 0)
             }
 
             // Faces only beside words: a called-off card with no "You're going!" has none.
@@ -199,11 +197,10 @@ struct RSVPArea: View {
             Spacer(minLength: 12)
 
             if words.pill != nil {
-                AttendPill(item: item, words: words, size: size, onInvite: onInvite,
-                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp, yellow: yellow, tint: tint)
+                AttendPill(item: item, words: words, size: size, onInvite: onInvite, yellow: yellow, tint: tint)
             }
         }
-        // The pill's height with no pill too, so a game's "212 went" sits where its Attend did.
+        // The pill's height with no pill too, so a game's "212 went" on its page sits where its Attend did.
         .frame(minHeight: size.pillHeight)
         // The words cross-fade over `RealLifeActions.flip`, both ways, a failed Attend's turn back
         // included, as the pill turns; a count that moves rolls.
@@ -246,19 +243,17 @@ struct RSVPArea: View {
 }
 
 /// Meetup's pill alone: Attend, its calendar's check for a moment after the tap, then Invite, or
-/// on Town a light grey round X that leaves (attend-x); a called-off Event's red Canceled. The
-/// RSVP area draws it at its right, the Town's Event of the day poster in its own row (event-card 03).
+/// on the Event of the day poster a light grey round X that leaves (attend-x); a called-off Event's
+/// red Canceled. The RSVP area draws it at its right, the poster in its own row (event-card 03).
 struct AttendPill: View {
     let item: FeedCardItem
     /// The pill they name (`RSVPWords.pill`).
     let words: RSVPWords
     var size: RSVPArea.Size = .card
     let onInvite: (() -> Void)?
-    /// On Town, which side of the X the yellow share pops up on once you're going (event-card 06):
-    /// the card's, before it; the poster's, after it. Its tap is `onInvite`'s.
-    var shareBeside: HorizontalEdge? = nil
-    /// Set while the yellow share is up, so the card's send can leave as it comes.
-    var shareUp: Binding<Bool> = .constant(false)
+    /// The poster: the yellow share pops up after the X once you're going (event-card 06). Its tap is
+    /// `onInvite`'s.
+    var showsShare = false
     /// On a dark ground (the Event of the day poster), Attend is BP yellow (Jesse, attend-yellow).
     var yellow = false
     /// The yellow in our team's color (`MeetupPillStyle.tint`, game-card 12).
@@ -274,9 +269,7 @@ struct AttendPill: View {
     var body: some View {
         let going = actions.going(item)
         let shown = words.shownPill(checking: checking)
-        let share = shown == .leave && onInvite != nil ? shareBeside : nil
         HStack(spacing: Self.shareGap) {
-            if share == .leading { yellowShare }
             if shown == .canceled {
                 Button {} label: { face(.canceled) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
@@ -305,13 +298,7 @@ struct AttendPill: View {
                     .accessibilityHint(x ? "Takes you off the going list" : "")
                     .accessibilityValue(going.isGoing && !x ? "Going" : "")
             }
-            if share == .trailing { yellowShare }
-        }
-        // The card's send leaves on the same beat the share comes in.
-        // Set without motion as the card comes on screen: a going card scrolled back into view
-        // shows the share already up instead of playing the send out again (the review).
-        .onChange(of: share != nil, initial: true) { was, up in
-            withAnimation(was == up ? nil : shareAnimation) { shareUp.wrappedValue = up }
+            if shown == .leave && onInvite != nil && showsShare { yellowShare }
         }
         // The pill turns into Invite or the X over `RealLifeActions.flip`, both ways, a failed
         // Attend's turn back included.

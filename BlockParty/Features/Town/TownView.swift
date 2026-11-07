@@ -30,6 +30,8 @@ struct TownView: View {
     /// Fixed for this view's life: whether the Town feed's first cards rise in. Not
     /// when it comes back partway down (`TownFeed.returnY`).
     @State private var entrance: Bool
+    /// The first screen after a restart (`TownFeed.resume`), until it lands.
+    @State private var resumed: Bool
 
     /// Your post the check just let up, on top for the session (`PostOutbox.justPosted`), while the feed has it.
     private var justPosted: TownPost? {
@@ -60,7 +62,9 @@ struct TownView: View {
         self.townFeed = townFeed
         self.eventOfTheDay = eventOfTheDay
         self.places = places
-        _entrance = State(initialValue: townFeed.returnY == 0)
+        let resumed = townFeed.takeResumed()
+        _resumed = State(initialValue: resumed)
+        _entrance = State(initialValue: townFeed.returnY == 0 && !resumed)
     }
 
     /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
@@ -266,8 +270,15 @@ struct TownView: View {
             // rebuilt view starts with the bar at home, and the jump isn't always
             // reported to the bar's rule, which left it at home over the cards.
             let returnY = townFeed.returnY
-            if returnY > 0 {
-                feedPosition.scrollTo(y: returnY)
+            // After a restart no row is measured, so it lands on the card, or stays at the top
+            // when that card has gone.
+            let row = resumed ? townFeed.returnRow : nil
+            if returnY > 0, !resumed || row != nil {
+                if let row {
+                    feedPosition.scrollTo(id: row, anchor: .top)
+                } else {
+                    feedPosition.scrollTo(y: returnY)
+                }
                 Task {
                     chromeHidden = true
                     chromeFloating = true
@@ -275,6 +286,7 @@ struct TownView: View {
                     barTravel.points = TownBarRules.barTravel(offset: returnY)
                 }
             }
+            resumed = false
         }
         .onDisappear {
             AppearanceStore.shared.holdsClock = false

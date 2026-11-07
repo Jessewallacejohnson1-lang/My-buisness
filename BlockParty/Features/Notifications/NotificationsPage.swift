@@ -181,7 +181,7 @@ private struct HelloItemRow: View {
                 }
                 .buttonStyle(.press(.row))
                 // The Contacts page's button, at its own width beside the words.
-                RelationButtons(person: person) {}
+                RelationButtons(person: person)
                     .fixedSize()
                     .padding(.trailing, FriendsMetric.side)
             }

@@ -1411,6 +1411,122 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["newer"])
     }
 
+    /// An open's triggers overlap (the feed opening, the foreground, the leave timer): they share
+    /// one read, and everyone waits for its answer. It asked 4 or 5 times (BP app town-feed 48).
+    func testOverlappingRefreshesShareOneRead() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+            }
+            return self.entries(["a"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.open == nil { await Task.yield() }
+        let second = Task { await town.refresh(at: now) }
+        let third = Task { await town.refresh(at: now.addingTimeInterval(TownFeed.joinFor - 1)) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.open?()
+        await first.value
+        await second.value
+        await third.value
+        XCTAssertEqual(gate.calls, 1)
+        XCTAssertEqual(town.cards.map(\.id), ["a"])
+        // The latest asker's moment counts, so a leave timer that shared the read still takes its card.
+        XCTAssertEqual(town.clock, now.addingTimeInterval(TownFeed.joinFor - 1))
+        // Once it has landed, the next refresh asks again.
+        await town.refresh(at: now)
+        XCTAssertEqual(gate.calls, 2)
+    }
+
+    /// A refresh shares a pull's or a new account's read; those two always ask for their own
+    /// (`testOnlyTheNewestReadIsKept`).
+    func testARefreshSharesAReloadsRead() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            await withCheckedContinuation { done in gate.open = { done.resume() } }
+            return self.entries(["a"])
+        })
+        let reload = Task { await town.reload(at: now) }
+        while gate.open == nil { await Task.yield() }
+        let refresh = Task { await town.refresh(at: now) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.open?()
+        await reload.value
+        await refresh.value
+        XCTAssertEqual(gate.calls, 1)
+        XCTAssertEqual(town.cards.map(\.id), ["a"])
+    }
+
+    /// A new account never shares the old account's read, and that read's answer doesn't land.
+    func testANewAccountDoesNotShareTheOldAccountsRead() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                return self.entries(["old account"])
+            }
+            return self.entries(["mine"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.open == nil { await Task.yield() }
+        town.accountChanged()
+        await town.refresh(at: now)
+        XCTAssertEqual(gate.calls, 2)
+        gate.open?()
+        await first.value
+        XCTAssertEqual(town.cards.map(\.id), ["mine"])
+    }
+
+    /// A read out this long may be dying (the phone slept mid-read), so a refresh asks again, and
+    /// its answer stands when the old one finally lands.
+    func testARefreshDoesNotShareAReadOutTooLong() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                throw Offline()
+            }
+            return self.entries(["newer"])
+        })
+        let stuck = Task { await town.refresh(at: now) }
+        while gate.open == nil { await Task.yield() }
+        await town.refresh(at: now.addingTimeInterval(TownFeed.joinFor))
+        XCTAssertEqual(gate.calls, 2)
+        gate.open?()
+        await stuck.value
+        XCTAssertEqual(town.cards.map(\.id), ["newer"])
+        XCTAssertFalse(town.failed)
+    }
+
+    /// The first to ask going away (a tab's `.task` ended) doesn't end the read the others share.
+    func testCancellingTheFirstCallerLeavesTheSharedRead() async {
+        final class Gate { var open: (() -> Void)? }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            await withCheckedContinuation { done in gate.open = { done.resume() } }
+            try Task.checkCancellation()
+            return self.entries(["a"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.open == nil { await Task.yield() }
+        let second = Task { await town.refresh(at: now) }
+        for _ in 0..<5 { await Task.yield() }
+        first.cancel()
+        gate.open?()
+        await second.value
+        XCTAssertEqual(town.cards.map(\.id), ["a"])
+        XCTAssertFalse(town.failed)
+    }
+
     /// The kept list and the kept Event of the day read back what was saved, each its own, and
     /// signing out clears both.
     func testTheKeptListIsClearedOnSignOut() {

@@ -445,7 +445,7 @@ private struct BusinessPageContent: View {
             if !rows.isEmpty {
                 VStack(spacing: SearchMetric.bizLinkGap) {
                     ForEach(rows, id: \.self) { row in
-                        InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens outside Block Party",
+                        InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens the link",
                                  glyphBox: SearchMetric.bizGlyphBox, leaves: true)
                     }
                 }

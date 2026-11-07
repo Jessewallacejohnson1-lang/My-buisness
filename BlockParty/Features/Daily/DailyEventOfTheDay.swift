@@ -164,6 +164,9 @@ final class EventOfTheDay {
     @ObservationIgnored private var readAt: Date?
     /// Numbers each read, so one an account change overtook never lands.
     @ObservationIgnored private var latestRead = 0
+    /// The read out now and when it left, which an overlapping `refresh` shares, as the Town feed's
+    /// does (BP app town-feed 48).
+    @ObservationIgnored private var readOut: (task: Task<Void, Never>, since: Date)?
     @ObservationIgnored private let read: () async throws -> [DailyEvent]
     /// The picks the last session left on disk, asked for once, at the first read.
     @ObservationIgnored private let kept: () -> [DailyEvent]?
@@ -194,30 +197,44 @@ final class EventOfTheDay {
         })
     }
 
-    func refresh(now: Date = Date()) async {
-        // Today's kept picks show while the first read is out. Picks are the Town day's own
-        // events, so one that started another day is yesterday's, even if it's still on.
-        if events == nil, !keptChecked {
-            keptChecked = true
-            let today = Town.day(now)
-            if let kept = kept()?.filter({ $0.ends > now && Town.day($0.starts) == today }), !kept.isEmpty {
-                events = kept
-            }
+    /// Today's kept picks show while the first read is out. Picks are the Town day's own
+    /// events, so one that started another day is yesterday's, even if it's still on.
+    func showKept(now: Date = Date()) {
+        guard events == nil, !keptChecked else { return }
+        keptChecked = true
+        let today = Town.day(now)
+        if let kept = kept()?.filter({ $0.ends > now && Town.day($0.starts) == today }), !kept.isEmpty {
+            events = kept
         }
+    }
+
+    func refresh(now: Date = Date()) async {
+        showKept(now: now)
         guard needsRead(now: now) else { return }
+        if let readOut, now.timeIntervalSince(readOut.since) < TownFeed.joinFor {
+            await readOut.task.value
+            return
+        }
         latestRead += 1
         let mine = latestRead
+        let task = Task { await land(mine, at: now) }
+        readOut = (task, now)
+        await task.value
+    }
+
+    private func land(_ mine: Int, at now: Date) async {
         do {
             let picks = try await read()
             guard mine == latestRead else { return }
             events = picks
             readAt = now
         } catch {
+            guard mine == latestRead else { return }
             // A failed read keeps the last picks and tries again next time; with none yet, Daily
             // shows its placeholder rather than blank paper.
-            guard mine == latestRead, events == nil else { return }
-            events = []
+            if events == nil { events = [] }
         }
+        readOut = nil
     }
 
     func needsRead(now: Date) -> Bool {
@@ -233,6 +250,7 @@ final class EventOfTheDay {
     func accountChanged() {
         latestRead += 1
         readAt = nil
+        readOut = nil
     }
 }
 

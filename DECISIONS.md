@@ -898,6 +898,14 @@ changed", not "the app is fine". The deliberate exception: `docs/debug-flags.md`
 `LaunchFlagsTests` reads it. When the app or a test starts reading another file outside the app
 folders, `scripts/test_ci_scope.py` fails until that file joins `TESTS_READ`.
 
+## Decided 2026-11-06 — an open shares one read (BP app town-feed 48)
+
+`TownFeed.refresh` and `EventOfTheDay.refresh` share a read already out instead of sending another. One open sent
+`get_town_feed` 4 times and `get_event_of_the_day` 2 or 3 times, and kept only the last answer. `reload` (pull to
+refresh, retry, a new account) still sends its own. The read runs in its own task, so a view going away no longer
+cancels it. `TownFeed.joinFor` is 10 s, the agent's pick: a read older than that may be dying (the phone slept
+mid-read), so a refresh asks again.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

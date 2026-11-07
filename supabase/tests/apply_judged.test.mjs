@@ -109,6 +109,28 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
     `select interests, place_entry_id as place, status from public.board_items where title = 'Flight Friday'`)).rows;
   assert.equal((await apply([], [], [], special({ interests: ['dining'], place_entry_id: 'cow-wandering' }))).news, 1);
   assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);
+  // Its last day comes with it (BP app town-feed 49), and a re-read that gives none keeps it.
+  const lastDay = async () => (await db.query(
+    `select ends_on::text as d from public.board_items where title = 'Flight Friday'`)).rows[0].d;
+  await apply([], [], [], special({ ends_on: '2026-11-29' }));
+  assert.equal(await lastDay(), '2026-11-29');
+  await apply([], [], [], special());
+  assert.equal(await lastDay(), '2026-11-29');
+  // A closing goes up when it says (BP app town-feed 50): a re-read leaves that alone, one inside its week goes up
+  // now, and a story with no such day goes up now too.
+  const up = async (title) => (await db.query(
+    `select published_at, published_at <= now() as is_up from public.board_items where title = $1`, [title])).rows[0];
+  const later = new Date(Date.now() + 13 * 864e5).toISOString();
+  const closing = (title, shows_from, more = {}) => special({ title, shows_from, starts_at: later, ...more });
+  await apply([], [], [], closing('Offices Closed', later));
+  const held = await up('Offices Closed');
+  assert.equal(held.published_at.toISOString(), later);
+  assert.equal(held.is_up, false);
+  await apply([], [], [], closing('Offices Closed', later, { blurb: 'Thursday, Nov 26' }));
+  assert.equal((await up('Offices Closed')).published_at.toISOString(), later, 'a re-read leaves it');
+  await apply([], [], [], closing('Library Closed', new Date(Date.now() - 864e5).toISOString()));
+  assert.equal((await up('Library Closed')).is_up, true, 'inside its week, it goes up now');
+  assert.equal((await up('Flight Friday')).is_up, true);
   await apply([], [], [], special({ interests: ['coffee'], place_entry_id: 'cow-wandering' }));
   await apply([], [], [], special());
   assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);

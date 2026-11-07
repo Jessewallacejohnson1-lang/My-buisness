@@ -2,7 +2,7 @@
 //  ChatPage.swift
 //  Block Party — one chat (BP app five-tabs 05): Instagram's thread (mock round 2). Your bubbles are ink with
 //  white words, theirs the light fill, never yellow (taste, 2026-10-06). Text, a photo or an Event, whose card
-//  carries the same Attend as everywhere, with I'm in, Maybe and Can't under one sent to you. Typing dots and
+//  opens the Event page, with I'm in, Maybe and Can't under one sent to you. Typing dots and
 //  Seen, no online status. A request shows Accept, Delete and Block where the composer goes.
 //
 //  A Going chat (five-tabs 06) is the same thread among strangers: the bar shows its Event, it takes words only, with no
@@ -812,11 +812,10 @@ private struct ChatPhotoView: View {
     }
 }
 
-/// An Event in the chat (the mock's card): its photo, what and when and where, friends going and the same
-/// Attend as everywhere. It opens the Event page.
+/// An Event in the chat (the mock's card): its photo, what and when and where, and friends going. It opens
+/// the Event page, where Attend is (BP app event-card 07).
 private struct ChatEventCard: View {
     let card: FeedCardItem
-    @Environment(RealLifeActions.self) private var actions
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -845,17 +844,23 @@ private struct ChatEventCard: View {
                         .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, ChatMetric.eventInsetX)
+                    if !card.friendsGoing.isEmpty {
+                        FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
+                            .padding(.horizontal, ChatMetric.eventInsetX)
+                            .padding(.top, ChatMetric.chipGap)
+                    }
                 }
+                .padding(.bottom, ChatMetric.eventInsetY)
             }
             .buttonStyle(.press(.dim))
-            HStack {
-                FriendFaces(friends: card.friendsGoing, ring: Hue.surface)
-                Spacer(minLength: 0)
-                AttendPill(item: card, words: words) { ShareCenter.shared.present(.event(card)) }
+            // Called off, its red Canceled stays, as on a Town card (event-card 07).
+            if card.cancelled {
+                AttendPill(item: card, words: RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled),
+                           onInvite: nil)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, ChatMetric.eventInsetX)
+                    .padding(.bottom, ChatMetric.eventInsetY)
             }
-            .padding(.horizontal, ChatMetric.eventInsetX)
-            .padding(.top, ChatMetric.chipGap)
-            .padding(.bottom, ChatMetric.eventInsetY)
         }
         .frame(width: ChatMetric.eventWidth)
         .background(Hue.surface)
@@ -866,12 +871,6 @@ private struct ChatEventCard: View {
 
     private var line: String {
         [card.whenLine?.text, card.whereLine].compactMap { $0 }.joined(separator: " · ")
-    }
-
-    private var words: RSVPWords {
-        let going = actions.going(card)
-        return RSVPWords.make(isGoing: going.isGoing, count: going.count, friends: card.friendsGoing.map(\.name),
-                              cancelled: card.cancelled)
     }
 }
 

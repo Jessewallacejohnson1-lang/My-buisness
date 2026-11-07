@@ -41,6 +41,7 @@ nonisolated enum LaunchFlags {
         case mapCenter = "-map-center"
         case mapNow = "-map-now"
         case mapOpenBubble = "-map-open-bubble"
+        case leftOff = "-left-off"
         case mapPitch = "-map-pitch"
         case mapZoom = "-map-zoom"
         case newEventPhoto = "-new-event-photo"

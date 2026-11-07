@@ -81,7 +81,7 @@ final class ChatBook {
 
     /// Live while the app's open, for a real account: a closed app learns nothing until it opens.
     func start() {
-        guard live, sockets, db.auth.isSignedIn, !db.auth.isAnonymous else { return }
+        guard live, sockets, db.auth.hasAccount else { return }
         if socket == nil {
             let auth = db.auth
             let socket = RealtimeClient(name: "chat", tables: ["chat_messages", "chat_reads"],

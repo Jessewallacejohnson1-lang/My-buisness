@@ -221,10 +221,18 @@ final class EventPageTests: XCTestCase {
     /// Faces keep their own room in the photo cache (codebase-health 18): 13 photos and 50 faces,
     /// oldest first, drop the oldest photo and the two oldest faces, and nothing else.
     func testFacesAndPhotosEachKeepTheirNewest() {
-        let sizes = Array(repeating: 1260, count: 13) + Array(repeating: 96, count: 50)
-        XCTAssertEqual(FeedCardImageLoader.overflow(sizes).sorted(), [0, 13, 14])
+        let sizes = Array(repeating: 1260, count: 25) + Array(repeating: 96, count: 50)
+        XCTAssertEqual(FeedCardImageLoader.overflow(sizes).sorted(), [0, 25, 26])
         XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 288, count: 48)), [], "a 96 pt profile photo is a face")
-        XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 12) + [96]), [])
+        XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 24) + [96]), [])
+    }
+
+    /// Leaving keeps the six newest photos, for what coming back draws, and every face.
+    func testLeavingKeepsTheNewestPhotosAndEveryFace() {
+        let sizes = [96] + Array(repeating: 1260, count: 8) + [96]
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(sizes).sorted(), [1, 2])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 1260, count: 6)), [])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 96, count: 50)), [])
     }
 
     func testCounterShowsOnlyForTwoOrMorePhotos() {
