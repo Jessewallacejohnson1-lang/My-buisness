@@ -15,7 +15,8 @@ The same results carry each place's Google hours, and those go live on their own
 changed or that has hours for the first time to `places.hours`, the business page's open-till
 row, and lists them. It needs SUPABASE_URL and a key (db.py); without them it only
 lists. A place Google gives no hours keeps the ones it has, and so does one whose registry entry says
-`hours_from: website` (its own site is newer than Google's: Jesse, 2026-10-26).
+`hours_from: website` (its own site is newer than Google's: Jesse, 2026-10-26), or whose week the social watch
+read from its own post (`from` in `places.hours`, written by morning.py save; BP app business-hours 02).
 
 A Google result is the place only when its phone, its street (house number and first street
 word) or its website's domain matches the registry's (the 2026-10-22 pass's rule). A link
@@ -160,6 +161,7 @@ def pick(name, urls, freq):
 
 DAYS = {"Sunday": "sun", "Monday": "mon", "Tuesday": "tue", "Wednesday": "wed", "Thursday": "thu",
         "Friday": "fri", "Saturday": "sat"}
+DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # a week as a neighbour reads it
 TIME = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)?", re.I)
 
 
@@ -256,28 +258,64 @@ def db(method, path, body=None):
 
 
 def new_hours(found, live):
-    """The places whose Google hours differ from the page's (`live`: entry id to `places.hours`).
-    A seasonal place keeps its season: Google has none, and it was read from the place's own site."""
+    """The places whose hours differ from the page's (`live`: entry id to `places.hours`), each laid over what
+    the page has: a season stays (Google has none, and it was read from the place's own site), and a post that
+    names a few days leaves the rest of the week. A week a place posted carries `from` (its post, when it was
+    saved, and the days it changed: BP app business-hours 02); Google's never does, so only another post
+    replaces it, as `hours_from: website` keeps Google off a week read by hand (Jesse, 2026-10-26)."""
     out = []
     for f in found:
         if f["entry_id"] not in live:
             continue
-        was = live[f["entry_id"]]
-        season = {"season": was["season"]} if isinstance(was, dict) and "season" in was else {}
-        if {**f["hours"], **season} != was:
-            out.append({**f, "hours": {**f["hours"], **season}, "was": was})
+        was = live[f["entry_id"]] or {}
+        if was.get("from") and not f["hours"].get("from"):
+            continue
+        hours, changed = {**was, **f["hours"]}, [d for d in DAY_KEYS if f["hours"].get(d, was.get(d)) != was.get(d)]
+        if not changed:
+            continue
+        if "from" in f["hours"]:
+            hours["from"] = {**f["hours"]["from"], "was": {d: was.get(d) for d in changed}}
+        # A post's few days over a place with no whole week would show the rest closed, and Google would never
+        # mend it: `short` names the days missing, and it is not written.
+        short = [d for d in DAY_KEYS if d not in hours] if "from" in f["hours"] else []
+        out.append({**f, "hours": hours, "was": live[f["entry_id"]], **({"short": short} if short else {})})
     return out
 
 
-def write_hours(found):
-    """Puts each changed week on its place; returns the changes and whether they were written."""
-    rows = db("GET", "/rest/v1/places?select=entry_id,hours&entry_id=not.is.null")
+def write_hours(found, rest=None, write=True):
+    """Puts each changed week on its place; returns the changes and whether they were written (`write` False:
+    only found). `rest`: a Db's rest, as the social watch's save gives; else the keys in the environment."""
+    rest = rest or (lambda method, path, body=None: db(method, "/rest/v1/" + path, body))
+    rows = rest("GET", "places?select=entry_id,hours&entry_id=not.is.null")
     if rows is None:
         return found, False
     changes = new_hours(found, {r["entry_id"]: r["hours"] for r in rows})
-    for c in changes:
-        db("PATCH", f"/rest/v1/places?entry_id=eq.{urllib.parse.quote(c['entry_id'])}", {"hours": c["hours"]})
-    return changes, True
+    for c in [c for c in changes if not c.get("short")] if write else []:
+        rest("PATCH", f"places?entry_id=eq.{urllib.parse.quote(c['entry_id'])}", {"hours": c["hours"]})
+    return changes, write
+
+
+def clock_words(a, b):
+    """["16:00", "21:00"] as "4–9 PM", ["10:00", "21:00"] as "10 AM–9 PM"."""
+    def say(t):
+        h, m = map(int, t.split(":"))
+        return f"{h % 12 or 12}{f':{m:02d}' if m else ''}", "AM" if h % 24 < 12 else "PM"
+    (s, sm), (e, em) = say(a), say(b)
+    return f"{s}–{e} {em}" if sm == em else f"{s} {sm}–{e} {em}"
+
+
+def day_words(ranges):
+    return ", ".join(clock_words(a, b) for a, b in ranges) if ranges else "closed"
+
+
+def change_words(name, hours):
+    """A week a post changed, in plain words: "Milk & Honey Ciders, from its post <url>: Tue 4–9 PM, now
+    closed; Wed 4–9 PM, now closed"."""
+    mark, days = hours["from"], []
+    for d in (d for d in DAY_KEYS if d in mark["was"]):
+        old = mark["was"][d]
+        days.append(f"{d.title()} " + (f"{day_words(old)}, now " if old is not None else "now ") + day_words(hours.get(d)))
+    return f"{name}, from its post {mark['post']}: " + "; ".join(days)
 
 
 def setup():
@@ -357,7 +395,39 @@ def selftest():
     assert new_hours([market], {"m": {"fri": [], "season": ["05-08", "10-16"]}})[0]["hours"]["season"] == ["05-08", "10-16"], "new hours keep the season"
     own = match([{**e, "hours_from": "website"}], [{**hit, "openingHours": week}], [])
     assert not own["hours"] and match([e], [{**hit, "openingHours": week}], [])["hours"], "a place's own site beats Google when marked"
-    print("accounts.py selftest: 17 passed, 0 failed")
+    # A week a place posted (BP app business-hours 02): Milk & Honey's winter hours over the week it had.
+    pm = lambda a, b: [[a, b]]
+    had = {"mon": [], "tue": pm("16:00", "21:00"), "wed": pm("16:00", "21:00"), "thu": pm("16:00", "21:00"),
+           "fri": pm("12:00", "21:00"), "sat": pm("10:00", "21:00"), "sun": pm("10:00", "18:00")}
+    winter = {d: day_ranges(t) for d, t in {"mon": "Closed", "tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM",
+              "fri": "12 PM to 9 PM", "sat": "10 AM to 9 PM", "sun": "10 AM to 6 PM"}.items()}
+    mark = {"post": "https://www.facebook.com/x/posts/1", "at": "2026-11-02T23:31:00+00:00"}
+    post = {"entry_id": "mh", "name": "Milk & Honey Ciders", "hours": {**winter, "from": mark}}
+    [c] = new_hours([post], {"mh": had})
+    assert {d: c["hours"][d] for d in DAY_KEYS} == {**had, "tue": [], "wed": []}, "a post's week replaces the days it names"
+    assert c["hours"]["from"] == {**mark, "was": {"tue": had["tue"], "wed": had["wed"]}}, "the week says from what post, and what it was"
+    assert change_words(c["name"], c["hours"]) == ("Milk & Honey Ciders, from its post https://www.facebook.com/x/posts/1: "
+                                                   "Tue 4–9 PM, now closed; Wed 4–9 PM, now closed"), change_words(c["name"], c["hours"])
+    posted = c["hours"]
+    assert not new_hours([{"entry_id": "mh", "name": "M", "hours": had}], {"mh": posted}), "Google leaves a week a place posted"
+    assert new_hours([{**post, "hours": {"mon": pm("16:00", "21:00"), "from": mark}}], {"mh": posted})[0]["hours"]["tue"] == [], \
+        "a newer post changes only the days it names"
+    assert not new_hours([post], {"mh": posted}), "the same week posted again is no change"
+    [half] = new_hours([{**post, "hours": {"thu": pm("16:00", "21:00"), "from": mark}}], {"mh": None})
+    assert half["short"] == ["mon", "tue", "wed", "fri", "sat", "sun"], "a few days over no week are short"
+    seasonal = new_hours([{**post, "hours": {"fri": [], "from": mark}}], {"mh": {**had, "season": ["05-08", "10-16"]}})[0]["hours"]
+    assert seasonal["season"] == ["05-08", "10-16"] and seasonal["fri"] == [], "a posted week keeps the season"
+    assert [day_words(r) for r in (pm("10:00", "21:00"), pm("12:00", "21:00"), [["10:30", "14:00"], ["17:00", "24:00"]], [])] \
+        == ["10 AM–9 PM", "12–9 PM", "10:30 AM–2 PM, 5 PM–12 AM", "closed"], "hours in plain words"
+    calls = []
+    fake = lambda method, path, body=None: calls.append((method, path)) or ([{"entry_id": "mh", "hours": had}] if method == "GET" else None)
+    assert write_hours([post], fake, write=False)[0] and calls == [("GET", "places?select=entry_id,hours&entry_id=not.is.null")], "a dry run writes nothing"
+    assert write_hours([post], fake)[1] and calls[-1] == ("PATCH", "places?entry_id=eq.mh"), "a change is written to its place"
+    calls.clear()
+    short = {**post, "hours": {"thu": pm("16:00", "21:00"), "from": mark}}
+    assert write_hours([short], lambda m, p, b=None: calls.append(m) or [{"entry_id": "mh", "hours": None}])[0][0]["short"] \
+        and calls == ["GET"], "a short week is never written"
+    print("accounts.py selftest: 29 passed, 0 failed")
 
 
 def main():

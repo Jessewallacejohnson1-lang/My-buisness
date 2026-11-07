@@ -8,7 +8,10 @@ The fixture is the social watch's own posts, grouped by the day each was read so
 one Haiku run's flags frozen. It stays in the private BP app repo, not here: this repo is public and a
 post's words wait for the place's yes (ADR-020; Jesse, 2026-11-03). So the check runs on the Mac.
 
-It scores the judge's keep or drop, Event or News, and the day; merging is the writer's (ticket 15).
+It scores the judge's keep or drop, Event or News, and the day; merging is the writer's (ticket 15). A label can
+also want a post's new week (`hours`: the week the writer makes of it over `before`, exactly) or none (`no hours`):
+BP app business-hours 02's own fixture holds those, with `whole_lines`, since the judge opens a post before it
+writes hours.
 - Keeps: an Event or News still live must come out the same, an Event on its day.
 - Mistakes: what was taken out for a written reason the judge should have seen must not come back.
 - Extras: anything else it kept. No score: the labels only cover what the judge once kept, so the check
@@ -42,6 +45,7 @@ St. John the Baptist Parish's Craft Fair as listed too, so that label comes out 
 in a real run, it stays outside 3 of 3 (ticket 17). Count 3 of 369 as this check's kindness.
 
   python3 sources/scripts/check_judge.py [--model sonnet] [--runs 3] [--judge FILE] [--fixture FILE]
+  python3 sources/scripts/check_judge.py --fixture "$HOME/BP app/docs/plans/business-hours/assets/02-hours-check/fixture.json"
   python3 sources/scripts/check_judge.py --selftest
 """
 
@@ -56,6 +60,7 @@ from batch import page_id
 from check_flags import ask, flags_in
 from registry import load
 from towns import TOWNS, DEFAULT
+import accounts
 
 SOURCES = Path(__file__).resolve().parents[1]
 JUDGE = SOURCES / "models" / "judge.md"
@@ -90,11 +95,13 @@ def listed_places():
                             for n in [e["_name"], *(e.get("aka") or [])]))
 
 
-def flag_line(page, flag):
-    """One flag as Nov 5's real weekly printed it for itself, with the whole page id so the score can find its post."""
-    return "|".join([flag["page"], page["name"][:22], flag["kind"][0], (flag.get("title") or "")[:60],
-                     (flag.get("when") or "")[:40], flag.get("date") or "", (flag.get("place") or "")[:40],
-                     (flag.get("note") or "")[:70]])
+def flag_line(page, flag, cut=True):
+    """One flag as Nov 5's real weekly printed it for itself, with the whole page id so the score can find its post.
+    `cut` False: every word of it, as the judge reads a post it opens (a fixture's `whole_lines`)."""
+    n = (lambda k: k) if cut else (lambda k: None)
+    return "|".join([flag["page"], page["name"][:n(22)], flag["kind"][0], (flag.get("title") or "")[:n(60)],
+                     (flag.get("when") or "")[:n(40)], flag.get("date") or "", (flag.get("place") or "")[:n(40)],
+                     (flag.get("note") or "")[:n(70)]])
 
 
 def messages(fixture):
@@ -108,7 +115,7 @@ def messages(fixture):
         day = date.fromisoformat(group["day"])
         for i in range(0, len(flagged), CHUNK):
             part = flagged[i:i + CHUNK]
-            lines = "\n".join(flag_line(p, f) for p in part for f in p["flags"])
+            lines = "\n".join(flag_line(p, f, not fixture.get("whole_lines")) for p in part for f in p["flags"])
             no_where = any(NO_WHERE.search(p["text"]) for p in part)
             listed = f"\nTHE PLACES sources/st-joseph-mn.md LISTS\n\n{listed_places()}\n" if no_where else ""
             out.append(f"Today is {day:%A, %B %-d, %Y}. The town is {TOWNS[DEFAULT]['display']}, Minnesota.\n\n"
@@ -124,8 +131,19 @@ def by_post(items):
 
 
 def counts(x):
-    """An item that reaches the Town feed. `outside` is skipped by the writer; `closed` shows nobody can go."""
-    return x.get("area") != "outside"
+    """An item that reaches the Town feed. `outside` is skipped by the writer; `closed` shows nobody can go. A place's
+    new week (`hours`) goes on its page, not the feed."""
+    return x.get("area") != "outside" and x.get("kind") != "hours"
+
+
+def week_from(before, items):
+    """The week the writer makes of a post's `hours` items over the place's week `before` (morning.save_hours), Monday
+    to Sunday; None when a day is unreadable, so a misread week never passes."""
+    days = {d: accounts.day_ranges(str(t)) for x in reversed(items) for d, t in (x.get("days") or {}).items()}  # the first wins
+    if not days or None in days.values():
+        return None
+    got = accounts.new_hours([{"entry_id": "p", "hours": {**days, "from": {"post": "", "at": ""}}}], {"p": before})
+    return {d: (got[0]["hours"] if got else before).get(d) for d in accounts.DAY_KEYS}
 
 
 def check_label(label, items):
@@ -150,6 +168,12 @@ def check_label(label, items):
         if kept:
             return False, "as an Event", []
         return False, "marked outside" if items else "dropped", []
+    if want in ("hours", "no hours"):  # a post's new lasting week, or none (BP app business-hours 02)
+        hours = [x for x in items if x.get("kind") == "hours"]
+        if want == "no hours":
+            return not hours, f"hours {hours[0].get('days')}" if hours else "", hours
+        week = week_from(label["before"], hours) if hours else None
+        return week == label["week"], f"week {week}" if hours else "no hours", hours
     if want == "drop":
         wrong = [x for x in kept if not x.get("closed")]
         return not wrong, f"kept as {wrong[0].get('title')!r}" if wrong else "", items
@@ -181,7 +205,7 @@ def score(labels, items):
     for label in labels:
         right, why, took = check_label(label, posts[page_id(label["post"])])
         used |= {id(x) for x in took}
-        part = "keeps" if label["expect"] in ("event", "news") else "mistakes"
+        part = "keeps" if label["expect"] in ("event", "news", "hours") else "mistakes"
         out[part] += 1
         out[part + "_right"] += right
         if not right:
@@ -195,6 +219,8 @@ def say(label):
         return f"MISSED Event {label['day']} {label['source']}: {label['title']} ({label['got']})"
     if label["expect"] == "news":
         return f"MISSED News {label['source']}: {label['title']} ({label['got']})"
+    if label["expect"] == "hours":
+        return f"MISSED hours {label['source']}: {label['title']} ({label['got']})"
     return f"MISTAKE {label['source']}: {label['title']}: {label['got']}; taken out because {label['why']}"
 
 
@@ -243,6 +269,19 @@ def selftest():
              {"page": "z", "kind": "event", "title": "Skipped", "area": "outside"}]
     s = score(labels, items)
     got = {(m["post"], m["got"]) for m in s["misses"]}
+    before = {"mon": [], "tue": [["16:00", "21:00"]], "wed": [["16:00", "21:00"]], "thu": [], "fri": [], "sat": [], "sun": []}
+    winter = {**before, "tue": [], "wed": [], "thu": [["16:00", "21:00"]]}
+    week = {"post": "w", "expect": "hours", "before": before, "week": winter, "title": "Winter", "source": "S"}
+    early = {"post": "x", "expect": "no hours", "title": "Early", "why": "one day", "source": "S"}
+    said = {"tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM"}
+    hours_right = [check_label(week, [{"page": "w", "kind": "hours", "days": said}])[0],
+                   check_label(week, [{"page": "w", "kind": "hours", "days": {**said, "thu": "4 PM to 10 PM"}}])[0],
+                   check_label(week, [{"page": "w", "kind": "news", "area": "town"}])[0],
+                   check_label(early, [{"page": "x", "kind": "news", "area": "town"}])[0],
+                   check_label(early, [{"page": "x", "kind": "hours", "days": {"fri": "12 PM to 7 PM"}}])[0]]
+    hs = score([week, {**week, "post": "v"}, {"post": "w", "expect": "news", "title": "W", "source": "S"}],
+               [{"page": "w", "kind": "hours", "days": said}, {"page": "w", "kind": "news", "area": "town"},
+                {"page": "v", "kind": "hours", "days": {"tue": "by appointment"}}])
     page = {"flags": [{"kind": "event", "date": "2026-11-07"}], "text": ""}
     no_day = {"flags": [{"kind": "event", "date": "2026-11-02", "when": "Monday"}], "text": "Come Monday"}
     rule = {"flags": [{"kind": "event", "date": "", "when": "Fridays through Nov 20"}], "text": ""}
@@ -282,6 +321,9 @@ def selftest():
          "none of a post's words reach the judge"),
         (f"z|Zed|e|Fair|Friday at 6|2026-10-30|The Hall|{'n' * 70}\n" in msg[0], "a flag's line, its note cut at 70"),
         ("PLACES" in messages(found)[0] and "PLACES" not in msg[0], "the registry's names come only with an empty Where"),
+        (f"|{'n' * 80}\n" in messages({**fixture, "whole_lines": True})[0], "a fixture's whole lines aren't cut"),
+        (hours_right == [True, False, False, True, False] and not hs["extras"] and hs["keeps"] == 3,
+         f"a post's week is right only as the writer would make it, and no hours where none are due: {hours_right}"),
     ]
     failed = [why for ok, why in checks if not ok]
     for why in failed:

@@ -107,7 +107,7 @@ what keeps an entry written in 2026 readable in 2030.
 | `venue_at` | no | Each name a place line uses for a building of this place, mapped to that building's `[lat, lng]` (`"Sexton Arena": [45.57979, -94.39622]`). An event that names one goes there on the map, an away game included. Kept apart from `venues`, which stays a list of names. |
 | `place_type` | no | `Business`, `Community group`, `Church`, `School / college`, `Government` or `Park / historic`. Set by verification so "businesses only" is a filter, not a second list. |
 | `address`, `phone` | no | Where the place is and how to reach it, from a non-Google source only (ADR-016). Verification's drafts fill them in. |
-| `hours_from` | no | `website` when the place's own site has newer hours than Google: the monthly accounts run then leaves its `places.hours` alone (Jesse, 2026-10-26). |
+| `hours_from` | no | `website` when the place's own site or posts have newer hours than Google: the monthly accounts run then leaves its `places.hours` alone (Jesse, 2026-10-26). A week the social watch reads from a place's own post needs no switch: it carries `from` (the post, when, and what it changed) in `places.hours`, and the monthly run leaves that alone too (BP app business-hours 02). |
 | `entity` | no (defaults to `place`) | What kind of thing this is. The registry lists **places**; events live in their own table and are what a place's sources produce (ADR-013). |
 | `sources` | yes | List of places to look. At least one. |
 
