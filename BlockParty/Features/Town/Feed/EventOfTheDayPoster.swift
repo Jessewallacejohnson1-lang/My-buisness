@@ -96,7 +96,7 @@ struct EventOfTheDayPoster: View {
             // Held: Apple's menu with the poster lifted as itself (inside-cards 24).
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why,
                                    share: { ShareCenter.shared.present(.event(item)) },
-                                   report: item.why == nil ? nil : $menuPresented,
+                                   report: item.why == nil ? nil : $menuPresented, event: item,
                                    edge: RoundedRectangle(cornerRadius: Radius.poster, style: .continuous)))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))

@@ -479,9 +479,10 @@ extension TownNews {
 
 /// A Town card held (inside-cards 24; Jesse, 2026-11-07: "if you hold down the card, it lets you share
 /// it"): Apple's context menu, the card lifted as itself over the blurred feed, as the App Store's cards
-/// do (`references/town-card-buttons/hold/`). It took the send and the ••• off the card: Share first,
-/// then the sheet's Not interested and Mute, then Report, which opens the sheet at its reasons. Its grey
-/// title is the sheet's top line, why the card is there. Signed out, or off the Town feed, Share alone.
+/// do (`references/town-card-buttons/hold/`). It took the send and the ••• off the card: Share and View
+/// on Map first (Jesse: "also add view in Map to share dropdown"), then the sheet's Not interested and
+/// Mute, then Report, which opens the sheet at its reasons. Its grey title is the sheet's top line, why
+/// the card is there. Signed out, or off the Town feed, Share and View on Map alone.
 struct TownCardHold<Edge: Shape>: ViewModifier {
     let id: String
     let hostName: String
@@ -489,11 +490,14 @@ struct TownCardHold<Edge: Shape>: ViewModifier {
     let share: (() -> Void)?
     /// Report's sheet, opened at its reasons; nil, no Report (News).
     var report: Binding<Bool>?
+    /// The Event View on Map shows; nil for News.
+    var event: FeedCardItem?
     /// The card's own edge, so it lifts as itself and not as its row.
     let edge: Edge
 
     @Environment(TownFeed.self) private var feed: TownFeed?
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.viewOnMap) private var viewOnMap
 
     func body(content: Content) -> some View {
         content
@@ -527,12 +531,39 @@ struct TownCardHold<Edge: Shape>: ViewModifier {
         if let share {
             Button("Share", systemImage: "square.and.arrow.up", action: share)
         }
+        if let event, let viewOnMap, EventMapRoute.route(event, now: TodayBubbleClock.now(), spot: true) != nil {
+            Button("View on Map", systemImage: "map") { viewOnMap(event) }
+        }
     }
 
     /// The card folds into "Hidden · Undo" as it does from the sheet.
     private func hide(_ feed: TownFeed, mute: Bool) {
         Haptics.light()
         Task { await feed.hide(id: id, host: hostName, mute: mute) }
+    }
+}
+
+extension EnvironmentValues {
+    /// View on Map from a held Town card: the shell's (`MainTabsView`), which can open the map.
+    @Entry var viewOnMap: ((FeedCardItem) -> Void)? = nil
+}
+
+/// Where View on Map takes an Event (inside-cards 24): Block Party's map, on its bubble and card, when
+/// it's there today; else Apple Maps at its place, as the Event page's place does until our map shows
+/// every day and every Event has a spot (inside-cards 06, 19 and 20).
+enum EventMapRoute: Equatable {
+    case ourMap
+    case appleMaps(URL)
+
+    /// Today's and not over: the map shows it once its spot is read.
+    static func today(_ event: FeedCardItem, now: Date) -> Bool {
+        event.eventDate == Town.day(now) && TodayBubbleRules.phase(event, now: now) != .ended
+    }
+
+    /// `spot`: the map has a spot for it. Nil, nowhere to show it, so the menu leaves the row out.
+    static func route(_ event: FeedCardItem, now: Date, spot: Bool) -> EventMapRoute? {
+        if spot && today(event, now: now) { return .ourMap }
+        return Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
     }
 }
 

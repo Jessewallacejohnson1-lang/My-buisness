@@ -134,7 +134,7 @@ struct FeedEventCard: View {
             }
             // Held: Apple's menu with the card lifted as itself (inside-cards 24).
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why, share: onShare,
-                                   report: item.why == nil ? nil : $menuPresented, edge: TownCardEdge()))
+                                   report: item.why == nil ? nil : $menuPresented, event: item, edge: TownCardEdge()))
 
             // The line under a card with no photo, or called off: the faces and the count, its middle
             // 24 pt under the card as Instagram's is (event-card 07); "You're going!" once you are.

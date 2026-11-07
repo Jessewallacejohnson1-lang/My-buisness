@@ -237,6 +237,25 @@ struct RootView: View {
 
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
+    /// View on Map from a held Town card (inside-cards 24): today's Event with a spot opens our map on
+    /// its bubble; any other, Apple Maps at its place (`EventMapRoute`).
+    private func viewOnMap(_ event: FeedCardItem) {
+        Task {
+            let now = TodayBubbleClock.now()
+            let spot = EventMapRoute.today(event, now: now)
+                ? (try? await CommunityAPI(auth: auth).eventSpots([event.id]))?[event.id] != nil : false
+            switch EventMapRoute.route(event, now: now, spot: spot) {
+            case .ourMap:
+                mapEventID = event.id
+                showMap = true
+            case .appleMaps(let url):
+                await UIApplication.shared.open(url)
+            case nil:
+                break
+            }
+        }
+    }
+
     /// In its own app when that's on the phone, else in the in-app browser.
     private func openLink(_ url: URL) {
         Task {
@@ -362,6 +381,8 @@ struct MainTabsView: View {
     /// The map, presented full-screen from the map disc in the Town bar rather than
     /// living in the tab bar. Its own state belongs to `SJMapView`.
     @State private var showMap = false
+    /// View on Map's Event: the map opens on its bubble.
+    @State private var mapEventID: String?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
     /// Direction of the last tab change — whether the incoming screen slides in
@@ -480,6 +501,7 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
+        .environment(\.viewOnMap, viewOnMap)
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
         .onChange(of: code.id, initial: true) { openWaitingCode() }
@@ -748,8 +770,8 @@ struct MainTabsView: View {
         }
         // The map is a destination, not a tab: full screen, with its own close, and its card
         // opens the Event page on the map's own stack (BP app references/map-reset).
-        .fullScreenCover(isPresented: $showMap) {
-            SJMapView(onClose: { showMap = false })
+        .fullScreenCover(isPresented: $showMap, onDismiss: { mapEventID = nil }) {
+            SJMapView(onClose: { showMap = false }, eventID: mapEventID)
                 .environment(\.hostOpener, nil)
                 .environment(actions)
                 .environment(friendsBook)

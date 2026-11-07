@@ -27,6 +27,8 @@ private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
 struct SJMapView: View {
     /// Leaves the map; nil draws no close circle.
     var onClose: (() -> Void)?
+    /// View on Map from a held Town card (inside-cards 24): its bubble's card opens, on its page.
+    var eventID: String? = nil
 
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
@@ -55,6 +57,7 @@ struct SJMapView: View {
     @State private var focus = MapFocus()
     @State private var path: [FeedCardItem] = []
     @State private var mapSize: CGSize = .zero
+    @State private var eventOpened = false
 
     private var selected: TodayBubble? { shown.first { $0.id == focus.selectedID } }
 
@@ -165,6 +168,7 @@ struct SJMapView: View {
         // The Event on the open card, which it keeps however the bubbles merge or split.
         let onCard = selected.map { $0.events[min(max(focus.page, 0), $0.events.count - 1)].id }
         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) { shown = merged }
+        openEvent(in: merged)
         #if DEBUG
         debugOpenBubble()
         #endif
@@ -269,6 +273,15 @@ struct SJMapView: View {
     private func flyHome() {
         Haptics.light()
         fly(withAnimation(cardSpring) { focus.home() })
+    }
+
+    /// View on Map: once its bubble is drawn, its card opens on it, once.
+    private func openEvent(in bubbles: [TodayBubble]) {
+        guard let eventID, !eventOpened,
+              let bubble = bubbles.first(where: { $0.events.contains { $0.id == eventID } }) else { return }
+        eventOpened = true
+        select(bubble)
+        if let page = bubble.events.firstIndex(where: { $0.id == eventID }) { focus.page = page }
     }
 
     /// The compass's tap: face north and level, in place.
