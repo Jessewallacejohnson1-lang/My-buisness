@@ -62,7 +62,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "RootView.swift:$creating": .notYetAudited(reason: "New post, from the Town bar's + (BP app post-screen): the name line wraps, the chips scroll sideways, the words grow; its Event chip's name field and Place row hold one line and truncate at the largest sizes; Tag friends and Place are Lists that wrap. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "MessagesPage.swift:$picking": .notYetAudited(reason: "New message (five-tabs 05): a search and a list of friends, one line each; the group name field and the bar's button grow with the text. The audit waits until chat has a seed of its own."),
         "ChatPage.swift:$open": .notYetAudited(reason: "A chat's photo, whole, with only a close button: no text to scale."),
-        "RootView.swift:$helloLink": .notYetAudited(reason: "Safari view on the hello pill's news post (hello-drop 03) — system UI, scales on its own."),
         "ChatRoomRow.swift:$asking": .notYetAudited(reason: "A Going or Group chat's one birthday ask (five-tabs 06 and 07): a headline, a line, onboarding's own field and Apple's wheel, as its birthday step."),
         "EventPage.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
     ]

@@ -46,7 +46,8 @@ import SwiftUI
     private init() {
         frozenAt = LaunchFlags.value(.launchAt).flatMap(Double.init).map { $0 / 1000 }
         skipAt = LaunchFlags.value(.launchSkip).flatMap(Double.init).map { $0 / 1000 }
-        plays = !LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil
+        // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
+        plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
         reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
         finished = !plays
         // Reduce Motion crossfades into the app, so the tab bar's Bp! shows under it throughout.
@@ -149,7 +150,7 @@ struct LaunchHost<Content: View>: View {
         }
         .onAppear {
             if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
-            guard stage.plays, UIAccessibility.isVoiceOverRunning else { return }
+            guard stage.plays || LeftOff.current != nil, UIAccessibility.isVoiceOverRunning else { return }
             AccessibilityNotification.Announcement("Block Party").post()
         }
         // Whatever stalls it, the app shows within 6 s: the splash deleted on 2026-09-18 left

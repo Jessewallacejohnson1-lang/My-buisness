@@ -20,10 +20,13 @@
 import Foundation
 
 enum TownFeedCache {
-    /// The feed's list, or the Event of the day's picks (`get_event_of_the_day`).
+    /// The feed's list, the Event of the day's picks (`get_event_of_the_day`), where you left off
+    /// (`LeftOff`), or where to centre each photo (`FeedCardImageLoader`).
     enum Kind: String, CaseIterable {
         case feed = "town-feed.json"
         case eventOfTheDay = "event-of-the-day.json"
+        case leftOff = "left-off.json"
+        case photoFocus = "photo-focus.json"
     }
 
     private static func file(_ kind: Kind) -> URL? {
@@ -47,11 +50,13 @@ enum TownFeedCache {
         }
     }
 
+    static func remove(_ kind: Kind) {
+        guard let file = file(kind) else { return }
+        try? FileManager.default.removeItem(at: file)
+    }
+
     static func clear() {
-        for kind in Kind.allCases {
-            guard let file = file(kind) else { continue }
-            try? FileManager.default.removeItem(at: file)
-        }
+        for kind in Kind.allCases { remove(kind) }
         UserDefaults.standard.removeObject(forKey: postersKey)
     }
 
