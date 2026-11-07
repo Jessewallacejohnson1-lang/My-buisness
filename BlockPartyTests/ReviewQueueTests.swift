@@ -49,7 +49,7 @@ final class ReviewQueueTests: XCTestCase {
 
     /// `list_held` as the server sends it: an Event opens its page, an everyday post (no date) still comes
     /// through with its words and poster, and a deleted poster is no poster.
-    func testHeldItemsDecodeEvenWithoutADate() throws {
+    @MainActor func testHeldItemsDecodeEvenWithoutADate() throws {
         let json = """
         [{"id": "e1", "kind": "event", "checked_at": "2026-11-07T19:00:00+00:00",
           "card": {"id": "e1", "title": "Bingo night", "event_date": "2026-11-10", "start_time": "6:30 PM",
