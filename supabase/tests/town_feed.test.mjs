@@ -3895,4 +3895,32 @@ test("a hockey file open before the puck is not on yet, and a period just over r
   assert.equal((await live(2, 1200, [end(2)])).clock_s, 0, "CSB's after the 2nd");
   assert.equal((await live(1, 0, [end(1)])).clock_s, 0, "SJU's after the 1st");
   assert.equal((await live(3, 1200, [end(2)])).clock_s, 1200, 'the next period set up, its clock full');
+  // The live-scores backup sends the whole file's plays oldest first (iOS main b9a02a91), "Game START." always first.
+  const faceoff = { Narrative: 'Faceoff', Period: 1 }, begins = (period) => ({ Narrative: 'Period START.', Period: period });
+  assert.equal((await live(1, 1100, [start, begins(1), faceoff])).clock, '18:20', 'the puck is down, read oldest first');
+  assert.equal((await live(2, 1200, [start, begins(1), end(1), begins(2), end(2)])).clock_s, 0, 'after the 2nd, read oldest first');
+  assert.equal((await live(2, 1200, [start, begins(1), end(1)])).clock_s, 1200, 'the 2nd set up, read oldest first');
+});
+
+test('the live-scores backup, a whole file with its plays oldest first, reads a hockey game as the pushes do (game-card 09)', async () => {
+  await reset();
+  const f = fridayFiles[1];
+  await db.exec(`insert into public.teams (id, name, short_name, logo_url) values
+    ('${f.ours}', 'Ours', 'Ours', 'https://x/a.png'), ('${f.them}', 'Them', 'Them', 'https://x/b.png')`);
+  const plays = f.file.Plays, k = plays.findIndex((p) => p.Period === 2) + 40;
+  const at = (i, last) => ({ Game: { ...f.file.Game, IsComplete: false, Period: plays[i].Period, ClockSeconds: 1200 - plays[i].ClockSeconds, LastPlays: last } });
+  const game = async (title) => {
+    const id = await add(title, '2026-11-06', { start_time: '7 PM', source_name: f.source });
+    await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['${f.ours}', '${f.them}'] where id = $1`, [id]);
+    return id;
+  };
+  const record = async (id, g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r', [id, JSON.stringify(g)])).rows[0].r;
+  const live = async (id) => (await db.query('select live_score from public.club_events where id = $1', [id])).rows[0].live_score;
+  const pushed = await game('Pushed'), backup = await game('Backup');
+  for (let i = 0; i <= k; i++) await record(pushed, at(i, plays.slice(Math.max(0, i - 4), i + 1).reverse()));
+  assert.equal(await record(backup, at(k, plays.slice(0, k + 1))), 'live', 'on, though its first play is "Game START."');
+  const [p, b] = [await live(pushed), await live(backup)];
+  assert.equal(b.period, 'P2');
+  assert.deepEqual(b.score, p.score);
+  assert.deepEqual(b.ice, p.ice, 'the same saves and power plays');
 });

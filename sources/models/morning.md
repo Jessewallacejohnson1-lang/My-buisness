@@ -45,7 +45,8 @@ together, at most 10 running at once:
   Answer with the JSON lines only." Their lines go to `.runs/morning/tags.jsonl`.
 - for each `.runs/morning/describe/batch-N.txt`, one helper on your own model with the same
   words for `describe.md` and its batch. Their lines go to `.runs/morning/describe.jsonl`.
-- for each `.runs/morning/photos/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
+- for each `.runs/morning/photos/batch-N.txt`, one helper on your own model (Jesse, 2026-11-07: Sonnet
+  picks every photo, BP app dig-deeper 08) with: "Read
   `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with the
   JSON lines only." Their lines go to `.runs/morning/event_photos.jsonl`.
 - Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked

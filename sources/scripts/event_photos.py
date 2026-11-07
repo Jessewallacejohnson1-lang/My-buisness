@@ -25,6 +25,11 @@ place_photos row of kind 'event' for that Event ('flyer' for a flyer, which the 
 every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game,
 a meet or any sport has no photo of its own for now (place_photos.is_sport, the skill's review page's rule too), and a
 sport's card shows the scene pool (event-photos 07).
+
+Before any of that, a photo a person kept for an Event's title at its place (a publish sheet Jesse said yes to, not this
+step's own pick, and a photo, not a flyer) follows to that title's new dates: a show or class listed one day at a time gets its kept photo, not
+whatever its listing came with (BP app docs/plans/dig-deeper 20; Reflection and Bréagán, 2026-11-04 to 07). Those
+Events are not laid out; `keep` gives each a row of the same picture and marks it looked at.
 """
 import argparse, json, re, sys
 from datetime import date, datetime, timedelta, timezone
@@ -51,6 +56,9 @@ TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos
 CAMPUS_API = "https://my.csbsju.edu/api/v2/events/unauthenticated/"
 CAMPUS_PAGE = re.compile(r"my\.csbsju\.edu/public/events/(\d+)")
 POST = re.compile(r"(?:facebook|instagram)\.com/")
+OWN = "event photos"           # place_photos.proposed_by on this step's own picks; any other live row a person kept
+FOLLOW = "its title's kept photo"  # proposed_by on a copy: only the row a person kept follows, so taking it down ends it
+FOLLOWED = ("town", "url", "source_url", "kind", "width", "height", "credit", "description", "whole")
 
 
 def out_dir():
@@ -66,6 +74,36 @@ def todo(db, now):
                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
     import place_photos
     return [r for r in rows if not place_photos.is_sport(r)]
+
+
+def in_list(values):
+    """A PostgREST in.() filter's value, each quoted, so commas, quotes and brackets in a title stay inside it."""
+    return quote("(" + ",".join('"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"' for v in sorted(values)) + ")")
+
+
+def kept_photos(db, events):
+    """{Event id: the live photo a person kept for another Event of its title at its place}, the newest one when there
+    are several. Only a photo follows: a flyer's words name one date, and nothing reads them here. This step's own
+    picks don't follow (their Event's listing picked them), nor do earlier copies (so a photo taken down stops
+    following), nor to an Event with no place. Both reads are bounded by the morning's places, not by a title's
+    history: a weekly Event adds a date every week."""
+    keys = {(e["title"], e["place_entry_id"]) for e in events if e.get("place_entry_id")}
+    if not keys:
+        return {}
+    places = in_list({p for _, p in keys})
+    same = {o["id"]: (o["title"], o["place_entry_id"])
+            for o in db.rest("GET", f"club_events?select=id,title,place_entry_id&title=in.{in_list({t for t, _ in keys})}"
+                                    f"&place_entry_id=in.{places}")
+            if (o["title"], o["place_entry_id"]) in keys}
+    if not same:
+        return {}
+    best = {}
+    for r in db.rest("GET", f"place_photos?select=id,event_id,proposed_by,{','.join(FOLLOWED)}&status=eq.live&kind=eq.event"
+                            f"&entry_id=in.{places}&event_id=not.is.null&order=id.desc"):
+        k = same.get(r["event_id"])
+        if k and r.get("proposed_by") not in (OWN, FOLLOW) and (k not in best or r["id"] > best[k]["id"]):
+            best[k] = r
+    return {e["id"]: best[(e["title"], e.get("place_entry_id"))] for e in events if (e["title"], e.get("place_entry_id")) in best}
 
 
 def post_key(url):
@@ -263,7 +301,20 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     if folder.exists():
         for f in folder.iterdir():
             f.unlink()
-    events = todo(db or Supabase(), now)
+    db = db or Supabase()
+    events = todo(db, now)
+    try:
+        kept = kept_photos(db, events)
+    except DbError as x:  # following is a shortcut: without it every Event is laid out as before
+        print(f"[photos] kept photos not read, every new Event laid out: {x}")
+        kept = {}
+    follow =[{"event": e, "row": kept[e["id"]]} for e in events if e["id"] in kept]
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "follow.json").write_text(json.dumps(follow, indent=1, ensure_ascii=False))
+    if follow:
+        print(f"[photos] {len(follow)} new Events take the photo kept for their title: "
+              + "; ".join(sorted({f['event']['title'] for f in follow})))
+    events = [e for e in events if e["id"] not in kept]
     groups = groups_of(events)
     for i, g in enumerate(groups, 1):
         g["key"] = f"e{i}"
@@ -309,35 +360,45 @@ def keep(out, dry_run=False, db=None, now=None):
     folder = out / "photos"
     groups = json.loads((folder / "events.json").read_text()) if (folder / "events.json").exists() else []
     picks = plan(read_items(out / "event_photos.jsonl"), groups)
+    follow = json.loads((folder / "follow.json").read_text()) if (folder / "follow.json").exists() else []
     db = db or (None if dry_run else Supabase())
     stamp = (now or datetime.now(timezone.utc)).isoformat()
     by_key = {g["key"]: g for g in groups}
+    followed = {f["event"]["id"]: f for f in follow}
 
     def save_one(key):
         kind, what = key.split(":", 1)
         if kind == "looked":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_checked_at": stamp}, prefer="return=minimal")
-        g, (c, shows, flyer) = by_key[what], picks[what]
         try:
+            if kind == "follow":
+                e, r = followed[what]["event"], followed[what]["row"]
+                return db.rest("POST", "place_photos", [{**{k: r[k] for k in FOLLOWED if r.get(k) is not None},
+                                                         "entry_id": e["place_entry_id"], "event_id": e["id"], "status": "live",
+                                                         "proposed_by": FOLLOW}],
+                               "return=minimal")
+            g, (c, shows, flyer) = by_key[what], picks[what]
             place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
-                                      proposed_by="event photos")
+                                      proposed_by=OWN)
         except DbError as e:
             if e.status != 409:  # the database's one live photo an Event has: an earlier run's save that got through
                 raise
     if not dry_run:
         # Each write its own key, so lines that come late are still saved and a stop leaves only what wasn't sent.
         # prepare clears the file.
-        Part(folder / "kept.json").each([k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
-                                          + [f"looked:{e['id']}" for e in g["events"]]], save_one)
+        Part(folder / "kept.json").each([k for f in follow for k in (f"follow:{f['event']['id']}", f"looked:{f['event']['id']}")]
+                                        + [k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
+                                           + [f"looked:{e['id']}" for e in g["events"]]], save_one)
     kept = [g for g in groups if g["key"] in picks]
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
     flyers = sum(len(g["events"]) for g in kept if picks[g["key"]][2])
     none = [g["title"] for g in groups if g["key"] not in picks]
-    line = (f"[photos] {got} of {events} new Events got a photo of their own ({own} from their own post or page, "
+    line = (f"[photos] {got + len(follow)} of {events + len(follow)} new Events got a photo of their own ("
+            + (f"{len(follow)} the one kept for their title, " if follow else "") + f"{own} from their own post or page, "
             f"{got - own} from their place's other posts; {flyers} of them their own flyer)" + (f"; none for {len(none)}: " + "; ".join(none[:20])
                                                                if none else "")
             + (" (dry run: nothing written)" if dry_run else ""))
@@ -525,6 +586,76 @@ def selftest():
         before = (out / "photos" / "events.json").read_text()
         lay_out()
         check((out / "photos" / "events.json").read_text() == before, "prepare run again lays out the same")
+
+        # dig-deeper 20: a photo a person kept for a title follows to its new dates
+        sheehan = {"id": 624, "event_id": "old", "url": "https://db.example/sheehan.webp", "kind": "event", "town": TOWN,
+                   "source_url": "https://www.csbsju.edu/news/x", "width": 1102, "height": 1600, "proposed_by": None,
+                   "description": "Sheehan's drawing"}
+
+        class Follows(place_photos.Unsent):  # Reflection's new date, and its earlier date with Jesse's kept photo
+            def rest(self, method, path, body=None, prefer=None):
+                self.calls.append((method, path, body))
+                if method != "GET":
+                    return None
+                if path.startswith("club_events?select=id,title,place_entry_id"):
+                    return [{"id": "old", "title": "Reflection", "place_entry_id": "arts"}]
+                if path.startswith("place_photos"):
+                    return [sheehan]
+                return [dict(e, place_entry_id="arts") if e["title"] == "Reflection" else dict(e) for e in events]
+        laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=Follows("https://db.example"), rows=rows,
+                       banners={}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
+        follow_file = json.loads((out / "photos" / "follow.json").read_text())
+        check([g["title"] for g in laid] == ["Yoga", "Give to the Max"] and [f["event"]["id"] for f in follow_file] == ["id2"],
+              "an Event whose title has a kept photo at its place isn't laid out: it follows that photo")
+        (out / "event_photos.jsonl").write_text('{"event": "e1", "pick": "c2", "shows": "The cast on stage"}\n')
+        fake = place_photos.Unsent("https://db.example")
+        said = keep(out, db=fake, now=datetime(2026, 11, 3, 11, tzinfo=timezone.utc))
+        copy = [r for m, p, b in fake.calls if p == "place_photos" for r in b if r["event_id"] == "id2"]
+        check(len(copy) == 1 and copy[0]["url"] == sheehan["url"] and copy[0]["entry_id"] == "arts" and copy[0]["status"] == "live"
+              and copy[0]["description"] == "Sheehan's drawing" and "id" not in copy[0] and copy[0]["proposed_by"] == FOLLOW
+              and sum(m == "PUT" for m, p, b in fake.calls) == 1,
+              "keep gives it a live row of the same picture, filed under its place and marked a copy, nothing uploaded again for it")
+        check("id2" in [p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH"]
+              and said.startswith("[photos] 3 of 4 new Events got a photo of their own (1 the one kept for their title, "),
+              f"it is marked looked at, and the line counts it: {said}")
+
+        class Refused(Follows):  # the kept photos can't be read: every Event is laid out, as before this step
+            def rest(self, method, path, body=None, prefer=None):
+                if path.startswith("club_events?select=id,title,place_entry_id"):
+                    raise DbError(method, path, 414, "URI too long")
+                return super().rest(method, path, body, prefer)
+        laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=Refused("https://db.example"), rows=rows,
+                       banners={}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
+        check([len(g["events"]) for g in laid] == [2, 1, 1] and json.loads((out / "photos" / "follow.json").read_text()) == [],
+              "a failed read of kept photos lays every Event out as before, and nothing follows")
+
+    def asked(new, kept_rows, others):
+        class Kept:
+            calls = []
+
+            def rest(self, method, path, body=None, prefer=None):
+                self.calls.append(path)
+                return others if path.startswith("club_events") else kept_rows
+        db = Kept()
+        return kept_photos(db, new), db.calls
+    others = [{"id": "o1", "title": "Reflection", "place_entry_id": "arts"}, {"id": "o2", "title": "Reflection", "place_entry_id": "arts"},
+              {"id": "o3", "title": "Bréagán", "place_entry_id": "sju"}, {"id": "o4", "title": "Reflection", "place_entry_id": "elsewhere"}]
+    kept_rows = [{"id": 10, "event_id": "o1", "url": "u/older", "proposed_by": None},
+                 {"id": 20, "event_id": "o2", "url": "u/sheehan", "proposed_by": "Jesse, 2026-11-02"},
+                 {"id": 30, "event_id": "o3", "url": "u/calendar", "proposed_by": OWN},
+                 {"id": 40, "event_id": "o4", "url": "u/elsewhere", "proposed_by": None},
+                 {"id": 60, "event_id": "o1", "url": "u/copy", "proposed_by": FOLLOW}]
+    got, paths = asked([{"id": "n1", "title": "Reflection", "place_entry_id": "arts"}, {"id": "n2", "title": "Bréagán", "place_entry_id": "sju"},
+                    {"id": "n3", "title": "Reflection", "place_entry_id": "other"}, {"id": "n4", "title": "Reflection", "place_entry_id": None}],
+                   kept_rows, others)
+    check({k: v["url"] for k, v in got.items()} == {"n1": "u/sheehan"},
+          "the newest kept photo of the title at its place follows; this step's own pick doesn't, nor an earlier copy, nor another "
+          "place's, nor to an Event with no place")
+    check(all("place_entry_id=in." in p or "entry_id=in." in p for p in paths) and "kind=eq.event" in paths[1]
+          and "event_id=in." not in paths[1], "both reads are bounded by the morning's places, and only photos are asked for, not flyers")
+    got, calls = asked([{"id": "n5", "title": 'Say "Hi", All', "place_entry_id": "p"}], [], [])
+    check(got == {} and quote('("Say \\"Hi\\", All")') in calls[0] and len(calls) == 1,
+          "a title with quotes and a comma is asked for whole; no Event of it, no photo asked for")
     print(f"{ok} passed, {bad} failed")
     return bad == 0
 
