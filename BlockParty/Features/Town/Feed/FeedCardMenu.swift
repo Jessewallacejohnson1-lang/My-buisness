@@ -507,7 +507,7 @@ struct TownCardHold: ViewModifier {
                 }
             }
             // Once per card, as the sheet: a second report from the same phone would only add to its count.
-            if let report, !feed.reportedIDs.contains(id) {
+            if let report, !feed.hides.reportedIDs.contains(id) {
                 Section {
                     Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
                         report.wrappedValue = true
@@ -529,7 +529,7 @@ struct TownCardHold: ViewModifier {
     /// The card folds into "Hidden · Undo" as it does from the sheet.
     private func hide(_ feed: TownFeed, mute: Bool) {
         Haptics.light()
-        Task { await feed.hide(id: id, host: hostName, mute: mute) }
+        Task { await feed.hides.hide(id: id, host: hostName, mute: mute) }
     }
 }
 
