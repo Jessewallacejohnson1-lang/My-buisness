@@ -442,8 +442,8 @@ def photo_lines(db, today):
 
 # The games the live-scores job follows: private.sidearm_file's pairs, compared by a self-test with the newest
 # migration that defines it. live_games reads only a start like these, and one such game a school plays a day.
-LIVE_SPORTS = {"SJU Athletics/Football", "SJU Athletics/Soccer", "SJU Athletics/Basketball",
-               "CSB Athletics/Soccer", "CSB Athletics/Volleyball", "CSB Athletics/Basketball"}
+LIVE_SPORTS = {"SJU Athletics/Football", "SJU Athletics/Soccer", "SJU Athletics/Basketball", "SJU Athletics/Hockey",
+               "CSB Athletics/Soccer", "CSB Athletics/Volleyball", "CSB Athletics/Basketball", "CSB Athletics/Hockey"}
 CLOCK_START = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$")
 
 

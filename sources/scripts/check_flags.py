@@ -20,7 +20,7 @@ drop), keeps the flags in .runs/check-flags/, and exits 1 below the bar.
   python3 sources/scripts/check_flags.py --selftest
 """
 
-import argparse, json, re, subprocess, sys, tempfile
+import argparse, json, os, re, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from pathlib import Path
@@ -37,11 +37,16 @@ BAR = 0.9
 
 
 def ask(model, system, text):
-    """One batch through Claude Code: no tools, no CLAUDE.md, no hooks, nothing saved."""
+    """One batch through Claude Code: no tools, no CLAUDE.md, no hooks, nothing saved.
+
+    A `-p` run gets the 1-hour cache on Jesse's plan, which saves at twice the input price. A
+    batch's pages are never sent again, and the next batch follows within seconds, so the
+    5-minute cache (1.25 times) keeps the repeated instructions for less (Jesse, 2026-11-07)."""
+    env = dict(os.environ, CLAUDE_CODE_PROMPT_CACHE_TTL="5m")
     with tempfile.TemporaryDirectory() as empty:
         r = subprocess.run(["claude", "-p", "--safe-mode", "--tools", "", "--no-session-persistence",
                             "--model", model, "--output-format", "json", "--system-prompt", system],
-                           input=text, capture_output=True, text=True, cwd=empty, timeout=600)
+                           input=text, capture_output=True, text=True, cwd=empty, env=env, timeout=600)
     if r.returncode:
         raise RuntimeError(f"claude exited {r.returncode}: {(r.stderr or r.stdout)[-300:]}")
     reply = json.loads(r.stdout)

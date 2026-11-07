@@ -232,6 +232,9 @@ final class TownFeed {
 
     private let read: () async throws -> [TownFeedEntry]
     private let kept: () -> [TownFeedEntry]?
+    /// The same list unpacked off the main thread, for the first read at launch: unpacked on it,
+    /// it froze the launch's ball for 90 ms (Jesse's phone, 2026-11-07). nil: `kept`.
+    private let keptLater: (() async -> [TownFeedEntry]?)?
     /// Told each Event's Going and Heart from every list the feed takes, in the same
     /// turn, so a card and its Event page never disagree for a frame.
     private let actions: RealLifeActions?
@@ -263,6 +266,7 @@ final class TownFeed {
     /// first read, so it is built with the account that read sees.
     init(read: @escaping () async throws -> [TownFeedEntry],
          kept: @escaping () -> [TownFeedEntry]? = { nil },
+         keptLater: (() async -> [TownFeedEntry]?)? = nil,
          actions: RealLifeActions? = nil,
          send: @escaping ([FeedAction]) async throws -> Void = { _ in },
          choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
@@ -279,6 +283,7 @@ final class TownFeed {
         postersGone = Set(postersShown)
         self.read = read
         self.kept = kept
+        self.keptLater = keptLater
         self.actions = actions
         self.sender = send
         self.choose = choose
@@ -316,7 +321,8 @@ final class TownFeed {
         // GitHub's check builds with, gave up on that (red from 2026-10-13).
         let testRun = AuthStore.isTestRun
         let api = CommunityAPI(supabase)
-        self.init(read: { try await api.getTownFeed().map(TownFeed.entry) }, kept: Self.keptOnDisk, actions: actions,
+        self.init(read: { try await api.getTownFeed().map(TownFeed.entry) }, kept: Self.keptOnDisk,
+                  keptLater: { await Self.keptLines()?.map(TownFeed.entry) }, actions: actions,
                   send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
                   choose: { try await api.feedChoice($0) },
                   readMuted: { try await api.mutedHosts() },
@@ -561,15 +567,6 @@ final class TownFeed {
     /// list changes: `nextLeave` reads both, and the feed's leave timer is keyed on
     /// it, so changing either first cancelled the very read the timer had started.
     private func readAgain(at now: Date, freshOrder: Bool) async {
-        if entries == nil, !keptChecked {
-            keptChecked = true
-            if let kept = kept(), kept.contains(where: { $0.leavesAt > now }) {
-                actions?.read(kept.compactMap(\.card))
-                actions?.read(posts: kept.compactMap(\.post))
-                entries = kept
-                clock = now
-            }
-        }
         if entries == nil { failed = false }
         // Reads overlap (the feed opening, the foreground, a new account): a slow one
         // that lands last must not overwrite a newer one's answer.
@@ -578,6 +575,19 @@ final class TownFeed {
         // Its own task, not the caller's: a view going away must not end a read others share.
         let task = Task { await land(thisRead, at: now, freshOrder: freshOrder) }
         readOut = (task, now)
+        // The kept list shows while the read is out. It's looked for after the read is set up, so a
+        // caller arriving while it unpacks joins this read rather than starting a second one.
+        if entries == nil, !keptChecked {
+            keptChecked = true
+            let list = if let keptLater { await keptLater() } else { kept() }
+            // A read may have landed while it was unpacked: then that read's list stands.
+            if entries == nil, let kept = list, kept.contains(where: { $0.leavesAt > now }) {
+                actions?.read(kept.compactMap(\.card))
+                actions?.read(posts: kept.compactMap(\.post))
+                entries = kept
+                clock = now
+            }
+        }
         await task.value
     }
 
@@ -847,6 +857,12 @@ final class TownFeed {
         return lines.map(entry)
     }
 
+    /// The lines `keptOnDisk` reads, read and unpacked off the main thread (`keptLater`).
+    @concurrent
+    private nonisolated static func keptLines() async -> [TownFeedLine]? {
+        TownFeedCache.load().flatMap { try? CommunityAPI.townFeedLines(from: $0) }
+    }
+
     /// A line of the feed as its entry: an event's card, or news as it came (ticket 35).
     static func entry(_ line: TownFeedLine) -> TownFeedEntry {
         switch line {
@@ -864,7 +880,7 @@ final class TownFeed {
     }
 
     static func card(_ row: TownFeedRow) -> FeedCardItem {
-        var card = FeedCardItem(row.event, recurrence: row.recurrence)
+        var card = FeedCardItem(row.event)
         card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
         card.followed = row.reason == "follow" ? row.reasonName : nil
         card.likeCount = row.heartCount

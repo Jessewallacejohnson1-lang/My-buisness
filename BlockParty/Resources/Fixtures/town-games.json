@@ -86,6 +86,41 @@
   }
  },
  {
+  "id": "h1",
+  "title": "SJU Hockey vs St. Olaf",
+  "host": "SJU Athletics",
+  "place": "Herb Brooks National Hockey Center, St. Cloud",
+  "day": "2026-12-10",
+  "time": "7 PM",
+  "hoursUntil": 840,
+  "went": 84,
+  "game": {
+   "sport": "Hockey",
+   "teams": [
+    {
+     "name": "Saint John's",
+     "short": "Saint John's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
+     "color": "#C20430",
+     "colors": [
+      "#BC0E33",
+      "#02A2E2"
+     ]
+    },
+    {
+     "name": "St. Olaf",
+     "short": "St. Olaf",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-olaf/logo-5f179dab1d.png",
+     "color": "#000000",
+     "colors": [
+      "#000000",
+      "#C8861E"
+     ]
+    }
+   ]
+  }
+ },
+ {
    "id": "p1",
    "title": "CSB Soccer vs Macalester",
    "host": "CSB Athletics",

@@ -13,6 +13,8 @@ struct FeedCardFacepile: View {
     let neighborAvatars: [URL]
     let goingCount: Int
     let reduceMotion: Bool
+    /// The ring that parts the faces: the page under them, or white over a Town card's photo.
+    var ring: Color = Hue.paper
 
     var body: some View {
         HStack(spacing: -8) {
@@ -65,12 +67,12 @@ struct FeedCardFacepile: View {
             )
             .frame(width: 24, height: 24)
             .background(Hue.fill, in: Circle())
-            .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+            .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
     }
 
     private func avatar(for slot: Slot) -> some View {
         Avatar(slot.url, size: 24)
-            .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+            .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
     }
 
 }

@@ -1412,6 +1412,26 @@ test("a game's final rides its game, host first, and keeps its card a day past t
                        /club_events_final_score_pair/, 'two scores or none');
 });
 
+test("a back-to-back's next game takes the card from the last one's final the next day (game-card 24)", async () => {
+  await reset();
+  // CSB vs Lake Forest hockey, Friday 7 PM (4-1) and Saturday 2 PM, 2026-11-06 and 07.
+  const title = 'Sartell Hockey vs Sauk Rapids-Rice';
+  const fri = await add(title, '2026-10-09', { start_time: '7 PM' });
+  const sat = await add(title, '2026-10-10', { start_time: '2 PM' });
+  await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['sartell', 'sauk-rapids-rice']
+    where id = any($1)`, [[fri, sat]]);
+  await db.query(`update public.club_events set final_score = array[4, 1] where id = $1`, [fri]);
+  const at = async (t) => (await db.query(`select event_date, game from public.flat_town_feed(
+    ($1::timestamp at time zone 'America/Chicago')) where title = $2`, [t, title])).rows
+    .map((r) => [r.event_date.toISOString().slice(0, 10), r.game.final]);
+  assert.deepEqual(await at('2026-10-09 22:30'), [['2026-10-09', [4, 1]]], "Friday night: Friday's final");
+  assert.deepEqual(await at('2026-10-10 09:00'), [['2026-10-10', null]], "Saturday: Saturday's game");
+  await db.query(`update public.club_events set live_score = '{"score": [1, 0]}' where id = $1`, [sat]);
+  assert.deepEqual(await at('2026-10-10 14:30'), [['2026-10-10', null]], "Saturday's game while it's on");
+  await db.query(`update public.club_events set final_score = array[2, 2] where id = $1`, [sat]);
+  assert.deepEqual(await at('2026-10-10 18:00'), [['2026-10-10', [2, 2]]], "Saturday's final");
+});
+
 // The readers private.read_finals uses (20261021120000_game_finals.sql), on the sources' own JSON.
 const schedules = JSON.parse(readFileSync(join(here, '..', '..', 'sources', 'scripts', 'samples', 'mshsl-schedules.json'), 'utf8'));
 const csbHamline = JSON.parse(readFileSync(join(here, 'sidearm-csb-wsoc.json'), 'utf8'));
@@ -3403,7 +3423,7 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
     id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
     going_count: 0, going: false, cancelled: false, place_picture: null, host_picture: null, description: null,
-    what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null,
+    what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
   assert.deepEqual([by.news.card, by.post.card], [null, null]);
@@ -3709,4 +3729,218 @@ test('seen counts the last 60 days', async () => {
   await viewed(old, YOU, '2026-07-01 09:00');
   await signIn(YOU);
   assert.deepEqual(await titles(NOW), ['Yearly fair', 'Other']);
+});
+
+// Hockey (game-card 09): SIDEARM's real files. Bethel 1-2 UW-Superior, 2026-10-31, as SIDEARM's own scorer writes one, with
+// Saint John's in Bethel's place since the job follows only ours; and Providence 5-6 UConn, 2026-11-05, scored by Genius.
+const bethelFile = JSON.parse(readFileSync(join(here, 'sidearm-final-bethel-mhockey.json'), 'utf8'));
+const providenceFile = JSON.parse(readFileSync(join(here, 'sidearm-final-providence-mhockey.json'), 'utf8'));
+const hockeyFile = { ...bethelFile, Game: { ...bethelFile.Game, HomeTeam: { ...bethelFile.Game.HomeTeam, Name: "#15 Saint John's" } } };
+
+async function hockeyGame() {
+  await reset();
+  await db.exec(`insert into public.teams (id, name, short_name, logo_url) values
+    ('saint-johns', 'Saint John''s', 'Saint John''s', 'https://x/sju.png'), ('uw-superior', 'UW-Superior', 'UW-Superior', 'https://x/uws.png')`);
+  const game = await add('SJU Hockey vs UW-Superior', '2026-10-31', { start_time: '7 PM', source_name: 'SJU Athletics' });
+  await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['saint-johns', 'uw-superior'] where id = $1`, [game]);
+  const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r',
+                                              [game, JSON.stringify(g)])).rows[0].r;
+  const row = async () => (await db.query('select live_score, scoring_plays, final_score from public.club_events where id = $1', [game])).rows[0];
+  // A Game push while it's on: the rink's clock counting down, the newest five plays, as SIDEARM's LastPlays.
+  const push = (plays, i) => ({ Game: { ...hockeyFile.Game, IsComplete: false, Period: plays[i].Period,
+                                        ClockSeconds: 1200 - Math.max(plays[i].ClockSeconds, 0),
+                                        LastPlays: plays.slice(Math.max(0, i - 4), i + 1).reverse() } });
+  return { game, record, row, push };
+}
+
+test("a hockey game is followed in each school's file, its periods P1 to P3 then OT, the clock as the rink's reads (game-card 09)", async () => {
+  await reset();
+  const file = async (source) => (await db.query(`select private.sidearm_file($1, 'Hockey') as f`, [source])).rows[0].f;
+  assert.equal(await file('SJU Athletics'), 'csbsju/mhockey');
+  assert.equal(await file('CSB Athletics'), 'csb/whockey');
+  const at = async (period, clock) => {
+    const l = await sidearmLiveAll({ Game: { ...hockeyFile.Game, Period: period, ClockSeconds: clock } }, '2026-10-31', 'john', 'csbsju/mhockey');
+    return [l.period, l.clock, l.clock_s, l.period_n, l.regulation];
+  };
+  assert.deepEqual(await at(2, 511), ['P2', '8:31', 511, 2, undefined], 'no quarter bar: regulation is basketball’s');
+  assert.deepEqual(await at(4, 151), ['OT', '2:31', 151, 4, undefined]);
+  const away = { Game: { ...hockeyFile.Game, HomeTeam: bethelFile.Game.VisitingTeam, VisitingTeam: hockeyFile.Game.HomeTeam } };
+  assert.deepEqual((await sidearmLiveAll(away, '2026-10-31', 'john', 'csbsju/mhockey')).score, [1, 2], 'ours first when away');
+});
+
+test("hockey keeps every save and power-play line however the plays come, and its goals read from a null Team (game-card 09)", async () => {
+  const { record, row, push } = await hockeyGame();
+  const plays = hockeyFile.Plays;
+  for (let i = 0; i < plays.length; i++) await record(push(plays, i));
+  const { live_score: live, scoring_plays: goals } = await row();
+  assert.deepEqual(live.ice.saves.map((s) => s.length), [55, 22], 'every save, from the newest five each push');
+  assert.deepEqual([live.ice.saves[0].length + 1, live.ice.saves[1].length + 2], [56, 24], "with the goals, SIDEARM's own shots on goal");
+  const lines = live.ice.power;
+  assert.equal(lines.filter((l) => l.start).length, 9, "SIDEARM's 0-6 and 1-3: 9 power plays");
+  assert.equal(lines.filter((l) => !l.start).length, 9);
+  assert.deepEqual(lines[0], { id: '14', side: 0, start: true, at: 188 }, 'Bethel, in our place, 3:08 into the 1st');
+  assert.deepEqual(lines.at(-1), { id: '131', side: 1, start: false, at: 1789 }, 'the clock runs on across periods');
+  assert.deepEqual(goals.map((g) => [g.id, g.side, g.period, g.clock, g.score]),
+                   [['28', 0, 'P1', '12:53', [1, 0]], ['37', 1, 'P1', '11:58', [1, 1]], ['211', 1, 'P3', '9:27', [1, 2]]],
+                   'each goal once, its side from its Player, the clock as the rink read it');
+  assert.equal(goals[1].text.startsWith('Goal by SUP Gibbs,Jordan (POWER-PLAY)'), true);
+
+  // The whole list as a plays push counts the same, keeps the score's time, and again changes nothing.
+  const before = live.at;
+  assert.equal(await record({ Plays: plays }), 'ignored', 'all seen already');
+  await db.query(`update public.club_events set live_score = live_score - 'ice' where id = (select id from public.club_events limit 1)`);
+  assert.equal(await record({ Plays: plays }), 'live');
+  const again = (await row()).live_score;
+  assert.deepEqual(again.ice.saves.map((s) => s.length), [55, 22]);
+  assert.equal(again.at, before);
+
+  // SIDEARM rewrites a play's words: the same place, a new hash. A save rewritten as wide stops counting.
+  const save = plays.find((p) => p.Type === 'Shot' && / save /.test(p.Narrative) && p.Team === 'HomeTeam');
+  await record({ Plays: [{ ...save, Id: `${save.Id.split('+')[0]}+5A603CF4`, Narrative: 'Shot by BET Hull,Ethan WIDE.' }] });
+  assert.deepEqual((await row()).live_score.ice.saves.map((s) => s.length), [54, 22]);
+
+  // Overtime's plays: no clock, "[NaN:NaN] " on the words, the Team sometimes only on the Player.
+  await record({ Plays: [
+    { Id: '500+AA', Type: 'Shot', Team: null, Player: { Team: 'VisitingTeam' }, Period: 4, ClockSeconds: -1, Narrative: '[NaN:NaN] Shot by SUP Gibbs,Jordan MISSED, save Altman,Beau.' },
+    { Id: '501+AB', Type: 'Period', Team: 'HomeTeam', Period: 4, ClockSeconds: -1, Narrative: '[NaN:NaN] Start of power play for BET.' },
+    { Id: '502+AC', Type: 'Goal', Team: null, Player: { Team: 'VisitingTeam' }, Period: 4, ClockSeconds: -1,
+      Score: { HomeTeam: 1, VisitingTeam: 3 }, Narrative: '[NaN:NaN] Goal by SUP Reed,AJ (EVEN STRENGTH).' }] });
+  const ot = await row();
+  assert.deepEqual(ot.live_score.ice.saves.map((s) => s.length), [54, 23]);
+  assert.deepEqual(ot.live_score.ice.power.at(-1), { id: '501', side: 0, start: true, at: null }, 'no second in overtime');
+  const last = ot.scoring_plays.at(-1);
+  assert.deepEqual([last.period, last.clock, last.text], ['OT', null, 'Goal by SUP Reed,AJ (EVEN STRENGTH).']);
+
+  // The feed sends them inside the live score, for the page.
+  await db.exec('set role anon');
+  const [feed] = (await db.query(`select game from public.flat_town_feed(('2026-10-31 19:30'::timestamp at time zone 'America/Chicago'))
+    where game is not null`)).rows;
+  await db.exec('reset role');
+  assert.deepEqual(feed.game.live.ice.saves.map((s) => s.length), [54, 23]);
+  assert.equal(feed.game.live.period_n, 3);
+});
+
+test("a file scored by Genius says its power plays in other words, and a penalty shot that scored is a scoring play (game-card 09)", async () => {
+  await reset();
+  const ice = (await db.query('select private.sidearm_ice($1::jsonb, true, null) as i', [JSON.stringify(providenceFile.Plays)])).rows[0].i;
+  assert.deepEqual(ice.saves.map((s) => s.length), [33, 19]);
+  assert.equal(ice.power.filter((l) => l.start).length, 11, "SIDEARM's 0-5 and 2-6");
+  assert.equal(ice.power.filter((l) => !l.start).length, 11);
+  const goals = (await db.query('select private.sidearm_scoring($1::jsonb, true, $2) as g', [JSON.stringify(providenceFile.Plays), 'csbsju/mhockey'])).rows[0].g;
+  assert.equal(goals.length, 11, '5 and 6');
+  assert.equal(goals.filter((g) => /^GOAL by /.test(g.text)).length, 10);
+  assert.deepEqual(goals[0].side, 1, 'the 11th, a penalty shot, is a Shot play: its Team null, its Player a UConn one');
+  assert.equal(goals[0].text.startsWith('CON Muldowney, Joey PENALTY SHOT GOAL'), true);
+  assert.equal((await db.query(`select private.sidearm_ice('[]'::jsonb, null, '{"saves":[["1"],[]],"power":[]}'::jsonb) as i`)).rows[0].i.saves[0][0], '1',
+               "whose side unknown: what's kept");
+});
+
+test("a hockey final brings SIDEARM's own shots on goal; a failed read leaves the count from the plays (game-card 09)", async () => {
+  const shots = async (file, day = '2026-10-31', host = 'john') => (await db.query(
+    'select private.sidearm_shots($1::jsonb, $2::date, $3) as s', [JSON.stringify(file), day, host])).rows[0].s;
+  assert.deepEqual(await shots(hockeyFile), { shots: [56, 24] });
+  assert.deepEqual(await shots(hockeyFile, '2026-10-31', 'superior'), { shots: [24, 56] }, 'ours first');
+  assert.equal(await shots(hockeyFile, '2026-11-06'), null, 'the file has moved on: not this game');
+  assert.equal(await shots({ ...hockeyFile, Game: { ...hockeyFile.Game, IsComplete: false } }), null, 'still on');
+  assert.equal(await shots({ Game: hockeyFile.Game }), null, 'no totals');
+
+  const { record, row, push } = await hockeyGame();
+  await record(push(hockeyFile.Plays, 40));
+  await db.exec('delete from fake.answer');
+  await db.query('insert into fake.answer values (200, $1)', [JSON.stringify(hockeyFile)]);
+  assert.equal(await record({ Game: hockeyFile.Game }), 'live', 'SIDEARM says complete once: not yet');
+  assert.equal(await record({ Game: hockeyFile.Game }), 'final');
+  const done = await row();
+  assert.deepEqual(done.final_score, [1, 2]);
+  assert.deepEqual(done.live_score.shots, [56, 24]);
+
+  const failed = await hockeyGame();
+  await db.exec('delete from fake.answer');
+  await db.exec(`insert into fake.answer values (500, 'no')`);
+  await failed.record(failed.push(hockeyFile.Plays, 6));
+  await failed.record({ Game: hockeyFile.Game });
+  assert.equal(await failed.record({ Game: hockeyFile.Game }), 'final');
+  const kept = await failed.row();
+  assert.equal(kept.live_score.shots, undefined);
+  assert.equal(kept.live_score.ice.saves[0].length > 0, true, 'the plays keep counting for it');
+});
+
+// Friday's two real games, listened to from the first push (2026-11-06): SIDEARM's whole files at the final.
+const fridayFiles = [
+  { name: 'Saint John\'s 1-6 UW-Superior', source: 'SJU Athletics', ours: 'saint-johns', them: 'uw-superior', host: 'john', sport: 'csbsju/mhockey',
+    file: JSON.parse(readFileSync(join(here, 'sidearm-final-csbsju-mhockey.json'), 'utf8')), shots: [36, 31], score: [1, 6], powerPlays: 9, goals: 7 },
+  { name: 'Saint Benedict 4-1 Lake Forest', source: 'CSB Athletics', ours: 'saint-benedict', them: 'lake-forest', host: 'benedict', sport: 'csb/whockey',
+    file: JSON.parse(readFileSync(join(here, 'sidearm-final-csb-whockey.json'), 'utf8')), shots: [42, 18], score: [4, 1], powerPlays: 4, goals: 5 },
+];
+
+for (const f of fridayFiles) {
+  test(`${f.name}, every play in turn: its shots, power plays, goals and final (game-card 09)`, async () => {
+    await reset();
+    await db.exec(`insert into public.teams (id, name, short_name, logo_url) values
+      ('${f.ours}', 'Ours', 'Ours', 'https://x/a.png'), ('${f.them}', 'Them', 'Them', 'https://x/b.png')`);
+    const game = await add(f.name, '2026-11-06', { start_time: '7 PM', source_name: f.source });
+    await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['${f.ours}', '${f.them}'] where id = $1`, [game]);
+    const record = async (g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r', [game, JSON.stringify(g)])).rows[0].r;
+    const row = async () => (await db.query('select live_score, scoring_plays, final_score from public.club_events where id = $1', [game])).rows[0];
+    const plays = f.file.Plays;
+    for (let i = 0; i < plays.length; i++) {
+      await record({ Game: { ...f.file.Game, IsComplete: false, Period: plays[i].Period, ClockSeconds: 1200 - plays[i].ClockSeconds,
+                             LastPlays: plays.slice(Math.max(0, i - 4), i + 1).reverse() } });
+    }
+    const { live_score: live, scoring_plays: goals } = await row();
+    const score = live.score;
+    assert.deepEqual([live.ice.saves[0].length + score[0], live.ice.saves[1].length + score[1]], f.shots, "saves and goals are SIDEARM's own shots on goal");
+    assert.equal(live.ice.power.filter((l) => l.start).length, f.powerPlays, "SIDEARM's own count of power plays");
+    assert.equal(live.ice.power.filter((l) => !l.start).length, f.powerPlays);
+    assert.equal(goals.length, f.goals);
+    await db.exec('delete from fake.answer');
+    await db.query('insert into fake.answer values (200, $1)', [JSON.stringify(f.file)]);
+    await record({ Game: f.file.Game });
+    assert.equal(await record({ Game: f.file.Game }), 'final');
+    const done = await row();
+    assert.deepEqual(done.final_score, f.score);
+    assert.deepEqual(done.live_score.shots, f.shots);
+  });
+}
+
+test("a hockey file open before the puck is not on yet, and a period just over reads 0:00 until the next begins (game-card 09)", async () => {
+  await reset();
+  const { file, host, sport } = fridayFiles[1];
+  const start = { Narrative: 'Game START.', Period: 1, ClockSeconds: 0 };
+  const end = (period) => ({ Narrative: 'Period END.', Period: period, ClockSeconds: 1200 });
+  const live = (period, clock, last) => sidearmLiveAll({ Game: { ...file.Game, IsComplete: false, Period: period, ClockSeconds: clock, LastPlays: last } }, '2026-11-06', host, sport);
+  assert.equal(await live(1, 0, [start]), null, "SJU's, half an hour early");
+  assert.equal(await live(1, 1200, [start]), null, "Hamline's, the same with its clock set");
+  assert.equal((await live(1, 1200, [{ Narrative: 'Faceoff', Period: 1 }, { Narrative: 'Period START.', Period: 1 }, start])).clock, '20:00', 'the puck is down');
+  assert.equal((await live(2, 1200, [end(2)])).clock_s, 0, "CSB's after the 2nd");
+  assert.equal((await live(1, 0, [end(1)])).clock_s, 0, "SJU's after the 1st");
+  assert.equal((await live(3, 1200, [end(2)])).clock_s, 1200, 'the next period set up, its clock full');
+  // The live-scores backup sends the whole file's plays oldest first (iOS main b9a02a91), "Game START." always first.
+  const faceoff = { Narrative: 'Faceoff', Period: 1 }, begins = (period) => ({ Narrative: 'Period START.', Period: period });
+  assert.equal((await live(1, 1100, [start, begins(1), faceoff])).clock, '18:20', 'the puck is down, read oldest first');
+  assert.equal((await live(2, 1200, [start, begins(1), end(1), begins(2), end(2)])).clock_s, 0, 'after the 2nd, read oldest first');
+  assert.equal((await live(2, 1200, [start, begins(1), end(1)])).clock_s, 1200, 'the 2nd set up, read oldest first');
+});
+
+test('the live-scores backup, a whole file with its plays oldest first, reads a hockey game as the pushes do (game-card 09)', async () => {
+  await reset();
+  const f = fridayFiles[1];
+  await db.exec(`insert into public.teams (id, name, short_name, logo_url) values
+    ('${f.ours}', 'Ours', 'Ours', 'https://x/a.png'), ('${f.them}', 'Them', 'Them', 'https://x/b.png')`);
+  const plays = f.file.Plays, k = plays.findIndex((p) => p.Period === 2) + 40;
+  const at = (i, last) => ({ Game: { ...f.file.Game, IsComplete: false, Period: plays[i].Period, ClockSeconds: 1200 - plays[i].ClockSeconds, LastPlays: last } });
+  const game = async (title) => {
+    const id = await add(title, '2026-11-06', { start_time: '7 PM', source_name: f.source });
+    await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['${f.ours}', '${f.them}'] where id = $1`, [id]);
+    return id;
+  };
+  const record = async (id, g) => (await db.query('select public.record_live_score($1, $2::jsonb) as r', [id, JSON.stringify(g)])).rows[0].r;
+  const live = async (id) => (await db.query('select live_score from public.club_events where id = $1', [id])).rows[0].live_score;
+  const pushed = await game('Pushed'), backup = await game('Backup');
+  for (let i = 0; i <= k; i++) await record(pushed, at(i, plays.slice(Math.max(0, i - 4), i + 1).reverse()));
+  assert.equal(await record(backup, at(k, plays.slice(0, k + 1))), 'live', 'on, though its first play is "Game START."');
+  const [p, b] = [await live(pushed), await live(backup)];
+  assert.equal(b.period, 'P2');
+  assert.deepEqual(b.score, p.score);
+  assert.deepEqual(b.ice, p.ice, 'the same saves and power plays');
 });

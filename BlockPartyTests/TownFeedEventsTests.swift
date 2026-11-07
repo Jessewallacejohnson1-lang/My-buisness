@@ -19,13 +19,12 @@ final class TownFeedEventsTests: XCTestCase {
     private struct Offline: Error {}
 
     private func row(_ id: String, leavesIn hours: Double = 24, club: String? = nil,
-                     source: String? = "City of St. Joseph", going: Int = 0,
-                     recurrence: String? = nil) -> TownFeedRow {
+                     source: String? = "City of St. Joseph", going: Int = 0) -> TownFeedRow {
         let event = UpcomingEvent(id: id, title: "Event \(id)", eventDate: "2026-10-12",
                                   startTime: "6 PM", location: nil, goingCount: going,
                                   createdAt: "2026-10-06T16:08:20+00:00", clubName: club,
                                   sourceName: source)
-        return TownFeedRow(event: event, recurrence: recurrence,
+        return TownFeedRow(event: event,
                            leavesAt: now.addingTimeInterval(hours * 3600))
     }
 
@@ -79,9 +78,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(flight.title, "Flight Friday", "its headline rides along for the card")
         XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
         XCTAssertNil(happy.picture)
-        // The ••• sheet's why line (news-menu): the interest it shares, else only that it's News.
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: flight).why, "Matches Food & dining")
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: happy).why, "News")
+        // The hold menu's grey why line (news-menu, inside-cards 24): the interest it shares, else only
+        // that it's News.
+        XCTAssertEqual(flight.why, "Matches Food & dining")
+        XCTAssertEqual(happy.why, "News")
         // The events' own readers (the Event of the day, a kept list) never see news.
         XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
 
@@ -185,23 +185,23 @@ final class TownFeedEventsTests: XCTestCase {
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
         let json = """
-        [{"id":"e1","recurrence":"Every 1st & 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
+        [{"id":"e1","recurrence":"Every 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
          "card":{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19",
          "start_time":"6 PM","location":"City Hall","image_url":null,"category":null,
          "club_name":null,"source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00",
          "all_day":false,"created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
-         "going":true}}]
+         "going":true,"recurrence":"Every 1st & 3rd Monday"}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(json.utf8))
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0].recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(rows[0].leavesAt, DateHelpers.timestamp("2026-10-20T04:59:00Z"))
         XCTAssertEqual(rows[0].event.endAt, rows[0].leavesAt)
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
         let card = TownFeed.card(rows[0])
-        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
+        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday",
+                       "the card's repeat; the row's own, kept for older apps, is not read (inside-cards 23)")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
         XCTAssertNil(card.why)
@@ -257,6 +257,52 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.isPhotoless), [true, true, false, false], "logo, ink, photo, game")
     }
 
+    /// Who's going sits over a photo card's photo, and in the line under a card with no photo, a game's
+    /// or a called-off one's (inside-cards 24; Jesse, 2026-11-07: "1 going sits inside cards unless if
+    /// there no photo").
+    func testWhosGoingSitsOverAPhotoOnly() throws {
+        let row = { (id: String, extra: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
+         "location":"Fire Hall","image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":41,"going":false\(extra)}}
+        """ }
+        let photo = ##","place_picture":{"url":"https://x/hall.webp","kind":"photo","w":1600,"h":1067}"##
+        let json = "[" + [
+            row("logo", ##","place_picture":{"url":"https://x/logo.webp","kind":"logo","hue":35}"##),
+            row("photo", photo),
+            row("game", ##","game":{"sport":"Football","teams":[{"name":"Saint John's","short":"Saint John's"},{"name":"Concordia","short":"Concordia"}]}"##),
+            row("off", photo + ##","cancelled":true"##),
+        ].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        XCTAssertEqual(cards.map(\.cancelled), [false, false, false, true], "the called-off row reads as called off")
+        XCTAssertEqual(cards.map(\.goingOverPhoto), [false, true, false, false], "white, photo, game, called off")
+    }
+
+    /// View on Map (inside-cards 24): today's Event with a spot opens our map; another day's, or one
+    /// with no spot yet, Apple Maps at its place; with no place and nothing on the map, no row.
+    func testViewOnMapGoesToOurMapOnlyForTodaysEventWithASpot() throws {
+        let row = { (id: String, day: String, location: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-11-02T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"\(day)","start_time":"10 AM",
+         "location":\(location),"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false}}
+        """ }
+        let json = "[" + [row("today", "2026-10-31", "\"Fire Hall\""), row("later", "2026-11-01", "\"Fire Hall\""),
+                          row("nowhere", "2026-11-01", "null")].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-31T14:00:00Z"), "9 AM in St. Joseph")
+        let maps = try XCTUnwrap(Directions.url(forPlace: "Fire Hall"))
+
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: true), .ourMap, "today, with a spot")
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: false), .appleMaps(maps), "today, no spot yet")
+        XCTAssertEqual(EventMapRoute.route(cards[1], now: now, spot: true), .appleMaps(maps),
+                       "tomorrow: our map shows today's alone")
+        XCTAssertNil(EventMapRoute.route(cards[2], now: now, spot: true), "no place and not on the map: no row")
+        let evening = now.addingTimeInterval(10 * 3600)
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: evening, spot: true), .appleMaps(maps), "over: off the map")
+    }
+
     /// News shows a logo or a first letter, never its place's photo, and a letter's card names the
     /// place, since the letter alone doesn't say whose post it is (BP app town-feed 40).
     func testNewsWithNoLogoNamesItsPlace() {
@@ -298,8 +344,8 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
-    /// while its page keeps the cover and the place's other photos and `image` stays for every other
-    /// screen. The Event's own photo still wins over the cover.
+    /// while its page keeps the cover, alone (BP app inside-cards 15), and `image` stays for every
+    /// other screen. The Event's own photo still wins over the cover.
     func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
@@ -314,14 +360,14 @@ final class TownFeedEventsTests: XCTestCase {
 
         XCTAssertEqual(cards.map(\.coverOnly), [true, false])
         XCTAssertEqual(cards.map(\.isPhotoless), [true, false], "its place's cover: white; its own photo: a photo card")
-        XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp", "yard.webp"],
-                       "its page keeps the place's photos")
+        XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp"],
+                       "its page keeps the place's cover")
         XCTAssertEqual(cards[0].image.url?.lastPathComponent, "hall.webp", "other screens keep what they show")
     }
 
-    /// The place's other photos reach the card's page (BP app event-card 02): its page shows
-    /// the cover, then the rest in order, each once with its own credit; one that doesn't
-    /// decode is left out and the cover kept.
+    /// The place's other photos reach the card (BP app event-card 02): the cover, then the rest in
+    /// order, each with its own credit; one that doesn't decode is left out and the cover kept. Its
+    /// page shows the cover alone (BP app inside-cards 15); the rest stand by if it fails to load.
     func testAPlacesOtherPhotosReachTheCardAndABadOneCostsNothing() throws {
         let json = """
         [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00","card":{"id":"e1",
@@ -335,9 +381,10 @@ final class TownFeedEventsTests: XCTestCase {
          "credit":null}]},"going":false}}]
         """
         let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
-        XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
-        XCTAssertEqual(card.photos()[1].attribution, "Ada Lovelace · CC BY 4.0")
-        XCTAssertEqual(card.photos()[2].attribution, "sju")
+        XCTAssertEqual(card.venue.compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
+        XCTAssertEqual(card.venue[1].attribution, "Ada Lovelace · CC BY 4.0")
+        XCTAssertEqual(card.venue[2].attribution, "sju")
+        XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp"])
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001, "the cover sets the card's shape")
     }
 
@@ -857,6 +904,94 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(football.minute(at: .now), "a football clock is no minute")
     }
 
+    /// A hockey game's live score at the game's second, the rink's clock counting down, with its power-play lines so far.
+    private func hockey(at second: Int, lines: [(Int, Bool, Int?)] = [], saves: String = "[[],[]]", period: Int? = nil,
+                        extra: String = "") throws -> Game.Live {
+        let period = period ?? second / 1200 + 1, clock = period * 1200 - second
+        let power = lines.map { #"{"side":\#($0.0),"start":\#($0.1),"at":\#($0.2.map(String.init) ?? "null")}"# }.joined(separator: ",")
+        let json = #"{"sport":"Hockey","teams":[{"name":"Saint John's"},{"name":"UW-Superior"}],"live":{"score":[2,1],"period":"P\#(period)","clock":"8:31","clock_s":\#(clock),"complete":false,"at":"2026-11-06T20:30:00Z","period_n":\#(period),"ice":{"saves":\#(saves),"power":[\#(power)]}\#(extra)}}"#
+        return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value?.live)
+    }
+
+    /// Hockey's power play (game-card 09), from SIDEARM's Start and End plays: every one in Bethel 1-2 UW-Superior's real
+    /// file (2026-10-31), the bar on the one running out first. A second penalty matched at once closes itself, not the
+    /// older one; at 2:00 it goes, End or not, a major too (Jesse, 2026-11-07); overtime's clock can't say what's left.
+    func testHockeysPowerPlayRunsDownFromItsStartAndAnEndClosesTheOneThatRanOut() throws {
+        let bethel: [(Int, Bool, Int?)] = [(0, true, 188), (0, false, 308), (1, true, 464), (1, false, 482), (0, true, 587), (0, true, 665),
+                                           (0, false, 665), (0, false, 707), (0, true, 832), (0, false, 888), (1, true, 952), (1, false, 1008),
+                                           (0, true, 1106), (0, false, 1406), (0, true, 1619), (0, false, 1669), (1, true, 1739), (1, false, 1789)]
+        func on(_ second: Int) throws -> Game.Live.PowerPlay? {
+            try hockey(at: second, lines: bethel.filter { ($0.2 ?? 0) <= second }).powerPlay
+        }
+        XCTAssertNil(try on(100), "even strength")
+        XCTAssertEqual(try on(224), .init(side: 0, left: 84), "36 s in: the draft's 1:24")
+        XCTAssertEqual(try on(224)?.share, 0.7, "the draft's bar, 112 of 160 pt")
+        XCTAssertEqual(try on(300), .init(side: 0, left: 8))
+        XCTAssertNil(try on(308), "its End")
+        XCTAssertEqual(try on(470), .init(side: 1, left: 114), "the other team's, in its color")
+        XCTAssertNil(try on(482), "a power-play goal ends it")
+        XCTAssertEqual(try on(600), .init(side: 0, left: 107))
+        XCTAssertEqual(try on(665), .init(side: 0, left: 42), "a second penalty matched on its own clock: the first runs on")
+        XCTAssertNil(try on(707))
+        XCTAssertEqual(try on(1150), .init(side: 0, left: 76))
+        XCTAssertEqual(try on(1225), .init(side: 0, left: 1))
+        XCTAssertNil(try on(1226), "at 2:00 it goes, though this was a real 5:00 major with its End to come")
+        XCTAssertNil(try on(1406))
+        XCTAssertNil(try on(3599), "none left at the end")
+        // Two at once: the first's End closes the oldest, and the second runs on.
+        let two: [(Int, Bool, Int?)] = [(0, true, 100), (0, true, 150)]
+        XCTAssertEqual(try hockey(at: 200, lines: two).powerPlay, .init(side: 0, left: 20))
+        XCTAssertEqual(try hockey(at: 230, lines: two + [(0, false, 220)]).powerPlay, .init(side: 0, left: 40))
+        XCTAssertEqual(try hockey(at: 230, lines: two).powerPlay, .init(side: 0, left: 40), "the first's End late: the second shows")
+        // Both teams at once: the one running out first.
+        XCTAssertEqual(try hockey(at: 200, lines: [(1, true, 150), (0, true, 190)]).powerPlay, .init(side: 1, left: 70))
+        // The End late, as SIDEARM's are: gone at 2:00 all the same. A clock set back past its Start: a full 2:00.
+        XCTAssertNil(try hockey(at: 320, lines: [(0, true, 200)]).powerPlay)
+        XCTAssertEqual(try hockey(at: 190, lines: [(0, true, 200)]).powerPlay, .init(side: 0, left: 120))
+        // Overtime can't say what's left.
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay, .init(side: 1, left: nil))
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay?.share, 1)
+        XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, 3590)], period: 4).powerPlay, .init(side: 1, left: nil), "from the 3rd into overtime")
+    }
+
+    /// Hockey's shots on goal (game-card 09): each side's saves and goals while it's on, SIDEARM's own with the final, and
+    /// they stay past the final, which the live score does not. None for another sport.
+    func testHockeysShotsCountSavesAndGoalsThenSidearmsOwnStayPastTheFinal() throws {
+        let live = try hockey(at: 2000, saves: #"[["1","2","3"],["4"]]"#)
+        XCTAssertEqual(live.shots, [5, 2], "the goals count")
+        let own = try hockey(at: 3600, saves: #"[["1","2","3"],["4"]]"#, extra: #","shots":[41,27]"#)
+        XCTAssertEqual(own.shots, [41, 27], "SIDEARM's own win")
+        let json = #"{"sport":"Hockey","teams":[{"name":"Saint John's"},{"name":"UW-Superior"}],"final":[2,1],"live":{"score":[2,1],"period":"P3","complete":true,"shots":[41,27]}}"#
+        let final = try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        XCTAssertNil(final.live)
+        XCTAssertEqual(final.shots, [41, 27])
+        XCTAssertTrue(final.isHockey)
+        let other = #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Gustavus"}],"live":{"score":[7,0],"period":"Q1","complete":false}}"#
+        XCTAssertNil(try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(other.utf8)).value).shots)
+    }
+
+    /// A hockey goal's card, in the draft's words, from SIDEARM's as both its scorers write them (game-card 09).
+    func testAHockeyGoalReadsAsTheDraftDoes() {
+        func words(_ text: String, clock: String? = "11:58") -> [String] {
+            let play = Game.Play(id: "1", text: text, period: clock == nil ? "OT" : "P1", clock: clock, side: 1, score: [1, 1])
+            let w = GameMoment.words(of: play, sport: "Hockey")
+            return [w.title, w.detail]
+        }
+        XCTAssertEqual(words("Goal by SUP Gibbs,Jordan (POWER-PLAY); Assist by Rozsival,Daniel and Reed,AJ; On ice for BET: 1, 37, 17, 12, 22; On ice for SUP: 33, 3, 9, 18, 17, 26."),
+                       ["Goal · Gibbs (PP)", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by BET Brazil,Connor (EVEN STRENGTH); Assist by Lindsey,Luke; On ice for BET: 1, 6, 37, 7, 19, 5; On ice for SUP: 33, 17, 26, 14, 2, 4."),
+                       ["Goal · Brazil", "P1 · 11:58"])
+        XCTAssertEqual(words("GOAL by UConn Loranger, Jeremy (POWER-PLAY, GAME WINNING GOAL); Assist by Scott, Trey and Blais, Alexandre; Goal number 3 for season."),
+                       ["Goal · Loranger (PP)", "P1 · 11:58"])
+        XCTAssertEqual(words("CON Muldowney, Joey PENALTY SHOT GOAL off Homer, Gibson; Goal number 5 for season."), ["Goal · Muldowney", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by SUP Reed,AJ (EVEN STRENGTH).", clock: nil), ["Goal · Reed", "OT"])
+        XCTAssertEqual(words("Goal by SUP (EVEN STRENGTH)."), ["Goal", "P1 · 11:58"], "no name to read")
+        XCTAssertEqual(words("Goal by LFC MuÃ±oz,Gracia (POWER-PLAY); Assist by Luke,Alex."), ["Goal · Muñoz (PP)", "P1 · 11:58"], "as SIDEARM's file spells it")
+        XCTAssertEqual(words("Goal by UWD Moore III,George (EVEN STRENGTH)."), ["Goal · Moore III", "P1 · 11:58"])
+        XCTAssertEqual(words("Goal by SJU Kernan,Chris (EVEN STRENGTH); Assist by Opgrand,Logan and Wandmacher,Jack; On ice for SJU: 29, 11, 10, 6, 12, 26; On ice for UWS: 33, 7, 8, 9, 11, 21."),
+                       ["Goal · Kernan", "P1 · 11:58"], "Friday's")
+    }
+
     /// Basketball's bar (game-card 09): one part per quarter or half and one for overtime, the played ones full and
     /// the one being played as far as its clock has run; the Bonus from the other team's 5th foul of a quarter or 7th
     /// of a half, a count from a period that's over read as none; no bar for any other sport or an old read.
@@ -1086,8 +1221,6 @@ final class TownFeedEventsTests: XCTestCase {
             XCTAssertEqual(try words(raw, "Basketball", period: "Q1", clock: "1:00")[0], raw)
         }
         XCTAssertNil(GameMoment.scorer(in: "Feeney,Trey pass complete to Van Der Berg,Tom for 5 yards"), "never the passer")
-        // Hockey has no real sample yet.
-        XCTAssertEqual(try words("Shot by SJU Burke,Sam, GOAL", "Hockey", period: "P2", clock: "8:31"), ["Shot by SJU Burke,Sam, GOAL", "P2 · 8:31"])
         // The name a pass's catcher takes, "Jr." included, for the pill and the scorers too.
         XCTAssertEqual(GameMoment.scorer(in: "Feeney,Trey middle pass complete to Melvin Jr.,Sedric for 3 yards to the GAC00, TOUCHDOWN."), "Melvin Jr.")
     }
@@ -1459,6 +1592,33 @@ final class TownFeedEventsTests: XCTestCase {
         // Once it has landed, the next refresh asks again.
         await town.refresh(at: now)
         XCTAssertEqual(gate.calls, 2)
+    }
+
+    /// At launch the kept list unpacks off the main thread while the read is out: a caller arriving
+    /// meanwhile shares that read, and a read that lands first stands over the kept list
+    /// (BP app references/launch-glitch, 2026-11-07).
+    func testTheKeptListUnpacksWhileTheReadIsOut() async {
+        final class Gate { var read: (() -> Void)?; var kept: (() -> Void)?; var reads = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.reads += 1
+            await withCheckedContinuation { done in gate.read = { done.resume() } }
+            return self.entries(["fresh"])
+        }, keptLater: {
+            await withCheckedContinuation { done in gate.kept = { done.resume() } }
+            return self.entries(["kept"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.read == nil || gate.kept == nil { await Task.yield() }
+        let second = Task { await town.refresh(at: now) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.read?()
+        for _ in 0..<1000 where town.cards.isEmpty { await Task.yield() }
+        gate.kept?()
+        await first.value
+        await second.value
+        XCTAssertEqual(gate.reads, 1, "a caller that came while the kept list unpacked shared the read")
+        XCTAssertEqual(town.cards.map(\.id), ["fresh"], "the read landed first, so the kept list never covered it")
     }
 
     /// A refresh shares a pull's or a new account's read; those two always ask for their own

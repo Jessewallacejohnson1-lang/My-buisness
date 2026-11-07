@@ -153,14 +153,16 @@ final class LiveGames {
     /// the same path a real one takes, to its final. The plays' names are made up. With `-town-volleyball`, CSB vs
     /// Carleton plays from late in its third set to a 3-2 final instead, its sets kept past it; with `-town-soccer`,
     /// SJU vs Augsburg from the 38th minute through halftime and three goals to a 2-1 final; with `-town-basketball`,
-    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final (game-card 09);
+    /// CSB vs Loras from late in the 2nd quarter, through both teams' bonus and overtime, to a 52-48 final; with
+    /// `-town-hockey`, SJU vs St. Olaf through a power play each, a major and overtime, to a 3-2 final (game-card 09);
     /// with `-town-shootout`, Saint Ben's vs Macalester level through overtime to a 1-1 final won on penalties (game-card 15).
     private func replayLiveGame() {
         guard !replaying else { return }
         replaying = true
         let volleyball = LaunchFlags.has(.townVolleyball), soccer = LaunchFlags.has(.townSoccer)
         let basketball = LaunchFlags.has(.townBasketball), shootout = LaunchFlags.has(.townShootout)
-        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : shootout ? "p1" : "g1"
+        let hockey = LaunchFlags.has(.townHockey)
+        let id = volleyball ? "v1" : soccer ? "s1" : basketball ? "b1" : hockey ? "h1" : shootout ? "p1" : "g1"
         // Each step: the score, period and clock, and the scoring play that made it (none at kickoff).
         let football: [(String, String?)] = [
             (#"[0,0],"period":"Q1","clock":"15:00","drive":{"down":1,"togo":"10","spot":"SJU25","side":0,"ball":25}"#, nil),
@@ -226,7 +228,38 @@ final class LiveGames {
             (#"[1,1],"period":"OT","clock":"109'","clock_s":6530"#, nil),
             (#"[1,1],"period":"OT","clock":"110'","clock_s":6590"#, nil),
         ]
-        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : shootout ? overtime : football
+        // The draft's game: the score, the rink's clock, each side's saves, and the power-play lines so far.
+        let rink = { (score: String, period: Int, clock: Int, saves: (Int, Int), power: [(Int, Bool, Int?)]) -> String in
+            let ids = { (n: Int) in "[" + (0..<n).map { #""\#($0)""# }.joined(separator: ",") + "]" }
+            let lines = power.map { #"{"side":\#($0.0),"start":\#($0.1),"at":\#($0.2.map(String.init) ?? "null")}"# }.joined(separator: ",")
+            return #"\#(score),"period":"\#(period > 3 ? "OT" : "P\(period)")","clock":"\#(clock / 60):\#(String(format: "%02d", clock % 60))","clock_s":\#(clock),"period_n":\#(period),"ice":{"saves":[\#(ids(saves.0)),\#(ids(saves.1))],"power":[\#(lines)]}"#
+        }
+        // SJU's power plays at 12:40 and 9:07 of the 2nd, St. Olaf's at 6:40, SJU's major from 15:00 of the 3rd.
+        let first: [(Int, Bool, Int?)] = [(0, true, 1640), (0, false, 1735)]
+        let second = first + [(0, true, 1853)]
+        let third = second + [(0, false, 1973), (1, true, 2000)]
+        let fourth = third + [(1, false, 2120), (0, true, 2700)]
+        let periods: [(String, String?)] = [
+            (rink("[0,0]", 1, 1200, (0, 0), []), nil),
+            (rink("[1,0]", 1, 913, (4, 2), []), basket(1, "Goal by SJU Thoreson,Evan (EVEN STRENGTH); Assist by Burke,Sam.", "P1", "15:13", 0, "[1,0]")),
+            (rink("[1,1]", 1, 478, (11, 7), []), basket(2, "Goal by OLF Lind,Carter (EVEN STRENGTH).", "P1", "7:58", 1, "[1,1]")),
+            (rink("[1,1]", 2, 760, (16, 12), [(0, true, 1640)]), nil),
+            (rink("[2,1]", 2, 665, (17, 13), first), basket(3, "Goal by SJU Burke,Sam (POWER-PLAY); Assist by Thoreson,Evan.", "P2", "11:05", 0, "[2,1]")),
+            (rink("[2,1]", 2, 620, (18, 15), first), nil),
+            (rink("[2,1]", 2, 547, (19, 16), second), nil),
+            // The draft's moment: P2 · 8:31, 1:24 left, shots 24 and 19.
+            (rink("[2,1]", 2, 511, (22, 18), second), nil),
+            (rink("[2,1]", 2, 455, (23, 18), second), nil),
+            (rink("[2,1]", 2, 400, (24, 19), third), nil),
+            (rink("[2,1]", 2, 350, (24, 22), third), nil),
+            (rink("[2,1]", 3, 900, (30, 24), fourth), nil),
+            // 2:30 on with no End yet: the major's bar has gone, as a late End's does at 2:00.
+            (rink("[2,1]", 3, 750, (33, 24), fourth), nil),
+            (rink("[2,2]", 3, 400, (35, 24), fourth + [(0, false, 3000)]), basket(4, "Goal by OLF Lind,Carter (EVEN STRENGTH).", "P3", "6:40", 1, "[2,2]")),
+            // Overtime: the clock can't say what's left.
+            (rink("[2,2]", 4, 200, (37, 25), fourth + [(0, false, 3000), (1, true, nil)]), nil),
+        ]
+        let steps = volleyball ? sets : soccer ? halves : basketball ? quarters : hockey ? periods : shootout ? overtime : football
         // `club_events.live_score` as the realtime row carries it.
         let live = { (score: String, complete: Bool) in
             Data((#"{"score":"# + score + #","complete":\#(complete),"at":""# + DateHelpers.timestampString(.now) + #""}"#).utf8)
@@ -248,6 +281,10 @@ final class LiveGames {
             // The server keeps the last live score beside a final: volleyball's sets stay.
             if volleyball {
                 send([3, 2], live(#"[3,2],"period":"Set 5","periods":[[25,23,25,22,15],[21,25,19,25,12]]"#, true), nil)
+            } else if hockey {
+                // SIDEARM's own shots come in the final's own write.
+                send([3, 2], live(#"[3,2],"period":"OT","shots":[41,27]"#, true),
+                     plays + [#"{"id":"5","text":"Goal by SJU Thoreson,Evan (EVEN STRENGTH, OVERTIME).","period":"OT","side":0,"score":[3,2]}"#])
             } else if shootout {
                 // The kicks come in the final's own write.
                 send([1, 1], live(#"[1,1],"period":"OT","shootout":{"score":[5,4],"who":"CSB"}"#, true), nil)

@@ -27,8 +27,11 @@ final class MapModel: ObservableObject {
     /// The last read of today's spots failed: the map's pill offers to try again.
     @Published private(set) var spotsFailed = false
 
-    private var auth: AuthStore?
-    private var api: CommunityAPI? { auth.map { CommunityAPI(auth: $0) } }
+    /// Where each event is: the account's `CommunityAPI.eventSpots`, from `start`, unless a test
+    /// passes its own.
+    private var readSpots: (([String]) async throws -> [String: CLLocationCoordinate2D])?
+    /// The time, for today and midnight. A test passes its own.
+    private let now: () -> Date
 
     private weak var feed: TownFeed?
     /// The app's one `club_events` connection, which the map follows while it's open.
@@ -37,22 +40,29 @@ final class MapModel: ObservableObject {
     private var spots: [String: CLLocationCoordinate2D] = [:]
     private var asked: Set<String> = []
 
-    private var currentDate = Town.day(.now)
+    private var currentDate: String
 
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
 
+    init(readSpots: (([String]) async throws -> [String: CLLocationCoordinate2D])? = nil,
+         now: @escaping () -> Date = { Date() }) {
+        self.readSpots = readSpots
+        self.now = now
+        currentDate = Town.day(now())
+    }
+
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
 
     func start(auth: AuthStore, feed: TownFeed, live: LiveGames) {
-        if self.auth == nil { self.auth = auth }
+        if readSpots == nil { readSpots = { try await CommunityAPI(auth: auth).eventSpots($0) } }
         self.feed = feed
         self.live = live
         guard !started else { return }
         started = true
-        currentDate = Town.day(.now)
+        currentDate = Town.day(now())
         show(feed.cards)
         if feed.entries == nil { readAgain() }
         // Every change on the app's one `club_events` connection (`LiveGames`).
@@ -84,7 +94,7 @@ final class MapModel: ObservableObject {
     /// and the date may have rolled over while away. Re-read.
     func onForeground() {
         guard started else { return }
-        currentDate = Town.day(.now)
+        currentDate = Town.day(now())
         readAgain()
         scheduleMidnightRollover()
         startClock()
@@ -101,15 +111,15 @@ final class MapModel: ObservableObject {
     /// The Town feed's cards, as they change: today's, at the spots read for them. A new
     /// event's spot is read once; a failed read is asked again at the next change.
     func show(_ cards: [FeedCardItem]) {
-        let day = Town.day(.now)
+        let day = Town.day(now())
         let events = cards.filter { $0.eventDate == day }
         today = TodayPlaces(events: events, spots: spots)
         let new = events.map(\.id).filter { !asked.contains($0) }
-        guard !new.isEmpty, let api else { return }
+        guard !new.isEmpty, let readSpots else { return }
         asked.formUnion(new)
         Task { @MainActor [weak self] in
             do {
-                let found = try await api.eventSpots(new)
+                let found = try await readSpots(new)
                 guard let self else { return }
                 self.spotsFailed = false
                 self.spots.merge(found) { $1 }
@@ -161,21 +171,21 @@ final class MapModel: ObservableObject {
 
     private func scheduleMidnightRollover() {
         midnightTask?.cancel()
-        guard let seconds = Self.secondsUntilNextMidnight() else { return }
+        guard let seconds = Self.secondsUntilNextMidnight(after: now()) else { return }
         midnightTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled, let self, self.started else { return }
-            self.currentDate = Town.day(.now)
+            self.currentDate = Town.day(self.now())
             self.readAgain()
             self.scheduleMidnightRollover()          // arm the next day
         }
     }
 
-    private static func secondsUntilNextMidnight() -> Double? {
+    private static func secondsUntilNextMidnight(after now: Date) -> Double? {
         // 00:00:01 tomorrow in the Town — a hair past midnight so Town.day has flipped.
-        guard let next = Town.gregorian.nextDate(after: Date(),
+        guard let next = Town.gregorian.nextDate(after: now,
                                       matching: DateComponents(hour: 0, minute: 0, second: 1),
                                       matchingPolicy: .nextTime) else { return nil }
-        return max(1, next.timeIntervalSince(Date()))
+        return max(1, next.timeIntervalSince(now))
     }
 }
