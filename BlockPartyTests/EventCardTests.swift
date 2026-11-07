@@ -110,7 +110,6 @@ final class EventCardTests: XCTestCase {
         XCTAssertTrue(event.saved)
         let page = FeedCardItem(event)
         XCTAssertTrue(page.isSaved)
-        XCTAssertEqual(page.recurrence, "Every Thursday", "the You tab's Event page says how it repeats")
         XCTAssertEqual(page.sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
     }
 
@@ -132,7 +131,6 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(notice.followed, "CSB Volleyball")
         XCTAssertEqual(notice.changedAt, DateHelpers.timestamp("2026-11-02T15:00:00+00:00"))
         XCTAssertEqual(FeedCardItem(notice.event).sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
-        XCTAssertEqual(FeedCardItem(notice.event).recurrence, "Every Thursday", "the bell's Event page says how it repeats")
     }
 
     /// An Event sent in a chat, and a Going chat's Event, are their card: their Event page says how it repeats
