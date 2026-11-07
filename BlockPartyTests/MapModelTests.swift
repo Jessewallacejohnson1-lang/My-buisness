@@ -117,5 +117,13 @@ final class MapModelTests: XCTestCase {
         await until { self.model.today.events.map(\.id) == ["parade"] }
         XCTAssertEqual(model.today.events.map(\.id), ["parade"], "the new day's card is on")
         XCTAssertEqual(feedReads, reads + 1, "midnight reads the Town feed again")
+
+        // The changes it follows roll over too: a new event on the new day reads again.
+        let rolled = feedReads
+        live.changed(RealtimeClient.Change(kind: .insert, new: RealtimeClient.Change.Row(
+            id: "new", eventDate: "2026-11-08", startTime: nil, status: "approved", kind: "event",
+            title: nil, location: nil), old: nil))
+        await until { self.feedReads > rolled }
+        XCTAssertEqual(feedReads, rolled + 1, "a new event on the new day reads again")
     }
 }
