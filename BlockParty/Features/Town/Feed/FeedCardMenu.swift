@@ -24,6 +24,10 @@
 //  then to a thank-you once the report has gone; one that doesn't go shakes the list and stays.
 //  Where Report shows, Report photo is its Wrong photo reason.
 //
+//  On a Town card the ••• went (inside-cards 24, Jesse 2026-11-07): holding the card opens Apple's
+//  context menu (`TownCardHold`) with Share, Not interested, Mute and Report, and Report opens this
+//  sheet at its reasons. A neighbour's post keeps its •••.
+//
 
 import SwiftUI
 
@@ -37,12 +41,15 @@ struct FeedCardMenu: View {
     /// The reasons Report offers, and where a picked one goes; nil, no Report row.
     var reasons: [ReportReason] = []
     var onReport: ((ReportReason) async throws -> Void)? = nil
+    /// Report from a held Town card: the sheet opens at the reasons, its close the way out.
+    var opensOnReasons = false
 
     private enum Pane { case menu, reasons, thanks }
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
-    @State private var pane = Pane.menu
+    /// nil until a row moves it: the menu, or the reasons when it opens on them.
+    @State private var pane: Pane?
     @State private var sending: ReportReason?
     @State private var failures = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -60,7 +67,7 @@ struct FeedCardMenu: View {
 
     var body: some View {
         Group {
-            switch pane {
+            switch pane ?? (opensOnReasons ? .reasons : .menu) {
             case .menu: menu
             case .reasons: reasonList.transition(slide)
             case .thanks: thanks.transition(slide)
@@ -369,9 +376,12 @@ struct FeedCardMenuSheet: ViewModifier {
     let card: FeedCardItem?
     /// A neighbour's post (town-feed 29): Not interested and Report, by its id alone.
     var post: TownPost? = nil
+    var reasonsFirst = false
 
-    init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?) {
+    /// `reasonsFirst`: Report on a held Town card, so the sheet opens at its reasons.
+    init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?, reasonsFirst: Bool = false) {
         _isPresented = isPresented
+        self.reasonsFirst = reasonsFirst
         id = item.id
         hostName = item.hostName
         why = item.why
@@ -385,7 +395,7 @@ struct FeedCardMenuSheet: ViewModifier {
         _isPresented = isPresented
         id = news.id
         hostName = news.place
-        why = news.interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News"
+        why = news.why
         report = nil
         card = nil
     }
@@ -421,7 +431,7 @@ struct FeedCardMenuSheet: ViewModifier {
                          onHide: onHide,
                          reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) }
                             ?? (post == nil ? [] : ReportReason.offered(photo: false, found: false)),
-                         onReport: onReport)
+                         onReport: onReport, opensOnReasons: reasonsFirst)
         }
     }
 
@@ -458,5 +468,80 @@ struct FeedCardMenuSheet: ViewModifier {
         chosen = nil
         Haptics.light()
         Task { await feed.hide(id: id, host: hostName, mute: mute) }
+    }
+}
+
+extension TownNews {
+    /// The interest it shares with you, else only that it's News (Jesse at news-menu's Check-in 1:
+    /// "just do news").
+    var why: String { interest.flatMap { FeedCardMenu.line(reason: "interest", name: $0) } ?? "News" }
+}
+
+/// A Town card held (inside-cards 24; Jesse, 2026-11-07: "if you hold down the card, it lets you share
+/// it"): Apple's context menu, the card lifted as itself over the blurred feed, as the App Store's cards
+/// do (`references/town-card-buttons/hold/`). It took the send and the ••• off the card: Share first,
+/// then the sheet's Not interested and Mute, then Report, which opens the sheet at its reasons. Its grey
+/// title is the sheet's top line, why the card is there. Signed out, or off the Town feed, Share alone.
+struct TownCardHold<Edge: Shape>: ViewModifier {
+    let id: String
+    let hostName: String
+    let why: String?
+    let share: (() -> Void)?
+    /// Report's sheet, opened at its reasons; nil, no Report (News).
+    var report: Binding<Bool>?
+    /// The card's own edge, so it lifts as itself and not as its row.
+    let edge: Edge
+
+    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(RealLifeActions.self) private var actions
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(.contextMenuPreview, edge)
+            .contextMenu {
+                if let why {
+                    Section(why) { shareButton }
+                } else {
+                    shareButton
+                }
+                if let feed, actions.canAct {
+                    Section {
+                        Button("Not interested", systemImage: "eye.slash") { hide(feed, mute: false) }
+                        if !hostName.isEmpty {
+                            Button("Mute \(hostName)", systemImage: "speaker.slash") { hide(feed, mute: true) }
+                        }
+                    }
+                    // Once per card, as the sheet: a second report from the same phone would only add to its count.
+                    if let report, !feed.reportedIDs.contains(id) {
+                        Section {
+                            Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
+                                report.wrappedValue = true
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder private var shareButton: some View {
+        if let share {
+            Button("Share", systemImage: "square.and.arrow.up", action: share)
+        }
+    }
+
+    /// The card folds into "Hidden · Undo" as it does from the sheet.
+    private func hide(_ feed: TownFeed, mute: Bool) {
+        Haptics.light()
+        Task { await feed.hide(id: id, host: hostName, mute: mute) }
+    }
+}
+
+/// A Town card's rounded edge inside the feed's side insets: what a held card lifts as.
+struct TownCardEdge: Shape {
+    var radius: CGFloat = Radius.card
+    var inset: CGFloat = TownFeedMetric.contentInset
+
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect.insetBy(dx: inset, dy: 0))
     }
 }

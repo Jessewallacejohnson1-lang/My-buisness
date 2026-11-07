@@ -6,13 +6,15 @@
 //  The same pick Daily shows first (`EventOfTheDay`). Unlike a Town card it keeps one fixed
 //  shape: the photo square on top fading into the poster's dark, a white "Event of the day"
 //  chip on it, then what it is in a word or two ("Lecture", where DICE writes "Popular"), the title,
-//  the date in BP yellow, the place, the going line, and Attend with the heart and ••• inside the
-//  card; the host is on the Event page (event-card 05). Going keeps it on top, saying You're going!.
+//  the date in BP yellow, the place, the going line, and Attend with the heart inside the card,
+//  the heart in Town's glass at the row's right (inside-cards 24); the host is on the Event page
+//  (event-card 05). Going keeps it on top, saying You're going!. Held, it opens a Town card's menu,
+//  Share first (`TownCardHold`), which took its send and •••.
 //
 //  The poster is one link to the Event page, which squishes on touch-down and takes a double
 //  tap on the photo as a like, as a Town card does. Its words sit over the link without taking
-//  touches; the pill, the heart, the ••• and "Can't go?" sit over it as their own buttons, so
-//  their taps stay theirs.
+//  touches; the pill, the heart and "Can't go?" sit over it as their own buttons, so their taps
+//  stay theirs.
 //
 
 import SwiftUI
@@ -39,11 +41,6 @@ struct EventOfTheDayPoster: View {
         static let goingHeight: CGFloat = 24
         static let rowTop: CGFloat = 16
         static let rowGap: CGFloat = 10
-        /// The heart and ••• sit in 30 pt black circles, as DICE's do, inside 44 pt targets.
-        static let circle: CGFloat = 30
-        static let target: CGFloat = 44
-        static let heartGlyph: CGFloat = 18
-        static let dotsGlyph: CGFloat = 18
         static let nowDot: CGFloat = 8
         /// A flyer stops this far above the words, and the dark is whole this far under its foot (picked on
         /// the mock, BP app `references/whole-flyer-frames/`).
@@ -71,13 +68,12 @@ struct EventOfTheDayPoster: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var linkPressed = false
     @State private var likeBurst = FeedLikeBurst()
+    /// Report from the hold menu: the ••• sheet, opened at its reasons.
     @State private var menuPresented = false
     /// The photo has decoded, so its credit may show.
     @State private var photoShown = false
     /// The photo couldn't load: the poster's dark shows alone.
     @State private var photoFailed = false
-    /// `actions.heartFailureCount` at the last heart tap: a tap mid-shake stills it.
-    @State private var heartTappedAt = 0
     /// The words' height and the poster's width, for where a flyer's room ends.
     @State private var wordsHeight: CGFloat = 0
     @State private var side: CGFloat = 0
@@ -97,12 +93,17 @@ struct EventOfTheDayPoster: View {
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
             .overlay(alignment: .bottom) { copy }
+            // Held: Apple's menu with the poster lifted as itself (inside-cards 24).
+            .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why,
+                                   share: { ShareCenter.shared.present(.event(item)) },
+                                   report: item.why == nil ? nil : $menuPresented,
+                                   edge: RoundedRectangle(cornerRadius: Radius.poster, style: .continuous)))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
-                                        report: picture.report(place: item.whereLine)))
+                                        report: picture.report(place: item.whereLine), reasonsFirst: true))
             // On screen, a heart or Attend that fails may shake here.
             .onAppear { actions.cardOpened(item.id) }
             .onDisappear { actions.cardClosed(item.id) }
@@ -209,8 +210,8 @@ struct EventOfTheDayPoster: View {
                                yellow: true)
                 }
                 Spacer(minLength: 0)
-                if actions.canAct { heartButton }
-                if item.why != nil { menuButton }
+                // Town's glass heart, level with Attend: its circle's edge on the words' right edge.
+                if actions.canAct { TownCardHeart(item: item) }
             }
             .frame(height: RSVPArea.Size.card.pillHeight)
             .padding(.top, Metric.rowTop)
@@ -272,57 +273,6 @@ struct EventOfTheDayPoster: View {
             }
         }
         .frame(height: Metric.goingHeight)
-    }
-
-    // MARK: - Heart and •••
-
-    private var heartButton: some View {
-        let hearted = actions.heart(item).isHearted
-        let failures = actions.heartFailureCount(item.id)
-        return Button {
-            heartTappedAt = failures
-            withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
-                actions.toggleHeart(item)
-            }
-        } label: {
-            circle {
-                FeedActionGlyphView(glyph: .heart, size: Metric.heartGlyph, filled: hearted)
-                    .foregroundStyle(hearted ? Hue.heart : .white)
-                    // The Town card's pop, out to 1.3 and back.
-                    .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
-                        glyph.scaleEffect(reduceMotion ? 1 : scale)
-                    } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
-            }
-        }
-        .buttonStyle(MenuPressStyle())
-        .turnBackShake(failures: failures, shakes: !reduceMotion && heartTappedAt != failures)
-        .accessibilityLabel("Like")
-        .accessibilityValue(hearted ? "Liked" : "Not liked")
-        .accessibilityAddTraits(hearted ? .isSelected : [])
-    }
-
-    private var menuButton: some View {
-        Button { menuPresented = true } label: {
-            circle {
-                Image("Lucide/ellipsis")
-                    .resizable()
-                    .frame(width: Metric.dotsGlyph, height: Metric.dotsGlyph)
-                    .foregroundStyle(.white)
-            }
-        }
-        .buttonStyle(MenuPressStyle())
-        .accessibilityLabel("More options")
-    }
-
-    /// DICE's round dark button: a 30 pt black circle, the glyph white on it, a 44 pt target.
-    private func circle(@ViewBuilder _ glyph: () -> some View) -> some View {
-        glyph()
-            .frame(width: Metric.circle, height: Metric.circle)
-            .background(Circle().fill(.black))
-            .frame(width: Metric.target, height: Metric.target)
-            .contentShape(Circle())
-            // The circles' edges line up with the words' right edge, the target reaching past it.
-            .padding(.horizontal, -(Metric.target - Metric.circle) / 2)
     }
 
     // MARK: -

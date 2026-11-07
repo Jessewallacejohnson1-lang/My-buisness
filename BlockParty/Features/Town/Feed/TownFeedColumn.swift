@@ -110,8 +110,7 @@ struct TownFeedColumn: View {
         case .event(let event), .again(.event(let event), _):
             FeedEventCard(
                 item: event,
-                onShare: { ShareCenter.shared.present(.event(event)) },
-                actionKind: .event
+                onShare: { ShareCenter.shared.present(.event(event)) }
             )
         case .eventOfTheDay(let event):
             EventOfTheDayPoster(event: event, now: now)

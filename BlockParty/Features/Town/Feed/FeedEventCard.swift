@@ -13,10 +13,12 @@
 //  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
 //  else on the card, carries a 20pt corner and takes the photo's own shape, so an
 //  event reads as a cut card sunk into the page rather than a photo running off both
-//  bezels. The day and time ride a white chip on its top left; the title and place
-//  stay over it; the send and who's going sit under it (Jesse, 2026-10-19, BP app
-//  docs/plans/event-card; postings still run edge to edge). Attend is the Event page's, and
-//  the Event of the day poster's (Jesse, event-card 07).
+//  bezels. The day and time ride a white chip on its top left; the title, the place and
+//  who's going stay over it (Jesse, 2026-10-19, BP app docs/plans/event-card; 2026-11-07,
+//  inside-cards 24). A card with no photo, the white card and a game's, has who's going in the
+//  line under it. Nothing else is under a card: holding it opens Apple's menu, Share first
+//  (`TownCardHold`). Attend is the Event page's, and the Event of the day poster's (Jesse,
+//  event-card 07).
 //
 //  The headline face is the SYSTEM face (`.sansBold`), not the display face: Apple
 //  News sets its headlines in SF, and that is the reference Jesse gave.
@@ -28,14 +30,8 @@ import UIKit.UIGestureRecognizerSubclass
 
 struct FeedEventCard: View {
     let item: FeedCardItem
-    let comments: [EventComment]
-    let onLoadComments: (() async throws -> [EventComment])?
-    let onComment: ((String) async throws -> EventComment)?
+    /// Share in the card's hold menu.
     let onShare: (() -> Void)?
-    /// Which action controls this card offers. Defaults to `.posting` so the Town
-    /// pipeline and the DEBUG galleries keep the row they were built against; the
-    /// Town feed passes `.event`, which drops comments but keeps the heart.
-    let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
     /// The host's mark on the photo: the date chip's height, so the two sit level along the top.
@@ -55,18 +51,14 @@ struct FeedEventCard: View {
     @State private var shownPhotos: Set<URL> = []
     /// A single photo that could not be loaded (taken down, or offline): the card turns to ink.
     @State private var failedPhoto: URL?
-    @State private var commentState: FeedCommentState
-    @State private var commentsPresented = false
+    /// Report from the hold menu: the ••• sheet, opened at its reasons.
     @State private var menuPresented = false
     @State private var likeBurst = FeedLikeBurst()
-    @State private var autoplayStep = 0
     /// The link's press, so the photo sinks in. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
     /// The photo's size, so the heart on its corner sinks in with it.
     @State private var photoSize: CGSize = .zero
-    /// `actions.heartFailureCount` at the last tap on the photo's heart: a tap mid-shake stills it.
-    @State private var heartTappedAt = 0
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
     /// Where the host's picture is, for a Place's page to fly out of, and a tap already reading who
@@ -76,30 +68,16 @@ struct FeedEventCard: View {
     @State private var hostRead: Task<Void, Never>?
     @Environment(\.hostOpener) private var hostOpener
 
-    init(
-        item: FeedCardItem,
-        comments: [EventComment] = [],
-        onLoadComments: (() async throws -> [EventComment])? = nil,
-        onComment: ((String) async throws -> EventComment)? = nil,
-        onShare: (() -> Void)? = nil,
-        actionKind: FeedActionKind = .posting,
-        debugAutoplay: Bool = false
-    ) {
+    init(item: FeedCardItem, onShare: (() -> Void)? = nil, debugAutoplay: Bool = false) {
         self.item = item
-        self.comments = comments
-        self.onLoadComments = onLoadComments
-        self.onComment = onComment
         self.onShare = onShare
-        self.actionKind = actionKind
         self.debugAutoplay = debugAutoplay
-        _commentState = State(initialValue: FeedCommentState(comments: comments))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // The photo is the link to the event's page. The RSVP area and the action row
-            // stay outside it, so their own buttons keep their own taps and pressing them
-            // never squishes the card.
+            // The photo is the link to the event's page. The line under it stays outside it, so
+            // "Can't go?" keeps its own tap and pressing it never squishes the card.
             NavigationLink(value: item) {
                 VStack(alignment: .leading, spacing: 0) {
                     // Only the photo sinks in on a press; the line under it stays still
@@ -118,17 +96,16 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the photo sinks the
             // moment a finger lands.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
-            // The heart on the photo's bottom right, over the link as its own button (event-card 06);
-            // on the white card with no photo, at its right, halfway down (no-photo-cards).
-            .overlay(alignment: item.isPhotoless ? .trailing : .bottomTrailing) {
+            // The heart in the card's bottom right corner, over the link as its own button: one spot on
+            // the photo, the white card and the game card (event-card 06; inside-cards 24).
+            .overlay(alignment: .bottomTrailing) {
                 if actions.canAct {
-                    // Rides the photo's corner in as it sinks.
-                    photoHeart
-                        .padding(.trailing, TownFeedMetric.contentInset
-                                 + (item.isPhotoless ? Self.whiteHeartInset : Self.photoHeartInset))
-                        .padding(.bottom, item.isPhotoless ? 0 : Self.photoHeartInset)
+                    // Rides the card's corner in as it sinks.
+                    TownCardHeart(item: item, onWhite: item.game != nil || item.isPhotoless)
+                        .padding(.trailing, TownFeedMetric.contentInset + TownCardHeart.inset)
+                        .padding(.bottom, TownCardHeart.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
-                                y: item.isPhotoless ? 0 : -photoSize.height * (1 - pressScale) / 2)
+                                y: -photoSize.height * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
@@ -155,34 +132,27 @@ struct FeedEventCard: View {
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
+            // Held: Apple's menu with the card lifted as itself (inside-cards 24).
+            .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why, share: onShare,
+                                   report: item.why == nil ? nil : $menuPresented, edge: TownCardEdge()))
 
-            // One line under the photo (event-card 06): the send, the •••, the faces and the count, its
-            // middle 24 pt under the photo as Instagram's is (event-card 07). Going, "You're going!".
-            // Called off, a red "Canceled" pill 12 pt below the photo and no count. The heart is on the photo.
-            if let rsvp = actions.rsvp(item, card: true) {
-                RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true, onMenu: openMenu)
+            // The line under a card with no photo, or called off: the faces and the count, its middle
+            // 24 pt under the card as Instagram's is (event-card 07); "You're going!" once you are.
+            // Called off, the red Canceled 12 pt below and no count. Nothing to say, no line.
+            if !item.goingOverPhoto, let rsvp = actions.rsvp(item, card: true) {
+                RSVPArea(item: item, words: rsvp, onInvite: nil)
+                    .frame(minHeight: MeetupPillStyle.minTarget)
                     .padding(.top, rsvp.pill == nil ? 2 : 12)
                     .padding(.horizontal, TownFeedMetric.contentInset)
                     .transition(.opacity)
-            } else {
-                // Nobody going yet, or signed out: the send and the ••• alone.
-                actionRow
-                    .padding(.top, 2)
-                    .padding(.horizontal, TownFeedMetric.contentInset)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                     // On the white card no photo is up to report.
-                                    report: item.isPhotoless ? nil : displayImage.report(place: item.whereLine)))
-        .sheet(isPresented: $commentsPresented) {
-            FeedCommentSheet(
-                commentState: $commentState,
-                onLoad: onLoadComments,
-                onSend: onComment
-            )
-        }
+                                    report: item.isPhotoless ? nil : displayImage.report(place: item.whereLine),
+                                    reasonsFirst: true))
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id, group: item.groupID) }
@@ -251,11 +221,6 @@ struct FeedEventCard: View {
                 opener.push(item)
             }
         }
-    }
-
-    /// The card's ••• menu (`FeedCardMenu`), on the Town feed's own cards.
-    private var openMenu: (() -> Void)? {
-        item.why == nil ? nil : { menuPresented = true }
     }
 
     @ViewBuilder
@@ -339,7 +304,7 @@ struct FeedEventCard: View {
     }
 
     private var imageSection: some View {
-        GeometryReader { proxy in
+        shaped(GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 imageContent
                     .frame(width: proxy.size.width, height: proxy.size.height)
@@ -355,16 +320,7 @@ struct FeedEventCard: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        // The photo's own shape, known before it loads (`cardAspect`), so the card never
-        // jumps when it lands. Square at accessibility sizes: the headline and where line
-        // are set over the picture, and at AX5 they outgrew a 3:2 frame and ran up over
-        // the host row (measured 2026-09-24).
-        // The event's first photo sets it, failed or not, so the card keeps its height.
-        // A game keeps one shape, the white card's (game-card 06).
-        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1
-                     : item.game == nil ? CGFloat(item.image.cardAspect) : WhiteGameCard.Metric.aspect,
-                     contentMode: .fit)
+        })
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -432,7 +388,7 @@ struct FeedEventCard: View {
                 }
                 .padding(16)
                 // Clear of the heart in the bottom right corner.
-                .padding(.trailing, actions.canAct ? Self.photoHeartSide + Self.photoHeartInset - 8 : 0)
+                .padding(.trailing, actions.canAct ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
                 // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
                 .allowsHitTesting(false)
             }
@@ -445,6 +401,23 @@ struct FeedEventCard: View {
         // double tap likes without opening it (`EventCardPhotoTapTests`).
         .gesture(PhotoDoubleTap { performImageLike(at: $0) })
         .padding(.horizontal, TownFeedMetric.contentInset)
+    }
+
+    /// The photo's own shape, known before it loads (`cardAspect`), so the card never jumps when it
+    /// lands. Square at accessibility sizes: the headline and where line are set over the picture, and
+    /// at AX5 they outgrew a 3:2 frame and ran up over the host row (measured 2026-09-24). The event's
+    /// first photo sets it, failed or not, so the card keeps its height. A game keeps the white card's
+    /// 196 pt at every width (game-card 06; inside-cards 24): shrunk with a 375 pt phone, its corner
+    /// heart sat on the right team's name.
+    @ViewBuilder
+    private func shaped(_ card: some View) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            card.aspectRatio(1, contentMode: .fit)
+        } else if item.game != nil {
+            card.frame(height: WhiteGameCard.Metric.height)
+        } else {
+            card.aspectRatio(CGFloat(item.image.cardAspect), contentMode: .fit)
+        }
     }
 
     @ViewBuilder
@@ -496,90 +469,43 @@ struct FeedEventCard: View {
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
             }
+
+            if item.goingOverPhoto, let top = actions.rsvp(item, card: true)?.top {
+                goingLine(top)
+                    .padding(.top, 4)
+            }
         }
         .feedCardPhotoTypeShadow()
     }
 
-    // MARK: - Actions
-
-    /// The send and the •••. The heart is on the photo (event-card 06), and saving stays on the
-    /// Event page (Jesse, 2026-10-17).
-    private var actionRow: some View {
-        FeedEventCardActionRow(
-            kind: actionKind,
-            showsHeart: false,
-            showsSave: false,
-            state: rowState,
-            reduceMotion: motionIsReduced,
-            autoplayStep: autoplayStep,
-            onLike: nil,
-            onSave: nil,
-            onComment: { commentsPresented = true },
-            onShare: onShare,
-            onMenu: openMenu
-        )
+    /// Who's going, 8 pt under the small line, as the poster says it (Jesse, 2026-11-07: "1 going sits
+    /// inside cards unless if there no photo", then "yeah over photo"): friends' faces, else neighbours',
+    /// in the host mark's white ring, then the count or "You're going!".
+    private func goingLine(_ top: String) -> some View {
+        HStack(spacing: 8) {
+            if !item.friendsGoing.isEmpty {
+                FriendFaces(friends: item.friendsGoing, ring: .white)
+            } else if !item.goingAvatars.isEmpty {
+                FeedCardFacepile(neighborAvatars: item.goingAvatars, goingCount: actions.going(item).count,
+                                 reduceMotion: motionIsReduced, ring: .white)
+            }
+            Text(top)
+                .font(.displaySemi(15))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .id(top == "You're going!")
+        }
+        .frame(height: 24)
     }
 
-    /// The heart on the photo (event-card 06): a 38 pt grey glass circle, the white heart in it, red
-    /// once yours; on the white game card, the ink heart alone (game-card 06). Its pop and its shake
-    /// on a refused write are the action row's.
-    static let photoHeartSide: CGFloat = 38
-    static let photoHeartInset: CGFloat = 12
-    static let photoHeartGlyph: CGFloat = 20
-    /// On the white card: the glyph 13 pt in from its right edge, as the mock's, and the words kept
-    /// clear of it.
-    static let whiteHeartInset: CGFloat = 4
+    // MARK: - Actions
+
+    /// On the white card the words keep clear of the heart in its corner.
     static let whiteHeartRoom: CGFloat = 26
 
     private var pressScale: CGFloat {
         FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
-    }
-
-    private var photoHeart: some View {
-        let hearted = actions.heart(item).isHearted
-        let failures = actions.heartFailureCount(item.id)
-        let onWhite = item.game != nil || item.isPhotoless
-        return Button {
-            heartTappedAt = failures
-            withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
-                actions.toggleHeart(item)
-            }
-        } label: {
-            FeedActionGlyphView(glyph: .heart, size: Self.photoHeartGlyph, filled: hearted)
-                .foregroundStyle(hearted ? Hue.heart : onWhite ? Hue.ink.onLightCanvas : .white)
-                .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
-                    glyph.scaleEffect(motionIsReduced ? 1 : scale)
-                } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
-                .frame(width: Self.photoHeartSide, height: Self.photoHeartSide)
-                // Grey glass: the photo blurred through a dark tint, a line of light inside the top.
-                .background {
-                    if !onWhite {
-                        Circle()
-                            .fill(.black.opacity(0.22))
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5) }
-                            .environment(\.colorScheme, .dark)
-                    }
-                }
-                .frame(width: MeetupPillStyle.minTarget, height: MeetupPillStyle.minTarget)
-                .contentShape(Circle())
-                .padding(-(MeetupPillStyle.minTarget - Self.photoHeartSide) / 2)
-        }
-        .buttonStyle(MenuPressStyle())
-        .turnBackShake(failures: failures, shakes: !motionIsReduced && heartTappedAt != failures)
-        .accessibilityLabel("Like, \(actions.heart(item).count) likes")
-        .accessibilityValue(hearted ? "Liked" : "Not liked")
-        .accessibilityAddTraits(hearted ? .isSelected : [])
-    }
-
-    /// The row's heart is the shared one (`RealLifeActions`), kept on the server.
-    private var rowState: Binding<FeedCardActionState> {
-        Binding {
-            let heart = actions.heart(item)
-            return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted, isSaved: false)
-        } set: { new in
-            if new.isLiked != actions.heart(item).isHearted { actions.toggleHeart(item) }
-        }
     }
 
     private var motionIsReduced: Bool {
@@ -595,8 +521,8 @@ struct FeedEventCard: View {
         likeBurst.fire(at: point)
     }
 
-    /// DEBUG-only: `-town-menu-open` opens the first sample card's ••• sheet, so the phone,
-    /// which nothing here can tap, shows it for a screenshot.
+    /// DEBUG-only: `-town-menu-open` opens the first sample card's Report sheet, what Report in its hold
+    /// menu opens, so the phone, which nothing here can tap or hold, shows it for a screenshot.
     private func openMenuForDebug() async {
         #if DEBUG
         guard item.id == "e1", LaunchFlags.has(.townMenuOpen) else { return }
@@ -605,29 +531,22 @@ struct FeedEventCard: View {
         #endif
     }
 
-    /// DEBUG-only gallery driver: like → image burst → save → unlike.
+    /// DEBUG-only gallery driver: the double tap's like and its burst.
     private func runDebugAutoplay() async {
         #if DEBUG
-        guard debugAutoplay, autoplayStep == 0 else { return }
-
-        try? await Task.sleep(for: .milliseconds(800))
+        guard debugAutoplay else { return }
+        try? await Task.sleep(for: .milliseconds(2_000))
         guard !Task.isCancelled else { return }
-        autoplayStep = 1
-
-        try? await Task.sleep(for: .milliseconds(1_200))
-        guard !Task.isCancelled else { return }
-        autoplayStep = 2
         performImageLike(at: nil)
-
-        try? await Task.sleep(for: .milliseconds(1_800))
-        guard !Task.isCancelled else { return }
-        autoplayStep = 3
-
-        try? await Task.sleep(for: .milliseconds(1_400))
-        guard !Task.isCancelled else { return }
-        autoplayStep = 4
         #endif
     }
+}
+
+extension FeedCardItem {
+    /// Who's going sits over the photo, under its small line (inside-cards 24): not on the white card
+    /// or a game's, which have it in the line under them, nor on a called-off card, whose line keeps
+    /// the red Canceled.
+    var goingOverPhoto: Bool { game == nil && !isPhotoless && !cancelled }
 }
 
 /// A touch-down the instant a finger lands, and its end, reported WITHOUT taking part
@@ -680,17 +599,69 @@ struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
     }
 }
 
-/// A card's •••, beside its send under the photo (Jesse, 2026-10-29: the row above the photo it
-/// sat at the end of is gone): the app's Lucide ellipsis at 20 pt, whose dots span 15 pt
-/// (Instagram's 14.7), in the send's 28 pt width, reaching Apple's 44 pt.
+/// A Town card's heart (event-card 06; inside-cards 24): one spot on every Town card, 12 pt in from
+/// the card's bottom right corner, and the poster's at the right of its Attend row. Over a picture,
+/// a 38 pt grey glass circle with the white heart; on white, the ink heart alone; red once yours.
+/// It pops out to 1.3 and back, and shakes once when the server turns a heart back.
+struct TownCardHeart: View {
+    let item: FeedCardItem
+    var onWhite = false
+
+    static let side: CGFloat = 38
+    static let inset: CGFloat = 12
+    static let glyph: CGFloat = 20
+
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// `actions.heartFailureCount` at the last tap: a tap mid-shake stills it.
+    @State private var tappedAt = 0
+
+    var body: some View {
+        let hearted = actions.heart(item).isHearted
+        let failures = actions.heartFailureCount(item.id)
+        Button {
+            tappedAt = failures
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
+                actions.toggleHeart(item)
+            }
+        } label: {
+            FeedActionGlyphView(glyph: .heart, size: Self.glyph, filled: hearted)
+                .foregroundStyle(hearted ? Hue.heart : onWhite ? Hue.ink.onLightCanvas : .white)
+                .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
+                    glyph.scaleEffect(reduceMotion ? 1 : scale)
+                } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
+                .frame(width: Self.side, height: Self.side)
+                // Grey glass: the photo blurred through a dark tint, a line of light inside the top.
+                .background {
+                    if !onWhite {
+                        Circle()
+                            .fill(.black.opacity(0.22))
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5) }
+                            .environment(\.colorScheme, .dark)
+                    }
+                }
+                .frame(width: MeetupPillStyle.minTarget, height: MeetupPillStyle.minTarget)
+                .contentShape(Circle())
+                .padding(-(MeetupPillStyle.minTarget - Self.side) / 2)
+        }
+        .buttonStyle(MenuPressStyle())
+        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
+        .accessibilityLabel("Like, \(actions.heart(item).count) likes")
+        .accessibilityValue(hearted ? "Liked" : "Not liked")
+        .accessibilityAddTraits(hearted ? .isSelected : [])
+    }
+}
+
+/// A neighbour's post's •••, beside its send (Jesse, 2026-10-29: the row above the photo it sat at
+/// the end of is gone; a Town card's went into its hold menu, inside-cards 24): the app's Lucide
+/// ellipsis at 20 pt, whose dots span 15 pt (Instagram's 14.7), in the send's 28 pt width, reaching
+/// Apple's 44 pt.
 struct FeedCardMenuButton: View {
     let action: () -> Void
 
     private static let glyph: CGFloat = 20
     private static let width: CGFloat = 28
-    /// Added to the row's own spacing after the send (the RSVP area's 8 pt makes 16), so neither's
-    /// 44 pt reaches into the other's.
-    static let gap: CGFloat = 8
 
     var body: some View {
         Button(action: action) {
