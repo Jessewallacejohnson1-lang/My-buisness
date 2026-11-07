@@ -57,15 +57,28 @@ together, at most 10 running at once:
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
   Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
+**Dig.** The Events keep left with no photo look further (BP app dig-deeper 22). Run
+`python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Finish. Helpers on your own
+model, at most 10 running at once:
+- for each `.runs/morning/dig/find-N.txt`, one helper with: "Read the Find part of
+  `sources/models/dig.md` and follow it for `.runs/morning/dig/find-N.txt`. Answer with the JSON lines
+  only." Their lines go to `.runs/morning/dig/pages.jsonl`.
+- then run `python3 sources/scripts/event_photos.py dig-sheets` until it prints its `[dig] laid out` line;
+- for each `.runs/morning/dig/batch-N.txt`, one helper with: "Read `sources/models/event-photo.md`, then
+  the Pick part of `sources/models/dig.md`, and follow them for `.runs/morning/dig/batch-N.txt`. Answer
+  with the JSON lines only." Their lines go to `.runs/morning/dig/picks.jsonl`.
+- then run `python3 sources/scripts/event_photos.py dig-keep`.
+
 **Finish.** Run `python3 sources/scripts/morning.py finish` until it prints the report. It saves
 the tags, Abouts and standouts and prints the whole morning report; a save that failed is a line
 in it. Answer with Ready's line if it said `ready, but`, then that report as printed, then keep's
-`[photos]` line, then your `[season]` lines, then one line per flag you dropped that a neighbour might
-have wanted, and why. Nothing else.
+`[photos]` line, then dig-keep's `[dig]` lines, then your `[season]` lines, then one line per flag you
+dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
 - Pages are fetched only by `morning.py` and `event_photos.py` (the registry's fetcher obeys robots rules and
   Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish`, and `event_photos.py keep`. SQL by hand stays unused.
+- The database is written only by `morning.py save` and `finish`, and `event_photos.py keep` and `dig-keep`. SQL by
+  hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

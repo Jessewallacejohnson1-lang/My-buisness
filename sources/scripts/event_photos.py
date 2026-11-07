@@ -7,6 +7,9 @@ have a photo of event. dont worry about games for now"). A step of the morning j
 
   python3 sources/scripts/event_photos.py prepare          new Events not yet looked at: their pictures on sheets
   python3 sources/scripts/event_photos.py keep [--dry-run] the helpers' picks saved as each Event's photo
+  python3 sources/scripts/event_photos.py dig              the Events keep left bare, in batches for the finders
+  python3 sources/scripts/event_photos.py dig-sheets       the pages the finders named, read; their pictures on sheets
+  python3 sources/scripts/event_photos.py dig-keep [--dry-run]  the picks saved; every Event the dig finished marked
   python3 sources/scripts/event_photos.py --selftest
 
 The pictures are the ones each Event came with, so nothing paid starts and no new page is read but its own:
@@ -45,8 +48,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, place_key  # noqa: E402
 import social, write_judged  # noqa: E402
 from read_events import LOCAL  # noqa: E402
-from run import Supabase, fetch  # noqa: E402
-from morning_run import Part  # noqa: E402
+from run import Supabase, deadline, fetch, final_url  # noqa: E402
+from morning_run import PART_MINUTES, Part  # noqa: E402
 from db import DbError  # noqa: E402
 from morning import read_items  # noqa: E402
 from towns import TOWNS, DEFAULT, lookup  # noqa: E402
@@ -260,18 +263,20 @@ def candidates(groups, rows, banners, share=share_picture):
     return groups
 
 
-def download(groups, folder, grab=None):
-    """Each candidate to folder/c<n>.jpg; one under MIN_WIDTH, a repeat of another, or one that won't
-    download is dropped. Returns the failures as lines."""
+def download(groups, folder, grab=None, n=0, most=None):
+    """Each candidate to folder/c<n>.jpg, numbered after `n`; one under MIN_WIDTH, a repeat of another, or one that
+    won't download is dropped, and none after a group's `most`. Returns the failures as lines."""
     import place_photos
     from PIL import Image
     grab = grab or (lambda c, dest: social.fetch_picture(c["url"], dest) if POST.search(c["page"])
                     else place_photos.download(c["url"], dest))
     folder.mkdir(parents=True, exist_ok=True)
-    n, failed = 0, []
+    failed = []
     for g in groups:
         kept, hashes = [], []
         for c in g["cands"]:
+            if most and len(kept) >= most:
+                break
             n += 1
             dest = folder / f"c{n}.{'jpg' if POST.search(c['page']) else 'png'}"  # a page's may be see-through
             try:
@@ -313,7 +318,8 @@ def sheets(groups, folder):
                          "about": " ".join((e.get("description") or "").split())[:240]}
             place_photos.label(d, (10, y), head, big, cols * TILE)
             lines.append(json.dumps({"event": g["key"], "title": g["title"], **about,
-                                     "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160]}
+                                     "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160],
+                                                   **({"page": c["page"], "page_title": c["title"]} if "title" in c else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
                 im = Image.open(c["file"])
@@ -456,6 +462,200 @@ def keep(out, dry_run=False, db=None, now=None):
             + (" (dry run: nothing written)" if dry_run else ""))
     print(line)
     return line
+
+
+# --- The daily dig (BP app docs/plans/dig-deeper 22) ------------------------------------------------
+# After keep, each Event still with no photo or flyer of its own walks the free rungs of the Ladder: the person it is
+# about, by name; the place's own site; local news. A finder on the routine's own model searches the web (search
+# results only) and names pages; dig-sheets reads them politely and lays their pictures out by rung; a picker takes
+# the earliest rung's fitting photo by event-photo.md and dig.md's Pick; dig-keep saves it the way keep does, marking
+# club_events.photo_dug_at on every Event the dig finished, found or not. One it didn't reach stays unmarked and is
+# dug the next morning.
+
+DIG = "the dig"                    # place_photos.proposed_by on the dig's picks
+RUNGS = ("name", "site", "news")   # the free rungs, in the order a fit is taken (dig-deeper SPEC, rungs 2 to 4)
+PER_RUNG = 2                       # pages read for one Event on one rung
+PER_PAGE = 4                       # pictures taken from one page, its share picture first
+DIG_MAX = 8                        # pictures laid out for one Event
+PER_FIND = 5                       # Events in one finder's batch
+# Never kept from the dig: wire services and stock (the spec's floor), Commons (dropped in dig-deeper 06, and its
+# licence wants an author we don't save), Google's copies, and Facebook and Instagram (the paid rung, dig-deeper 23).
+NOT_OURS = re.compile(r"gettyimages|shutterstock|istockphoto|alamy|apimages|apnews\.com|\bap\.org|reuters|dreamstime|"
+                      r"depositphotos|123rf|unsplash|pexels|pixabay|stock\.adobe|wikimedia|wikipedia|pinterest|"
+                      r"googleusercontent|maps\.googleapis|gstatic|google\.com/(?:maps|imgres|search)|facebook\.com|fbcdn|instagram",
+                      re.I)
+
+
+def bare(db, now, since=NEW):
+    """The Events the photo step looked at within `since` and left with no live photo or flyer of their own, still to
+    come, not dug yet, that aren't a sport."""
+    today, start = now.astimezone(LOCAL).date(), (now - since).isoformat()
+    rows = db.rest("GET", "club_events?select=id,title,event_date,location,description,category,sport,team_ids,"
+                          "source_name,source_url,place_entry_id"
+                          f"&status=eq.approved&kind=eq.event&photo_dug_at=is.null&photo_checked_at=gte.{quote(start)}"
+                          f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
+    import place_photos
+    rows = [r for r in rows if not place_photos.is_sport(r)]
+    if not rows:
+        return []
+    have = {r["event_id"] for r in db.rest("GET", "place_photos?select=event_id&status=eq.live&kind=in.(event,flyer)"
+                                                  f"&event_id=in.({','.join(r['id'] for r in rows)})")}
+    return [r for r in rows if r["id"] not in have]
+
+
+def sites_of(entry_ids):
+    """{registry entry: its own websites}, so a finder can search the place's own site."""
+    import registry
+    entries = {e["id"]: e for e in registry.load(find_root())[0]}
+    return {i: [s["url"] for s in entries.get(i, {}).get("sources") or []
+                if s.get("kind") == "website" and not registry.is_todo(s.get("url", ""))] for i in entry_ids}
+
+
+def dig(out, now=None, db=None, since=NEW, sites=None):
+    """The Events keep left bare, one block per post or page and title as prepare's, in batches for the finders."""
+    now = now or datetime.now(timezone.utc)
+    folder = out / "dig"
+    if folder.exists():
+        for f in folder.iterdir():
+            f.unlink()
+    folder.mkdir(parents=True, exist_ok=True)
+    groups = groups_of(bare(db or Supabase(), now, since))
+    if sites is None:
+        sites = sites_of({e["place_entry_id"] for g in groups for e in g["events"] if e.get("place_entry_id")})
+    for i, g in enumerate(groups, 1):
+        g["key"] = f"d{i}"
+    (folder / "events.json").write_text(json.dumps(groups, indent=1, ensure_ascii=False))
+    for i in range(0, len(groups), PER_FIND):
+        lines = [json.dumps({"event": g["key"], "title": g["title"], "dates": sorted({x["event_date"] for x in g["events"]}),
+                             "host": e.get("source_name") or "", "place": e.get("location") or "",
+                             "about": " ".join((e.get("description") or "").split())[:800], "found_on": g["source_url"],
+                             "own_site": sites.get(e.get("place_entry_id"), [])}, ensure_ascii=False)
+                 for g in groups[i:i + PER_FIND] for e in [g["events"][0]]]
+        (folder / f"find-{i // PER_FIND + 1}.txt").write_text("\n".join(lines) + "\n")
+    n = sum(len(g["events"]) for g in groups)
+    print(f"[dig] {n} Events left bare ({len(groups)} titles) in {(len(groups) + PER_FIND - 1) // PER_FIND} batches for the "
+          f"finders ({folder})" if groups else "[dig] no Event left bare")
+    return groups
+
+
+def pages_of(line):
+    """A finder's pages for its Event: the free rungs in order, PER_RUNG on each, each page once, none we can't keep."""
+    pages, seen = [], set()
+    named = [p for p in (line.get("pages") or []) if isinstance(p, dict)]
+    for rung in RUNGS:
+        on = 0
+        for p in named:
+            url = str(p.get("url") or "").strip()
+            if p.get("from") == rung and url.startswith("http") and not NOT_OURS.search(url) and url not in seen and on < PER_RUNG:
+                seen.add(url)
+                on += 1
+                pages.append({"from": rung, "page": url})
+    return pages
+
+
+def page_pictures(page, get=fetch):
+    """A page's pictures that may be photos [(url, alt)], its share picture first, and the page's title."""
+    import html as htmllib
+    import place_photos
+    _, raw = get(page)
+    title = re.search(r"<title[^>]*>(.*?)</title>", raw, re.I | re.S)
+    found = place_photos.from_page(raw, final_url.get(page, page))
+    alts = {place_photos.full_size(u): a for u, a in found if a}
+    return ([(u, alts.get(u, "")) for u in place_photos.photo_urls(found)],
+            " ".join(htmllib.unescape(title.group(1)).split())[:120] if title else "")
+
+
+def dig_sheets(out, get=fetch, grab=None, minutes=PART_MINUTES):
+    """Every page a finder named, read once and politely, its pictures downloaded (each Event's in its own saved
+    part, so a stopped part loses none), then laid out on sheets for the pickers, by rung."""
+    folder = out / "dig"
+    groups = json.loads((folder / "events.json").read_text()) if (folder / "events.json").exists() else []
+    found = {ln["event"]: ln for ln in read_items(folder / "pages.jsonl") if isinstance(ln, dict) and ln.get("event")}
+    by = {g["key"]: g for g in groups}
+
+    def read_one(key):
+        g, cands, failed = by[key], [], []
+        for p in pages_of(found[key]):
+            try:
+                pics, title = page_pictures(p["page"], get)
+            except Exception as x:
+                failed.append(f"{p['page']}: {str(x)[:80]}")
+                continue
+            cands += [{"url": u, "about": a, "from": p["from"], "page": p["page"], "title": title}
+                      for u, a in pics[:PER_PAGE] if not NOT_OURS.search(u)]
+        g["cands"] = cands
+        failed += download([g], folder, grab, n=int(key[1:]) * 100, most=DIG_MAX)
+        (folder / f"{key}.json").write_text(json.dumps({"cands": g["cands"], "failed": failed}, ensure_ascii=False))
+
+    keys = [g["key"] for g in groups if g["key"] in found]
+    left = Part(folder / "read.json", deadline(minutes)).each(keys, read_one)
+    if left:
+        print(f"[dig] run again: {len(keys) - left} of {len(keys)} Events' pages read")
+        return None
+    laid = []
+    for k in keys:
+        r = json.loads((folder / f"{k}.json").read_text())
+        laid.append({**by[k], "cands": r["cands"]})
+        for ln in r["failed"]:
+            print(f"[dig]   {by[k]['title']}: {ln}")
+    n = sheets(laid, folder)
+    (folder / "laid.json").write_text(json.dumps(laid, indent=1, ensure_ascii=False))
+    with_pics = sum(1 for g in laid if g["cands"])
+    print(f"[dig] laid out: {with_pics} of {len(groups)} titles with pictures on {n} sheets"
+          + (f"; {len(groups) - len(keys)} no finder answered" if len(keys) < len(groups) else ""))
+    return laid
+
+
+def dig_keep(out, dry_run=False, db=None, now=None):
+    """The pickers' picks saved as each Event's photo, credited to the page it came from; photo_dug_at marked on every
+    Event the dig finished: its finder answered, its pages were read, and its pictures, if any, were judged."""
+    import place_photos
+    from PIL import Image
+    folder = out / "dig"
+    groups = json.loads((folder / "events.json").read_text()) if (folder / "events.json").exists() else []
+    found = {ln["event"]: ln for ln in read_items(folder / "pages.jsonl") if isinstance(ln, dict) and ln.get("event")}
+    laid = {g["key"]: g for g in (json.loads((folder / "laid.json").read_text()) if (folder / "laid.json").exists() else [])}
+    lines = read_items(folder / "picks.jsonl")
+    answered = {ln.get("event") for ln in lines if isinstance(ln, dict)}
+    picks = plan(lines, list(laid.values()))
+    reached = [g for g in groups if g["key"] in laid and (not laid[g["key"]]["cands"] or g["key"] in answered)]
+    db = db or (None if dry_run else Supabase())
+    stamp = (now or datetime.now(timezone.utc)).isoformat()
+
+    def save_one(key):
+        kind, what = key.split(":", 1)
+        if kind == "dug":
+            return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_dug_at": stamp}, prefer="return=minimal")
+        g, (c, shows, flyer) = laid[what], picks[what]
+        try:
+            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+                                      events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
+                                      proposed_by=DIG)
+        except DbError as e:
+            if e.status != 409:  # the Event's one live photo: an earlier run's save that got through
+                raise
+    if not dry_run:
+        Part(folder / "kept.json").each([k for g in reached for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
+                                         + [f"dug:{e['id']}" for e in g["events"]]], save_one)
+    count = lambda gs: sum(len(g["events"]) for g in gs)
+    got = [g for g in reached if g["key"] in picks]
+    per = ", ".join(f"{r} {count([g for g in got if picks[g['key']][0]['from'] == r])}" for r in RUNGS)
+    flyers = count([g for g in got if picks[g["key"]][2]])
+    still = [g for g in reached if g["key"] not in picks]
+    waiting = [g for g in groups if g not in reached]
+
+    def tried(g):
+        rungs = [r for r in RUNGS if any(p["from"] == r for p in pages_of(found.get(g["key"], {})))]
+        return f"pages on {', '.join(rungs)}" if rungs else "no page found"
+    out_lines = [f"[dig] {count(groups)} Events left bare by the photo step: {count(got)} got a photo ({per}"
+                 + (f"; {flyers} of them a flyer" if flyers else "") + f"), {count(still)} still bare, "
+                 f"{count(waiting)} waiting for the next morning" + (" (dry run: nothing written)" if dry_run else "")]
+    out_lines += [f"[dig]   still bare: {g['title']} ({tried(g)})" for g in still]
+    out_lines += [f"[dig]   waiting: {g['title']} ("
+                  + ("no finder answered" if g["key"] not in found else "pages not all read" if g["key"] not in laid
+                     else "its pictures not judged") + ")" for g in waiting]
+    print("\n".join(out_lines))
+    return out_lines
 
 
 # --- Self-test --------------------------------------------------------------------------------------
@@ -743,6 +943,118 @@ def selftest():
               and said.endswith("; 1 of 1 new News from posts got their post's photo"),
               f"the News is marked looked at, and the line counts it: {said}")
 
+    # dig-deeper 22: the daily dig's free rungs
+    named = {"event": "d1", "pages": [{"from": "news", "url": "https://thenewsleaders.com/choir"},
+                                      {"from": "name", "url": "https://hayes.example/bio"},
+                                      {"from": "site", "url": "https://csbsju.edu/poetry"},
+                                      {"from": "name", "url": "https://hayes.example/bio"},
+                                      {"from": "name", "url": "https://poets.example/hayes"},
+                                      {"from": "name", "url": "https://third.example/x"},
+                                      {"from": "name", "url": "https://www.gettyimages.com/photos/hayes"},
+                                      {"from": "news", "url": "https://www.facebook.com/csbsju/posts/1"},
+                                      {"from": "other", "url": "https://x.example"}, "a line", {"from": "site", "url": "ftp://x"}]}
+    check([(p["from"], p["page"]) for p in pages_of(named)]
+          == [("name", "https://hayes.example/bio"), ("name", "https://poets.example/hayes"), ("site", "https://csbsju.edu/poetry"),
+              ("news", "https://thenewsleaders.com/choir")],
+          f"a finder's pages go by rung, name then site then news, {PER_RUNG} a rung, each once, no stock and no Facebook")
+    check(all(NOT_OURS.search(u) for u in ("https://lh3.googleusercontent.com/p/x", "https://media.gettyimages.com/x.jpg",
+                                           "https://upload.wikimedia.org/x.jpg", "https://scontent.fbcdn.net/x.jpg"))
+          and not any(NOT_OURS.search(u) for u in ("https://storage.googleapis.com/csbsju/a.jpg", "https://thenewsleaders.com/wp/a.jpg")),
+          "stock, Google's copies, Commons and Facebook are never the dig's; a college's own storage is")
+
+    import place_photos
+    dug = [{"id": "b1", "title": "Terrance Hayes Reading", "event_date": "2026-11-12", "location": "Gorecki Center",
+            "source_name": "CSB SJU", "source_url": "https://my.csbsju.edu/public/events/1", "place_entry_id": "csb",
+            "description": "Poet Terrance Hayes reads."},
+           {"id": "b2", "title": "Liver Fry", "event_date": "2026-11-14", "source_name": "Sal's", "source_url": "https://sals.example"},
+           {"id": "b3", "title": "Liver Fry", "event_date": "2026-11-21", "source_name": "Sal's", "source_url": "https://sals.example"},
+           {"id": "b4", "title": "Boys Hockey vs Sartell", "event_date": "2026-11-14", "sport": "hockey", "category": "watch_sports"},
+           {"id": "b5", "title": "Choir Concert", "event_date": "2026-11-15", "source_name": "Apollo", "source_url": "https://apollo.example"},
+           {"id": "b6", "title": "Pilates", "event_date": "2026-11-16", "source_name": "Studio", "source_url": "https://studio.example"},
+           {"id": "b7", "title": "Has a photo", "event_date": "2026-11-16", "source_name": "Studio", "source_url": "https://studio.example/2"}]
+
+    class Bare(place_photos.Unsent):  # the database's Events looked at lately, and the one that has a photo
+        def rest(self, method, path, body=None, prefer=None):
+            self.calls.append((method, path, body))
+            if path.startswith("club_events"):
+                return [dict(e) for e in dug]
+            return [{"event_id": "b7"}] if path.startswith("place_photos") else None
+    fake = Bare("https://db.example")
+    left = bare(fake, datetime(2026, 11, 7, 12, tzinfo=timezone.utc))
+    check([e["id"] for e in left] == ["b1", "b2", "b3", "b5", "b6"] and "photo_dug_at=is.null" in fake.calls[0][1]
+          and "photo_checked_at=gte." in fake.calls[0][1] and "kind=in.(event,flyer)" in fake.calls[1][1]
+          and "b4" not in fake.calls[1][1],
+          "bare: looked at lately, not dug, no live photo or flyer of its own, never a game")
+    check(bare(type("Db", (), {"rest": lambda self, *a, **k: []})(), datetime(2026, 11, 7, tzinfo=timezone.utc)) == [],
+          "no Event looked at: no photo read asked for")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        (out / "dig").mkdir()
+        (out / "dig" / "picks.jsonl").write_text("an old morning's line\n")
+        groups = dig(out, now=datetime(2026, 11, 7, 12, tzinfo=timezone.utc), db=Bare("https://db.example"),
+                     sites={"csb": ["https://www.csbsju.edu"]})
+        first = [json.loads(x) for x in (out / "dig" / "find-1.txt").read_text().splitlines()]
+        check([g["key"] for g in groups] == ["d1", "d2", "d3", "d4"] and len(first) == 4 and first[1]["dates"] == ["2026-11-14", "2026-11-21"]
+              and first[0]["own_site"] == ["https://www.csbsju.edu"] and first[0]["about"] == "Poet Terrance Hayes reads."
+              and not (out / "dig" / "picks.jsonl").exists(),
+              "dig lays the bare Events out for the finders, one block per title and page with its dates and its place's own site, "
+              "and clears the last morning's")
+        (out / "dig" / "pages.jsonl").write_text("\n".join(json.dumps(x) for x in [
+            {"event": "d1", "pages": [{"from": "news", "url": "https://news.example/hayes"}, {"from": "name", "url": "https://hayes.example/bio"}]},
+            {"event": "d2", "pages": [{"from": "site", "url": "https://sals.example/fry"}]},
+            {"event": "d4", "pages": []}]) + "\n")
+        bio = ('<html><head><title>Terrance Hayes &amp; poems</title><meta property="og:image" content="https://hayes.example/reading.jpg">'
+               '</head><body><img src="/portrait.jpg" alt="Terrance Hayes at the lectern"><img src="/logo.png"></body></html>')
+        site = '<html><body><img src="https://sals.example/fry-crowd.jpg"><img src="https://sals.example/tiny.jpg"></body></html>'
+
+        def get(url):
+            if "news.example" in url:
+                raise RuntimeError("robots.txt disallows")
+            return 200, bio if "hayes" in url else site
+        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (400, 300)}
+
+        def grab2(c, dest):
+            name = next(k for k in big if k in c["url"])
+            Image.effect_noise(big[name], 40 + 10 * list(big).index(name)).convert("RGB").save(dest)
+            return big[name]
+        check(dig_sheets(out, get=get, grab=grab2, minutes=-1) is None and not (out / "dig" / "laid.json").exists(),
+              "a part out of time reads nothing more and says run again")
+        laid = dig_sheets(out, get=get, grab=grab2)
+        d1 = next(g for g in laid if g["key"] == "d1")
+        check([(c["from"], c["n"]) for c in d1["cands"]] == [("name", 101), ("name", 102)]
+              and [c["n"] for c in next(g for g in laid if g["key"] == "d2")["cands"]] == [201]
+              and next(g for g in laid if g["key"] == "d4")["cands"] == [] and "d3" not in [g["key"] for g in laid],
+              "each Event's pictures numbered in its own range; a page that refuses us, one too small and the logo dropped; "
+              "an Event no finder answered isn't read")
+        batch = (out / "dig" / "batch-1.txt").read_text()
+        check('"page": "https://hayes.example/bio", "page_title": "Terrance Hayes & poems"' in batch
+              and "Terrance Hayes at the lectern" in batch and '"from": "name"' in batch,
+              "the picker sees each picture's rung, its page, the page's title and its alt text")
+        check(json.loads((out / "dig" / "d1.json").read_text())["failed"][0].startswith("https://news.example/hayes: robots"),
+              "a page that couldn't be read is said, with why")
+        (out / "dig" / "picks.jsonl").write_text('{"event": "d1", "pick": "c102", "shows": "Terrance Hayes reading"}\n')
+        fake = place_photos.Unsent("https://db.example")
+        said = dig_keep(out, db=fake, now=datetime(2026, 11, 7, 13, tzinfo=timezone.utc))
+        rows_in = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
+        marked = sorted(p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH")
+        check(len(rows_in) == 1 and rows_in[0]["event_id"] == "b1" and rows_in[0]["proposed_by"] == DIG and rows_in[0]["kind"] == "event"
+              and rows_in[0]["source_url"] == "https://hayes.example/bio" and "credit" not in rows_in[0]
+              and rows_in[0]["description"] == "Terrance Hayes reading",
+              "the pick is saved as the Event's photo, linking the page it came from, marked the dig's")
+        check(marked == ["b1", "b6"] and all(b == {"photo_dug_at": "2026-11-07T13:00:00+00:00"} for m, p, b in fake.calls if m == "PATCH"),
+              "marked dug: the Event judged and the one with no page to read; not one whose pictures weren't judged, nor one no finder answered")
+        check(said[0] == "[dig] 5 Events left bare by the photo step: 1 got a photo (name 1, site 0, news 0), 1 still bare, "
+                         "3 waiting for the next morning"
+              and "[dig]   still bare: Pilates (no page found)" in said
+              and "[dig]   waiting: Liver Fry (its pictures not judged)" in said and "[dig]   waiting: Choir Concert (no finder answered)" in said,
+              f"the report block counts by rung and names what's bare and waiting: {said}")
+        fake = place_photos.Unsent("https://db.example")
+        check(dig_keep(out, db=fake) and fake.calls == [], "dig-keep run again sends nothing twice")
+        fake = place_photos.Unsent("https://db.example")
+        (out / "dig" / "kept.json").unlink()
+        check("dry run" in dig_keep(out, dry_run=True, db=fake)[0] and fake.calls == [], "a dry run writes nothing")
+
     def asked(new, kept_rows, others):
         class Kept:
             calls = []
@@ -776,7 +1088,7 @@ def selftest():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("step", nargs="?", choices=["prepare", "keep"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "keep", "dig", "dig-sheets", "dig-keep"])
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--town", default=DEFAULT, help="the town whose photo folder the photos go in")
     ap.add_argument("--selftest", action="store_true")
@@ -789,6 +1101,12 @@ def main(argv=None):
         prepare(out_dir())
     elif a.step == "keep":
         keep(out_dir(), a.dry_run)
+    elif a.step == "dig":
+        dig(out_dir())
+    elif a.step == "dig-sheets":
+        dig_sheets(out_dir())
+    elif a.step == "dig-keep":
+        dig_keep(out_dir(), a.dry_run)
     else:
         ap.print_help()
 
