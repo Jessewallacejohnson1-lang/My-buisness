@@ -275,7 +275,10 @@ def new_hours(found, live):
             continue
         if "from" in f["hours"]:
             hours["from"] = {**f["hours"]["from"], "was": {d: was.get(d) for d in changed}}
-        out.append({**f, "hours": hours, "was": live[f["entry_id"]]})
+        # A post's few days over a place with no whole week would show the rest closed, and Google would never
+        # mend it: `short` names the days missing, and it is not written.
+        short = [d for d in DAY_KEYS if d not in hours] if "from" in f["hours"] else []
+        out.append({**f, "hours": hours, "was": live[f["entry_id"]], **({"short": short} if short else {})})
     return out
 
 
@@ -287,7 +290,7 @@ def write_hours(found, rest=None, write=True):
     if rows is None:
         return found, False
     changes = new_hours(found, {r["entry_id"]: r["hours"] for r in rows})
-    for c in changes if write else []:
+    for c in [c for c in changes if not c.get("short")] if write else []:
         rest("PATCH", f"places?entry_id=eq.{urllib.parse.quote(c['entry_id'])}", {"hours": c["hours"]})
     return changes, write
 
@@ -410,6 +413,8 @@ def selftest():
     assert new_hours([{**post, "hours": {"mon": pm("16:00", "21:00"), "from": mark}}], {"mh": posted})[0]["hours"]["tue"] == [], \
         "a newer post changes only the days it names"
     assert not new_hours([post], {"mh": posted}), "the same week posted again is no change"
+    [half] = new_hours([{**post, "hours": {"thu": pm("16:00", "21:00"), "from": mark}}], {"mh": None})
+    assert half["short"] == ["mon", "tue", "wed", "fri", "sat", "sun"], "a few days over no week are short"
     seasonal = new_hours([{**post, "hours": {"fri": [], "from": mark}}], {"mh": {**had, "season": ["05-08", "10-16"]}})[0]["hours"]
     assert seasonal["season"] == ["05-08", "10-16"] and seasonal["fri"] == [], "a posted week keeps the season"
     assert [day_words(r) for r in (pm("10:00", "21:00"), pm("12:00", "21:00"), [["10:30", "14:00"], ["17:00", "24:00"]], [])] \
@@ -418,7 +423,11 @@ def selftest():
     fake = lambda method, path, body=None: calls.append((method, path)) or ([{"entry_id": "mh", "hours": had}] if method == "GET" else None)
     assert write_hours([post], fake, write=False)[0] and calls == [("GET", "places?select=entry_id,hours&entry_id=not.is.null")], "a dry run writes nothing"
     assert write_hours([post], fake)[1] and calls[-1] == ("PATCH", "places?entry_id=eq.mh"), "a change is written to its place"
-    print("accounts.py selftest: 27 passed, 0 failed")
+    calls.clear()
+    short = {**post, "hours": {"thu": pm("16:00", "21:00"), "from": mark}}
+    assert write_hours([short], lambda m, p, b=None: calls.append(m) or [{"entry_id": "mh", "hours": None}])[0][0]["short"] \
+        and calls == ["GET"], "a short week is never written"
+    print("accounts.py selftest: 29 passed, 0 failed")
 
 
 def main():

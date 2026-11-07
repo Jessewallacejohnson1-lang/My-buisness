@@ -399,12 +399,12 @@ def since_lines(db, today):
         news = db.rest("GET", f"board_items?select=title,source_name&status=eq.published{span}") or []
         # A week a post changed (save_hours): its mark's time, in UTC as saved
         before = datetime(day.year, day.month, day.day, 5, tzinfo=LOCAL).astimezone(timezone.utc).isoformat()
-        hours = db.rest("GET", f"places?select=name,hours&hours->from->>at=gt.{quote(last[0]['saved_at'])}"
-                               f"&hours->from->>at=lt.{quote(before)}") or []
+        hours = [f"- Hours: {accounts.change_words(p['name'], p['hours'])}" for p in db.rest(
+            "GET", f"places?select=name,hours&hours->from->>at=gt.{quote(last[0]['saved_at'])}"
+                   f"&hours->from->>at=lt.{quote(before)}") or []]
     except Exception as e:
         return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
-    return [head] * bool(events or news or hours) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news] \
-        + [f"- Hours: {accounts.change_words(p['name'], p['hours'])}" for p in hours]
+    return [head] * bool(events or news or hours) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news] + hours
 
 
 def photo_lines(db, today):
@@ -531,7 +531,8 @@ def save_hours(run, items, dry_run):
     live on its own and Jesse is told after, as the monthly Google check's does). Each `hours` item's days, in
     Google's words, go on the place that posted (its page in pages.json), over the week it has: its season and
     the days the post doesn't name stay. The week is marked `from` that post, so the monthly Google check leaves
-    it (accounts.new_hours). One line per change, before and after; an item it can't read is a line too."""
+    it (accounts.new_hours). One line per change, before and after; an item it can't read, two posts of one place
+    that disagree, and a few days over a place with no whole week are each a line, and written nowhere."""
     if not items:
         return []
     pages = {page_id(p["file"]): p for p in json.loads((run.folder / "pages.json").read_text())}
@@ -542,15 +543,21 @@ def save_hours(run, items, dry_run):
         if not page or not page.get("entry_id") or not days or set(days) - set(accounts.DAY_KEYS) or None in days.values():
             lines.append(f"- Hours not read: {json.dumps(x, ensure_ascii=False)[:200]}")
             continue
-        # One place's posts on two sites, one week: the first post names it.
+        # One place's posts on two sites, one week: the first post names it. Two weeks that disagree: neither.
         got = found.setdefault(page["entry_id"], {"entry_id": page["entry_id"], "name": page["name"],
                                                   "hours": {"from": {"post": page["url"], "at": at}}})
+        if any(got["hours"].get(d, t) != t for d, t in days.items()):
+            got["clash"] = True
         got["hours"] = {**days, **got["hours"]}
+    lines += [f"- Hours not written: {f['name']}'s posts give two different weeks" for f in found.values() if f.get("clash")]
     try:
-        changes, _ = accounts.write_hours(list(found.values()), run.db.rest, write=not dry_run)
+        changes, _ = accounts.write_hours([f for f in found.values() if not f.get("clash")], run.db.rest, write=not dry_run)
     except DbError as e:  # the 8 AM check reads a "[morning] ... failed:" line
         return lines + [f"[morning] hours failed: {' '.join(str(e).split())[:300]}"]
-    return lines + [f"- Hours: {accounts.change_words(c['name'], c['hours'])}" for c in changes]
+    return lines + [f"- Hours not written: {c['name']}, from its post {c['hours']['from']['post']}: it names only "
+                    f"{', '.join(d.title() for d in accounts.DAY_KEYS if d not in c['short'])}, and the app has no hours "
+                    f"for {', '.join(d.title() for d in c['short'])}" if c.get("short")
+                    else f"- Hours: {accounts.change_words(c['name'], c['hours'])}" for c in changes]
 
 
 def save_fingerprints(run):
@@ -1140,14 +1147,19 @@ def selftest():
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "facebook-1", "url": "https://www.facebook.com/x/posts/1",
                                                             "entry_id": "mh", "name": "Milk & Honey Ciders"},
+                                                           {"file": "facebook-3", "url": "https://n/3", "entry_id": "new", "name": "New Cafe"},
+                                                           {"file": "facebook-4", "url": "https://t/4", "entry_id": "two", "name": "Two Weeks"},
+                                                           {"file": "facebook-5", "url": "https://t/5", "entry_id": "two", "name": "Two Weeks"},
                                                            {"file": "instagram-2", "url": "https://www.instagram.com/p/2/",
                                                             "entry_id": "mh", "name": "Milk & Honey Ciders"}]))
-        had = {"mon": [], "tue": [["16:00", "21:00"]], "wed": [["16:00", "21:00"]], "season": ["03-01", "12-23"]}
-        hdb = FakeDb(answers={"places?select=entry_id,hours": [{"entry_id": "mh", "hours": had}]})
+        had = {**{d: [] for d in accounts.DAY_KEYS}, "tue": [["16:00", "21:00"]], "wed": [["16:00", "21:00"]], "season": ["03-01", "12-23"]}
+        hdb = FakeDb(answers={"places?select=entry_id,hours": [{"entry_id": "mh", "hours": had}, {"entry_id": "new", "hours": None},
+                                                               {"entry_id": "two", "hours": had}]})
         r = type("R", (), {"folder": Path(tmp), "db": hdb})()
         winter = {"page": "facebook-1", "kind": "hours", "days": {"tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM"}}
         said = save_hours(r, [winter, {**winter, "page": "instagram-2"}, {**winter, "days": {"tue": "by appointment"}},
-                              {**winter, "page": "facebook-9"}], False)
+                              {**winter, "page": "facebook-9"}, {**winter, "page": "facebook-3"}, {**winter, "page": "facebook-4"},
+                              {**winter, "page": "facebook-5", "days": {"thu": "5 PM to 9 PM"}}], False)
         [(_, where, body)] = hdb.writes("places")
         dry = FakeDb(answers=hdb.answers)
         checks.append((where == "places?entry_id=eq.mh" and {k: v for k, v in body["hours"].items() if k != "from"}
@@ -1155,11 +1167,15 @@ def selftest():
                        and body["hours"]["from"]["post"] == "https://www.facebook.com/x/posts/1"
                        and said == ['- Hours not read: {"page": "facebook-1", "kind": "hours", "days": {"tue": "by appointment"}}',
                                     '- Hours not read: {"page": "facebook-9", "kind": "hours", "days": {"tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM"}}',
+                                    "- Hours not written: Two Weeks's posts give two different weeks",
                                     "- Hours: Milk & Honey Ciders, from its post https://www.facebook.com/x/posts/1: "
-                                    "Tue 4–9 PM, now closed; Wed 4–9 PM, now closed; Thu now 4–9 PM"]
+                                    "Tue 4–9 PM, now closed; Wed 4–9 PM, now closed; Thu closed, now 4–9 PM",
+                                    "- Hours not written: New Cafe, from its post https://n/3: it names only Tue, Wed, Thu, and the app "
+                                    "has no hours for Mon, Fri, Sat, Sun"]
                        and save_hours(type("R", (), {"folder": Path(tmp), "db": dry})(), [winter], True)[-1].startswith("- Hours: Milk")
                        and not dry.writes() and save_hours(r, [], False) == [],
-                       f"a post's new week goes on the place that posted, once for its two sites, over its season, and says so: {said}"))
+                       f"a post's new week goes on the place that posted, once for its two sites, over its season, and says so; "
+                       f"two weeks for one place, or a few days over none, go nowhere: {said}"))
     checks.append((since_lines(SinceDb(last=False), date(2026, 11, 5)) == [], "no earlier report, no such list"))
     checks.append((since_lines(SinceDb(down=True), date(2026, 11, 5)) == [
                        "Since the last report: not read (Supabase GET club_events failed 503: Service Unavailable)"],
@@ -2112,8 +2128,8 @@ def whole_morning():
         def rest(self, method, path, body=None, prefer=None):
             if path == "rpc/apply_judged":
                 return save_items(body)
-            if path.startswith("places?select=entry_id,hours") or path.startswith("places?entry_id"):  # a post's week: p0 has none yet
-                return self.hours.append((method, path, body)) if method == "PATCH" else [{"entry_id": "p0", "hours": None}]
+            if path.startswith("places?select=entry_id,hours") or path.startswith("places?entry_id"):  # a post's week: p0 closed all week
+                return self.hours.append((method, path, body)) if method == "PATCH" else [{"entry_id": "p0", "hours": {d: [] for d in accounts.DAY_KEYS}}]
             kind = ("standouts" if method == "POST" and path.startswith("daily_standouts")
                     else "describe" if method == "PATCH" and "described_at" in body else "tag" if method == "PATCH" else None)
             if kind:
@@ -2317,7 +2333,7 @@ def whole_morning():
                  "the standout"),
         ("Social watch (busy), 2026-11-03" in evening and len(Db.saves) == 2 and not evening_laid,
          f"a social check's save writes and lays out nothing for helpers: {evening[-300:]}"),
-        ("- Skipped: 0 " in evening and "- Hours: p0, from its post https://p0.example/: Mon now 9 AM–5 PM" in evening
+        ("- Skipped: 0 " in evening and "- Hours: p0, from its post https://p0.example/: Mon closed, now 9 AM–5 PM" in evening
          and [(m, p, b["hours"]["mon"]) for m, p, b in Db.hours] == [("PATCH", "places?entry_id=eq.p0", [["09:00", "17:00"]])],
          f"a post's new hours go on its place, not to the Events and News writer: {evening[-400:]}"),
     ]

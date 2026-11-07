@@ -69,9 +69,9 @@ carry on with the rest.
      times) also gets one `hours` item beside its News: `{"kind": "hours", "page": "<the flag's page id>",
      "days": {"mon": "Closed", "thu": "4 PM to 9 PM", "sat": "10 AM to 9 PM"}}`, with every day the post
      states, `mon` to `sun`, each written as Google writes hours ("Closed", "12 PM to 9 PM", two ranges with
-     a comma). Open the post and its pictures and read the week there, not from the flag's line. `save`
-     puts the week in the app on its own and says what changed (Jesse, 2026-11-07; BP app business-hours
-     02). Hours for one day or a few dates (closing early tonight, a private event, a holiday, a snow day,
+     a comma). A post giving its whole week writes all seven, "Closed" for each day it leaves out. Open the
+     post and its pictures and read the week there, not from the flag's line. `save` puts the week in the
+     app on its own and says what changed (Jesse, 2026-11-07; BP app business-hours 02). Hours for one day or a few dates (closing early tonight, a private event, a holiday, a snow day,
      a season's first or last day) are never an `hours` item: the app's hours are a week. Neither are an
      event's times.
    - Drop only: a post with nothing to know or do (a quote, a joke, nostalgia, a thank-you,

@@ -45,7 +45,7 @@ St. John the Baptist Parish's Craft Fair as listed too, so that label comes out 
 in a real run, it stays outside 3 of 3 (ticket 17). Count 3 of 369 as this check's kindness.
 
   python3 sources/scripts/check_judge.py [--model sonnet] [--runs 3] [--judge FILE] [--fixture FILE]
-  python3 sources/scripts/check_judge.py --fixture ~/BP\ app/docs/plans/business-hours/assets/02-hours-check/fixture.json
+  python3 sources/scripts/check_judge.py --fixture "$HOME/BP app/docs/plans/business-hours/assets/02-hours-check/fixture.json"
   python3 sources/scripts/check_judge.py --selftest
 """
 
@@ -139,10 +139,10 @@ def counts(x):
 def week_from(before, items):
     """The week the writer makes of a post's `hours` items over the place's week `before` (morning.save_hours), Monday
     to Sunday; None when a day is unreadable, so a misread week never passes."""
-    days = {d: accounts.day_ranges(str(t)) for x in items for d, t in (x.get("days") or {}).items()}
+    days = {d: accounts.day_ranges(str(t)) for x in reversed(items) for d, t in (x.get("days") or {}).items()}  # the first wins
     if not days or None in days.values():
         return None
-    got = accounts.new_hours([{"entry_id": "p", "hours": {**days, "from": {}}}], {"p": before})
+    got = accounts.new_hours([{"entry_id": "p", "hours": {**days, "from": {"post": "", "at": ""}}}], {"p": before})
     return {d: (got[0]["hours"] if got else before).get(d) for d in accounts.DAY_KEYS}
 
 
