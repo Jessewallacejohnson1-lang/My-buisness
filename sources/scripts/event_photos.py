@@ -320,7 +320,8 @@ def sheets(groups, folder):
             place_photos.label(d, (10, y), head, big, cols * TILE)
             lines.append(json.dumps({"event": g["key"], "title": g["title"], **about,
                                      "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160],
-                                                   **({"page": c["page"], "page_title": c["title"]} if "title" in c else {})}
+                                                   **({"page": c["page"], "page_title": c["title"], "finder_says": c["why"]}
+                                                      if "title" in c else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
                 im = Image.open(c["file"])
@@ -476,7 +477,7 @@ def keep(out, dry_run=False, db=None, now=None):
 DIG = "the dig"                    # place_photos.proposed_by on the dig's picks
 RUNGS = ("name", "site", "news")   # the free rungs, in the order a fit is taken (dig-deeper SPEC, rungs 2 to 4)
 PER_RUNG = 2                       # pages read for one Event on one rung
-PER_PAGE = 4                       # pictures taken from one page, its share picture first
+PER_PAGE = 6                       # pictures taken from one page, its share picture first
 DIG_MAX = 8                        # pictures laid out for one Event
 PER_FIND = 5                       # Events in one finder's batch
 # Never kept from the dig: wire services and stock (the spec's floor), Commons (dropped in dig-deeper 06, and its
@@ -550,7 +551,7 @@ def pages_of(line):
             if p.get("from") == rung and url.startswith("http") and not NOT_OURS.search(url) and url not in seen and on < PER_RUNG:
                 seen.add(url)
                 on += 1
-                pages.append({"from": rung, "page": url})
+                pages.append({"from": rung, "page": url, "why": " ".join(str(p.get("why") or "").split())[:80]})
     return pages
 
 
@@ -561,7 +562,7 @@ def page_pictures(page, get=fetch):
     _, raw = get(page)
     title = re.search(r"<title[^>]*>(.*?)</title>", raw, re.I | re.S)
     found = place_photos.from_page(raw, final_url.get(page, page))
-    alts = {place_photos.full_size(u): a for u, a in found if a}
+    alts = {place_photos.full_size(u): " ".join(htmllib.unescape(a).split()) for u, a in found if a}
     return ([(u, alts.get(u, "")) for u in place_photos.photo_urls(found)],
             " ".join(htmllib.unescape(title.group(1)).split())[:120] if title else "")
 
@@ -580,9 +581,9 @@ def dig_sheets(out, get=fetch, grab=None, minutes=PART_MINUTES):
             try:
                 pics, title = page_pictures(p["page"], get)
             except Exception as x:
-                failed.append(f"{p['page']}: {str(x)[:80]}")
+                failed.append(f"{g['title']}: {p['page']} would not read ({str(x)[:80]})")
                 continue
-            cands += [{"url": u, "about": a, "from": p["from"], "page": p["page"], "title": title}
+            cands += [{"url": u, "about": a, "from": p["from"], "page": p["page"], "title": title, "why": p["why"]}
                       for u, a in pics[:PER_PAGE] if not NOT_OURS.search(u)]
         g["cands"] = cands
         failed += download([g], folder, grab, n=int(key[1:]) * 100, most=DIG_MAX)
@@ -593,12 +594,16 @@ def dig_sheets(out, get=fetch, grab=None, minutes=PART_MINUTES):
     if left:
         print(f"[dig] run again: {len(keys) - left} of {len(keys)} Events' pages read")
         return None
-    laid = []
+    laid, on = [], {}
     for k in keys:
         r = json.loads((folder / f"{k}.json").read_text())
         laid.append({**by[k], "cands": r["cands"]})
+        for c in r["cands"]:
+            on.setdefault(c["url"], set()).add(c["page"])
         for ln in r["failed"]:
-            print(f"[dig]   {by[k]['title']}: {ln}")
+            print(f"[dig]   {ln}")
+    for g in laid:  # a picture on two pages is the site's own (WJON's ad portrait on every story), not this Event's
+        g["cands"] = [c for c in g["cands"] if len(on[c["url"]]) < 2]
     n = sheets(laid, folder)
     (folder / "laid.json").write_text(json.dumps(laid, indent=1, ensure_ascii=False))
     with_pics = sum(1 for g in laid if g["cands"])
@@ -1003,18 +1008,21 @@ def selftest():
               "dates and its place's own site, "
               "and clears the last morning's")
         (out / "dig" / "pages.jsonl").write_text("\n".join(json.dumps(x) for x in [
-            {"event": "d1", "pages": [{"from": "news", "url": "https://news.example/hayes"}, {"from": "name", "url": "https://hayes.example/bio"}]},
+            {"event": "d1", "pages": [{"from": "news", "url": "https://news.example/hayes"},
+                                      {"from": "name", "url": "https://hayes.example/bio", "why": "Hayes's own site"}]},
             {"event": "d2", "pages": [{"from": "site", "url": "https://sals.example/fry"}]},
             {"event": "d4", "pages": []}]) + "\n")
         bio = ('<html><head><title>Terrance Hayes &amp; poems</title><meta property="og:image" content="https://hayes.example/reading.jpg">'
-               '</head><body><img src="/portrait.jpg" alt="Terrance Hayes at the lectern"><img src="/logo.png"></body></html>')
-        site = '<html><body><img src="https://sals.example/fry-crowd.jpg"><img src="https://sals.example/tiny.jpg"></body></html>'
+               '</head><body><img src="/portrait.jpg" alt="Terrance Hayes at the lectern, &#8216;Lighthead&#8217;"><img src="/logo.png">'
+               '<img src="https://ads.example/writer.jpg"></body></html>')
+        site = ('<html><body><img src="https://sals.example/fry-crowd.jpg"><img src="https://sals.example/tiny.jpg">'
+                '<img src="https://ads.example/writer.jpg"></body></html>')
 
         def get(url):
             if "news.example" in url:
                 raise RuntimeError("robots.txt disallows")
             return 200, bio if "hayes" in url else site
-        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (400, 300)}
+        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (400, 300), "writer": (1600, 1041)}
 
         def grab2(c, dest):
             name = next(k for k in big if k in c["url"])
@@ -1027,14 +1035,15 @@ def selftest():
         check([(c["from"], c["n"]) for c in d1["cands"]] == [("name", 101), ("name", 102)]
               and [c["n"] for c in next(g for g in laid if g["key"] == "d2")["cands"]] == [201]
               and next(g for g in laid if g["key"] == "d4")["cands"] == [] and "d3" not in [g["key"] for g in laid],
-              "each Event's pictures numbered in its own range; a page that refuses us, one too small and the logo dropped; "
-              "an Event no finder answered isn't read")
+              "each Event's pictures numbered in its own range; a page that refuses us, one too small, the logo and a picture "
+              "on two sites' pages dropped; an Event no finder answered isn't read")
         batch = (out / "dig" / "batch-1.txt").read_text()
-        check('"page": "https://hayes.example/bio", "page_title": "Terrance Hayes & poems"' in batch
-              and "Terrance Hayes at the lectern" in batch and '"from": "name"' in batch,
-              "the picker sees each picture's rung, its page, the page's title and its alt text")
-        check(json.loads((out / "dig" / "d1.json").read_text())["failed"][0].startswith("https://news.example/hayes: robots"),
-              "a page that couldn't be read is said, with why")
+        check('"page": "https://hayes.example/bio", "page_title": "Terrance Hayes & poems", "finder_says": "Hayes\'s own site"' in batch
+              and "Terrance Hayes at the lectern, \u2018Lighthead\u2019" in batch and '"from": "name"' in batch,
+              "the picker sees each picture's rung, its page, the page's title, why the finder chose it, and its alt text")
+        check(json.loads((out / "dig" / "d1.json").read_text())["failed"]
+              == ["Terrance Hayes Reading: https://news.example/hayes would not read (robots.txt disallows)"],
+              "a page that couldn't be read is said once, with why")
         (out / "dig" / "picks.jsonl").write_text('{"event": "d1", "pick": "c102", "shows": "Terrance Hayes reading"}\n')
         fake = place_photos.Unsent("https://db.example")
         said = dig_keep(out, db=fake, now=datetime(2026, 11, 7, 13, tzinfo=timezone.utc))
