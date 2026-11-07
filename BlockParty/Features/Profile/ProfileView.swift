@@ -362,14 +362,12 @@ struct ProfileView: View {
     /// Under Log out, as Uxcel Go's (Jesse, 2026-11-06): quiet red words at Log out's height.
     private var deleteAccountButton: some View {
         Button { Haptics.light(); confirmDelete = true } label: {
-            HStack(spacing: 8) {
-                if model.deletingAccount { ProgressView().controlSize(.small) }
-                Text(model.deletingAccount ? "Deleting…" : "Delete account").font(.displaySemi(15))
-            }
-            .foregroundStyle(model.deletingAccount ? Hue.inkSecondary : Hue.canceled)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
-            .contentShape(Rectangle())
+            Text(model.deletingAccount ? "Deleting…" : "Delete account")
+                .font(.displaySemi(15))
+                .foregroundStyle(model.deletingAccount ? Hue.inkSecondary : Hue.canceled)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.press(.dim))
         .turnBackShake(failures: model.deleteFailures, shakes: !reduceMotion)
