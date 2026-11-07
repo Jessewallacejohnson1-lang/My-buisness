@@ -26,7 +26,7 @@ final class LaunchBallTests: XCTestCase {
 
         let card = app.buttons["event-card-link"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "no event card on Town")
-        // 2.5 s on a phone, and the app shows within 6 s whatever happens. A fixed wait, because
+        // 3.8 s on a phone, and the app shows within 6 s whatever happens. A fixed wait, because
         // XCUITest still lists the finished launch's element (hidden from VoiceOver, untouchable)
         // and never sees it go: the tap below is the proof that it went.
         Thread.sleep(forTimeInterval: 9)

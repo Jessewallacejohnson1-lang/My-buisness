@@ -154,7 +154,7 @@ struct LaunchHost<Content: View>: View {
             AccessibilityNotification.Announcement("Block Party").post()
         }
         // Whatever stalls it, the app shows within 6 s: the splash deleted on 2026-09-18 left
-        // the app black on every cold start (swift-traps). It plays in 2.5.
+        // the app black on every cold start (swift-traps). It plays in 3.8, the yellow gone by 2.7.
         .task {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
@@ -274,6 +274,12 @@ private struct LaunchMark: View {
     private static let shadeDrop = 9 * LaunchMotion.scale
     private static let shadeBlur = 12 * LaunchMotion.scale
 
+    /// Bp! is drawn at its size on screen, never drawn at full size and shrunk: shrunk 6x into the
+    /// tab bar, its edges went jagged, and turned smooth only as the tab bar's own took over
+    /// (recorded 2026-11-07, BP app references/launch-glitch). `k` is its size against full.
+    private var k: CGFloat { frame.markScale / LaunchMotion.scale }
+    private var box: CGSize { CGSize(width: Self.box.width * k, height: Self.box.height * k) }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             // The launch screen's own picture, so its still and this first frame are one.
@@ -302,11 +308,11 @@ private struct LaunchMark: View {
             ZStack(alignment: .topLeading) {
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))
-                    .offset(y: frame.lift * Self.hopPoints)
+                    .offset(y: frame.lift * Self.hopPoints * k)
                     .opacity(frame.letters)
                 piece("LaunchMarkP")
                     .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.footP))
-                    .offset(y: frame.lift * Self.hopPoints)
+                    .offset(y: frame.lift * Self.hopPoints * k)
                     .opacity(frame.letters)
                 // Reduce Motion's full-size B and p, fading in over the 90% ones.
                 piece("LaunchMarkB").opacity(frame.fullLetters)
@@ -315,14 +321,13 @@ private struct LaunchMark: View {
                 ballShade
                 ball
             }
-            .frame(width: Self.box.width, height: Self.box.height, alignment: .topLeading)
+            .frame(width: box.width, height: box.height, alignment: .topLeading)
             .foregroundStyle(Hue.onBrandDisc)
             .compositingGroup()
-            .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur, y: Self.shadeDrop)
+            .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur * k, y: Self.shadeDrop * k)
             .scaleEffect(frame.zoom)
             .scaleEffect(x: frame.markSquash.width, y: frame.markSquash.height, anchor: .bottom)
             .rotationEffect(.degrees(frame.markTilt), anchor: .bottom)
-            .scaleEffect(frame.markScale / LaunchMotion.scale, anchor: .topLeading)
             .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)
             .opacity(frame.markOpacity)
         }
@@ -334,11 +339,11 @@ private struct LaunchMark: View {
     @ViewBuilder private var bang: some View {
         piece("DailyMarkBangLine")
             .scaleEffect(x: frame.line.width, y: frame.line.height, anchor: DailyMarkGlyph.lineFoot)
-            .offset(y: frame.lift * Self.hopPoints)
+            .offset(y: frame.lift * Self.hopPoints * k)
             .opacity(frame.lineOpacity)
         piece("DailyMarkBangDot")
             .scaleEffect(x: frame.dot.width, y: frame.dot.height, anchor: DailyMarkGlyph.dotBase)
-            .offset(y: frame.lift * Self.hopPoints)
+            .offset(y: frame.lift * Self.hopPoints * k)
             .opacity(frame.dotShown ? 1 : 0)
     }
 
@@ -347,9 +352,9 @@ private struct LaunchMark: View {
     private var ballShade: some View {
         let b = frame.ball
         return Circle()
-            .frame(width: 2 * b.r, height: 2 * b.r)
-            .blur(radius: 2 * frame.shadeBlur)
-            .position(x: b.x - origin.x, y: b.y - origin.y + frame.shadeDrop)
+            .frame(width: 2 * b.r * k, height: 2 * b.r * k)
+            .blur(radius: 2 * frame.shadeBlur * k)
+            .position(x: (b.x - origin.x) * k, y: (b.y - origin.y + frame.shadeDrop) * k)
             .opacity(frame.shadeOpacity)
     }
 
@@ -362,18 +367,18 @@ private struct LaunchMark: View {
         return Image(Town.logo)
             .resizable()
             .scaledToFill()
-            .frame(width: 2 * b.r, height: 2 * b.r)
+            .frame(width: 2 * b.r * k, height: 2 * b.r * k)
             .overlay { Circle().fill(Hue.onBrandDisc).opacity(frame.ballBlack) }
             .clipShape(Circle())
             .rotationEffect(.degrees(b.roll - b.heading))
             .scaleEffect(x: b.sx, y: b.sy)
             .rotationEffect(.degrees(b.heading))
-            .position(x: b.x - origin.x, y: b.y - origin.y)
+            .position(x: (b.x - origin.x) * k, y: (b.y - origin.y) * k)
             .opacity(frame.ballOpacity)
     }
 
     private func piece(_ name: String) -> some View {
-        Image(name).resizable().frame(width: Self.box.width, height: Self.box.height)
+        Image(name).resizable().frame(width: box.width, height: box.height)
     }
 
     /// A canvas point as a point of the canvas's box.

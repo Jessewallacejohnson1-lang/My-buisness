@@ -55,12 +55,18 @@ nonisolated struct LaunchMotion {
     /// flies faster and just lands.
     private static let leapCrouch = 0.07
     private static let leapDip: CGFloat = 0.10
+    /// The crouch lets go over the flight's first fifth: let go in one frame, Bp! snapped 14 pt
+    /// taller (Jesse, 2026-11-07: "yes to all", BP app references/launch-glitch).
+    private static let leapRelease: CGFloat = 0.2
     private static let leapFlight = 0.26
     private static let leapFlightFast = 0.16
     private static let leapRise: CGFloat = 190
     private static let leapTilt = -12.0
     private static let leapStretch: CGFloat = 0.08
     private static let leapLand = 0.30
+    /// The landing's squash plays out until it stays under 1% of Bp!'s height: done at its first
+    /// pass through rest, it stopped dead with an 11% rebound still to come (Jesse, 2026-11-07).
+    static let leapSettles = settleTime(leapLand, spring: wobble, under: 0.01)
     private static let tabCatch = Spring(response: 0.30, dampingRatio: 0.45)
     private static let tabCatchDip = 2.2
     private static let glide = Spring(response: 0.38, dampingRatio: 0.88)
@@ -233,6 +239,15 @@ nonisolated struct LaunchMotion {
             / spring.value(target: 0.0, initialVelocity: 1.0, time: peak)
     }
 
+    /// When a `kick` stays under `under` for good: its envelope, not its value, which passes
+    /// through zero on every swing.
+    static func settleTime(_ amp: Double, spring: Spring, under: Double) -> Double {
+        let w = 2 * .pi / spring.response, z = spring.dampingRatio, wd = w * (1 - z * z).squareRoot()
+        let peak = atan(wd / (z * w)) / wd
+        let atPeak = exp(-z * w * peak) * sin(wd * peak)
+        return max(0, log(amp / (atPeak * under)) / (z * w))
+    }
+
     /// The jump's keyframes, the mock's `JUMP`: [to, seconds, curve], each easing from the last as
     /// SwiftUI's `LinearKeyframe` does. y is in the tab bar's points, like the Daily tab's hop.
     private typealias Key = (to: CGFloat, seconds: Double, curve: UnitCurve)
@@ -403,11 +418,12 @@ nonisolated struct LaunchMotion {
         f.p = letter(hit: hitP, dip: Self.dipP)
 
         // The ! : after a tap it simply appears; otherwise it jumps with B and p, its line growing
-        // out of the dot during the crouch and fading in over its first 40 ms.
+        // out of the dot during the crouch and fading in over its first 40 ms. It grows on a plain
+        // ease-out: on the mock's sharp one it was nearly full height in two frames, a pop (2026-11-07).
         f.lift = jump(Self.jumpY, 0)
         f.dot = CGSize(width: jumpWidth, height: jumpHeight)
         if let popAt {
-            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(Self.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(Self.jumpLineHeight, 1)
+            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(UnitCurve.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(Self.jumpLineHeight, 1)
             f.line = CGSize(width: jump(Self.jumpLineWidth, 1), height: h < 0 ? 0 : height)
             f.lineOpacity = clamp01((t - popAt) / 0.04)
         } else {
@@ -444,7 +460,8 @@ nonisolated struct LaunchMotion {
                 markScale = lerp(s, to, smooth(u))
                 f.markTilt = Self.leapTilt * sin(.pi * Double(u))
                 let stretch = Self.leapStretch * CGFloat(sin(.pi * Double(u)))
-                f.markSquash = CGSize(width: 1 / (1 + stretch), height: 1 + stretch)
+                let crouched = crouch > 0 ? Self.leapDip * (1 - smooth(min(1, u / Self.leapRelease))) : 0
+                f.markSquash = CGSize(width: (1 + crouched / 2) / (1 + stretch), height: (1 - crouched) * (1 + stretch))
                 progress = Double(u)
             } else {
                 let tau = e - crouch - flight
@@ -457,7 +474,7 @@ nonisolated struct LaunchMotion {
                 landed = endAt + crouch + flight
                 // Done once the squash has died down; what's left of the tab bar's dip, under half a
                 // point, eases out from there (`LaunchStage.finish`).
-                settled = tau > 0.2 && abs(d) < 0.01
+                settled = tau > max(0.2, skip == nil ? Self.leapSettles : 0)
             }
             f.markScale = markScale
             f.markOrigin = CGPoint(x: foot.x - Self.canvas.width * markScale / 2, y: foot.y - Self.canvas.height * markScale)
