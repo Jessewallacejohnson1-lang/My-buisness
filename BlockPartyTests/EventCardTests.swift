@@ -26,7 +26,7 @@ final class EventCardTests: XCTestCase {
      "game":{"sport":"Volleyball","occasion":"Senior night","final":null,"plays":null,
              "live":{"score":[2,1],"period":"Set 4","clock":null,"complete":false},
              "teams":[{"name":"Saint Benedict","short":"CSB"},{"name":"Sartell","short":"Sartell"}]},
-     "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"}]}
+     "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"}],"recurrence":"Every Thursday"}
     """
 
     /// The card's facts, wherever it came from.
@@ -37,6 +37,8 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(event.hostPicture?.url, URL(string: "https://x/csb-logo.webp"), file: file, line: line)
         XCTAssertEqual(event.placePicture?.url, URL(string: "https://x/gym.webp"), file: file, line: line)
         XCTAssertEqual(event.game?.live?.score, [2, 1], "the score comes with the card", file: file, line: line)
+        XCTAssertEqual(event.recurrence, "Every Thursday", "the repeat comes with the card (inside-cards 23)",
+                       file: file, line: line)
         XCTAssertEqual(event.description, "Senior night.", file: file, line: line)
         XCTAssertEqual(event.what, "Volleyball match", file: file, line: line)
         XCTAssertEqual(event.goingCount, 2, file: file, line: line)
@@ -74,6 +76,7 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(page.hostPicture?.kind, .logo)
         XCTAssertEqual(page.game?.live?.score, [2, 1])
         XCTAssertEqual(page.friendsGoing.map(\.name), ["Anna"], "the card's friends ride the card")
+        XCTAssertEqual(page.recurrence, "Every Thursday", "the repeat is the card's, not the row's")
     }
 
     /// Daily's Event of the day had no found link or host picture of its own: its card brings them to the
@@ -107,6 +110,7 @@ final class EventCardTests: XCTestCase {
         XCTAssertTrue(event.saved)
         let page = FeedCardItem(event)
         XCTAssertTrue(page.isSaved)
+        XCTAssertEqual(page.recurrence, "Every Thursday", "the You tab's Event page says how it repeats")
         XCTAssertEqual(page.sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
     }
 
@@ -128,5 +132,21 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(notice.followed, "CSB Volleyball")
         XCTAssertEqual(notice.changedAt, DateHelpers.timestamp("2026-11-02T15:00:00+00:00"))
         XCTAssertEqual(FeedCardItem(notice.event).sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
+        XCTAssertEqual(FeedCardItem(notice.event).recurrence, "Every Thursday", "the bell's Event page says how it repeats")
+    }
+
+    /// An Event sent in a chat, and a Going chat's Event, are their card: their Event page says how it repeats
+    /// (BP app inside-cards 23). A card from before the repeat says none.
+    func testAChatsEventSaysHowItRepeats() throws {
+        let json = """
+        [{"id":"1","client_id":"E","sender_id":"sam","kind":"event","body":null,"photo_path":null,"photo_w":null,
+          "photo_h":null,"card":\(card),"created_at":"2026-11-03T18:00:00+00:00"}]
+        """
+        let message = try XCTUnwrap(ChatAPI.messages(from: Data(json.utf8)).first)
+        guard case .event(let item) = message.content else { return XCTFail("an Event message") }
+        XCTAssertEqual(item?.recurrence, "Every Thursday")
+        XCTAssertEqual(try Supabase.decode(Data(card.utf8), as: ChatEvent.self).card?.recurrence, "Every Thursday")
+        let before = card.replacingOccurrences(of: #","recurrence":"Every Thursday""#, with: "")
+        XCTAssertNil(try Supabase.decode(Data(before.utf8), as: ChatEvent.self).card?.recurrence)
     }
 }

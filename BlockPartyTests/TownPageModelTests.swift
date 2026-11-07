@@ -156,6 +156,18 @@ final class TownPageModelTests: XCTestCase {
         XCTAssertNil(try decoder.decode(TownPageInfo.self, from: Data(before.utf8)).pictureCredit)
     }
 
+    /// A Town page's and a board's Event rows say how each repeats, for the Event page they open when the Town
+    /// feed hasn't their card (BP app inside-cards 23); a one-off, and a read from before it, say none.
+    func testAPagesEventRowsSayHowTheyRepeat() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let json = #"[{"id":"e1","title":"Planning Commission","date":"2026-11-09","time":"6 PM","location":null,"#
+            + #""recurrence":"Every 2nd Monday"},{"id":"e2","title":"Park Board","date":"2026-11-10","time":null,"#
+            + #""location":null,"recurrence":null},{"id":"e3","title":"Tree sale","date":"2026-11-11","time":null,"location":null}]"#
+        let rows = try decoder.decode([TownPageInfo.Event].self, from: Data(json.utf8))
+        XCTAssertEqual(rows.map(\.recurrence), ["Every 2nd Monday", nil, nil])
+    }
+
     func testBoardInitials() {
         XCTAssertEqual(TownPageModel.initials("City Council"), "CC")
         XCTAssertEqual(TownPageModel.initials("Economic Development Authority"), "EDA")
