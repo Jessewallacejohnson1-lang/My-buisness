@@ -318,7 +318,9 @@ final class EventPageTests: XCTestCase {
     /// The repeat left the card's small line for the day row, after the hours (BP app inside-cards 11).
     func testTheDayRowSaysHowItRepeatsAfterItsHours() {
         let now = Town.midnight("2026-11-01")!
-        var item = FeedCardItem(event(imageUrl: nil), recurrence: "Every Sunday")
+        var repeating = event(imageUrl: nil)
+        repeating.recurrence = "Every Sunday"
+        var item = FeedCardItem(repeating)
         item.eventDate = "2026-11-08"
         item.startTime = "9 AM"
         XCTAssertEqual(EventPage.dayLines(item, now: now), .init(first: "Sunday, November 8", second: "9 AM · Every Sunday"))

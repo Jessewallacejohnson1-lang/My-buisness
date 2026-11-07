@@ -86,6 +86,9 @@ struct TownPageInfo: Decodable, Hashable {
         let date: String
         let time: String?
         let location: String?
+        /// How its series repeats ("Every 2nd Monday"), for its Event page (BP app inside-cards 23); nil for a
+        /// one-off, and on a read from before it.
+        var recurrence: String? = nil
     }
 
     struct Board: Decodable, Hashable, Identifiable {
@@ -504,7 +507,7 @@ struct TownEventRow: View {
         feed?.cards.first { $0.id == event.id }
             ?? FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date,
                                           startTime: event.time, location: event.location, goingCount: 0,
-                                          createdAt: "", liveKind: false))
+                                          createdAt: "", liveKind: false, recurrence: event.recurrence))
     }
 
     @ViewBuilder private var row: some View {

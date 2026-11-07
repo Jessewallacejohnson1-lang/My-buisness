@@ -62,7 +62,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
-             game, friendsGoing, liveKind
+             game, friendsGoing, liveKind, recurrence
     }
 
     init(from decoder: Decoder) throws {
@@ -83,7 +83,8 @@ extension UpcomingEvent: Decodable {
                   game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
                   sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
                   friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),
-                  liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false)
+                  liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false,
+                  recurrence: try text(.recurrence))
     }
 }
 
@@ -210,7 +211,15 @@ struct CommunityAPI {
     /// gets the events alone.
     func getTownFeed() async throws -> [TownFeedLine] {
         let data = try await db.rpc("get_town_feed", ["p_news": true], anon: true)
-        let lines = try Self.townFeedLines(from: data)
+        return try await Self.unpackTownFeed(data)
+    }
+
+    /// The feed's rows, unpacked and kept on disk off the main thread: on it, they froze the
+    /// launch's ball for 70 ms as they landed (Jesse's phone, 2026-11-07, BP app
+    /// references/launch-glitch).
+    @concurrent
+    private nonisolated static func unpackTownFeed(_ data: Data) async throws -> [TownFeedLine] {
+        let lines = try townFeedLines(from: data)
         TownFeedCache.save(data)
         return lines
     }
@@ -257,7 +266,7 @@ struct CommunityAPI {
     /// `get_town_feed`'s rows as Events, news and posts, in its order. A row whose `leaves_at`
     /// doesn't parse is dropped: it would have no moment to leave; so is news with no
     /// post to open, and an Event whose card doesn't decode.
-    static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
+    nonisolated static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
         /// An Event row is its card plus the feed's own; news and posts carry their own columns.
         struct Row: Decodable {
             let id: String
@@ -267,7 +276,6 @@ struct CommunityAPI {
             let imageUrl: String?
             let sourceName: String?
             let createdAt: String?
-            let recurrence: String?
             let leavesAt: String
             let reason: String?
             let reasonName: String?
@@ -326,7 +334,7 @@ struct CommunityAPI {
                                       interest: row.reason == "interest" ? row.reasonName : nil))
             }
             guard let event = row.card?.value else { return nil }
-            return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
+            return .event(TownFeedRow(event: event, leavesAt: leavesAt,
                                       reason: row.reason, reasonName: row.reasonName,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
                                       saved: row.saved ?? false,
