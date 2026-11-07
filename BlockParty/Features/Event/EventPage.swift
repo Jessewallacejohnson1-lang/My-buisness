@@ -43,8 +43,6 @@ struct EventPage: View {
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
-    /// How far the hero's pages have been swiped, for the lettering a flyer's page goes without.
-    @State private var heroSwipe: CGFloat = 0
     /// The Event's place's name in its own lettering, once read (follows 02).
     @State private var placeName: PlaceName?
     /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
@@ -322,20 +320,19 @@ struct EventPage: View {
                 // The place's name at the bottom centre, over its photos only: with none, the
                 // hero is its logo, which says it already.
                 .overlay(alignment: .bottom) {
-                    if let placeName, !photos.isEmpty {
+                    // Over a flyer it would cover the flyer's words (Jesse, 2026-11-05).
+                    if let placeName, !photos.isEmpty, flyer == nil {
                         ZStack(alignment: .bottom) {
                             if !placeName.emblem { PlaceNameArt.fade }
                             PlaceNameArt(name: placeName, spoken: item.whereLine ?? "")
                                 .padding(.bottom, PlaceNameArt.bottom)
                         }
-                        // Over a flyer it would cover the flyer's words (Jesse, 2026-11-05).
-                        .opacity(Self.letteringOpacity(flyerFirst: flyer != nil, swipe: heroSwipe))
                         .transition(.opacity)
                     }
                 }
-                // After the stretch, so they stay put at the hero's bottom corners, unscaled.
+                // After the stretch, so it stays put at the hero's bottom corner, unscaled. No counter: the
+                // page shows one picture (BP app inside-cards 15).
                 .overlay(alignment: .bottomLeading) { credit }
-                .overlay(alignment: .bottomTrailing) { counter }
                 .transition(.opacity)
         }
     }
@@ -348,8 +345,7 @@ struct EventPage: View {
             if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
         } else {
             PhotoPager(urls: photos.compactMap(\.url), page: $photoPage, shown: $shownPhotos,
-                       value: photoValue, onFailure: drop, flyer: flyer, flyerTop: HelloDropView.safeTop,
-                       onSwipe: flyer == nil ? nil : { heroSwipe = $0 })
+                       value: photoValue, onFailure: drop, flyer: flyer, flyerTop: HelloDropView.safeTop)
         }
     }
 
@@ -360,11 +356,9 @@ struct EventPage: View {
     }
 
     /// The credit shows wherever its photo does (a site, or a free photo's author and
-    /// licence), and only once the photo itself is on screen. It names the photo the counter counts, from outside
-    /// the carousel like the counter, so the pull-down stretch leaves it in place.
-    /// Bottom left, because the counter owns bottom right; its chip edges line up with
-    /// the counter's (`PhotoCredit` pads itself `edgeInset`). A tap on it reports the photo
-    /// (BP app place-photos 06).
+    /// licence), and only once the photo itself is on screen. It sits outside the carousel, so the pull-down
+    /// stretch leaves it in place, bottom left as on a business page (`PhotoCredit` pads itself `edgeInset`).
+    /// A tap on it reports the photo (BP app place-photos 06).
     @ViewBuilder
     private var credit: some View {
         if let credit = creditName {
@@ -391,16 +385,6 @@ struct EventPage: View {
         let page = photoPage ?? 0
         let credit = photos.indices.contains(page) ? photos[page].attribution : nil
         return "Photo \(page + 1) of \(photos.count)" + (credit.map { ", by \($0)" } ?? "")
-    }
-
-    @ViewBuilder
-    private var counter: some View {
-        if let text = Self.counterText(page: photoPage ?? 0, count: photos.count) {
-            PhotoCounter(text: text)
-                .padding(.trailing, Metric.inset)
-                .padding(.bottom, Metric.counterBottom)
-                .transition(.opacity)
-        }
     }
 
     // MARK: Buttons
@@ -634,26 +618,15 @@ struct EventPage: View {
 
     // MARK: Pure rules (EventPageTests)
 
-    /// The hero's photos: the event's own first, then the venue's, the same picture
-    /// only once, at most three. Anything that is not a photo yet, or that `failed`
-    /// to load, is left out.
+    /// The hero's picture: the event's own, else the venue's first photo, alone, so the page doesn't
+    /// swipe (Jesse, 2026-11-06, BP app inside-cards 15). Anything that is not a photo yet, or that
+    /// `failed` to load, is skipped, so the next one takes its place.
     static func photoList(
         event: FeedCardImageSource,
         venue: [FeedCardImageSource],
         failed: Set<URL> = []
     ) -> [FeedCardImageSource] {
-        var seen = failed
-        var list: [FeedCardImageSource] = []
-        for photo in [event] + venue {
-            guard list.count < 3, let url = photo.url, seen.insert(url).inserted else { continue }
-            list.append(photo)
-        }
-        return list
-    }
-
-    /// The place's lettering: gone on a flyer's page, back with the finger as it swipes to the next photo.
-    static func letteringOpacity(flyerFirst: Bool, swipe: CGFloat) -> Double {
-        flyerFirst ? Double(min(max(swipe, 0), 1)) : 1
+        ([event] + venue).first { $0.url.map { !failed.contains($0) } ?? false }.map { [$0] } ?? []
     }
 
     /// "2/3" on the second of three; nil when there is only one photo to show.

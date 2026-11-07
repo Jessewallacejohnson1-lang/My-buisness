@@ -122,12 +122,3 @@ private nonisolated final class ServerDateFormatters: @unchecked Sendable {
         whole.formatOptions = [.withInternetDateTime]
     }
 }
-
-/// Admin gate — mirrors isAdminEmail / DEFAULT_ADMIN_EMAIL from @hygge/core.
-enum Admin {
-    static let defaultEmail = "jessewallacejohnson1@icloud.com"
-    static func isAdmin(_ email: String?) -> Bool {
-        guard let email, !email.isEmpty else { return false }
-        return email.lowercased() == defaultEmail.lowercased()
-    }
-}

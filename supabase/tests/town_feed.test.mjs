@@ -1412,6 +1412,26 @@ test("a game's final rides its game, host first, and keeps its card a day past t
                        /club_events_final_score_pair/, 'two scores or none');
 });
 
+test("a back-to-back's next game takes the card from the last one's final the next day (game-card 24)", async () => {
+  await reset();
+  // CSB vs Lake Forest hockey, Friday 7 PM (4-1) and Saturday 2 PM, 2026-11-06 and 07.
+  const title = 'Sartell Hockey vs Sauk Rapids-Rice';
+  const fri = await add(title, '2026-10-09', { start_time: '7 PM' });
+  const sat = await add(title, '2026-10-10', { start_time: '2 PM' });
+  await db.query(`update public.club_events set sport = 'Hockey', team_ids = array['sartell', 'sauk-rapids-rice']
+    where id = any($1)`, [[fri, sat]]);
+  await db.query(`update public.club_events set final_score = array[4, 1] where id = $1`, [fri]);
+  const at = async (t) => (await db.query(`select event_date, game from public.flat_town_feed(
+    ($1::timestamp at time zone 'America/Chicago')) where title = $2`, [t, title])).rows
+    .map((r) => [r.event_date.toISOString().slice(0, 10), r.game.final]);
+  assert.deepEqual(await at('2026-10-09 22:30'), [['2026-10-09', [4, 1]]], "Friday night: Friday's final");
+  assert.deepEqual(await at('2026-10-10 09:00'), [['2026-10-10', null]], "Saturday: Saturday's game");
+  await db.query(`update public.club_events set live_score = '{"score": [1, 0]}' where id = $1`, [sat]);
+  assert.deepEqual(await at('2026-10-10 14:30'), [['2026-10-10', null]], "Saturday's game while it's on");
+  await db.query(`update public.club_events set final_score = array[2, 2] where id = $1`, [sat]);
+  assert.deepEqual(await at('2026-10-10 18:00'), [['2026-10-10', [2, 2]]], "Saturday's final");
+});
+
 // The readers private.read_finals uses (20261021120000_game_finals.sql), on the sources' own JSON.
 const schedules = JSON.parse(readFileSync(join(here, '..', '..', 'sources', 'scripts', 'samples', 'mshsl-schedules.json'), 'utf8'));
 const csbHamline = JSON.parse(readFileSync(join(here, 'sidearm-csb-wsoc.json'), 'utf8'));

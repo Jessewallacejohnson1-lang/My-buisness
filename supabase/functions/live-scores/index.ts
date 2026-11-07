@@ -73,7 +73,7 @@ Deno.serve(async () => {
   return json({ games: games.length }, 202)
 })
 
-async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
+export async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
   const feeds = await feedsOf(games, rpc, start).catch((e) => (console.error("[live-scores] feeds", e), new Map()))
   // Each game's score channel and its plays channel, both written through record_live_score.
   const groups = games.flatMap((g) => [g.grp, g.grp.replace(/\/game$/, "/plays")].map((grp) => ({ id: g.id, grp })))
@@ -90,7 +90,7 @@ async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
       // A slot gone by while the list was read is skipped: read late, it would sit closer than 30 s to the next.
       if (r.at < Date.now()) continue
       await new Promise((done) => setTimeout(done, r.at - Date.now()))
-      const read = schoolFile(r.url)
+      const read = schoolFile(r.url).catch((e) => (console.error("[live-scores] school", e), null))
       writes = writes
         .then(() => read)
         .then((game) => game && rpc("record_live_score", { p_event: r.id, p_game: game }))
@@ -118,7 +118,10 @@ async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
         if (!id) continue
         // Every push, raw, until the first live games show what SIDEARM sends.
         console.log(`[live-scores] ${message.group}: ${JSON.stringify(message.data).slice(0, 2000)}`)
-        const read = gameOf(message.data)
+        // Caught as it starts, not only at its turn in the line: a read that fails while an earlier write is still
+        // going has no one listening yet, and the runtime ends the whole run on it ("event loop error"), the school
+        // reads with it (2026-11-07: 12 of 16 minutes lost CSB hockey's 2nd read).
+        const read = gameOf(message.data).catch((e) => (console.error("[live-scores] push", e), null))
         writes = writes
           .then(() => read)
           .then((game) => game && rpc("record_live_score", { p_event: id, p_game: game }))

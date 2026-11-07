@@ -123,14 +123,4 @@ final class DateHelpersTests: XCTestCase {
         XCTAssertEqual(Town.calendar, Town.calendar)
         XCTAssertEqual(Town.calendar.timeZone, Town.timeZone)
     }
-
-    // MARK: Admin gate — email allowlist, case-insensitive
-
-    func testAdminGate() {
-        XCTAssertTrue(Admin.isAdmin("jessewallacejohnson1@icloud.com"))
-        XCTAssertTrue(Admin.isAdmin("JesseWallaceJohnson1@iCloud.com"))
-        XCTAssertFalse(Admin.isAdmin("someone@example.com"))
-        XCTAssertFalse(Admin.isAdmin(nil))
-        XCTAssertFalse(Admin.isAdmin(""))
-    }
 }

@@ -227,6 +227,15 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   `README.md` and `CONTEXT.md`). Put new docs elsewhere, or add them to that list.
 - **Registry lives at the repo root**, in this folder. The Android repo and the waitlist repo
   link here instead of keeping their own copies (ADR-004).
+- **Map spots: the registry first, then where two free maps agree (BP app inside-cards 20).**
+  `scripts/spots.py` puts each upcoming Event at a spot, in this order: `spots/<town>-mn.yaml`
+  (a place line matched whole with its town, chosen by hand: a downtown, an away place the maps
+  miss, or `null` for a line naming no one place); an entry's `venue_at` and `at`; else where
+  Overture and OpenStreetMap agree (`scripts/find_spots.py`, rules in its docstring). Online and
+  a bare town name no one place too: `club_events.no_place` is set and the Event page shows no
+  Map button. Apple's spots are never used, since Apple's terms forbid storing them or drawing
+  them on our Mapbox map (Jesse, 2026-11-06). A place line the maps can't agree on stays without
+  a spot and opens Apple Maps, until someone adds it here.
 - **Runners default to dry-run.** Writing to production requires an explicit `--write`
   (ADR-009).
 - **Run `sources/validate` after every edit.** It is instant, and it is the only thing between

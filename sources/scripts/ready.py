@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 ready.py: the first step of every routine (BP app smooth-mornings 01). It installs each library on
-ci-packages.txt that a fresh python3 can't import, with `python3 -m pip` (in the cloud sandbox plain
+ci-packages.txt that a fresh python3 can't import (one listed with no Ubuntu package, "-", only for the
+morning, and failing there only warns: the map spots' libraries), with `python3 -m pip` (in the cloud sandbox plain
 `pip` belongs to another Python), checks that the database takes the routine's key with one read
 only that key may make, never printing a value, and ends with one line: ready, or what is missing.
 Each routine readied its own tools in its own words until 2026-10-28, and a library added for one
@@ -36,9 +37,12 @@ ROUTINES = ("morning", "social", "photos", "accounts")
 WARN = {"morning": {"FIRECRAWL_API_KEY": "pages that refuse the cloud's address or are built by JavaScript fail or read empty"}}
 
 
-def pip(args):
+def pip(args, timeout=None):
     """'' when pip did it, else pip's first error line (or its last line)."""
-    r = subprocess.run([sys.executable, "-m", "pip", *args], capture_output=True, text=True)
+    try:
+        r = subprocess.run([sys.executable, "-m", "pip", *args], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return f"stopped after {timeout} s"
     lines = (r.stderr + r.stdout).strip().splitlines() or ["no output"]
     return "" if r.returncode == 0 else next((l for l in lines if l.lower().startswith("error")), lines[-1])
 
@@ -73,11 +77,11 @@ def reach():
 def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip, probe=broken, scripts=HERE,
           reach=reach):
     """The routine's one line, and whether it may go on."""
-    libs = {}  # pip name: the module that must import
+    libs, extras = {}, {}  # pip name: the module that must import; extras: an Ubuntu package of "-"
     for line in listing.read_text().splitlines():
         if line.strip() and not line.startswith("#"):
-            name, _, pip_name, *module = line.split()
-            libs[pip_name] = (module or [name])[0]
+            name, ubuntu, pip_name, *module = line.split()
+            (extras if ubuntu == "-" else libs)[pip_name] = (module or [name])[0]
     bad = probe(list(libs.values()))
     lacking = [n for n, module in libs.items() if module in bad]
     failed = install(["install", "--quiet", "--ignore-installed", *lacking]) if lacking else ""
@@ -93,8 +97,19 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
         [f"Python {sys.version.split()[0]} can't parse {'; '.join(wont_run)}"] if wont_run else [])
     if missing:
         return "[ready] not ready: " + "; ".join(missing), False
-    done = f" (installed {', '.join(lacking)})" if lacking else ""
     weak = [f"{k} is not set: {why}" for k, why in WARN.get(routine, {}).items() if not env.get(k)]
+    # The map spots' libraries (BP app inside-cards 20) are the morning's alone, and only a warning: without them
+    # the spots step keeps the spots found before, and every other step runs.
+    short = [n for n, module in extras.items() if module in probe(list(extras.values()))] if routine == "morning" else []
+    # Wheels only, past Debian's copies (pyarrow and numpy come along), and never long enough to hold up the morning.
+    extra_failed = install(["install", "--quiet", "--ignore-installed", "--only-binary=:all:", *short],
+                           timeout=180) if short else ""
+    if short and not extra_failed and probe([extras[n] for n in short]):
+        extra_failed = "installed, still won't import"
+    if extra_failed:
+        weak.append(f"libraries {', '.join(short)} (pip: {extra_failed}): the map spots keep the ones found before")
+    installed = lacking + (short if not extra_failed else [])
+    done = f" (installed {', '.join(installed)})" if installed else ""
     return (f"[ready] ready{done}, but " + "; ".join(weak) if weak else f"[ready] ready{done}"), True
 
 
@@ -110,7 +125,7 @@ def selftest():
     takes = lambda: ""
     asked, fixed = [], set()
     def fake_pip(error="", fixes=True):
-        def run(args):
+        def run(args, timeout=None):
             asked.append(args)
             fixed.update(args[3:] if fixes and not error else [])
             return error
@@ -153,6 +168,22 @@ def selftest():
         line, go = ready("social", env, fake, fake_pip(), probe, scripts=Path(tmp), reach=takes)
         check(not go and "can't parse newer.py line 2" in line and "fine.py" not in line,
               f"a script this python3 can't parse stops the routine at Ready, named with its line: {line}")
+    with tempfile.TemporaryDirectory() as tmp:
+        fake = Path(tmp) / "packages.txt"
+        fake.write_text("json python3-json json\nbp_maps - bp_maps\n")
+        asked.clear()
+        fails = lambda args, timeout=None: asked.append((args, timeout)) or "ERROR: No matching distribution"
+        line, go = ready("morning", env, fake, fails, probe, reach=takes)
+        check(go and "libraries bp_maps (pip: ERROR: No matching distribution): the map spots keep" in line
+              and asked == [(["install", "--quiet", "--ignore-installed", "--only-binary=:all:", "bp_maps"], 180)],
+              f"a library only the map spots need is a wheel, past system copies, within 3 minutes; failing, it "
+              f"warns and the morning goes on: {line} {asked}")
+        asked.clear()
+        check(ready("social", env, fake, fails, probe, reach=takes) == ("[ready] ready", True) and not asked,
+              "another routine doesn't install the map spots' libraries")
+        fixed.add("bp_maps")
+        check(ready("morning", {**env, "FIRECRAWL_API_KEY": "k"}, fake, fake_pip(), probe, reach=takes)
+              == ("[ready] ready", True), "once installed, nothing to say")
     check(key_headers(env) == {"apikey": "sb_publishable_x"}, "in the cloud the network secret sends the Watch key")
     check(key_headers({**env, "SUPABASE_SERVICE_ROLE_KEY": "s"}) == {"apikey": "s", "Authorization": "Bearer s"},
           "on a Mac the service key goes as both headers")

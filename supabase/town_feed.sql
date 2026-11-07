@@ -284,7 +284,11 @@ as $$
   ),
   next_up as (
     select t.*,
-           row_number() over (partition by t.series order by t.event_date, t.starts_at nulls first, t.id) as nth,
+           -- A game played on an earlier day whose final is in gives the series' card to the next game: CSB played
+           -- Lake Forest Friday and Saturday, and Friday's final hid Saturday's live game (game-card 24).
+           row_number() over (partition by t.series
+                              order by t.final_score is not null and t.event_date < (p_now at time zone 'America/Chicago')::date,
+                                       t.event_date, t.starts_at nulls first, t.id) as nth,
            exists (select 1 from public.event_rsvps r where r.event_id = t.id and r.user_id = auth.uid())
              as going,
            exists (select 1 from public.event_saves s where s.event_id = t.id and s.user_id = auth.uid())

@@ -423,6 +423,7 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   "one-time news, not a standing calendar" rule and `feat/tab-town`'s `townSurfacing`: do not
   adopt that branch. Two decided rules wait on data: City meetings stay in until people
   can follow the City, and the ZIP check waits until events carry a ZIP or a Place.
-- **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
-  `DateHelpers.swift`. Self-approved events are an intentional product decision. **RLS is the real
-  boundary.**
+- **Admin is a flag on one account, not an email** `[prose]` — `public.is_admin()` reads
+  `app_metadata.admin` from the access token, which only the service key writes (BP app loopholes 20,
+  2026-11-07); the app's gate is `AuthStore.isAdmin`, from the same flag. Self-approved events are an
+  intentional product decision. **RLS is the real boundary.**
