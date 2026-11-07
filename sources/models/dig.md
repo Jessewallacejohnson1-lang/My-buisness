@@ -53,12 +53,14 @@ Read `event-photo.md` first: its bar holds, with these changes for the dig's pic
 rung (`name`, `site` or `news`), with the `page` it is on, the `page_title` and `finder_says` (why the finder chose
 the page); `meta_says` is that page's own words for the picture (its alt text), often the name of who is in it.
 
-- Take the earliest rung with a fitting photo: `name` before `site` before `news`.
-- From `posts` (a batch of its own): as event-photo.md's `other post` rule, the place's own photo of this Event or
-  this kind of Event, else its newest of where the Event happens or its people (a new post of downtown for the
-  WinterWalk); `page_title` is the post's words and `posted` its day. Posts that say the title's words come first;
-  of two that fit, the newer. Its own flyer whose words are true of this Event counts (Jesse, 2026-11-07: "keep
-  flyer"). A food special, a menu or a product shot is not this Event.
+- Take the photo that best fits, whatever its rung: weigh fit, place, season and freshness by judgment, as
+  event-photo.md says. For a talk, reading or show, the person it is about usually fits best.
+- From `posts` (a batch of its own): the place's own posts (`page_title` is the post's words, `posted` its day),
+  with the free rungs' choice beside them when they had one (`from` `site` or `news`). Keep whichever fits this Event
+  best, or none. A post fits as event-photo.md's `other post` rule: this Event or this kind at this place, or a
+  recent photo of where it happens or of the host's people (the WinterWalk festival's new post of downtown over last
+  December's crowd). Its own flyer whose words are true of this Event counts (Jesse, 2026-11-07: "keep flyer"). A
+  food special, a menu or a product shot is not this Event.
 - The person the Event is about counts wherever the photo was taken (event-photo.md's "never a portrait" is for
   anyone else), on a page about them (its `page_title` or `finder_says` names them): a photo of one person doing what
   the Event is about (the speaker speaking, the artist beside their work, the band or singer on stage, the teacher

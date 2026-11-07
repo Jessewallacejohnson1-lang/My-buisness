@@ -18,23 +18,29 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
 
 ## Pick
 
+Pick the picture that best fits this Event: the one a neighbour scrolling past would recognise it by, as it will be
+this time, at this place, this season. Use your judgment (Jesse, 2026-11-07: "more tailored for best fitting and
+having judgment"). The points below are what to weigh against each other, not an order to follow; the "never"s are
+the only hard lines. Example: for the WinterWalk, the festival's new post of downtown with the lit tree and its
+banner fits better than last December's crowd, though the crowd has more people.
+
 - A real photo of the Event or of one just like it at this place: people taking part, the place set up for
   it, the thing itself (the art in an exhibit, a dog in costume for a costume contest, the cast on its
   stage, staff dressed up for a Halloween treat day).
-- People taking part before none (Jesse, 2026-11-02: "preferably it shows people"): of two real photos, pick
-  the one with people in it, sharp and wide, over an empty room, a building's outside or one child close up.
-  A posed group of the place's own people for this kind of event is a real photo too: the team with its
-  medals, the cast, the class with its work, the board in a row (Jesse kept all 19 he saw, 2026-11-03); people
-  doing the thing still go first. A photo with no people still beats none when it shows the thing itself (the
-  art in an exhibit, the wreaths at a wreath-making night).
-- Its own pictures (`post`, `page`, `listing`) before another post's. Take an `other post` picture when it
-  shows this kind of Event at this place (the play's rehearsal for the play, last year's contest for this
-  year's, the class in its own studio for the class) or, when none does, a recent one of where it happens or of
-  the host's people, in season: a new post of downtown St. Joseph for the WinterWalk, the shop floor for its
-  open house, the staff for a sale (Jesse, 2026-11-07: "just use one of those rather than an old photo"). Of two
-  that fit, the newer. Never a different kind of event (a sports photo for a concert, a kindergarten photo for a
-  parents' class), a menu or a dish close up, and never a portrait or headshot for an Event.
-- No real photo among them: a flyer or poster, marked `"flyer": true`, and only one whose words are true of this
+- People make a photo better (Jesse, 2026-11-02: "preferably it shows people"): sharp and wide, over an empty
+  room, a building's outside or one child close up. A posed group of the place's own people for this kind of
+  event is a real photo too: the team with its medals, the cast, the class with its work, the board in a row
+  (Jesse kept all 19 he saw, 2026-11-03). But more people never beats a better fit, and a photo with no people
+  is a good pick when it shows the thing itself or the place as the Event will look (the art in an exhibit,
+  the wreaths at a wreath-making night, downtown lit up for the WinterWalk).
+- Its own pictures (`post`, `page`, `listing`) usually fit best. An `other post` picture fits when it shows
+  this kind of Event at this place (the play's rehearsal for the play, last year's contest for this year's, the
+  class in its own studio for the class), or a recent one of where it happens or of the host's people, in
+  season: a new post of downtown St. Joseph for the WinterWalk, the shop floor for its open house, the staff for
+  a sale (Jesse, 2026-11-07: "just use one of those rather than an old photo"). Newer usually fits better: it
+  shows the place as it is now. Never a different kind of event (a sports photo for a concert, a kindergarten
+  photo for a parents' class), a menu or a dish close up, and never a portrait or headshot for an Event.
+- No real photo that fits: a flyer or poster, marked `"flyer": true`, and only one whose words are true of this
   Event. It shows whole, so every word gets read: check them against the Event's title and date. Another show,
   another performer or group (a Band Concert graphic on an Orchestra Concert) or another date means none (Jesse,
   2026-11-05, on Apollo's Addams Family poster over its SpongeBob Musical: "make sure agents can judge that").
@@ -47,7 +53,7 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
     words for this Event
   - a stock-looking ad (a posed model, a product on a plain background), a video still with a play button
   - one too dark, blurred or small to make out
-- When you are unsure, pick none.
+- When nothing fits well, pick none: a wrong photo is worse than the place's own.
 
 ## A News
 
