@@ -501,8 +501,9 @@ struct FeedEventCard: View {
 
     // MARK: - Actions
 
-    /// On the white card the words keep clear of the heart in its corner.
-    static let whiteHeartRoom: CGFloat = 26
+    /// On the white card the words keep 9 pt clear of the heart in its corner, as they did of the
+    /// heart halfway down (26 pt then): it sits 8 pt further in.
+    static let whiteHeartRoom: CGFloat = 34
 
     private var pressScale: CGFloat {
         FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
