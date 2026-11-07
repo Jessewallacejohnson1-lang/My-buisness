@@ -249,9 +249,11 @@ async function gameOf(data: unknown): Promise<unknown> {
   return parsed(await res.text())
 }
 
-// JSONP: callback({...}); plain JSON otherwise. Throws "not JSON", a failed read's reason.
+// JSONP: callback({...}); plain JSON otherwise. Throws a failed read's reason: CSB basketball's school file answered
+// 200 with nothing in it all afternoon of 2026-11-07, and "not JSON" hid that it was empty.
 function parsed(text: string): unknown {
   const body = text.trim().replace(/^[\w$.]*\(([\s\S]*)\);?$/, "$1")
+  if (!body) throw new Error("empty file")
   try {
     return JSON.parse(body)
   } catch {
