@@ -69,8 +69,11 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 200,
+          // Haiku 5.5 at low effort: 30 of 30 on BP app check-cost 02's test, three times, where
+          // Haiku 4.5 got 20 or 21, at about a sixth of the cost. Its thinking counts toward max_tokens.
+          model: 'claude-haiku-5-5',
+          max_tokens: 1024,
+          output_config: { effort: 'low' },
           system: SYSTEM,
           messages: [{ role: 'user', content }],
         }),
@@ -80,6 +83,8 @@ Deno.serve(async (req) => {
       const data = await res.json()
       // What each check cost, in tokens, for the function's logs (BP app check-cost).
       console.log('moderate-post: usage', JSON.stringify(data.usage))
+      // A safety decline (Haiku 5.5 has no fallback model) or a cut-off answer is no answer.
+      if (data.stop_reason !== 'end_turn') { console.error('moderate-post: stopped', data.stop_reason, data.stop_details?.category ?? ''); return null }
       const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
       const match = text.match(/\{[\s\S]*\}/)
       if (!match) { console.error('moderate-post: no JSON in', text.slice(0, 200)); return null }
