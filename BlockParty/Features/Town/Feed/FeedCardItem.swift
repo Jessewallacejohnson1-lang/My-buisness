@@ -165,11 +165,11 @@ struct FeedCardItem: Identifiable, Hashable {
         return startTime == nil ? shareLocation : nil
     }
 
-    /// The place's photos, after the event's own: what its Event page shows (event-card 02).
+    /// The place's photos: its Event page shows the first that loads when the event has none of its own.
     var venue: [FeedCardImageSource] {
         #if DEBUG
         // UI tests only: a second bundled photo, so its page has two to swipe
-        // with no network (`EventCardPhotoTapTests`).
+        // with no network (`EventCardPhotoTapTests`, the edge swipe over a carousel).
         if LaunchFlags.has(.eventPageTwoPhotos),
            let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
             return [.eventPhoto(url)]
@@ -178,10 +178,10 @@ struct FeedCardItem: Identifiable, Hashable {
         return (place.map { [$0] } ?? []) + placeMore
     }
 
-    /// Its page's photos: the event's own first, then the place's, each once, at most three; ones
-    /// that `failed` to load left out.
+    /// Its page's one picture: the event's own, else the place's, skipping ones that `failed` to load.
     func photos(failed: Set<URL> = []) -> [FeedCardImageSource] {
-        EventPage.photoList(event: image, venue: venue, failed: failed)
+        EventPage.photoList(event: image, venue: venue, failed: failed,
+                            most: LaunchFlags.has(.eventPageTwoPhotos) ? 2 : 1)
     }
 }
 
