@@ -258,7 +258,7 @@ struct MainTabsView: View {
             case .appleMaps(let url):
                 await UIApplication.shared.open(url)
             case .ourMap, nil:
-                mapEventID = event.id
+                mapOpener?.eventID = event.id
                 showMap = true
             }
         }
@@ -389,8 +389,6 @@ struct MainTabsView: View {
     /// The map, presented full-screen from the map disc in the Town bar rather than
     /// living in the tab bar. Its own state belongs to `SJMapView`.
     @State private var showMap = false
-    /// View on Map's Event: the map opens on its bubble.
-    @State private var mapEventID: String?
     /// Made once, as `hostOpener` is.
     @State private var mapOpener: EventMapOpener?
     /// New post, from the Town bar's + (BP app references/post-screen).
@@ -781,8 +779,8 @@ struct MainTabsView: View {
         }
         // The map is a destination, not a tab: full screen, with its own close, and its card
         // opens the Event page on the map's own stack (BP app references/map-reset).
-        .fullScreenCover(isPresented: $showMap, onDismiss: { mapEventID = nil }) {
-            SJMapView(onClose: { showMap = false }, eventID: mapEventID)
+        .fullScreenCover(isPresented: $showMap, onDismiss: { mapOpener?.eventID = nil }) {
+            SJMapView(onClose: { showMap = false }, request: mapOpener)
                 .environment(\.hostOpener, nil)
                 .environment(actions)
                 .environment(friendsBook)

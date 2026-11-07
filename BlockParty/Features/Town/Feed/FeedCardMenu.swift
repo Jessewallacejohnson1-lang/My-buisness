@@ -537,6 +537,9 @@ struct TownCardHold: ViewModifier {
 /// made once, as `HostOpener` is, so the cards that read it don't redraw each time the shell does.
 final class EventMapOpener {
     let open: (FeedCardItem) -> Void
+    /// The Event View on Map asked for, until the map has opened its card on it. Kept here, not in the
+    /// shell's state: set there, the map opened with none (a live run, 2026-11-07).
+    var eventID: String?
     init(_ open: @escaping (FeedCardItem) -> Void) { self.open = open }
 }
 
