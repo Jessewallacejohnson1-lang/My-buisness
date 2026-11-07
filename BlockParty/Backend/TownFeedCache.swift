@@ -19,7 +19,7 @@
 
 import Foundation
 
-enum TownFeedCache {
+nonisolated enum TownFeedCache {
     /// The feed's list, the Event of the day's picks (`get_event_of_the_day`), where you left off
     /// (`LeftOff`), or where to centre each photo (`FeedCardImageLoader`).
     enum Kind: String, CaseIterable {
