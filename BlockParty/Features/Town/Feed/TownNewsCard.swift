@@ -36,8 +36,8 @@ struct TownNewsCard: View {
                 .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
-            .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: share,
-                                   edge: TownCardEdge()))
+            .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: share))
+            .padding(.horizontal, TownFeedMetric.contentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
@@ -46,7 +46,6 @@ struct TownNewsCard: View {
     private var face: some View {
         NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
                     title: news.headline, facts: news.cardFacts, factsLines: 2)
-            .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in

@@ -102,8 +102,7 @@ struct FeedEventCard: View {
                 if actions.canAct {
                     // Rides the card's corner in as it sinks.
                     TownCardHeart(item: item, onWhite: item.game != nil || item.isPhotoless)
-                        .padding(.trailing, TownFeedMetric.contentInset + TownCardHeart.inset)
-                        .padding(.bottom, TownCardHeart.inset)
+                        .padding(TownCardHeart.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: -photoSize.height * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
@@ -114,7 +113,7 @@ struct FeedEventCard: View {
             .overlay(alignment: .leading) {
                 if item.isPhotoless, marksHost {
                     whiteCardMark
-                        .padding(.leading, TownFeedMetric.contentInset + NoPhotoCard.Metric.horizontal)
+                        .padding(.leading, NoPhotoCard.Metric.horizontal)
                         .offset(x: photoSize.width * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
@@ -125,16 +124,18 @@ struct FeedEventCard: View {
                 if showsHostMark {
                     // Rides the photo's corner in as it sinks.
                     hostMark
-                        .padding(.trailing, TownFeedMetric.contentInset + PhotoChip.inset)
-                        .padding(.top, PhotoChip.inset)
+                        .padding(PhotoChip.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: photoSize.height * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
             }
-            // Held: Apple's menu with the card lifted as itself (inside-cards 24).
+            // Held: Apple's menu with the card lifted as itself, its heart and host's mark included
+            // (inside-cards 24).
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why, share: onShare,
-                                   report: item.why == nil ? nil : $menuPresented, event: item, edge: TownCardEdge()))
+                                   report: item.why == nil ? nil : $menuPresented, event: item))
+            // The feed's side insets, outside the card and its buttons, so it lifts as the card alone.
+            .padding(.horizontal, TownFeedMetric.contentInset)
 
             // The line under a card with no photo, or called off: the faces and the count, its middle
             // 24 pt under the card as Instagram's is (event-card 07); "You're going!" once you are.
@@ -261,7 +262,6 @@ struct FeedEventCard: View {
         .grayscale(item.cancelled ? 1 : 0)
         // A double tap likes, as on a photo; a tap opens the Event once that has failed.
         .gesture(PhotoDoubleTap { _ in performImageLike(at: nil) })
-        .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The white card's logo opens the host's page, as the mark on a photo does, wherever a host
@@ -400,7 +400,6 @@ struct FeedEventCard: View {
         // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
         // double tap likes without opening it (`EventCardPhotoTapTests`).
         .gesture(PhotoDoubleTap { performImageLike(at: $0) })
-        .padding(.horizontal, TownFeedMetric.contentInset)
     }
 
     /// The photo's own shape, known before it loads (`cardAspect`), so the card never jumps when it

@@ -483,48 +483,49 @@ extension TownNews {
 /// on Map first (Jesse: "also add view in Map to share dropdown"), then the sheet's Not interested and
 /// Mute, then Report, which opens the sheet at its reasons. Its grey title is the sheet's top line, why
 /// the card is there. Signed out, or off the Town feed, Share and View on Map alone.
-struct TownCardHold<Edge: Shape>: ViewModifier {
+struct TownCardHold: ViewModifier {
     let id: String
     let hostName: String
     let why: String?
     let share: (() -> Void)?
     /// Report's sheet, opened at its reasons; nil, no Report (News).
-    var report: Binding<Bool>?
+    var report: Binding<Bool>? = nil
     /// The Event View on Map shows; nil for News.
-    var event: FeedCardItem?
-    /// The card's own edge, so it lifts as itself and not as its row.
-    let edge: Edge
+    var event: FeedCardItem? = nil
 
     @Environment(TownFeed.self) private var feed: TownFeed?
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.viewOnMap) private var viewOnMap
 
+    /// Apple's lift of the whole card, its heart, Attend and host's mark included, which keep their own
+    /// taps. No `contentShape(.contextMenuPreview, …)`: with one, no button on a held card took a tap
+    /// (`EventCardPhotoTapTests`).
     func body(content: Content) -> some View {
-        content
-            .contentShape(.contextMenuPreview, edge)
-            .contextMenu {
-                if let why {
-                    Section(why) { shareButton }
-                } else {
-                    shareButton
+        content.contextMenu { items }
+    }
+
+    @ViewBuilder private var items: some View {
+        if let why {
+            Section(why) { shareButton }
+        } else {
+            shareButton
+        }
+        if let feed, actions.canAct {
+            Section {
+                Button("Not interested", systemImage: "eye.slash") { hide(feed, mute: false) }
+                if !hostName.isEmpty {
+                    Button("Mute \(hostName)", systemImage: "speaker.slash") { hide(feed, mute: true) }
                 }
-                if let feed, actions.canAct {
-                    Section {
-                        Button("Not interested", systemImage: "eye.slash") { hide(feed, mute: false) }
-                        if !hostName.isEmpty {
-                            Button("Mute \(hostName)", systemImage: "speaker.slash") { hide(feed, mute: true) }
-                        }
-                    }
-                    // Once per card, as the sheet: a second report from the same phone would only add to its count.
-                    if let report, !feed.reportedIDs.contains(id) {
-                        Section {
-                            Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
-                                report.wrappedValue = true
-                            }
-                        }
+            }
+            // Once per card, as the sheet: a second report from the same phone would only add to its count.
+            if let report, !feed.reportedIDs.contains(id) {
+                Section {
+                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) {
+                        report.wrappedValue = true
                     }
                 }
             }
+        }
     }
 
     @ViewBuilder private var shareButton: some View {
@@ -570,15 +571,5 @@ enum EventMapRoute: Equatable {
     static func route(_ event: FeedCardItem, now: Date, spot: Bool) -> EventMapRoute? {
         if spot && today(event, now: now) { return .ourMap }
         return Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
-    }
-}
-
-/// A Town card's rounded edge inside the feed's side insets: what a held card lifts as.
-struct TownCardEdge: Shape {
-    var radius: CGFloat = Radius.card
-    var inset: CGFloat = TownFeedMetric.contentInset
-
-    func path(in rect: CGRect) -> Path {
-        RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect.insetBy(dx: inset, dy: 0))
     }
 }

@@ -93,11 +93,11 @@ struct EventOfTheDayPoster: View {
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
             .overlay(alignment: .bottom) { copy }
-            // Held: Apple's menu with the poster lifted as itself (inside-cards 24).
+            // Held: Apple's menu with the poster lifted as itself, words and buttons included
+            // (inside-cards 24).
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why,
                                    share: { ShareCenter.shared.present(.event(item)) },
-                                   report: item.why == nil ? nil : $menuPresented, event: item,
-                                   edge: RoundedRectangle(cornerRadius: Radius.poster, style: .continuous)))
+                                   report: item.why == nil ? nil : $menuPresented, event: item))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
