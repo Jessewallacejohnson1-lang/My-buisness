@@ -163,6 +163,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// A real happening (`private.is_live_kind`, town-feed 41): what "Now" and live mean on every screen.
     /// A row with no card to say so isn't (`init(from:)`, `TownPage`).
     var liveKind: Bool = true
+    /// How its series repeats ("Every Tuesday"; `private.series_repeats`), the Event page's day row from every
+    /// door (BP app inside-cards 23). nil for a one-off, no clear pattern, a called-off week, and a row with no card.
+    var recurrence: String? = nil
 }
 
 /// Where an event happens, as a picture (`public.place_picture`, BP app
@@ -237,15 +240,13 @@ nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
     let url: String
 }
 
-/// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event (its card), how its
-/// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
-/// leaves the Town feed, why it's there (the recipe's top reason and the one name it
+/// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event (its card, which says how
+/// it repeats), when it leaves the Town feed, why it's there (the recipe's top reason and the one name it
 /// needs), for the admin the points behind its place, its hearts (everyone's, and
 /// whether you hearted it) and whether you saved it. Rows kept from before the recipe
 /// have no reason, and from before hearts or saves, none of those.
 nonisolated struct TownFeedRow: Hashable {
     let event: UpcomingEvent
-    let recurrence: String?
     let leavesAt: Date
     var reason: String? = nil
     var reasonName: String? = nil

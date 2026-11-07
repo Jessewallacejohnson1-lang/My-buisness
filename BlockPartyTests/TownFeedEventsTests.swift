@@ -19,13 +19,12 @@ final class TownFeedEventsTests: XCTestCase {
     private struct Offline: Error {}
 
     private func row(_ id: String, leavesIn hours: Double = 24, club: String? = nil,
-                     source: String? = "City of St. Joseph", going: Int = 0,
-                     recurrence: String? = nil) -> TownFeedRow {
+                     source: String? = "City of St. Joseph", going: Int = 0) -> TownFeedRow {
         let event = UpcomingEvent(id: id, title: "Event \(id)", eventDate: "2026-10-12",
                                   startTime: "6 PM", location: nil, goingCount: going,
                                   createdAt: "2026-10-06T16:08:20+00:00", clubName: club,
                                   sourceName: source)
-        return TownFeedRow(event: event, recurrence: recurrence,
+        return TownFeedRow(event: event,
                            leavesAt: now.addingTimeInterval(hours * 3600))
     }
 
@@ -185,23 +184,23 @@ final class TownFeedEventsTests: XCTestCase {
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
         let json = """
-        [{"id":"e1","recurrence":"Every 1st & 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
+        [{"id":"e1","recurrence":"Every 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
          "card":{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19",
          "start_time":"6 PM","location":"City Hall","image_url":null,"category":null,
          "club_name":null,"source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00",
          "all_day":false,"created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
-         "going":true}}]
+         "going":true,"recurrence":"Every 1st & 3rd Monday"}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(json.utf8))
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0].recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(rows[0].leavesAt, DateHelpers.timestamp("2026-10-20T04:59:00Z"))
         XCTAssertEqual(rows[0].event.endAt, rows[0].leavesAt)
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
         let card = TownFeed.card(rows[0])
-        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
+        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday",
+                       "the card's repeat; the row's own, kept for older apps, is not read (inside-cards 23)")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
         XCTAssertNil(card.why)
@@ -1505,6 +1504,33 @@ final class TownFeedEventsTests: XCTestCase {
         // Once it has landed, the next refresh asks again.
         await town.refresh(at: now)
         XCTAssertEqual(gate.calls, 2)
+    }
+
+    /// At launch the kept list unpacks off the main thread while the read is out: a caller arriving
+    /// meanwhile shares that read, and a read that lands first stands over the kept list
+    /// (BP app references/launch-glitch, 2026-11-07).
+    func testTheKeptListUnpacksWhileTheReadIsOut() async {
+        final class Gate { var read: (() -> Void)?; var kept: (() -> Void)?; var reads = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.reads += 1
+            await withCheckedContinuation { done in gate.read = { done.resume() } }
+            return self.entries(["fresh"])
+        }, keptLater: {
+            await withCheckedContinuation { done in gate.kept = { done.resume() } }
+            return self.entries(["kept"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.read == nil || gate.kept == nil { await Task.yield() }
+        let second = Task { await town.refresh(at: now) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.read?()
+        for _ in 0..<1000 where town.cards.isEmpty { await Task.yield() }
+        gate.kept?()
+        await first.value
+        await second.value
+        XCTAssertEqual(gate.reads, 1, "a caller that came while the kept list unpacked shared the read")
+        XCTAssertEqual(town.cards.map(\.id), ["fresh"], "the read landed first, so the kept list never covered it")
     }
 
     /// A refresh shares a pull's or a new account's read; those two always ask for their own

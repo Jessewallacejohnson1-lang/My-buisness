@@ -99,8 +99,9 @@ final class LaunchMotionTests: XCTestCase {
             XCTAssertEqual(f.b.height, k * ht, accuracy: 0.002, "B at \(h)")
             XCTAssertEqual(f.p.width, k * w, accuracy: 0.01, "p at \(h)")   // p's dip from its hit is still dying down
         }
-        // 30 ms into the crouch the line is 0.808 of its height, growing out of the dot.
-        XCTAssertEqual(m.frame(at: pop + 0.03).line.height, 0.808292, accuracy: 1e-4)
+        // 30 ms into the crouch the line is 0.52 of its height, growing out of the dot on a plain
+        // ease-out (the mock's sharp one had it at 0.81 already: a pop, 2026-11-07).
+        XCTAssertEqual(m.frame(at: pop + 0.03).line.height, 0.519999, accuracy: 1e-4)
         XCTAssertEqual(m.frame(at: pop - 0.01).line.height, 0)
         XCTAssertEqual(m.frame(at: pop + LaunchMotion.jumpLands - 0.001).buzzes, 3)
         XCTAssertEqual(m.frame(at: pop + LaunchMotion.jumpLands).buzzes, 4, "one firm buzz as it lands")
@@ -119,7 +120,8 @@ final class LaunchMotionTests: XCTestCase {
 
     /// Bp! leaps into the tab bar's Bp!: it crouches onto its foot, is tossed up and down into the
     /// slot leaning 12°, lands with a squash as the tab bar dips with it, and the launch is done
-    /// 2.96 s after the still. A tap belongs to the launch until its yellow is mostly gone.
+    /// 3.78 s after the still, once the squash has played out (2.96 s before 2026-11-07). A tap
+    /// belongs to the launch until its yellow is mostly gone.
     func testLeapsIntoTheTabBarsBp() {
         let target = CGRect(x: 113.6, y: 813, width: 39.15, height: 22)
         let m = LaunchMotion(screen: phone, ending: .tab(target))
@@ -140,7 +142,7 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(foot(landed).y, target.maxY + landed.tabDip, accuracy: 1e-6)
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertEqual(t / LaunchMotion.pace, 2.96, accuracy: 0.03)
+        XCTAssertEqual(t / LaunchMotion.pace, 3.78, accuracy: 0.03)
         let last = m.frame(at: t)
         XCTAssertEqual(last.tabDip, 0, accuracy: 0.5, "the rest eases out once it's done")
         XCTAssertEqual(last.yellow, 0, accuracy: 0.001)
@@ -151,6 +153,27 @@ final class LaunchMotionTests: XCTestCase {
         // LaunchBallTests holds 1.85 to tap through: the yellow gone, the launch still on screen.
         XCTAssertFalse(m.frame(at: 1.85).takesTaps)
         XCTAssertFalse(m.frame(at: 1.85).done)
+    }
+
+    /// Nothing on Bp! jumps in one frame of a 120 Hz screen: the crouch lets go and the !'s line
+    /// grows over several frames, and the launch ends only once the landing's squash has died
+    /// down, not as it swings through rest (2026-11-07, BP app references/launch-glitch).
+    func testNothingJumpsInOneFrame() throws {
+        let m = LaunchMotion(screen: phone, ending: .tab(CGRect(x: 113.6, y: 813, width: 39.15, height: 22)))
+        let step = LaunchMotion.pace / 120
+        var last = m.frame(at: 0), t = step, done: Double?
+        while t < 5 && done == nil {
+            let f = m.frame(at: t)
+            XCTAssertLessThan(abs(f.markSquash.height - last.markSquash.height), 0.05, "Bp!'s squash at \(t)")
+            XCTAssertLessThan(abs(f.line.height - last.line.height), 0.15, "the !'s line at \(t)")
+            if f.done { done = t }
+            last = f
+            t += step
+        }
+        let end = try XCTUnwrap(done)
+        for after in stride(from: end, to: end + 1, by: 0.005) {
+            XCTAssertEqual(m.frame(at: after).markSquash.height, 1, accuracy: 0.01, "still squashing after it's done, at \(after)")
+        }
     }
 
     /// A first open zooms Bp! through, and Welcome's logo and headline may rise half way.

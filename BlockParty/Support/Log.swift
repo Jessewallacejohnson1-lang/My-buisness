@@ -39,7 +39,7 @@
 
 import OSLog
 
-enum Log {
+nonisolated enum Log {
     private static let subsystem = "Jesse.BlockParty"
     private static let net  = Logger(subsystem: subsystem, category: "network")
     private static let view = Logger(subsystem: subsystem, category: "ui")

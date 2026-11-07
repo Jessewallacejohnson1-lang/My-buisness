@@ -113,6 +113,7 @@ without re-testing, and re-check occasionally in case they add a certificate.
 ```yaml
 id: milk-and-honey-ciders
 status: active
+hours_from: website
 tier: watched
 category: cidery
 added_by: agent:claude
@@ -126,7 +127,10 @@ venue_at:
   "milk & honey": [45.56048, -94.35205]
 ```
 Notes: Orchard and cidery on County Road 51, outside the downtown core. Hosts its own
-event series, so the events page is the right source rather than the homepage.
+event series, so the events page is the right source rather than the homepage. Its hours
+come from its own posts: winter hours (Facebook and Instagram, 2026-11-02) close it Monday to
+Wednesday, set by hand on 2026-11-06, so `hours_from: website` keeps the monthly Google check
+from reopening Tuesday and Wednesday (BP app business-hours 02).
 
 ## Jupiter Moon Ice Cream
 ```yaml
