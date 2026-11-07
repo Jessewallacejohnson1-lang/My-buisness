@@ -376,28 +376,17 @@ struct FeedCardMenuSheet: ViewModifier {
     let card: FeedCardItem?
     /// A neighbour's post (town-feed 29): Not interested and Report, by its id alone.
     var post: TownPost? = nil
+    /// A Town card's sheet opens only for Report, from its hold menu, so at the reasons.
     var reasonsFirst = false
 
-    /// `reasonsFirst`: Report on a held Town card, so the sheet opens at its reasons.
-    init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?, reasonsFirst: Bool = false) {
+    init(isPresented: Binding<Bool>, item: FeedCardItem, report: PhotoReport?) {
         _isPresented = isPresented
-        self.reasonsFirst = reasonsFirst
+        reasonsFirst = true
         id = item.id
         hostName = item.hostName
         why = item.why
         self.report = report
         card = item
-    }
-
-    /// News says the interest it shares with you, else only that it's News (Jesse at news-menu's
-    /// Check-in 1: "just do news").
-    init(isPresented: Binding<Bool>, news: TownNews) {
-        _isPresented = isPresented
-        id = news.id
-        hostName = news.place
-        why = news.why
-        report = nil
-        card = nil
     }
 
     /// Someone else's post (town-feed 29): Not interested and Report, by its id, and no Mute; your own

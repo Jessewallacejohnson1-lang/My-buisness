@@ -78,9 +78,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(flight.title, "Flight Friday", "its headline rides along for the card")
         XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
         XCTAssertNil(happy.picture)
-        // The ••• sheet's why line (news-menu): the interest it shares, else only that it's News.
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: flight).why, "Matches Food & dining")
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: happy).why, "News")
+        // The hold menu's grey why line (news-menu, inside-cards 24): the interest it shares, else only
+        // that it's News.
+        XCTAssertEqual(flight.why, "Matches Food & dining")
+        XCTAssertEqual(happy.why, "News")
         // The events' own readers (the Event of the day, a kept list) never see news.
         XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
 

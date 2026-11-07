@@ -66,7 +66,9 @@ struct TownNewsCard: View {
             SharePayload(title: news.place,
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
-                TownNewsCard(news: news)
+                // The card alone: the share window has none of the app's environment its hold reads.
+                face
+                    .padding(.horizontal, TownFeedMetric.contentInset)
                     .frame(width: 320)
                     .padding(.vertical, 16)
                     .background(Hue.surface)

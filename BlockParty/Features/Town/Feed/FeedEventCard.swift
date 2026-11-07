@@ -152,8 +152,7 @@ struct FeedEventCard: View {
         .contentShape(Rectangle())
         .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                     // On the white card no photo is up to report.
-                                    report: item.isPhotoless ? nil : displayImage.report(place: item.whereLine),
-                                    reasonsFirst: true))
+                                    report: item.isPhotoless ? nil : displayImage.report(place: item.whereLine)))
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id, group: item.groupID) }
@@ -495,7 +494,8 @@ struct FeedEventCard: View {
                 .contentTransition(.numericText())
                 .id(top == "You're going!")
         }
-        .frame(height: 24)
+        // At least the poster's 24 pt; taller once the words grow with the phone's text size.
+        .frame(minHeight: 24)
     }
 
     // MARK: - Actions

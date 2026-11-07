@@ -103,7 +103,7 @@ struct EventOfTheDayPoster: View {
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
-                                        report: picture.report(place: item.whereLine), reasonsFirst: true))
+                                        report: picture.report(place: item.whereLine)))
             // On screen, a heart or Attend that fails may shake here.
             .onAppear { actions.cardOpened(item.id) }
             .onDisappear { actions.cardClosed(item.id) }
