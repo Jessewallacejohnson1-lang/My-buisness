@@ -80,6 +80,7 @@ nonisolated enum LaunchFlags {
         case townBasketball = "-town-basketball"
         case townCancelled = "-town-cancelled"
         case townGames = "-town-games"
+        case townHockey = "-town-hockey"
         case townGroup = "-town-group"
         case townLevel = "-town-level"
         case townLive = "-town-live"

@@ -275,13 +275,16 @@ CAMPUS_HOSTS = {"Campus Events": "CSB SJU Campus Events", "CSB Athletics": "CSB 
 # A calendar whose events are at home gives only the street address; the card names the place.
 CAMPUS_HOMES = {"St. Benedict's Monastery": ("104 Chapel Lane", "Saint Benedict's Monastery")}
 # A campus listing that gives only a street address, and the place at it (title-and-place, The place line).
-CAMPUS_ADDRESSES = {"14215 Fruit Farm Road": "Episcopal House of Prayer, Collegeville"}
+CAMPUS_ADDRESSES = {"14215 Fruit Farm Road": "Episcopal House of Prayer, Collegeville",
+                    # Saint John's listing names only its rink; Saint Ben's writes the town first.
+                    "Herb Brooks National Hockey Center": "St. Cloud, Minn., Herb Brooks National Hockey Center"}
 CAMPUS_INTERESTS = {"CSB Athletics": "watch_sports", "SJU Athletics": "watch_sports",
                     "Library": "books", "St. Benedict's Monastery": "faith"}
 # Campus Events also lists what only students go to: career workshops and fairs (Jesse, 2026-10-14).
 STUDENT_ONLY = re.compile(r"admission event|networking workshop|charting conversations|employer tabling|"
                           r"johnnie development institute|\bJDI\b|exploration fair|study session", re.I)
-HOME_GAME = re.compile(r"\b(st\.?|saint) joseph\b|collegeville", re.I)
+# Hockey's home rinks are in St. Cloud (BP app game-card 09; Jesse, 2026-11-05, yes to counting those two as home).
+HOME_GAME = re.compile(r"\b(st\.?|saint) joseph\b|collegeville|herb brooks national hockey center|ritsche arena", re.I)
 # ponytail: SJU's own building names, for a place with no town in it. A building not listed
 # reads as St. Joseph; add it here when one shows up wrong.
 SJU = re.compile(r"collegeville|\bsju\b|saint john'?s|st\.? john'?s|alcuin|learning commons|\bquad\b|sexton|"
@@ -1303,6 +1306,17 @@ def t_pathify():
         "classes, away games, halftime shows, visit days, career fairs"
     salvage = next(i for i in got if i["title"] == "Salvage")
     assert salvage["start"] == "2026-10-14T14:00:00-05:00" and salvage["town"] == "Collegeville" and salvage["interest"] is None
+    rinks = pathify_items([
+        {"id": 7, "title": "Saint John's University Hockey vs UW-Superior (Senior Night)", "location": "Herb Brooks National Hockey Center",
+         "calendar": {"name": "SJU Athletics"}, "start_date": "2026-11-07T01:00:00Z", "all_day": False},
+        {"id": 8, "title": "College of Saint Benedict Hockey vs Lake Forest", "location": "St. Cloud, Minn., Ritsche Arena",
+         "calendar": {"name": "CSB Athletics"}, "start_date": "2026-11-07T01:00:00Z", "all_day": False},
+        {"id": 9, "title": "Saint John's University Hockey at UW-Eau Claire", "location": "Hobbs Ice Arena - Eau Claire, Wis.",
+         "calendar": {"name": "SJU Athletics"}, "start_date": "2026-11-08T01:00:00Z", "all_day": False}], {"_name": "x"}, src, TODAY)
+    assert [(i["title"], i["place"], i["town"], i["start"]) for i in rinks] == [
+        ("SJU Hockey vs UW-Superior: Senior Night", "St. Cloud, Minn., Herb Brooks National Hockey Center", "St. Cloud", "2026-11-06T19:00:00-06:00"),
+        ("CSB Hockey vs Lake Forest", "St. Cloud, Minn., Ritsche Arena", "St. Cloud", "2026-11-06T19:00:00-06:00")], \
+        "hockey's two home rinks count as home, an away rink doesn't"
     football = next(i for i in got if "Football" in i["title"])
     assert (football["town"], football["interest"], football["source_name"]) == ("Collegeville", "watch_sports", "SJU Athletics")
     homecoming = next(i for i in got if i["title"] == "Homecoming 2026")

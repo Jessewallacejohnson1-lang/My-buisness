@@ -10,7 +10,8 @@
 //  near-black from halfway down; the big score on the outside over each logo on its white disc, Live and
 //  the clock between them; for a live football game the down, distance and spot over a field bar; for
 //  volleyball its sets in chips over a faint net, for soccer the minute in a ring over a faint center circle and
-//  its scorers under the teams (ticket 09). The Town card went white on 2026-10-29 (ticket 06).
+//  its scorers under the teams, for basketball its quarters as a bar and a faint court, for hockey its shots, a
+//  power-play bar and the rink's lines (ticket 09). The Town card went white on 2026-10-29 (ticket 06).
 //
 
 import SwiftUI
@@ -72,6 +73,7 @@ struct GameMatchup: View {
                 // Basketball's court rides the score, so its circle stays round the clock on every phone.
                 .background(alignment: .top) {
                     if game.isBasketball, live?.bar != nil { BasketballCourt().transition(.opacity) }
+                    if game.isHockey, live != nil { RinkCircle().transition(.opacity) }
                 }
                 if fresh, let drive = live?.drive {
                     FieldBar(game: game, drive: drive)
@@ -93,6 +95,11 @@ struct GameMatchup: View {
                         .padding(.top, Metric.driveTop)
                         .transition(.opacity)
                 }
+                if game.isHockey, let shots = game.shots {
+                    ShotsAndPowerPlay(game: game, shots: shots, power: fresh ? live?.powerPlay : nil)
+                        .padding(.top, Metric.driveTop)
+                        .transition(.opacity)
+                }
             }
             // The bar fades in with the first live score.
             .animation(reduceMotion ? nil : Motion.smooth, value: live?.bar == nil)
@@ -101,6 +108,7 @@ struct GameMatchup: View {
             .animation(reduceMotion ? nil : Motion.smooth, value: game.sets.isEmpty)
             // A goal's scorer fades in under its team; a player's second goal cross-fades into their line.
             .animation(reduceMotion ? nil : Motion.smooth, value: scorers)
+            .animation(reduceMotion ? nil : Motion.smooth, value: game.shots == nil)
         }
         // A refresh that brings the live score or the final cross-fades into it.
         .animation(Motion.smooth, value: game.final)
@@ -205,7 +213,8 @@ struct GameMatchup: View {
 
     /// The whole page behind everything: the two teams' colors, deepened, left into right, under a wash
     /// that takes them to near-black by halfway down (Apple Sports' live game, measured). Volleyball's
-    /// faint net and soccer's halfway line sit under the wash (soccer's center circle rides its minute ring).
+    /// faint net, soccer's halfway line and the rink's lines sit under the wash (soccer's center circle rides its
+    /// minute ring, the rink's its score).
     static func backdrop(_ game: Game) -> some View {
         let sides = colors(game.teams)
         return ZStack {
@@ -222,6 +231,9 @@ struct GameMatchup: View {
                 Color.white.opacity(0.09)
                     .frame(width: 2, height: VolleyballNet.depth)
                     .frame(maxHeight: .infinity, alignment: .top)
+            }
+            if game.isHockey {
+                RinkLines()
             }
             LinearGradient(stops: [.init(color: Hue.gameNight.opacity(0), location: 0),
                                    .init(color: Hue.gameNight.opacity(0.18), location: 0.22),
@@ -726,6 +738,151 @@ private struct BasketballCourt: View {
             }
         }
         .frame(width: 0, height: 0)
+        .offset(y: Self.centerY)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Hockey's touch under the logos (game-card 09; Jesse, 2026-11-05: "Yes to all" to the mock beside the Figma draft,
+/// `references/hockey-power-play/`): shots on goal under each logo, and under them a bar running down from 2:00 in the
+/// color of the team on the power play, in a row that keeps its room while the game is on so nothing moves when one
+/// starts (about 50 of a game's 60 minutes have none). Shots come first, Jesse's pick over the draft's order, which left
+/// that hole between the names and the shots. After the final, the shots alone.
+private struct ShotsAndPowerPlay: View {
+    let game: Game
+    let shots: [Int]
+    /// Nil at even strength, and through a quiet spell, so a feed gone quiet never leaves one standing.
+    let power: Game.Live.PowerPlay?
+
+    /// What it last showed, so its words and color stay while it fades away.
+    @State private var last: Game.Live.PowerPlay?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The draft's row, in its CSS: the numbers 15 pt bold on a 21 pt line, "Shots" 12 pt at 50%; the bar 160 x 6 on a
+    /// 14% track, its words 13 pt at 85%, 14 pt under its top.
+    enum Metric {
+        static let line: CGFloat = 21
+        static let word: Double = 0.5
+        static let barGap: CGFloat = 11
+        static let bar = CGSize(width: 160, height: 6)
+        static let track: Double = 0.14
+        static let wordsGap: CGFloat = 8
+        static let words: Double = 0.85
+    }
+
+    var body: some View {
+        VStack(spacing: Metric.barGap) {
+            HStack(spacing: 0) {
+                number(0)
+                Text("Shots")
+                    .font(.sansMedium(12))
+                    .foregroundStyle(.white.opacity(Metric.word))
+                    .lineLimit(1)
+                    .frame(width: GameMatchup.Metric.middle)
+                number(1)
+            }
+            .frame(height: Metric.line)
+            if game.final == nil { bar.transition(.opacity) }
+        }
+        .animation(reduceMotion ? nil : Motion.smooth, value: game.final == nil)
+        .onChange(of: power, initial: true) { if let power { last = power } }
+        // "Shots on goal: Saint John's 24, UW-Superior 19. Saint John's on a power play, 1:24 left".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    private func number(_ side: Int) -> some View {
+        Text("\(shots[side])")
+            .font(.sansBold(15))
+            .foregroundStyle(.white)
+            .monospacedDigit()
+            .contentTransition(.numericText())
+            .animation(reduceMotion ? nil : Motion.smooth, value: shots[side])
+            .frame(maxWidth: .infinity)
+    }
+
+    /// As far as the clock has run as last sent: it stops on every whistle. At 2:00 it fades away.
+    private var bar: some View {
+        let shown = power ?? last
+        let filled = power?.share ?? 0
+        return VStack(spacing: Metric.wordsGap) {
+            Capsule()
+                .fill(.white.opacity(Metric.track))
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(shown.map { GameMatchup.mark(game, $0.side) } ?? .clear)
+                        .frame(width: Metric.bar.width * filled)
+                }
+                .clipShape(Capsule())
+                .frame(width: Metric.bar.width, height: Metric.bar.height)
+            Text(words(shown))
+                .font(.sansMedium(13))
+                .foregroundStyle(.white.opacity(Metric.words))
+                .monospacedDigit()
+                .lineLimit(1)
+        }
+        .opacity(power == nil ? 0 : 1)
+        .animation(reduceMotion ? nil : Motion.smooth, value: filled)
+        .animation(reduceMotion ? nil : Motion.smooth, value: power == nil)
+    }
+
+    /// "Power play · 1:24", or just "Power play" when the clock can't say (overtime).
+    private func words(_ power: Game.Live.PowerPlay?) -> String {
+        guard let left = power?.left else { return "Power play" }
+        return "Power play · \(time(left))"
+    }
+
+    private func time(_ seconds: Int) -> String { "\(seconds / 60):" + String(format: "%02d", seconds % 60) }
+
+    private var spoken: String {
+        let totals = "Shots on goal: \(game.teams[0].short) \(shots[0]), \(game.teams[1].short) \(shots[1])"
+        guard let power, game.final == nil, game.teams.indices.contains(power.side) else { return totals }
+        let left = power.left.map { ", \(time($0)) left" } ?? ""
+        return "\(totals). \(game.teams[power.side].short) on a power play\(left)"
+    }
+}
+
+/// The rink's lines behind a hockey game's page (game-card 09's draft): the red line down the middle and a blue line either
+/// side, 5 pt wide, under the page's wash, down to where the net and the halfway line stop.
+private struct RinkLines: View {
+    /// The draft's SVG, on its 402 pt page: the blue lines at x 104 and 298, red at 22%, blue at 20%.
+    static let line: CGFloat = 5
+    static let blueOut: CGFloat = 97
+    static let red: Double = 0.22
+    static let blue: Double = 0.2
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Hue.rinkRed.opacity(Self.red).frame(width: Self.line, height: VolleyballNet.depth)
+            ForEach([-1, 1], id: \.self) { side in
+                Hue.rinkBlue.opacity(Self.blue)
+                    .frame(width: Self.line, height: VolleyballNet.depth)
+                    .offset(x: CGFloat(side) * Self.blueOut)
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+/// The rink's center circle round Live and the clock (game-card 09's draft), while the game is on. The draft draws it at 9% white
+/// under the page's wash; over it here, as basketball's court is, it takes the wash's share. The draft's dot isn't drawn: on
+/// today's page, with no record line, the clock sits on it.
+private struct RinkCircle: View {
+    /// The draft's SVG: r 64, a 2 pt line, 54 pt under the score's top.
+    static let centerY: CGFloat = 54
+    static let circle: CGFloat = 128
+    static let line: CGFloat = 2
+    /// 9% times what the wash leaves at each height on a 402 pt phone: the circle 109 to 238 pt down.
+    private static let stroke = LinearGradient(colors: [.white.opacity(0.081), .white.opacity(0.075), .white.opacity(0.061)],
+                                               startPoint: .top, endPoint: .bottom)
+
+    var body: some View {
+        Circle().stroke(Self.stroke, lineWidth: Self.line)
+            .frame(width: Self.circle, height: Self.circle)
+            .frame(width: 0, height: 0)
         .offset(y: Self.centerY)
         .frame(maxWidth: .infinity, alignment: .top)
         .allowsHitTesting(false)

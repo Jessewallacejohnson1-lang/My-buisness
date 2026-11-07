@@ -71,8 +71,17 @@ nonisolated struct GameMoment: Equatable, Sendable {
     static func words(of play: Game.Play, sport: String) -> (title: String, detail: String) {
         let sport = sport.lowercased()
         if sport.contains("soccer"), let goal = goal(in: play) { return goal }
+        if sport.contains("hockey") { return (hockeyTitle(play.text), play.when) }
         let title = sport.contains("football") ? footballTitle(play.text) : sport.contains("basketball") ? basketballTitle(play.text) : nil
         return (title ?? play.text, play.when)
+    }
+
+    /// "Goal by SUP Gibbs,Jordan (POWER-PLAY); Assist by ...", "GOAL by UConn Loranger, Jeremy (POWER-PLAY, GAME WINNING
+    /// GOAL); ...", and "CON Muldowney, Joey PENALTY SHOT GOAL off ...": a goal is all a hockey play is, so the draft's
+    /// "Goal · Burke (PP)", or just "Goal" when the name doesn't read.
+    private static func hockeyTitle(_ text: String) -> String {
+        let goal = scorer(in: text).map { "Goal · \($0)" } ?? "Goal"
+        return text.contains("POWER-PLAY") ? "\(goal) (PP)" : goal
     }
 
     /// "Shot by SJU Benson,Soren, high left, GOAL; Assist by SJU Holden,Laird", "Penalty kick taken by Cornett,Billy,
@@ -114,9 +123,14 @@ nonisolated struct GameMoment: Equatable, Sendable {
     /// Berg,Sam"), else the first "Last,First" (SIDEARM's live words), else "J. Jeffrey" (its summary's).
     /// None beats a wrong name: a pass's other player, or an assist after the ";", is never the answer.
     static func scorer(in text: String) -> String? {
-        let play = text.split(separator: ";").first.map { String($0) } ?? text
+        let play = unmangled(text.split(separator: ";").first.map { String($0) } ?? text)
         if play.contains("complete to") { return capture("complete to \(name),", in: play) }
         return capture(#"\#(name),\s?\p{Lu}"#, in: play) ?? capture(#"^[A-Z]\.\s?\#(name)"#, in: play)
+    }
+
+    /// SIDEARM's files can spell a name's letters twice over: "MuÃ±oz" (Lake Forest's file, 2026-11-06) is "Muñoz".
+    private static func unmangled(_ text: String) -> String {
+        text.data(using: .isoLatin1).flatMap { String(data: $0, encoding: .utf8) } ?? text
     }
 
     private static func capture(_ pattern: String, in text: String) -> String? {
