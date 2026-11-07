@@ -10,7 +10,7 @@
 //  for screenshots cannot send two taps close enough to count as a double tap, so the
 //  split is proven here, with XCUITest's own `doubleTap()`.
 //
-//  Also here: an edge swipe over the event page's photo carousel pops the page.
+//  Also here: an edge swipe over the event page's picture pops the page.
 //
 //  Run on the "BlockParty Tests" simulator, never the screenshot one (`sim-guard.sh`).
 //
@@ -24,13 +24,11 @@ final class EventCardPhotoTapTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        // Every event page gets a second, bundled photo instead of Google's, so the edge
-        // swipe below always has a carousel to start on, network or not.
         // `-daily-samples -daily-hour 12`: the Event of the day poster above the cards is a
         // live read otherwise, and with no real event on (most nights) the cards sat a poster's
         // height higher, so a drag from the card carried it under the top bar (red on GitHub
         // 2026-10-30 02:56 and 03:15 UTC, green at 01:59 with a live event on).
-        app.launchArguments = ["-open-tab", "town", "-town-samples", "-event-page-two-photos", "-ui-tests",
+        app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests",
                                "-daily-samples", "-daily-hour", "12"]
         app.launch()
     }
@@ -116,8 +114,8 @@ final class EventCardPhotoTapTests: XCTestCase {
     }
 
     /// The event page hides the navigation bar, and UIKit then turns its edge swipe off.
-    /// `SwipeBack` turns it back on and puts it ahead of the photo carousel, so an edge
-    /// swipe that starts on the hero pops the page instead of rubber-banding the photos.
+    /// `SwipeBack` turns it back on, ahead of any photo carousel, so an edge swipe that starts
+    /// on the hero pops the page (it shows one picture since BP app inside-cards 15).
     /// At the root the same swipe has nothing to pop and must leave the stack pushable.
     /// Proven here because AXe's simulated touches never start a screen-edge swipe; the
     /// drags XCUITest synthesizes do. With `SwipeBack`'s edge half removed, this fails.
@@ -128,11 +126,6 @@ final class EventCardPhotoTapTests: XCTestCase {
         edgeSwipe(atHeight: 0.12)
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
         XCTAssertTrue(waitForPush(from: link), "a swipe at the root froze the stack")
-
-        // The carousel only scrolls with two photos; `-event-page-two-photos` gives it two.
-        let twoPhotos = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "value BEGINSWITH 'Photo 1 of 2'")).firstMatch
-        XCTAssertTrue(twoPhotos.waitForExistence(timeout: 10), "no two-photo carousel to swipe over")
 
         // The pop itself is quick; checking for it is not. On GitHub's runner each look at the
         // screen can take seconds, and on 2026-10-17 the page popped but the one look a 4 s

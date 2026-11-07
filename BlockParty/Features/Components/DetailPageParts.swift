@@ -29,9 +29,6 @@ struct PhotoPager: View {
     var flyer: URL? = nil
     /// What a tall flyer on that page starts under.
     var flyerTop: CGFloat = 0
-    /// How far along the pages the finger has taken them, in pages, to the nearest twentieth: enough
-    /// for what fades with a swipe, without redrawing the page on every frame of it.
-    var onSwipe: ((CGFloat) -> Void)? = nil
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -48,11 +45,6 @@ struct PhotoPager: View {
         .scrollPosition(id: $page)
         .scrollDisabled(urls.count < 2 && !bounces)
         .scrollBounceBehavior(bounces ? .always : .basedOnSize, axes: .horizontal)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            (geometry.contentOffset.x / max(geometry.containerSize.width, 1) * 20).rounded() / 20
-        } action: { _, swipe in
-            onSwipe?(swipe)
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Photos")
         .accessibilityValue(value)

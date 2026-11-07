@@ -118,15 +118,6 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardItem(event).description, "Plant bingo for Angel Reins Stable.", "the You tab's page has its About")
     }
 
-    /// The place's lettering is gone on a flyer's page and follows the finger back on the next
-    /// photo; with no flyer it never moves (BP app event-photos 16).
-    func testTheLetteringFollowsTheSwipeOffAFlyerOnly() {
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0), 0)
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0.5), 0.5)
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 2), 1, "on any later page")
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: false, swipe: 0), 1)
-    }
-
     /// A tall flyer starts under the clock, so the island never covers its title; a wide one sits with
     /// even gaps, on the Event page's 402 x 310 frame (Jesse, 2026-11-05).
     func testATallFlyerStartsUnderTheClockAndAWideOneDoesnt() {
@@ -178,8 +169,6 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(page.photoList(event: logo, venue: [venue]), [venue],
                        "a logo is not a photo: an Event with none of its own shows the place's")
         XCTAssertEqual(page.photoList(event: .fallback, venue: []), [])
-        XCTAssertEqual(page.photoList(event: event, venue: more, most: 2), [event, more[0]],
-                       "the UI test's two-photo page")
     }
 
     func testAFlyersPageShowsTheFlyerAlone() {
