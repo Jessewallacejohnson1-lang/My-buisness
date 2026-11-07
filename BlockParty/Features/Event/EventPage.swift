@@ -685,8 +685,16 @@ struct EventPage: View {
     /// The day row (event-page-formats 06): the day in full over its hours, "Monday, November 30" over
     /// "4:30 – 6 PM", the start alone when the Event gives no end, "7 PM until Wednesday, December 2"
     /// when it runs over days. Untimed: "Until" its last day when it runs over days, else the time as
-    /// written ("after dark"), else the day alone. The year past six months off, as the card's.
+    /// written ("after dark"), else the day alone. The year past six months off, as the card's. A repeat
+    /// follows its hours, "9 AM · Every Sunday" (BP app inside-cards 11).
     static func dayLines(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        dayAndHours(item, now: now).map { lines in
+            guard let repeats = nonempty(item.recurrence) else { return lines }
+            return FactLines(first: lines.first, second: [lines.second, repeats].compactMap { $0 }.joined(separator: " · "))
+        }
+    }
+
+    private static func dayAndHours(_ item: FeedCardItem, now: Date) -> FactLines? {
         guard let when = item.when else { return item.whenLine.map { FactLines(first: $0.text) } }
         let withYear = abs(Town.days(from: now, to: when.start)) > 183
         let day = { (date: Date) in Town.format(date, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd") }

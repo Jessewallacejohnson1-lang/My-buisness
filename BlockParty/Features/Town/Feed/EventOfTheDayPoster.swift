@@ -176,11 +176,11 @@ struct EventOfTheDayPoster: View {
                     .fixedSize(horizontal: false, vertical: true)
                 when
                     .padding(.top, Metric.whenTop)
-                if let place = item.whereLine {
-                    Text(place)
+                let places = item.shortPlaces
+                if !places.isEmpty {
+                    SmallLine(tries: places, wraps: true)
                         .font(.sans(16))
                         .foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
                         .padding(.top, Metric.placeTop)
                 }
             }
