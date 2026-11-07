@@ -181,6 +181,11 @@ def posted(row):
     return datetime.fromtimestamp(t, timezone.utc).isoformat() if isinstance(t, (int, float)) else str(t)
 
 
+def said(row):
+    """A post's own words, which the picker reads as the picture's caption (BP app dig-deeper 25)."""
+    return " ".join(str(row.get("text") or row.get("caption") or "").split())[:200]
+
+
 def from_posts(group, rows, share=None, more=PLACE_MORE):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
     to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
@@ -200,7 +205,7 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     link = own[0].get("link") or ""
     story = (share or share_picture)(link) if link.startswith("http") and not POST.search(link) else None
     out = ([{"url": story, "about": "", "from": "page", "page": link}] if story else []) \
-        + [{**p, "from": "post", "page": page, "posted": posted(own[0])[:10]} for p in pictures(own[0])]
+        + [{**p, "from": "post", "page": page, "posted": posted(own[0])[:10], "words": said(own[0])} for p in pictures(own[0])]
     mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
@@ -208,7 +213,8 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
-            out += [{**p, "from": "other post", "page": r.get("url") or page, "posted": posted(r)[:10]} for p in pictures(r)[:2]]
+            out += [{**p, "from": "other post", "page": r.get("url") or page, "posted": posted(r)[:10], "words": said(r)}
+                    for p in pictures(r)[:2]]
     return out[:mine + more]
 
 
@@ -323,7 +329,8 @@ def sheets(groups, folder):
                                      "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160],
                                                    **({"page": c["page"], "page_title": c["title"], "finder_says": c["why"]}
                                                       if "title" in c else {}),
-                                                   **({"posted": c["posted"]} if c.get("posted") else {})}
+                                                   **({"posted": c["posted"]} if c.get("posted") else {}),
+                                                   **({"words": c["words"]} if c.get("words") else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
                 im = Image.open(c["file"])
@@ -881,7 +888,8 @@ def selftest():
                                                          "ocrText": about} for u, about in pics], **more}
     rows = [post("https://www.facebook.com/prep/posts/pfbidPLAY", "Prep", [("https://x.fbcdn.net/flyer.jpg?ctp=s590x590", "May be an image of text")]),
             post("https://www.facebook.com/prep/posts/pfbidCAST", "Prep", [("https://x.fbcdn.net/cast.jpg", "May be an image of 6 people"),
-                                                                           ("https://x.fbcdn.net/menu.jpg", "May be an image of text that says MENU")]),
+                                                                           ("https://x.fbcdn.net/menu.jpg", "May be an image of text that says MENU")],
+                 text="Our cast at last spring's  musical"),
             post("https://www.facebook.com/shop/posts/pfbidSHOP", "Shop", [("https://x.fbcdn.net/shop.jpg", "")]),
             post("https://www.facebook.com/rescue/posts/pfbidLINK", "Rescue", [("https://x.fbcdn.net/tattoo.jpg", "")],
                  text="Join us! https://www.facebook.com/events/2380009089072052")]
@@ -934,6 +942,7 @@ def selftest():
         check(sheets(gs, folder) == 1 and (folder / "sheet-1.png").exists(), "one sheet for three blocks")
         batch = (folder / "batch-1.txt").read_text()
         check('"pick": "c2", "from": "other post"' in batch and '"event": "e3"' not in batch, "the batch names each picture and its source; a block with none isn't shown")
+        check('"words": "Our cast at last spring\'s musical"' in batch, "a post's picture comes with its post's words, the picker's caption")
 
         picks = plan([{"event": "e1", "pick": "c2", "shows": "The cast on stage"}, {"event": "e1", "pick": "c1"},
                       {"event": "e2", "pick": "c9"}, {"event": "e9", "pick": "c1"}, "unreadable line: x"], gs)

@@ -57,21 +57,19 @@ the page); `meta_says` is that page's own words for the picture (its alt text), 
   event-photo.md says. For a talk, reading or show, the person it is about usually fits best.
 - From `posts` (a batch of its own): the place's own posts (`page_title` is the post's words, `posted` its day),
   with the free rungs' choice beside them when they had one (`from` `site` or `news`). Keep whichever fits this Event
-  best, or none. A post fits as event-photo.md's `other post` rule: this Event or this kind at this place, or a
-  recent photo of where it happens or of the host's people (the WinterWalk festival's new post of downtown over last
-  December's crowd). Its own flyer whose words are true of this Event counts (Jesse, 2026-11-07: "keep flyer"). A
+  best, or none. A post fits when it passes event-photo.md's caption test: this Event or this kind at this place, or
+  the place dressed for it (the WinterWalk festival's new post of downtown over last December's crowd). Its own flyer whose words are true of this Event counts (Jesse, 2026-11-07: "keep flyer"). A
   food special, a menu or a product shot is not this Event.
-- The person the Event is about counts wherever the photo was taken (event-photo.md's "never a portrait" is for
-  anyone else), on a page about them (its `page_title` or `finder_says` names them): a photo of one person doing what
+- The person the Event is about counts wherever the photo was taken, on a page about them (its `page_title` or `finder_says` names them): a photo of one person doing what
   the Event is about (the speaker speaking, the artist beside their work, the band or singer on stage, the teacher
   teaching), or a portrait the page's words name as them. The artist's own work counts for their show. A headshot
   nobody names (a writer's byline photo), anyone else on the page, a book cover, or a crowd you can't tell is
   theirs: none.
 - From `site` or `news`: this Event in an earlier year at this place, or this group (the choir, the team, the class),
-  as event-photo.md's `other post` rule. Another place, another kind of thing or another group is none, and so is the
+  as event-photo.md's caption test. Another place, another kind of thing or another group is none, and so is the
   same kind of event in another town than the Event's place: read the `page_title` (Sartell's Veterans Day parade
   on St. Cloud's).
 - A flyer only as event-photo.md says: its words true of this Event and its date.
-- When you are unsure, pick none.
+- None, when no picture passes event-photo.md's caption test.
 
 Answer as event-photo.md says.
