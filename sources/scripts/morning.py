@@ -81,9 +81,10 @@ import write_judged
 import accounts
 import social
 import spots
+import find_spots
 import apple_maps
 from towns import TOWNS, DEFAULT, lookup
-from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
+from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, minutes_left, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
 from db import DbError
 
@@ -950,8 +951,12 @@ def finish(run, dry_run):
                        ("standouts", lambda: standouts(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
-                       ("map spots", lambda: spots.fill(db, today, not dry_run)),
+                       ("map spots", lambda: map_spots(run, dry_run)),
                        ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today))):
+        waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
+        if what == "Apple Maps" and late(run.stop) and not waited.saved:  # the maps took this part's time, once
+            waited.save(True)
+            return print("[morning] run again: the Apple Maps check waits for a part of its own")
         try:
             got = step()
         except DbError as e:
@@ -969,6 +974,40 @@ def finish(run, dry_run):
             report += "\n" + failed("report row", e)
     print(report)
     run.finished()
+
+
+def map_spots(run, dry_run):
+    """Each upcoming Event's spot: the registry's, else where Overture and OpenStreetMap agree (spots.fill,
+    find_spots.py; BP app inside-cards 20). Reading the two maps takes 2 to 5 minutes, so it gets what is left of
+    the part before its 9th minute (the cloud stops a command at 10), less a minute and a half for the writes, at
+    most 7. A part with under 4 left, or whose read ran out of time, hands it to the next part, once. Whatever
+    happens is kept as the step's lines, so a finish run again neither writes, reports nor fails twice."""
+    tag = "-dry-run" if dry_run else ""
+    done, waited = run.part(f"spots{tag}.json"), run.part(f"spots-waited{tag}.json")
+    if done.saved is not None:
+        return done.saved
+    left = minutes_left(run.stop, 180)  # a part ends by its 9th minute
+    again = ["[morning] run again: the map spots wait for a part with time to read the maps"]
+    if left is not None and left < 4 and not waited.saved:
+        waited.save(True)
+        return again
+    try:
+        maps, note = find_spots.read(run.folder / "spots", minutes=7 if left is None else max(min(left - 1.5, 7), 0.1)), []
+    except subprocess.TimeoutExpired:
+        if not waited.saved:
+            waited.save(True)
+            return again
+        maps, note = None, ["- Map spots: Overture and OpenStreetMap ran out of time, so the spots they found before "
+                            "stay as they were"]
+    except Exception as e:  # no network, no library, no memory: the spots they found before stay (spots.fill)
+        maps, note = None, [f"- Map spots: Overture and OpenStreetMap not read ({' '.join(str(e).split())[:200]}), "
+                            "so the spots they found before stay as they were"]
+    try:
+        lines = spots.fill(run.db, run.today, not dry_run, maps=maps) + note
+    except Exception as e:  # a refused write or a bad hand file: a line in the report, never a lost report
+        lines = [f"[morning] map spots failed: {' '.join(str(e).split())[:300]}"] + note
+    done.save(lines)
+    return lines
 
 
 def social_lines():
@@ -1051,6 +1090,56 @@ def credits_told():
         (failed == "Firecrawl: credits unknown (HTTP Error 401: Unauthorized)", f"a failed call is a line: {failed}"),
         (odd == "Firecrawl: credits unknown ('remainingCredits')", f"an answer without the number is a line: {odd}"),
     ]
+
+
+def map_spots_in_parts():
+    """The map spots step gives the maps what is left of the part, hands a short part's turn on once, keeps its
+    lines for a finish run again, and reports maps it couldn't read without emptying what they found (spots.fill
+    keeps those)."""
+    import tempfile
+    real = spots.fill, find_spots.read
+    fills, reads, checks = [], [], []
+
+    def broken(folder, minutes):
+        raise OSError("download.geofabrik.de unreachable")
+    try:
+        spots.fill = lambda db, today, write, maps: fills.append(maps) or ["- Map spots: set 1"]
+        find_spots.read = lambda folder, minutes: reads.append(minutes) or "maps"
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            short = lambda: Run(out, date(2026, 11, 7), FakeDb(), minutes=0.5)  # a part 5½ minutes in: 3½ left
+            checks.append((map_spots(short(), False)[0].startswith("[morning] run again") and not fills,
+                           "a part with under 4 minutes left hands the maps to the next part"))
+            first = map_spots(short(), False)
+            again = map_spots(Run(out, date(2026, 11, 7), FakeDb(), minutes=6), False)
+            checks.append((first == again == ["- Map spots: set 1"] and fills == ["maps"] and 1.9 < reads[0] < 2.1,
+                           f"once only, then the maps get what is left; a finish run again repeats the lines "
+                           f"without filling twice: {fills} {reads}"))
+        with tempfile.TemporaryDirectory() as tmp:
+            find_spots.read = broken
+            lines = map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=None), False)
+            checks.append((fills[-1] is None and "not read (download.geofabrik.de unreachable)" in lines[-1],
+                           f"maps that can't be read are a line, and the fill keeps what they found: {lines}"))
+        with tempfile.TemporaryDirectory() as tmp:
+            def slow(folder, minutes):
+                raise subprocess.TimeoutExpired("find_spots.py", minutes * 60)
+            find_spots.read = slow
+            part = lambda: map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
+            first, second, third = part(), part(), part()
+            checks.append((first[0].startswith("[morning] run again") and "ran out of time" in second[-1]
+                           and second == third, f"maps out of time get one more part, then are a line: {first} {second}"))
+        with tempfile.TemporaryDirectory() as tmp:
+            find_spots.read = lambda folder, minutes: "maps"
+            def refused(db, today, write, maps):
+                raise DbError("GET", "club_events?select=no_place", 400, "column club_events.no_place does not exist")
+            spots.fill = refused
+            part = lambda: map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
+            first, again = part(), part()
+            checks.append((first == again and first[0].startswith("[morning] map spots failed:") and "no_place does not exist" in first[0],
+                           f"a refused fill is one kept line, never a finish that runs again forever: {first}"))
+    finally:
+        spots.fill, find_spots.read = real
+    return checks
 
 
 def selftest():
@@ -1348,6 +1437,7 @@ def selftest():
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
+    checks += map_spots_in_parts()
     checks += steps_alone()
     checks += set_aside_across_days()
     checks += one_town()
@@ -1873,8 +1963,9 @@ def steps_alone():
         except SystemExit as e:
             printed.write(f"exit {e.code}\n")
         return printed.getvalue()
-    saved = spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page
-    spots.fill, apple_maps.check = (lambda db, today, write: ["- Map spots"]), (lambda db, write, today: ["- Apple Maps"])
+    saved = spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read
+    spots.fill, apple_maps.check = (lambda db, today, write, maps: ["- Map spots"]), (lambda db, write, today: ["- Apple Maps"])
+    find_spots.read = lambda folder, minutes: None
     social.limits, social.missed_checks = (lambda: {"current": {"monthlyUsageUsd": 1}, "limits": {"maxMonthlyUsageUsd": 25}}), (lambda: [])
     write_judged.interest_ids, own_page = (lambda: ["dining"]), (lambda url: (200, "<p>nothing about it</p>"))
     try:
@@ -1932,7 +2023,7 @@ def steps_alone():
             said(finish, run(), False)
             caught_up = db.writes()[n:]
     finally:
-        spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page = saved
+        spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read = saved
     ids = lambda calls, key: [p.rsplit("=", 1)[1][-2:] for _, p, b in calls if p.startswith("club_events?id=eq.") and key in b]
     return [
         (listed == long_title + "\n" and titled[0] == titled[1] and not titled_wrote,
@@ -2157,7 +2248,8 @@ def whole_morning():
     from datetime import timezone
     global Supabase, load, start_reader, fetch_watched, find_root, own_page, firecrawl_credits
     # The spots step reads the real registry; spots.py's own self-test covers it.
-    real_fill, spots.fill = spots.fill, lambda db, today, write: ["- Map spots: set 4, 0 with no spot"]
+    real_fill, spots.fill = spots.fill, lambda db, today, write, maps: ["- Map spots: set 4, 0 with no spot"]
+    real_read, find_spots.read = find_spots.read, lambda folder, minutes: None
     real_check, apple_maps.check = apple_maps.check, lambda db, write, today: ["- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place"]
     clock = type("Clock", (), {"t": 1000.0, "monotonic": lambda self: self.t, "time": lambda self: self.t})()
     sites = ["p0", "p1", "p2", "p3", "dsl"]
@@ -2310,7 +2402,7 @@ def whole_morning():
             evening = command("save")
             evening_laid = (out / "tag").exists() or (out / "describe").exists()
     finally:
-        spots.fill = real_fill
+        spots.fill, find_spots.read = real_fill, real_read
         apple_maps.check = real_check
         (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
          Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits) = saved

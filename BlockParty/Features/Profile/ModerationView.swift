@@ -3,7 +3,7 @@
 //  Block Party — the admin review queue. Pending club_events and clubs wait here for
 //  the admin's yes: neighbour posts the composer held back, and found events the
 //  registry read from a town's own sources (ADR-021 in the registry's decision
-//  records). RLS remains the real boundary (Admin.isAdmin is a product gate).
+//  records). RLS remains the real boundary (`AuthStore.isAdmin` is a product gate).
 //
 //  Rows follow a requests list (Reference: Yubo's friends list, references/review-queue/):
 //  a date tile, the title, when and who announced it, a black Approve pill and an ×.
