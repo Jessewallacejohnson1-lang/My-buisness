@@ -112,7 +112,7 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     var goingCount: Int
     let createdAt: String
     /// The organizer's own uploaded photo (club_events.image_url) — the truest
-    /// "photo of this event". Threaded through from RawEvent; nil when none.
+    /// "photo of this event", from its card; nil when none.
     var imageUrl: String? = nil
     /// The viewer's RSVP state. Defaulted so activities and profile callers that
     /// only need the event summary remain source-compatible.
@@ -370,18 +370,6 @@ nonisolated struct FeedFriend: Hashable, Sendable {
     let photo: URL?
 }
 
-struct Trail: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let location: String?
-    let length: String?
-    let difficulty: String?
-    let description: String?
-    let imageUrl: String?
-    let status: ClubStatus
-    let createdAt: String
-}
-
 // MARK: - Social layer (follow / like / comment / feed) — Today tab remake.
 // New tables (town_follows, event_likes, event_comments) live on the shared
 // Supabase project; see docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §5.
@@ -616,50 +604,6 @@ struct NewTrailInput {
     var difficulty: String?
     var description: String?
     var imageUrl: String?
-}
-
-// MARK: - Raw decode shapes (PostgREST responses)
-
-/// A raw club_events row (select=* or with clubs(name) embedded).
-struct RawEvent: Decodable {
-    let id: String
-    let title: String
-    let eventDate: String?
-    let startTime: String?
-    let location: String?
-    let length: String?
-    let difficulty: String?
-    let description: String?
-    let imageUrl: String?
-    let kind: String?
-    let status: ClubStatus?
-    let clubId: String?
-    let createdAt: String?
-    /// club_events.category (nullable). Absent/legacy rows decode to nil → `.other`.
-    let category: String?
-    /// club_events.end_at (`timestamptz NULL`) and club_events.all_day
-    /// (`boolean NOT NULL DEFAULT false`).
-    ///
-    /// BOTH ARE OPTIONAL ON PURPOSE. The migration that adds them is approved but
-    /// **not yet applied**, so `select=*` does not return these keys today and a
-    /// non-optional field here would fail every event decode in the app. Optional
-    /// decoding makes the client correct on both sides of the migration: today
-    /// every row reads `endAt == nil` / `allDay == nil`, and the moment the columns
-    /// land the same code starts honouring them with no further change.
-    ///
-    /// `endAt` stays a raw string like every other timestamp on this shape
-    /// (`createdAt`); `DateHelpers.timestamp(_:)` parses it at the API boundary.
-    let endAt: String?
-    let allDay: Bool?
-    /// Who announced a found event and where it was read (`club_events.source_name`,
-    /// `source_url`; ADR-021). Nil for events a club or neighbour posted.
-    let sourceName: String?
-    let sourceUrl: String?
-    /// club_events.place_entry_id: the registry entry this event happens at, when known.
-    let placeEntryId: String?
-    let clubs: ClubRef?
-
-    struct ClubRef: Decodable { let name: String? }
 }
 
 // MARK: - Town profile (this community app's per-user identity; separate from the

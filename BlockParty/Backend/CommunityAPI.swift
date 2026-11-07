@@ -10,16 +10,16 @@
 import CoreLocation
 import Foundation
 
-struct PendingPost: Identifiable, Hashable {
-    let trail: Trail
+/// One thing waiting for the admin's yes (`list_held`, BP app launch-ready 07): a neighbour's Event or post the
+/// instant check didn't pass on, or a found Event (ADR-021).
+struct PendingPost: Identifiable, Hashable, Decodable {
+    let id: String
     let kind: PostKind
-    let eventDate: String?
-    let startTime: String?
-    var allDay = false
-    /// Set for a found event (ADR-021): who announced it, and the page it came from.
-    var sourceName: String? = nil
-    var sourceURL: URL? = nil
-    var id: String { trail.id }
+    /// When the instant check was asked and gave no answer; nil when it never checked.
+    let checkedAt: String?
+    let card: ReviewCard
+    /// Nil for a found Event, or a neighbour whose account is gone.
+    let poster: ReviewPoster?
 }
 
 /// Why the admin declined an event in the Review queue (`club_events.review_reason`).
@@ -738,20 +738,12 @@ struct CommunityAPI {
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
     }
 
-    private func mapTrail(_ e: RawEvent) -> Trail {
-        Trail(id: e.id, title: e.title, location: e.location, length: e.length, difficulty: e.difficulty,
-              description: e.description, imageUrl: e.imageUrl, status: e.status ?? .approved, createdAt: e.createdAt ?? "")
-    }
-
     // MARK: - Moderation (admin)
 
+    /// What waits for the admin's yes, with its card, poster and whether the check was asked (`list_held`,
+    /// BP app launch-ready 07). Admin only; anyone else gets none.
     func getPendingPosts() async throws -> [PendingPost] {
-        let rows: [RawEvent] = try Supabase.decode(await db.rest("club_events", [
-            ("select", "*"), ("status", "eq.pending"), ("order", "event_date.asc.nullslast,created_at.desc"),
-        ]))
-        return rows.map { PendingPost(trail: mapTrail($0), kind: PostKind(rawValue: $0.kind ?? "event") ?? .event,
-                                      eventDate: $0.eventDate, startTime: $0.startTime, allDay: $0.allDay ?? false,
-                                      sourceName: $0.sourceName, sourceURL: ReviewRow.webURL($0.sourceUrl)) }
+        try Supabase.decode(await db.rpc("list_held"))
     }
 
     func getPendingClubs() async throws -> [ClubRow] {
