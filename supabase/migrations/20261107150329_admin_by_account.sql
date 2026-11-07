@@ -5,10 +5,11 @@
 -- A person can write their own user_metadata, never app_metadata. Every policy and function that calls is_admin()
 -- keeps calling it, and it stays a read of the token, as cheap as before.
 
--- Jesse's admin account, by id: an id unlocks nothing, and the address stays out of this file. It reaches his token
--- at its next refresh, or at once on a fresh log-in.
+-- Jesse's everyday account, the one on his phone (Jesse, 2026-11-07: "yes mine"), by id: an id unlocks nothing. It
+-- reaches his token at its next refresh, within the hour, or at once on a fresh log-in. The account a chat made on
+-- 2026-11-06 to hold the old address becomes an ordinary account.
 update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"admin": true}'::jsonb
-where id = '32b7e6f2-470d-40bf-be54-d587b1df4be5';
+where id = 'f960d703-27dd-4f21-bc39-b2ecd9b5c99c';
 
 -- Only a JSON true counts: compared as jsonb, an odd value is a plain no rather than a cast error in every policy.
 create or replace function public.is_admin()
