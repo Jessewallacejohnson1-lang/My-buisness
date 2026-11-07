@@ -383,6 +383,8 @@ struct MainTabsView: View {
     @State private var showMap = false
     /// View on Map's Event: the map opens on its bubble.
     @State private var mapEventID: String?
+    /// Made once, as `hostOpener` is.
+    @State private var mapOpener: EventMapOpener?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
     /// Direction of the last tab change — whether the incoming screen slides in
@@ -501,7 +503,7 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
-        .environment(\.viewOnMap, viewOnMap)
+        .environment(\.viewOnMap, mapOpener)
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
         .onChange(of: code.id, initial: true) { openWaitingCode() }
@@ -521,6 +523,7 @@ struct MainTabsView: View {
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }
+            if mapOpener == nil { mapOpener = EventMapOpener(viewOnMap) }
         }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {

@@ -532,7 +532,7 @@ struct TownCardHold<Edge: Shape>: ViewModifier {
             Button("Share", systemImage: "square.and.arrow.up", action: share)
         }
         if let event, let viewOnMap, EventMapRoute.route(event, now: TodayBubbleClock.now(), spot: true) != nil {
-            Button("View on Map", systemImage: "map") { viewOnMap(event) }
+            Button("View on Map", systemImage: "map") { viewOnMap.open(event) }
         }
     }
 
@@ -543,9 +543,15 @@ struct TownCardHold<Edge: Shape>: ViewModifier {
     }
 }
 
+/// View on Map from a held Town card: the shell's (`MainTabsView`), which can open the map. A class
+/// made once, as `HostOpener` is, so the cards that read it don't redraw each time the shell does.
+final class EventMapOpener {
+    let open: (FeedCardItem) -> Void
+    init(_ open: @escaping (FeedCardItem) -> Void) { self.open = open }
+}
+
 extension EnvironmentValues {
-    /// View on Map from a held Town card: the shell's (`MainTabsView`), which can open the map.
-    @Entry var viewOnMap: ((FeedCardItem) -> Void)? = nil
+    @Entry var viewOnMap: EventMapOpener? = nil
 }
 
 /// Where View on Map takes an Event (inside-cards 24): Block Party's map, on its bubble and card, when
