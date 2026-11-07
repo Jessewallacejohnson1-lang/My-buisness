@@ -344,8 +344,8 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
-    /// while its page keeps the cover and the place's other photos and `image` stays for every other
-    /// screen. The Event's own photo still wins over the cover.
+    /// while its page keeps the cover, alone (BP app inside-cards 15), and `image` stays for every
+    /// other screen. The Event's own photo still wins over the cover.
     func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
@@ -360,14 +360,14 @@ final class TownFeedEventsTests: XCTestCase {
 
         XCTAssertEqual(cards.map(\.coverOnly), [true, false])
         XCTAssertEqual(cards.map(\.isPhotoless), [true, false], "its place's cover: white; its own photo: a photo card")
-        XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp", "yard.webp"],
-                       "its page keeps the place's photos")
+        XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp"],
+                       "its page keeps the place's cover")
         XCTAssertEqual(cards[0].image.url?.lastPathComponent, "hall.webp", "other screens keep what they show")
     }
 
-    /// The place's other photos reach the card's page (BP app event-card 02): its page shows
-    /// the cover, then the rest in order, each once with its own credit; one that doesn't
-    /// decode is left out and the cover kept.
+    /// The place's other photos reach the card (BP app event-card 02): the cover, then the rest in
+    /// order, each with its own credit; one that doesn't decode is left out and the cover kept. Its
+    /// page shows the cover alone (BP app inside-cards 15); the rest stand by if it fails to load.
     func testAPlacesOtherPhotosReachTheCardAndABadOneCostsNothing() throws {
         let json = """
         [{"id":"e1","recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00","card":{"id":"e1",
@@ -381,9 +381,10 @@ final class TownFeedEventsTests: XCTestCase {
          "credit":null}]},"going":false}}]
         """
         let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
-        XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
-        XCTAssertEqual(card.photos()[1].attribution, "Ada Lovelace · CC BY 4.0")
-        XCTAssertEqual(card.photos()[2].attribution, "sju")
+        XCTAssertEqual(card.venue.compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
+        XCTAssertEqual(card.venue[1].attribution, "Ada Lovelace · CC BY 4.0")
+        XCTAssertEqual(card.venue[2].attribution, "sju")
+        XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp"])
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001, "the cover sets the card's shape")
     }
 

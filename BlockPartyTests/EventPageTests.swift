@@ -118,15 +118,6 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardItem(event).description, "Plant bingo for Angel Reins Stable.", "the You tab's page has its About")
     }
 
-    /// The place's lettering is gone on a flyer's page and follows the finger back on the next
-    /// photo; with no flyer it never moves (BP app event-photos 16).
-    func testTheLetteringFollowsTheSwipeOffAFlyerOnly() {
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0), 0)
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 0.5), 0.5)
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: true, swipe: 2), 1, "on any later page")
-        XCTAssertEqual(EventPage.letteringOpacity(flyerFirst: false, swipe: 0), 1)
-    }
-
     /// A tall flyer starts under the clock, so the island never covers its title; a wide one sits with
     /// even gaps, on the Event page's 402 x 310 frame (Jesse, 2026-11-05).
     func testATallFlyerStartsUnderTheClockAndAWideOneDoesnt() {
@@ -163,33 +154,43 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(stops[1].location, (300 - 52 - 12) / 300, accuracy: 0.001, "as dark as today's card by the words' top")
     }
 
-    func testPhotoListPutsEventPhotoFirstDedupesAndCapsAtThree() {
+    /// The page shows the Event's own picture alone, and the place's photos no longer follow it
+    /// (BP app inside-cards 15).
+    func testThePageShowsOnlyTheEventsOwnPicture() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
+        let more = (1...3).map { FeedCardImageSource.eventPhoto(Self.url("\($0)")) }
         let page = EventPage.self
 
-        XCTAssertEqual(page.photoList(event: event, venue: [venue]), [event, venue],
-                       "the event's own photo leads, the venue's follows")
+        XCTAssertEqual(page.photoList(event: event, venue: [venue]), [event], "the place's photo no longer follows")
+        XCTAssertEqual(page.photoList(event: event, venue: more), [event])
         let logo = FeedCardItem({ var e = self.event(imageUrl: nil)
             e.placePicture = PlacePicture(url: Self.url("sals"), kind: .logo); return e }()).image
-        XCTAssertEqual(page.photoList(event: logo, venue: [venue]), [venue], "a logo is not a photo")
-        XCTAssertEqual(page.photoList(event: event, venue: [.placePhoto(Self.photoURL, credit: "Ada")]),
-                       [event], "the same picture twice is shown once")
-
-        let more = (1...3).map { FeedCardImageSource.eventPhoto(Self.url("\($0)")) }
-        XCTAssertEqual(page.photoList(event: event, venue: more), [event, more[0], more[1]],
-                       "four photos stop at three")
+        XCTAssertEqual(page.photoList(event: logo, venue: [venue]), [venue],
+                       "a logo is not a photo: an Event with none of its own shows the place's")
         XCTAssertEqual(page.photoList(event: .fallback, venue: []), [])
     }
 
-    func testAPhotoThatFailsToLoadLeavesTheListAndTheCounter() {
+    func testAFlyersPageShowsTheFlyerAlone() {
+        var flyer = FeedCardItem({ var e = self.event(imageUrl: nil)
+            e.placePicture = PlacePicture(url: Self.photoURL, kind: .photo, whole: true); return e }())
+        flyer.placeMore = [.placePhoto(Self.url("park"), credit: nil)]
+        XCTAssertTrue(flyer.whole)
+        XCTAssertEqual(flyer.photos().compactMap(\.url), [Self.photoURL], "it doesn't swipe to the place's photo")
+        XCTAssertEqual(flyer.photos(failed: [Self.photoURL]).compactMap(\.url), [Self.url("park")],
+                       "a flyer that fails gives way to the place's photo")
+    }
+
+    func testAPictureThatFailsToLoadGivesWayToTheNext() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
         let page = EventPage.self
 
-        let list = page.photoList(event: event, venue: [venue], failed: [Self.url("park")])
-        XCTAssertEqual(list, [event], "a venue photo that failed is dropped, not left as a skeleton")
-        XCTAssertNil(page.counterText(page: 0, count: list.count), "one photo left, no counter")
+        XCTAssertEqual(page.photoList(event: event, venue: [venue], failed: [Self.photoURL]), [venue],
+                       "the place's photo takes its place, never a hole")
+        XCTAssertEqual(page.photoList(event: event, venue: [.placePhoto(Self.photoURL, credit: "Ada")],
+                                      failed: [Self.photoURL]), [],
+                       "the same picture under another name has failed too")
         XCTAssertEqual(page.photoList(event: event, venue: [], failed: [Self.photoURL]), [],
                        "nothing loaded, no hero")
     }

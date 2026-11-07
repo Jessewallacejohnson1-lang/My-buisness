@@ -12,7 +12,6 @@ nonisolated enum LaunchFlags {
         case townFeedState = "-town-feed-state"
         case dailyHour = "-daily-hour"
         case dailySamples = "-daily-samples"
-        case eventPageTwoPhotos = "-event-page-two-photos"
         case feedBarBack = "-feed-bar-back"
         case feedCardAutoplay = "-feed-card-autoplay"
         case feedCardGallery = "-feed-card-gallery"

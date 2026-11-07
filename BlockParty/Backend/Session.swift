@@ -12,10 +12,26 @@ struct AuthUser: Codable, Equatable {
     /// GoTrue's `is_anonymous`: the quiet account every install gets before sign-in
     /// exists. Absent from sessions stored before 2026-10-09, which read as real.
     var isAnonymous: Bool? = nil
+    /// GoTrue's `app_metadata`, which only the service key writes: `admin` marks the one admin
+    /// account (BP app loopholes 20). Absent from sessions stored before 2026-11-07, which read as
+    /// not admin until the next refresh.
+    var appMetadata: AppMetadata? = nil
+
+    struct AppMetadata: Codable, Equatable {
+        var admin: Bool? = nil
+
+        /// Anything but a JSON true or false reads as no flag, as `is_admin()` reads it, rather than
+        /// failing the whole session's decode and signing that account out.
+        init(from decoder: Decoder) throws {
+            admin = try? decoder.container(keyedBy: CodingKeys.self).decode(Bool.self, forKey: .admin)
+        }
+        init(admin: Bool? = nil) { self.admin = admin }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, email
         case isAnonymous = "is_anonymous"
+        case appMetadata = "app_metadata"
     }
 }
 
