@@ -19,13 +19,12 @@ final class TownFeedEventsTests: XCTestCase {
     private struct Offline: Error {}
 
     private func row(_ id: String, leavesIn hours: Double = 24, club: String? = nil,
-                     source: String? = "City of St. Joseph", going: Int = 0,
-                     recurrence: String? = nil) -> TownFeedRow {
+                     source: String? = "City of St. Joseph", going: Int = 0) -> TownFeedRow {
         let event = UpcomingEvent(id: id, title: "Event \(id)", eventDate: "2026-10-12",
                                   startTime: "6 PM", location: nil, goingCount: going,
                                   createdAt: "2026-10-06T16:08:20+00:00", clubName: club,
                                   sourceName: source)
-        return TownFeedRow(event: event, recurrence: recurrence,
+        return TownFeedRow(event: event,
                            leavesAt: now.addingTimeInterval(hours * 3600))
     }
 
@@ -185,23 +184,23 @@ final class TownFeedEventsTests: XCTestCase {
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
         let json = """
-        [{"id":"e1","recurrence":"Every 1st & 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
+        [{"id":"e1","recurrence":"Every 3rd Monday","leaves_at":"2026-10-20T04:59:00+00:00",
          "card":{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19",
          "start_time":"6 PM","location":"City Hall","image_url":null,"category":null,
          "club_name":null,"source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00",
          "all_day":false,"created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
-         "going":true}}]
+         "going":true,"recurrence":"Every 1st & 3rd Monday"}}]
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(json.utf8))
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0].recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(rows[0].leavesAt, DateHelpers.timestamp("2026-10-20T04:59:00Z"))
         XCTAssertEqual(rows[0].event.endAt, rows[0].leavesAt)
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
         let card = TownFeed.card(rows[0])
-        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
+        XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday",
+                       "the card's repeat; the row's own, kept for older apps, is not read (inside-cards 23)")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
         XCTAssertNil(card.why)

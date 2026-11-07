@@ -6,8 +6,7 @@ extension FeedCardItem {
     /// its own photo still falls back to a venue lookup. Its description is the page's
     /// About. `.other` is the fallback for a null category column, so it maps to no
     /// category at all.
-    /// `recurrence` is how its series repeats ("Every Tuesday"), from `get_town_feed`.
-    init(_ event: UpcomingEvent, recurrence: String? = nil) {
+    init(_ event: UpcomingEvent) {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
         let place = event.placePicture.map(FeedCardImageSource.init)
@@ -19,7 +18,7 @@ extension FeedCardItem {
             dateChip: Self.dateChip(from: event.eventDate),
             metaLine: [time, location].compactMap { $0 }.joined(separator: " · "),
             image: image,
-            recurrence: recurrence,
+            recurrence: event.recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             hostPicture: event.hostPicture,
             goingCount: event.goingCount,

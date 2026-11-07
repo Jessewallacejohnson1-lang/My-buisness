@@ -62,7 +62,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
-             game, friendsGoing, liveKind
+             game, friendsGoing, liveKind, recurrence
     }
 
     init(from decoder: Decoder) throws {
@@ -83,7 +83,8 @@ extension UpcomingEvent: Decodable {
                   game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
                   sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
                   friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),
-                  liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false)
+                  liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false,
+                  recurrence: try text(.recurrence))
     }
 }
 
@@ -275,7 +276,6 @@ struct CommunityAPI {
             let imageUrl: String?
             let sourceName: String?
             let createdAt: String?
-            let recurrence: String?
             let leavesAt: String
             let reason: String?
             let reasonName: String?
@@ -334,7 +334,7 @@ struct CommunityAPI {
                                       interest: row.reason == "interest" ? row.reasonName : nil))
             }
             guard let event = row.card?.value else { return nil }
-            return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
+            return .event(TownFeedRow(event: event, leavesAt: leavesAt,
                                       reason: row.reason, reasonName: row.reasonName,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
                                       saved: row.saved ?? false,
