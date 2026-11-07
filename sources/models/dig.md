@@ -30,7 +30,7 @@ try the name, the place or the paper another way.
   Herald (saukrapidsherald.com), Tri-County News (tricountynews.com), The Central Minnesota Catholic
   (thecentralminnesotacatholic.org), a school's student paper: a story on this Event in an earlier year, or on its
   person or group. Search with the place's town and "MN": there are many St. Josephs. The same kind of event in
-  another town is another Event: St. Cloud's Veterans Day parade is not St. Joseph's.
+  another town than the Event's `place` is another Event: Sartell's Veterans Day parade is not St. Cloud's.
 - A page about this Event, its person or its group. Not a search page, a list of events, or a home page with nothing
   on it.
 - Never Facebook, Instagram, Pinterest, Wikipedia, a wire service (AP, Reuters) or a stock site (Getty, Shutterstock):
@@ -58,7 +58,8 @@ the page); `meta_says` is that page's own words for the picture (its alt text), 
   theirs: none.
 - From `site` or `news`: this Event in an earlier year at this place, or this group (the choir, the team, the class),
   as event-photo.md's `other post` rule. Another place, another kind of thing or another group is none, and so is the
-  same kind of event in another town: read the `page_title` (St. Cloud's Veterans Day parade on St. Joseph's).
+  same kind of event in another town than the Event's place: read the `page_title` (Sartell's Veterans Day parade
+  on St. Cloud's).
 - A flyer only as event-photo.md says: its words true of this Event and its date.
 - When you are unsure, pick none.
 
