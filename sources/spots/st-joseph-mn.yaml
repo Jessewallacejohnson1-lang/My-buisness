@@ -1,0 +1,18 @@
+# Map spots for place lines that name no registry place, each chosen by hand (BP app inside-cards 20).
+# A line is matched whole, its town included, from any host. It maps to [lat, lng], or to null when it
+# names no one place, so the Event page shows no Map button. Rules: README's "Map spots" and scripts/spots.py.
+
+# A downtown is a spot in its middle (Jesse, 2026-11-06). A bare "Downtown" is St. Joseph's: both hosts
+# that write it (JoeTown, the WinterWalk) are here. Another town's host writing it would land here too,
+# and the morning report's "New spots" line would show it.
+"Downtown": [45.56455, -94.31825]  # Minnesota St at College Ave N
+"Downtown St. Cloud": [45.5603, -94.1604]  # W St. Germain St, halfway from Mexican Village (509) to the White Horse (809)
+
+# Away places Overture and OpenStreetMap don't agree on.
+"VA Medical Center, St. Cloud": [45.57437, -94.21328]  # 4801 Veterans Dr: Overture's pin, inside OpenStreetMap's grounds
+"St Cloud State University": [45.55222, -94.15238]  # the campus: Overture's pin, inside OpenStreetMap's; its Plymouth site makes the name agree in two towns
+"St Cloud State University Halenbeck Hall": [45.54895, -94.1528]  # Overture's pin, inside OpenStreetMap's building
+"Northern Hallow Winery, Foley": [45.65707, -93.94543]  # Northern Hollow Winery, 6120 105th Ave NE (Visit St. Cloud); OpenStreetMap has only its old Grasston place (it moved, WJON)
+
+# No one place.
+"Catholic Community Schools": null  # its open house week runs at several schools

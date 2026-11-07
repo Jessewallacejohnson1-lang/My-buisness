@@ -241,6 +241,7 @@ sources:
     trust: official
 at: [45.56281, -94.31817]
 venue_at:
+  "Gorecki Fireside": [45.5604, -94.32176]
   "Claire Lynch Hall": [45.5589, -94.31824]
   "claire lynch": [45.5589, -94.31824]
   "Gorecki Center": [45.5604, -94.32176]
@@ -340,6 +341,7 @@ sources:
     trust: official
 at: [45.57967, -94.39362]
 venue_at:
+  "Quad 264": [45.57967, -94.39362]
   "Alcuin Library": [45.58129, -94.39178]
   "alcuin librar": [45.58129, -94.39178]
   "learning commons": [45.58129, -94.39178]
@@ -641,6 +643,7 @@ sources:
     team: Sartell
 at: [45.6609, -94.2254]
 venue_at:
+  "SMS Performing Arts Center": [45.62844, -94.219]
   "sartell high school": [45.6609, -94.2254]
   "Sartell Middle School": [45.62844, -94.219]
   "sartell middle school": [45.62844, -94.219]
@@ -673,6 +676,8 @@ sources:
     league_id: 491
     team: ROCORI
 venue_at:
+  "Richmond Elementary": [45.45716, -94.51752]
+  "John Clark Elementary": [45.46954, -94.34333]
   "River Lakes Civic Arena": [45.44993, -94.52822]
   "river lakes": [45.44993, -94.52822]
 at: [45.46426, -94.4285]
@@ -1967,6 +1972,7 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56316, -94.31868]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56313, -94.31892. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -2107,6 +2113,7 @@ sources:
     trust: official
 at: [45.56306, -94.31861]
 venue_at:
+  "Art and Heritage Place": [45.56315, -94.32095]
   "saint benedict's monastery": [45.56306, -94.31861]
   "Saint Scholastica Convent": [45.5385, -94.12902]
   "scholastica convent": [45.5385, -94.12902]
@@ -2155,6 +2162,7 @@ sources:
     kind: website
     method: submission
     trust: official
+at: [45.56417, -94.31874]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
@@ -2351,6 +2359,7 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.5652, -94.31805]
 ```
 Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a polite fetch never reaches the page. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://laplayettebar.com no longer opens; https://laplayette.com/ is its site now (place-photos 07, Jesse's yes).
 
@@ -3901,6 +3910,7 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.56502, -94.31719]
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
@@ -8515,6 +8525,7 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.58365, -94.40224]
 ```
 Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjohnthebaptistparish.org/ no longer opens; https://www.benedictinecatholiccommunities.org/saint-john-the-baptist is its site now (found by search; not opened from the Mac, whose network filter blocked it that day; the old domain's name servers stopped answering by 2026-10-16) (place-photos 07, Jesse's yes).
 
@@ -9021,6 +9032,7 @@ sources:
     trust: official
 at: [45.57017, -94.22059]
 venue_at:
+  "Ritsche Arena": [45.57017, -94.22059]
   "municipal athletic center": [45.57017, -94.22059]
   "municipal athletic complex": [45.57017, -94.22059]
 ```
@@ -9040,6 +9052,7 @@ sources:
     kind: website
     method: fetch
     trust: official
+at: [45.67194, -94.66934]
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Freeport; a City of St. Joseph outing went here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 

@@ -157,7 +157,8 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     on conflict (photo_id) do nothing returning photo_id`;
   assert.equal((await asJob('photos: a take-down pick', pick, [photo])).length, 1);
   assert.equal((await asJob('photos: the same pick again', pick, [photo])).length, 0);
-  await asJob('map spots', 'update public.club_events set lat = $2, lng = $3 where id = $1', [id, 45.561, -94.321]);
+  await asJob('map spots', 'update public.club_events set lat = $2, lng = $3, no_place = $4 where id = $1',
+    [id, 45.561, -94.321, false]);
   await asJob('accounts: places', 'select entry_id, name, address, links, hours from public.places where entry_id is not null');
   await asJob('accounts: Google hours', `update public.places set hours = $2 where entry_id = $1`, ['hayloft', { mon: '9-5' }]);
   assert.deepEqual(await asJob('read back', `select e.lat, p.status, (select hours from public.places) as hours
