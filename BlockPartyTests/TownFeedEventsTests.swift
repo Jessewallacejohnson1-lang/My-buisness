@@ -868,7 +868,7 @@ final class TownFeedEventsTests: XCTestCase {
 
     /// Hockey's power play (game-card 09), from SIDEARM's Start and End plays: every one in Bethel 1-2 UW-Superior's real
     /// file (2026-10-31), the bar on the one running out first. A second penalty matched at once closes itself, not the
-    /// older one; past 2:00 it's a major, which the words don't tell from a minor, so no time; 5:00 with no End was missed.
+    /// older one; at 2:00 it goes, End or not, a major too (Jesse, 2026-11-07); overtime's clock can't say what's left.
     func testHockeysPowerPlayRunsDownFromItsStartAndAnEndClosesTheOneThatRanOut() throws {
         let bethel: [(Int, Bool, Int?)] = [(0, true, 188), (0, false, 308), (1, true, 464), (1, false, 482), (0, true, 587), (0, true, 665),
                                            (0, false, 665), (0, false, 707), (0, true, 832), (0, false, 888), (1, true, 952), (1, false, 1008),
@@ -879,7 +879,6 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(try on(100), "even strength")
         XCTAssertEqual(try on(224), .init(side: 0, left: 84), "36 s in: the draft's 1:24")
         XCTAssertEqual(try on(224)?.share, 0.7, "the draft's bar, 112 of 160 pt")
-        XCTAssertEqual(try on(1226)?.share, 0, "a major's bar past 2:00 sits empty")
         XCTAssertEqual(try on(300), .init(side: 0, left: 8))
         XCTAssertNil(try on(308), "its End")
         XCTAssertEqual(try on(470), .init(side: 1, left: 114), "the other team's, in its color")
@@ -888,17 +887,21 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(try on(665), .init(side: 0, left: 42), "a second penalty matched on its own clock: the first runs on")
         XCTAssertNil(try on(707))
         XCTAssertEqual(try on(1150), .init(side: 0, left: 76))
-        XCTAssertEqual(try on(1226), .init(side: 0, left: 0), "past 2:00, into the 2nd: a real 5:00 major")
+        XCTAssertEqual(try on(1225), .init(side: 0, left: 1))
+        XCTAssertNil(try on(1226), "at 2:00 it goes, though this was a real 5:00 major with its End to come")
         XCTAssertNil(try on(1406))
         XCTAssertNil(try on(3599), "none left at the end")
         // Two at once: the first's End closes the oldest, and the second runs on.
         let two: [(Int, Bool, Int?)] = [(0, true, 100), (0, true, 150)]
         XCTAssertEqual(try hockey(at: 200, lines: two).powerPlay, .init(side: 0, left: 20))
         XCTAssertEqual(try hockey(at: 230, lines: two + [(0, false, 220)]).powerPlay, .init(side: 0, left: 40))
+        XCTAssertEqual(try hockey(at: 230, lines: two).powerPlay, .init(side: 0, left: 40), "the first's End late: the second shows")
         // Both teams at once: the one running out first.
         XCTAssertEqual(try hockey(at: 200, lines: [(1, true, 150), (0, true, 190)]).powerPlay, .init(side: 1, left: 70))
-        // No End in 5:00: it was missed. Overtime can't say what's left.
-        XCTAssertNil(try hockey(at: 500, lines: [(0, true, 200)]).powerPlay)
+        // The End late, as SIDEARM's are: gone at 2:00 all the same. A clock set back past its Start: a full 2:00.
+        XCTAssertNil(try hockey(at: 320, lines: [(0, true, 200)]).powerPlay)
+        XCTAssertEqual(try hockey(at: 190, lines: [(0, true, 200)]).powerPlay, .init(side: 0, left: 120))
+        // Overtime can't say what's left.
         XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay, .init(side: 1, left: nil))
         XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, nil)], period: 4).powerPlay?.share, 1)
         XCTAssertEqual(try hockey(at: 3700, lines: [(1, true, 3590)], period: 4).powerPlay, .init(side: 1, left: nil), "from the 3rd into overtime")

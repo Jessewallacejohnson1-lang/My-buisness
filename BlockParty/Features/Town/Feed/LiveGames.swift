@@ -253,7 +253,7 @@ final class LiveGames {
             (rink("[2,1]", 2, 400, (24, 19), third), nil),
             (rink("[2,1]", 2, 350, (24, 22), third), nil),
             (rink("[2,1]", 3, 900, (30, 24), fourth), nil),
-            // Past 2:00 with no End: a major. The bar sits empty and the time goes.
+            // 2:30 on with no End yet: the major's bar has gone, as a late End's does at 2:00.
             (rink("[2,1]", 3, 750, (33, 24), fourth), nil),
             (rink("[2,2]", 3, 400, (35, 24), fourth + [(0, false, 3000)]), basket(4, "Goal by OLF Lind,Carter (EVEN STRENGTH).", "P3", "6:40", 1, "[2,2]")),
             // Overtime: the clock can't say what's left.

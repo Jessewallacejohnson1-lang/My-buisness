@@ -804,7 +804,7 @@ private struct ShotsAndPowerPlay: View {
             .frame(maxWidth: .infinity)
     }
 
-    /// As far as the clock has run as last sent: it stops on every whistle. Past 2:00 (a major) it sits empty and the time goes.
+    /// As far as the clock has run as last sent: it stops on every whistle. At 2:00 it fades away.
     private var bar: some View {
         let shown = power ?? last
         let filled = power?.share ?? 0
@@ -829,9 +829,9 @@ private struct ShotsAndPowerPlay: View {
         .animation(reduceMotion ? nil : Motion.smooth, value: power == nil)
     }
 
-    /// "Power play · 1:24", or just "Power play" when the clock can't say or it's past 2:00.
+    /// "Power play · 1:24", or just "Power play" when the clock can't say (overtime).
     private func words(_ power: Game.Live.PowerPlay?) -> String {
-        guard let left = power?.left, left > 0 else { return "Power play" }
+        guard let left = power?.left else { return "Power play" }
         return "Power play · \(time(left))"
     }
 
@@ -840,7 +840,7 @@ private struct ShotsAndPowerPlay: View {
     private var spoken: String {
         let totals = "Shots on goal: \(game.teams[0].short) \(shots[0]), \(game.teams[1].short) \(shots[1])"
         guard let power, game.final == nil, game.teams.indices.contains(power.side) else { return totals }
-        let left = power.left.flatMap { $0 > 0 ? ", \(time($0)) left" : nil } ?? ""
+        let left = power.left.map { ", \(time($0)) left" } ?? ""
         return "\(totals). \(game.teams[power.side].short) on a power play\(left)"
     }
 }

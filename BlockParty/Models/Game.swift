@@ -125,8 +125,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         nonisolated struct PowerPlay: Hashable, Sendable {
             /// The team with the extra skater, in `teams` order.
             let side: Int
-            /// Seconds left of a minor's 2:00 by the clock as last sent, 0 past it (a major, which SIDEARM's words don't
-            /// tell from a minor); nil when the clock can't say (overtime).
+            /// Seconds left of a minor's 2:00 by the clock as last sent; nil when the clock can't say (overtime).
             let left: Int?
 
             /// How full its bar is, 0 to 1: full when the clock can't say.
@@ -151,7 +150,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         /// The power play on now, from SIDEARM's Start and End plays, the one running out first; nil at even strength.
         /// An End on a Start's own clock closes that Start: its penalty was matched by one on the other team, and the older
         /// one runs on (Bethel v UW-Superior, 2026-10-31). Any other End closes the oldest of that team's, the penalty
-        /// that runs out first. A Start with no End in 5:00, the longest there is, was missed and is over.
+        /// that runs out first. At 2:00 it goes, End or not (Jesse, 2026-11-07): SIDEARM's End came 20 s to 100 s late on
+        /// all 5 full ones timed (Augsburg, 2026-11-06), and a major, which its words don't tell from a minor (3 of 64),
+        /// goes then too.
         var powerPlay: PowerPlay? {
             guard let lines = ice?.power else { return nil }
             var open: [Ice.Line] = []
@@ -164,15 +165,16 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             let now = gameSecond
             guard let line = open.first(where: { line in
                 guard let at = line.at, let now else { return true }
-                return now - at < Self.longestPenalty
+                return now - at < Self.minorPenalty
             }) else { return nil }
             guard let at = line.at, let now else { return PowerPlay(side: line.side, left: nil) }
-            return PowerPlay(side: line.side, left: min(Self.minorPenalty, max(0, Self.minorPenalty - (now - at))))
+            // Over 2:00 only when the clock was set back past its Start.
+            return PowerPlay(side: line.side, left: min(Self.minorPenalty, Self.minorPenalty - (now - at)))
         }
 
-        /// A hockey period, a minor and a major, in seconds.
+        /// A hockey period and a minor, in seconds.
         fileprivate static let minorPenalty = 120
-        private static let hockeyPeriod = 1200, longestPenalty = 300
+        private static let hockeyPeriod = 1200
 
         /// Basketball's periods as SIDEARM sends them (`private.sidearm_live`).
         nonisolated struct Bar: Hashable, Sendable {
