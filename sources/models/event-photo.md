@@ -51,7 +51,8 @@ banner fits better than last December's crowd, though the crowd has more people.
   is fine). And never any of these at all, however good it looks:
   - a collage of photos under a title, a newsletter or catalog page, a screenshot, a logo, clip art with no
     words for this Event
-  - a stock-looking ad (a posed model, a product on a plain background), a video still with a play button
+  - a stock-looking ad (a posed model, a product on a plain background), merch or a drink set out to sell it (a
+    beer beside the bar's hats for its trivia night), a video still with a play button
   - one too dark, blurred or small to make out
 - When nothing fits well, pick none: a wrong photo is worse than the place's own.
 
