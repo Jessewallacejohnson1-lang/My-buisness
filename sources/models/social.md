@@ -82,7 +82,8 @@ carry on with the rest.
      (ADR-020).
 
 **Photos.** Run `python3 sources/scripts/event_photos.py prepare`. For each
-   `.runs/morning/photos/batch-N.txt`, start one helper on the cheap model (Haiku), at most 10 at once, with:
+   `.runs/morning/photos/batch-N.txt`, start one helper on your own model, at most 10 at once (Jesse, 2026-11-07:
+   Sonnet picks every photo, BP app dig-deeper 08), with:
    "Read `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with
    the JSON lines only." Write their lines to `.runs/morning/event_photos.jsonl`, then run
    `python3 sources/scripts/event_photos.py keep`. Each new Event that isn't a game gets the real photo of
