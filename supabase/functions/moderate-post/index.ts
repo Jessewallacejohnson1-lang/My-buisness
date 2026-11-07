@@ -78,6 +78,8 @@ Deno.serve(async (req) => {
       // Why the check couldn't answer, for the function's logs; never the caller's words.
       if (!res.ok) { console.error('moderate-post: model answered', res.status, (await res.text()).slice(0, 300)); return null }
       const data = await res.json()
+      // What each check cost, in tokens, for the function's logs (BP app check-cost).
+      console.log('moderate-post: usage', JSON.stringify(data.usage))
       const text = (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
       const match = text.match(/\{[\s\S]*\}/)
       if (!match) { console.error('moderate-post: no JSON in', text.slice(0, 200)); return null }
