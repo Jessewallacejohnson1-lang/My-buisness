@@ -165,9 +165,9 @@ struct TownView: View {
                         .animation(Motion.smooth, value: townFeed.holding)
                         // A card hidden or muted folds into its Undo line, then away, and the cards
                         // under it slide up; Undo brings it back the same way (ticket 21).
-                        .animation(Motion.sheet, value: townFeed.undo)
-                        .animation(Motion.sheet, value: townFeed.hiddenIDs)
-                        .animation(Motion.sheet, value: townFeed.mutedNames)
+                        .animation(Motion.sheet, value: townFeed.hides.undo)
+                        .animation(Motion.sheet, value: townFeed.hides.hiddenIDs)
+                        .animation(Motion.sheet, value: townFeed.hides.mutedNames)
                         .environment(townFeed)
                         .transition(.opacity)
                     } else if townFeed.failed {

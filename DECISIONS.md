@@ -861,7 +861,7 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 - **A view** is a card at least half on screen (`onScrollVisibilityChange(threshold: 0.5)`)
   for 1 second (`TownFeed.viewAfter`), once per card per feed load: a fresh order starts a
   new load. An open is the Event page reached from the Town tab (Daily pushes the same page
-  and isn't counted). Batches go up every 30 seconds (`TownFeed.sendEvery`) and when the
+  and isn't counted). Batches go up every 30 seconds (`FeedViews.sendEvery`) and when the
   app goes to the background; no network, no account or a 5xx keeps the batch for the next,
   a 4xx drops it. Test runs (`AuthStore.isTestRun`) and the sample modes send nowhere.
 - **Popularity** is the playground's: popular × min(Going / max(viewers, 20) × 10, 3), from

@@ -91,8 +91,8 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.actions.going(card).isGoing)
         session.actions.toggleSave(card)
         XCTAssertTrue(session.actions.saved(card))
-        await session.townFeed.hide(id: "e2", host: "Library", mute: false)
-        session.townFeed.opened(card.id)
+        await session.townFeed.hides.hide(id: "e2", host: "Library", mute: false)
+        session.townFeed.views.opened(card.id)
         phone.set(["e1"], forKey: HelloInbox.seenKey)
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
         XCTAssertEqual(session.saves.going?.map(\.id), ["saved-a"])
@@ -118,8 +118,8 @@ final class AppSessionTests: XCTestCase {
         XCTAssertFalse(session.friendsBook.dot, "a's friends dot")
         XCTAssertNil(session.chats.chats, "a's chats")
         XCTAssertNil(session.profile.avatarUrl, "a's photo")
-        XCTAssertTrue(session.townFeed.unsent.isEmpty, "a's views never go up as b")
-        XCTAssertTrue(session.townFeed.hiddenIDs.isEmpty, "a's hidden cards")
+        XCTAssertTrue(session.townFeed.views.unsent.isEmpty, "a's views never go up as b")
+        XCTAssertTrue(session.townFeed.hides.hiddenIDs.isEmpty, "a's hidden cards")
         XCTAssertNil(phone.object(forKey: HelloInbox.seenKey), "a's hello look")
 
         // Then b's reads, every one as b.
@@ -168,13 +168,13 @@ final class AppSessionTests: XCTestCase {
     func testTheFirstAccountKeepsWhatCameBeforeIt() async {
         auth.userId = nil
         let session = session()
-        session.townFeed.opened("e1")
+        session.townFeed.views.opened("e1")
         phone.set(["e1"], forKey: HelloInbox.seenKey)
 
         signIn("a")
         await session.accountChanged(from: nil, to: "a", signedIn: true).value
 
-        XCTAssertEqual(session.townFeed.unsent.map(\.itemID), ["e1"])
+        XCTAssertEqual(session.townFeed.views.unsent.map(\.itemID), ["e1"])
         XCTAssertNotNil(phone.object(forKey: HelloInbox.seenKey))
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
     }
@@ -204,14 +204,14 @@ final class AppSessionTests: XCTestCase {
         let session = AppSession(profile: ProfileModel(supabase: client, phone: phone), supabase: client,
                                  phone: phone, saved: SavedStore(key: phoneName))
         addTeardownBlock { TownFeedCache.clear() }
-        session.townFeed.opened("e1")
+        session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
         let jobs = ["places", "place_photos", "place_names", "get_groups", "friends_dot", "club_events", "get_my_changes"]
-        try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.unsent.isEmpty)
+        try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")
-        XCTAssertTrue(session.townFeed.unsent.isEmpty, "the wait for the send loop's first turn")
+        XCTAssertTrue(session.townFeed.views.unsent.isEmpty, "the wait for the send loop's first turn")
         XCTAssertTrue(session.searchModel.placesLoaded)
 
         // Never answering here would fail by hanging: the send loop has to end with the shell.
@@ -311,7 +311,7 @@ final class AppSessionTests: XCTestCase {
         await session.saves.refresh()
         await session.dayPicks.refresh(DailyWeek.days(from: Date())[1])
         // A real Event's id: a sample's sends nothing.
-        await session.townFeed.hide(id: UUID().uuidString, host: "Library", mute: false)
+        await session.townFeed.hides.hide(id: UUID().uuidString, host: "Library", mute: false)
         // Your profile's read is the root view's, on the same client.
         await session.profile.read()
 

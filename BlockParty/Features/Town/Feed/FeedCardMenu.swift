@@ -426,7 +426,7 @@ struct FeedCardMenuSheet: ViewModifier {
 
     private var canAct: Bool { feed != nil && actions.canAct }
     /// Once per card: a second report from the same phone would only add to its count.
-    private var canReport: Bool { canAct && (card != nil || post != nil) && feed?.reportedIDs.contains(id) == false }
+    private var canReport: Bool { canAct && (card != nil || post != nil) && feed?.hides.reportedIDs.contains(id) == false }
 
     private var onHide: ((Bool) -> Void)? {
         guard canAct else { return nil }
@@ -439,10 +439,10 @@ struct FeedCardMenuSheet: ViewModifier {
     }
 
     private func send(_ reason: ReportReason) async throws {
-        try await feed?.report(id: id, reason)
+        try await feed?.hides.report(id: id, reason)
         guard reason.hides else { return }
         // The sheet was dragged away while it sent: fold now, not at the next close.
-        if isPresented { reported = true } else { feed?.hideReported(id: id, host: hostName) }
+        if isPresented { reported = true } else { feed?.hides.hideReported(id: id, host: hostName) }
     }
 
     private func hide() {
@@ -450,13 +450,13 @@ struct FeedCardMenuSheet: ViewModifier {
         if reported {
             reported = false
             Haptics.light()
-            feed.hideReported(id: id, host: hostName)
+            feed.hides.hideReported(id: id, host: hostName)
             return
         }
         guard let mute = chosen else { return }
         chosen = nil
         Haptics.light()
-        Task { await feed.hide(id: id, host: hostName, mute: mute) }
+        Task { await feed.hides.hide(id: id, host: hostName, mute: mute) }
     }
 }
 
