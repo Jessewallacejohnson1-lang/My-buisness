@@ -51,5 +51,8 @@ final class AnonymousAccountTests: XCTestCase {
         XCTAssertNil(plain.user.appMetadata?.admin)
         let stored = try session(user: #"{"id":"u1","email":"sam@example.com"}"#)
         XCTAssertNil(stored.user.appMetadata)
+        // An odd value someone typed into the dashboard is no flag, and the session still loads.
+        let odd = try session(user: #"{"id":"u1","email":"sam@example.com","app_metadata":{"admin":"true"}}"#)
+        XCTAssertNil(odd.user.appMetadata?.admin)
     }
 }

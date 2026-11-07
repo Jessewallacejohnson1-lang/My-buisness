@@ -44,7 +44,9 @@ final class AuthStore: ObservableObject, TokenProviding {
     func restore() async {
         if let saved = Keychain.load() {
             session = saved
-            if saved.isExpired {
+            // A session saved before the app kept `app_metadata` (2026-11-07) refreshes once, so the
+            // admin flag arrives at launch rather than when the token runs out.
+            if saved.isExpired || saved.user.appMetadata == nil {
                 // refresh() clears the session only on a definitive token rejection;
                 // a transient/offline failure leaves the stale session in place so a
                 // later call can retry — don't sign the user out just for being offline.

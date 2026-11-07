@@ -2,7 +2,9 @@
 // BP app docs/plans/loopholes, ticket 20), run in PGlite. Run: `npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { realDatabase } from './fixture.mjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { realDatabase, migrations } from './fixture.mjs';
 
 const db = await realDatabase();
 const OLD = `select substring(pg_get_functiondef('public.is_admin'::regproc) from '''([^'' ]+@[^'' ]+)''') as email`;
@@ -18,11 +20,14 @@ test('the flag in app_metadata, which only the service key writes, makes an acco
   assert.equal(await admin({ sub: '00000000-0000-0000-0000-00000000000a', app_metadata: { admin: true } }), true);
 });
 
-test('an email is no longer enough: no address in the rule, and a sign-up with any address is not admin', async () => {
+test('an email is no longer enough: no address in the rule, and a sign-up with the old address is not admin', async () => {
   const { rows: [{ email }] } = await db.query(OLD);
   // Compared as a yes or no, so a failure never prints the address.
   assert.equal(email === null, true, 'is_admin() still names an email address');
-  assert.equal(await admin({ sub: '00000000-0000-0000-0000-00000000000b', email: 'anyone@example.com' }), false);
+  // The address the first rule named, read from its migration, never printed.
+  const first = readFileSync(join(migrations, '20260929000000_schema.sql'), 'utf8')
+    .match(/FUNCTION public\.is_admin\(\)[\s\S]*?'([^'\s]+@[^'\s]+)'/)[1];
+  assert.equal(await admin({ sub: '00000000-0000-0000-0000-00000000000b', email: first }), false, 'the old address is admin');
 });
 
 test('a person can write user_metadata, so a flag there is not admin', async () => {
