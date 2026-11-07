@@ -105,10 +105,12 @@ test('a final flickering on and off is written only after two complete reads in 
   assert.deepEqual((await card()).final_score, [4, 1]);
 });
 
-test("a plays push isn't a failed read", async () => {
+test("a plays push isn't a failed read, nor a score: it holds nothing below it", async () => {
   await story();
-  assert.notEqual(await read('push', hockey.Plays.slice(-5), 0), 'failed');
-  assert.equal((await marks()).push.failed, 0);
+  await read('push', null, 0, 'certificate expired');
+  assert.notEqual(await read('push', hockey.Plays.slice(-5), 1), 'failed');
+  assert.deepEqual((await marks()).push, { reads: 2, failed: 1, wrote: 0, why: 'certificate expired' });
+  assert.equal(await read('backup', live, 2), 'live', 'the backup still carries the score');
 });
 
 test('the backup takes the quiet game it tried longest ago, never one the school file is carrying', async () => {
@@ -167,6 +169,15 @@ test("back from the school's file, then dark again: a second push", async () => 
   assert.equal((await pushes()).length, 2);
 });
 
+test('plays pushes coming while the score is stuck: no second push', async () => {
+  await story();
+  await lastScore(-13);
+  await alarm(0);
+  for (const m of [1, 2, 3, 4]) await read('push', hockey.Plays.slice(-5), m);
+  await alarm(5);
+  assert.equal((await pushes()).length, 1);
+});
+
 test('kept going only by the 10-minute backup: no second push', async () => {
   await story();
   await lastScore(-13);
@@ -193,7 +204,7 @@ test("a file still saying not started is read fine, and 30 minutes past the star
   assert.equal(await read('school', loras, 2), 'ignored');
   assert.equal((await marks()).school.failed, 0);
   await alarm(3);
-  assert.deepEqual((await pushes()).map((p) => p.message), ['No score since 2:00 PM. gobennies.com: no score in it (2:30 PM).']);
+  assert.deepEqual((await pushes()).map((p) => p.message), ['No score since 2:00 PM. gobennies.com: no new score (2:30 PM).']);
 });
 
 test('a push that fails is kept with its reason and tried again the next minute', async () => {

@@ -249,21 +249,14 @@ async function gameOf(data: unknown): Promise<unknown> {
   return parsed(await res.text())
 }
 
-function parse(text: string): unknown | null {
-  // JSONP: callback({...}); plain JSON otherwise.
+// JSONP: callback({...}); plain JSON otherwise. Throws "not JSON", a failed read's reason.
+function parsed(text: string): unknown {
   const body = text.trim().replace(/^[\w$.]*\(([\s\S]*)\);?$/, "$1")
   try {
     return JSON.parse(body)
   } catch {
-    return null
+    throw new Error("not JSON")
   }
-}
-
-// The same for a read with nothing else to go on: no JSON is its reason.
-function parsed(text: string): unknown {
-  const value = parse(text)
-  if (value == null) throw new Error("not JSON")
-  return value
 }
 
 function json(body: unknown, status: number) {

@@ -62,7 +62,7 @@ create table private.live_reads (
   reads int not null default 0,
   -- Of those, the ones that brought nothing of this game; why holds the last one's reason.
   failed int not null default 0,
-  -- The ones that put the score on the card.
+  -- The ones that put the score on the card (a Game, not a plays push).
   wrote int not null default 0,
   tried_at timestamptz,
   failed_at timestamptz,
@@ -100,6 +100,7 @@ declare
   g jsonb := coalesce(p_game -> 'Game', p_game);
   v jsonb;
   v_result text;
+  v_scored boolean;
 begin
   select c.event_date, c.source_name, c.sport, c.live_score into e from public.club_events c where c.id = p_event;
   if not found then return 'ignored'; end if;
@@ -142,9 +143,11 @@ begin
     end if;
   end if;
 
+  -- A plays push writes plays, not the score: it neither holds the sources below nor brings a dark game back.
+  v_scored := v_result in ('live', 'final') and jsonb_typeof(g) = 'object' and g ? 'HomeTeam';
   insert into private.live_reads as r (event_id, source, reads, failed, wrote, tried_at, failed_at, scored_at, why)
-  values (p_event, p_source, 1, (v_result = 'failed')::int, (v_result in ('live', 'final'))::int, p_now,
-          case when v_result = 'failed' then p_now end, case when v_result in ('live', 'final') then p_now end, p_why)
+  values (p_event, p_source, 1, (v_result = 'failed')::int, v_scored::int, p_now,
+          case when v_result = 'failed' then p_now end, case when v_scored then p_now end, p_why)
   on conflict (event_id, source) do update
   set reads = r.reads + 1, failed = r.failed + excluded.failed, wrote = r.wrote + excluded.wrote, tried_at = p_now,
       failed_at = coalesce(excluded.failed_at, r.failed_at), scored_at = coalesce(excluded.scored_at, r.scored_at),
@@ -173,7 +176,6 @@ $$;
 -- One alert per dark spell. sent_at null: the send failed (why says how) and the next minute tries again.
 create table private.live_alerts (
   event_id uuid primary key references public.club_events (id) on delete cascade,
-  dark_at timestamptz not null,
   sent_at timestamptz,
   why text
 );
@@ -193,7 +195,7 @@ as $$
          || coalesce((select string_agg(format('%s: %s (%s).', private.live_source_name(e.id, r.source),
                                                case when r.failed_at = r.tried_at then r.why
                                                     when r.scored_at = r.tried_at then 'scored'
-                                                    else 'no score in it' end,
+                                                    else 'no new score' end,
                                                to_char(r.tried_at at time zone 'America/Chicago', 'FMHH12:MI AM')), ' '
                                         order by array_position('{school,push,backup}'::text[], r.source))
                       from private.live_reads r where r.event_id = e.id), 'No source has read it.')
@@ -235,11 +237,11 @@ begin
       if v_status not between 200 and 299 then
         raise exception 'ntfy answered %: %', v_status, left(v_body, 200);
       end if;
-      insert into private.live_alerts as a (event_id, dark_at, sent_at, why) values (d.id, d.since, p_now, null)
-      on conflict (event_id) do update set dark_at = excluded.dark_at, sent_at = excluded.sent_at, why = null;
+      insert into private.live_alerts as a (event_id, sent_at, why) values (d.id, p_now, null)
+      on conflict (event_id) do update set sent_at = excluded.sent_at, why = null;
     exception when others then
-      insert into private.live_alerts as a (event_id, dark_at, sent_at, why) values (d.id, d.since, null, left(sqlerrm, 200))
-      on conflict (event_id) do update set dark_at = excluded.dark_at, sent_at = null, why = excluded.why;
+      insert into private.live_alerts as a (event_id, sent_at, why) values (d.id, null, left(sqlerrm, 200))
+      on conflict (event_id) do update set sent_at = null, why = excluded.why;
     end;
   end loop;
 end;
