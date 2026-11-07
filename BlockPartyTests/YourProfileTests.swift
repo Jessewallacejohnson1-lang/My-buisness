@@ -192,6 +192,48 @@ final class YourProfileTests: XCTestCase {
         XCTAssertEqual(profile.interestIds, ["coffee"])
     }
 
+    /// Settings' Delete account (BP app launch-ready 01): the server is asked once, and the phone signs
+    /// out only after it says yes.
+    func testDeleteAccountSignsOutOnlyOnceTheServerSaysYes() async {
+        var signOuts = 0
+        let profile = ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone,
+                                   signOut: { signOuts += 1 })
+
+        let gone = await profile.deleteAccount()
+
+        XCTAssertTrue(gone)
+        XCTAssertEqual(signOuts, 1)
+        XCTAssertEqual(server.requests.map { $0.url!.path }, ["/functions/v1/delete-account"])
+        XCTAssertFalse(profile.deleteFailed)
+        XCTAssertEqual(profile.deleteFailures, 0)
+        XCTAssertFalse(profile.deletingAccount)
+    }
+
+    /// No signal: you stay signed in, the line shows and the button shakes; another try clears the
+    /// line and finishes the job.
+    func testAFailedDeleteStaysSignedInAndCanBeTriedAgain() async {
+        var signOuts = 0
+        let profile = ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone,
+                                   signOut: { signOuts += 1 })
+        server.failure = URLError(.notConnectedToInternet)
+
+        let gone = await profile.deleteAccount()
+
+        XCTAssertFalse(gone)
+        XCTAssertEqual(signOuts, 0)
+        XCTAssertTrue(profile.deleteFailed)
+        XCTAssertEqual(profile.deleteFailures, 1)
+        XCTAssertFalse(profile.deletingAccount)
+
+        server.failure = nil
+        let again = await profile.deleteAccount()
+
+        XCTAssertTrue(again)
+        XCTAssertEqual(signOuts, 1)
+        XCTAssertFalse(profile.deleteFailed)
+        XCTAssertEqual(profile.deleteFailures, 1)
+    }
+
     /// The read keeps your name and Interests on the phone, so the next launch opens on them; signing
     /// out forgets them.
     func testThePhoneKeepsNameAndInterestsUntilSignOut() async {
