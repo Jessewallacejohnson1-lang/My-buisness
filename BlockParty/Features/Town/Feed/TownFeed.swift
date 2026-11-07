@@ -567,6 +567,16 @@ final class TownFeed {
     /// list changes: `nextLeave` reads both, and the feed's leave timer is keyed on
     /// it, so changing either first cancelled the very read the timer had started.
     private func readAgain(at now: Date, freshOrder: Bool) async {
+        if entries == nil { failed = false }
+        // Reads overlap (the feed opening, the foreground, a new account): a slow one
+        // that lands last must not overwrite a newer one's answer.
+        latestRead &+= 1
+        let thisRead = latestRead
+        // Its own task, not the caller's: a view going away must not end a read others share.
+        let task = Task { await land(thisRead, at: now, freshOrder: freshOrder) }
+        readOut = (task, now)
+        // The kept list shows while the read is out. It's looked for after the read is set up, so a
+        // caller arriving while it unpacks joins this read rather than starting a second one.
         if entries == nil, !keptChecked {
             keptChecked = true
             let list = if let keptLater { await keptLater() } else { kept() }
@@ -578,14 +588,6 @@ final class TownFeed {
                 clock = now
             }
         }
-        if entries == nil { failed = false }
-        // Reads overlap (the feed opening, the foreground, a new account): a slow one
-        // that lands last must not overwrite a newer one's answer.
-        latestRead &+= 1
-        let thisRead = latestRead
-        // Its own task, not the caller's: a view going away must not end a read others share.
-        let task = Task { await land(thisRead, at: now, freshOrder: freshOrder) }
-        readOut = (task, now)
         await task.value
     }
 
