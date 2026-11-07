@@ -14,7 +14,6 @@ struct FeedCardGallery: View {
                     let isFirstCard = item.id == Self.samples.first?.id
                     FeedEventCard(
                         item: item,
-                        comments: isFirstCard ? Self.sampleComments : [],
                         onShare: isFirstCard ? shareAction(for: item) : nil,
                         debugAutoplay: isFirstCard && debugAutoplayEnabled
                     )
@@ -128,33 +127,6 @@ struct FeedCardGallery: View {
             )
         ]
     }()
-
-    private static let sampleComments = [
-        EventComment(
-            id: "gallery-comment-1",
-            body: "We’ll bring a picnic blanket and a few lawn games.",
-            createdAt: Date(timeIntervalSinceReferenceDate: 805_200_000),
-            authorId: "gallery-sam",
-            authorName: "Sam",
-            authorAvatar: nil
-        ),
-        EventComment(
-            id: "gallery-comment-2",
-            body: "Is the east entrance the easiest place to meet?",
-            createdAt: Date(timeIntervalSinceReferenceDate: 805_203_600),
-            authorId: "gallery-maya",
-            authorName: "Maya",
-            authorAvatar: nil
-        ),
-        EventComment(
-            id: "gallery-comment-3",
-            body: "Yes — right by the pavilion. See everyone Friday!",
-            createdAt: Date(timeIntervalSinceReferenceDate: 805_207_200),
-            authorId: "gallery-lee",
-            authorName: "Lee",
-            authorAvatar: nil
-        )
-    ]
 
     private static func bundledPhoto(_ name: String) -> URL {
         Bundle.main.url(forResource: name, withExtension: "jpg")

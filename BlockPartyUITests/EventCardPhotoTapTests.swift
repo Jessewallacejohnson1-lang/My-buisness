@@ -83,6 +83,37 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertEqual(like.value as? String, "Liked")
     }
 
+    /// Holding a card opens Apple's menu (inside-cards 24), and the buttons on a held card keep their
+    /// taps: the poster's heart likes and its Attend goes, and so does the first card's heart once a drag
+    /// has brought it out from under the tab bar. With the hold around them, none of them acted.
+    func testAHeldCardOpensItsMenuAndItsButtonsKeepTheirTaps() throws {
+        let link = firstCardLink()
+        let poster = app.buttons["event-of-the-day-poster"]
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "no poster on Town")
+        let like = try XCTUnwrap(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Like,'"))
+            .allElementsBoundByIndex.first { poster.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) },
+            "no heart on the poster")
+        like.tap()
+        let liked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Liked'"), object: like)
+        XCTAssertEqual(XCTWaiter().wait(for: [liked], timeout: 3), .completed, "a tap on the poster's heart didn't like it")
+
+        app.buttons["Attend"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Going"].waitForExistence(timeout: 5), "a tap on the poster's Attend didn't go")
+
+        // The first card's own heart, once a drag has brought it out from under the tab bar.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        let cardLike = try XCTUnwrap(likeButton(under: link), "no heart under the first card")
+        cardLike.tap()
+        let cardLiked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Liked'"), object: cardLike)
+        XCTAssertEqual(XCTWaiter().wait(for: [cardLiked], timeout: 3), .completed, "a tap on the card's heart didn't like it")
+
+        photo(of: link).press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["View on Map"].waitForExistence(timeout: 5), "holding the card opened no menu")
+        XCTAssertTrue(app.buttons["Not interested"].exists, "the menu has no Not interested")
+        XCTAssertFalse(pageOpened(timeout: 1), "the hold opened the Event page")
+    }
+
     func testSingleTapOnPhotoPushesTheEventPage() {
         let link = firstCardLink()
 

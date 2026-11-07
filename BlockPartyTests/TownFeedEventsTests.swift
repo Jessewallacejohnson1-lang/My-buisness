@@ -78,9 +78,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(flight.title, "Flight Friday", "its headline rides along for the card")
         XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
         XCTAssertNil(happy.picture)
-        // The ••• sheet's why line (news-menu): the interest it shares, else only that it's News.
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: flight).why, "Matches Food & dining")
-        XCTAssertEqual(FeedCardMenuSheet(isPresented: .constant(false), news: happy).why, "News")
+        // The hold menu's grey why line (news-menu, inside-cards 24): the interest it shares, else only
+        // that it's News.
+        XCTAssertEqual(flight.why, "Matches Food & dining")
+        XCTAssertEqual(happy.why, "News")
         // The events' own readers (the Event of the day, a kept list) never see news.
         XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
 
@@ -254,6 +255,52 @@ final class TownFeedEventsTests: XCTestCase {
         ].joined(separator: ",") + "]"
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.isPhotoless), [true, true, false, false], "logo, ink, photo, game")
+    }
+
+    /// Who's going sits over a photo card's photo, and in the line under a card with no photo, a game's
+    /// or a called-off one's (inside-cards 24; Jesse, 2026-11-07: "1 going sits inside cards unless if
+    /// there no photo").
+    func testWhosGoingSitsOverAPhotoOnly() throws {
+        let row = { (id: String, extra: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
+         "location":"Fire Hall","image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":41,"going":false\(extra)}}
+        """ }
+        let photo = ##","place_picture":{"url":"https://x/hall.webp","kind":"photo","w":1600,"h":1067}"##
+        let json = "[" + [
+            row("logo", ##","place_picture":{"url":"https://x/logo.webp","kind":"logo","hue":35}"##),
+            row("photo", photo),
+            row("game", ##","game":{"sport":"Football","teams":[{"name":"Saint John's","short":"Saint John's"},{"name":"Concordia","short":"Concordia"}]}"##),
+            row("off", photo + ##","cancelled":true"##),
+        ].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        XCTAssertEqual(cards.map(\.cancelled), [false, false, false, true], "the called-off row reads as called off")
+        XCTAssertEqual(cards.map(\.goingOverPhoto), [false, true, false, false], "white, photo, game, called off")
+    }
+
+    /// View on Map (inside-cards 24): today's Event with a spot opens our map; another day's, or one
+    /// with no spot yet, Apple Maps at its place; with no place and nothing on the map, no row.
+    func testViewOnMapGoesToOurMapOnlyForTodaysEventWithASpot() throws {
+        let row = { (id: String, day: String, location: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-11-02T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"\(day)","start_time":"10 AM",
+         "location":\(location),"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false}}
+        """ }
+        let json = "[" + [row("today", "2026-10-31", "\"Fire Hall\""), row("later", "2026-11-01", "\"Fire Hall\""),
+                          row("nowhere", "2026-11-01", "null")].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-31T14:00:00Z"), "9 AM in St. Joseph")
+        let maps = try XCTUnwrap(Directions.url(forPlace: "Fire Hall"))
+
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: true), .ourMap, "today, with a spot")
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: false), .appleMaps(maps), "today, no spot yet")
+        XCTAssertEqual(EventMapRoute.route(cards[1], now: now, spot: true), .appleMaps(maps),
+                       "tomorrow: our map shows today's alone")
+        XCTAssertNil(EventMapRoute.route(cards[2], now: now, spot: true), "no place and not on the map: no row")
+        let evening = now.addingTimeInterval(10 * 3600)
+        XCTAssertEqual(EventMapRoute.route(cards[0], now: evening, spot: true), .appleMaps(maps), "over: off the map")
     }
 
     /// News shows a logo or a first letter, never its place's photo, and a letter's card names the

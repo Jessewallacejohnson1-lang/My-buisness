@@ -904,9 +904,9 @@ struct WhiteGameCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The mock's After phone, on its 370 x 196 pt card.
+    /// The mock's After phone, on its 370 x 196 pt card: 196 pt tall at every width (inside-cards 24).
     enum Metric {
-        static let aspect: CGFloat = 370.0 / 196.0
+        static let height: CGFloat = 196
         static let sportTop: CGFloat = 18
         static let rowTop: CGFloat = 58
         static let logo: CGFloat = 64

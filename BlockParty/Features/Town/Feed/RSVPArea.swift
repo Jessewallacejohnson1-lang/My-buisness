@@ -126,18 +126,11 @@ struct RSVPArea: View {
     var yellow = false
     /// A game's Attend in our team's color instead of the yellow (`GameMatchup.attend`, game-card 12).
     var tint: UInt32?
-    /// The card's send: Invite opens the same invite card.
+    /// Invite opens the invite card.
     let onInvite: (() -> Void)?
-    /// The Town card: its send leads the line.
-    var leadingSend = false
-    /// The Town card's •••, after the send (found-posts).
-    var onMenu: (() -> Void)? = nil
 
     /// The glyph sits 7 pt from the word (Figma "Meetup depth").
     static let glyphGap: CGFloat = 7
-    /// The send at the line's left: the action row's 24 pt glyph in its 28 pt target.
-    static let sendGlyph: CGFloat = 24
-    static let sendWidth: CGFloat = 28
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -146,23 +139,6 @@ struct RSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
-            if leadingSend, let onInvite {
-                Button(action: onInvite) {
-                    FeedActionGlyphView(glyph: .send, size: Self.sendGlyph)
-                        .foregroundStyle(Hue.ink)
-                        .frame(width: Self.sendWidth, height: MeetupPillStyle.minTarget)
-                        // Apple's 44 pt wide, past the glyph's own 28 into the gap beside it.
-                        .contentShape(Rectangle().inset(by: (Self.sendWidth - MeetupPillStyle.minTarget) / 2))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Share")
-            }
-
-            if let onMenu {
-                FeedCardMenuButton(action: onMenu)
-                    .padding(.leading, leadingSend && onInvite != nil ? FeedCardMenuButton.gap : 0)
-            }
-
             // Faces only beside words: a called-off card with no "You're going!" has none.
             if words.top != nil {
                 faces(count: going.count)
