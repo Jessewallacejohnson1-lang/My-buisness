@@ -18,7 +18,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
   save      once the judge is done: merge the feed items with the judge's items, give long titles their
-            short ones (titles.json), write them (public.apply_judged over the service role key), then save
+            short ones (titles.json), write them (public.apply_judged over the service role key), put a post's
+            new lasting week on its place (save_hours: the judge's `hours` items, social.md), then save
             the changed pages' new fingerprints (fingerprints.json) and print the morning's summary: a
             morning that stops before this reads the same pages again tomorrow. Its new counts are what the
             database did (apply_judged's answer), and it lists each new Event (date, time, title, place;
@@ -75,8 +76,9 @@ from urllib.parse import quote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL, CAMPUS_HOSTS
-from batch import layout
+from batch import layout, page_id
 import write_judged
+import accounts
 import social
 import spots
 import apple_maps
@@ -395,9 +397,14 @@ def since_lines(db, today):
         events = db.rest("GET", "club_events?select=event_date,end_at,all_day,start_time,title,location,source_name"
                                 f"&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.{day}{span}") or []
         news = db.rest("GET", f"board_items?select=title,source_name&status=eq.published{span}") or []
+        # A week a post changed (save_hours): its mark's time, in UTC as saved
+        before = datetime(day.year, day.month, day.day, 5, tzinfo=LOCAL).astimezone(timezone.utc).isoformat()
+        hours = db.rest("GET", f"places?select=name,hours&hours->from->>at=gt.{quote(last[0]['saved_at'])}"
+                               f"&hours->from->>at=lt.{quote(before)}") or []
     except Exception as e:
         return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
-    return [head] * bool(events or news) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news]
+    return [head] * bool(events or news or hours) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news] \
+        + [f"- Hours: {accounts.change_words(p['name'], p['hours'])}" for p in hours]
 
 
 def photo_lines(db, today):
@@ -500,7 +507,8 @@ def write(run, dry_run):
     out, today, db = run.folder, run.today, run.db
     prep = run.summary()
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
-    items = feeds + judged
+    hours = [x for x in judged if isinstance(x, dict) and x.get("kind") == "hours"]
+    items = feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")]
     existing = write_judged.listed_in_db(db)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
                                teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db))
@@ -510,12 +518,39 @@ def write(run, dry_run):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + ([] if prep.get("run") else waiting_lines(db)) \
-            + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
+        lines = summary_lines(prep, result, written) + save_hours(run, hours, dry_run) \
+            + ([] if prep.get("run") else waiting_lines(db)) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
         return lines
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
         sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
+
+
+def save_hours(run, items, dry_run):
+    """A place's new lasting week, from its own post (social.md; BP app business-hours 02, Jesse 2026-11-07: it goes
+    live on its own and Jesse is told after, as the monthly Google check's does). Each `hours` item's days, in
+    Google's words, go on the place that posted (its page in pages.json), over the week it has: its season and
+    the days the post doesn't name stay. The week is marked `from` that post, so the monthly Google check leaves
+    it (accounts.new_hours). One line per change, before and after; an item it can't read is a line too."""
+    if not items:
+        return []
+    pages = {page_id(p["file"]): p for p in json.loads((run.folder / "pages.json").read_text())}
+    at, found, lines = datetime.now(timezone.utc).isoformat(), {}, []
+    for x in items:
+        page, days = pages.get(page_id(x.get("page") or "")), x.get("days")
+        days = {d: accounts.day_ranges(str(t)) for d, t in days.items()} if isinstance(days, dict) else {}
+        if not page or not page.get("entry_id") or not days or set(days) - set(accounts.DAY_KEYS) or None in days.values():
+            lines.append(f"- Hours not read: {json.dumps(x, ensure_ascii=False)[:200]}")
+            continue
+        # One place's posts on two sites, one week: the first post names it.
+        got = found.setdefault(page["entry_id"], {"entry_id": page["entry_id"], "name": page["name"],
+                                                  "hours": {"from": {"post": page["url"], "at": at}}})
+        got["hours"] = {**days, **got["hours"]}
+    try:
+        changes, _ = accounts.write_hours(list(found.values()), run.db.rest, write=not dry_run)
+    except DbError as e:  # the 8 AM check reads a "[morning] ... failed:" line
+        return lines + [f"[morning] hours failed: {' '.join(str(e).split())[:300]}"]
+    return lines + [f"- Hours: {accounts.change_words(c['name'], c['hours'])}" for c in changes]
 
 
 def save_fingerprints(run):
@@ -1086,13 +1121,45 @@ def selftest():
             if path.startswith("club_events?"):
                 return [{"event_date": "2026-11-12", "end_at": None, "all_day": False, "start_time": "7 PM",
                          "title": "Youth Dodgeball", "location": None, "source_name": "City of St. Joseph"}]
+            if path.startswith("places?"):
+                return [{"name": "Milk & Honey Ciders", "hours": {"tue": [], "wed": [], "from": {
+                    "post": "https://www.facebook.com/x/posts/1", "at": "2026-11-04T23:31:00+00:00",
+                    "was": {"tue": [["16:00", "21:00"]], "wed": [["16:00", "21:00"]]}}}}]
             return [{"title": "Krewe's Brussels Sprouts", "source_name": "Krewe"}]
     since = SinceDb()
     checks.append((since_lines(since, date(2026, 11, 5)) == ["Since the last report:", "- Thu Nov 12 · 7 PM · Youth Dodgeball",
-                                                             "- Krewe's Brussels Sprouts (Krewe)"],
-                   "the report names what was written after the last report"))
+                                                             "- Krewe's Brussels Sprouts (Krewe)",
+                                                             "- Hours: Milk & Honey Ciders, from its post https://www.facebook.com/x/posts/1: "
+                                                             "Tue 4–9 PM, now closed; Wed 4–9 PM, now closed"],
+                   "the report names what was written after the last report, a week a post changed too"))
     checks.append((all(f"created_at=gt.{quote('2026-11-04T12:15:00+00:00')}" in p and f"created_at=lt.{quote('2026-11-05T05:00:00-06:00')}" in p
-                       for p in since.asked[1:]), "from the last report's save to before this morning's run, Chicago time"))
+                       for p in since.asked[1:3])
+                   and f"at=gt.{quote('2026-11-04T12:15:00+00:00')}&hours->from->>at=lt.{quote('2026-11-05T11:00:00+00:00')}" in since.asked[3],
+                   "from the last report's save to before this morning's run, Chicago time"))
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "facebook-1", "url": "https://www.facebook.com/x/posts/1",
+                                                            "entry_id": "mh", "name": "Milk & Honey Ciders"},
+                                                           {"file": "instagram-2", "url": "https://www.instagram.com/p/2/",
+                                                            "entry_id": "mh", "name": "Milk & Honey Ciders"}]))
+        had = {"mon": [], "tue": [["16:00", "21:00"]], "wed": [["16:00", "21:00"]], "season": ["03-01", "12-23"]}
+        hdb = FakeDb(answers={"places?select=entry_id,hours": [{"entry_id": "mh", "hours": had}]})
+        r = type("R", (), {"folder": Path(tmp), "db": hdb})()
+        winter = {"page": "facebook-1", "kind": "hours", "days": {"tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM"}}
+        said = save_hours(r, [winter, {**winter, "page": "instagram-2"}, {**winter, "days": {"tue": "by appointment"}},
+                              {**winter, "page": "facebook-9"}], False)
+        [(_, where, body)] = hdb.writes("places")
+        dry = FakeDb(answers=hdb.answers)
+        checks.append((where == "places?entry_id=eq.mh" and {k: v for k, v in body["hours"].items() if k != "from"}
+                       == {**had, "tue": [], "wed": [], "thu": [["16:00", "21:00"]]}
+                       and body["hours"]["from"]["post"] == "https://www.facebook.com/x/posts/1"
+                       and said == ['- Hours not read: {"page": "facebook-1", "kind": "hours", "days": {"tue": "by appointment"}}',
+                                    '- Hours not read: {"page": "facebook-9", "kind": "hours", "days": {"tue": "Closed", "wed": "Closed", "thu": "4 PM to 9 PM"}}',
+                                    "- Hours: Milk & Honey Ciders, from its post https://www.facebook.com/x/posts/1: "
+                                    "Tue 4–9 PM, now closed; Wed 4–9 PM, now closed; Thu now 4–9 PM"]
+                       and save_hours(type("R", (), {"folder": Path(tmp), "db": dry})(), [winter], True)[-1].startswith("- Hours: Milk")
+                       and not dry.writes() and save_hours(r, [], False) == [],
+                       f"a post's new week goes on the place that posted, once for its two sites, over its season, and says so: {said}"))
     checks.append((since_lines(SinceDb(last=False), date(2026, 11, 5)) == [], "no earlier report, no such list"))
     checks.append((since_lines(SinceDb(down=True), date(2026, 11, 5)) == [
                        "Since the last report: not read (Supabase GET club_events failed 503: Service Unavailable)"],
@@ -2036,7 +2103,7 @@ def whole_morning():
         rows = {f"{i}|https://{i}.example/": {"last_hash": "old", "last_checked_at": "2026-11-02T11:00:00+00:00"} for i in sites}
         rows["dsl|https://dsl.example/"].update(last_error="HTTP Error 500", failing_reads=2,
                                                  failing_since="2026-10-31T11:00:00+00:00")
-        events, standouts, saves, writes, reports = [], [], [], [], {}
+        events, standouts, saves, writes, reports, hours = [], [], [], [], {}, []
         breaks, tries = {}, collections.Counter()  # breaks: the nth write of a kind fails once (a timeout)
 
         def __init__(self):  # main makes one per command; they share the class's rows, as one database
@@ -2045,6 +2112,8 @@ def whole_morning():
         def rest(self, method, path, body=None, prefer=None):
             if path == "rpc/apply_judged":
                 return save_items(body)
+            if path.startswith("places?select=entry_id,hours") or path.startswith("places?entry_id"):  # a post's week: p0 has none yet
+                return self.hours.append((method, path, body)) if method == "PATCH" else [{"entry_id": "p0", "hours": None}]
             kind = ("standouts" if method == "POST" and path.startswith("daily_standouts")
                     else "describe" if method == "PATCH" and "described_at" in body else "tag" if method == "PATCH" else None)
             if kind:
@@ -2170,6 +2239,9 @@ def whole_morning():
             (out / "prepare.json").write_text(json.dumps({**prep, "run": "busy"}))
             (out / "report.json").unlink(missing_ok=True)
             shutil.rmtree(out / "tag", ignore_errors=True), shutil.rmtree(out / "describe", ignore_errors=True)
+            with (out / "judged.jsonl").open("a") as f:  # and the judge read new lasting hours in a post
+                p0 = next(p["file"] for p in json.loads((out / "pages.json").read_text()) if p["entry_id"] == "p0")
+                f.write(json.dumps({"kind": "hours", "page": p0, "days": {"mon": "9 AM to 5 PM"}}) + "\n")
             evening = command("save")
             evening_laid = (out / "tag").exists() or (out / "describe").exists()
     finally:
@@ -2245,6 +2317,9 @@ def whole_morning():
                  "the standout"),
         ("Social watch (busy), 2026-11-03" in evening and len(Db.saves) == 2 and not evening_laid,
          f"a social check's save writes and lays out nothing for helpers: {evening[-300:]}"),
+        ("- Skipped: 0 " in evening and "- Hours: p0, from its post https://p0.example/: Mon now 9 AM–5 PM" in evening
+         and [(m, p, b["hours"]["mon"]) for m, p, b in Db.hours] == [("PATCH", "places?entry_id=eq.p0", [["09:00", "17:00"]])],
+         f"a post's new hours go on its place, not to the Events and News writer: {evening[-400:]}"),
     ]
 
 

@@ -65,6 +65,15 @@ carry on with the rest.
      for town news, `campus` for CSB and SJU. Give a standing weekly special one item, not one
      per week, and fold many product posts from one place in one check into one item ("new fall
      arrivals").
+   - A post that gives the place's own hours for every week from now on (winter hours, new days, new
+     times) also gets one `hours` item beside its News: `{"kind": "hours", "page": "<the flag's page id>",
+     "days": {"mon": "Closed", "thu": "4 PM to 9 PM", "sat": "10 AM to 9 PM"}}`, with every day the post
+     states, `mon` to `sun`, each written as Google writes hours ("Closed", "12 PM to 9 PM", two ranges with
+     a comma). Open the post and its pictures and read the week there, not from the flag's line. `save`
+     puts the week in the app on its own and says what changed (Jesse, 2026-11-07; BP app business-hours
+     02). Hours for one day or a few dates (closing early tonight, a private event, a holiday, a snow day,
+     a season's first or last day) are never an `hours` item: the app's hours are a week. Neither are an
+     event's times.
    - Drop only: a post with nothing to know or do (a quote, a joke, nostalgia, a thank-you,
      behind-the-scenes, a plain photo); something already over; a teaser that doesn't say what;
      a place's daily "here's what we've got" list; anything in another town that isn't an event
