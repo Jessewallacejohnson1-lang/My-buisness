@@ -237,12 +237,13 @@ def share_picture(url, get=fetch):
     return next((v for k, v in place_photos.metas(raw) if k in place_photos.SHARE_KEYS), None)
 
 
-def groups_of(events):
-    """One block per post or page and title: three dates of one yoga class share their post's pictures."""
+def groups_of(events, by=lambda e: e.get("source_url") or ""):
+    """One block per post or page and title: three dates of one yoga class share their post's pictures. The dig's
+    `by` is the place: a show listed one page a date is dug once."""
     out = {}
     for e in events:
-        out.setdefault((e.get("source_url") or "", e["title"]), {"source_url": e.get("source_url") or "",
-                                                                 "title": e["title"], "events": []})["events"].append(e)
+        out.setdefault((by(e), e["title"]), {"source_url": e.get("source_url") or "",
+                                             "title": e["title"], "events": []})["events"].append(e)
     return list(out.values())
 
 
@@ -512,14 +513,14 @@ def sites_of(entry_ids):
 
 
 def dig(out, now=None, db=None, since=NEW, sites=None):
-    """The Events keep left bare, one block per post or page and title as prepare's, in batches for the finders."""
+    """The Events keep left bare, one block per title at its place, in batches for the finders."""
     now = now or datetime.now(timezone.utc)
     folder = out / "dig"
     if folder.exists():
         for f in folder.iterdir():
             f.unlink()
     folder.mkdir(parents=True, exist_ok=True)
-    groups = groups_of(bare(db or Supabase(), now, since))
+    groups = groups_of(bare(db or Supabase(), now, since), by=lambda e: e.get("place_entry_id") or e.get("source_name") or "")
     if sites is None:
         sites = sites_of({e["place_entry_id"] for g in groups for e in g["events"] if e.get("place_entry_id")})
     for i, g in enumerate(groups, 1):
@@ -967,7 +968,7 @@ def selftest():
             "source_name": "CSB SJU", "source_url": "https://my.csbsju.edu/public/events/1", "place_entry_id": "csb",
             "description": "Poet Terrance Hayes reads."},
            {"id": "b2", "title": "Liver Fry", "event_date": "2026-11-14", "source_name": "Sal's", "source_url": "https://sals.example"},
-           {"id": "b3", "title": "Liver Fry", "event_date": "2026-11-21", "source_name": "Sal's", "source_url": "https://sals.example"},
+           {"id": "b3", "title": "Liver Fry", "event_date": "2026-11-21", "source_name": "Sal's", "source_url": "https://sals.example/2"},
            {"id": "b4", "title": "Boys Hockey vs Sartell", "event_date": "2026-11-14", "sport": "hockey", "category": "watch_sports"},
            {"id": "b5", "title": "Choir Concert", "event_date": "2026-11-15", "source_name": "Apollo", "source_url": "https://apollo.example"},
            {"id": "b6", "title": "Pilates", "event_date": "2026-11-16", "source_name": "Studio", "source_url": "https://studio.example"},
@@ -998,7 +999,8 @@ def selftest():
         check([g["key"] for g in groups] == ["d1", "d2", "d3", "d4"] and len(first) == 4 and first[1]["dates"] == ["2026-11-14", "2026-11-21"]
               and first[0]["own_site"] == ["https://www.csbsju.edu"] and first[0]["about"] == "Poet Terrance Hayes reads."
               and not (out / "dig" / "picks.jsonl").exists(),
-              "dig lays the bare Events out for the finders, one block per title and page with its dates and its place's own site, "
+              "dig lays the bare Events out for the finders, one block per title at its place (a date on its own page too), with its "
+              "dates and its place's own site, "
               "and clears the last morning's")
         (out / "dig" / "pages.jsonl").write_text("\n".join(json.dumps(x) for x in [
             {"event": "d1", "pages": [{"from": "news", "url": "https://news.example/hayes"}, {"from": "name", "url": "https://hayes.example/bio"}]},
