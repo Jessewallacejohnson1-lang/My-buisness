@@ -18,6 +18,18 @@ struct SafariView: UIViewControllerRepresentable {
     func updateUIViewController(_ vc: SFSafariViewController, context: Context) {}
 }
 
+/// The in-app browser over whatever is on top, so a link opens the same from a page under the map's
+/// cover or a sheet as from the shell: a sheet hung on the shell can't rise over those.
+enum InAppBrowser {
+    @MainActor static func open(_ url: URL) {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+        var top = scene?.keyWindow?.rootViewController
+        while let next = top?.presentedViewController { top = next }
+        top?.present(SFSafariViewController(url: url), animated: true)
+    }
+}
+
 /// Identifiable URL wrapper so a link can drive `.sheet(item:)`.
 struct SafariLink: Identifiable {
     let id = UUID()

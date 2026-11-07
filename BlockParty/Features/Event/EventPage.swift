@@ -54,6 +54,11 @@ struct EventPage: View {
     /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
     /// fade of its dark comes in behind them (game-card 08).
     @State private var scrolled = false
+    /// How far down the page is, for coming back to it after a restart (`LeftOff`): its link row
+    /// sits low, and that's the tap that leaves the app.
+    @State private var position = ScrollPosition()
+    /// Where it lands after a restart, while its height is still growing to let it.
+    @State private var landAt: CGFloat?
     @Environment(\.openURL) private var openURL
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
@@ -62,6 +67,7 @@ struct EventPage: View {
     init(item: FeedCardItem, goingChat: Bool = true) {
         self.item = item
         self.goingChat = goingChat
+        _landAt = State(initialValue: LeftOff.reopening(item.id) ? LeftOff.current?.eventY : nil)
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
@@ -163,6 +169,26 @@ struct EventPage: View {
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
             scrolled = now
         }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+            LeftOff.pageY[item.id] = y
+        }
+        // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
+        // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
+        .onScrollGeometryChange(for: CGFloat.self) {
+            $0.contentSize.height + $0.contentInsets.top + $0.contentInsets.bottom - $0.containerSize.height
+        } action: { _, room in
+            guard let y = landAt, room > 0 else { return }
+            position.scrollTo(y: min(y, room))
+            if room >= y { landAt = nil }
+        }
+        // A finger on the page ends the landing, and so does a second: "Read more" mustn't jump it later.
+        .onScrollPhaseChange { _, phase in if phase == .tracking { landAt = nil } }
+        .task {
+            guard landAt != nil else { return }
+            try? await Task.sleep(for: .seconds(1))
+            landAt = nil
+        }
+        .scrollPosition($position)
         // The photo runs up under the status bar; with no photo the page starts
         // below it like any other.
         .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
@@ -221,8 +247,10 @@ struct EventPage: View {
         .onAppear {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
+            LeftOff.page = item.id
         }
         .onDisappear {
+            if LeftOff.page == item.id { LeftOff.page = nil }
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
@@ -502,7 +530,7 @@ struct EventPage: View {
 
             // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
             if let link {
-                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens outside Block Party",
+                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
                          glyphBox: SearchMetric.bizGlyphBox, leaves: true)
                     .padding(.top, SearchMetric.bizLinksTop)
             }
@@ -657,8 +685,16 @@ struct EventPage: View {
     /// The day row (event-page-formats 06): the day in full over its hours, "Monday, November 30" over
     /// "4:30 – 6 PM", the start alone when the Event gives no end, "7 PM until Wednesday, December 2"
     /// when it runs over days. Untimed: "Until" its last day when it runs over days, else the time as
-    /// written ("after dark"), else the day alone. The year past six months off, as the card's.
+    /// written ("after dark"), else the day alone. The year past six months off, as the card's. A repeat
+    /// follows its hours, "9 AM · Every Sunday" (BP app inside-cards 11).
     static func dayLines(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        dayAndHours(item, now: now).map { lines in
+            guard let repeats = nonempty(item.recurrence) else { return lines }
+            return FactLines(first: lines.first, second: [lines.second, repeats].compactMap { $0 }.joined(separator: " · "))
+        }
+    }
+
+    private static func dayAndHours(_ item: FeedCardItem, now: Date) -> FactLines? {
         guard let when = item.when else { return item.whenLine.map { FactLines(first: $0.text) } }
         let withYear = abs(Town.days(from: now, to: when.start)) > 183
         let day = { (date: Date) in Town.format(date, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd") }

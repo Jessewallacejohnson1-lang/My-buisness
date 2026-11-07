@@ -237,8 +237,25 @@ struct RootView: View {
 
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
-    /// The hello pill's news post, when its app isn't on the phone.
-    @State private var helloLink: SafariLink?
+    /// In its own app when that's on the phone, else in the in-app browser.
+    private func openLink(_ url: URL) {
+        Task {
+            if await !UIApplication.shared.open(url, options: [.universalLinksOnly: true]) {
+                InAppBrowser.open(url)
+            }
+        }
+    }
+
+    /// A website stays inside Block Party, as Instagram's do, so the tap can't lose your place
+    /// (Jesse, 2026-11-06, BP app backlog 21). Mail, Settings and Apple Maps go as ever.
+    private var opensLinks: OpenURLAction {
+        OpenURLAction { url in
+            guard ["http", "https"].contains(url.scheme?.lowercased()),
+                  url.host()?.lowercased() != "maps.apple.com" else { return .systemAction }
+            openLink(url)
+            return .handled
+        }
+    }
 
     /// Where a tap on the hello pill goes.
     @MainActor
@@ -257,11 +274,7 @@ struct MainTabsView: View {
             }
         // As the news card: the post's own app when it's on the phone, else the in-app browser.
         case .news(let post):
-            Task {
-                if await !UIApplication.shared.open(post.post, options: [.universalLinksOnly: true]) {
-                    helloLink = SafariLink(url: post.post)
-                }
-            }
+            openLink(post.post)
         }
     }
 
@@ -281,7 +294,20 @@ struct MainTabsView: View {
         _tab = State(initialValue: MainTabsView.initialTab())
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
-        _session = State(initialValue: AppSession(profile: profile))
+        let session = AppSession(profile: profile)
+        _session = State(initialValue: session)
+        // Back after iOS shut the app down: the feed you left, and the Event page on top while the
+        // feed still has it (`LeftOff`).
+        if let left = LeftOff.claim() {
+            session.townFeed.resume(left)
+            session.eventOfTheDay.showKept()
+            if let tab = Tab(rawValue: left.tab) { _tab = State(initialValue: tab) }
+            if let id = left.event, let card = session.townFeed.cards.first(where: { $0.id == id }) {
+                _path = State(initialValue: NavigationPath([card]))
+                _reopened = State(initialValue: id)
+                LeftOff.pageToReopen = id
+            }
+        }
     }
 
     /// DEBUG-only: `-open-tab town|daily|friends|search|you` launch argument selects
@@ -326,6 +352,8 @@ struct MainTabsView: View {
     @State private var calendarSync = CalendarSync()
     /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
+    /// The Event page back on top after a restart: it's the same open, so it isn't counted again.
+    @State private var reopened: String?
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
     /// over its tab.
     @State private var placeOpener = BusinessOpener()
@@ -399,7 +427,13 @@ struct MainTabsView: View {
                         .environment(townFeed)
                         // An open, for popularity (ticket 20): only from the Town feed,
                         // not Daily, which pushes the same page.
-                        .onAppear { if tab == .town { townFeed.opened(item.id) } }
+                        .onAppear {
+                            if reopened == item.id {
+                                reopened = nil
+                            } else if tab == .town {
+                                townFeed.opened(item.id)
+                            }
+                        }
                 }
                 .navigationDestination(for: PostingItem.self) { posting in
                     DailyPostPage(posting: posting)
@@ -469,7 +503,6 @@ struct MainTabsView: View {
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
             HelloDropView(pill: session.helloPill, open: openHello)
-            .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
@@ -512,7 +545,13 @@ struct MainTabsView: View {
             if phase == .background { session.wentAway() }
             if phase == .active { session.cameForward(on: tab) }
         }
+        // The notification, not `scenePhase`: that waits on a redraw, and on a busy phone iOS can
+        // suspend the app first (measured, 2026-11-06).
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            session.keepSpot(on: tab)
+        }
         .onAppear { openLaunchPages() }
+        .environment(\.openURL, opensLinks)
     }
 
     /// The pages DEBUG launch flags open (`-open-friends`, `-open-team` and the rest). Its own

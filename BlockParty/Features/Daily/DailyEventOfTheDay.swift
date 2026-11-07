@@ -197,16 +197,19 @@ final class EventOfTheDay {
         })
     }
 
-    func refresh(now: Date = Date()) async {
-        // Today's kept picks show while the first read is out. Picks are the Town day's own
-        // events, so one that started another day is yesterday's, even if it's still on.
-        if events == nil, !keptChecked {
-            keptChecked = true
-            let today = Town.day(now)
-            if let kept = kept()?.filter({ $0.ends > now && Town.day($0.starts) == today }), !kept.isEmpty {
-                events = kept
-            }
+    /// Today's kept picks show while the first read is out. Picks are the Town day's own
+    /// events, so one that started another day is yesterday's, even if it's still on.
+    func showKept(now: Date = Date()) {
+        guard events == nil, !keptChecked else { return }
+        keptChecked = true
+        let today = Town.day(now)
+        if let kept = kept()?.filter({ $0.ends > now && Town.day($0.starts) == today }), !kept.isEmpty {
+            events = kept
         }
+    }
+
+    func refresh(now: Date = Date()) async {
+        showKept(now: now)
         guard needsRead(now: now) else { return }
         if let readOut, now.timeIntervalSince(readOut.since) < TownFeed.joinFor {
             await readOut.task.value

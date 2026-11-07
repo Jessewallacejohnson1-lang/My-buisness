@@ -83,15 +83,21 @@ struct FeedCardItem: Identifiable, Hashable {
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
-    /// sale"; "City Council — regular meeting", "Council meeting").
+    /// sale"; "City Council — regular meeting", "Council meeting"; "Group Birth Classes", "Birth class").
     var whatLine: String? {
         guard game == nil, let what else { return nil }
-        let titleWords = Set(Self.words(title))
-        return Self.words(what).allSatisfy(titleWords.contains) ? nil : what
+        return Self.stems(what).isSubset(of: Self.stems(title)) ? nil : what
     }
 
-    private static func words(_ text: String) -> [String] {
-        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+    /// A text's words, a plural counting as its singular and a possessive as its name.
+    static func stems(_ text: String) -> Set<String> {
+        let words = text.lowercased().replacing("’s", with: "").replacing("'s", with: "")
+            .split { !$0.isLetter && !$0.isNumber }
+        return Set(words.map { word in
+            guard word.count > 3 else { return String(word) }
+            if word.hasSuffix("sses") { return String(word.dropLast(2)) }
+            return String(word.hasSuffix("s") && !word.hasSuffix("ss") ? word.dropLast() : word)
+        })
     }
 
     var shareTime: String? {

@@ -24,6 +24,10 @@ nonisolated enum Town {
     /// How a message to a friend names it: "St. Joseph's events" (friends 05).
     static let everyday = "St. Joseph"
 
+    /// How a written place can name the Town, as a regular expression: "St. Joseph", "St Joseph",
+    /// "Saint Joseph". A card's short place cuts it (`FeedCardItem.shortPlace`).
+    static let writtenName = #"(?:St\.?|Saint) Joseph"#
+
     /// What neighbours call it: Daily's first topic is "Best of St. Joe".
     static let nickname = "St. Joe"
 

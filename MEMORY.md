@@ -24,6 +24,11 @@ or its `docs/rules/` file and leaves here.
 
 ## What this product is
 
+- 2026-11-06 — **Back within 10 minutes of iOS shutting the app down, it opens as you left it** (Jesse: "the app constantly refeshes
+  when you leave it and replays splash screen"; yes to all at Check-in 1): no launch, the same tab, the same Event page at its spot,
+  the same feed in its order (`LeftOff`). Swiped away or longer away: launch, Town, a fresh order. Other pages land on their tab. A
+  website opens in the in-app browser (`InAppBrowser`), and Facebook and Instagram in their own apps.
+
 - Block Party is a hyperlocal community app: local Events, clubs, neighbours, around-town and
   civic news. St. Joseph, MN ("St. Joe", "JoeTown") first, then town by town: St. Cloud, Sauk
   Rapids, Cold Spring, Waite Park. Nothing in the shared UI, copy or icon may be St. Joe–specific.

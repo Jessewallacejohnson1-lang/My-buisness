@@ -93,6 +93,9 @@ private struct FeedCardDownsampledPhoto: View {
     /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
     /// shows the old photo.
     @State private var loaded: (url: URL, image: CGImage)?
+    /// It has drawn here: reading it again on the way back on screen with no signal isn't a
+    /// failed photo, which its card would drop for good.
+    @State private var shownOnce = false
 
     /// What to draw: this view's own bitmap, else the largest one already decoded for
     /// the same photo, so a photo on screen elsewhere draws here in the first frame.
@@ -128,8 +131,17 @@ private struct FeedCardDownsampledPhoto: View {
                 withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
             }
             // A photo already on screen at another size has not failed.
-            if image != nil { onReady?() } else { onFailure?() }
+            if image != nil {
+                shownOnce = true
+                onReady?()
+            } else if !shownOnce {
+                onFailure?()
+            }
         }
+        // Off screen it lets go, or a long scroll holds every photo it passed: 473 MB on Town at
+        // 40 swipes, and iOS shuts the biggest apps down first (BP app backlog 21). On the way back
+        // the loader's newest draw at once.
+        .onDisappear { loaded = nil }
     }
 
     /// One bitmap drawn twice, so a flyer costs one download and one decode: blurred to fill the frame, as
@@ -161,7 +173,7 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     let maxPixelSize: Int
 }
 
-/// Downsampled photos, the 12 used last, keyed by URL and pixel size, and beside them the 48
+/// Downsampled photos, the 24 used last, keyed by URL and pixel size, and beside them the 48
 /// small ones used last (round faces: `Avatar`). On the main actor, so a view can draw a photo already decoded in the frame it appears; the
 /// download and the decode run off it. Emptied on a memory warning. A photo shown
 /// at another size (a venue photo on the page after its card) starts from
@@ -170,7 +182,7 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
 final class FeedCardImageLoader {
     static let shared = FeedCardImageLoader()
 
-    private static let maxCachedImages = 12
+    private static let maxCachedImages = 24
     /// Faces keep their own room, so the feed's dozen big photos never push a face out and faces
     /// never push a photo out; 48 more faces than that still do. A 96 pt profile photo is 288 px.
     private static let maxCachedSmall = 48
@@ -181,14 +193,64 @@ final class FeedCardImageLoader {
     private var focuses: [URL: UnitPoint] = [:]
 
     private init() {
+        focuses = Self.keptFocuses()
         _ = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
         ) { _ in
+            MainActor.assumeIsolated { FeedCardImageLoader.shared.letGo() }
+        }
+        _ = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+        ) { _ in
             MainActor.assumeIsolated {
-                FeedCardImageLoader.shared.cache.removeAll()
-                FeedCardImageLoader.shared.cacheOrder.removeAll()
+                FeedCardImageLoader.shared.trimForLeaving()
+                FeedCardImageLoader.shared.keepFocuses()
             }
         }
+    }
+
+    private func letGo() {
+        cache.removeAll()
+        cacheOrder.removeAll()
+    }
+
+    /// Leaving, it keeps the newest few photos and every face: cards on screen hold their own bitmaps,
+    /// but those behind an Event page or another tab have let go, and these are what coming back draws.
+    private static let keptOnLeaving = 6
+
+    private func trimForLeaving() {
+        for index in Self.droppedOnLeaving(cacheOrder.map(\.maxPixelSize)).sorted(by: >) {
+            cache.removeValue(forKey: cacheOrder.remove(at: index))
+        }
+    }
+
+    /// Which entries leaving drops, given each one's pixel size, oldest first.
+    static func droppedOnLeaving(_ sizes: [Int]) -> [Int] {
+        var photos = 0, drop: [Int] = []
+        for index in sizes.indices.reversed() where sizes[index] > smallPixels {
+            photos += 1
+            if photos > keptOnLeaving { drop.append(index) }
+        }
+        return drop
+    }
+
+    /// Past this it starts over: a photo looked at again costs a moment, hundreds of old ones every launch.
+    private static let maxKeptFocuses = 1000
+
+    /// Kept on the phone, or after a restart each photo waits on Vision again with ink showing.
+    private static func keptFocuses() -> [URL: UnitPoint] {
+        guard let data = TownFeedCache.load(.photoFocus),
+              let kept = try? JSONDecoder().decode([String: [Double]].self, from: data) else { return [:] }
+        return Dictionary(uniqueKeysWithValues: kept.compactMap { key, spot in
+            guard let url = URL(string: key), spot.count == 2 else { return nil }
+            return (url, UnitPoint(x: spot[0], y: spot[1]))
+        })
+    }
+
+    private func keepFocuses() {
+        if focuses.count > Self.maxKeptFocuses { focuses.removeAll() }
+        let kept = Dictionary(uniqueKeysWithValues: focuses.map { ($0.key.absoluteString, [Double($0.value.x), Double($0.value.y)]) })
+        if let data = try? JSONEncoder().encode(kept) { TownFeedCache.save(data, .photoFocus) }
     }
 
     /// The largest bitmap decoded for this photo at any size. Largest, so a host's
@@ -263,16 +325,27 @@ final class FeedCardImageLoader {
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
+    /// Its own cache on the phone, so photos are there after a restart: the default holds 10 MB and
+    /// nothing over 500 KB, so each one came down again, fading in over ink (BP app backlog 21).
+    private nonisolated static let photos: URLSession = {
+        let config = URLSessionConfiguration.default
+        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("feed-photos")
+        config.urlCache = URLCache(memoryCapacity: 4 << 20, diskCapacity: 300 << 20, directory: folder)
+        return URLSession(configuration: config)
+    }()
+
     private nonisolated static func remoteData(from url: URL) async -> Data? {
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await photos.data(from: url)
             if let response = response as? HTTPURLResponse,
                !(200..<300).contains(response.statusCode) {
                 return nil
             }
             return data
         } catch {
-            return nil
+            // No signal: the copy on the phone, however old, rather than a card losing its photo.
+            return try? await photos.data(for: URLRequest(url: url, cachePolicy: .returnCacheDataDontLoad)).0
         }
     }
 
@@ -290,7 +363,7 @@ final class FeedCardImageLoader {
         }
     }
 
-    /// Which entries to drop, given each one's pixel size, oldest first: all but the 12 newest
+    /// Which entries to drop, given each one's pixel size, oldest first: all but the 24 newest
     /// photos and the 48 newest small ones.
     static func overflow(_ sizes: [Int]) -> [Int] {
         var photos = 0, small = 0, drop: [Int] = []

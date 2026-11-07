@@ -31,6 +31,12 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// the ended session.
     private var sessionGeneration = 0
 
+    /// Back after iOS shut the app down, the account is there from the first frame: the launch
+    /// that hides the Welcome until `restore` lands isn't playing (`LeftOff`).
+    init() {
+        if LeftOff.current != nil { session = Keychain.load() }
+    }
+
     /// Restore a persisted session on launch, refreshing if it's stale. A hard
     /// refresh failure (revoked/expired/rotated token) clears the session so the
     /// app routes back to Login rather than wedging signed-in-but-broken.

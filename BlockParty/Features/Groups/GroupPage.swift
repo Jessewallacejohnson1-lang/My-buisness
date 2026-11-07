@@ -240,7 +240,7 @@ struct GroupPage: View {
             }
 
             if let page = group.pageUrl, let row = BusinessPage.rows([PlaceLink(kind: "website", url: page)]).first {
-                InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens outside Block Party",
+                InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens the link",
                          glyphBox: SearchMetric.bizGlyphBox)
                     .padding(.top, Metric.linkTop)
             }

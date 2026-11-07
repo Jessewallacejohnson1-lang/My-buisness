@@ -221,10 +221,18 @@ final class EventPageTests: XCTestCase {
     /// Faces keep their own room in the photo cache (codebase-health 18): 13 photos and 50 faces,
     /// oldest first, drop the oldest photo and the two oldest faces, and nothing else.
     func testFacesAndPhotosEachKeepTheirNewest() {
-        let sizes = Array(repeating: 1260, count: 13) + Array(repeating: 96, count: 50)
-        XCTAssertEqual(FeedCardImageLoader.overflow(sizes).sorted(), [0, 13, 14])
+        let sizes = Array(repeating: 1260, count: 25) + Array(repeating: 96, count: 50)
+        XCTAssertEqual(FeedCardImageLoader.overflow(sizes).sorted(), [0, 25, 26])
         XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 288, count: 48)), [], "a 96 pt profile photo is a face")
-        XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 12) + [96]), [])
+        XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 24) + [96]), [])
+    }
+
+    /// Leaving keeps the six newest photos, for what coming back draws, and every face.
+    func testLeavingKeepsTheNewestPhotosAndEveryFace() {
+        let sizes = [96] + Array(repeating: 1260, count: 8) + [96]
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(sizes).sorted(), [1, 2])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 1260, count: 6)), [])
+        XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 96, count: 50)), [])
     }
 
     func testCounterShowsOnlyForTwoOrMorePhotos() {
@@ -305,6 +313,19 @@ final class EventPageTests: XCTestCase {
         item.eventDate = "2027-06-01"
         item.endAt = nil
         XCTAssertEqual(lines()?.first, "Tuesday, June 1, 2027")
+    }
+
+    /// The repeat left the card's small line for the day row, after the hours (BP app inside-cards 11).
+    func testTheDayRowSaysHowItRepeatsAfterItsHours() {
+        let now = Town.midnight("2026-11-01")!
+        var item = FeedCardItem(event(imageUrl: nil), recurrence: "Every Sunday")
+        item.eventDate = "2026-11-08"
+        item.startTime = "9 AM"
+        XCTAssertEqual(EventPage.dayLines(item, now: now), .init(first: "Sunday, November 8", second: "9 AM · Every Sunday"))
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(EventPage.dayLines(item, now: now), .init(first: "Sunday, November 8", second: "Every Sunday"),
+                       "no hours: the repeat alone")
     }
 
     /// The day row adds the Event to the phone's calendar only while it's still to come: not once
