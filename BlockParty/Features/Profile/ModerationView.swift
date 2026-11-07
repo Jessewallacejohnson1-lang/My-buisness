@@ -247,19 +247,38 @@ final class ModerationModel: ObservableObject {
     static let leave = Animation.spring(response: 0.35, dampingFraction: 0.86)
 
     #if DEBUG
-    /// Two reported Events (`-review-queue-preview`): made up, as nobody had reported one when they were written.
+    /// Live pictures from the places bucket, so the preview shows what the queue shows.
+    private static let photos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
+
+    /// A fixture's card, with the Event its page opens when it has a day.
+    private static func card(_ id: String, _ title: String, _ date: String?, _ time: String?, allDay: Bool = false,
+                             place: String? = nil, words: String? = nil, source: String? = nil, photo: String? = nil,
+                             created: String) -> ReviewCard {
+        ReviewCard(title: title, eventDate: date, startTime: time, allDay: allDay, location: place, description: words,
+                   sourceName: source, createdAt: created, imageUrl: photo.map { photos + $0 },
+                   event: date.map {
+                       UpcomingEvent(id: id, title: title, eventDate: $0, startTime: time, location: place, goingCount: 0,
+                                     createdAt: created, imageUrl: photo.map { photos + $0 }, isAllDay: allDay,
+                                     sourceName: source, description: words)
+                   })
+    }
+
+    /// Two reported Events (`-review-queue-preview`): a made-up scam, and the first real report (Oct 26).
     static let reportFixtures = [
-        ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-10-28",
-                      reasons: ["scam"], reports: 3, firstAt: "2026-10-25T14:00:00Z",
-                      card: ReviewCard(title: "Free iPhone giveaway", eventDate: "2026-10-28", startTime: "3 PM",
-                                       location: "Centennial Park", description: "First 50 people get a free iPhone. Bring your bank card.",
-                                       createdAt: "2026-10-25T12:00:00Z"),
+        ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-11-12",
+                      reasons: ["scam"], reports: 3, firstAt: "2026-11-06T14:00:00Z",
+                      card: card("report-0", "Free iPhone giveaway", "2026-11-12", "3 PM", place: "Centennial Park",
+                                 words: "First 50 people get a free iPhone. Bring your bank card to sign up.",
+                                 created: "2026-11-06T12:00:00Z"),
                       poster: ReviewPoster(name: "Sam", photo: nil)),
-        ReportedEvent(eventId: "report-1", title: "Park Board Meeting", eventDate: "2026-10-26",
-                      reasons: ["wrong_info"], reports: 1, firstAt: "2026-10-24T14:00:00Z",
-                      card: ReviewCard(title: "Park Board Meeting", eventDate: "2026-10-26", startTime: "6:30 PM",
-                                       location: "City Hall", description: "The Park Board meets monthly to plan the town's parks.",
-                                       sourceName: "City of St. Joseph", createdAt: "2026-10-06T12:00:00Z")),
+        ReportedEvent(eventId: "report-1", title: "Embodied Spirit Chi Kung", eventDate: "2026-11-09",
+                      reasons: ["wrong_info"], reports: 1, firstAt: "2026-10-26T14:00:00Z",
+                      card: card("report-1", "Embodied Spirit Chi Kung", "2026-11-09", "5:30 PM",
+                                 place: "Episcopal House of Prayer",
+                                 words: "Chi Kung (energy work), in its many forms, dates back at least 2500 years. At its core is Chi, the energy that animates and drives us.",
+                                 source: "CSB SJU Campus Events",
+                                 photo: "events/event-place-retreat-group-gathered-in-chairs-around-a-teacher-by-the-3f8586a512.webp",
+                                 created: "2026-10-19T17:00:00Z")),
     ]
 
     static let messageFixtures = [
@@ -267,31 +286,32 @@ final class ModerationModel: ObservableObject {
                         photoPath: nil, eventTitle: nil, reason: "bullying"),
     ]
 
-    /// A neighbour's Event the check didn't answer, an everyday post it never checked, and the City's real
-    /// found events from 2026-10-06 (`-review-queue-preview`).
+    /// A neighbour's Event the check didn't answer, an everyday post it never checked, and found Events
+    /// (`-review-queue-preview`).
     static let fixtures: [PendingPost] = [
         PendingPost(id: "fixture-held", kind: .event, checkedAt: "2026-11-07T19:00:00Z",
-                    card: ReviewCard(title: "Bingo night for the neighbourhood", eventDate: "2026-11-10", startTime: "6:30 PM",
-                                     location: "Sal's Bar and Grill",
-                                     description: "Grab a few friends and come play! $15 a packet, 11 games, prizes for every round.",
-                                     createdAt: "2026-11-07T19:00:00Z"),
+                    card: card("fixture-held", "Bingo night for the neighbourhood", "2026-11-10", "6:30 PM",
+                               place: "Sal's Bar and Grill",
+                               words: "Grab a few friends and come play! $15 a packet, 11 games, prizes for every round.",
+                               photo: "events/event-games-two-smiling-women-hold-up-their-bingo-cards-at-sal-s-bar-d226c1a4a8.webp",
+                               created: "2026-11-07T19:00:00Z"),
                     poster: ReviewPoster(name: "Maya", photo: nil)),
         PendingPost(id: "fixture-post", kind: .post, checkedAt: nil,
-                    card: ReviewCard(title: "Lost cat near 3rd Ave, grey with a white chest. Call if you see her!",
-                                     createdAt: "2026-11-07T17:00:00Z"),
+                    card: card("fixture-post", "Lost cat near 3rd Ave, grey with a white chest. Call if you see her!",
+                               nil, nil, created: "2026-11-07T17:00:00Z"),
+                    poster: ReviewPoster(name: "Jordan", photo: nil)),
+        PendingPost(id: "fixture-fare", kind: .event, checkedAt: nil,
+                    card: card("fixture-fare", "Fare for All", "2026-11-09", nil, allDay: true, place: "610 County Rd 2",
+                               words: "Fare for All sells packages of fresh produce and frozen meat once a month at Resurrection Lutheran Church.",
+                               source: "City of St. Joseph",
+                               photo: "resurrection-lutheran-church/scene-dinner-volunteers-packing-food-into-a-cooler-in-the-church-kitchen-befe541ab3.webp",
+                               created: "2026-11-07T13:00:00Z"),
                     poster: nil),
-    ] + [
-        ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training"),
-        ("2026-10-10", "11 AM", false, "Empty Bowls: A Gathering of Hope"),
-        ("2026-10-12", "6 PM", false, "Planning Commission"),
-        ("2026-11-09", nil, true, "Fare for All"),
-    ].enumerated().map { i, row in
-        PendingPost(id: "fixture-\(i)", kind: .event, checkedAt: nil,
-                    card: ReviewCard(title: row.3, eventDate: row.0, startTime: row.1, allDay: row.2,
-                                     location: "St. Joseph MN 56374", sourceName: "City of St. Joseph",
-                                     createdAt: "2026-10-06T12:00:00Z"),
-                    poster: nil)
-    }
+        PendingPost(id: "fixture-planning", kind: .event, checkedAt: nil,
+                    card: card("fixture-planning", "Planning Commission", "2026-11-12", "6 PM", place: "City Hall",
+                               source: "City of St. Joseph", created: "2026-11-06T13:00:00Z"),
+                    poster: nil),
+    ]
     #endif
 }
 
