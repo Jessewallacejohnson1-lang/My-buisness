@@ -248,6 +248,11 @@ def late(stop, grace=0):
     return stop is not None and time.monotonic() > stop + grace
 
 
+def minutes_left(stop, grace=0):
+    """Minutes until a part's stop plus `grace` seconds; None when the part has no stop."""
+    return None if stop is None else (stop + grace - time.monotonic()) / 60
+
+
 _held = {}
 
 
