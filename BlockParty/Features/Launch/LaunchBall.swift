@@ -424,6 +424,12 @@ private struct LaunchLanding: ViewModifier {
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(LaunchStage.space)) } action: { frame in
                 if !stage.landed { stage.dailyMark = frame }
             }
-            .onDisappear { if !stage.landed { stage.dailyMark = nil } }
+            // The tab bar went (a page pushed over it): before the yellow clears, Bp! zooms through
+            // instead; after, taps reach the app and the launch ends with the bar, rather than Bp!
+            // zooming off over the page mid-squash (review, 2026-11-07).
+            .onDisappear {
+                guard !stage.landed else { return }
+                if stage.townSettles { stage.finish() } else { stage.dailyMark = nil }
+            }
     }
 }

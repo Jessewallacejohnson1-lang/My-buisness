@@ -1461,6 +1461,33 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(gate.calls, 2)
     }
 
+    /// At launch the kept list unpacks off the main thread while the read is out: a caller arriving
+    /// meanwhile shares that read, and a read that lands first stands over the kept list
+    /// (BP app references/launch-glitch, 2026-11-07).
+    func testTheKeptListUnpacksWhileTheReadIsOut() async {
+        final class Gate { var read: (() -> Void)?; var kept: (() -> Void)?; var reads = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.reads += 1
+            await withCheckedContinuation { done in gate.read = { done.resume() } }
+            return self.entries(["fresh"])
+        }, keptLater: {
+            await withCheckedContinuation { done in gate.kept = { done.resume() } }
+            return self.entries(["kept"])
+        })
+        let first = Task { await town.refresh(at: now) }
+        while gate.read == nil || gate.kept == nil { await Task.yield() }
+        let second = Task { await town.refresh(at: now) }
+        for _ in 0..<5 { await Task.yield() }
+        gate.read?()
+        for _ in 0..<1000 where town.cards.isEmpty { await Task.yield() }
+        gate.kept?()
+        await first.value
+        await second.value
+        XCTAssertEqual(gate.reads, 1, "a caller that came while the kept list unpacked shared the read")
+        XCTAssertEqual(town.cards.map(\.id), ["fresh"], "the read landed first, so the kept list never covered it")
+    }
+
     /// A refresh shares a pull's or a new account's read; those two always ask for their own
     /// (`testOnlyTheNewestReadIsKept`).
     func testARefreshSharesAReloadsRead() async {

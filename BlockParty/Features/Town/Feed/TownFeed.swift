@@ -322,7 +322,7 @@ final class TownFeed {
         let testRun = AuthStore.isTestRun
         let api = CommunityAPI(supabase)
         self.init(read: { try await api.getTownFeed().map(TownFeed.entry) }, kept: Self.keptOnDisk,
-                  keptLater: { await Self.keptOnDiskLater() }, actions: actions,
+                  keptLater: { await Self.keptLines()?.map(TownFeed.entry) }, actions: actions,
                   send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
                   choose: { try await api.feedChoice($0) },
                   readMuted: { try await api.mutedHosts() },
@@ -857,11 +857,7 @@ final class TownFeed {
         return lines.map(entry)
     }
 
-    /// `keptOnDisk`, read and unpacked off the main thread (`keptLater`).
-    private static func keptOnDiskLater() async -> [TownFeedEntry]? {
-        await keptLines()?.map(entry)
-    }
-
+    /// The lines `keptOnDisk` reads, read and unpacked off the main thread (`keptLater`).
     @concurrent
     private nonisolated static func keptLines() async -> [TownFeedLine]? {
         TownFeedCache.load().flatMap { try? CommunityAPI.townFeedLines(from: $0) }
