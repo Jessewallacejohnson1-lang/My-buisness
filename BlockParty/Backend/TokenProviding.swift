@@ -18,6 +18,8 @@ protocol TokenProviding {
     var isSignedIn: Bool { get }
     /// The session is the quiet anonymous one, not a real account.
     var isAnonymous: Bool { get }
+    /// The one admin account: the flag in its `app_metadata`, as `public.is_admin()` reads it.
+    var isAdmin: Bool { get }
     /// The server refused a token the phone still thought good (a 401): refresh it, or sign out.
     func handleUnauthorized() async
 }

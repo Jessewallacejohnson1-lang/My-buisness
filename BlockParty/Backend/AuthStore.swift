@@ -22,6 +22,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// someone signed into, so there is nothing to sign out of.
     var isAnonymous: Bool { session?.user.isAnonymous == true }
     var email: String? { session?.user.email }
+    var isAdmin: Bool { session?.user.appMetadata?.admin == true }
     var userId: String? { session?.user.id }
 
     private var refreshTask: Task<Void, Error>?

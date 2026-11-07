@@ -119,7 +119,7 @@ final class ProfileModel {
             if self.account != nil { accountChanged() } else { self.account = account }
         }
         email = auth.email
-        isAdmin = Admin.isAdmin(auth.email)
+        isAdmin = auth.isAdmin
         // The phone's copy until the row lands, so an edit opened offline never saves no Interests.
         if displayName.isEmpty { displayName = Interests.displayName(phone) ?? "" }
         if interestIds.isEmpty { interestIds = Interests.get(phone) }

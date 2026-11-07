@@ -33,4 +33,23 @@ final class AnonymousAccountTests: XCTestCase {
         let again = try JSONDecoder().decode(Session.self, from: JSONEncoder().encode(s))
         XCTAssertEqual(again, s)
     }
+
+    // MARK: Admin (BP app loopholes 20): the flag in app_metadata, never the email
+
+    /// GoTrue's user for the one admin account: provider keys beside the flag, and the flag
+    /// survives the Keychain's round trip.
+    func testTheAdminFlagInAppMetadataReadsAsAdmin() throws {
+        let s = try session(user: #"{"id":"u1","email":"sam@example.com","app_metadata":{"provider":"email","providers":["email"],"admin":true}}"#)
+        XCTAssertEqual(s.user.appMetadata?.admin, true)
+        XCTAssertEqual(try JSONDecoder().decode(Session.self, from: JSONEncoder().encode(s)), s)
+    }
+
+    /// Every other account, and a session stored before the flag existed: not admin, and it
+    /// still loads, so nobody is signed out by the new field.
+    func testNoFlagIsNotAdminAndAnOlderSessionStillLoads() throws {
+        let plain = try session(user: #"{"id":"u1","email":"sam@example.com","app_metadata":{"provider":"email","providers":["email"]}}"#)
+        XCTAssertNil(plain.user.appMetadata?.admin)
+        let stored = try session(user: #"{"id":"u1","email":"sam@example.com"}"#)
+        XCTAssertNil(stored.user.appMetadata)
+    }
 }

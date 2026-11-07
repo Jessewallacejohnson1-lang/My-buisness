@@ -12,10 +12,19 @@ struct AuthUser: Codable, Equatable {
     /// GoTrue's `is_anonymous`: the quiet account every install gets before sign-in
     /// exists. Absent from sessions stored before 2026-10-09, which read as real.
     var isAnonymous: Bool? = nil
+    /// GoTrue's `app_metadata`, which only the service key writes: `admin` marks the one admin
+    /// account (BP app loopholes 20). Absent from sessions stored before 2026-11-07, which read as
+    /// not admin until the next refresh.
+    var appMetadata: AppMetadata? = nil
+
+    struct AppMetadata: Codable, Equatable {
+        var admin: Bool? = nil
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, email
         case isAnonymous = "is_anonymous"
+        case appMetadata = "app_metadata"
     }
 }
 
