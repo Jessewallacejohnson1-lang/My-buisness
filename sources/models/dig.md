@@ -7,8 +7,10 @@ the free rungs of the Ladder, in this order (BP app docs/plans/dig-deeper, SPEC)
    person speaking would be good what would a news artical have")
 2. `site`: the place's own site, this Event or this kind of Event there in an earlier year
 3. `news`: local news and school or town papers
-4. `posts`: the place's own Facebook and Instagram posts of the last year, read through Apify for a title the first
-   three left bare (it alone costs money, dig-deeper 23)
+4. `posts`: the place's own Facebook and Instagram posts of the last year, newest first, read through Apify for a
+   title the first three left bare or gave only a `site` or `news` photo: the place's own post beats an old photo
+   from elsewhere (Jesse, 2026-11-07, the WinterWalk's new post of downtown "rather than an old photo"). It alone
+   costs money (dig-deeper 23).
 
 A finder names the pages for the first three; a script reads them, and the posts, and lays their pictures out on
 sheets; a picker takes one. Your message says which part is yours.
@@ -52,9 +54,11 @@ rung (`name`, `site` or `news`), with the `page` it is on, the `page_title` and 
 the page); `meta_says` is that page's own words for the picture (its alt text), often the name of who is in it.
 
 - Take the earliest rung with a fitting photo: `name` before `site` before `news`.
-- From `posts` (a batch of its own): the place's own photo of this Event, of this kind of Event at this place, or of
-  its own people at it, as event-photo.md's `other post` rule; `page_title` is the post's words. Posts that say the
-  title's words come first. A food special, a menu or a product shot is not this Event.
+- From `posts` (a batch of its own): as event-photo.md's `other post` rule, the place's own photo of this Event or
+  this kind of Event, else its newest of where the Event happens or its people (a new post of downtown for the
+  WinterWalk); `page_title` is the post's words and `posted` its day. Posts that say the title's words come first;
+  of two that fit, the newer. Its own flyer whose words are true of this Event counts (Jesse, 2026-11-07: "keep
+  flyer"). A food special, a menu or a product shot is not this Event.
 - The person the Event is about counts wherever the photo was taken (event-photo.md's "never a portrait" is for
   anyone else), on a page about them (its `page_title` or `finder_says` names them): a photo of one person doing what
   the Event is about (the speaker speaking, the artist beside their work, the band or singer on stage, the teacher

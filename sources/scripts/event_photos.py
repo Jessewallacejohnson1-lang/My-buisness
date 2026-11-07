@@ -200,7 +200,7 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     link = own[0].get("link") or ""
     story = (share or share_picture)(link) if link.startswith("http") and not POST.search(link) else None
     out = ([{"url": story, "about": "", "from": "page", "page": link}] if story else []) \
-        + [{**p, "from": "post", "page": page} for p in pictures(own[0])]
+        + [{**p, "from": "post", "page": page, "posted": posted(own[0])[:10]} for p in pictures(own[0])]
     mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
@@ -208,7 +208,7 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
-            out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]]
+            out += [{**p, "from": "other post", "page": r.get("url") or page, "posted": posted(r)[:10]} for p in pictures(r)[:2]]
     return out[:mine + more]
 
 
@@ -322,7 +322,8 @@ def sheets(groups, folder):
             lines.append(json.dumps({"event": g["key"], "title": g["title"], **about,
                                      "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160],
                                                    **({"page": c["page"], "page_title": c["title"], "finder_says": c["why"]}
-                                                      if "title" in c else {})}
+                                                      if "title" in c else {}),
+                                                   **({"posted": c["posted"]} if c.get("posted") else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
                 im = Image.open(c["file"])
@@ -637,15 +638,18 @@ POSTS_SHARE = {"facebook": 0.06, "instagram": 0.04}  # a place's 10¢: a Faceboo
 PER_PLACE = sum(POSTS_SHARE.values())
 POSTS_READ = 12             # posts read on one page, inside its share
 POSTS_MONTH = 5.0           # the dig's Apify dollars in a calendar month
-SEEN = timedelta(days=8)    # a page's last days the social watch read already: Facebook is read from before them
 POLL = 15                   # seconds between looks at a run still going
 TITLE_WORD = re.compile(r"[a-z]{4,}")
 COMMON = {"with", "from", "your", "this", "that", "night", "class", "event", "minutes", "free", "join", "come", "open"}
 
 
+FB_PAGE = re.compile(r"^https?://(?:www\.|m\.)?facebook\.com/(?!permalink|story|events|groups|photo|watch|share)([\w.-]+)/(?:posts|photos|videos)/")
+
+
 def posts_pages(groups, listed):
-    """{group key: its place's Facebook and Instagram pages on the list}, by registry entry, else by the host's name;
-    never a page Facebook hides from logged-out readers."""
+    """{group key: its place's Facebook and Instagram pages on the list}, by registry entry, else by the host's name,
+    else the Facebook page whose post the Event was found on (the WinterWalk festival's, 2026-11-07); never a page
+    Facebook hides from logged-out readers."""
     by_entry, by_name = {}, {}
     for p in listed:
         if p.get("kind") in POSTS_ACTORS and not p.get("hidden"):
@@ -655,6 +659,10 @@ def posts_pages(groups, listed):
     for g in groups:
         e = g["events"][0]
         got = by_entry.get(e.get("place_entry_id")) or by_name.get(place_key(e.get("source_name") or ""))
+        own = FB_PAGE.match(g.get("source_url") or "")
+        if not got and own:
+            url = f"https://www.facebook.com/{own.group(1)}"
+            got = [{"entry_id": url, "name": e.get("source_name") or "", "kind": "facebook", "url": url}]
         if got:
             out[g["key"]] = got
     return out
@@ -679,9 +687,8 @@ def start_posts(kind, urls, cap, now):
     tid = task["id"] if task else social.api("POST", "/actor-tasks", {"actId": POSTS_ACTORS[kind], "name": name,
                                                                        "options": {"timeoutSecs": 600}})["data"]["id"]
     since = (now - timedelta(days=365)).astimezone(LOCAL).date().isoformat()
-    body = ({"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS_READ, "onlyPostsNewerThan": since,
-             "onlyPostsOlderThan": (now - SEEN).astimezone(LOCAL).date().isoformat()} if kind == "facebook"
-            else {"username": urls, "resultsLimit": POSTS_READ, "onlyPostsNewerThan": since})
+    body = ({"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS_READ, "onlyPostsNewerThan": since}
+            if kind == "facebook" else {"username": urls, "resultsLimit": POSTS_READ, "onlyPostsNewerThan": since})
     return social.api("POST", f"/actor-tasks/{tid}/runs?waitForFinish=0&maxTotalChargeUsd={cap:.2f}", body)["data"]["id"]
 
 
@@ -694,7 +701,8 @@ def about_it(title, text):
 def dig_posts(out, now=None, grab=None, minutes=PART_MINUTES, listed=None, wait=POLL):
     """The paid rung: the free rungs' bare titles with a page on the list get their places' posts read (one run a kind
     for every place, started once and saved), then each title's pictures, posts about it first, laid out for the
-    pickers in dig/posts/. Run again while it says so: Apify's runs take minutes."""
+    pickers in dig/posts/. A title the person rung found goes no further; one with an old site or news photo does, so
+    its place's own post can beat it. Run again while it says so: Apify's runs take minutes."""
     import time
     now = now or datetime.now(timezone.utc)
     folder, stop = out / "dig" / "posts", deadline(minutes)
@@ -703,7 +711,7 @@ def dig_posts(out, now=None, grab=None, minutes=PART_MINUTES, listed=None, wait=
     s = state.saved
     if "runs" not in s:
         _, _, _, picks, reached = free_round(out / "dig")
-        bare = [g for g in reached if g["key"] not in picks]
+        bare = [g for g in reached if g["key"] not in picks or picks[g["key"]][0]["from"] != "name"]
         pages = posts_pages(bare, social.all_pages(find_root()) if listed is None else listed)
         places = {}
         for k, ps in pages.items():
@@ -743,7 +751,7 @@ def dig_posts(out, now=None, grab=None, minutes=PART_MINUTES, listed=None, wait=
         g = groups[key]
         rows = [r for p in s["pages"][key] for r in rows_of.get(social.canon(p["url"]), [])]
         rows.sort(key=lambda r: (about_it(g["title"], r.get("text") or r.get("caption")), posted(r)), reverse=True)
-        g["cands"] = [{**p, "from": "posts", "page": r.get("url") or r.get("inputUrl") or "",
+        g["cands"] = [{**p, "from": "posts", "page": r.get("url") or r.get("inputUrl") or "", "posted": posted(r)[:10],
                        "title": " ".join(str(r.get("text") or r.get("caption") or "").split())[:160], "why": "its place's own post"}
                       for r in rows for p in pictures(r)[:2]]
         failed = download([g], folder, grab, n=int(key[1:]) * 100, most=DIG_MAX)
@@ -768,9 +776,11 @@ def dig_posts(out, now=None, grab=None, minutes=PART_MINUTES, listed=None, wait=
 
 
 def dig_keep(out, dry_run=False, db=None, now=None):
-    """The pickers' picks, free rungs' and posts', saved as each Event's photo, credited to the page or post it came from;
-    photo_dug_at marked on every Event the dig finished: the free rungs did, and so did its place's posts when it went
-    on to them (or the month's money for them was spent). One the dig didn't finish stays unmarked for the next morning."""
+    """The pickers' picks saved as each Event's photo, credited to the page or post it came from: the person's by name,
+    else its place's own post's, else the free rungs' site or news photo (Jesse, 2026-11-07: a new post of downtown
+    "rather than an old photo"). photo_dug_at marked on every Event the dig finished: the free rungs did, and so did
+    its place's posts when it went on to them (or the month's money for them was spent). One the dig didn't finish
+    stays unmarked for the next morning."""
     import place_photos
     from PIL import Image
     folder = out / "dig"
@@ -783,9 +793,13 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     ppicks = plan(plines, list(plaid.values()))
     sent, skipped = set(s.get("groups") or []), set(s.get("skipped") or [])
     posts_done = {k for k in sent if k in plaid and (not plaid[k]["cands"] or k in panswered)}
-    done = [g for g in reached if g["key"] in picks or g["key"] not in sent or g["key"] in posts_done]
-    chosen = {g["key"]: (laid[g["key"]], picks[g["key"]]) if g["key"] in picks else (plaid[g["key"]], ppicks[g["key"]])
-              for g in done if g["key"] in picks or g["key"] in ppicks}
+    named = {k for k, v in picks.items() if v[0]["from"] == "name"}
+    done = [g for g in reached if g["key"] in named or g["key"] not in sent or g["key"] in posts_done]
+
+    def pick_of(k):  # the person by name, then the place's own posts, then the free rungs' site or news photo
+        return ((laid[k], picks[k]) if k in named else (plaid[k], ppicks[k]) if k in ppicks
+                else (laid[k], picks[k]) if k in picks else None)
+    chosen = {g["key"]: pick_of(g["key"]) for g in done if pick_of(g["key"])}
     db = db or (None if dry_run else Supabase())
     stamp = (now or datetime.now(timezone.utc)).isoformat()
 
@@ -1239,13 +1253,18 @@ def selftest():
 
         # dig-deeper 23: the paid rung, the place's own posts
         (out / "dig" / "picks.jsonl").write_text('{"event": "d1", "pick": "c102", "shows": "Terrance Hayes reading"}\n'
-                                                 '{"event": "d2", "pick": "", "shows": ""}\n')
+                                                 '{"event": "d2", "pick": "c201", "shows": "A crowd at last year\'s fry"}\n')
         listed = [{"entry_id": "sals", "name": "Sal's", "kind": "facebook", "url": "https://www.facebook.com/sals"},
                   {"entry_id": "sals", "name": "Sal's", "kind": "instagram", "url": "https://www.instagram.com/sals"},
                   {"entry_id": "studio", "name": "Studio", "kind": "facebook", "url": "https://www.facebook.com/studio", "hidden": True}]
         check(sorted(posts_pages([{"key": "d2", "events": [dug[1]]}, {"key": "d4", "events": [dug[5]]},
                                   {"key": "d9", "events": [{"place_entry_id": "sals", "source_name": "Sal's Bar"}]}], listed))
               == ["d2", "d9"], "a place's pages by its registry entry, else its name; never one Facebook hides")
+        walk = {"key": "d8", "source_url": "https://www.facebook.com/joetownwinterwalkfestival/posts/pfbid05JK",
+                "events": [{"source_name": "JoeTown WinterWalk Festival"}]}
+        check(posts_pages([walk], listed)["d8"][0]["url"] == "https://www.facebook.com/joetownwinterwalkfestival"
+              and posts_pages([{**walk, "source_url": "https://www.facebook.com/permalink.php?story_fbid=1&id=2"}], listed) == {},
+              "a host off the list: the Facebook page its post was on")
         check(about_it("Liver Fry & Meat Raffle", "Meat raffle tonight! Liver and onions") == 3
               and about_it("Liver Fry", "Burger special") == 0, "a post that says the title's words is about it")
 
@@ -1305,14 +1324,15 @@ def selftest():
               "the posts runs start once; a part out of time says run again, and the next part waits on the same runs")
         fb, ig = dict(starts)["/actor-tasks/tf/runs?waitForFinish=0&maxTotalChargeUsd=0.06"], next(b for p, b in starts if "/ti/" in p)
         check(fb["startUrls"] == [{"url": "https://www.facebook.com/sals"}] and fb["onlyPostsNewerThan"] == "2025-11-07"
-              and fb["onlyPostsOlderThan"] == "2026-10-30" and ig["username"] == ["https://www.instagram.com/sals"]
+              and "onlyPostsOlderThan" not in fb and ig["username"] == ["https://www.instagram.com/sals"]
               and any(p == "/actor-tasks" and b["actId"] == POSTS_ACTORS["instagram"] for m, p, b in fake_apify.calls),
-              "only the bare title's place, a year of posts before the social watch's last days, 10 cents a place, the "
-              "dig's own tasks (made the first time)")
+              "a title with only a site photo goes on to its place's posts (the newest of the year), 10 cents a place, "
+              "the dig's own tasks (made the first time)")
         d2p = next(g for g in again if g["key"] == "d2")
         check([c["url"].rsplit("/", 1)[1] for c in d2p["cands"]] == ["fry.jpg", "burger.jpg", "band.jpg"]
-              and all(c["from"] == "posts" for c in d2p["cands"]) and [g["key"] for g in again] == ["d2"],
-              "the post about it first, then the newest; every picture marked from its place's posts")
+              and all(c["from"] == "posts" for c in d2p["cands"]) and [g["key"] for g in again] == ["d2"]
+              and '"posted": "2024-10-27"' in (out / "dig" / "posts" / "batch-1.txt").read_text(),
+              "the post about it first, then the newest; every picture marked from its place's posts, with its date")
         (out / "dig" / "posts" / "picks.jsonl").write_text(json.dumps({"event": "d2", "pick": f"c{d2p['cands'][0]['n']}",
                                                                         "shows": "A full room at liver fry night"}) + "\n")
         (out / "dig" / "kept.json").unlink(missing_ok=True)
@@ -1322,7 +1342,7 @@ def selftest():
         check(sorted(r["event_id"] for r in rows_in) == ["b1", "b2", "b3"]
               and {r["credit"] for r in rows_in if r["event_id"] != "b1"} == {"Sal's"}
               and {r["source_url"] for r in rows_in if r["event_id"] != "b1"} == {"https://www.facebook.com/sals/posts/pfbidFRY"},
-              "a post's pick is saved for both dates, credited to the place, linking its post")
+              "the place's own post beats the site's old photo: saved for both dates, credited to the place, linking its post")
         check(sorted(p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH") == ["b1", "b2", "b3", "b6"],
               "every Event the dig finished is marked, posts included")
         check(said[0].startswith("[dig] 5 Events left bare by the photo step: 3 got a photo (name 1, site 0, news 0, posts 2)")
@@ -1346,10 +1366,18 @@ def selftest():
             social.api, social.items = real
         fake = place_photos.Unsent("https://db.example")
         said = dig_keep(out, db=fake, now=datetime(2026, 11, 7, 14, tzinfo=timezone.utc))
+        rows_in = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
         check(none == [] and not any("/runs?waitForFinish=0" in p for m, p, b in broke.calls)
               and sorted(p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH") == ["b1", "b2", "b3", "b6"]
-              and "[dig]   still bare: Liver Fry (pages on site; the month's money for posts was spent)" in said,
-              f"at the month's $5 nothing is read, the free rungs' answer stands, and the report says so: {said}")
+              and {r["source_url"] for r in rows_in if r["event_id"] in ("b2", "b3")} == {"https://sals.example/fry"}
+              and said[0].startswith("[dig] 5 Events left bare by the photo step: 3 got a photo (name 1, site 2, news 0, posts 0)"),
+              f"at the month's $5 nothing is read and the free rungs' site photo stands: {said}")
+        (out / "dig" / "kept.json").unlink()
+        (out / "dig" / "picks.jsonl").write_text('{"event": "d1", "pick": "", "shows": ""}\n{"event": "d2", "pick": "", "shows": ""}\n')
+        fake = place_photos.Unsent("https://db.example")
+        said = dig_keep(out, db=fake, now=datetime(2026, 11, 7, 14, tzinfo=timezone.utc))
+        check("[dig]   still bare: Liver Fry (pages on site; the month's money for posts was spent)" in said,
+              f"a title left bare at the limit says why: {said}")
 
     def asked(new, kept_rows, others):
         class Kept:

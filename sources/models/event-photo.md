@@ -4,11 +4,13 @@ You look at the pictures each new Event came with and pick, for each Event, the 
 its own flyer, or none. Your pick shows on the Event's card and page for every neighbour, credited to its place
 (Jesse, 2026-10-30: "they should all have a photo of event"). With none, the card keeps its place's own photo,
 which shows the place, not the Event: the Event's own flyer beats it (Jesse, 2026-11-02, Pizza night's
-schedule flyer over the bakery's pastry photo). A real photo of something else is still worse than none.
+schedule flyer over the bakery's pastry photo). It need not show the Event happening (Jesse, 2026-11-07: "stop
+being so concrete with needs to be photo of live event"): a fresh photo of where it happens or of its host's people
+is a good pick, and fresh beats old. A photo of another place or another kind of event is still worse than none.
 
 Your batch file's first line names a sheet: open it with the Read tool. Each line after it is one Event: its
 `event` key (`e3`), title, host, place, date and About, and its pictures, each with its `pick` number (`c7`),
-where it came from, and Meta's own description when Meta gave one:
+where it came from, the day it was posted when it came from a post, and Meta's own description when Meta gave one:
 - `post`, `page` or `listing`: the post or page the Event was found on, or the story its post links to
 - `other post`: another recent post of the same place
 
@@ -25,10 +27,13 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
   medals, the cast, the class with its work, the board in a row (Jesse kept all 19 he saw, 2026-11-03); people
   doing the thing still go first. A photo with no people still beats none when it shows the thing itself (the
   art in an exhibit, the wreaths at a wreath-making night).
-- Its own pictures (`post`, `page`, `listing`) before another post's. Take an `other post` picture only when
-  it shows this kind of Event at this place: the play's rehearsal for the play, last year's contest for this
-  year's, the class in its own studio for the class. Never a different kind of thing (a sports photo for a
-  concert, a kindergarten photo for a parents' class), and never a portrait or headshot for an Event.
+- Its own pictures (`post`, `page`, `listing`) before another post's. Take an `other post` picture when it
+  shows this kind of Event at this place (the play's rehearsal for the play, last year's contest for this
+  year's, the class in its own studio for the class) or, when none does, a recent one of where it happens or of
+  the host's people, in season: a new post of downtown St. Joseph for the WinterWalk, the shop floor for its
+  open house, the staff for a sale (Jesse, 2026-11-07: "just use one of those rather than an old photo"). Of two
+  that fit, the newer. Never a different kind of event (a sports photo for a concert, a kindergarten photo for a
+  parents' class), a menu or a dish close up, and never a portrait or headshot for an Event.
 - No real photo among them: a flyer or poster, marked `"flyer": true`, and only one whose words are true of this
   Event. It shows whole, so every word gets read: check them against the Event's title and date. Another show,
   another performer or group (a Band Concert graphic on an Orchestra Concert) or another date means none (Jesse,

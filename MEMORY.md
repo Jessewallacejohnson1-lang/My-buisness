@@ -99,6 +99,7 @@ or its `docs/rules/` file and leaves here.
   trigger; the morning report names them; Jesse chose hidden over plain), except at middle school level or younger, where a
   team with no logo shows its first letter (Jesse: "letters are fine that should only be for middle school or younger"). A team from out of town gets no page of its own
   (Jesse: "dont give them their own page"). **Supersedes** "no reader makes a team" of 2026-10-26.
+- 2026-11-07 — **An Event's photo needn't show it happening; fresh beats old** (Jesse: "stop being so concrete with needs to be photo of live event ... just use one of those rather than an old photo", "keep flyer"). A recent photo from the Event's own post or its host's own page of where it happens or its people (a new post of downtown for the WinterWalk) beats a past year's photo from news or a site, and the host's own flyer that is true of the Event stays. Another place or another kind of event is still wrong. `sources/models/event-photo.md`, `dig.md`; the dig reads the host's posts before a site or news photo stands (BP app dig-deeper 23).
 - 2026-11-01 — Venue photos come only from our own store (`public.place_photos`): the app has
   no Google Places code, call or key (Jesse: "I don't want any of the Google photos
   anymore"; Google at runtime cost about $40,000 a month at 10,000 users). Photos from a
