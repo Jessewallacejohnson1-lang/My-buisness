@@ -118,7 +118,7 @@ struct ReportedEvent: Identifiable, Equatable, Decodable {
     let reports: Int
     /// When the first report came, its card and who posted it (launch-ready 07).
     var firstAt: String? = nil
-    var card: ReviewCard? = nil
+    let card: ReviewCard
     var poster: ReviewPoster? = nil
     var id: String { eventId }
 
@@ -333,7 +333,8 @@ struct ModerationView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                // Lazy: each item loads its picture only as it nears the screen.
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if model.loading && pendingCount == 0 {
                         ModerationQueueSkeleton()
                     } else if model.failed {
@@ -346,7 +347,7 @@ struct ModerationView: View {
                         if !model.reports.isEmpty {
                             ModerationSectionLabel(text: "Reported")
                             ForEach(Array(model.reports.enumerated()), id: \.element.id) { i, report in
-                                let card = report.card ?? ReviewCard(title: report.title, eventDate: report.eventDate)
+                                let card = report.card
                                 ReviewQueueRow(
                                     who: who(card, report.poster), title: card.title.isEmpty ? report.title : card.title,
                                     when: when(card), words: card.description, picture: card.picture,
@@ -366,7 +367,7 @@ struct ModerationView: View {
                             ForEach(Array(model.messages.enumerated()), id: \.element.id) { i, report in
                                 ReviewQueueRow(
                                     who: .init(face: .person(nil), name: report.senderName ?? "A neighbour"),
-                                    title: report.body ?? "Photo",
+                                    title: report.body ?? "Photo", titleLines: nil,
                                     when: report.eventTitle.map { "In the Going chat of \($0)" },
                                     tag: .init(symbol: "flag",
                                                text: "Reported: \(ReportReason(rawValue: report.reason)?.label ?? report.reason)"),
@@ -389,6 +390,7 @@ struct ModerationView: View {
                                     who: who(card, post.poster),
                                     // A neighbour's post (town-feed 29): its words, or that it's a photo.
                                     title: post.kind == .post && card.title.isEmpty ? "Photo" : card.title,
+                                    titleLines: card.event == nil ? nil : 2,
                                     when: when(card), words: card.description, picture: card.picture,
                                     tag: ReviewRow.heldTag(found: card.found, checkedAt: post.checkedAt)
                                         .map { .init(symbol: "clock", text: $0) },
@@ -445,7 +447,9 @@ struct ModerationView: View {
     /// A found Event's host and when it was found, else the neighbour and how long ago they posted.
     private func who(_ card: ReviewCard, _ poster: ReviewPoster?) -> ReviewQueueRow.Who {
         let age = ReviewRow.age(createdAt: card.createdAt, found: card.found, now: Date())
-        if let host = card.sourceName { return .init(face: .host(host), name: host, age: age) }
+        if let host = card.sourceName {
+            return .init(face: .host(host, card.event?.hostPicture?.url), name: host, age: age)
+        }
         return .init(face: .person(poster?.photo.flatMap(URL.init(string:))),
                      name: poster?.name.flatMap { $0.isEmpty ? nil : $0 } ?? "A neighbour", age: age)
     }
@@ -516,7 +520,8 @@ enum ReviewMetric {
 /// picture, then a tag saying why it waits beside Approve (or Keep) and ×.
 struct ReviewQueueRow: View {
     struct Who {
-        enum Face { case person(URL?), host(String) }
+        /// A host's logo when its card has one, else its first letter.
+        enum Face { case person(URL?), host(String, URL? = nil) }
         let face: Face
         let name: String
         var age: String? = nil
@@ -530,6 +535,8 @@ struct ReviewQueueRow: View {
 
     let who: Who
     let title: String
+    /// Two lines, as Reddit's; nil for what has no page to read the rest on (an everyday post, a chat message).
+    var titleLines: Int? = 2
     var when: String? = nil
     var words: String? = nil
     var picture: URL? = nil
@@ -563,12 +570,13 @@ struct ReviewQueueRow: View {
 
             HStack(spacing: ReviewMetric.faceGap) {
                 if let tag {
-                    Label {
-                        Text(tag.text).font(.sans(14)).foregroundStyle(Hue.ink)
-                    } icon: {
-                        Image(systemName: tag.symbol).font(.sans(12)).foregroundStyle(Hue.ink)
+                    // The symbol beside the first line, so a reason on two lines keeps it at the top.
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: tag.symbol).font(.sans(12))
+                        Text(tag.text).font(.sans(14))
                     }
-                    .labelStyle(TagLabelStyle())
+                    .foregroundStyle(Hue.ink)
+                    .accessibilityElement(children: .combine)
                     .padding(.horizontal, ReviewMetric.tagPadH).padding(.vertical, ReviewMetric.tagPadV)
                     .background(Hue.fill, in: RoundedRectangle(cornerRadius: ReviewMetric.tagCorner, style: .continuous))
                     .fixedSize(horizontal: false, vertical: true)
@@ -626,7 +634,7 @@ struct ReviewQueueRow: View {
             }
             HStack(alignment: .top, spacing: ReviewMetric.pictureGap) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.sansSemibold(17)).foregroundStyle(Hue.ink).lineLimit(2)
+                    Text(title).font(.sansSemibold(17)).foregroundStyle(Hue.ink).lineLimit(titleLines)
                     if let when, !when.isEmpty {
                         Text(when).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
                     }
@@ -653,17 +661,7 @@ struct ReviewQueueRow: View {
     @ViewBuilder private var face: some View {
         switch who.face {
         case .person(let url): Avatar(url, size: ReviewMetric.face)
-        case .host(let name): Avatar(nil, size: ReviewMetric.face, blank: .initial(name, font: 11))
-        }
-    }
-}
-
-/// The tag's symbol beside its first line, so a reason on two lines keeps its symbol at the top.
-private struct TagLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            configuration.icon
-            configuration.title
+        case .host(let name, let logo): Avatar(logo, size: ReviewMetric.face, blank: .initial(name, font: 11))
         }
     }
 }

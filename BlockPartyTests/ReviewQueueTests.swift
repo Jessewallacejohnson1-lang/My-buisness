@@ -85,9 +85,9 @@ final class ReviewQueueTests: XCTestCase {
         """
         let report = try XCTUnwrap(Supabase.decode(Data(json.utf8), as: [ReportedEvent].self).first)
         XCTAssertEqual(report.tag, "Reported Oct 26: Wrong info")
-        XCTAssertEqual(report.card?.description, "Local makers")
-        XCTAssertEqual(report.card?.found, true)
-        XCTAssertEqual(report.card?.event?.goingCount, 4)
+        XCTAssertEqual(report.card.description, "Local makers")
+        XCTAssertEqual(report.card.found, true)
+        XCTAssertEqual(report.card.event?.goingCount, 4)
     }
 
     /// The database's check constraint accepts exactly these values.
