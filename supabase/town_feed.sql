@@ -657,7 +657,9 @@ as $$
   select n.id, n.title, null::text, np.url, n.source_name, n.published_at,
          null::text, n.leaves_at,
          case when n.matched is not null then 'interest' end, n.matched[1],
-         null::jsonb, 0, false, false,
+         -- Its hearts, every account's, and whether the caller gave one (inside-cards 22), as an Event's card says.
+         null::jsonb, private.news_heart_count(n.id),
+         exists (select 1 from public.news_likes h where h.item_id = n.id and h.user_id = auth.uid()), false,
          -- The place's logo first, as its Search tile and Instagram's avatars show a place; else its
          -- photo (place_picture).
          private.entry_picture(n.place_entry_id),
