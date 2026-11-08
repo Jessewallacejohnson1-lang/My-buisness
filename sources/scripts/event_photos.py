@@ -181,8 +181,11 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
     to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
     link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
-    the story's own share picture goes first."""
+    the story's own share picture goes first. A link that names no post (a page, a video) has none: every row
+    without a post id would match it, whoever posted it."""
     key = post_key(group["source_url"])
+    if not key:
+        return []
     own = [r for r in rows if post_key(r.get("url") or r.get("topLevelUrl")) == key]
     if not own and "/events/" in group["source_url"]:
         own = [r for r in rows if key in json.dumps(r.get("text") or r.get("caption") or "")
@@ -346,7 +349,11 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     groups = groups_of(events)
     for i, g in enumerate(groups, 1):
         g["key"] = f"e{i}"
-    news = news_groups(todo_news(db, now))
+    try:
+        news = news_groups(todo_news(db, now))
+    except DbError as x:  # the News are an addition: without them every Event is still laid out
+        print(f"[photos] new News not read, Events only: {x}")
+        news = []
     groups += news
     if rows is None:
         rows = social_rows(now) if any(POST.search(g["source_url"]) for g in groups) else []
@@ -492,6 +499,8 @@ def selftest():
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
+    check(from_posts({"source_url": "https://www.facebook.com/x/videos/123/", "events": []}, rows + [post("https://www.facebook.com/y/videos/9/", "Y", [("https://x.fbcdn.net/y.jpg", "")])]) == [],
+          "a link that names no post takes none, not another place's post that names none either")
     shared = [post("https://www.facebook.com/csbsju/posts/pfbidART", "csbsju", [("https://external.fbcdn.net/emg1/preview.jpg", "")],
                    link="https://www.csbsju.edu/news/alum-drawings/")]
     check([(c["url"], c["from"], c["page"]) for c in from_posts({"source_url": "https://www.facebook.com/csbsju/posts/pfbidART",
@@ -666,6 +675,15 @@ def selftest():
         check("id2" in [p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH"]
               and said.startswith("[photos] 3 of 4 new Events got a photo of their own (1 the one kept for their title, "),
               f"it is marked looked at, and the line counts it: {said}")
+
+        class NoNews(Found):  # the News can't be read (a database without photo_checked_at): the Events still are
+            def rest(self, method, path, body=None, prefer=None):
+                if path.startswith("board_items"):
+                    raise DbError(method, path, 400, "column board_items.photo_checked_at does not exist")
+                return super().rest(method, path, body, prefer)
+        laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=NoNews("https://db.example"), rows=rows,
+                       banners={"4758895": "https://storage.googleapis.com/art.jpg"}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
+        check([len(g["events"]) for g in laid] == [2, 1, 1], "a failed News read still lays every Event out")
 
         class Refused(Follows):  # the kept photos can't be read: every Event is laid out, as before this step
             def rest(self, method, path, body=None, prefer=None):
