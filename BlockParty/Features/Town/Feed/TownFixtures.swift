@@ -132,8 +132,13 @@ enum TownFixtures {
     /// The places' saved logos in Storage, read from the network.
     private static let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
 
+    /// JoeTown's new merch with its post's own photo, as the photo step saved it (town-feed 53), first; the rest the
+    /// white card, The Wandering Cow's sharing your interests.
     static func newsSamples(now: Date) -> [TownFeedEntry] {
         let samples: [(String, String, String, String, String?)] = [
+            ("JoeTown", "New Joetown merch",
+             "Fresh Joetown tees, sweatshirts, winter caps and baseball hats are for sale at Minnesota Street Market and The House Food & Tap.",
+             "https://www.instagram.com/p/Dfde7-gjf99/", nil),
             ("The Wandering Cow", "Flight Friday", "Four scoops for $5 at Wandering Cow on Fridays.",
              "https://www.instagram.com/p/Deki5CwgiQG/", "ChIJFfdMxRVZtFIR77H-NqLzUTc/logo-7225f2ed.webp"),
             ("City of St. Joseph", "Life Saving Awards", "St. Joseph police, fire and Mayo Ambulance members received Life Saving Awards at the Oct 19 council meeting.",
@@ -150,7 +155,9 @@ enum TownFixtures {
                                 picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
                                 leavesAt: now.addingTimeInterval(7 * 86_400),
                                 published: now.addingTimeInterval(-Double(i * 22 + 2) * 3600), title: s.1,
-                                interest: i == 0 ? "dining" : nil)
+                                interest: i == 1 ? "dining" : nil,
+                                photo: i == 0 ? URL(string: logos + "news/news-866b1517a3.webp") : nil,
+                                photoAspect: i == 0 ? 720.0 / 960.0 : nil)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
     }
