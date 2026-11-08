@@ -111,6 +111,7 @@ private struct GenderPill: View {
                 Text(label)
                     .font(.sansMedium(17))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width pill
             }
             .foregroundStyle(on ? Color.white : Hue.ink)
             .frame(maxWidth: .infinity, minHeight: 48 - 7 - 6 - 1.5 - 3.5)   // 48 with the style's padding

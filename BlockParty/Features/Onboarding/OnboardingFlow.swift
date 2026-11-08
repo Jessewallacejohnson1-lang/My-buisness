@@ -315,8 +315,11 @@ struct OnboardingFlow: View {
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
 
-    /// What the Birthday step's column keeps clear at the bottom: the Next bar's 52 pt, 302 pt up, and 16.
-    private static let birthdayClear: CGFloat = 302 + 52 + 16
+    /// The Next bar's lift over the birthday wheel, above the home indicator's 34: the mock's 302 pt
+    /// from the bottom.
+    private static let overWheel: CGFloat = 302 - 34
+    /// What the Birthday step's column keeps clear above the safe area: that lift, the bar's 52 pt, and 16.
+    private static let birthdayClear: CGFloat = overWheel + 52 + 16
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -492,10 +495,10 @@ struct OnboardingFlow: View {
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
                 .contentMargins(.bottom, Self.birthdayClear, for: .scrollContent)
-                // Under the top row it goes, as Interests' does.
+                // Under the top row it goes, as Interests' does; the bottom keeps the safe area, as the bar does.
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
-                .ignoresSafeArea(.container)
+                .ignoresSafeArea(.container, edges: .top)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     heading
@@ -580,8 +583,8 @@ struct OnboardingFlow: View {
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
-        // Over the birthday wheel as over a keyboard, at the mock's 302 pt from the bottom.
-        .padding(.bottom, store.step == .birthday ? 302 - 34 : 0)
+        // Over the birthday wheel as over a keyboard.
+        .padding(.bottom, store.step == .birthday ? Self.overWheel : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
         .padding(.bottom, keyboardUp ? 12 : 0)
