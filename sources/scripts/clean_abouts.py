@@ -10,15 +10,17 @@ sources/models/clean_about.md; the morning's About writers follow the same rule 
       Composio's SQL tool: no key on this Mac), ask the model for each one's About without its price, time, date
       and place (batches of 10 through `claude -p` on this Mac: Jesse's plan, no API key), and write
       DIR/14-dry-run.md (each Event's before and after, the counts, and the ticket's word search before and after)
-      and DIR/14-before.json (every row's description, price and end_at as they are: the undo). The answers wait
+      and DIR/14-before.json (every row as the dry run read it). The answers wait
       in DIR/14-answers.jsonl for --write, and a run again asks only for the Events not answered yet. Nothing is
       written to the database.
   --write [--out DIR]
-      After Jesse's yes, and after the price migration (20261108194138_price_field.sql) is live: PATCH the answers
-      onto the live rows (description, price, and end_at when the Event had none). Needs SUPABASE_URL and a key
+      After Jesse's yes, and after the price migration (20261108194138_price_field.sql) is live (the reads select
+      its columns): save DIR/14-undo.json (each row to be written as it is right then, its price included), then
+      PATCH the answers onto the live rows (description, price, and end_at when the Event had none). Refuses when
+      14-undo.json is there: a second write would save the cleaned words as the undo. Needs SUPABASE_URL and a key
       in the environment (db.py): `python3 ~/.claude/scripts/svc_env.py python3 sources/scripts/clean_abouts.py --write`.
   --undo [--out DIR]
-      PATCH DIR/14-before.json back, the same way.
+      PATCH DIR/14-undo.json back, the same way.
   --selftest
 
 DIR defaults to .runs/clean-abouts/ at the repo root.
@@ -42,7 +44,8 @@ HELPERS = 3
 PRICE_MAX = 60    # as morning.PRICE_MAX
 ABOUT_MAX = 1000  # as write_judged.clip
 LOCAL = ZoneInfo("America/Chicago")
-ROWS = """select id, title, event_date, start_time, end_at, location, description, described_at, source_name, category
+ROWS = """select id, title, event_date, start_time, end_at, location, description, price, described_at, about_written_at,
+  source_name, category
 from public.club_events
 where status = 'approved' and kind = 'event' and cancelled_at is null
   and event_date >= (now() at time zone 'America/Chicago')::date
@@ -182,6 +185,14 @@ def patch_body(change):
     return body
 
 
+UNDONE = ("description", "price", "end_at", "described_at", "about_written_at")
+
+
+def kept(rows, ids):
+    """The undo: each of `ids`' rows as the database has it now, every column a write may change."""
+    return {r["id"]: {k: r.get(k) for k in UNDONE} for r in rows if r["id"] in ids}
+
+
 def report(rows, changes, today):
     """The dry run's page for Jesse: the counts, the word search before and after, the remaining hits, every Event."""
     by = {c["id"]: c for c in changes}
@@ -195,7 +206,7 @@ def report(rows, changes, today):
            f"{len(changed)} would change: {sum(1 for c in changed if c['after'] != c['before'])} Abouts rewritten "
            f"({sum(1 for c in changed if not c['after'])} left empty, the page then shows its lines alone), "
            f"{sum(1 for c in changed if c['price'])} prices found, {sum(1 for c in changed if c['end_at'])} end times moved onto "
-           f"the Event. Nothing written: `--write` after Jesse's yes, `--undo` from 14-before.json.", "",
+           f"the Event. Nothing written: `--write` after Jesse's yes, `--undo` from the 14-undo.json the write saves.", "",
            "The ticket's word search, before and after (an estimate: \"free\" can be a false match, a place named differently is missed):", "",
            "| Names a… | Before | After |", "|---|---|---|"]
     out += [f"| {k} | {count(before_hits, k)} | {count(after_hits, k)} |" for k in ("price", "time", "date", "place")]
@@ -224,9 +235,8 @@ def dry_run(out, model):
     out.mkdir(parents=True, exist_ok=True)
     rows = not_game(read_rows())
     before, answers_file = out / "14-before.json", out / "14-answers.jsonl"
-    if not before.exists():  # the undo: the rows as they were before the first run, never overwritten
-        before.write_text(json.dumps([{"id": r["id"], "description": r["description"], "price": r.get("price"),
-                                       "end_at": r.get("end_at"), "described_at": r.get("described_at")} for r in rows],
+    if not before.exists():  # the rows as they were before the first run, never overwritten
+        before.write_text(json.dumps([{"id": i, **r} for i, r in kept(rows, {r["id"] for r in rows}).items()],
                                      indent=1, ensure_ascii=False))
     given = {r["id"] for r in rows}
     answers = answers_in(answers_file.read_text(), given) if answers_file.exists() else []
@@ -267,6 +277,10 @@ def write(out):
     rows = not_game(read_rows())
     answers = answers_in((out / "14-answers.jsonl").read_text(), {r["id"] for r in rows})
     changes = [c for c in plan(rows, answers) if c["changed"]]
+    undo_file = out / "14-undo.json"
+    if undo_file.exists():
+        sys.exit(f"{undo_file} is already here: a write ran before. Undo it first, or move it away on purpose.")
+    undo_file.write_text(json.dumps(kept(rows, {c["id"] for c in changes}), indent=1, ensure_ascii=False))
     for c in changes:
         db.rest("PATCH", f"club_events?id=eq.{c['id']}", patch_body(c), prefer="return=minimal")
     print(f"[clean] wrote {len(changes)} of {len(rows)} Events")
@@ -275,12 +289,10 @@ def write(out):
 def undo(out):
     from db import Db
     db = Db()
-    kept = json.loads((out / "14-before.json").read_text())
-    for r in kept:
-        db.rest("PATCH", f"club_events?id=eq.{r['id']}",
-                {"description": r["description"], "price": r["price"], "end_at": r["end_at"], "described_at": r.get("described_at")},
-                prefer="return=minimal")
-    print(f"[clean] put back {len(kept)} Events")
+    saved = json.loads((out / "14-undo.json").read_text())
+    for event_id, old in saved.items():
+        db.rest("PATCH", f"club_events?id=eq.{event_id}", old, prefer="return=minimal")
+    print(f"[clean] put back {len(saved)} Events")
 
 
 def selftest():
@@ -334,6 +346,12 @@ def selftest():
         ("| price | 2 | 0 |" in rep and "| any | 3 | 0 |" in rep and "3 would change" in rep and "2 prices found" in rep
          and "2 end times moved" in rep and "Music bingo in the taproom" in rep and "(1 left empty" in rep,
          "the page counts the hits before and after, the changes, the prices and the ends"),
+        ("price" in ROWS.split("from")[0] and "about_written_at" in ROWS.split("from")[0]
+         and kept([{**rows[1], "price": "$10", "described_at": None, "about_written_at": None}], {"b"})
+         == {"b": {"description": "Gloves and bags provided. $5.", "price": "$10", "end_at": "2026-11-21T17:00:00+00:00",
+                   "described_at": None, "about_written_at": None}}
+         and kept(rows, {"a"}).keys() == {"a"},
+         "the undo keeps each written row's price as the database has it, not null over a price set since"),
         (lines_of(rows[1:2])[0] == '{"id": "b", "title": "Trail cleanup", "date": "2026-11-21", "start": "9 AM", "end": "11 AM", '
                                    '"place": "Trailhead", "about": "Gloves and bags provided. $5."}',
          f"a batch line says the Event's end in Chicago time: {lines_of(rows[1:2])[0]}"),
