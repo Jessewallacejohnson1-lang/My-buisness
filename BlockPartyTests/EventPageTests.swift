@@ -7,6 +7,7 @@
 //  `RealLifeActions`', tested in RealLifeActionsTests.
 //
 
+import CoreLocation
 import SwiftUI
 import UIKit
 import XCTest
@@ -514,6 +515,20 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(page.placeLines("St. Cloud Cathedral High School Holy Angels Performing Arts Center"),
                        .init(first: "St. Cloud Cathedral High School Holy Angels Performing Arts Center"))
         XCTAssertEqual(page.placeLines(", Collegeville"), .init(first: ", Collegeville"), "no name before it: as written")
+    }
+
+    /// The Map button (inside-cards 19): a spot opens the small map in place; no one place (Online), no button;
+    /// no spot yet, Apple Maps at the place line, as before.
+    func testTheMapButtonOpensTheSmallMapAppleMapsOrNothing() throws {
+        let page = EventPage.self
+        let park = CLLocationCoordinate2D(latitude: 45.57007, longitude: -94.32874)
+        let maps = try XCTUnwrap(Directions.url(forPlace: "Millstream Park"))
+
+        XCTAssertEqual(page.mapTap(place: "Millstream Park", spot: .at(park)), .smallMap(park))
+        XCTAssertEqual(page.mapTap(place: nil, spot: .at(park)), .smallMap(park), "a spot with no place line")
+        XCTAssertNil(page.mapTap(place: "Online", spot: .noPlace), "no one place: no Map button")
+        XCTAssertEqual(page.mapTap(place: "Millstream Park", spot: nil), .appleMaps(maps), "no spot yet")
+        XCTAssertNil(page.mapTap(place: nil, spot: nil))
     }
 
     /// Report photo opens the neighbour's own mail app with an email to Block Party naming the

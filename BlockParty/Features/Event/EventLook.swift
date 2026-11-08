@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import MapboxMaps
 
 /// The page's sizes, on a 402 pt phone; the picture's scale with the width.
 enum EventLook {
@@ -77,6 +78,20 @@ enum EventLook {
     static let buttonGlyph: CGFloat = 22
     static let buttonWord: CGFloat = 16
     static let buttonGlyphGap: CGFloat = 4
+    /// The small map under Map (inside-cards 19), off the mock's CSS: 150 pt tall, 14 under the buttons, 20 pt corners,
+    /// a white hairline at 14% inside; the Event's photo 46 pt in a 2.5 pt white ring at its middle; a 30 pt white
+    /// expand button 10 pt in from the top right with a 15 pt glyph. Opening, the page scrolls so it ends 12 pt
+    /// above the bar. It grows and shrinks on a spring with no bounce, the mock's 0.36 s.
+    static let smallMap: CGFloat = 150
+    static let smallMapTop: CGFloat = 14
+    static let smallMapCorner: CGFloat = 20
+    static let smallMapPin: CGFloat = 46
+    static let smallMapRing: CGFloat = 2.5
+    static let smallMapGrow: CGFloat = 30
+    static let smallMapGrowInset: CGFloat = 10
+    static let smallMapGrowGlyph: CGFloat = 15
+    static let smallMapClear: CGFloat = 12
+    static let smallMapSpring: Animation = .spring(duration: 0.36, bounce: 0)
     /// Follow: a row 18 under the buttons, 12 pt tall at each end, the host's logo in a 40 pt white circle,
     /// Instagram's 70 x 32 Follow with 8 pt corners.
     static let hostTop: CGFloat = 18
@@ -117,6 +132,9 @@ enum EventLook {
     /// Ink on the yellow: 7% and 10%, 68%, the lines' tint 78%, a glass circle 10%.
     static let fill: Double = 0.10
     static let fillLine: Double = 0.16
+    /// Map while its small map is open: white at 20%, ink at 14% on the yellow (the mock's).
+    static let fillLit: Double = 0.20
+    static let sunFillLit: Double = 0.14
     static let dim: Double = 0.66
     static let hairline: Double = 0.14
     static let glassFill: Double = 0.22
@@ -430,6 +448,8 @@ struct EventBigButton: View {
     let glyph: String
     let word: String
     var sun = false
+    /// Map while its small map is open: a brighter fill.
+    var lit = false
     let action: () -> Void
 
     var body: some View {
@@ -446,12 +466,117 @@ struct EventBigButton: View {
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity)
             .frame(height: EventLook.button)
-            .background(ink.opacity(sun ? EventLook.sunFill : EventLook.fill), in: Capsule())
+            .background(ink.opacity(lit ? (sun ? EventLook.sunFillLit : EventLook.fillLit) : sun ? EventLook.sunFill : EventLook.fill),
+                        in: Capsule())
+            .animation(Motion.smooth, value: lit)
             .overlay { Capsule().strokeBorder(ink.opacity(sun ? EventLook.sunFillLine : EventLook.fillLine), lineWidth: 0.5) }
             .contentShape(Capsule())
         }
         .buttonStyle(.press(.squish))
         .accessibilityLabel(word)
+    }
+}
+
+/// The small map under Map (inside-cards 19; Jesse, 2026-11-06: "when you click the map it opens up right below and if
+/// you click you can see it on the map"): a still of Block Party's map over the Event's spot, the Event's photo in a
+/// white ring at its middle (the mock's bubble) and a white expand button in its corner. A tap opens the full map.
+struct EventSmallMap: View {
+    let item: FeedCardItem
+    /// The still, once made (`SmallMapShot`); the map's ground until then.
+    let shot: UIImage?
+    let action: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: EventLook.smallMapCorner, style: .continuous)
+        Button(action: action) {
+            ZStack {
+                Hue.mapLand
+                if let shot {
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFill()
+                        .transition(.opacity)
+                }
+                pin
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: EventLook.smallMap)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(.white.opacity(EventLook.hairline), lineWidth: 0.5) }
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.glyph(EventLook.smallMapGrowGlyph, weight: .semibold))
+                    .foregroundStyle(Hue.ink.onLightCanvas)
+                    .frame(width: EventLook.smallMapGrow, height: EventLook.smallMapGrow)
+                    .background(.white, in: Circle())
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)
+                    .padding(EventLook.smallMapGrowInset)
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.press(.squish))
+        .animation(Motion.smooth, value: shot != nil)
+        .accessibilityLabel("See it on the map")
+    }
+
+    /// The Event's photo, else its place's, else its logo, as its bubble on the map; the yellow with none.
+    private var pin: some View {
+        let source = item.photos().first
+        return ZStack {
+            if let url = source?.url {
+                FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+            } else if let logo = source?.logo {
+                FeedCardPlaceLogo(logo: logo)
+            } else {
+                Hue.brandDisc
+            }
+        }
+        .frame(width: EventLook.smallMapPin, height: EventLook.smallMapPin)
+        .clipShape(Circle())
+        .background { Circle().fill(.white).padding(-EventLook.smallMapRing) }
+        .shadow(color: .black.opacity(0.3), radius: 7, x: 0, y: 6)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One still of Block Party's map for the small map (inside-cards 19): Mapbox's snapshotter on the map's own style and
+/// palette, at the map's opening zoom, so it reads as the map it opens. No wordmark (Jesse's 2026-08-14 call) and no
+/// attribution line on a 150 pt still: the full map it opens keeps its ⓘ.
+@MainActor
+final class SmallMapShot {
+    private let snapshotter: Snapshotter
+    private var waits: [AnyCancelable] = []
+    private var done: CheckedContinuation<UIImage?, Never>?
+
+    private init(size: CGSize, scale: CGFloat) {
+        snapshotter = Snapshotter(options: MapSnapshotOptions(size: size, pixelRatio: scale,
+                                                              showsLogo: false, showsAttribution: false))
+    }
+
+    /// The still, or nil when the style or the tiles couldn't load.
+    static func make(at spot: CLLocationCoordinate2D, size: CGSize, scale: CGFloat) async -> UIImage? {
+        guard size.width > 0 else { return nil }
+        let shot = SmallMapShot(size: size, scale: scale)
+        return await withCheckedContinuation { shot.start(at: spot, then: $0) }
+    }
+
+    /// Recoloured once its style is in, then drawn. Each wait holds this object until it's done.
+    private func start(at spot: CLLocationCoordinate2D, then done: CheckedContinuation<UIImage?, Never>) {
+        self.done = done
+        waits.append(snapshotter.onStyleLoaded.observeNext { [self] _ in
+            BasemapPalette.recolor(snapshotter)
+            snapshotter.start(overlayHandler: nil) { [self] in finish(try? $0.get()) }
+        })
+        // A style that never loads would leave the still waiting for good; a tile or a sprite missing still draws.
+        waits.append(snapshotter.onMapLoadingError.observe { [self] in if $0.type == .style { finish(nil) } })
+        snapshotter.setCamera(to: CameraOptions(center: spot, zoom: SJMapView.openZoom))
+        snapshotter.styleURI = BasemapPalette.style
+    }
+
+    private func finish(_ image: UIImage?) {
+        done?.resume(returning: image)
+        done = nil
+        waits.removeAll()
     }
 }
 
