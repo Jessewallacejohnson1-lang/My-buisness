@@ -97,6 +97,9 @@ DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
 DESCRIBE_BATCH = 10
 PAGE_MAX = 3000    # characters of an Event's own page its helper reads
 ABOUT_MAX = 1000   # as write_judged.clip
+PRICE_MAX = 60     # characters: a price is one short line under the place ("$22, $20 seniors, $15 students")
+# An About naming a cost: its helper moves the cost to `price` (inside-cards 14), so the judge's blurbs come clean too.
+COST = re.compile(r"\$\s?\d|\bfree\b", re.I)
 LIST_MAX = 40  # new Events listed one by one; the rest as a count per source (a first read can add hundreds)
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
@@ -706,7 +709,7 @@ def to_describe(db, today):
     was researched on its morning (described_at), so a thin one stays thin rather than being
     searched again every day (smooth-mornings 06)."""
     since = (today - timedelta(days=2)).isoformat()
-    ask = ("club_events?select=id,title,event_date,start_time,location,description,source_name,source_url,"
+    ask = ("club_events?select=id,title,event_date,start_time,location,description,price,source_name,source_url,"
            "sport,category,clubs(name)&status=eq.approved&kind=eq.event"
            f"&event_date=gte.{today}&described_at=is.null&order=event_date&limit=1000")
     found = db.rest("GET", f"{ask}&created_at=gte.{since}")
@@ -732,14 +735,18 @@ def signs_up(row):
 
 
 def to_research(rows):
-    """The rows whose About is empty or under a sentence, or that link to a campus sign-up page, games
-    left out (write_judged.is_game: a game's reader wrote its About from the schedule, and there is
+    """The rows whose About is empty or under a sentence, that link to a campus sign-up page, or whose About
+    names a cost with no `price` yet (the judge's blurb keeps the cost; the helper moves it, inside-cards 14),
+    games left out (write_judged.is_game: a game's reader wrote its About from the schedule, and there is
     nothing more to find), as the helpers read them, at most DESCRIBE_MAX."""
-    thin = [r for r in rows if (len((r.get("description") or "").strip()) < THIN or signs_up(r))
-            and not write_judged.is_game(r)]
+    def picked(r):
+        about = (r.get("description") or "").strip()
+        return len(about) < THIN or signs_up(r) or (COST.search(about) and not r.get("price"))
+    thin = [r for r in rows if picked(r) and not write_judged.is_game(r)]
     return [{"id": r["id"], "title": r["title"], "date": r["event_date"], "start": r.get("start_time") or "",
              "place": r.get("location") or "", "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
-             "link": r.get("source_url") or "", "about": (r.get("description") or "").strip()}
+             "link": r.get("source_url") or "", "about": (r.get("description") or "").strip(),
+             "price": (r.get("price") or "").strip()}
             for r in thin[:DESCRIBE_MAX]]
 
 
@@ -817,9 +824,11 @@ def thin(run, get=None):
 
 
 def plan_descriptions(lines, events):
-    """The helpers' lines as writes: only Events they were given, each once, an About that is
-    text and longer than the one it has (a fuller About is never shortened). CHECK lines are
-    kept for the answer, never written."""
+    """The helpers' lines as writes, the columns to save per Event (`description`, `price`): only Events they
+    were given, each once. An About that is text and longer than the one it has (a fuller About is never
+    shortened), unless the line says it was cleaned (`cleaned`, or a `price` moved out of it: inside-cards 14),
+    when a shorter About is the point; a price whenever given, one short line. CHECK lines are kept for the
+    answer, never written."""
     given, writes, checks = {e["id"]: e for e in events}, {}, []
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("id") not in given:
@@ -827,9 +836,17 @@ def plan_descriptions(lines, events):
         e = given[ln["id"]]
         if isinstance(ln.get("check"), str) and ln["check"].strip():
             checks.append(f"{e['title']} ({e['date']}): {ln['check'].strip()}")
-        about = " ".join(ln["about"].split()) if isinstance(ln.get("about"), str) else ""
-        if len(about) > len(e["about"]) and ln["id"] not in writes:
-            writes[ln["id"]] = write_judged.clip(about, ABOUT_MAX)
+        if ln["id"] in writes:
+            continue
+        words = lambda key: " ".join(ln[key].split()) if isinstance(ln.get(key), str) else ""
+        about, price = words("about"), words("price")
+        write = {}
+        if about and about != " ".join(e["about"].split()) and (len(about) > len(e["about"]) or price or ln.get("cleaned") is True):
+            write["description"] = write_judged.clip(about, ABOUT_MAX)
+        if price:
+            write["price"] = write_judged.clip(price, PRICE_MAX)
+        if write:
+            writes[ln["id"]] = write
     return writes, checks
 
 
@@ -846,8 +863,7 @@ def describe(run, dry_run):
         now = datetime.now(LOCAL).isoformat()
 
         def save_about(event_id):
-            run.db.rest("PATCH", f"club_events?id=eq.{event_id}",
-                        {"described_at": now, **({"description": writes[event_id]} if event_id in writes else {})},
+            run.db.rest("PATCH", f"club_events?id=eq.{event_id}", {"described_at": now, **writes.get(event_id, {})},
                         prefer="return=minimal")
         left = run.part("describe/written.json").each(sorted(answered), save_about)  # thin clears it
         if left:
@@ -893,7 +909,8 @@ def lay_out_today(run):
     out.mkdir(parents=True, exist_ok=True)
     given = lambda d: json.loads((out / d / "events.json").read_text()) if (out / d / "events.json").exists() else []
     tags = plan_tags(read_items(out / "tags.jsonl"), given("tag"), write_judged.interest_ids())
-    abouts, _ = plan_descriptions(read_items(out / "describe.jsonl"), given("describe"))
+    writes, _ = plan_descriptions(read_items(out / "describe.jsonl"), given("describe"))
+    abouts = {i: w["description"] for i, w in writes.items() if "description" in w}
     events = todays_events(run.db, today, tags, abouts)
     (out / "today.txt").write_text(f"Today: {today}\n\nEvents:\n"
                                    + "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events))
@@ -1419,8 +1436,17 @@ def selftest():
                                        {"id": "a", "about": "a second answer"},
                                        {"id": "b", "about": "Short.", "check": "Starts at 4, not 7."},
                                        {"id": "z", "about": "not given"}, "junk"], given)
-    checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
+    checks.append((writes == {"a": {"description": "Weekly Pilates at City Hall."}} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
+    # The About cleaned under inside-cards 14 (what it is and what to expect) is shorter than the one it had, so a
+    # shorter About is taken when the line says it was cleaned, or moves the cost to `price`; the price alone is a write.
+    writes, _ = plan_descriptions([{"id": "b", "about": "A cleaned About.", "cleaned": True},
+                                   {"id": "a", "about": "$10.", "price": " $10 a class "}], given)
+    checks.append((writes == {"b": {"description": "A cleaned About."}, "a": {"price": "$10 a class"}},
+                   "a shorter About is written when the line says cleaned; a price is written on its own, tidied"))
+    writes, _ = plan_descriptions([{"id": "b", "about": "Short.", "price": "Free"}, {"id": "a", "about": "", "cleaned": True}], given)
+    checks.append((writes == {"b": {"description": "Short.", "price": "Free"}},
+                   "a price makes a shorter About a cleaned one; an empty About is never written"))
     checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told() + credits_told()
     asked = []
 
@@ -1678,8 +1704,15 @@ def sign_up_pages():
             return [new, both] if "created_at=gte." in path else [both, retreat]
     laid = [e["id"] for e in to_describe(Db(), date(2026, 10, 29))]
     picked = [e["id"] for e in to_research([retreat, talk, other])]
+    costs = [row("c1", "Church of St. Joseph", "https://c/1", about=long + " Tickets $12, kids $6."),
+             row("c2", "Church of St. Joseph", "https://c/2", about=long + " Free and open to all."),
+             {**row("c3", "Church of St. Joseph", "https://c/3", about=long + " $12 at the door."), "price": "$12"},
+             row("c4", "Church of St. Joseph", "https://c/4", about=long + " Feel welcome to bring a dish.")]
+    moved = [(e["id"], e["price"]) for e in to_research(costs)]
     return [(picked == ["r"], "a campus Event with a sign-up page is researched though its About is full; the "
                               "calendar's own page or another host's page is not"),
+            (moved == [("c1", ""), ("c2", "")],
+             "a full About naming a cost is laid out until its price is moved out of it (inside-cards 14)"),
             (laid == ["n", "b", "r"] and "source_name=in.(" in asked[1] and "Saint%20Benedict" in asked[1]
              and "source_url=not.like." in asked[1],
              "the newly found come first, then the campus sign-up pages from any morning, each Event once")]
@@ -2409,7 +2442,10 @@ def whole_morning():
             about = "A harvest supper of roast turkey and pie, open to all; $12 a plate, kids under 10 free."
             tags = [{"id": e["id"], "interests": ["dining"], "draw": 3 if is_supper(e) else 2, "what": "Supper"}
                     for e in given("tag")]
-            told = [{"id": e["id"], "about": about} if is_supper(e) else {"id": e["id"], "about": "", "check": "Starts at 7:30, not 7."}
+            # The supper's About, the markets' Abouts with their "free" moved to the price (inside-cards 14), a check.
+            told = [{"id": e["id"], "about": about} if is_supper(e)
+                    else {"id": e["id"], "about": e["about"].replace("; free to walk through", ""), "price": "Free"} if e["about"]
+                    else {"id": e["id"], "about": "", "check": "Starts at 7:30, not 7."}
                     for e in given("describe")]
             for name, lines in (("tags.jsonl", tags), ("describe.jsonl", told)):
                 (out / name).write_text("".join(json.dumps(x) + "\n" for x in lines))
@@ -2422,8 +2458,10 @@ def whole_morning():
             finished = parts("finish")  # again: it writes only what the timeouts left
             third = command("finish")  # and once more: nothing left to write
             supper = next((e for e in Db.events if is_supper(e)), {})
+            market = next((e for e in Db.events if e["title"] == "Holiday Market"), {})
             stored = (len(Db.saves) == 1 and all(e["interests_tagged_at"] for e in Db.events)
                       and supper.get("description", "").startswith("A harvest supper")
+                      and (market.get("price"), "free" in market.get("description", "")) == ("Free", False)
                       and [r["event_id"] for r in Db.standouts] == [supper.get("id")]
                       and all(r["last_hash"] != "old" for k, r in Db.rows.items() if not k.startswith("dsl")))
             # A social check's save (its prepare.json names the run) only writes: no batches for helpers.
@@ -2465,9 +2503,11 @@ def whole_morning():
          f"Finish takes two parts while the tags are written, and a timeout in any save is a line in the whole report: {broken}"),
         (list(Db.reports) == ["2026-11-03"] and Db.reports["2026-11-03"] + "\n" == third
          and "[morning] tags failed" not in third, "each finish saves its report as the morning's one row, the last one kept"),
-        (len(finished) == 1 and third == finished[0] and sorted(collections.Counter(Db.writes).values()) == [1] * 7
-         and [k for k, _ in Db.writes].count("tag") == 4 and [k for k, _ in Db.writes].count("describe") == 2,
-         f"finish run again writes only what the timeouts left, and once more nothing: {Db.writes}"),
+        # Four Abouts now (two markets' prices, inside-cards 14): the part's clock runs out after three, so run again
+        # takes two parts, and once more writes nothing.
+        (finished == ["[morning] run again: 3 of 4 Abouts saved\n", third] and sorted(collections.Counter(Db.writes).values()) == [1] * 9
+         and [k for k, _ in Db.writes].count("tag") == 4 and [k for k, _ in Db.writes].count("describe") == 4,
+         f"finish run again writes only what the timeouts left, and once more nothing: {finished[:1]} {Db.writes}"),
         (report == ["Morning watch, 2026-11-03",
                     "- Pages: 5 fetched, 4 changed, 4 read by the cheap model",
                     "- Events: 4 new, 0 already listed",
@@ -2491,7 +2531,7 @@ def whole_morning():
                     "- interest 'bars' is not on the list ('Holiday Market Bake Sale'): left empty",
                     "[morning] tagged 4 events (0 with no interest; draw 3/2/1: 1/3/0), 4 with what they are in words, "
                     "0 left for tomorrow",
-                    "[morning] described 1 of 2 events given",
+                    "[morning] described 3 of 4 events given",
                     "[check] Sacred Heart Chapel Anniversary (2026-11-21): Starts at 7:30, not 7.",
                     "[morning] standouts: 1 of 1 events today",
                     "[morning] #1 Harvest Supper (5 PM): A church supper open to all",

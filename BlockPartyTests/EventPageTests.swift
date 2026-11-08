@@ -276,6 +276,36 @@ final class EventPageTests: XCTestCase {
         XCTAssertNil(page.placeText(FeedCardItem(event(imageUrl: nil, location: "  "))))
     }
 
+    /// The price line (inside-cards 14): one line under the place when a source says what it costs, as words;
+    /// nothing when unknown, never a placeholder.
+    func testThePriceLineShowsOnlyWhenKnown() {
+        let page = EventPage.self
+        XCTAssertNil(page.priceText(nil))
+        XCTAssertNil(page.priceText(" \n"), "blank is unknown")
+        XCTAssertEqual(page.priceText(" Free\n"), "Free")
+        XCTAssertEqual(page.priceText("$22, $20 seniors, $15 students"), "$22, $20 seniors, $15 students")
+
+        var priced = event(imageUrl: nil)
+        priced.price = "$5 at the door"
+        XCTAssertEqual(FeedCardItem(priced).price, "$5 at the door", "the card carries it to the page")
+        XCTAssertNil(FeedCardItem(event(imageUrl: nil)).price)
+    }
+
+    /// The card sends the price (`private.event_cards`, inside-cards 14); a card from before the field says none.
+    func testTheCardCarriesThePrice() throws {
+        let card = """
+        {"id":"e1","title":"Christmas at Saint John's","event_date":"2026-12-04","start_time":"7:30 PM",
+         "location":"Abbey Church","image_url":null,"category":"music_arts","club_name":null,
+         "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00",
+         "going_count":0,"going":false,"heart_count":0,"hearted":false,"cancelled":false,"place_picture":null,
+         "host_picture":null,"description":"The colleges' holiday tradition.","price":"$22, $20 seniors, $15 students",
+         "what":"Concert","source_url":null,"game":null,"friends_going":[],"live_kind":true,"recurrence":null}
+        """
+        XCTAssertEqual(try Supabase.decode(Data(card.utf8), as: UpcomingEvent.self).price, "$22, $20 seniors, $15 students")
+        let before = card.replacingOccurrences(of: #""price":"$22, $20 seniors, $15 students","#, with: "")
+        XCTAssertNil(try Supabase.decode(Data(before.utf8), as: UpcomingEvent.self).price)
+    }
+
     /// The day row (event-page-formats 06): the day in full over its hours, the end only when the
     /// Event gives one; its year only past six months; days it runs over, and words we can't read.
     func testTheDayRowSaysTheDayInFullOverItsHours() {

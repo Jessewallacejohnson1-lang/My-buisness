@@ -60,7 +60,7 @@ EOF
             "$py311" -c 'import sys; [compile(open(f).read(), f, "exec") for f in sys.argv[1:]]' sources/scripts/*.py
             sh sources/validate
             python3 sources/scripts/test_census.py
-            for s in accounts apple_maps batch check_flags check_judge composio event_photos find_calendars find_spots morning morning_run place_photos place_rows read_events ready run social spots verify write_judged; do
+            for s in accounts apple_maps batch check_flags check_judge clean_abouts composio event_photos find_calendars find_spots morning morning_run place_photos place_rows read_events ready run social spots verify write_judged; do
                 python3 "sources/scripts/$s.py" --selftest
             done
             ;;

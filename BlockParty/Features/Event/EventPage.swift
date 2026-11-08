@@ -491,12 +491,15 @@ struct EventPage: View {
                 .padding(.top, sun ? EventLook.sunTitleTop : EventLook.titleTop)
 
             let date = Self.dateLine(current)
-            if date != nil || place != nil {
+            let price = Self.priceText(item.price)
+            if date != nil || place != nil || price != nil {
                 VStack(spacing: EventLook.lineHeight - EventLook.lineNatural) {
                     if let date {
                         Text(date.oneLine).accessibilityLabel(date.spoken)
                     }
                     if let place { Text(place) }
+                    // The price when a source said it (inside-cards 14); nothing when unknown, never a placeholder.
+                    if let price { Text(price) }
                 }
                 .font(.apple(EventLook.line))
                 .multilineTextAlignment(.center)
@@ -821,6 +824,11 @@ struct EventPage: View {
 
     static func aboutText(_ description: String?) -> String? {
         nonempty(description)
+    }
+
+    /// The price line's words (inside-cards 14): what a source said it costs, else nothing.
+    static func priceText(_ price: String?) -> String? {
+        nonempty(price)
     }
 
     /// The found page as the Business page draws a link: "Facebook", "Instagram", else the site's name.

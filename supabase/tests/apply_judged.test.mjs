@@ -143,6 +143,20 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   const longer = 'Senior night: the Storm honors its seniors before the game, then hosts Sartell in a Central Lakes match.';
   await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
   assert.equal(await about(), longer, 'a longer one replaces it');
+  // An About a helper or the cleaning laid out (described_at; inside-cards 14) says only what it is and what to
+  // expect, so it is shorter than the listing's words: a re-read never writes over it.
+  await db.exec(`update public.club_events set description = 'The Storm honor their seniors.', described_at = now()`);
+  await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
+  assert.equal(await about(), 'The Storm honor their seniors.', 'a laid-out About stays against a longer re-read');
+  // The price lands from a judged item, and a re-read with none keeps it (inside-cards 14).
+  const price = async () => (await db.query('select price as p from public.club_events')).rows[0].p;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, price: '$5 at the door' })), [], [], []);
+  assert.equal(await price(), '$5 at the door');
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.equal(await price(), '$5 at the door', 'a re-read without a price keeps it');
+  await apply(placed('2026-10-21').map((g) => ({ ...g, price: '' })), [], [], []);
+  assert.equal(await price(), '$5 at the door', 'a blank price keeps it too');
+  await db.exec(`update public.club_events set described_at = null`);
 
   // A re-read with no place keeps the one it had (Sal's, 2026-10-25); a new place still moves it.
   const where = async () => (await db.query('select location as l from public.club_events')).rows[0].l;

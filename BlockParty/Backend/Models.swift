@@ -149,6 +149,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The organizer's own words (`club_events.description`), the Event page's About: nil for
     /// an event without them (a game), and on rows read before the feeds sent them.
     var description: String? = nil
+    /// What it costs, as words a source said ("Free", "$22, $20 seniors, $15 students"; `club_events.price`, BP app
+    /// inside-cards 14): the Event page's price line. nil when no source says, and the page shows nothing then.
+    var price: String? = nil
     /// A game between two teams (BP app docs/plans/game-card, ticket 01): its Town card shows
     /// the teams instead of a photo. nil for any other event, and on rows read before the feed
     /// sent it.

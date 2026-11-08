@@ -260,6 +260,8 @@ enum TownFixtures {
                 photo: true, hoursUntil: 24 * 27, going: 63,
                 category: .musicArts,
                 description: "An hour of Bach and a few newer pieces on the Abbey church organ. Open to everyone.",
+                // A price, so the Event page's price line shows on fixed data (inside-cards 14).
+                price: "Free, donations welcome",
                 now: now
             ),
             // No description and no category (none fits a council meeting), so the
@@ -327,7 +329,7 @@ enum TownFixtures {
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, going: Int,
-        category: EventCategory? = nil, description: String? = nil,
+        category: EventCategory? = nil, description: String? = nil, price: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
         friends: [(name: String, photo: String?)] = [], credit: String? = nil,
         logo: String? = nil,
@@ -352,6 +354,7 @@ enum TownFixtures {
             isLiked: false,
             isJoined: false,
             description: description,
+            price: price,
             category: category
         )
         // Why each is in the feed, as `get_town_feed` would say it by default: the day.

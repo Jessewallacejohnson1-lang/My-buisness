@@ -33,6 +33,7 @@ extension FeedCardItem {
             allDay: event.isAllDay,
             location: location,
             description: event.description,
+            price: event.price,
             category: event.category == .other ? nil : event.category,
             cancelled: event.cancelled,
             place: place,

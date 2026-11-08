@@ -375,7 +375,7 @@ function isFullCard(card, id, day) {
 const bareCard = (card, id, day, going) => ({
   id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
   club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null,
+  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null, price: null,
   what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
 });
 
@@ -412,6 +412,16 @@ test('Liked sends the same full Event card, saying you hearted it (codebase-heal
   isFullCard(row.card, id, day);
   assert.deepEqual([row.card.heart_count, row.card.hearted], [2, true], "every account's hearts, and yours");
   assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
+});
+
+test("a priced Event's card carries its price as words, for the Event page's line (inside-cards 14)", async () => {
+  await reset();
+  const day = soon();
+  const id = await add("Christmas at Saint John's", day);
+  await db.query('update public.club_events set price = $2 where id = $1', [id, '$22, $20 seniors, $15 students']);
+  await going(ME, id);
+  const [row] = await asTheAppReads('going', day);
+  assert.equal(row.card.price, '$22, $20 seniors, $15 students', 'free text, as the source says it');
 });
 
 test('Liked sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
