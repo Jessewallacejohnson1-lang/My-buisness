@@ -235,8 +235,8 @@ final class SearchModelTests: XCTestCase {
             poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop",
                 logo: SearchLogo.Row(url: URL(string: "https://example.com/b.webp")!, hue: 354, chroma: true, rank: 0)),
         ])
-        // Aardvark has no logo, so it stays off the row.
-        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "White Peony Boutique"])
+        // Aardvark has no logo: its letter disc comes after the logos (place-pages 01).
+        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "White Peony Boutique", "Aardvark"])
         XCTAssertEqual(model.row(.park).first?.group, "Parks")
         XCTAssertEqual(model.row(.park).last?.group, "Trails")
     }
@@ -454,15 +454,14 @@ final class SearchModelTests: XCTestCase {
         let model = SearchModel(supabase: supabase, defaults: defaults)
         model.show([poi("stjoe-blend", "The Local Blend", .food, "coffee_shop", logo: logo(), entry: "blend"),
                     poi("stjoe-shop", "Lee's Ace", .business, "hardware_store", logo: logo(), entry: "shop"),
-                    poi("stjoe-nologo", "No Logo", .food, "restaurant", entry: "nologo")],
-                   photos: ["blend": [picture("blend")], "shop": [picture("shop"), picture("shop2")],
-                            "nologo": [picture("nologo")]])
+                    poi("stjoe-nophoto", "No Photo Place", .food, "restaurant", entry: "nophoto")],
+                   photos: ["blend": [picture("blend")], "shop": [picture("shop"), picture("shop2")]])
         // Eight Events and two places: exactly two blocks, so no shuffle can cut the one looked for below.
         model.show(events: (0..<8).map { card("E\($0)", day: "2026-11-20") } + [card("No photo", day: "2026-11-20", photo: false)],
                    now: at(3, 10))
         let grid = model.aroundTown(seed: 7)
         XCTAssertEqual(grid.count, 10, "8 Events and 2 places with a page")
-        XCTAssertFalse(grid.contains { $0.name == "No photo" || $0.name == "No Logo" }, "never a tile that does nothing")
+        XCTAssertFalse(grid.contains { $0.name == "No photo" || $0.name == "No Photo Place" }, "never a tile with nothing to show")
         XCTAssertEqual(grid.first { $0.name == "Lee's Ace" }.map(\.photo) ?? nil, .saved(picture("shop")), "a business by its cover")
         XCTAssertEqual(model.aroundTown(seed: 7).map(\.id), grid.map(\.id))
         XCTAssertNotEqual(model.aroundTown(seed: 8).map(\.id), grid.map(\.id))
