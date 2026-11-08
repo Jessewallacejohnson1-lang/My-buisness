@@ -24,6 +24,7 @@ struct NoPhotoCard: View {
     /// "Now" behind Apple's green, as the photo chip has it (event-card 04).
     var pillDot: Color? = nil
     let title: String
+    var titleLines = 2
     var facts: String? = nil
     var factsLines = 1
     /// An Event's small line, in place of `facts`.
@@ -62,7 +63,7 @@ struct NoPhotoCard: View {
                     .font(.eventDisplay(19))
                     .lineSpacing(-1)
                     .foregroundStyle(Hue.ink.onLightCanvas)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : titleLines)
                     .fixedSize(horizontal: false, vertical: true)
                 if !factsTries.isEmpty {
                     SmallLine(tries: factsTries, wraps: true)

@@ -43,9 +43,10 @@ struct TownNewsCard: View {
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
 
+    /// With no second line, its two lines go to the headline (BP app inside-cards 12).
     private var face: some View {
-        NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
-                    title: news.headline, facts: news.cardFacts, factsLines: 2)
+        NoPhotoCard(logo: news.logo, name: news.place, pill: news.pill(),
+                    title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
@@ -82,10 +83,18 @@ extension TownNews {
     var logo: URL? { picture?.kind == .logo ? picture?.url : nil }
 
     /// The card's small line. A first letter doesn't say whose post it is, so with no logo the place's
-    /// name starts it, unless the words already name it (Jesse at town-feed 40's Check-in 2).
+    /// name starts it, unless the card already names it (Jesse at town-feed 40's Check-in 2). "St." and
+    /// "Saint" are one name: "St. John's Prep" is in "Saint John's Prep girls won".
     var cardFacts: String? {
-        guard logo == nil, !place.isEmpty, !words.localizedCaseInsensitiveContains(place),
-              !headline.localizedCaseInsensitiveContains(place) else { return facts }
+        let saint = { (text: String) in text.replacing("Saint ", with: "St. ") }
+        guard logo == nil, !place.isEmpty, !saint(facts ?? "").localizedCaseInsensitiveContains(saint(place)),
+              !saint(headline).localizedCaseInsensitiveContains(saint(place)) else { return facts }
         return [place, facts].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "News · 2d", in a neighbour's post's short form, from when Block Party found it (not when the
+    /// place posted it); "News" with no date. Replaces NEW (Jesse, 2026-11-06, BP app inside-cards 12).
+    func pill(now: Date = .now) -> String {
+        published.map { "News · \(PostingCard.relativeLabel(for: $0, now: now))" } ?? "News"
     }
 }

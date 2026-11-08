@@ -322,6 +322,71 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(news("", nil).cardFacts, "Open 10 to 6 through Sunday.", "no place, nothing to name")
         XCTAssertEqual(news("Hours", nil).cardFacts, "Open 10 to 6 through Sunday.", "the headline names it already")
         XCTAssertEqual(news("sunday", nil).cardFacts, "Open 10 to 6 through Sunday.", "the facts name it already")
+        let prep = TownNews(id: "p", place: "St. John's Prep", words: "Saint John's Prep girls won the Section 5A championship and head to state.",
+                            post: post, leavesAt: .distantFuture, title: "Prep girls cross country wins Section 5A")
+        XCTAssertEqual(prep.cardFacts, prep.facts, "St. and Saint are one name")
+        let kidstop = TownNews(id: "k", place: "Kidstop", words: "Boys & Girls Clubs of Central Minnesota received funding from the CLA Foundation.",
+                               post: post, leavesAt: .distantFuture, title: "Boys & Girls Clubs get CLA Foundation funding")
+        XCTAssertEqual(kidstop.cardFacts, "Kidstop", "its line is gone, its name stays")
+    }
+
+    /// News's second line stays only when at least 2 in 5 of its real words are new (BP app inside-cards 12),
+    /// on the 31 stories of Nov 6's feed and the prototype's calls on them (`assets/07-words/result.json`).
+    func testNewsKeepsItsSecondLineOnlyWhenItAddsSomething() {
+        let rows: [(keep: Bool, place: String, title: String, line: String)] = [
+            (true, "Grey Face Rescue & Retirement", "Host a Grey Face Giving Tree", "Businesses can sign up online to host a donation tree or box this holiday season."),
+            (false, "Saint Joseph Meat Market", "The Meat Market wins Best Meat Market in the Community's Choice Awards", "Saint Joseph Meat Market won Central Minnesota's Best Meat Market."),
+            (true, "CSB Athletic Activities", "Badali named MIAC athlete of the week", "The CSB goalie earned the MIAC honor."),
+            (true, "SJU Athletic Activities", "Cole Stencel named MIAC cross country athlete of the year", "The SJU senior distance runner won the MIAC individual title and top honors."),
+            (false, "Two Bits Mens Grooming Salon", "Two Bits wins Best Barbershop in the Community's Choice Awards", "Two Bits Men's Grooming Salon won Central Minnesota's best barbershop."),
+            (true, "St. Wendel Tamarack Bog Scientific & Natural Area", "New electronic licensing system ahead of deer opener", "Buy hunting licenses online at mndnr.gov/buyalicense or at a license agent; deer opener is Saturday."),
+            (true, "St. John's Prep", "Prep girls cross country wins Section 5A", "Saint John's Prep girls won the Section 5A championship and head to state."),
+            (true, "KPower Yoga", "KPower Yoga voted Best Fitness Center for the fourth year", "KPower Yoga won the 2026 Community's Choice Best Fitness Center/Gym in Central Minnesota."),
+            (true, "Sisters of the Order of Saint Benedict", "Sisters of Saint Benedict take part in Give to the Max Day", "On November 19 the Sisters ask for gifts toward their move to a new home."),
+            (true, "Magnifi Financial", "Magnifi Thanksgiving Food Drive", "Drop off food at any Magnifi branch before November 23; all donations go to neighbours in need."),
+            (true, "Stearns Electric Association", "Stearns Electric director election nominations open", "Districts 4, 5 and 9 each elect a director to a three-year term; the nominations window is open."),
+            (true, "Kennedy Community School", "Unofficial Election Results", "Newly elected school board members"),
+            (false, "Newsleaders of St. Joseph and Sartell-St. Stephen", "Klobuchar and Flanagan win Minnesota races", "Klobuchar and Flanagan won their Minnesota races in the Nov. 3 election."),
+            (false, "Kidstop", "Boys & Girls Clubs get CLA Foundation funding", "Boys & Girls Clubs of Central Minnesota received funding from the CLA Foundation."),
+            (true, "Stearns County", "Stearns County Celebrates Opening of New Veteran Services Office in Melrose", "Stearns County will celebrate the opening of its new Veteran Services Office in Melrose with a ribbon cutting ceremony on Monday, Nov. 9, at noon. Through a partnership with the City of Melrose, Stearns County established a Veteran Services office within the Melrose City Center. The new location exp"),
+            (true, "City of St. Joseph", "Holiday: City Offices Closed", "Wednesday, Nov 11"),
+            (true, "Grey Face Rescue & Retirement", "Senior Pet Month: sponsor a senior at Grey Face Rescue", "Sponsor a senior pet's adoption fee or monthly expenses this November."),
+            (false, "SJU Athletic Activities", "Johnnie football No. 3, hockey No. 15 and soccer No. 22 in the polls", "Saint John's football is No. 3 in the AFCA poll, hockey is No. 15 and soccer jumped to No. 22."),
+            (true, "St. John's Prep", "Give to the Max Day, November 19", "Minnesota's statewide day of giving on November 19; Saint John's Prep asks neighbours to give or share their why."),
+            (true, "CSB Athletic Activities", "CSB soccer advances to the MIAC semifinals", "The Bennies beat Macalester on penalty kicks to reach the MIAC semifinals."),
+            (true, "Stearns Electric Association", "Operation Round Up gives over $68,000 in November", "Stearns Electric's Trust Board chose 59 organizations to receive over $68,000."),
+            (true, "Newsleaders of St. Joseph and Sartell-St. Stephen", "Two-vehicle crash sends two St. Joseph residents to hospital", "A two-vehicle crash on Nov. 1 at CR 75 and CR 134 in St. Joseph Township sent two St. Joseph residents to the hospital."),
+            (false, "Newsleaders of St. Joseph and Sartell-St. Stephen", "Hazen and Mooney win St. Joseph City Council seats", "Hazen and Mooney were elected to the St. Joseph City Council in the Nov. 3 election."),
+            (true, "Granite City Gymnastics", "Granite City Gymnastics winter registration", "Winter session registration opens Monday, Nov 16 at 7 a.m. Tuition is prorated if you join mid-session."),
+            (false, "Subway", "Subway open Thanksgiving 8:30 to 9:30", "The St. Joseph Subway is open 8:30 a.m. to 9:30 p.m. on Thanksgiving Day."),
+            (true, "Collegeville Orchards", "Collegeville Orchards Open Through Nov 29", "Open Fri-Sun 11-5 through Nov 29 with Haralson, Connell Red, McIntosh, Cortland, a few Honeycrisp and Regent apples; BOGO on squash (equal or lesser value)."),
+            (true, "White Peony Boutique", "Closed Friday for holiday setup", "White Peony is closed for in-store shopping Friday, Nov 6, while it gets ready for its holiday launch Saturday morning."),
+            (true, "The North Table", "Closing for the Season Soon", "Open regular hours for now, but it will close for the season as overnight freezes continue. A new schedule is coming."),
+            (true, "The Wandering Cow", "Holiday Ice Cream Pies", "Starting Nov 6: chocolate cookie or graham cracker crust, Chocolate Shoppe ice cream and toppings of your choice. Order online for pickup or build one in store."),
+            (false, "Coborn's", "99-cent butter for Coborn's MORE Rewards members", "MORE Rewards members can pick up butter for 99 cents."),
+            (true, "Mission Nutrition", "Mission Nutrition: Paula's Birthday Month", "All November: Birthday Menu of Mammoth Teas and cake-inspired shakes, upgrade any Birthday Menu tea to a bucket for $2, and every visit enters a giveaway drawing."),
+        ]
+        let post = URL(string: "https://x/p")!
+        for row in rows {
+            let news = TownNews(id: row.title, place: row.place, words: row.line, post: post, leavesAt: .distantFuture, title: row.title)
+            XCTAssertEqual(news.facts, row.keep ? row.line : nil, row.title)
+            XCTAssertEqual(news.words, row.line, "the hello pill and sharing keep the whole of it")
+        }
+        XCTAssertEqual(rows.count(where: { !$0.keep }), 8)
+        XCTAssertEqual(NewsWords.real("The Meat Market's classes won"), ["meat", "market", "class", "win"])
+    }
+
+    /// The pill says how long ago Block Party found it, as a neighbour's post does; "News" with no date.
+    func testNewsPillSaysHowOld() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let news = { (published: Date?) in
+            TownNews(id: "n", place: "Cow", words: "Scoops", post: URL(string: "https://x/p")!, leavesAt: .distantFuture,
+                     published: published, title: "Pie")
+        }
+        XCTAssertEqual(news(now.addingTimeInterval(-2 * 86_400)).pill(now: now), "News · 2d")
+        XCTAssertEqual(news(now.addingTimeInterval(-3 * 3600)).pill(now: now), "News · 3h")
+        XCTAssertEqual(news(now.addingTimeInterval(-9 * 86_400)).pill(now: now), "News · 1w")
+        XCTAssertEqual(news(nil).pill(now: now), "News")
     }
 
     /// A flyer shows whole only while it is the card's picture: an Event's own photo beats it, and
