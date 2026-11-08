@@ -33,4 +33,17 @@ struct SocialAPI {
         try await db.rest("event_likes", method: "DELETE", [("event_id", "eq.\(id)"), ("user_id", "eq.\(uid)")])
     }
 
+    /// A story's heart (inside-cards 22): its own table, `news_likes`, written the same way.
+    func likeNews(_ id: String) async throws {
+        let uid = try db.userID
+        try await db.rest("news_likes", method: "POST", [("on_conflict", "item_id,user_id")],
+                          body: ["item_id": id, "user_id": uid],
+                          prefer: "resolution=ignore-duplicates,return=minimal")
+    }
+
+    func unlikeNews(_ id: String) async throws {
+        let uid = try db.userID
+        try await db.rest("news_likes", method: "DELETE", [("item_id", "eq.\(id)"), ("user_id", "eq.\(uid)")])
+    }
+
 }

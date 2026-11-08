@@ -154,6 +154,15 @@ final class SupabaseRequestTests: XCTestCase {
         assertPresenceRow("club_members", "club_id")
     }
 
+    /// A story's heart is a presence row in its own table, and taking it back deletes only yours (inside-cards 22).
+    func testAStorysHeartIsItsOwnPresenceRow() async throws {
+        try await social.likeNews("e1")
+        assertPresenceRow("news_likes", "item_id")
+        try await social.unlikeNews("e1")
+        XCTAssertEqual(last.httpMethod, "DELETE")
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/news_likes?item_id=eq.e1&user_id=eq.test-user")
+    }
+
     private func assertPresenceRow(_ table: String, _ key: String, line: UInt = #line) {
         XCTAssertEqual(last.httpMethod, "POST", line: line)
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/\(table)?on_conflict=\(key),user_id", line: line)

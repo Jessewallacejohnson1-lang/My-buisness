@@ -32,6 +32,25 @@ final class TownFeedEventsTests: XCTestCase {
         TownFeed { rows.map(TownFeed.entry) }
     }
 
+    /// A story's row says whether you hearted it and every account's hearts (inside-cards 22); a feed kept on
+    /// the phone from before then has neither, and reads as not hearted.
+    func testNewsRowsCarryTheirHearts() throws {
+        let json = """
+        [{"id":"n1","title":"Flight Friday","leaves_at":"2099-10-29T23:44:07+00:00","kind":"news",
+         "source_name":"The Wandering Cow","created_at":"2026-10-22T23:44:07+00:00","heart_count":3,"hearted":true,
+         "source_url":"https://www.instagram.com/p/Deki5CwgiQG/"},
+         {"id":"n2","title":"Taco Tuesday","leaves_at":"2099-10-29T23:44:07+00:00","kind":"news",
+         "source_name":"Neighbors Route 75","source_url":"https://www.facebook.com/x/posts/1"}]
+        """
+        let news = try CommunityAPI.townFeedLines(from: Data(json.utf8)).compactMap { line -> TownNews? in
+            if case .news(let news) = line { return news }
+            return nil
+        }
+        XCTAssertEqual(news.map(\.id), ["n1", "n2"])
+        XCTAssertEqual(news.map(\.hearted), [true, false])
+        XCTAssertEqual(news.map(\.heartCount), [3, 0])
+    }
+
     /// Town news comes in the feed's own rows, kind "news", under the events (town-feed 35): it
     /// keeps its place, its facts line (else its title), its post and its place's picture. News
     /// with no post to open is dropped, and the events' cards never count it.

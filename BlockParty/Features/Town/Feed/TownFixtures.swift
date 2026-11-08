@@ -151,7 +151,9 @@ enum TownFixtures {
                                 picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
                                 leavesAt: now.addingTimeInterval(7 * 86_400),
                                 published: now.addingTimeInterval(-Double(i * 22 + 2) * 3600), title: s.1,
-                                interest: i == 0 ? "dining" : nil)
+                                interest: i == 0 ? "dining" : nil,
+                                // You hearted the first (inside-cards 22): red on its card and in Liked.
+                                hearted: i == 0, heartCount: i == 0 ? 1 : 0)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
     }

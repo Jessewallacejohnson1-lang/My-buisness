@@ -2,7 +2,8 @@
 //  LikedPage.swift
 //  Block Party — You's Liked (BP app inside-cards 16, which took over you-tab 04's Saved): every
 //  Event you hearted, not over or called off, soonest first, as the You tab's Agenda cards, each
-//  saying its day. Pushed from ☰'s Liked row, under Instagram's Saved top: a back chevron and
+//  saying its day; then the stories you hearted while the Town feed keeps them, newest first, as the
+//  Town feed's News card (inside-cards 22). Pushed from ☰'s Liked row, under Instagram's Saved top: a back chevron and
 //  the title in the middle (BP app references/saved-in-profile), drawn as Search's shelf
 //  pages draw it, since Apple's bar dropped the page 20pt at the end of the push.
 //
@@ -39,10 +40,16 @@ struct LikedPage: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $pushed) { EventPage(item: $0) }
         // On every visit, the list on screen staying meanwhile; no account, nothing to read.
-        .task { if actions.canAct { await model.refresh() } }
+        .task { if actions.canAct { await refresh() } }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, actions.canAct { Task { await model.refresh() } }
+            if phase == .active, actions.canAct { Task { await refresh() } }
         }
+    }
+
+    /// The stories' hearts go to `actions` too, so a tap on one here starts from what the read said.
+    private func refresh() async {
+        await model.refresh()
+        actions.read(news: model.news)
     }
 
     private func list(now: Date) -> some View {
@@ -52,8 +59,18 @@ struct LikedPage: View {
             YouCalendar.liked(read: $0, tapped: Array(actions.likedTapped.values),
                               isLiked: { actions.heart($0).isHearted }, now: now)
         }
-        return AgendaList(events: liked, failed: model.failed, empty: "Nothing liked yet",
-                          loading: "Loading your liked Events", now: now, withDay: true,
-                          retry: { Task { await model.refresh() } }, open: { pushed = $0 })
+        let stories = actions.canAct && read != nil
+            ? YouCalendar.likedNews(read: model.news, tapped: Array(actions.likedNews.values),
+                                    isLiked: { actions.heart($0).isHearted }, now: now)
+            : []
+        return VStack(spacing: AgendaMetric.rowGap) {
+            // With stories, no Events is no empty line: the stories are what's liked.
+            if stories.isEmpty || liked?.isEmpty == false {
+                AgendaList(events: liked, failed: model.failed, empty: "Nothing liked yet",
+                           loading: "Loading your liked Events", now: now, withDay: true,
+                           retry: { Task { await refresh() } }, open: { pushed = $0 })
+            }
+            ForEach(stories) { TownNewsCard(news: $0, inset: 0) }
+        }
     }
 }

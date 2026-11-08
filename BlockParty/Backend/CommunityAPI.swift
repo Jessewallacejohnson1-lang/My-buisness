@@ -370,7 +370,8 @@ struct CommunityAPI {
                                       words: words.isEmpty ? title : words, post: post,
                                       picture: row.placePicture?.value, leavesAt: leavesAt,
                                       published: DateHelpers.timestamp(row.createdAt), title: title,
-                                      interest: row.reason == "interest" ? row.reasonName : nil))
+                                      interest: row.reason == "interest" ? row.reasonName : nil,
+                                      hearted: row.hearted ?? false, heartCount: row.heartCount ?? 0))
             }
             guard let event = row.card?.value else { return nil }
             return .event(TownFeedRow(event: event, leavesAt: leavesAt,
@@ -712,9 +713,22 @@ struct CommunityAPI {
 
     /// The Events the neighbour hearted from `from` on, a Town day as "yyyy-MM-dd", and any
     /// from before it still running: `get_my_likes`, You's Liked list (BP app inside-cards 16).
-    /// Each card says it's hearted and whether they're Going.
-    func getMyLikes(from: String) async throws -> [UpcomingEvent] {
-        try Self.myGoingRows(from: await db.rpc("get_my_likes", ["p_from": from]))
+    /// Each card says it's hearted and whether they're Going. Then the stories they hearted that the
+    /// Town feed still keeps, newest first (inside-cards 22).
+    func getMyLikes(from: String) async throws -> (events: [UpcomingEvent], news: [TownNews]) {
+        try Self.myLikesRows(from: await db.rpc("get_my_likes", ["p_from": from]))
+    }
+
+    /// `get_my_likes`' rows: an Event's is its card, a story's is the Town feed's News row in `news`
+    /// (inside-cards 22), read as the feed reads it. A row that doesn't decode is left out, never the read.
+    static func myLikesRows(from data: Data) throws -> (events: [UpcomingEvent], news: [TownNews]) {
+        let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
+        let stories = try JSONSerialization.data(withJSONObject: rows.compactMap { $0["news"] as? [String: Any] })
+        let news = try townFeedLines(from: stories).compactMap { line -> TownNews? in
+            if case .news(let news) = line { return news }
+            return nil
+        }
+        return (try myGoingRows(from: data), news)
     }
 
     /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,

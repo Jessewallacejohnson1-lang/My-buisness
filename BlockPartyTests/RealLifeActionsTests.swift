@@ -51,6 +51,15 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
         }
 
+        /// Each story's heart written (inside-cards 22).
+        var newsHearts: [Bool] = []
+
+        func newsHeart(_ newsID: String, _ hearted: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            newsHearts.append(hearted)
+            try answer()
+        }
+
         func member(_ groupID: String, _ member: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             memberships.append("\(groupID) \(member)")
@@ -80,7 +89,7 @@ final class RealLifeActionsTests: XCTestCase {
         RealLifeActions(signedIn: signedIn, needsAccount: true, realAccount: { !anonymous },
                         hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
-                        setGoing: server.write, setHeart: server.heart,
+                        setGoing: server.write, setHeart: server.heart, setNewsHeart: server.newsHeart,
                         setMember: server.member, setFollow: server.follow, readFollow: server.followCard)
     }
 
@@ -793,6 +802,77 @@ final class RealLifeActionsTests: XCTestCase {
         try await Task.sleep(for: Self.hold)
         XCTAssertTrue(actions.likedTapped.isEmpty)
         XCTAssertEqual(server.hearts, [])
+    }
+
+    // MARK: A story's heart (inside-cards 22)
+
+    private func story(id: String = "n1", hearts: Int = 2, hearted: Bool = false) -> TownNews {
+        TownNews(id: id, place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",
+                 post: URL(string: "https://www.instagram.com/p/x/")!, leavesAt: .distantFuture, title: "Flight Friday",
+                 hearted: hearted, heartCount: hearts)
+    }
+
+    /// A story's heart shows at once, counting you, is written as a story's (never an Event's), and lands in
+    /// Liked at once; taking it back is written too.
+    func testAStorysHeartShowsAtOnceAndIsWrittenAsAStorys() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let news = story()
+        XCTAssertEqual(actions.heart(news), .init(isHearted: false, count: 2), "as the read sent it")
+
+        actions.toggleHeart(news)
+        XCTAssertEqual(actions.heart(news), .init(isHearted: true, count: 3))
+        XCTAssertEqual(Set(actions.likedNews.keys), ["n1"])
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.newsHearts, [true])
+        XCTAssertEqual(server.hearts, [], "no Event heart")
+
+        actions.toggleHeart(news)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertEqual(server.newsHearts, [true, false])
+        XCTAssertEqual(actions.heart(news), .init(isHearted: false, count: 2))
+    }
+
+    /// A refused heart on a story holds, turns back, and shakes its card once, only while the card is on screen.
+    func testAFailedStoryHeartTurnsBackAndShakesOnlyWhileItsCardIsOpen() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let news = story()
+
+        actions.toggleHeart(news)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertFalse(actions.heart(news).isHearted, "turned back")
+        XCTAssertEqual(actions.newsHeartFailureCount(news.id), 0, "card off screen: no shake, no buzz")
+
+        actions.cardOpened(news.id)
+        let tapped = ContinuousClock.now
+        actions.toggleHeart(news)
+        try await waitWhile(actions.heart(news).isHearted)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold, "turned back before it could be seen")
+        try await waitWhile(actions.newsHeartFailureCount(news.id) == 0)
+        XCTAssertEqual(actions.newsHeartFailureCount(news.id), 1, "one turn back, one shake")
+        XCTAssertEqual(actions.heartFailureCount(news.id), 0, "an Event's heart never shakes for it")
+        actions.cardClosed(news.id)
+    }
+
+    /// A story's heart that got no answer stays and is sent again; a read agreeing with it settles it, and the
+    /// next read is the truth.
+    func testAStorysHeartWithNoAnswerIsSentAgainAndAReadSettlesIt() async throws {
+        let server = Server()
+        server.offline = true
+        let actions = actions(server)
+        actions.toggleHeart(story())
+        try await Task.sleep(for: Self.retry * 4)
+        XCTAssertTrue(actions.heart(story()).isHearted, "no answer is no no")
+        server.offline = false
+        let tries = server.newsHearts.count
+        try await waitWhile(server.newsHearts.count == tries)
+        try await Task.sleep(for: Self.retry)
+        actions.read(news: [story(hearts: 3, hearted: true)])
+        XCTAssertEqual(actions.heart(story()), .init(isHearted: true, count: 3))
+        actions.read(news: [story(hearts: 2, hearted: false)])
+        XCTAssertEqual(actions.heart(story()), .init(isHearted: false, count: 2), "unhearted elsewhere: the read wins")
     }
 
     // MARK: Being in a group (rsvp-and-groups 06)

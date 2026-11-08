@@ -16,6 +16,8 @@ import Foundation
 final class YouModel {
     /// The read's Going, nil until the first read lands; the page shows its skeleton then.
     private(set) var going: [DailyEvent]?
+    /// Liked's stories, from the same read as its Events (inside-cards 22); the You tab's Going has none.
+    private(set) var news: [TownNews] = []
     /// The last read failed. With no list the page shows its retry; with one, it keeps it.
     private(set) var failed = false
     /// The Town's groups, each saying whether the neighbour is in it (`get_groups`), nil until
@@ -25,13 +27,19 @@ final class YouModel {
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
     @ObservationIgnored private var latestGroups = 0
-    private let read: (_ from: String, _ to: String) async throws -> [UpcomingEvent]
+    private let read: (_ from: String, _ to: String) async throws -> (events: [UpcomingEvent], news: [TownNews])
     private let readGroups: () async throws -> [TownGroup]
 
     /// `read` takes the first and last Town days, "yyyy-MM-dd", both included.
-    init(read: @escaping (_ from: String, _ to: String) async throws -> [UpcomingEvent],
+    convenience init(read: @escaping (_ from: String, _ to: String) async throws -> [UpcomingEvent],
+                     groups: @escaping () async throws -> [TownGroup] = { [] }) {
+        self.init(reads: { (try await read($0, $1), []) }, groups: groups)
+    }
+
+    /// A read of Events and stories both: Liked's (inside-cards 22).
+    init(reads: @escaping (_ from: String, _ to: String) async throws -> (events: [UpcomingEvent], news: [TownNews]),
          groups: @escaping () async throws -> [TownGroup] = { [] }) {
-        self.read = read
+        self.read = reads
         self.readGroups = groups
     }
 
@@ -63,22 +71,24 @@ final class YouModel {
 
     /// You's Liked list (inside-cards 16, Saved's before it), kept the same way: `get_my_likes` from this
     /// week's Sunday on (`to` is unused; hearts run as far ahead as they go), and `going` holds what you
-    /// hearted. The page leaves out what's over or called off (`YouCalendar.liked`). Under DEBUG
-    /// `-town-samples` the You samples come back hearted, and `-town-offline` fails.
+    /// hearted, then the stories (`news`). The page leaves out what's over or called off (`YouCalendar.liked`), and a
+    /// story once the Town feed lets it go (`YouCalendar.likedNews`). Under DEBUG `-town-samples` the You samples come
+    /// back hearted, with the sample story `-town-news` hearts, and `-town-offline` fails.
     static func likes(supabase: Supabase) -> YouModel {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
             return YouModel(read: { _, _ in throw URLError(.notConnectedToInternet) })
         case .samples:
-            return YouModel(read: { _, _ in
-                YouCalendar.samples(now: Date()).map { var event = $0; event.hearted = true; event.heartCount = 1; return event }
+            return YouModel(reads: { _, _ in
+                (YouCalendar.samples(now: Date()).map { var event = $0; event.hearted = true; event.heartCount = 1; return event },
+                 TownFixtures.newsSamples(now: Date()).compactMap(\.news).filter(\.hearted))
             })
         case .live:
             break
         }
         #endif
-        return YouModel(read: { from, _ in
+        return YouModel(reads: { from, _ in
             try await CommunityAPI(supabase).getMyLikes(from: from)
         })
     }
@@ -93,7 +103,8 @@ final class YouModel {
         do {
             let rows = try await read(Town.day(first), Town.day(YouCalendar.lastDay(from: first)))
             guard mine == latestRead else { return }
-            going = rows.compactMap(YouCalendar.event(from:))
+            going = rows.events.compactMap(YouCalendar.event(from:))
+            news = rows.news
             failed = false
         } catch {
             // Leaving the tab mid-read cancels it; that says nothing about the network.
@@ -119,6 +130,7 @@ final class YouModel {
         latestRead += 1
         latestGroups += 1
         going = nil
+        news = []
         groups = nil
         failed = false
     }
@@ -202,6 +214,17 @@ enum YouCalendar {
         merged(read, tapped)
             .filter { isLiked($0.item) && !$0.item.cancelled && $0.ends > now }
             .sorted { order($0) < order($1) }
+    }
+
+    /// Liked's stories (inside-cards 22), the same way: the read's and this session's hearted ones, each once,
+    /// only those still hearted and still in the Town feed by `now`, newest first.
+    static func likedNews(read: [TownNews], tapped: [TownNews], isLiked: (TownNews) -> Bool,
+                          now: Date) -> [TownNews] {
+        var byID: [String: TownNews] = [:]
+        for story in tapped + read { byID[story.id] = story }
+        return byID.values
+            .filter { isLiked($0) && $0.leavesAt > now }
+            .sorted { ($0.published ?? .distantPast, $1.id) > ($1.published ?? .distantPast, $0.id) }
     }
 
     /// The read's Events and the tapped ones, each once; the read's details win.
