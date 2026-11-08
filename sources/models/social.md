@@ -41,7 +41,7 @@ carry on with the rest.
    *Keep everything (Jesse, 2026-10-22).* Social posts follow one rule that overrides
    `flag.md`'s and `judge.md`'s "standing menu, product, ad or sales post" exclusions: every
    post with something a neighbour could know or do is kept, because people who care about it
-   will want it. Add this to each cheap-model helper's prompt: "These pages are a place's
+   will want it. Only a plain ad is dropped, in judging (below). Add this to each cheap-model helper's prompt: "These pages are a place's
    social posts. Flag every post with anything to know or do, including specials, deals, sales,
    new products, menu and seasonal items, pre-orders, contests and hours; only a post with
    nothing to know or do is none. When the post shows a town that `place` doesn't name, a hashtag
@@ -65,6 +65,13 @@ carry on with the rest.
      for town news, `campus` for CSB and SJU. Give a standing weekly special one item, not one
      per week, and fold many product posts from one place in one check into one item ("new fall
      arrivals").
+   - A plain ad is not News: a post that only says come and buy this (a dish, a product, a menu, a
+     listing), with no sale, deal, date or happening in it, is dropped. Jesse, 2026-11-08, on The House's
+     "Joetown Burger and fries": "ads are fine as long as its a sale or something involved rather than just
+     saying come buy this". A new sale or deal, a new product (one the place didn't sell before),
+     a seasonal item (Collegeville Orchards' pumpkins and apples in fall: Jesse, "its new and seasonal"), a
+     limited-time item or a date to order by is still News; a post being new doesn't count (Jesse: "new
+     product or new sale not new post").
    - A post that gives the place's own hours for every week from now on (winter hours, new days, new
      times) also gets one `hours` item beside its News: `{"kind": "hours", "page": "<the flag's page id>",
      "days": {"mon": "Closed", "thu": "4 PM to 9 PM", "sat": "10 AM to 9 PM"}}`, with every day the post
