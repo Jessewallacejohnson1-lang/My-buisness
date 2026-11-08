@@ -317,7 +317,8 @@ private struct LaunchMark: View {
             ZStack(alignment: .topLeading) {
                 // Plain yellow under the glass picture, filling its rounded corners, so the
                 // curtain's top edge is straight as it falls (the screen's own corners clip it at rest).
-                Hue.brandDisc
+                Rectangle()   // a shape, not `Color`: a Color here reached 120 pt above the screen (measured, 2026-11-08)
+                    .fill(Hue.brandDisc)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // The launch screen's own picture, so its still and this first frame are one.
                 Image("LaunchGlass")
