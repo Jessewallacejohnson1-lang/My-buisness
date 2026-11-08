@@ -115,7 +115,6 @@ private struct ChatBirthday: View {
                 .frame(height: Self.cake)
                 .frame(width: Self.disc, height: Self.disc)
                 .background(Hue.birthdayDisc, in: Circle())
-                .accessibilityHidden(true)
                 .padding(.top, EventPage.Metric.inset)
             Text("When's your birthday?")
                 .font(.display(28))
