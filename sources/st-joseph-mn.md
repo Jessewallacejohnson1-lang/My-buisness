@@ -183,6 +183,7 @@ aka:
   - Kennedy Elementary
 category: school
 added_by: agent:claude
+address: "1300 Jade Rd"
 sources:
   - url: https://www.gobound.com/mn/schools/kennedyisd742/calendar/ical
     kind: ical
@@ -234,6 +235,7 @@ status: active
 tier: watched
 category: college
 added_by: agent:claude
+address: "37 College Ave S"
 sources:
   - url: https://www.csbsju.edu/calendar/
     kind: website
@@ -918,6 +920,7 @@ status: active
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
+address: "2010 County Road 75"
 sources:
   - url: TODO
     kind: website
@@ -1095,6 +1098,7 @@ status: active
 tier: listed
 category: amenity=fuel
 added_by: agent:discover
+address: "421 4th Ave NE"
 sources:
   - url: TODO
     kind: website
@@ -1110,6 +1114,8 @@ status: active
 tier: listed
 category: leisure=park
 added_by: agent:discover
+address: "205 Birch St W"
+at: [45.56699, -94.32363]
 sources:
   - url: TODO
     kind: website
@@ -1185,6 +1191,7 @@ status: active
 tier: listed
 category: amenity=library
 added_by: agent:discover
+address: "37 College Ave S"
 sources:
   - url: TODO
     kind: website
@@ -1233,6 +1240,7 @@ id: consumer-directions
 status: active
 tier: watched
 added_by: agent:discover
+address: "1140 Elm St E Ste A"
 sources:
   - url: https://consumerdirections.info/
     kind: website
@@ -1263,6 +1271,7 @@ status: active
 tier: listed
 category: shop=variety_store
 added_by: agent:discover
+address: "604 Elm Ct E"
 sources:
   - url: https://www.dollargeneral.com/store-directory/mn/saint-joseph/25416
     kind: website
@@ -1278,6 +1287,7 @@ status: active
 tier: listed
 category: office=financial_advisor
 added_by: agent:discover
+address: "24 W Birch Street"
 sources:
   - url: TODO
     kind: website
@@ -1470,6 +1480,7 @@ status: active
 tier: listed
 category: shop=massage
 added_by: agent:discover
+address: "33 W Minnesota St"
 sources:
   - url: TODO
     kind: website
@@ -1539,6 +1550,8 @@ status: active
 tier: listed
 category: leisure=park
 added_by: agent:discover
+address: "1000 Dale St E"
+at: [45.55884, -94.30395]
 sources:
   - url: TODO
     kind: website
@@ -1554,6 +1567,7 @@ status: active
 tier: watched
 category: amenity=fuel
 added_by: agent:discover
+address: "200 2nd Ave NW"
 sources:
   - url: https://www.kwiktrip.com/savings/daily-deals
     kind: website
@@ -1658,6 +1672,7 @@ status: active
 tier: listed
 category: amenity=fast_food
 added_by: agent:discover
+address: "1180 Elm St E"
 sources:
   - url: https://www.mcdonalds.com/us/en-us/location/mn/st-joseph/1180-e-elm-street/35317.html
     kind: website
@@ -1673,6 +1688,8 @@ status: active
 tier: listed
 category: leisure=park
 added_by: agent:discover
+address: "28 3rd Ave NW"
+at: [45.56532, -94.32355]
 sources:
   - url: TODO
     kind: website
@@ -1702,6 +1719,8 @@ id: millstream-park
 status: active
 tier: listed
 added_by: agent:discover
+address: "725 County Rd 75 W"
+at: [45.57007, -94.32874]
 sources:
   - url: https://www.cityofstjoseph.com/Facilities/Facility/Details/6
     kind: website
@@ -1768,6 +1787,8 @@ status: active
 tier: listed
 category: leisure=park
 added_by: agent:discover
+address: "303 Gumtree St E"
+at: [45.57285, -94.31153]
 sources:
   - url: TODO
     kind: website
@@ -1783,6 +1804,7 @@ status: active
 tier: watched
 category: shop=car_parts
 added_by: agent:discover
+address: "1160 Elm Street East"
 sources:
   - url: https://locations.oreillyauto.com/en-us/mn/saintjoseph/autoparts-5771.html
     kind: website
@@ -1890,6 +1912,7 @@ status: active
 tier: listed
 category: nonprofits-charities
 added_by: agent:discover
+address: "1300 Jade Rd"
 sources:
   - url: TODO
     kind: website
@@ -2046,6 +2069,7 @@ status: active
 tier: listed
 category: amenity=police
 added_by: agent:discover
+address: "25 N College Ave"
 sources:
   - url: TODO
     kind: website
@@ -2127,6 +2151,7 @@ status: active
 tier: listed
 category: shop=convenience
 added_by: agent:discover
+address: "27 W Birch St"
 sources:
   - url: TODO
     kind: website
@@ -2201,6 +2226,7 @@ id: joes-joseph-st
 status: active
 tier: listed
 added_by: agent:discover
+address: "28 3rd Ave NW"
 sources:
   - url: https://www.facebook.com/stjosephjoes/?ref=py_c
     kind: website
@@ -2232,6 +2258,7 @@ status: active
 tier: listed
 category: professional-services
 added_by: agent:discover
+address: "29643 Frontage Rd"
 sources:
   - url: TODO
     kind: website
@@ -2262,6 +2289,7 @@ status: active
 tier: watched
 category: amenity=fast_food
 added_by: agent:discover
+address: "217 NW County Rd"
 sources:
   - url: https://restaurants.subway.com/united-states/mn/st-joseph/217-nw-county-rd
     kind: website
@@ -2295,6 +2323,7 @@ status: active
 tier: listed
 category: amenity=fast_food
 added_by: agent:discover
+address: "211 County Road 75"
 sources:
   - url: TODO
     kind: website
@@ -4788,6 +4817,7 @@ tier: watched
 place_type: "Business"
 aka: ["Dan DeMark Realtor"]
 added_by: agent:town-verify
+address: "38 E Birch St"
 sources:
   - url: https://goldenrulerealestateservices.com/feed/
     kind: rss
@@ -8750,6 +8780,8 @@ status: proposed
 tier: listed
 place_type: "Park / historic"
 added_by: agent:town-verify
+address: "800 Able St E"
+at: [45.564391, -94.30518]
 sources:
   - url: https://www.cityofstjoseph.com/Facilities/Facility/Details/2
     kind: website
@@ -8925,6 +8957,7 @@ category: "leisure=park"
 place_type: "Park / historic"
 address: "207 5th Ave NW"
 added_by: agent:place-photos
+at: [45.5660231, -94.3266238]
 sources:
   - url: https://www.stjosephmn.gov/Facilities/Facility/Details/3
     kind: website
@@ -8942,6 +8975,7 @@ category: "leisure=park"
 place_type: "Park / historic"
 address: "202 Birch St W"
 added_by: agent:place-photos
+at: [45.566421, -94.3227439]
 sources:
   - url: https://www.stjosephmn.gov/Facilities/Facility/Details/7
     kind: website
