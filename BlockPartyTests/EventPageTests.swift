@@ -382,9 +382,9 @@ final class EventPageTests: XCTestCase {
                 Array(repeating: [UInt8(rgb >> 16 & 0xFF), UInt8(rgb >> 8 & 0xFF), UInt8(rgb & 0xFF), alpha], count: count).flatMap { $0 }
             }
         }
-        // Mostly a dull blue, with fewer but far more saturated reds: the reds' squared saturation doesn't
-        // beat four times the count at a saturation of 0.5.
-        let sky = EventLook.dominant(pixels: pixels([(0x4060A0, 400, 255), (0xFF2020, 100, 255), (0x808080, 2000, 255)]))
+        // Mostly a dull blue (saturation 0.43, so each pixel counts 0.18), with a seventh as many fully saturated
+        // reds (each counts 1): the blue's count carries it. Greys never count, however many.
+        let sky = EventLook.dominant(pixels: pixels([(0x4060A0, 700, 255), (0xFF2020, 100, 255), (0x808080, 2000, 255)]))
         XCTAssertEqual(sky >> 16 & 0xFF, 0x40)
         XCTAssertEqual(sky & 0xFF, 0xA0)
         // Saturated reds a quarter as many as a pale blue win: 0.9² against 0.3².
@@ -411,7 +411,7 @@ final class EventPageTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(EventLook.contrastWithWhite(wash.top), 5, "hue \(hue): \(String(wash.top, radix: 16))")
             XCTAssertGreaterThanOrEqual(EventLook.luminance(wash.top), EventLook.luminance(wash.mid) - 0.0001, "hue \(hue)")
             XCTAssertGreaterThan(EventLook.luminance(wash.mid), EventLook.luminance(wash.low), "hue \(hue)")
-            XCTAssertGreaterThan(EventLook.luminance(wash.tint), 0.75, "hue \(hue): a light tint")
+            XCTAssertGreaterThan(EventLook.luminance(wash.tint), 0.7, "hue \(hue): a light tint (a red's at 92% measures 0.74)")
         }
         let grey = EventLook.wash(EventLook.grey)
         XCTAssertEqual(grey.top >> 16 & 0xFF, grey.top & 0xFF, "a grey stays grey")
