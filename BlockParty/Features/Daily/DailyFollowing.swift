@@ -1,58 +1,31 @@
 //
 //  DailyFollowing.swift
-//  Block Party — Daily's last section: today's events and updates from the people,
-//  clubs and places you follow (`docs/plans/daily-tab/SPEC.md` §5 in the BP app folder).
+//  Block Party — the Block Party tab's last section: today's Events from the people, teams, places and
+//  Groups you follow, as Instagram's activity rows, and under them the posts from you, your friends and
+//  who you follow and the News of the places you follow, each as the Town feed draws it
+//  (`docs/plans/daily-tab/SPEC.md` §5 and ticket 23 in the BP app folder).
 //
 
 import SwiftUI
 
-/// One row: who it's from, what, when, and a small photo. An event opens the event
-/// page; a place's update ("a new fall menu") opens the post on its own page.
+/// One row: who it's from, what, when, and a small photo. The whole row opens the Event page.
 struct DailyFollowing: Identifiable {
-    enum Opens {
-        case event(DailyEvent)
-        case update(PostingItem)
-    }
-
     var id: String
-    /// The person, club or place you follow.
+    /// The person, team, club or place you follow.
     var name: String
     /// Their round photo; a person without one shows their initial.
     var avatar: URL?
-    /// What, after the name: "has live music." Working words; Jesse writes the final ones.
+    /// What, after the name: "vs Sartell." Working words; Jesse writes the final ones.
     var what: String
-    var opens: Opens
+    var event: DailyEvent
 
-    var event: DailyEvent? {
-        if case .event(let event) = opens { return event }
-        return nil
-    }
+    /// The event's start.
+    var when: Date { event.starts }
 
-    var post: PostingItem? {
-        if case .update(let post) = opens { return post }
-        return nil
-    }
+    var photo: URL? { event.item.image.url }
 
-    /// The event's start, or when the update went up.
-    var when: Date { event?.starts ?? post?.createdAt ?? .distantPast }
-
-    var photo: URL? { (event?.item.image ?? post?.image)?.url }
-
-    /// In grey after the words: when the event starts ("7 PM", or "Now"), or how long
-    /// ago the update went up ("2h"), as Instagram and the Town feed's posts write it.
-    func time(now: Date) -> String {
-        if let event { return event.startTime(now: now) }
-        return PostingCard.relativeLabel(for: when, now: now)
-    }
-
-    /// The same for VoiceOver, which would read "30m" as metres: "30 minutes ago".
-    func spokenTime(now: Date) -> String {
-        guard event == nil else { return time(now: now) }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: when, relativeTo: now)
-    }
+    /// In grey after the words: when the event starts ("7 PM", or "Now").
+    func time(now: Date) -> String { event.startTime(now: now) }
 
     /// `day`'s from what you follow: the Town feed's cards it lifts for a follow, an activity or a
     /// whole school (BP app school-activities 03), a person, a Place or a Group you're in (town-feed
@@ -65,7 +38,7 @@ struct DailyFollowing: Identifiable {
             guard let name = card.followed, card.eventDate == day, !card.cancelled,
                   let event = YouCalendar.event(from: card) else { return nil }
             return DailyFollowing(id: "follow-\(card.id)", name: name, avatar: avatar(of: card, name: name),
-                                  what: what(card, name: name), opens: .event(event))
+                                  what: what(card, name: name), event: event)
         }
     }
 
@@ -83,92 +56,188 @@ struct DailyFollowing: Identifiable {
         return "\(card.title)."
     }
 
-    /// What the section shows (Jesse, 2026-10-06): today's events still on or to come,
-    /// soonest first, leaving out any a section above already shows, then today's
-    /// updates so far, newest first; `limit` rows at most.
+    /// What the rows show (Jesse, 2026-10-06): today's events still on or to come, soonest first,
+    /// leaving out any a section above already shows; `limit` rows at most.
     static func showing(_ items: [DailyFollowing], now: Date, without shown: [DailyEvent] = [],
                         limit: Int) -> [DailyFollowing] {
         let calendar = Town.gregorian
         let shownIDs = Set(shown.map(\.id))
-        let events = items.filter {
-            guard let event = $0.event else { return false }
-            return event.ends > now && calendar.isDate(event.starts, inSameDayAs: now) && !shownIDs.contains(event.id)
+        return Array(items.filter {
+            $0.event.ends > now && calendar.isDate($0.event.starts, inSameDayAs: now) && !shownIDs.contains($0.event.id)
         }
-        .sorted { $0.when < $1.when }
-        let updates = items.filter { $0.post != nil && $0.when <= now && calendar.isDate($0.when, inSameDayAs: now) }
-            .sorted { $0.when > $1.when }
-        return Array((events + updates).prefix(limit))
+        .sorted { $0.when < $1.when }.prefix(limit))
     }
 
     #if DEBUG
-    /// INVENTED: a neighbour, a club and three places you might follow, with the bundled
-    /// town photos, the round photo never the same as the small one, as in Instagram's
-    /// rows. Every name but the real places', every time and every word is made up.
+    /// INVENTED: a neighbour, a club and a place you might follow, with the bundled town photos, the
+    /// round photo never the same as the small one, as in Instagram's rows. Every name but the real
+    /// places', every time and every word is made up. The cards under them are `DailyFollowingCard.samples`.
     static func samples(on date: Date) -> [DailyFollowing] {
         let calendar = Town.gregorian
         let day = calendar.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         func photo(_ name: String) -> URL? { Bundle.main.url(forResource: name, withExtension: "jpg") }
-        func update(_ id: String, _ author: String, _ avatar: String, _ picture: String, at hour: Double,
-                    _ caption: String) -> PostingItem {
-            PostingItem(id: id, authorName: author, authorAvatar: photo(avatar), createdAt: at(hour),
-                        image: photo(picture).map { .eventPhoto($0) } ?? .fallback, caption: caption,
-                        likeCount: 0, commentCount: 0, isLiked: false,
-                        isFollowed: true)
-        }
         return [
             DailyFollowing(
                 id: "follow-1", name: "Kay Lindqvist", avatar: nil, what: "is hosting a porch sale.",
-                opens: .event(DailyEvent.sample(
+                event: DailyEvent.sample(
                     id: "daily-f1", title: "Porch sale", host: "Kay Lindqvist", photo: "downtown",
                     place: "College Avenue", starts: at(9), ends: at(13), category: .other,
-                    description: "Kids' bikes, books and a lot of kitchen things. Everything goes."))),
+                    description: "Kids' bikes, books and a lot of kitchen things. Everything goes.")),
             DailyFollowing(
                 id: "follow-2", name: "College of Saint Benedict", avatar: photo("saint-bens"),
                 what: "has an open choir rehearsal.",
-                opens: .event(DailyEvent.sample(
+                event: DailyEvent.sample(
                     id: "daily-f2", title: "Open choir rehearsal", host: "College of Saint Benedict",
                     photo: "sacred-heart-chapel", place: "Saint Benedict's Monastery", starts: at(15), ends: at(16),
-                    category: .musicArts, description: "Sit in on the choirs getting ready for Sunday."))),
+                    category: .musicArts, description: "Sit in on the choirs getting ready for Sunday.")),
             DailyFollowing(
                 id: "follow-3", name: "St. Joseph Running Group", avatar: photo("klinefelter-park-trail"),
                 what: "has a group run.",
-                opens: .event(DailyEvent.sample(
+                event: DailyEvent.sample(
                     id: "daily-f3", title: "Group run", host: "St. Joseph Running Group",
                     photo: "centennial-park", place: "Klinefelter Park", starts: at(17.5), ends: at(18.5),
-                    category: .sports, description: "Three or five miles at an easy pace. Everyone welcome."))),
-            DailyFollowing(
-                id: "follow-4", name: "Bad Habit Brewing", avatar: photo("bad-habit-brewing"),
-                what: "put a new beer on tap.",
-                opens: .update(update("daily-p1", "Bad Habit Brewing", "bad-habit-brewing", "rocktoberfest", at: 11,
-                                      "New on tap today: an apple ale made with fruit from up the road."))),
-            DailyFollowing(
-                id: "follow-5", name: "The Local Blend", avatar: photo("the-local-blend"),
-                what: "has a new fall menu.",
-                opens: .update(update("daily-p2", "The Local Blend", "the-local-blend", "farmers-market", at: 7.25,
-                                      "Our fall menu starts today: maple lattes, apple cider and pumpkin bread."))),
+                    category: .sports, description: "Three or five miles at an easy pace. Everyone welcome.")),
         ]
     }
     #endif
 }
 
-/// The section: its label, then one row per thing, as Instagram's activity rows.
+/// Under the rows (daily-tab 23): a post from you, a friend or someone you follow, or News from a place
+/// you follow, each as the Town feed draws it. Jesse at Check-in 1 (2026-11-08): the rows stay, News
+/// joins, 10 in the section with the rows first, on today's page under Best of only.
+enum DailyFollowingCard: Identifiable {
+    case post(TownPost)
+    case news(TownNews)
+
+    var id: String {
+        switch self {
+        case .post(let post): "post-\(post.id)"
+        case .news(let news): "news-\(news.id)"
+        }
+    }
+
+    /// When it went up: a post's own time; News's, when Block Party found it.
+    var when: Date {
+        switch self {
+        case .post(let post): post.posted
+        case .news(let news): news.published ?? .distantPast
+        }
+    }
+
+    /// Today's, from the Town feed's posts and the followed places' News; DEBUG `-daily-samples` gets
+    /// the samples.
+    static func today(posts: [TownPost], news: [TownNews], rows: Int, now: Date) -> [DailyFollowingCard] {
+        #if DEBUG
+        if DailySamples.on { return samples(now: now) }
+        #endif
+        return showing(posts: posts, news: news, rows: rows, limit: DailyRowMetric.limit)
+    }
+
+    /// What shows under `rows` rows: the posts the feed says are from who you follow (`TownPost.followed`)
+    /// and the News of the places you follow, newest first, as many as `limit` leaves after the rows.
+    static func showing(posts: [TownPost], news: [TownNews], rows: Int, limit: Int) -> [DailyFollowingCard] {
+        let cards = posts.filter(\.followed).map(DailyFollowingCard.post) + news.map(DailyFollowingCard.news)
+        return Array(cards.sorted { $0.when > $1.when }.prefix(max(limit - rows, 0)))
+    }
+
+    #if DEBUG
+    /// The Town feed's two sample posts and two of its sample News, as from who you follow.
+    static func samples(now: Date) -> [DailyFollowingCard] {
+        let posts = TownFixtures.postSamples(now: now).compactMap(\.post).map { post in
+            var post = post
+            post.followed = true
+            return post
+        }
+        let news = TownFixtures.newsSamples(now: now).prefix(2).compactMap { entry -> TownNews? in
+            if case .news(let news) = entry.item { return news }
+            return nil
+        }
+        return showing(posts: posts, news: news, rows: 0, limit: DailyRowMetric.limit)
+    }
+    #endif
+}
+
+/// News from the places you follow (`get_following_news`, daily-tab 23), kept across tab switches as
+/// Event of the day is, so coming back shows what it had while it reads again; a failed read keeps it.
+/// Read when the Block Party tab opens and on a new account.
+@MainActor @Observable
+final class FollowingNews {
+    private(set) var items: [TownNews] = []
+    /// Numbers each read, so one an account change overtook never lands.
+    @ObservationIgnored private var latestRead = 0
+    @ObservationIgnored private let read: () async throws -> [TownNews]
+
+    init(read: @escaping () async throws -> [TownNews]) {
+        self.read = read
+    }
+
+    /// The live read through `supabase`, the session's one client (`AppSession`); under DEBUG
+    /// `-daily-samples` nothing, since the samples are the section's own.
+    convenience init(supabase: Supabase) {
+        #if DEBUG
+        if DailySamples.on {
+            self.init(read: { [] })
+            return
+        }
+        #endif
+        self.init(read: { try await CommunityAPI(supabase).getFollowingNews() })
+    }
+
+    func refresh() async {
+        latestRead += 1
+        let mine = latestRead
+        do {
+            let new = try await read()
+            guard mine == latestRead else { return }
+            items = new
+        } catch {
+            guard mine == latestRead else { return }
+            Log.network("FollowingNews: \(error)")
+        }
+    }
+
+    /// A new account: the last one's stories go, and its own are read.
+    func accountChanged() {
+        latestRead += 1
+        items = []
+    }
+}
+
+/// The section: its label, one row per Event as Instagram's activity rows, then the cards.
 struct FollowingSection: View {
     let items: [DailyFollowing]
+    var cards: [DailyFollowingCard] = []
     let now: Date
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
-            // In the logo's face, as the rows above it are (Jesse at daily-tab 20's Check-in 2).
+            // In the logo's face, as the rows above it are (Jesse at daily-tab 20's Check-in 2). The first
+            // row's photo sits `titleToCards` under it, its own inset counted; with no rows, the first card.
             DailyRowTitle(title: "Following")
-                .padding(.bottom, DailyRowMetric.titleToCards - DailyMetric.followingRowInset)
+                .padding(.bottom, DailyRowMetric.titleToCards - (items.isEmpty ? 0 : DailyMetric.followingRowInset))
             ForEach(items) { item in
                 FollowingRow(item: item, now: now)
             }
+            // The Town feed's post and News cards, as Town draws them (daily-tab 23), `followingCardGap`
+            // under the last row and apart. A lazy stack, as the Town feed's: in a plain one the post's photo,
+            // which takes its height from its width, was squeezed to nothing and its height left blank at the
+            // page's end (seen in the first after recording).
+            if !cards.isEmpty {
+                LazyVStack(spacing: DailyMetric.followingCardGap) {
+                    ForEach(cards) { card in
+                        switch card {
+                        case .post(let post): FeedPostCard(post: post)
+                        case .news(let news): TownNewsCard(news: news)
+                        }
+                    }
+                }
+                .padding(.top, items.isEmpty ? 0 : DailyMetric.followingCardGap - DailyMetric.followingRowInset)
+            }
         }
-        // A finished event's row closes up instead of vanishing.
-        .animation(reduceMotion ? nil : Motion.smooth, value: items.map(\.id))
+        // A finished event's row, or a card you hid, closes up instead of vanishing.
+        .animation(reduceMotion ? nil : Motion.smooth, value: items.map(\.id) + cards.map(\.id))
     }
 }
 
@@ -179,14 +248,9 @@ private struct FollowingRow: View {
     let now: Date
 
     var body: some View {
-        Group {
-            switch item.opens {
-            case .event(let event): NavigationLink(value: event.item) { face }
-            case .update(let post): NavigationLink(value: post) { face }
-            }
-        }
-        .buttonStyle(.press(.squish))
-        .accessibilityLabel("\(item.name) \(item.what) \(item.spokenTime(now: now))")
+        NavigationLink(value: item.event.item) { face }
+            .buttonStyle(.press(.squish))
+            .accessibilityLabel("\(item.name) \(item.what) \(item.time(now: now))")
     }
 
     private var face: some View {
@@ -201,7 +265,7 @@ private struct FollowingRow: View {
             if let url = item.photo {
                 Hue.fill
                     .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
-                    .overlay { FeedCardURLPhoto(url: url, whole: item.event?.item.whole == true ? 0 : nil) }
+                    .overlay { FeedCardURLPhoto(url: url, whole: item.event.item.whole ? 0 : nil) }
                     .clipShape(RoundedRectangle(cornerRadius: DailyMetric.followingPhotoRadius, style: .continuous))
             }
         }
@@ -217,26 +281,5 @@ private struct FollowingRow: View {
         var time = AttributedString(item.time(now: now))
         time.foregroundColor = Hue.inkSecondary
         return name + AttributedString(" \(item.what) ") + time
-    }
-}
-
-/// An update from someone you follow on its own page, as Instagram opens a post from its
-/// activity rows: the Town feed's post card under the Search pages' back button.
-struct DailyPostPage: View {
-    let posting: PostingItem
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ScrollView {
-            PostingCard(posting: posting, onShare: { TownFeedColumn.share(posting) })
-        }
-        .background(Hue.paper.ignoresSafeArea())
-        .safeAreaInset(edge: .top, spacing: 0) {
-            BackButton { dismiss() }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, PageMetric.backLead)
-            .background(Hue.paper)
-        }
-        .toolbar(.hidden, for: .navigationBar)
     }
 }

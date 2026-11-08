@@ -258,6 +258,17 @@ struct CommunityAPI {
         return rows
     }
 
+    /// News from the places you follow (BP app daily-tab 23): every live story of theirs, newest first, 10 at
+    /// most, in the Town feed's own rows, worked out by `get_following_news`. A real account's: signed out
+    /// there are none.
+    func getFollowingNews() async throws -> [TownNews] {
+        let data = try await db.rpc("get_following_news")
+        return try Self.townFeedLines(from: data).compactMap { line -> TownNews? in
+            if case .news(let news) = line { return news }
+            return nil
+        }
+    }
+
     /// `get_town_feed`'s Events, without its news.
     static func townFeedRows(from data: Data) throws -> [TownFeedRow] {
         try townFeedLines(from: data).compactMap { line -> TownFeedRow? in
@@ -324,7 +335,7 @@ struct CommunityAPI {
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
                                       friendsOnly: poster.friendsOnly ?? false,
                                       posted: posted, leavesAt: leavesAt, heartCount: row.heartCount ?? 0,
-                                      hearted: row.hearted ?? false))
+                                      hearted: row.hearted ?? false, followed: row.reason == "follow"))
             }
             if row.kind == "news" {
                 guard let post = row.sourceUrl.flatMap(URL.init(string:)), let title = row.title else { return nil }

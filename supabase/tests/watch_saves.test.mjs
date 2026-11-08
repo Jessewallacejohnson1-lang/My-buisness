@@ -121,6 +121,10 @@ test('finish: the morning report is one row a morning, the last finish kept, and
   await save('Morning watch, finish run again');
   assert.deepEqual(await asJob('read back', 'select report from public.morning_reports'),
                    [{ report: 'Morning watch, finish run again' }]);
+  // The report's game lines (game-card 22): refused on 2026-11-08 until watch could call it.
+  assert.deepEqual(await asJob('finish: live_marks', 'select * from public.live_marks($1)',
+                               ['{00000000-0000-0000-0000-000000000001}']),
+                   [{ event_id: '00000000-0000-0000-0000-000000000001', sources: [], alerted_at: null, alert_why: null }]);
   for (const role of ['anon', 'authenticated']) {
     await db.exec(`set role ${role}`);
     await assert.rejects(db.query('select report from public.morning_reports'), /permission denied/, role);

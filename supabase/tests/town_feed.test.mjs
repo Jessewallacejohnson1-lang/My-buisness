@@ -3974,3 +3974,66 @@ test('the live-scores backup, a whole file with its plays oldest first, reads a 
   assert.deepEqual(b.score, p.score);
   assert.deepEqual(b.ice, p.ice, 'the same saves and power plays');
 });
+
+// Following on the Block Party tab (BP app daily-tab 23): a post's row says who you follow, and the places you
+// follow have their own News read, since the feed rations News.
+test("a post from you or someone you follow says follow with their name; a stranger's says nothing", async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(ME, 'Me Myself');
+  await post(ANNA, 'From Anna');
+  await post(BEN, 'From Ben', { at: '2026-10-08 08:00' });
+  await post(ME, 'From me', { at: '2026-10-08 07:00' });
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'profile', $2)`, [ME, ANNA]);
+  await signIn(ME);
+  const { rows } = await db.query(
+    `select title, reason, reason_name from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'), true)
+     where kind = 'post' order by title`);
+  assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name]),
+                   [['From Anna', 'follow', 'Anna Lee'], ['From Ben', null, null], ['From me', 'follow', 'Me Myself']]);
+});
+
+const followingNews = async (at) => (await db.query(
+  `select title, kind, reason, reason_name, source_name, source_url, leaves_at
+   from public.get_following_news(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+
+test("News from the places you follow: every live story of theirs, newest first, seen or not; muted, hidden, gone and signed out stay out", async () => {
+  await reset();
+  await followPlace(ME);
+  const peony = { source_name: PEONY, place_entry_id: 'white-peony' };
+  await news('Fall arrivals', '2026-10-08 09:00', peony);
+  await news('Layer up', '2026-10-07 18:00', peony);
+  await news('Flight Friday', '2026-10-08 10:00');                       // The Wandering Cow, not followed
+  await news('Old news', '2026-09-20 10:00', peony);                     // left after 7 days
+  await news('Hidden', '2026-10-08 11:00', peony);
+  await db.query(`insert into public.news_views (user_id, item_id) select $1, id from public.board_items where title = 'Fall arrivals'`, [ME]);
+  await db.query(`insert into public.news_hides (user_id, item_id) select $1, id from public.board_items where title = 'Hidden'`, [ME]);
+  await signIn(ME);
+  const rows = await followingNews('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.kind, r.reason, r.reason_name]),
+                   [['Fall arrivals', 'news', 'follow', PEONY], ['Layer up', 'news', 'follow', PEONY]],
+                   'the seen story stays: this is not the feed');
+  assert.equal(rows[0].source_url, 'https://www.instagram.com/p/x/');
+  // In the Town feed the seen one is gone, and the stranger's place is there: the two reads differ on purpose.
+  assert.deepEqual((await withNews('2026-10-08 12:00')).filter((r) => r.kind === 'news').map((r) => r.title),
+                   ['Flight Friday', 'Layer up']);
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, $2, $2)`, [ME, PEONY]);
+  await signIn(ME);
+  assert.deepEqual(await followingNews('2026-10-08 12:00'), [], 'a muted place');
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.deepEqual(await followingNews('2026-10-08 12:00'), [], 'signed out, nobody follows anything');
+});
+
+test('News from the places you follow: 10 at most, the newest', async () => {
+  await reset();
+  await followPlace(ME);
+  for (let i = 0; i < 12; i++) {
+    await news(`Story ${i}`, `2026-10-08 ${String(i).padStart(2, '0')}:00`, { source_name: PEONY, place_entry_id: 'white-peony' });
+  }
+  await signIn(ME);
+  const rows = await followingNews('2026-10-08 12:00');
+  assert.equal(rows.length, 10);
+  assert.deepEqual([rows[0].title, rows[9].title], ['Story 11', 'Story 2']);
+});

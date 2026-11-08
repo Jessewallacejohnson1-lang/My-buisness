@@ -601,14 +601,19 @@ def headline_fits(title):
     return lines <= HEADLINE_LINES
 
 
-def long_headlines(items):
+def long_headlines(items, listed=()):
     """News titles past their card's 2 lines once tidied (headline_fits), for the morning job's model to shorten
-    to NEWS_TITLE_MAX in the source's own words (BP app inside-cards 13)."""
+    to NEWS_TITLE_MAX in the source's own words (BP app inside-cards 13). `listed`: the News already in the app
+    (news_titles_in_db). One there under its long title keeps it, so its re-read lands on its own row (apply_judged
+    knows a News by title, source and day) and not on a new one: on 2026-11-08 eight of Kennedy's posts from
+    Oct 14 to 29, read again every morning, went up again under short titles (BP app smooth-mornings 14)."""
+    have = {(r.get("source_name"), (r.get("title") or "").lower()) for r in listed}
     out = []
     for it in items:
         if isinstance(it, dict) and it.get("kind") == "news" and isinstance(it.get("title"), str):
-            t = tidy_title(it["title"], str(it.get("source_name") or "").strip(), event=False)
-            if not headline_fits(t) and t not in out:
+            source = str(it.get("source_name") or "").strip()
+            t = tidy_title(it["title"], source, event=False)
+            if not headline_fits(t) and t not in out and (source, t.lower()) not in have:
                 out.append(t)
     return out
 
@@ -1321,6 +1326,11 @@ def listed_in_db(db=None):
     return (db or Supabase()).rest("POST", "rpc/listed_for_writer", {})
 
 
+def news_titles_in_db(db=None):
+    """Every News's title and source, whatever its age or status, for long_headlines."""
+    return (db or Supabase()).rest("GET", "board_items?select=title,source_name") or []
+
+
 def news_in_db(now=None, db=None):
     """The News already in the app that the Town feed can still show (Chicago's now), with each one's link, status,
     created time and dates, for repeat_of."""
@@ -1397,6 +1407,9 @@ def t_news_titles_fit_their_two_lines():
     news = lambda t: item(kind="news", title=t, start=None, category="business")
     assert long_headlines([news(over), news(at), news(over), item(title=over)]) == [over], \
         "each News past its 2 lines once; an Event keeps its 40 characters (long_titles)"
+    listed = [{"title": over.upper(), "source_name": news(over)["source_name"]}]
+    assert long_headlines([news(over)], listed) == [], "one in the app under its long title is re-read into its row"
+    assert long_headlines([news(over)], [dict(listed[0], source_name="Someone Else")]) == [over], "another source's isn't"
     short = {over: "Pumpkin Cold Brew at Caribou"}
     assert len(short[over]) <= NEWS_TITLE_MAX and headline_fits(short[over])
     assert plan([news(over)], [], TODAY, INTERESTS, titles=short)["news"][0]["title"] == short[over]
