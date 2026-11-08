@@ -1094,7 +1094,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ## Casey's General Store
 ```yaml
 id: caseys-general-store
-status: active
+status: retired
 tier: listed
 category: amenity=fuel
 added_by: agent:discover
@@ -1105,7 +1105,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56680, -94.31022. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Retired 2026-11-08: Jesse, "there's no Casey's in town". OpenStreetMap and Overture both list one at 421 4th Ave NE; they are wrong, so its app page was deleted the same day (migration hide_caseys). Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56680, -94.31022. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007).
 
 ## Centennial Park
 ```yaml
