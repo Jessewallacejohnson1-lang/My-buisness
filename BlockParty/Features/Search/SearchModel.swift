@@ -67,9 +67,16 @@ struct SearchItem: Identifiable, Hashable {
     /// An Event's Town card: it opens the Event page (five-tabs 04).
     var card: FeedCardItem? = nil
 
-    /// A business or food place with a logo opens onto its own page of photos; the
-    /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
-    var opens: Bool { [.business, .restaurant, .coffee].contains(kind) && logo != nil }
+    /// A business or food place opens onto its own page of photos; the logo flies there (Jesse,
+    /// 2026-10-04: restaurants and coffee open like logos). One with no logo yet flies its letter disc
+    /// instead (Jesse, 2026-11-08, BP app place-pages: the directory is complete, logos follow).
+    var opens: Bool { [.business, .restaurant, .coffee].contains(kind) }
+
+    /// The letter its disc shows while it has no logo: the first letter of its name, as a young team's.
+    var initial: String { name.first(where: \.isLetter).map { String($0).uppercased() } ?? "" }
+
+    /// The shadow its mark casts as it flies to its page: the logo's own hue, or the studio's neutral one.
+    var markShadow: Color { logo?.shadow ?? Hue.hsl(Hue.searchStudioHue, 15, 18) }
 
     /// What kind of place it is, drawn where there is no logo and no photo.
     var glyph: String {
@@ -286,7 +293,7 @@ final class SearchModel {
     /// One kind's row, in order. Businesses show only with a logo: the row is logos, each
     /// shown once.
     func row(_ kind: SearchItem.Kind) -> [SearchItem] {
-        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall == true) })
+        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall != false) })
     }
 
     /// Whether a kind's row is still waiting on Supabase.
@@ -332,8 +339,8 @@ final class SearchModel {
         }
     }
 
-    /// A place by its `places.id`, as its page opens; nil for one Search can't open (no logo) or hasn't
-    /// read yet. The Town feed's places to try are drawn from here (town-feed 23).
+    /// A place by its `places.id`, as its page opens; nil for one Search hasn't read yet. The Town feed's
+    /// places to try are drawn from here (town-feed 23).
     func place(_ id: String) -> SearchItem? {
         places.first { $0.placeID == id && $0.opens }
     }
@@ -361,10 +368,12 @@ final class SearchModel {
     static let coffeeTypes: Set<String> = ["coffee_shop", "cafe", "bakery"]
 
     /// `photos`: what Block Party saved of each place, by registry entry (`places.entry_id`). A
-    /// food card shows the cover; a business shows its logo on the row, its photos on its page.
+    /// food card shows the cover; a business shows its logo on the row, its photos on its page. A
+    /// city park's row (place-pages 01) is left out here: Search already shows the park from
+    /// `CityParks`, with its photo and features, so it isn't listed twice.
     static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:],
                        names: [String: PlaceName] = [:]) -> [SearchItem] {
-        pois.map { poi in
+        pois.filter { poi in !CityParks.all.contains { $0.id == poi.entryId } }.map { poi in
             let key = poi.placeId ?? poi.id
             let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }
             let type = poi.primaryType ?? ""

@@ -152,6 +152,16 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     width, height, description, credit, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/abc.webp',
     'https://hayloft.example/', 'event', $1, 'live', 1080, 1350, 'A corn maze at dusk', null, 'event photos')`, [id]);
   await asJob('photos: looked at', 'update public.club_events set photo_checked_at = now() where id = $1', [id]);
+  // A News's own photo (town-feed 53): the News read, its row, and the News marked looked at.
+  const { rows: [{ id: story }] } = await db.query(`insert into public.board_items (title, category, source_name, source_url,
+    status, place_entry_id) values ('New maze', 'business', 'Hayloft Farm', 'https://www.instagram.com/p/x/', 'published', 'hayloft')
+    returning id`);
+  await asJob('photos: News from posts', `select id, title, blurb, source_name, source_url, place_entry_id from public.board_items
+    where status = 'published' and photo_checked_at is null and source_url ~ '(facebook|instagram)[.]com/'`);
+  await asJob('photos: a News photo', `insert into public.place_photos (entry_id, town, url, source_url, kind, news_id, status,
+    width, height, description, credit, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/news.webp',
+    'https://www.instagram.com/p/x/', 'news', $1, 'live', 720, 960, 'Kids in the maze', 'Hayloft Farm', 'event photos')`, [story]);
+  await asJob('photos: News looked at', 'update public.board_items set photo_checked_at = now() where id = $1', [story]);
   // The refresh's take-down pick (BP app agent-guardrails 09): `takedown` reads the live row, then adds
   // the pick the way PostgREST's ignore-duplicates does, so a photo asked about before stays as Jesse left it.
   const { rows: [{ id: photo }] } = await db.query(`insert into public.place_photos (entry_id, url, source_url)

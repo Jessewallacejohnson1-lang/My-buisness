@@ -81,6 +81,10 @@ storage, credited to the place and taken down on request (`sources/scripts/event
 `docs/plans/event-photos` 09). Flyers and pictures with words are never picked. The pictures come from the
 Apify runs already made, so this costs no extra Apify reads. A post's words, and every picture not picked,
 still wait for the place's yes.
+**Amended 2026-11-08 (Jesse, "yes" to a News showing its post's own photo, BP app town-feed 53):** a News
+found in a place's post may show one real photo from that post, picked and saved the same way (kind `news`,
+credited to the place, taken down on request). Only the post's own pictures, never its place's other posts,
+and never a flyer.
 **Amended 2026-11-03 (Jesse, "yes to all", after a $1.20 search test):** the watch also searches. Every
 Thursday one Apify run searches Facebook's public events for the town ("St. Joseph, Minnesota", at most 50
 events, about 1¢ each): the test found 8 upcoming in-town events Block Party lacked for 35¢, hosted by a

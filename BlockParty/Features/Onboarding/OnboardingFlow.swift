@@ -541,7 +541,6 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              yellow: store.step == .friends && store.account == nil,
                               busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }

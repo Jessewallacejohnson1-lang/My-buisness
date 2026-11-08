@@ -84,7 +84,7 @@ struct OnboardingDone: View {
             case .shut:
                 EmptyView()
             case .hey:
-                Text("Hey \(Text(YouPage.firstName(name) ?? "neighbor").foregroundStyle(Hue.brandDisc))")
+                Text("Hey \(YouPage.firstName(name) ?? "neighbor")")
                     .transition(words)
             case .welcome:
                 HStack(spacing: 8) {

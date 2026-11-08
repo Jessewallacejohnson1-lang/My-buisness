@@ -133,11 +133,11 @@ private struct ExploreTile: View {
 
     private func tap() {
         model.remember(item.id)
-        guard item.opens, let logo = item.logo else { return }
+        guard item.opens else { return }
         let box = frame.rect, size = SearchMetric.logoOnTile
         opener.open(item, from: .init(
             logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
-            box: box, radius: 0, shadow: logo.shadow, fades: true))
+            box: box, radius: 0, shadow: item.markShadow, fades: true))
     }
 }
 
