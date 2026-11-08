@@ -300,8 +300,8 @@ nonisolated enum NewsWords {
     static let filler: Set<String> = ["a", "an", "and", "are", "as", "at", "be", "been", "by", "can", "for", "from",
                                       "has", "have", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
                                       "their", "this", "to", "up", "was", "were", "will", "with", "who", "m", "p"]
-    /// Words that say the same thing.
-    static let same = ["won": "win", "wins": "win", "elected": "win", "received": "get", "gets": "get", "gives": "give"]
+    /// Words that say the same thing ("wins", "gets" and "gives" are already their word, as plurals are).
+    static let same = ["won": "win", "elected": "win", "received": "get"]
 
     static func adds(_ line: String, to known: String) -> Bool {
         let said = Set(real(known)), words = real(line)

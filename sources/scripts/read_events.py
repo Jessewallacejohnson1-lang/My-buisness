@@ -110,8 +110,8 @@ def plain(markup):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", markup or ""))).strip()
 
 
-# Where one sentence ends and the next begins: not after "St." or "Nov." or an initial, only before a capital.
-SENTENCE_END = re.compile(r"(?<=[.!?])(?<!\b[A-Z]\.)(?<!\b(?:St|Mr|Dr|Ms|Mt)\.)\s+(?=[A-Z\"“])")
+# Where one sentence ends and the next begins: not after "St.", "Nov.", "a.m." or an initial, only before a capital.
+SENTENCE_END = re.compile(r"(?<=[.!?])(?<!\b[A-Z]\.)(?<!\b(?:St|Mr|Dr|Ms|Mt)\.)(?<![ap]\.m\.)\s+(?=[A-Z\"“])")
 
 
 def news_line(text, limit=75):
@@ -1474,6 +1474,7 @@ def t_county():
     assert got[0]["blurb"] == "Monday, October 12, is Indigenous Peoples Day.", got[0]["blurb"]  # 75 characters, whole sentences
     assert news_line("Stearns County will celebrate the opening of its new Veteran Services Office in Melrose.") is None
     assert news_line("Meet in St. Joseph at the Legion for the annual pancake breakfast on Sunday morning.") is None
+    assert news_line("Offices reopen at 8 a.m. Monday, Nov. 30, after the Thanksgiving holiday break.") is None
     assert news_line("Ribbon cutting Monday, Nov. 9, at noon. Drinks after.") == "Ribbon cutting Monday, Nov. 9, at noon. Drinks after."
     assert news_line("Open 8 a.m. to 4:30 p.m. Monday. A full list of observed holidays is on the county's page.") == \
         "Open 8 a.m. to 4:30 p.m. Monday."

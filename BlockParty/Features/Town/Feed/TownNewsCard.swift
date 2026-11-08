@@ -6,8 +6,7 @@
 //  logo on the left, else its first letter with its name starting the facts; "News · 2d" in the grey pill; the
 //  headline and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
 //  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never a photo: a post has no Event, so the only photo it could show is its place's cover
-//  (Jesse, 2026-11-04, BP app town-feed 40). No time: Block Party knows when it saved a post, not when
-//  the place posted it. A tap opens the post in Instagram or Facebook when that app is on the phone,
+//  (Jesse, 2026-11-04, BP app town-feed 40). A tap opens the post in Instagram or Facebook when that app is on the phone,
 //  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
 //
 
@@ -32,7 +31,9 @@ struct TownNewsCard: View {
             .buttonStyle(FeedCardLinkStyle())
             .gesture(FeedTouchDownTracker(isPressed: $pressed))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel([news.place.isEmpty ? "News" : "News from \(news.place)", news.headline, news.facts]
+            // The title first, then when, as on an Event card.
+            .accessibilityLabel([news.place.isEmpty ? "News" : "News from \(news.place)", news.headline, news.facts,
+                                 news.published?.formatted(.relative(presentation: .named))]
                 .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
