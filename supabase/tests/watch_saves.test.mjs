@@ -101,15 +101,15 @@ test('tag, describe and standouts write onto the Event', async () => {
     returning id`, [day(8)]);
   await asJob('tag', `update public.club_events set interests = $2, draw = $3, what = $4, interests_tagged_at = now()
     where id = $1`, [id, ['outdoors', 'trails_hiking'], 3, 'Hayride']);
-  await asJob('describe', 'update public.club_events set description = $2, described_at = now() where id = $1',
-              [id, 'A tractor-pulled ride through the haunted woods, with cider and a bonfire after. Dress warm.']);
+  await asJob('describe', 'update public.club_events set description = $2, price = $3, described_at = now() where id = $1',
+              [id, 'A tractor-pulled ride through the haunted woods, with cider and a bonfire after. Dress warm.', '$15, kids $8']);
   await asJob('standouts: clear today', 'delete from public.daily_standouts where town = $1 and day = $2',
               ['st-joseph-mn', day(8)]);
   await asJob('standouts', `insert into public.daily_standouts (town, day, event_id, rank, why)
     select town, day, event_id, rank, why from jsonb_populate_recordset(null::public.daily_standouts, $1)`,
               [JSON.stringify([{ town: 'st-joseph-mn', day: day(8), event_id: id, rank: 1, why: 'The last hayride of the season.' }])]);
-  assert.deepEqual(await asJob('read back', `select e.interests, e.draw, s.rank from public.club_events e
-    join public.daily_standouts s on s.event_id = e.id`), [{ interests: ['outdoors'], draw: 3, rank: 1 }]);
+  assert.deepEqual(await asJob('read back', `select e.interests, e.draw, e.price, s.rank from public.club_events e
+    join public.daily_standouts s on s.event_id = e.id`), [{ interests: ['outdoors'], draw: 3, price: '$15, kids $8', rank: 1 }]);
 });
 
 test('finish: the morning report is one row a morning, the last finish kept, and no one in the app reads it', async () => {
