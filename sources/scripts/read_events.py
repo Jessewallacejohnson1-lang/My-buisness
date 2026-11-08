@@ -1120,15 +1120,16 @@ def rec1_items(catalog, entry, src, today):
         start = times[0] and datetime.combine(day, time(*times[0]), LOCAL)
         end = start and len(times) > 1 and times[1] and datetime.combine(day, time(*times[1]), LOCAL)
         place = f.get("location") or ""
-        # The fee goes in its own field (inside-cards 14); the words keep how to sign up.
-        price = s.get("price") or 0
+        # The fee goes in its own field (inside-cards 14); the words keep how to sign up. Only a fee of 0 is Free: no
+        # fee given is unknown, and stays null.
+        price = s.get("price")
         cost = "Sign up on the City's registration site."
         # A group's text is about its one program; a group of several (Senior Citizen Activities) says nothing of each.
         about = said(plain(g.get("description"))) if len(g["sessions"]) == 1 else None
         out.append(judged(entry, src, title=rec1_title(s["text"], sections[sid] == {True}),
                           start=start.isoformat() if start else day.isoformat(), end=end.isoformat() if end else None,
                           all_day=not start, place="" if place.lower() in REC1_NO_PLACE else place,
-                          blurb=" ".join(p for p in (about, cost) if p), price=f"${price:g}" if price else "Free",
+                          blurb=" ".join(p for p in (about, cost) if p), price=None if price is None else f"${price:g}" if price else "Free",
                           closed=bool(s.get("sessionFull") or s.get("registrationOver")),
                           source_url=src["url"], source_uid=f"rec1:{sid}"))
     return out
@@ -1664,6 +1665,12 @@ def t_rec1():
     assert got["Fall Puzzle Competition"]["place"] == "", "Location TBD is no place"
     assert (got["Chanhassen Dinner Theatre Day Trip"]["blurb"], got["Chanhassen Dinner Theatre Day Trip"]["price"]) == \
         ("Sign up on the City's registration site.", "$91"), "a shared group text is left out; the fee is the price"
+    # Only a fee of 0 says Free; a session with no price, or a null one, is unknown, and the page then shows none.
+    paint_group = next(g for g in json.loads(sample("rec1-catalog.json")) if g["sessions"][0]["text"] == "Winter Paint and Sip")
+    priced = lambda **price: rec1_items([{**paint_group, "sessions": [{**{k: v for k, v in paint_group["sessions"][0].items()
+                                                                          if k != "price"}, **price}]}],
+                                        CITY, src, date(2026, 10, 24))[0]["price"]
+    assert (priced(price=0), priced(), priced(price=None), priced(price=12.5)) == ("Free", None, None, "$12.5")
     assert rec1_next("10/06-12/29", "Mon", date(2026, 12, 30)) is None and rec1_next("Open TBD", "", TODAY) is None
     assert rec1_next("12/28-01/04", "Sat", date(2026, 12, 29)) == date(2027, 1, 2), "a run over New Year"
     assert rec1_clock("9:30am") == (9, 30) and rec1_clock("12pm") == (12, 0) and rec1_clock("TBD") is None
