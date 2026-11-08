@@ -14,9 +14,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             mornings' reads in a row is set aside, skipped except on Mondays, and named only the
             morning it is set aside and the morning it is back; one line a morning counts the pages
             that failed, naming the town's own (smooth-mornings 04)
-  titles    list the event titles still over 40 characters once tidied (games aside) in
-            .runs/morning/titles.txt, for the routine's model to shorten into titles.json
-            (.claude/skills/title-and-place; Jesse, 2026-10-21)
+  titles    list the event titles still over 40 characters once tidied (games aside), then the News titles
+            past their card's 2 lines, in .runs/morning/titles.txt, for the routine's model to shorten into
+            titles.json (.claude/skills/title-and-place; Jesse, 2026-10-21; BP app inside-cards 13)
   save      once the judge is done: merge the feed items with the judge's items, give long titles their
             short ones (titles.json), write them (public.apply_judged over the service role key), put a post's
             new lasting week on its place (save_hours: the judge's `hours` items, social.md), then save
@@ -305,6 +305,7 @@ def summary_lines(prep, result, written):
     lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
     lines += [f"- Still over {write_judged.TITLE_MAX} characters: {g['row']['title']}" for g in result["events"]
               if g["row"] and len(g["row"]["title"]) > write_judged.TITLE_MAX]
+    lines += [f"- Still past its 2 lines: {n['title']}" for n in news if not write_judged.headline_fits(n["title"])]
     lines += [f"- Cancelled: {str(o['event_date'])[:10]} {o['title']}, gone from its schedule" for o in result.get("cancelled", [])]
     lines += [f"- Back on: {str(o['event_date'])[:10]} {o['title']}" for o in result.get("restored", [])]
     if written is None:
@@ -503,8 +504,11 @@ def long_titles(run):
     out = run.folder
     items = read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
     titles = write_judged.long_titles(items, write_judged.listed_in_db(run.db))
-    (out / "titles.txt").write_text("".join(t + "\n" for t in titles))
-    print(f"[morning] {len(titles)} titles over {write_judged.TITLE_MAX} characters ({out / 'titles.txt'})")
+    news = write_judged.long_headlines(items)
+    heading = [f"News, {write_judged.NEWS_TITLE_MAX} characters at most:"] if news else []
+    (out / "titles.txt").write_text("".join(t + "\n" for t in titles + heading + news))
+    print(f"[morning] {len(titles)} titles over {write_judged.TITLE_MAX} characters"
+          + (f", {len(news)} News past their 2 lines" if news else "") + f" ({out / 'titles.txt'})")
 
 
 def short_titles(out):
@@ -1196,6 +1200,11 @@ def selftest():
     checks.append((lines[3].endswith(", 1 folded into the News of the post they came in")
                    and "- Folded: 'Wrinkle-Free Wednesdays' into 'Molly now at Well & Company', the News of the post "
                        "they share" in lines, "the summary names each News folded into its post's News"))
+    long_news, short_news = "Pumpkin Crafted Cold Brew at Caribou", "Pumpkin Cold Brew at Caribou"
+    told = summary_lines(prep, {**result, "news": [{"title": long_news, "source_name": "Caribou"},
+                                                   {"title": short_news, "source_name": "Caribou"}]}, None)
+    checks.append(([ln for ln in told if ln.startswith("- Still past")] == [f"- Still past its 2 lines: {long_news}"],
+                   "the summary names each News title still past its card's 2 lines (BP app inside-cards 13)"))
     checks.append((summary_lines({**prep, "first_seen": 2}, result, None)[1].endswith(", 2 new kept as a starting copy"),
                    "the summary counts new pages kept as a starting copy"))
     called = summary_lines(prep, {**result, "cancelled": [{"id": "c", "event_date": "2026-10-30", "title": "Fall Play"}],
@@ -1944,6 +1953,7 @@ def steps_alone():
     added = {"events": 1, "news": 0, "mentions": 0, "published_by_mention": 0, "cancelled": 0, "restored": 0,
              "added": {"events": [0], "news": []}}
     long_title = "Anniversary of the Dedication of Sacred Heart Chapel"
+    long_news = "Pumpkin Crafted Cold Brew at Caribou"  # past its card's 2 lines (BP app inside-cards 13)
     about = "A harvest supper of roast turkey and pie, open to all; $12 a plate, kids under 10 free, at the parish hall downtown."
     stopped = []
 
@@ -1978,6 +1988,8 @@ def steps_alone():
             run = lambda minutes=None: Run(out, day, db, minutes=minutes)
             run().prepared({"today": str(day), "fetched": 2, "changed": 1, "to_read": 1, "failed": [], "readers": []})
             (out / "judged.jsonl").write_text(json.dumps(write_judged.item(title=long_title)) + "\n")
+            (out / "feeds.jsonl").write_text(json.dumps(write_judged.item(kind="news", title=long_news, start=None,
+                                                                          category="business")) + "\n")
             (out / "fingerprints.json").write_text(json.dumps([{"entry_id": "milk", "url": "https://m/events", "hash": "new",
                                                                 "first_seen": False}]))
             titled = said(long_titles, run()), said(long_titles, run())
@@ -2026,8 +2038,10 @@ def steps_alone():
         spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read = saved
     ids = lambda calls, key: [p.rsplit("=", 1)[1][-2:] for _, p, b in calls if p.startswith("club_events?id=eq.") and key in b]
     return [
-        (listed == long_title + "\n" and titled[0] == titled[1] and not titled_wrote,
-         f"titles alone lists the long title and writes nothing, run again the same: {listed!r}, {titled_wrote}"),
+        (listed == f"{long_title}\nNews, 30 characters at most:\n{long_news}\n" and titled[0] == titled[1]
+         and "1 News past their 2 lines" in titled[0] and not titled_wrote,
+         f"titles alone lists the long title, then the long News under its own line, and writes nothing; run again "
+         f"the same: {listed!r}, {titled_wrote}"),
         (dry == ([], False, True), f"save alone, dry: nothing written, and a real save still to come: {dry}"),
         (refused.rstrip().endswith("exit [morning] save refused: Supabase POST rpc/apply_judged failed 403: permission denied")
          and refused_left == ("old", False), f"a save refused is one line, moves no fingerprint and can be run again: {refused[-200:]}, {refused_left}"),

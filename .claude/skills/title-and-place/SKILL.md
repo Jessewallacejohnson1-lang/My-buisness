@@ -47,7 +47,12 @@ skill covers the calls the code can't make.
   (a price goes in the blurb), so the title holds the name alone.
 - **The source's own capitals,** except a title written all in capitals, which gets ordinary
   ones.
-- **News** follows the same rules, with what happened first ("County offices open Oct 12").
+- **News** follows the same rules, with what happened first ("County offices open Oct 12"), and
+  fits its card's 2 lines on a 402 pt phone (Jesse, 2026-11-07; BP app inside-cards 13). The writer
+  measures each one in the card's font (`write_judged.headline_fits`): "Johnnies football home
+  opener, Sept. 5" fits at 38 characters, "Pumpkin Crafted Cold Brew at Caribou" doesn't at 36.
+  30 characters or fewer always fits. The morning job lists every News title past its 2 lines
+  (`morning.py titles`), and its model gives each one of 30 at most in the source's own words.
 
 ## The place line
 
@@ -88,7 +93,7 @@ skill covers the calls the code can't make.
 
 ## Done
 
-Every title is the name alone in 40 characters or fewer, and every place line is a venue
+Every title is the name alone in 40 characters or fewer (a News title fits its 2 lines), and every place line is a venue
 (and town outside St. Joseph), a bare address only when nothing names the place, or
 "Online". Check the writer's dry-run listing: the titles it prints are the cards.
 
