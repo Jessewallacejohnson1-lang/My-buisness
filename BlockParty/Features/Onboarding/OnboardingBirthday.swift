@@ -88,7 +88,7 @@ struct OnboardingTooYoung: View {
             VStack(alignment: .leading, spacing: 0) {
                 BlockPartyWordmark(height: 33)
                     .foregroundStyle(Hue.ink)
-                glow
+                bigWordmark
                 Text("Come back when you're 13")
                     .font(.display(30))
                     .foregroundStyle(Hue.ink)
@@ -124,7 +124,7 @@ struct OnboardingTooYoung: View {
     }
 
     /// The mock's 200 pt card: the wordmark tipped 4°, on white (its yellow glow went 2026-11-08).
-    private var glow: some View {
+    private var bigWordmark: some View {
         Color.clear
             .frame(height: 200)
             .overlay {
