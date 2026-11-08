@@ -92,6 +92,17 @@ enum EventLook {
     static let aboutHeading: CGFloat = 20
     static let aboutGap: CGFloat = 8
     static let aboutWords: CGFloat = 17
+    /// The Attend bar (inside-cards 18), off the approved mock's CSS: faces 14 pt in (words alone 24, today's), 8 pt
+    /// from the words; the words Inter Tight Bold 15 over BP Body 13; a 46 pt see-through send with a 20 pt glyph,
+    /// 6 pt from Attend, folding 60 pt right into Invite as it shrinks to 40% and fades.
+    static let barFacesInset: CGFloat = 14
+    static let barFacesGap: CGFloat = 8
+    static let barWords: CGFloat = 15
+    static let barTime: CGFloat = 13
+    static let send: CGFloat = 46
+    static let sendGlyph: CGFloat = 20
+    static let sendGap: CGFloat = 6
+    static let sendFold: CGFloat = 60
     /// Once the page scrolls, the top colour fades in under the clock: whole to 45% of 118 pt, gone at its end.
     static let topFade: CGFloat = 118
     static let topFadeSolid: CGFloat = 0.45
@@ -461,5 +472,109 @@ struct EventAbout: View {
         }
         .foregroundStyle(ink)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// An Event page's Attend bar (inside-cards 18; Jesse, 2026-11-06: "remove the share buttion but it on the bottem next
+/// to attend", "change attends button to more neatrual color your pick", "show friends that are going on the left of
+/// bottem pill and if you join it shows your profile too"). At the left the friends' faces and the count, the count
+/// alone with no friend going, and with nobody going the day over its time (`RSVPWords`, `look`). Your own face joins
+/// the row at the front on a spring the instant you Attend, and leaves the same way, a refused Attend's turn back too.
+/// At the right the send, then Attend in white; the send folds into Invite as the pill turns. Inside today's capsule
+/// (`EventPage.rsvpBar`); a game's page keeps `RSVPArea` (inside-cards 21).
+struct EventBar: View {
+    let item: FeedCardItem
+    let words: RSVPWords
+    var sun = false
+    /// The send's tap and Invite's: what the top share opened (`ShareCenter`).
+    let onShare: () -> Void
+
+    @Environment(RealLifeActions.self) private var actions
+    /// Your photo for your face; nil (a preview) or none is Instagram's blank.
+    @Environment(ProfileModel.self) private var profile: ProfileModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let ink: Color = sun ? Hue.onBrandDisc : .white
+        let dim: Color = sun ? Hue.onBrandDisc.opacity(EventLook.sunDim) : .white.opacity(EventLook.dim)
+        // Faces only beside words: called off and not going, the red Canceled alone.
+        let friends = words.top == nil ? [] : item.friendsGoing
+        let you = words.top != nil && actions.going(item).isGoing
+        let faces = you || !friends.isEmpty
+        HStack(spacing: 0) {
+            HStack(spacing: -FriendFaces.overlap) {
+                if you {
+                    Avatar(avatarUrl: profile?.avatarUrl, size: FriendFaces.side)
+                        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+                        .zIndex(1)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.3).combined(with: .opacity))
+                }
+                if !friends.isEmpty { FriendFaces(friends: friends) }
+            }
+            .accessibilityHidden(true)
+            .padding(.trailing, faces ? EventLook.barFacesGap : 0)
+
+            // "You're going!" and the day cross-fade in over what was there; a count rolls.
+            ZStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let top = words.top {
+                        Text(top)
+                            .font(.display(EventLook.barWords))
+                            .foregroundStyle(ink)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
+                    if let second = words.second {
+                        if words.canLeave {
+                            RSVPArea.leave(second, size: .card, hint: "Takes you off the going list", tint: dim) {
+                                actions.toggleGoing(item)
+                            }
+                        } else {
+                            Text(second)
+                                .font(.sans(EventLook.barTime))
+                                .foregroundStyle(dim)
+                        }
+                    }
+                }
+                .lineLimit(1)
+                .id(words.goingLine ? 0 : words.top?.hasSuffix(" going") == true ? 1 : 2)
+                .transition(.opacity.animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip)))
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: EventLook.barFacesGap)
+
+            AttendPill(item: item, words: words, size: .page, onInvite: onShare, white: true,
+                       send: EventSendButton(sun: sun, action: onShare))
+        }
+        .padding(.leading, faces ? EventLook.barFacesInset : EventPage.Metric.barWordsInset)
+        // Your face springs in and out, the friends and words making room with it (the mock's spring: a little past).
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.62),
+                   value: you)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.going(item).count)
+    }
+}
+
+/// The send beside Attend in an Event page's bar (inside-cards 18): a 46 pt see-through circle as the big buttons are,
+/// white at 10% with a line of light inside its top, the card's send in white; ink on the yellow page. It opens what
+/// Invite opens.
+struct EventSendButton: View {
+    var sun = false
+    let action: () -> Void
+
+    var body: some View {
+        let ink: Color = sun ? Hue.onBrandDisc : .white
+        Button(action: action) {
+            FeedActionGlyphView(glyph: .send, size: EventLook.sendGlyph)
+                .foregroundStyle(ink)
+                .frame(width: EventLook.send, height: EventLook.send)
+                .background {
+                    Circle().fill(ink.opacity(sun ? EventLook.sunFill : EventLook.fill)
+                        .shadow(.inner(color: ink.opacity(sun ? EventLook.sunFillLine : EventLook.fillLine), radius: 0, x: 0, y: 0.5)))
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel("Share")
     }
 }

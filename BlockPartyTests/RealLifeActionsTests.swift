@@ -254,6 +254,32 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
     }
 
+    /// An Event page's bar through taps (inside-cards 18): the day over its time while nobody's going, "You're going!"
+    /// the instant you Attend, counting you; the day again once you leave, then the count as others go. Once it has
+    /// ended, no "Can't go?" (event-card 07).
+    func testAnEventPagesBarCountsYouInAndOut() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let before = Town.midnight("2026-10-01")!
+        let item = card(going: 0)
+        actions.read([item])
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "Mon, Oct 12", second: "7 PM", canLeave: false, pill: .rsvp), "nobody going: the day")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.going(item).count, 1, "the count goes up by you")
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: Town.midnight("2026-10-13")!),
+                       RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
+                       "once it has ended there's nothing left to leave")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before)?.top, "Mon, Oct 12", "Can't go?: the day again")
+        try await Task.sleep(for: Self.hold * 3)
+        actions.read([card(going: 3)])
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "3 going", second: nil, canLeave: false, pill: .rsvp), "others going: the count")
+    }
+
     /// A read sets each Event's base. A choice the read agrees with is done; one it
     /// doesn't agree with yet stays, counted from the read's number.
     func testAFeedReadReplacesTheBase() async throws {
@@ -1216,6 +1242,36 @@ final class RSVPWordsTests: XCTestCase {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true),
                            want, name)
         }
+    }
+
+    /// An Event page's bar (inside-cards 18, Jesse: "show friends that are going on the left of bottem pill"): beside
+    /// the friends' faces the count alone, the count alone too when no friend is going, and with nobody going the day
+    /// over its time, so its left side is never empty. Going: "You're going!" over "Can't go?", as before.
+    func testAnEventPagesBarSaysTheCountElseTheDay() {
+        func look(_ isGoing: Bool, _ count: Int, _ friends: [String] = [], cancelled: Bool = false,
+                  day: String? = "Thu, Nov 19", time: String? = "6 – 8 PM") -> RSVPWords {
+            RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true, look: true,
+                           day: day, time: time)
+        }
+        func attend(_ top: String?, _ second: String? = nil) -> RSVPWords {
+            RSVPWords(top: top, second: second, canLeave: false, pill: .rsvp)
+        }
+        let going = RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite)
+        XCTAssertEqual(look(false, 0), attend("Thu, Nov 19", "6 – 8 PM"), "nobody going: the day over the time")
+        XCTAssertEqual(look(false, 0, time: nil), attend("Thu, Nov 19"), "no time: the day alone")
+        XCTAssertEqual(look(false, 0, day: nil, time: nil), attend(nil), "no day: Attend alone")
+        XCTAssertEqual(look(false, 1), attend("1 going"), "the first one going takes the day's place")
+        XCTAssertEqual(look(false, 2), attend("2 going"), "and the count goes up")
+        XCTAssertEqual(look(false, 41), attend("41 going"), "others going, no friends: the count")
+        XCTAssertEqual(look(false, 41, ["Sam", "Marlene"]), attend("41 going"), "friends: their faces say who, no names")
+        XCTAssertEqual(look(false, 0, ["Avery"]), attend("1 going"), "never fewer than the friends")
+        XCTAssertEqual(look(true, 1), going, "going, the only one")
+        XCTAssertEqual(look(true, 42, ["Sam"]), going, "going with friends")
+        XCTAssertEqual(look(false, 41, ["Sam"], cancelled: true),
+                       RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled), "called off: Canceled alone")
+        XCTAssertEqual(look(true, 42, cancelled: true),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled),
+                       "called off while going: can still leave")
     }
 
     /// A Town card has no Attend and no X, Going or not (Jesse, event-card 07): just who's going, with the

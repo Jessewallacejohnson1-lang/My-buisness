@@ -366,6 +366,33 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Tue, Jun 1, 2027", "the year past six months off")
     }
 
+    /// The Attend bar's day over its time while nobody's going (inside-cards 18), as the approved mock's "Thu, Nov 19"
+    /// over "6 – 8 PM": the date line's words with no repeat (the line above says it), every day short to fit.
+    func testTheBarsDayIsOverItsTime() {
+        let now = Town.midnight("2026-11-01")!
+        let nov19 = Town.midnight("2026-11-19")!
+        var repeating = event(imageUrl: nil)
+        repeating.recurrence = "Every Thursday"
+        var item = FeedCardItem(repeating)
+        item.eventDate = "2026-11-19"
+        item.startTime = "6 PM"
+        item.endAt = nov19.addingTimeInterval(20 * 3600)
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "6 – 8 PM"), "no repeat")
+        item.endAt = nil
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "6 PM"), "no end: the start")
+        item.startTime = "after dark"
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "after dark"), "as written")
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19"), "all day: the day alone")
+        item.endAt = Town.midnight("2026-11-26")
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "until Wed, Nov 25"),
+                       "over days: its last day short too")
+        item.eventDate = "2027-06-01"
+        item.endAt = nil
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Tue, Jun 1, 2027"), "the year past six months off")
+    }
+
     /// The big button's word: Facebook and Instagram by name, anything else Website.
     func testTheFoundPagesButtonSaysItsApp() {
         let page = EventPage.self

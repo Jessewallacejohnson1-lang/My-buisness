@@ -312,14 +312,17 @@ final class RealLifeActions {
     /// A game whose final is in says who went and offers nothing to tap; with nobody, nothing.
     /// Once an Event has ended the bar's "Can't go?" goes: there's nothing left to leave, and leaving
     /// would take it off what you went to.
-    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false,
+    /// `look`: an Event page's bar, not a game's (inside-cards 18): the count alone, else its day over its time.
+    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false, look: Bool = false,
               at now: Date = .now) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
+        let day = look ? EventPage.barDay(item, now: now) : nil
         var words = RSVPWords.make(isGoing: going.isGoing, count: going.count,
                                    friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar,
-                                   town: town, card: card, over: item.game?.final != nil)
-        if bar, words.canLeave, let end = item.when?.end, end <= now {
+                                   town: town, card: card, over: item.game?.final != nil,
+                                   look: look, day: day?.first, time: day?.second)
+        if bar || look, words.canLeave, let end = item.when?.end, end <= now {
             words.second = nil
             words.canLeave = false
         }

@@ -8,7 +8,7 @@
 //  buttons (Map and the page it was found on), the host's row with Follow, and About in Apple's font. A
 //  flyer stays whole, a logo sits on a white disc, and no picture is the exact yellow with ink words. The
 //  sizes are `EventLook`'s, off Apple's screen and the approved mock. The Attend bar is Meetup's floating
-//  capsule (rsvp-and-groups 02) until ticket 18.
+//  capsule (rsvp-and-groups 02) holding friends' faces, the send and a white Attend (`EventBar`, ticket 18).
 //
 //  A game's page keeps its own look (ticket 21): its teams' colours (`GameMatchup`), the round white buttons
 //  and the facts as Meetup's rows (`Metric`, measured off Fresha's venue page; a business page in Search
@@ -277,7 +277,7 @@ struct EventPage: View {
         // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
         // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !reviewing, let words = actions.rsvp(current, bar: true) {
+            if !reviewing, let words = actions.rsvp(current, bar: true, look: game == nil) {
                 rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -753,14 +753,21 @@ struct EventPage: View {
 
     // MARK: The bar
 
-    /// Meetup's capsule floating over the page, with the card's RSVP words and pill
-    /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
-    /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
+    /// Meetup's capsule floating over the page: an Event's faces, send and white Attend (`EventBar`), a game's
+    /// RSVP words and its team's Attend as before (`RSVPArea`, inside-cards 21). The send and Invite open what
+    /// the top share did. Under it the page fades to its foot, so words never run hard into its edge or the
+    /// home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
-        RSVPArea(item: current, words: words, size: .page, yellow: game != nil, tint: game.flatMap { GameMatchup.attend($0) }) {
-            ShareCenter.shared.present(.event(item))
+        Group {
+            if game == nil {
+                EventBar(item: current, words: words, sun: sun) { ShareCenter.shared.present(.event(item)) }
+            } else {
+                RSVPArea(item: current, words: words, size: .page, yellow: true, tint: game.flatMap { GameMatchup.attend($0) }) {
+                    ShareCenter.shared.present(.event(item))
+                }
+                .padding(.leading, Metric.barWordsInset)
+            }
         }
-            .padding(.leading, Metric.barWordsInset)
             .padding(.trailing, Metric.barPillInset)
             // 57 pt at the default text size; larger text grows it rather than spilling out.
             .padding(.vertical, Metric.barPillInset)
@@ -868,10 +875,21 @@ struct EventPage: View {
         }
     }
 
-    private static func dayAndHours(_ item: FeedCardItem, now: Date) -> FactLines? {
+    /// The Attend bar's day over its time while nobody's going (inside-cards 18): the date line's words without its
+    /// repeat, every day short so they fit beside Attend: "Thu, Nov 19" over "6 – 8 PM", "Mon, Nov 16" over
+    /// "until Wed, Nov 25".
+    static func barDay(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        guard var lines = dayAndHours(item, now: now, short: true) else { return nil }
+        if let rest = lines.second, rest.hasPrefix("Until ") { lines.second = "until " + rest.dropFirst(6) }
+        return lines
+    }
+
+    /// `short`: "Thu, Nov 19" for "Thursday, November 19".
+    private static func dayAndHours(_ item: FeedCardItem, now: Date, short: Bool = false) -> FactLines? {
         guard let when = item.when else { return item.whenLine.map { FactLines(first: $0.text) } }
         let withYear = abs(Town.days(from: now, to: when.start)) > 183
-        let day = { (date: Date) in Town.format(date, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd") }
+        let format = short ? (withYear ? "EEEMMMdyyyy" : "EEEMMMd") : withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd"
+        let day = { (date: Date) in Town.format(date, format) }
         // A game whose final is in shows its day alone, as its card (game-card 02).
         if item.game?.final != nil { return FactLines(first: day(when.start)) }
         guard when.timed else {
