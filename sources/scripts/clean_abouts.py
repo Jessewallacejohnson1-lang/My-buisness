@@ -166,11 +166,15 @@ def plan(rows, answers):
 
 
 def patch_body(change):
-    """The columns to save. A cleaned About gets described_at too, so a re-read of its listing never writes the
-    old words back over it (apply_judged, this ticket's migration)."""
+    """The columns to save. A cleaned About is marked written (about_written_at), so a re-read of its listing never
+    writes the old words back over it (apply_judged, this ticket's migration), and researched (described_at, when it
+    wasn't), so the morning doesn't lay it out again."""
     body = {"description": change["after"] or None}
-    if change["after"] != change["before"] and not change.get("described_at"):
-        body["described_at"] = datetime.now(LOCAL).isoformat()
+    if change["after"] != change["before"]:
+        now = datetime.now(LOCAL).isoformat()
+        body["about_written_at"] = now
+        if not change.get("described_at"):
+            body["described_at"] = now
     if change["price"]:
         body["price"] = change["price"]
     if change["end_at"]:
@@ -305,10 +309,15 @@ def selftest():
          "an Event with an end keeps it: the words' end isn't written over it"),
         (c["after"] == "" and c["end_at"] == "2026-11-22T01:00:00-06:00" and c["changed"],
          "everything gone leaves the About empty; an end at or before the start is the next day"),
-        ({k: v for k, v in patch_body(a).items() if k != "described_at"} == {"description": a["after"], "price": "Free", "end_at": "2026-11-20T21:00:00-06:00"}
+        ({k: v for k, v in patch_body(a).items() if k not in ("described_at", "about_written_at")}
+         == {"description": a["after"], "price": "Free", "end_at": "2026-11-20T21:00:00-06:00"}
          and "described_at" in patch_body(a) and "described_at" in patch_body(c) and patch_body(c)["description"] is None
          and "described_at" not in patch_body(plan([{**rows[1], "described_at": "2026-11-01T12:00:00+00:00"}], answers)[0]),
-         "the PATCH writes the About (null when empty), the price, the end, and described_at once, so a re-read leaves it"),
+         "the PATCH writes the About (null when empty), the price, the end, and described_at once, so it isn't researched again"),
+        ("about_written_at" in patch_body(a) and "about_written_at" in patch_body(c)
+         and "about_written_at" in patch_body(plan([{**rows[1], "described_at": "2026-11-01T12:00:00+00:00"}], answers)[0])
+         and "about_written_at" not in patch_body({**a, "after": a["before"]}),
+         "a rewritten About is marked written, researched before or not, so a re-read never puts the old words back"),
         (plan(rows[:1], [{"id": "a", "about": tidy(rows[0]["description"]), "price": "", "end": ""}])[0]["changed"] is False,
          "an About given back as it was is no change"),
         (sorted(before[0]) == ["date", "place", "price", "time"] and before[1] == {"price": "$5"} and list(before[2]) == ["time"],

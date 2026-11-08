@@ -101,7 +101,8 @@ test('tag, describe and standouts write onto the Event', async () => {
     returning id`, [day(8)]);
   await asJob('tag', `update public.club_events set interests = $2, draw = $3, what = $4, interests_tagged_at = now()
     where id = $1`, [id, ['outdoors', 'trails_hiking'], 3, 'Hayride']);
-  await asJob('describe', 'update public.club_events set description = $2, price = $3, described_at = now() where id = $1',
+  await asJob('describe', `update public.club_events set description = $2, price = $3, described_at = now(),
+    about_written_at = now() where id = $1`,
               [id, 'A tractor-pulled ride through the haunted woods, with cider and a bonfire after. Dress warm.', '$15, kids $8']);
   await asJob('standouts: clear today', 'delete from public.daily_standouts where town = $1 and day = $2',
               ['st-joseph-mn', day(8)]);

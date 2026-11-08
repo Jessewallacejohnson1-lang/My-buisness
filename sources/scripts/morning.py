@@ -856,14 +856,17 @@ def describe(run, dry_run):
     lines = read_items(out / "describe.jsonl")
     writes, checks = plan_descriptions(lines, events)
     # Every Event a helper answered, filled or not, is researched: thin never lays it out again. One
-    # nobody answered waits for tomorrow's helpers.
+    # nobody answered waits for tomorrow's helpers. An About they wrote is marked written too, so a re-read
+    # of its listing never puts the longer words back (apply_judged, inside-cards 14).
     given = {e["id"] for e in events}
     answered = {ln["id"] for ln in lines if isinstance(ln, dict) and ln.get("id") in given}
     if not dry_run:
         now = datetime.now(LOCAL).isoformat()
 
         def save_about(event_id):
-            run.db.rest("PATCH", f"club_events?id=eq.{event_id}", {"described_at": now, **writes.get(event_id, {})},
+            write = writes.get(event_id, {})
+            run.db.rest("PATCH", f"club_events?id=eq.{event_id}",
+                        {"described_at": now, **write, **({"about_written_at": now} if "description" in write else {})},
                         prefer="return=minimal")
         left = run.part("describe/written.json").each(sorted(answered), save_about)  # thin clears it
         if left:
@@ -1751,7 +1754,10 @@ def described_once():
     return [(first == ["a", "b"] and second == ["b"] and third == [] and rows[1]["description"].startswith("Bring a broken")
              and rows[0]["described_at"] and not rows[2]["described_at"],
              "an Event laid out and answered is researched: the next morning lays out only the one nobody answered, "
-             "and never the game")]
+             "and never the game"),
+            (not rows[0].get("about_written_at") and rows[1].get("about_written_at"),
+             "only an About the helpers wrote is marked written: one researched with nothing found stays the source's, "
+             "so a fuller listing can still fill it (apply_judged, inside-cards 14)")]
 
 
 def live_games_told():

@@ -8,18 +8,24 @@
 --    after Jesse's yes. The watch role's table-wide update on club_events (20261031040831_watch_key.sql) covers it.
 -- 2. private.event_cards (20261108033320_heart_replaces_save.sql's, copied whole) sends `price` on every card, so
 --    the Event page shows it from every door.
--- 3. public.apply_judged (20261106194443_closings_wait_a_week.sql's, copied whole): a judged item's `price` lands, a
---    re-read with none keeps it, and a re-read's longer words no longer write over an About a helper or the cleaning
---    laid out (described_at), which is shorter on purpose. Before this, the next morning's read of a calendar put the
---    cleaned About back (b7e4e59c's note on the ticket).
+-- 3. public.club_events.about_written_at: when the morning's describe step or the cleaning wrote the About. Not
+--    described_at, which the describe step sets on every Event it researched, found or not: a thin About nobody
+--    wrote stays the source's own (review of the run, 2026-11-08).
+-- 4. public.apply_judged (20261106194443_closings_wait_a_week.sql's, copied whole): a judged item's `price` lands, a
+--    re-read with none keeps it, and a re-read's longer words no longer write over an About we wrote
+--    (about_written_at), which is shorter on purpose; a fuller listing still fills one only researched. Before this,
+--    the next morning's read of a calendar put the cleaned About back (b7e4e59c's note on the ticket).
 --
 -- Roll back: re-run 20261108033320's event_cards and 20261106194443's apply_judged, then
--- `alter table public.club_events drop column price`.
+-- `alter table public.club_events drop column price, drop column about_written_at`.
 
--- 1. The field.
+-- 1. and 3. The fields.
 alter table public.club_events add column price text;
 comment on column public.club_events.price is
   'What it costs, as words from a source ("Free", "$10 at the door"); null when no source says (inside-cards 14).';
+alter table public.club_events add column about_written_at timestamptz;
+comment on column public.club_events.about_written_at is
+  'When the morning''s describe step or the About cleaning wrote this About: a re-read never writes over it (inside-cards 14).';
 
 -- 2. The card.
 create or replace function private.event_cards(p_events uuid[])
@@ -101,7 +107,7 @@ $$;
 revoke execute on function private.event_cards(uuid[]) from public;
 grant execute on function private.event_cards(uuid[]) to anon, authenticated;
 
--- 3. The writer.
+-- 4. The writer.
 create or replace function public.apply_judged(p_events jsonb, p_mentions jsonb, p_upgrades jsonb, p_news jsonb,
                                     p_cancelled jsonb default '[]', p_restored jsonb default '[]')
 returns jsonb
@@ -143,9 +149,9 @@ begin
       title = excluded.title, event_date = excluded.event_date, start_time = excluded.start_time,
       end_at = excluded.end_at, all_day = excluded.all_day,
       location = coalesce(nullif(excluded.location, ''), club_events.location),
-      -- A fuller listing fills a thin About, but never one a helper or the cleaning laid out (described_at): that
-      -- one says only what it is and what to expect, so it is shorter on purpose (inside-cards 14).
-      description = case when club_events.described_at is null
+      -- A fuller listing fills a thin About, but never one the describe step or the cleaning wrote (about_written_at):
+      -- that one says only what it is and what to expect, so it is shorter on purpose (inside-cards 14).
+      description = case when club_events.about_written_at is null
           and length(coalesce(excluded.description, '')) >= length(coalesce(club_events.description, ''))
         then excluded.description else club_events.description end,
       -- What it costs, as words: a re-read with none keeps the one it had (inside-cards 14).
