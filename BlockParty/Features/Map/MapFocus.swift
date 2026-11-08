@@ -25,10 +25,6 @@ struct MapFocus {
     nonisolated struct Camera: Equatable {
         var center: CLLocationCoordinate2D
         var zoom: Double
-
-        static func == (a: Camera, b: Camera) -> Bool {
-            a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude && a.zoom == b.zoom
-        }
     }
 
     /// One camera move: where it lands and how it gets there.
@@ -52,12 +48,6 @@ struct MapFocus {
         /// How far the bubble is lifted above the card: the camera's bottom padding, 0 for none.
         var lift: CGFloat
         var glide: Glide
-
-        static func == (a: Move, b: Move) -> Bool {
-            a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude
-                && a.zoom == b.zoom && a.bearing == b.bearing && a.pitch == b.pitch
-                && a.lift == b.lift && a.glide == b.glide
-        }
     }
 
     /// The lifted bubble clears the top chrome by this much.

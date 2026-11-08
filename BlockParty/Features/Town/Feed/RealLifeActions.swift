@@ -348,7 +348,7 @@ final class RealLifeActions {
                                    friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar,
                                    town: town, card: card, over: item.game?.final != nil,
                                    look: look, day: day?.first, time: day?.second)
-        if bar || look, words.canLeave, let end = item.when?.end, end <= now {
+        if bar, words.canLeave, let end = item.when?.end, end <= now {
             words.second = nil
             words.canLeave = false
         }

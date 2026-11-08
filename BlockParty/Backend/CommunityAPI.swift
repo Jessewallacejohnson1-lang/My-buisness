@@ -9,6 +9,8 @@
 
 import CoreLocation
 import Foundation
+// Its `CLLocationCoordinate2D: Equatable`, which `EventSpot` and the coordinate's `Hashable` below lean on.
+import Turf
 
 /// One thing waiting for the admin's yes (`list_held`, BP app launch-ready 07): a neighbour's Event or post the
 /// instant check didn't pass on, or a found Event (ADR-021).
@@ -91,23 +93,24 @@ extension UpcomingEvent: Decodable {
     }
 }
 
+/// A spot's hash, by its latitude and longitude, beside Turf's `==` (Mapbox's geometry library makes the coordinate
+/// Equatable): what lets the types holding one compare and hash themselves (`EventSpot`, a card's `spot`).
+nonisolated extension CLLocationCoordinate2D: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(latitude)
+        hasher.combine(longitude)
+    }
+}
+
 /// Where an Event is (`CommunityAPI.eventSpots`): its spot on the map, or at no one place (Online, a bare
 /// town, several places), which has no Map button (inside-cards 19 and 20).
-nonisolated enum EventSpot: Equatable {
+nonisolated enum EventSpot: Hashable {
     case at(CLLocationCoordinate2D)
     case noPlace
 
     var coordinate: CLLocationCoordinate2D? {
         if case .at(let spot) = self { return spot }
         return nil
-    }
-
-    static func == (a: EventSpot, b: EventSpot) -> Bool {
-        switch (a, b) {
-        case (.noPlace, .noPlace): true
-        case let (.at(x), .at(y)): x.latitude == y.latitude && x.longitude == y.longitude
-        default: false
-        }
     }
 }
 
