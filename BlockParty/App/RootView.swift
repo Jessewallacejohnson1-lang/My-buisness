@@ -524,7 +524,12 @@ struct MainTabsView: View {
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }
-            if mapOpener == nil { mapOpener = EventMapOpener(open: viewOnMap, present: { showMap = true }) }
+            if mapOpener == nil {
+                mapOpener = EventMapOpener(open: viewOnMap, show: { ask in
+                    mapOpener?.ask = ask
+                    showMap = true
+                })
+            }
         }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {

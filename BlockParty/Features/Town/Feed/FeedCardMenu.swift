@@ -549,21 +549,16 @@ final class EventMapOpener {
 
     /// View on Map from a held Town card: our map or Apple Maps (`EventMapRoute`).
     let open: (FeedCardItem) -> Void
-    /// Raises the map on `ask`.
-    private let present: () -> Void
-    /// The Event asked for, until the map has opened its card on it. Kept here, not in the shell's state: set
-    /// there, the map opened with none (a live run, 2026-11-07).
+    /// The map, flying in to this Event's bubble with its card up: the shell raises it, the map's own stack pops
+    /// back to it.
+    let show: (Ask) -> Void
+    /// The shell's ask, until the map has taken it as it opens. Kept here, not in the shell's state: set there, the
+    /// map opened with none (a live run, 2026-11-07).
     var ask: Ask?
 
-    init(open: @escaping (FeedCardItem) -> Void = { _ in }, present: @escaping () -> Void) {
+    init(open: @escaping (FeedCardItem) -> Void = { _ in }, show: @escaping (Ask) -> Void) {
         self.open = open
-        self.present = present
-    }
-
-    /// The map, flying in to this Event's bubble with its card up.
-    func show(_ ask: Ask) {
-        self.ask = ask
-        present()
+        self.show = show
     }
 }
 

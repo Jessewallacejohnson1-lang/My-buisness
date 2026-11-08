@@ -76,6 +76,9 @@ struct SJMapView: View {
     @State private var backToMap: EventMapOpener?
     /// The map has drawn its first frame: a fly started before it, as the style loads, was lost (inside-cards 19).
     @State private var drawn = false
+    /// The Event asked for, whose card opens as the camera flies in once its bubble is drawn: the shell's ask as the
+    /// map opens, or an Event page's on the map's own stack.
+    @State private var arriving: String?
 
     private var selected: TodayBubble? { shown.first { $0.id == focus.selectedID } }
 
@@ -100,6 +103,9 @@ struct SJMapView: View {
                 }
             }
             .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
+            // Back from an Event page on the map's own stack that asked for it: the fly starts once the map shows
+            // again, since one asked while the page covered it was lost.
+            .onAppear { openEvent(in: shown) }
             .toolbar(.hidden, for: .navigationBar)
             .background { SwipeBack().frame(width: 0, height: 0) }
             .navigationDestination(for: FeedCardItem.self) {
@@ -107,8 +113,16 @@ struct SJMapView: View {
             }
         }
         .onAppear {
-            if backToMap == nil { backToMap = EventMapOpener(present: { path.removeAll() }) }
-            if let ask = request?.ask { model.ask(ask.event, at: ask.spot) }
+            if backToMap == nil {
+                backToMap = EventMapOpener(show: { ask in
+                    arrive(ask)
+                    path.removeAll()
+                })
+            }
+            if let ask = request?.ask {
+                arrive(ask)
+                request?.ask = nil
+            }
             model.start(auth: auth, feed: townFeed, live: liveGames)
             Haptics.prepare()
         }
@@ -305,11 +319,18 @@ struct SJMapView: View {
         fly(withAnimation(cardSpring) { focus.home() })
     }
 
+    /// An Event asked for: on the map whatever its day, its card opening as the camera flies in to it once the map is
+    /// on screen (`openEvent`).
+    private func arrive(_ ask: EventMapOpener.Ask) {
+        model.ask(ask.event, at: ask.spot)
+        arriving = ask.event.id
+    }
+
     /// The Event asked for: once its bubble is drawn, its card opens on it as the camera flies in, once.
     private func openEvent(in bubbles: [TodayBubble]) {
-        guard drawn, let eventID = request?.ask?.event.id,
+        guard drawn, let eventID = arriving,
               let bubble = bubbles.first(where: { $0.events.contains { $0.id == eventID } }) else { return }
-        request?.ask = nil
+        arriving = nil
         fly(withAnimation(cardSpring) { focus.arrive(bubble, on: eventID, mapWidth: mapSize.width) })
     }
 

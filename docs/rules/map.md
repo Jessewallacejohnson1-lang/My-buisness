@@ -18,7 +18,7 @@ the one Event an Event page or a held Town card asked for, whatever its day (BP 
   hidden and its ⓘ attribution kept, top left under close, clear of the card (Jesse accepted the ToS
   risk, 2026-08-14). Its own
   `NavigationStack` pushes the Event page, so Back returns to the map; that page's small map pops back
-  to the map instead of raising a second one.
+  to the map instead of raising a second one, and flies to that Event's bubble with its card up.
 - **An asked-for Event** (`EventMapOpener.Ask`, inside-cards 19) — the map opens over its spot 1.6 zoom
   steps out (`MapFocus.arriveFrom`) and flies in to the opening zoom with its bubble first to pop in and
   its card up (`MapFocus.arrive`), over or called off too. At a spot it shares with tonight's it leads the
