@@ -368,10 +368,12 @@ final class SearchModel {
     static let coffeeTypes: Set<String> = ["coffee_shop", "cafe", "bakery"]
 
     /// `photos`: what Block Party saved of each place, by registry entry (`places.entry_id`). A
-    /// food card shows the cover; a business shows its logo on the row, its photos on its page.
+    /// food card shows the cover; a business shows its logo on the row, its photos on its page. A
+    /// city park's row (place-pages 01) is left out here: Search already shows the park from
+    /// `CityParks`, with its photo and features, so it isn't listed twice.
     static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:],
                        names: [String: PlaceName] = [:]) -> [SearchItem] {
-        pois.map { poi in
+        pois.filter { poi in !CityParks.all.contains { $0.id == poi.entryId } }.map { poi in
             let key = poi.placeId ?? poi.id
             let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }
             let type = poi.primaryType ?? ""

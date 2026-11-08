@@ -76,8 +76,10 @@ final class SearchModelTests: XCTestCase {
             poi("stjoe-blend", "The Local Blend", .food, "coffee_shop"),
             poi("stjoe-flour", "Flour & Flower", .food, "bakery"),
             poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
+            poi("stjoe-centennial", "Centennial Park", .business, "park", entry: "centennial-park"),
         ])
-        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "Plain Shop"], "its logo is on the wall already")
+        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "Plain Shop"],
+                       "its logo is on the wall already; a city park's row isn't listed beside the park itself")
         XCTAssertEqual(model.row(.business).last?.initial, "P", "a place with no logo shows its first letter")
         XCTAssertEqual(Set(model.row(.coffee).map(\.name)), ["The Local Blend", "Flour & Flower"])
         XCTAssertEqual(model.row(.restaurant).map(\.name), ["Krewe"])
