@@ -112,7 +112,7 @@ final class MapModel: ObservableObject {
     // MARK: Data
 
     /// An Event its page or a held card asked for (inside-cards 19): on the map whatever its day, at the spot
-    /// its asker read, so it isn't read again.
+    /// its card gave, so it isn't read again.
     func ask(_ event: FeedCardItem, at spot: CLLocationCoordinate2D) {
         wanted = event
         spots[event.id] = spot

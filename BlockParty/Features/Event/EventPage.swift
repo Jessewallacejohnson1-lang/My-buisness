@@ -22,7 +22,8 @@
 //
 //  Map (inside-cards 19): with a spot it opens a small map right below, pushing the page down, and a tap on that
 //  raises the full map over the page, flying in to the Event's bubble and card; closing lands back here as it was.
-//  With no spot yet, Apple Maps at the place; at no one place (Online), no Map button.
+//  With no spot known, Apple Maps at the place; at no one place (Online), no Map button. All from the card
+//  (`EventMapRoute`), so Map does the same whenever it's tapped, offline too.
 //
 
 import CoreLocation
@@ -72,18 +73,14 @@ struct EventPage: View {
     /// Where it lands after a restart, while its height is still growing to let it.
     @State private var landAt: CGFloat?
     @Environment(\.openURL) private var openURL
-    /// Where the Event is on the map, read as the page opens (inside-cards 19): nil until it lands, and for one with
-    /// no spot yet, whose Map opens Apple Maps.
-    @State private var spot: EventSpot?
     /// The small map is open under Map.
     @State private var smallMap = false
-    /// The small map's still, made once the spot is in so it's ready by the tap.
+    /// The small map's still, made the first time it opens: a page whose Map is never tapped makes none.
     @State private var mapShot: UIImage?
-    /// The small map's top in the page, and the bar's top on the screen (the page's foot with no bar): what scrolls
-    /// it clear of the bar.
+    /// The small map's top, and the foot of what shows above the bar (the home bar with none), both in the page's
+    /// own coordinates: whether opening it scrolls it clear of the bar.
     @State private var smallMapTop: CGFloat = 0
-    @State private var barTop: CGFloat = 0
-    @State private var pageHeight: CGFloat = 0
+    @State private var visibleBottom: CGFloat = 0
     @Environment(\.displayScale) private var displayScale
     /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
     @Environment(\.viewOnMap) private var viewOnMap
@@ -210,7 +207,9 @@ struct EventPage: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             LeftOff.pageY[item.id] = y
         }
-        .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, height in pageHeight = height }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.visibleRect.maxY - $0.contentInsets.bottom } action: { _, foot in
+            visibleBottom = foot
+        }
         // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
         // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
         .onScrollGeometryChange(for: CGFloat.self) {
@@ -228,13 +227,10 @@ struct EventPage: View {
             landAt = nil
         }
         .scrollPosition($position)
-        // Where it is on the map: a game's page keeps its place row and Apple Maps (inside-cards 21).
-        .task(id: item.id) {
-            guard game == nil, !reviewing else { return }
-            spot = try? await CommunityAPI(auth: AuthStore.shared).eventSpots([item.id])[item.id]
-        }
-        .task(id: spot) {
-            guard case .at(let at)? = spot, mapShot == nil else { return }
+        // The small map's still, the first time it opens (until then its ground and the photo show), and again once
+        // the page's width is known or a try failed.
+        .task(id: smallMap ? width : nil) {
+            guard smallMap, mapShot == nil, case .ourMap(let at)? = EventMapRoute.route(item) else { return }
             mapShot = await SmallMapShot.make(at: at, size: CGSize(width: width - 2 * EventLook.side, height: EventLook.smallMap),
                                               scale: displayScale)
         }
@@ -544,7 +540,7 @@ struct EventPage: View {
 
             // Map opens the small map below with a spot, else Apple Maps at the place (inside-cards 19); the page
             // it was found on by its app's name, else Website. With no one place, Website takes the whole row.
-            let map = Self.mapTap(place: place, spot: spot)
+            let map = EventMapRoute.route(item)
             if map != nil || link != nil {
                 HStack(spacing: EventLook.buttonGap) {
                     if let map {
@@ -559,7 +555,7 @@ struct EventPage: View {
             }
 
             // The small map, right below the buttons, opening and closing in place.
-            if case .smallMap(let at)? = map {
+            if case .ourMap(let at)? = map {
                 EventSmallMap(item: item, shot: mapShot) { openFullMap(at) }
                     .padding(.top, EventLook.smallMapTop)
                     .frame(height: smallMap ? EventLook.smallMapTop + EventLook.smallMap : 0, alignment: .top)
@@ -600,54 +596,39 @@ struct EventPage: View {
 
     // MARK: The map (inside-cards 19)
 
-    /// What Map does: opens the small map below at the Event's spot; Apple Maps at its place line while it has no spot
-    /// yet (or before the spot's read lands); nothing, and no button, at no one place (Online, several places).
-    enum MapTap: Equatable {
-        case smallMap(CLLocationCoordinate2D)
-        case appleMaps(URL)
-
-        static func == (a: MapTap, b: MapTap) -> Bool {
-            switch (a, b) {
-            case let (.smallMap(x), .smallMap(y)): x.latitude == y.latitude && x.longitude == y.longitude
-            case let (.appleMaps(x), .appleMaps(y)): x == y
-            default: false
-            }
-        }
-    }
-
-    static func mapTap(place: String?, spot: EventSpot?) -> MapTap? {
-        switch spot {
-        case .noPlace: nil
-        case .at(let at): .smallMap(at)
-        case nil: Directions.url(forPlace: place).map { .appleMaps($0) }
-        }
-    }
-
     /// The page's own coordinate space.
     private static let page = "eventPage"
 
-    private func mapHint(_ map: MapTap) -> String {
+    private func mapHint(_ map: EventMapRoute) -> String {
         switch map {
         case .appleMaps: "Opens in Maps"
-        case .smallMap: smallMap ? "Hides the map" : "Shows the map below"
+        case .ourMap: smallMap ? "Hides the map" : "Shows the map below"
         }
     }
 
-    /// Opens or closes the small map in place; opening, the page scrolls so it ends clear of the bar, as the mock does.
-    private func tapMap(_ map: MapTap) {
-        guard case .smallMap = map else {
+    /// Opens or closes the small map in place; opening below the bar, the page scrolls on the same spring so it ends
+    /// 12 pt above it, as the mock does. A short page drops a scroll asked while it grows, so once it has grown the
+    /// page finishes the way.
+    private func tapMap(_ map: EventMapRoute) {
+        guard case .ourMap = map else {
             if case .appleMaps(let url) = map { openURL(url) }
             return
         }
         let opening = !smallMap
-        let y = LeftOff.pageY[item.id] ?? 0
-        // The page's top sits at the screen's (its picture runs up under the clock), so a point of the page is on
-        // screen at its place less how far the page has scrolled.
-        let short = smallMapTop + EventLook.smallMapTop + EventLook.smallMap + EventLook.smallMapClear - y - (barTop > 0 ? barTop : pageHeight)
-        withAnimation(reduceMotion ? nil : EventLook.smallMapSpring) {
+        let spring = reduceMotion ? nil : EventLook.smallMapSpring
+        withAnimation(spring, completionCriteria: .logicallyComplete) {
             smallMap = opening
-            if opening, short > 0 { position.scrollTo(y: y + short) }
+            if opening { clearTheBar() }
+        } completion: {
+            if opening, smallMap { withAnimation(spring) { clearTheBar() } }
         }
+    }
+
+    /// Scrolls the page so the open small map ends 12 pt above the bar, when it would end lower: in the page's own
+    /// coordinates, where the map's top and the bar's (`visibleBottom`) both are.
+    private func clearTheBar() {
+        let short = smallMapTop + EventLook.smallMapTop + EventLook.smallMap + EventLook.smallMapClear - visibleBottom
+        if short > 0.5 { position.scrollTo(y: (LeftOff.pageY[item.id] ?? 0) + short) }
     }
 
     /// The full map over the page, flying in to this Event's bubble and card; without a map to raise (the Review
@@ -890,8 +871,6 @@ struct EventPage: View {
             // blurred and faint. Apple's Liquid Glass over a white layer that keeps it light,
             // the tab bar's way (TabBar), since the glass alone darkens over dark content.
             .glassEffect(.regular, in: Capsule())
-            // Where its top is on the screen: the small map scrolls clear of it (inside-cards 19).
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { barTop = $0 }
             .background {
                 Capsule()
                     .fill(Hue.surface.opacity(Metric.barWhite))

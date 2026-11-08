@@ -40,6 +40,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var description: String? = nil
     /// What it costs, as words (`UpcomingEvent.price`): the Event page's price line, under the place. nil hides it.
     var price: String? = nil
+    /// Where it is (`UpcomingEvent.spot`): what its page's Map and a held card's View on Map do (`EventMapRoute`).
+    var spot: EventSpot? = nil
     var category: EventCategory? = nil
     /// Why the Town feed shows this card, in words (`FeedCardMenu.line`). nil leaves the
     /// card without its ••• menu: only the Town feed's own cards have a reason.

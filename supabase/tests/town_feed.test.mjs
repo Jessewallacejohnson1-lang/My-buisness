@@ -3452,7 +3452,7 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
     id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
     going_count: 0, going: false, heart_count: 0, hearted: false, cancelled: false, place_picture: null,
-    host_picture: null, description: null, price: null,
+    host_picture: null, description: null, price: null, lat: null, lng: null, no_place: false,
     what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));

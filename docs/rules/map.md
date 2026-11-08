@@ -29,8 +29,9 @@ the one Event an Event page or a held Town card asked for, whatever its day (BP 
 - **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
   before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
   hides and mutes, and makes no second `get_town_feed` read (8 s for a new account, 2026-10-30).
-  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`, which also says `no_place`: Online,
-  a bare town, several places, so the Event page shows no Map button), read once per event. Follows
+  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Every Event
+  card carries the same spot, or `no_place` (Online, a bare town, several places), so an Event page's Map
+  and a held card's View on Map act from the card alone (`EventMapRoute`), offline too. Follows
   the app's one `club_events` connection (`LiveGames.follow`, BP app codebase-health-2 08): a change
   touching today asks the Town feed to read again after 300 ms. `LiveGames.away` drops the
   connection in the background; the map re-reads on foreground and rolls over at midnight.

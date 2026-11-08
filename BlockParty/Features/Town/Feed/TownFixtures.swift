@@ -368,7 +368,8 @@ enum TownFixtures {
             likeCount: 0,
             isLiked: false,
             isJoined: false,
-            description: description,
+            // `-town-no-about`: no sample has an About, for a short Event page (inside-cards 19's small map, review).
+            description: LaunchFlags.has(.townNoAbout) ? nil : description,
             price: price,
             category: category
         )
@@ -393,8 +394,10 @@ enum TownFixtures {
             item.startTime = townClock("h:mm a", start)
         }
         // `-town-spots`: each sample on its own day with its place line, the organ recital next week and the council
-        // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`.
+        // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`,
+        // on the card as the server's card carries them.
         if LaunchFlags.has(.townSpots), item.eventDate == nil {
+            item.spot = spots[id]
             item.location = id == "e5" ? "Online" : item.whereLine
             item.startTime = item.shareTime
             item.eventDate = townClock("yyyy-MM-dd", now.addingTimeInterval((id == "e4" ? 24 * 7 : hoursUntil) * 3600))

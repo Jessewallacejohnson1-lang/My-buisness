@@ -7,7 +7,8 @@
 --    (sources/models/describe.md); the one-off cleaning of today's Abouts is sources/scripts/clean_abouts.py, run
 --    after Jesse's yes. The watch role's table-wide update on club_events (20261031040831_watch_key.sql) covers it.
 -- 2. private.event_cards (20261108033320_heart_replaces_save.sql's, copied whole) sends `price` on every card, so
---    the Event page shows it from every door.
+--    the Event page shows it from every door, and the Event's spot (`lat`, `lng`) or `no_place`, so its page's Map
+--    and a held card's View on Map act the same whenever they're tapped, with no read (inside-cards 19, review).
 -- 3. public.club_events.about_written_at: when the morning's describe step or the cleaning wrote the About. Not
 --    described_at, which the describe step sets on every Event it researched, found or not: a thin About nobody
 --    wrote stays the source's own (review of the run, 2026-11-08).
@@ -81,6 +82,11 @@ as $$
            'description', e.description,
            -- What it costs, as words (inside-cards 14): the Event page's price line, absent when unknown.
            'price', e.price,
+           -- Where it is on the map, or at no one place (Online, a bare town, several places): what its page's Map and
+           -- a held card's View on Map do, known with the card, offline too (inside-cards 19, review).
+           'lat', e.lat,
+           'lng', e.lng,
+           'no_place', e.no_place,
            -- What it is, in one to three words (event-card 05).
            'what', e.what,
            -- Whether it's a real happening, the one meaning of live and "Now" (town-feed 41).

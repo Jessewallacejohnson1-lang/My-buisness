@@ -240,26 +240,13 @@ struct RootView: View {
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
     /// View on Map from a held Town card (inside-cards 24): any Event with a spot opens our map on its bubble and
-    /// card, whatever its day (inside-cards 19); one with no spot yet, Apple Maps at its place (`EventMapRoute`).
-    /// Its spot is read for a second at most, so a slow network still answers the tap; with neither, our map.
+    /// card, whatever its day (inside-cards 19); one with no spot known, Apple Maps at its place (`EventMapRoute`),
+    /// both from its card, so the tap answers at once. With neither the menu has no row.
     private func viewOnMap(_ event: FeedCardItem) {
-        Task {
-            let auth = auth
-            let reading = Task { try? await CommunityAPI(auth: auth).eventSpots([event.id]) }
-            let timeout = Task {
-                try? await Task.sleep(for: HostOpener.readWait)
-                reading.cancel()
-            }
-            let spot = await reading.value?[event.id]?.coordinate
-            timeout.cancel()
-            switch EventMapRoute.route(event, spot: spot != nil) {
-            case .appleMaps(let url):
-                await UIApplication.shared.open(url)
-            case .ourMap:
-                if let spot { mapOpener?.show(.init(event: event, spot: spot, fromPage: false)) }
-            case nil:
-                showMap = true
-            }
+        switch EventMapRoute.route(event) {
+        case .ourMap(let spot): mapOpener?.show(.init(event: event, spot: spot, fromPage: false))
+        case .appleMaps(let url): UIApplication.shared.open(url)
+        case nil: break
         }
     }
 

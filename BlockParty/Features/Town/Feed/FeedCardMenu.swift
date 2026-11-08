@@ -522,7 +522,8 @@ struct TownCardHold: ViewModifier {
         if let share {
             Button("Share", systemImage: "square.and.arrow.up", action: share)
         }
-        if let event, let viewOnMap {
+        // Nowhere to show it (Online, or no spot and no place line): no row.
+        if let event, let viewOnMap, EventMapRoute.route(event) != nil {
             Button("View on Map", systemImage: "map") { viewOnMap.open(event) }
         }
     }
@@ -538,7 +539,7 @@ struct TownCardHold: ViewModifier {
 /// the map's own, for an Event page pushed on the map, which pops back to it. A class made once, as `HostOpener` is,
 /// so the cards and pages that read it don't redraw each time the shell does.
 final class EventMapOpener {
-    /// The Event the map opens on, at the spot its asker read. `fromPage`: its own Event page asked, so a tap on
+    /// The Event the map opens on, at the spot its card gave. `fromPage`: its own Event page asked, so a tap on
     /// its card closes the map back onto that page rather than opening it again (inside-cards 19).
     struct Ask {
         let event: FeedCardItem
@@ -546,7 +547,7 @@ final class EventMapOpener {
         var fromPage = true
     }
 
-    /// View on Map from a held Town card: reads the spot, then our map or Apple Maps.
+    /// View on Map from a held Town card: our map or Apple Maps (`EventMapRoute`).
     let open: (FeedCardItem) -> Void
     /// Raises the map on `ask`.
     private let present: () -> Void
@@ -570,14 +571,19 @@ extension EnvironmentValues {
     @Entry var viewOnMap: EventMapOpener? = nil
 }
 
-/// Where View on Map takes an Event (inside-cards 24, then 19): Block Party's map on its bubble and card when it
-/// has a spot, whatever its day; else Apple Maps at its place line; nil with neither.
+/// Where an Event page's Map and a held card's View on Map take an Event (inside-cards 24, then 19), from its card
+/// alone, so a tap does the same whenever it comes: Block Party's map at its spot, whatever its day (the page's small
+/// map first); with no spot known, Apple Maps at its place line; nowhere at no one place (Online) or with neither,
+/// and then there's no button.
 enum EventMapRoute: Equatable {
-    case ourMap
+    case ourMap(CLLocationCoordinate2D)
     case appleMaps(URL)
 
-    static func route(_ event: FeedCardItem, spot: Bool) -> EventMapRoute? {
-        if spot { return .ourMap }
-        return Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
+    static func route(_ event: FeedCardItem) -> EventMapRoute? {
+        switch event.spot {
+        case .at(let spot): .ourMap(spot)
+        case .noPlace: nil
+        case nil: Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
+        }
     }
 }

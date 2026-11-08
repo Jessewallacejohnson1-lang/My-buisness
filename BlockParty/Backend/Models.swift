@@ -152,6 +152,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// What it costs, as words a source said ("Free", "$22, $20 seniors, $15 students"; `club_events.price`, BP app
     /// inside-cards 14): the Event page's price line. nil when no source says, and the page shows nothing then.
     var price: String? = nil
+    /// Where it is (the card's `lat`, `lng` and `no_place`, BP app inside-cards 19): its spot, at no one place, or nil
+    /// when not known, on a row with no card or one read before the card said so. What its page's Map does.
+    var spot: EventSpot? = nil
     /// A game between two teams (BP app docs/plans/game-card, ticket 01): its Town card shows
     /// the teams instead of a photo. nil for any other event, and on rows read before the feed
     /// sent it.

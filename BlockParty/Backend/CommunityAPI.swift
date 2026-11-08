@@ -64,7 +64,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price,
-             what, sourceUrl, game, friendsGoing, liveKind, recurrence
+             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +90,12 @@ extension UpcomingEvent: Decodable {
         // A card kept from before it carried the heart (inside-cards 16) says none.
         heartCount = try c.decodeIfPresent(Int.self, forKey: .heartCount) ?? 0
         hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
+        // Where it is (inside-cards 19): a card from before it said so has no spot, and its Map opens Apple Maps.
+        if let lat = try c.decodeIfPresent(Double.self, forKey: .lat), let lng = try c.decodeIfPresent(Double.self, forKey: .lng) {
+            spot = .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        } else if try c.decodeIfPresent(Bool.self, forKey: .noPlace) == true {
+            spot = .noPlace
+        }
     }
 }
 
@@ -102,8 +108,9 @@ nonisolated extension CLLocationCoordinate2D: @retroactive Hashable {
     }
 }
 
-/// Where an Event is (`CommunityAPI.eventSpots`): its spot on the map, or at no one place (Online, a bare
-/// town, several places), which has no Map button (inside-cards 19 and 20).
+/// Where an Event is (its card's `lat`, `lng` and `no_place`, and `CommunityAPI.eventSpots` for the map): its spot
+/// on the map, or at no one place (Online, a bare town, several places), which has no Map button (inside-cards 19
+/// and 20).
 nonisolated enum EventSpot: Hashable {
     case at(CLLocationCoordinate2D)
     case noPlace

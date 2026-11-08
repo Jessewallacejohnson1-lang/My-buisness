@@ -6,6 +6,7 @@
 //  supabase/tests/town_feed.test.mjs.
 //
 
+import CoreLocation
 import SwiftUI
 import XCTest
 @testable import BlockParty
@@ -298,25 +299,45 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.goingOverPhoto), [false, true, false, false], "white, photo, game, called off")
     }
 
-    /// View on Map (inside-cards 24, then 19): any day's Event with a spot opens our map, over or not; one with
-    /// no spot yet, Apple Maps at its place; with neither, no route.
-    func testViewOnMapGoesToOurMapForAnyEventWithASpot() throws {
-        let row = { (id: String, day: String, location: String) in """
+    /// Town cards whose card says where each is (inside-cards 19, review): a spot, at no one place, or neither.
+    private func spotCards() throws -> [FeedCardItem] {
+        let row = { (id: String, day: String, location: String, spot: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-11-02T17:00:00+00:00",
          "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"\(day)","start_time":"10 AM",
          "location":\(location),"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
-         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false}}
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false\(spot)}}
         """ }
-        let json = "[" + [row("today", "2026-10-31", "\"Fire Hall\""), row("later", "2026-11-01", "\"Fire Hall\""),
-                          row("nowhere", "2026-11-01", "null")].joined(separator: ",") + "]"
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+        let park = ##","lat":45.57007,"lng":-94.32874,"no_place":false"##
+        let json = "[" + [row("today", "2026-10-31", "\"Fire Hall\"", park), row("later", "2026-11-01", "\"Fire Hall\"", park),
+                          row("unplaced", "2026-11-01", "\"Fire Hall\"", ##","lat":null,"lng":null,"no_place":false"##),
+                          row("old", "2026-11-01", "\"Fire Hall\"", ""), row("own", "2026-11-01", "null", park),
+                          row("online", "2026-11-01", "\"Online\"", ##","lat":null,"lng":null,"no_place":true"##),
+                          row("nowhere", "2026-11-01", "null", ##","no_place":false"##)].joined(separator: ",") + "]"
+        return try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+    }
+
+    /// The card says where the Event is (`lat`, `lng`, `no_place`): read as sent, and nothing known on a card from
+    /// before it said so.
+    func testTheCardSaysWhereTheEventIs() throws {
+        let park = CLLocationCoordinate2D(latitude: 45.57007, longitude: -94.32874)
+        XCTAssertEqual(try spotCards().map(\.spot), [.at(park), .at(park), nil, nil, .at(park), .noPlace, nil])
+    }
+
+    /// Where the Event page's Map and a held card's View on Map go (inside-cards 24, then 19), from the card alone, so
+    /// a tap does the same whenever it comes: any day's Event with a spot, our map there; with no spot known, Apple
+    /// Maps at its place; Online, or with neither, nowhere, so the menu has no row and the page no Map button.
+    func testViewOnMapGoesWhereTheCardSays() throws {
+        let cards = try spotCards()
+        let park = CLLocationCoordinate2D(latitude: 45.57007, longitude: -94.32874)
         let maps = try XCTUnwrap(Directions.url(forPlace: "Fire Hall"))
 
-        XCTAssertEqual(EventMapRoute.route(cards[0], spot: true), .ourMap, "today, with a spot")
-        XCTAssertEqual(EventMapRoute.route(cards[0], spot: false), .appleMaps(maps), "no spot yet")
-        XCTAssertEqual(EventMapRoute.route(cards[1], spot: true), .ourMap, "tomorrow too, now our map shows any day")
-        XCTAssertEqual(EventMapRoute.route(cards[2], spot: true), .ourMap, "a spot with no place line")
-        XCTAssertNil(EventMapRoute.route(cards[2], spot: false), "no place and no spot: no route")
+        XCTAssertEqual(EventMapRoute.route(cards[0]), .ourMap(park), "today, with a spot")
+        XCTAssertEqual(EventMapRoute.route(cards[1]), .ourMap(park), "tomorrow too, now our map shows any day")
+        XCTAssertEqual(EventMapRoute.route(cards[2]), .appleMaps(maps), "no spot known")
+        XCTAssertEqual(EventMapRoute.route(cards[3]), .appleMaps(maps), "a card from before it carried the spot")
+        XCTAssertEqual(EventMapRoute.route(cards[4]), .ourMap(park), "a spot with no place line: its host's own place")
+        XCTAssertNil(EventMapRoute.route(cards[5]), "Online: no row, never Apple Maps searching \"Online\"")
+        XCTAssertNil(EventMapRoute.route(cards[6]), "no place and not on the map: no row")
     }
 
     /// News shows a logo or a first letter, never its place's photo, and a letter's card names the
