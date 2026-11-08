@@ -88,7 +88,7 @@ or its `docs/rules/` file and leaves here.
   sales, open houses, promotions, routine meetings and runs over days never are. **Supersedes** "the whole of something that
   runs over days" in earlier notes.
 - 2026-11-05 — **Middle school sports and Knowledge Bowl reach only those who picked Middle school, follow the team or school,
-  have a friend Going, or are Going** (Jesse: "junior high sports typically are not gonna be very popular"; yes to Knowledge Bowl).
+  have a friend Going, or are Going or hearted it** (a heart is a save since BP app inside-cards 16; Jesse: "junior high sports typically are not gonna be very popular"; yes to Knowledge Bowl).
   Its concerts and shows stay in the Town feed.
 - 2026-11-06 — **A school's club meetings, assemblies, PTO and parent meetings and signing days reach only those following the school** (Jesse:
   "following"; yes to parent meetings and signing days, 2026-11-06; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
