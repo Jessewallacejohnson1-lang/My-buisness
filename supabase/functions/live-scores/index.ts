@@ -4,13 +4,17 @@
 // references/game-card/live-channel.md): hub `sidearm` at v2-realtime.sidearmsports.com, a channel per
 // school, sport and topic (`livestats/csbsju/football/game`, `.../plays` for the scoring plays, ticket 05). pg_cron's private.wake_live_scores calls this every
 // minute while an SJU or CSB game is on; it answers at once and listens about a minute in the background,
-// writing each pushed Game through public.record_live_score. public.start_live_scores hands out the games at
-// most once in 50 seconds, so a second call, from anyone, listens to nothing: verify_jwt is off. While SIDEARM's
-// file host is down, a whole file from sidearmstats.com every 10 minutes stands in (`backup`).
+// writing each pushed Game to the card. public.start_live_scores hands out the games at most once in 50 seconds, so a
+// second call, from anyone, listens to nothing: verify_jwt is off.
 //
 // An SJU or CSB game also has its school's own file read every 30 s (`schoolReads`, game-card 21): the stat crew's
-// file on gojohnnies.com or gobennies.com, uncached, which kept up while every push failed (2026-11-07). The backup
-// leaves those games alone: its cached file could land an older score over the school's.
+// file on gojohnnies.com or gobennies.com, uncached, which kept up while every push failed (2026-11-07). And once in
+// 10 minutes one game's whole file from sidearmstats.com (`backupRead`), cached.
+//
+// Every read, failed or not, goes through public.record_live_read with its source (game-card 22), which keeps a mark
+// of it and lets a source write only while the ones above it (school, then push, then backup) have put no score on the
+// card for 3 minutes. A failed read passes its reason ("certificate expired", "HTTP 503"), which the morning report and
+// the dark-game push (private.live_dark_alarm) show.
 //
 // Deploy: supabase functions deploy live-scores --project-ref lxdgwhvqjqmqliobwjpi, which keeps verify_jwt off
 // from supabase/config.toml; or the Supabase MCP's deploy_edge_function with verify_jwt false. Composio's
@@ -24,8 +28,6 @@ const UA = { "User-Agent": "BlockPartyBot/1.0 (+https://blockpartystjoe.com)" }
 // Ten seconds short of the next minute's start, so two listeners rarely overlap (and an overlap only writes
 // the same score twice).
 const LISTEN_MS = 50_000
-// Where a push's game file lives. Its certificate ran out 2026-11-06, 6 PM, and every push's read failed with it.
-const FILE_HOST = "https://api-realtime-stats.prod.sidearmdev.com/"
 // The backup's one read of sidearmstats.com, as its robots.txt asks (Crawl-delay: 600).
 const BACKUP_MS = 600_000
 // SJU's and CSB's own sites, by SIDEARM folder: SIDEARM's list names the school as a team.
@@ -41,6 +43,7 @@ const SLOT_AT = 5_000
 const LIST = "https://aggregation-service.sidearmsports.com/services/games.ashx"
 
 type Game = { id: string; grp: string }
+type Source = "school" | "push" | "backup"
 type Rpc = (name: string, body: unknown) => Promise<unknown>
 type Listed = {
   date_info?: { datetime_utc?: string }
@@ -52,7 +55,8 @@ type Listed = {
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
-Deno.serve(async () => {
+// Only where Deno runs it: the tests import this file in Node (supabase/tests/live_scores_function.test.mjs).
+if (typeof Deno !== "undefined") Deno.serve(async () => {
   const url = Deno.env.get("SUPABASE_URL")
   const key = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}")["default"]
   if (!url || !key) return json({ error: "misconfigured" }, 500)
@@ -75,26 +79,28 @@ Deno.serve(async () => {
 
 export async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
   const feeds = await feedsOf(games, rpc, start).catch((e) => (console.error("[live-scores] feeds", e), new Map()))
-  // Each game's score channel and its plays channel, both written through record_live_score.
+  // Each game's score channel and its plays channel, both read as the push source.
   const groups = games.flatMap((g) => [g.grp, g.grp.replace(/\/game$/, "/plays")].map((grp) => ({ id: g.id, grp })))
   const byGroup = new Map(groups.map((g) => [g.grp.toLowerCase(), g.id]))
-  // Pushes are written one at a time, in the order they came: a score and its play arrive together, and
-  // writes racing each other could land an older score last. The backup's read, if any, goes first.
-  let writes: Promise<unknown> = backup(games.filter((g) => !feeds.has(g.id)))
-    .then((b) => b && rpc("record_live_score", { p_event: b.id, p_game: b.game }))
-    .catch((e) => console.error("[live-scores] backup", e))
-  // Each school file's read joins the same line of writes when it starts, so a read and a push land in the order
-  // they began.
+  // Reads are written one at a time, in the order they began: a score and its play arrive together, and writes
+  // racing each other could land an older score last. The backup's read, if any, goes first.
+  let writes: Promise<unknown> = backupRead(games, rpc, start).catch((e) => console.error("[live-scores] backup", e))
+  // Each read is settled as it starts, not only at its turn in the line: a read that fails while an earlier write is
+  // still going has no one listening yet, and the runtime ends the whole run on it ("event loop error"; 2026-11-07,
+  // 12 of 16 minutes lost CSB hockey's 2nd school read).
+  const record = (id: string, source: Source, got: Promise<unknown>) => {
+    const read = settle(got)
+    writes = writes
+      .then(() => read)
+      .then((r) => rpc("record_live_read", { p_event: id, p_source: source, p_game: r.game, p_why: r.why }))
+      .catch((e) => console.error(`[live-scores] ${source}`, e))
+  }
   const school = (async () => {
     for (const r of schoolReads(feeds, start)) {
       // A slot gone by while the list was read is skipped: read late, it would sit closer than 30 s to the next.
       if (r.at < Date.now()) continue
       await new Promise((done) => setTimeout(done, r.at - Date.now()))
-      const read = schoolFile(r.url).catch((e) => (console.error("[live-scores] school", e), null))
-      writes = writes
-        .then(() => read)
-        .then((game) => game && rpc("record_live_score", { p_event: r.id, p_game: game }))
-        .catch((e) => console.error("[live-scores] school", e))
+      record(r.id, "school", wholeFile(`${r.url}&detail=full`))
     }
   })()
   // The writes land even when the hub fails, which is when the backup's and the school's are needed.
@@ -118,14 +124,7 @@ export async function listen(games: Game[], rpc: Rpc, start = Date.now()) {
         if (!id) continue
         // Every push, raw, until the first live games show what SIDEARM sends.
         console.log(`[live-scores] ${message.group}: ${JSON.stringify(message.data).slice(0, 2000)}`)
-        // Caught as it starts, not only at its turn in the line: a read that fails while an earlier write is still
-        // going has no one listening yet, and the runtime ends the whole run on it ("event loop error"), the school
-        // reads with it (2026-11-07: 12 of 16 minutes lost CSB hockey's 2nd read).
-        const read = gameOf(message.data).catch((e) => (console.error("[live-scores] push", e), null))
-        writes = writes
-          .then(() => read)
-          .then((game) => game && rpc("record_live_score", { p_event: id, p_game: game }))
-          .catch((e) => console.error("[live-scores] push", e))
+        record(id, "push", gameOf(message.data))
       }
     }
     ws.onerror = (e) => console.error("[live-scores] socket", (e as ErrorEvent).message)
@@ -192,44 +191,47 @@ export function schoolReads(feeds: Map<string, string>, start: number): { at: nu
   return reads
 }
 
-// The whole file, written as the backup's is: every play so far in LastPlays.
-export async function schoolFile(url: string): Promise<unknown | null> {
-  const res = await fetch(`${url}&detail=full`, { headers: UA, signal: AbortSignal.timeout(10_000) })
-    .catch((e) => (console.error(`[live-scores] school ${url}`, e), null))
-  if (!res) return null
-  console.log(`[live-scores] school ${url}: ${res.status}`)
-  const read = (res.ok ? parse(await res.text()) : null) as { Game?: object; Plays?: unknown[] } | null
-  if (!read?.Game) return null
+// A whole game file (the school's, or sidearmstats.com's), with every play so far, oldest first as the scoring plays
+// keep them, as its LastPlays: the file's own LastPlays holds only the newest five. Throws the reason it has none.
+async function wholeFile(url: string): Promise<unknown> {
+  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(10_000) })
+  console.log(`[live-scores] ${url}: ${res.status}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const read = parsed(await res.text()) as { Game?: object; Plays?: unknown[] }
+  if (!read.Game) throw new Error("no game in the file")
   return { Game: { ...read.Game, ...(Array.isArray(read.Plays) ? { LastPlays: read.Plays } : {}) } }
 }
 
-// While FILE_HOST is down, one game's whole file from sidearmstats.com (the file SIDEARM's page opens with), in
-// the first minute of each 10, games taking turns. Nothing while FILE_HOST answers: the file is cached
-// (x-cache-hit), so it could land an older score over a push's.
-async function backup(games: Game[], now = Date.now()): Promise<{ id: string; game: unknown } | null> {
-  if (games.length === 0 || now % BACKUP_MS >= 60_000) return null
-  // Short waits: the pushes' writes queue behind this.
-  const up = await fetch(FILE_HOST, { method: "HEAD", headers: UA, signal: AbortSignal.timeout(5_000) })
-    .then(() => true, () => false)
-  if (up) return null
-  // In a fixed order, so two games really take turns (the database hands them out in no set order).
-  const g = [...games].sort((a, b) => a.id.localeCompare(b.id))[Math.floor(now / BACKUP_MS) % games.length]
+// sidearmstats.com asks one read per 10 minutes (Crawl-delay: 600), so one game's file, in the first minute of each 10:
+// of the games with no score from their school file or push for 3 minutes, the one it tried longest ago
+// (public.live_backup_turn). The file is cached (x-cache-hit): the database never lets it move a score backward.
+async function backupRead(games: Game[], rpc: Rpc, now: number) {
+  if (games.length === 0 || now % BACKUP_MS >= 60_000) return
+  const id = await rpc("live_backup_turn", { p_events: games.map((g) => g.id) })
+  const g = games.find((x) => x.id === id)
+  if (!g) return
   const file = g.grp.replace(/^livestats\/|\/game$/g, "")
-  const res = await fetch(`https://sidearmstats.com/${file}/game.json?detail=full`,
-                          { headers: UA, signal: AbortSignal.timeout(10_000) })
-  console.log(`[live-scores] backup ${file}: ${res.status}`)
-  const read = (res.ok ? parse(await res.text()) : null) as { Game?: object; Plays?: unknown[] } | null
-  if (!read?.Game) return null
-  // Every play so far, oldest first as the scoring plays keep them: the file's own LastPlays holds only the newest
-  // five, and ten minutes of scoring plays and fouls would be lost.
-  const plays = Array.isArray(read.Plays) ? { LastPlays: read.Plays } : {}
-  return { id: g.id, game: { Game: { ...read.Game, ...plays } } }
+  const r = await settle(wholeFile(`https://sidearmstats.com/${file}/game.json?detail=full`))
+  await rpc("record_live_read", { p_event: g.id, p_source: "backup", p_game: r.game, p_why: r.why })
 }
 
-// A push is the new value itself, or "GET:<url>" asking the page to fetch it as JSONP (sidearm.realtime.all.js).
-async function gameOf(data: unknown): Promise<unknown | null> {
-  if (typeof data !== "string") return data ?? null
-  if (!data.startsWith("GET:")) return parse(data)
+// A read's file, or why there is none, in words the morning report can show.
+function settle(got: Promise<unknown>): Promise<{ game: unknown; why: string | null }> {
+  return got.then((game) => ({ game: game ?? null, why: game == null ? "nothing came" : null }), (e) => {
+    const err = e as Error & { cause?: { code?: string; message?: string } }
+    const text = `${err?.message ?? e} ${err?.cause?.code ?? ""} ${err?.cause?.message ?? ""}`
+    console.error("[live-scores] read failed", text)
+    if (err?.name === "TimeoutError") return { game: null, why: "timed out" }
+    if (/certificate|CERT_/i.test(text)) return { game: null, why: /expire/i.test(text) ? "certificate expired" : "certificate refused" }
+    return { game: null, why: (err?.message ?? String(e)).slice(0, 120) }
+  })
+}
+
+// A push is the new value itself, or "GET:<url>" asking the page to fetch it as JSONP (sidearm.realtime.all.js). The
+// file host's certificate ran out 2026-11-06, 6 PM, and every push's read failed with it.
+async function gameOf(data: unknown): Promise<unknown> {
+  if (typeof data !== "string") return data
+  if (!data.startsWith("GET:")) return parsed(data)
   // Only SIDEARM's own hosts: a push never sends this function anywhere else. The game's file itself is on
   // sidearmdev.com (api-realtime-stats.prod.sidearmdev.com, SJU football 2026-10-31): without it every push
   // was dropped and the game never went live.
@@ -237,22 +239,25 @@ async function gameOf(data: unknown): Promise<unknown | null> {
   try {
     url = new URL(data.slice(4))
   } catch {
-    return null
+    throw new Error("push sent no link")
   }
   if (url.protocol !== "https:" || !/(^|\.)(sidearmstats|sidearmsports|sidearmdev)\.com$/.test(url.hostname)) {
-    return null
+    throw new Error(`push pointed at ${url.hostname}`)
   }
-  const res = await fetch(url, { headers: UA })
-  return res.ok ? parse(await res.text()) : null
+  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(10_000) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return parsed(await res.text())
 }
 
-function parse(text: string): unknown | null {
-  // JSONP: callback({...}); plain JSON otherwise.
+// JSONP: callback({...}); plain JSON otherwise. Throws a failed read's reason: CSB basketball's school file answered
+// 200 with nothing in it all afternoon of 2026-11-07, and "not JSON" hid that it was empty.
+function parsed(text: string): unknown {
   const body = text.trim().replace(/^[\w$.]*\(([\s\S]*)\);?$/, "$1")
+  if (!body) throw new Error("empty file")
   try {
     return JSON.parse(body)
   } catch {
-    return null
+    throw new Error("not JSON")
   }
 }
 

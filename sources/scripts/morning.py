@@ -448,19 +448,24 @@ LIVE_SPORTS = {"SJU Athletics/Football", "SJU Athletics/Soccer", "SJU Athletics/
 CLOCK_START = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$")
 
 
-def live_lines(db, day, rows=None):
-    """A day's games the live-scores job follows, one line each: how far its live score got and where its
-    final came from, so a game that never went live shows in the morning report with no chat watching it
-    (Jesse, 2026-10-29). A read that fails is one line, never a lost report."""
+def live_lines(db, day, rows=None, marks=None):
+    """A day's games the live-scores job follows, one line each: how far its live score got, which source carried
+    it, which reads failed and why, and where its final came from, so a game that went blind shows in the morning
+    report with no chat watching it (Jesse, 2026-10-29; game-card 22). A read that fails is one line, never a lost
+    report. marks: public.live_marks's rows by Event id."""
     head = f"Live games {day:%a %b} {day.day}:"
     if rows is None:
         try:
             schools = ",".join(sorted({f'"{p.split("/")[0]}"' for p in LIVE_SPORTS}))
-            rows = db.rest("GET", "club_events?select=title,start_time,source_name,sport,live_score,scoring_plays,"
+            rows = db.rest("GET", "club_events?select=id,title,start_time,source_name,sport,live_score,scoring_plays,"
                                   f"final_score&event_date=eq.{day}&source_name=in.({quote(schools)})"
                                   "&team_ids=not.is.null&status=eq.approved&cancelled_at=is.null&order=start_time") or []
         except Exception as e:
             return [f"{head} not read ({' '.join(str(e).split())[:200]})"]
+        try:
+            marks = {m["event_id"]: m for m in db.rest("POST", "rpc/live_marks", {"p_events": [r["id"] for r in rows]}) or []}
+        except Exception as e:
+            head += f" (which source carried each not read: {' '.join(str(e).split())[:200]})"
     games = [(f"{r['source_name']}/{r['sport']}", r) for r in rows if f"{r['source_name']}/{r['sport']}" in LIVE_SPORTS]
     that_day = collections.Counter(sport for sport, _ in games)
     lines = [head] * bool(games)
@@ -468,18 +473,28 @@ def live_lines(db, day, rows=None):
         live, final = r.get("live_score"), r.get("final_score")
         score = final and "-".join(map(str, final))
         backup = f"final {score} from the backup check" if final else "no final"
+        mark = (marks or {}).get(r.get("id")) or {}
+        sources = mark.get("sources") or []
+        carried = [s["name"] for s in sorted(sources, key=lambda s: -s["wrote"]) if s["wrote"]]
+        by = f" from {' and '.join(carried)}" if carried else ""
         if live and live.get("complete") and final == live.get("score"):
             plays = len(r.get("scoring_plays") or [])
-            how = f"live to the final, {score}" + (f" ({plays} scoring plays)" if plays else "")
+            how = f"live to the final{by}, {score}" + (f" ({plays} scoring plays)" if plays else "")
         elif live:
             at = datetime.fromisoformat(live["at"]).astimezone(LOCAL)
-            how = f"live until {at:%-I:%M %p}, then {backup}"
+            how = f"live until {at:%-I:%M %p}{by}, then {backup}"
         elif that_day[sport] > 1:
             how = f"not followed live, {that_day[sport]} games that day; {backup}"
         elif not CLOCK_START.match((r.get("start_time") or "").strip().lower()):
             how = f"not followed live, no start time; {backup}"
         else:
             how = f"never went live; {backup}"
+        failed = [f"{s['name']} {s['failed']} ({s['why']})" for s in sources if s["failed"]]
+        how += f"; failed reads: {', '.join(failed)}" if failed else ""
+        if mark.get("alerted_at"):
+            how += f"; dark alert {datetime.fromisoformat(mark['alerted_at']).astimezone(LOCAL):%-I:%M %p}"
+        elif mark.get("alert_why"):
+            how += f"; dark alert not sent ({mark['alert_why']})"
         lines.append(f"- {r['title']}, {r.get('start_time') or 'no time'}: {how}")
     return lines
 
@@ -1680,7 +1695,7 @@ def live_games_told():
     """A day's games as the morning report tells them, offline: each way a live score can go, a sport the job
     doesn't follow, and a database that can't be read."""
     game = lambda title, start, source, sport, live=None, final=None, plays=None: {
-        "title": title, "start_time": start, "source_name": source, "sport": sport, "live_score": live,
+        "id": title, "title": title, "start_time": start, "source_name": source, "sport": sport, "live_score": live,
         "final_score": final, "scoring_plays": plays}
     rows = [game("CSB Soccer vs Carleton", "1 PM", "CSB Athletics", "Soccer", final=[2, 1]),
             game("SJU Swimming and Diving vs Macalester", "1 PM", "SJU Athletics", "Swimming and Diving"),
@@ -1701,7 +1716,41 @@ def live_games_told():
     followed = re.findall(r"when '([^']+/[^']+)' then",
                           newest.split("function private.sidearm_file(", 1)[1].split("$$", 2)[1])
     unread = live_lines(Unread(), date(2026, 10, 29))
-    return [(live_lines(None, date(2026, 10, 29), rows) == [
+    # As public.live_marks gives them (game-card 22): each source's reads, the one that carried the game, and the alert.
+    school = lambda wrote, failed=0, why=None: {"name": "gobennies.com", "reads": wrote + failed, "failed": failed,
+                                                "wrote": wrote, "why": why}
+    push = {"name": "SIDEARM's push", "reads": 434, "failed": 434, "wrote": 0, "why": "certificate expired"}
+    marks = {"SJU Basketball vs St. Cloud State": {"sources": [school(118, 2, "timed out"), push]},
+             "CSB Volleyball vs Augsburg": {"sources": [school(40, 6, "HTTP 503"),
+                                                        {"name": "sidearmstats.com", "reads": 2, "failed": 0, "wrote": 2}],
+                                            "alerted_at": "2026-10-30T01:24:00+00:00"},
+             "SJU Soccer vs Carleton": {"sources": [push], "alert_why": "ntfy answered 503: busy"}}
+
+    class NoMarks:
+        def rest(self, method, path, *args, **kw):
+            if path.startswith("rpc/"):
+                raise DbError("POST", "rpc/live_marks", 404, "Not Found")
+            return rows[:1]
+    return [(live_lines(None, date(2026, 10, 29), rows, marks) == [
+                "Live games Thu Oct 29:",
+                "- CSB Soccer vs Carleton, 1 PM: never went live; final 2-1 from the backup check",
+                "- SJU Football vs Bethel, TBA: not followed live, no start time; no final",
+                "- CSB Basketball vs Augsburg, 2 PM: not followed live, 2 games that day; no final",
+                "- CSB Basketball vs Carleton, 4 PM: not followed live, 2 games that day; final 60-58 from the backup check",
+                "- SJU Basketball vs St. Cloud State, 6 PM: live to the final from gobennies.com, 78-71 (23 scoring plays); "
+                "failed reads: gobennies.com 2 (timed out), SIDEARM's push 434 (certificate expired)",
+                "- CSB Volleyball vs Augsburg, 7 PM: live until 8:12 PM from gobennies.com and sidearmstats.com, then final "
+                "3-1 from the backup check; failed reads: gobennies.com 6 (HTTP 503); dark alert 8:24 PM",
+                "- SJU Soccer vs Carleton, 7:30 p.m.: never went live; no final; failed reads: SIDEARM's push 434 "
+                "(certificate expired); dark alert not sent (ntfy answered 503: busy)"],
+             "each followed game says how far its live score got, which source carried it, which reads failed and why, "
+             "and the dark alert"),
+            (live_lines(NoMarks(), date(2026, 10, 29)) == [
+                "Live games Thu Oct 29: (which source carried each not read: Supabase POST rpc/live_marks failed 404: "
+                "Not Found)",
+                "- CSB Soccer vs Carleton, 1 PM: never went live; final 2-1 from the backup check"],
+             "sources that can't be read leave the lines as they were, saying so once"),
+            (live_lines(None, date(2026, 10, 29), rows) == [
                 "Live games Thu Oct 29:",
                 "- CSB Soccer vs Carleton, 1 PM: never went live; final 2-1 from the backup check",
                 "- SJU Football vs Bethel, TBA: not followed live, no start time; no final",

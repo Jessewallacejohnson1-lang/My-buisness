@@ -124,10 +124,10 @@ class FakeDb(Supabase):
         return answer(method, path, body) if callable(answer) else answer
 
     def writes(self, start=""):
-        """The calls that change something, whose path starts with `start`. The two read-only functions
-        the steps call over POST aren't writes."""
+        """The calls that change something, whose path starts with `start`. The read-only functions the
+        steps call over POST aren't writes."""
         return [c for c in self.calls if c[0] != "GET" and c[1].startswith(start)
-                and c[1] not in ("rpc/listed_for_writer", "rpc/event_picture")]
+                and c[1] not in ("rpc/listed_for_writer", "rpc/event_picture", "rpc/live_marks")]
 
 
 def selftest():
