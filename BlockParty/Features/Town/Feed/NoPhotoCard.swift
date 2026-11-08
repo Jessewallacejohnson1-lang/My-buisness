@@ -5,7 +5,7 @@
 //  A card with no photo of the Event used to spend a whole photo-sized frame on the place's logo
 //  over its backdrop, on ink, or on the place's cover (town-feed 40). It is a short white card now, Meetup's and Luma's
 //  event rows in the white game card's edge and shadow: the place's logo on the left, the day (or
-//  NEW for News) in a light grey pill, the title and its facts beside it. Jesse picked it over a
+//  "News · 2d" for News) in a light grey pill, the title and its facts beside it. Jesse picked it over a
 //  post card, a logo tile, a logo watermark and a yellow pill ("that looks harsh"). The heart and
 //  the row under the card stay the Event card's own.
 //
@@ -18,12 +18,13 @@ struct NoPhotoCard: View {
     /// A neighbour host's photo.
     var photo: URL? = nil
     let name: String
-    /// The day and time, or NEW; nil leaves the pill out.
+    /// The day and time, or "News · 2d"; nil leaves the pill out.
     let pill: String?
     var pillSpoken: String? = nil
     /// "Now" behind Apple's green, as the photo chip has it (event-card 04).
     var pillDot: Color? = nil
     let title: String
+    var titleLines = 2
     var facts: String? = nil
     var factsLines = 1
     /// An Event's small line, in place of `facts`.
@@ -62,7 +63,7 @@ struct NoPhotoCard: View {
                     .font(.eventDisplay(19))
                     .lineSpacing(-1)
                     .foregroundStyle(Hue.ink.onLightCanvas)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : titleLines)
                     .fixedSize(horizontal: false, vertical: true)
                 if !factsTries.isEmpty {
                     SmallLine(tries: factsTries, wraps: true)
