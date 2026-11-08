@@ -17,6 +17,10 @@ flake moves to Fixed, dated, and stays there.
 - 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
+- 2026-11-07 · `EventCardPhotoTapTests.testADragUpOnThePhotoScrollsTheFeed` · red once on the Mac in a full run at load 50,
+  on feat/review-queue-details just after merging a941d5e7, a change with no Town card
+  code: the card never moved (659 not under 609) · passed 3 of 3 alone straight after, at load 16 to 26 · no fix
+  yet: a 0.05 s press before the drag may read as a hold on a loaded Mac
 
 ## Fixed
 
