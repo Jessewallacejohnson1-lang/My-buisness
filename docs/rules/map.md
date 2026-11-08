@@ -5,21 +5,32 @@ basemap, or the realtime pipeline behind it.
 
 ## Anatomy
 
-Since the map reset (BP app `references/map-reset/`, 2026-10-30) the map shows today's events and
-nothing else.
+Since the map reset (BP app `references/map-reset/`, 2026-10-30) the map shows today's events, plus
+the one Event an Event page or a held Town card asked for, whatever its day (BP app inside-cards 19).
 
-- **`SJMapView`** — raised as a `.fullScreenCover` from the Town bar's yellow disc, with its own
-  close X. The Mapbox map on one static basemap (`BasemapPalette`, Uber's colours), today's bubbles,
+- **`SJMapView`** — raised as a `.fullScreenCover` from the Town bar's yellow disc, an Event page's
+  small map, or a held Town card's View on Map (`EventMapOpener`), with its own close X. The cover sits
+  on the shell's `NavigationStack`, outside it, so it rises over a pushed Event page and closing it lands
+  back on that page as it was. The Mapbox map on one static basemap (`BasemapPalette`, Uber's colours), today's bubbles,
   and two glass circles: close top left, recenter top right, with `MapCompass` under recenter once
   the map is turned. One pill between them says "Nothing else today" once every one of today's
   events is over, or "You're offline" / "Couldn't load" (tap to try again). The Mapbox wordmark is
   hidden and its ⓘ attribution kept, top left under close, clear of the card (Jesse accepted the ToS
   risk, 2026-08-14). Its own
-  `NavigationStack` pushes the Event page, so Back returns to the map.
+  `NavigationStack` pushes the Event page, so Back returns to the map; that page's small map pops back
+  to the map instead of raising a second one.
+- **An asked-for Event** (`EventMapOpener.Ask`, inside-cards 19) — the map opens over its spot 1.6 zoom
+  steps out (`MapFocus.arriveFrom`) and flies in to the opening zoom with its bubble first to pop in and
+  its card up (`MapFocus.arrive`), over or called off too. At a spot it shares with tonight's it leads the
+  bubble and the card. Another day's tag says the day ("Thu, Nov 19") or "Until Dec 15" while one that
+  began before today is still on (`TodayBubbleRules.dayTag`), and the card's time line says the same day.
+  "Nothing else today" hides while a card is up. Asked for by its own page, a tap on its card closes the
+  map. The card's Directions pill opens Apple Maps to the spot by its coordinate (`Directions.url(to:)`).
 - **`MapModel`** (`@MainActor`) — today's events are the Town feed's own cards (`TownFeed`, read
   before the map opens), so the map shows what the Town feed shows, with the same hearts, Going,
   hides and mutes, and makes no second `get_town_feed` read (8 s for a new account, 2026-10-30).
-  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`), read once per event. Follows
+  Their spots are `club_events.lat,lng` (`CommunityAPI.eventSpots`, which also says `no_place`: Online,
+  a bare town, several places, so the Event page shows no Map button), read once per event. Follows
   the app's one `club_events` connection (`LiveGames.follow`, BP app codebase-health-2 08): a change
   touching today asks the Town feed to read again after 300 ms. `LiveGames.away` drops the
   connection in the background; the map re-reads on foreground and rolls over at midnight.
@@ -71,7 +82,8 @@ map no longer reads them for pins.
 
 ## Direction — Jesse's calls
 
-- 2026-10-30 — The map shows only today's events, one bubble per real spot, Airbnb's card on a tap,
+- 2026-10-30 — The map shows only today's events (2026-11-06, inside-cards 06 and 19: and the one Event
+  its page asked for, any day), one bubble per real spot, Airbnb's card on a tap (Directions added),
   and only close and recenter for buttons; business pins, chips, search, help, the town pill and the
   bottom sheet are gone (map reset). **Supersedes** the pin states, Google categories, black cluster
   bubbles and the Flighty pin card below the line in the archive.

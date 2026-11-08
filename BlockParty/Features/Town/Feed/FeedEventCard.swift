@@ -592,10 +592,25 @@ struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
 /// A Town card's heart (event-card 06; inside-cards 24): one spot on every Town card, 12 pt in from
 /// the card's bottom right corner, and the poster's at the right of its Attend row. Over a picture,
 /// a 38 pt grey glass circle with the white heart; on white, the ink heart alone; red once yours.
-/// It pops out to 1.3 and back, and shakes once when the server turns a heart back.
+/// It pops out to 1.3 and back, and shakes once when the server turns a heart back. News has the white
+/// card's (inside-cards 22), written to the story's own table.
 struct TownCardHeart: View {
-    let item: FeedCardItem
-    var onWhite = false
+    private enum Target {
+        case event(FeedCardItem)
+        case news(TownNews)
+    }
+    private let target: Target
+    let onWhite: Bool
+
+    init(item: FeedCardItem, onWhite: Bool = false) {
+        target = .event(item)
+        self.onWhite = onWhite
+    }
+
+    init(news: TownNews) {
+        target = .news(news)
+        onWhite = true
+    }
 
     static let side: CGFloat = 38
     static let inset: CGFloat = 12
@@ -606,13 +621,35 @@ struct TownCardHeart: View {
     /// `actions.heartFailureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
 
+    private var heart: RealLifeActions.Heart {
+        switch target {
+        case .event(let item): actions.heart(item)
+        case .news(let news): actions.heart(news)
+        }
+    }
+
+    private var failures: Int {
+        switch target {
+        case .event(let item): actions.heartFailureCount(item.id)
+        case .news(let news): actions.newsHeartFailureCount(news.id)
+        }
+    }
+
+    private func toggle() {
+        switch target {
+        case .event(let item): actions.toggleHeart(item)
+        case .news(let news): actions.toggleHeart(news)
+        }
+    }
+
     var body: some View {
-        let hearted = actions.heart(item).isHearted
-        let failures = actions.heartFailureCount(item.id)
+        let heart = heart
+        let hearted = heart.isHearted
+        let failures = failures
         Button {
             tappedAt = failures
             withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
-                actions.toggleHeart(item)
+                toggle()
             }
         } label: {
             FeedActionGlyphView(glyph: .heart, size: Self.glyph, filled: hearted)
@@ -637,7 +674,7 @@ struct TownCardHeart: View {
         }
         .buttonStyle(MenuPressStyle())
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-        .accessibilityLabel("Like, \(actions.heart(item).count) likes")
+        .accessibilityLabel("Like, \(heart.count) likes")
         .accessibilityValue(hearted ? "Liked" : "Not liked")
         .accessibilityAddTraits(hearted ? .isSelected : [])
     }

@@ -357,6 +357,7 @@ final class TownFeed {
         guard list.contains(where: { $0.leavesAt > now }) else { return }
         actions?.read(list.compactMap(\.card))
         actions?.read(posts: list.compactMap(\.post))
+        actions?.read(news: list.compactMap(\.news))
         entries = list
         clock = now
     }
@@ -449,6 +450,7 @@ final class TownFeed {
             if entries == nil, let kept = list, kept.contains(where: { $0.leavesAt > now }) {
                 actions?.read(kept.compactMap(\.card))
                 actions?.read(posts: kept.compactMap(\.post))
+                actions?.read(news: kept.compactMap(\.news))
                 entries = kept
                 clock = now
             }
@@ -467,6 +469,7 @@ final class TownFeed {
             }
             actions?.read(new.compactMap(\.card))
             actions?.read(posts: new.compactMap(\.post))
+            actions?.read(news: new.compactMap(\.news))
             if entries == nil || freshOrder || (freshDue && atTop && !fingerDown) {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more

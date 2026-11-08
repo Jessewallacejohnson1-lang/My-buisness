@@ -26,6 +26,11 @@ every Event laid out as looked at (club_events.photo_checked_at), found or not, 
 a meet or any sport has no photo of its own for now (place_photos.is_sport, the skill's review page's rule too), and a
 sport's card shows the scene pool (event-photos 07).
 
+A News found in a Facebook or Instagram post gets the same look (BP app town-feed 53; Jesse, 2026-11-08: "yes" to News
+showing its post's own photo): its own post's pictures only, never its place's other posts, down to NEWS_MIN_WIDTH, and a
+real photo only, never a flyer. `keep` saves the pick as a place_photos row of kind 'news' tied to the News, and marks every
+News laid out as looked at (board_items.photo_checked_at).
+
 Before any of that, a photo a person kept for an Event's title at its place (a publish sheet Jesse said yes to, not this
 step's own pick, and a photo, not a flyer) follows to that title's new dates: a show or class listed one day at a time gets its kept photo, not
 whatever its listing came with (BP app docs/plans/dig-deeper 20; Reflection and Bréagán, 2026-11-04 to 07). Those
@@ -50,6 +55,9 @@ LOOKBACK = timedelta(days=8)   # the weekly read is Thursday's: a Friday morning
 NEW = timedelta(days=3)        # an Event found longer ago than this was there before this step
 PLACE_MORE = 6                 # the same page's other photos offered beside a post's own pictures
 MIN_WIDTH = 1000               # as scenes.py: the card is width-bound and asks for 1200 px
+# A News's own picture: Jesse took JoeTown's 720 px group shot of its new merch over the post's sharp portrait
+# ("the other ones get attention of users more", 2026-11-08, town-feed 53).
+NEWS_MIN_WIDTH = 720
 PER_SHEET = 4                  # Events on one sheet, so a helper sees each picture big enough
 TILE = 300
 TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos.town; --town sets it
@@ -74,6 +82,21 @@ def todo(db, now):
                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
     import place_photos
     return [r for r in rows if not place_photos.is_sport(r)]
+
+
+def todo_news(db, now):
+    """Published News found in a Facebook or Instagram post within LOOKBACK (the runs that can still be read again for
+    free), never looked at (town-feed 53)."""
+    since = (now - LOOKBACK).isoformat()
+    return db.rest("GET", "board_items?select=id,title,blurb,source_name,source_url,place_entry_id"
+                          f"&status=eq.published&photo_checked_at=is.null&created_at=gte.{quote(since)}"
+                          f"&source_url=match.{quote('(facebook|instagram)[.]com/')}&order=created_at&limit=300")
+
+
+def news_groups(news):
+    """One block per News, keyed n1, n2… beside the Events' e1, e2…"""
+    return [{"source_url": n["source_url"], "title": n["title"], "news": n, "events": [], "key": f"n{i}"}
+            for i, n in enumerate(news, 1)]
 
 
 def in_list(values):
@@ -154,12 +177,15 @@ def posted(row):
     return datetime.fromtimestamp(t, timezone.utc).isoformat() if isinstance(t, (int, float)) else str(t)
 
 
-def from_posts(group, rows, share=None):
+def from_posts(group, rows, share=None, more=PLACE_MORE):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
     to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
     link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
-    the story's own share picture goes first."""
+    the story's own share picture goes first. A link that names no post (a page, a video) has none: every row
+    without a post id would match it, whoever posted it."""
     key = post_key(group["source_url"])
+    if not key:
+        return []
     own = [r for r in rows if post_key(r.get("url") or r.get("topLevelUrl")) == key]
     if not own and "/events/" in group["source_url"]:
         own = [r for r in rows if key in json.dumps(r.get("text") or r.get("caption") or "")
@@ -174,12 +200,12 @@ def from_posts(group, rows, share=None):
     mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
-        if len(out) >= mine + PLACE_MORE:
+        if len(out) >= mine + more:
             break
         if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
             out += [{**p, "from": "other post", "page": r.get("url") or page} for p in pictures(r)[:2]]
-    return out[:mine + PLACE_MORE]
+    return out[:mine + more]
 
 
 def campus_banners(groups, get=fetch):
@@ -221,7 +247,8 @@ def candidates(groups, rows, banners, share=share_picture):
     for g in groups:
         src = g["source_url"]
         if POST.search(src):
-            g["cands"] = from_posts(g, rows, share)
+            # A News takes only its own post's pictures (Jesse, 2026-11-08).
+            g["cands"] = from_posts(g, rows, share, more=0 if g.get("news") else PLACE_MORE)
         elif CAMPUS_PAGE.search(src):
             pic = banners.get(CAMPUS_PAGE.search(src).group(1))
             g["cands"] = [{"url": pic, "about": "", "from": "listing", "page": src}] if pic else []
@@ -252,7 +279,7 @@ def download(groups, folder, grab=None):
             except Exception as e:
                 failed.append(f"{g['title']}: c{n} would not download ({str(e)[:80]})")
                 continue
-            if w < MIN_WIDTH:
+            if w < (NEWS_MIN_WIDTH if g.get("news") else MIN_WIDTH):
                 continue
             hsh = place_photos.dhash(Image.open(dest))
             if any(place_photos.same_picture(hsh, x) for x in hashes):
@@ -276,12 +303,16 @@ def sheets(groups, folder):
         d, big, small = ImageDraw.Draw(sheet), place_photos.font(22), place_photos.font(16)
         lines = [f"Sheet: {folder / f'sheet-{k}.png'}", ""]
         for row, g in enumerate(part):
-            y, e = row * (TILE + 80) + 10, g["events"][0]
-            head = f"{g['key']}  {g['title']} · {e['event_date']} · {e.get('location') or e.get('source_name') or ''}"
+            y, e = row * (TILE + 80) + 10, g.get("news") or g["events"][0]
+            if g.get("news"):
+                head = f"{g['key']}  News: {g['title']} · {e.get('source_name') or ''}"
+                about = {"news": True, "host": e.get("source_name") or "", "about": " ".join((e.get("blurb") or "").split())[:240]}
+            else:
+                head = f"{g['key']}  {g['title']} · {e['event_date']} · {e.get('location') or e.get('source_name') or ''}"
+                about = {"host": e.get("source_name") or "", "place": e.get("location") or "", "date": e["event_date"],
+                         "about": " ".join((e.get("description") or "").split())[:240]}
             place_photos.label(d, (10, y), head, big, cols * TILE)
-            lines.append(json.dumps({"event": g["key"], "title": g["title"], "host": e.get("source_name") or "",
-                                     "place": e.get("location") or "", "date": e["event_date"],
-                                     "about": " ".join((e.get("description") or "").split())[:240],
+            lines.append(json.dumps({"event": g["key"], "title": g["title"], **about,
                                      "pictures": [{"pick": f"c{c['n']}", "from": c["from"], "meta_says": c["about"][:160]}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
@@ -318,15 +349,23 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     groups = groups_of(events)
     for i, g in enumerate(groups, 1):
         g["key"] = f"e{i}"
+    try:
+        news = news_groups(todo_news(db, now))
+    except DbError as x:  # the News are an addition: without them every Event is still laid out
+        print(f"[photos] new News not read, Events only: {x}")
+        news = []
+    groups += news
     if rows is None:
         rows = social_rows(now) if any(POST.search(g["source_url"]) for g in groups) else []
     candidates(groups, rows, campus_banners(groups) if banners is None else banners, share)
     failed = download(groups, folder, grab)
     n = sheets(groups, folder)
     (folder / "events.json").write_text(json.dumps(groups, indent=1, ensure_ascii=False))
-    with_pics = sum(1 for g in groups if g["cands"])
-    print(f"[photos] {len(events)} new Events to look at ({len(groups)} posts or pages): {with_pics} with pictures "
-          f"on {n} sheets, {len(groups) - with_pics} with none ({folder})")
+    with_pics = sum(1 for g in groups if g["cands"] and not g.get("news"))
+    news_pics = sum(1 for g in news if g["cands"])
+    print(f"[photos] {len(events)} new Events to look at ({len(groups) - len(news)} posts or pages): {with_pics} with pictures, "
+          f"{len(groups) - len(news) - with_pics} with none; {len(news)} new News from posts, {news_pics} with pictures; "
+          f"{n} sheets ({folder})")
     for ln in failed:
         print(f"[photos]   {ln}")
     return groups
@@ -335,10 +374,12 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
     of its own pictures, each group once. A flyer from another post of the place counts too, when its words still
-    hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05)."""
+    hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05). A News takes a real photo only."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
+            continue
+        if by[ln["event"]].get("news") and ln.get("flyer"):
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
         if c:
@@ -370,6 +411,8 @@ def keep(out, dry_run=False, db=None, now=None):
         kind, what = key.split(":", 1)
         if kind == "looked":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_checked_at": stamp}, prefer="return=minimal")
+        if kind == "seen":
+            return db.rest("PATCH", f"board_items?id=eq.{what}", {"photo_checked_at": stamp}, prefer="return=minimal")
         try:
             if kind == "follow":
                 e, r = followed[what]["event"], followed[what]["row"]
@@ -378,6 +421,12 @@ def keep(out, dry_run=False, db=None, now=None):
                                                          "proposed_by": FOLLOW}],
                                "return=minimal")
             g, (c, shows, flyer) = by_key[what], picks[what]
+            if g.get("news"):
+                n = g["news"]
+                return place_photos.save_picture(db, Image.open(c["file"]), "news", c["page"], town=TOWN,
+                                                 events=[(n["id"], entry_of(n))], description=shows,
+                                                 credit=n.get("source_name") if POST.search(c["page"]) else None,
+                                                 proposed_by=OWN)
             place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
@@ -390,17 +439,21 @@ def keep(out, dry_run=False, db=None, now=None):
         # prepare clears the file.
         Part(folder / "kept.json").each([k for f in follow for k in (f"follow:{f['event']['id']}", f"looked:{f['event']['id']}")]
                                         + [k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
-                                           + [f"looked:{e['id']}" for e in g["events"]]], save_one)
+                                           + [f"looked:{e['id']}" for e in g["events"]]
+                                           + ([f"seen:{g['news']['id']}"] if g.get("news") else [])], save_one)
     kept = [g for g in groups if g["key"] in picks]
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
     flyers = sum(len(g["events"]) for g in kept if picks[g["key"]][2])
-    none = [g["title"] for g in groups if g["key"] not in picks]
+    none = [g["title"] for g in groups if g["key"] not in picks and not g.get("news")]
+    news = [g for g in groups if g.get("news")]
     line = (f"[photos] {got + len(follow)} of {events + len(follow)} new Events got a photo of their own ("
             + (f"{len(follow)} the one kept for their title, " if follow else "") + f"{own} from their own post or page, "
             f"{got - own} from their place's other posts; {flyers} of them their own flyer)" + (f"; none for {len(none)}: " + "; ".join(none[:20])
                                                                if none else "")
+            + (f"; {sum(1 for g in news if g['key'] in picks)} of {len(news)} new News from posts got their post's photo"
+               if news else "")
             + (" (dry run: nothing written)" if dry_run else ""))
     print(line)
     return line
@@ -446,6 +499,8 @@ def selftest():
     check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/2380009089072052", "events": []}, rows)]
           == ["https://x.fbcdn.net/tattoo.jpg"], "an Event a post links to takes that post's pictures")
     check(from_posts({"source_url": "https://www.facebook.com/x/posts/pfbidGONE", "events": []}, rows) == [], "a post not read: none")
+    check(from_posts({"source_url": "https://www.facebook.com/x/videos/123/", "events": []}, rows + [post("https://www.facebook.com/y/videos/9/", "Y", [("https://x.fbcdn.net/y.jpg", "")])]) == [],
+          "a link that names no post takes none, not another place's post that names none either")
     shared = [post("https://www.facebook.com/csbsju/posts/pfbidART", "csbsju", [("https://external.fbcdn.net/emg1/preview.jpg", "")],
                    link="https://www.csbsju.edu/news/alum-drawings/")]
     check([(c["url"], c["from"], c["page"]) for c in from_posts({"source_url": "https://www.facebook.com/csbsju/posts/pfbidART",
@@ -571,10 +626,10 @@ def selftest():
         dry = keep(out, dry_run=True)
         check("dry run" in dry, "a dry run writes nothing")
 
-        class Found(place_photos.Unsent):  # the new Events, as the database answers
+        class Found(place_photos.Unsent):  # the new Events, as the database answers; no new News
             def rest(self, method, path, body=None, prefer=None):
                 self.calls.append((method, path, body))
-                return [dict(e) for e in events] if method == "GET" else None
+                return ([dict(e) for e in events] if path.startswith("club_events") else []) if method == "GET" else None
         fake = Found("https://db.example")
         laid_out = lambda: {f.name for f in (out / "photos").iterdir()}
         (out / "photos" / "kept.json").write_text("[]")
@@ -601,6 +656,8 @@ def selftest():
                     return [{"id": "old", "title": "Reflection", "place_entry_id": "arts"}]
                 if path.startswith("place_photos"):
                     return [sheehan]
+                if path.startswith("board_items"):
+                    return []
                 return [dict(e, place_entry_id="arts") if e["title"] == "Reflection" else dict(e) for e in events]
         laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=Follows("https://db.example"), rows=rows,
                        banners={}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
@@ -619,6 +676,15 @@ def selftest():
               and said.startswith("[photos] 3 of 4 new Events got a photo of their own (1 the one kept for their title, "),
               f"it is marked looked at, and the line counts it: {said}")
 
+        class NoNews(Found):  # the News can't be read (a database without photo_checked_at): the Events still are
+            def rest(self, method, path, body=None, prefer=None):
+                if path.startswith("board_items"):
+                    raise DbError(method, path, 400, "column board_items.photo_checked_at does not exist")
+                return super().rest(method, path, body, prefer)
+        laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=NoNews("https://db.example"), rows=rows,
+                       banners={"4758895": "https://storage.googleapis.com/art.jpg"}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
+        check([len(g["events"]) for g in laid] == [2, 1, 1], "a failed News read still lays every Event out")
+
         class Refused(Follows):  # the kept photos can't be read: every Event is laid out, as before this step
             def rest(self, method, path, body=None, prefer=None):
                 if path.startswith("club_events?select=id,title,place_entry_id"):
@@ -628,6 +694,55 @@ def selftest():
                        banners={}, share=lambda u: "https://givemn.org/og.jpg", grab=grab)
         check([len(g["events"]) for g in laid] == [2, 1, 1] and json.loads((out / "photos" / "follow.json").read_text()) == [],
               "a failed read of kept photos lays every Event out as before, and nothing follows")
+
+    # town-feed 53: a News found in a post gets its own post's photo.
+    paths = []
+    todo_news(type("Db", (), {"rest": lambda self, m, p, *a, **k: paths.append(p) or []})(), datetime(2026, 11, 8, tzinfo=timezone.utc))
+    check(paths[0].startswith("board_items?") and "status=eq.published" in paths[0] and "photo_checked_at=is.null" in paths[0]
+          and "source_url=match." in paths[0] and "created_at=gte.2026-10-31" in paths[0],
+          "News asked for: published, found in a post, never looked at, within the 8 days Apify's runs can be read again")
+    merch = {"id": "news1", "title": "New Joetown merch", "blurb": "Fresh Joetown tees", "source_name": "JoeTown",
+             "source_url": "https://www.instagram.com/p/MERCH/", "place_entry_id": "joetown"}
+    ig = lambda code, pics: {"_task": "bp-busy-instagram", "url": f"https://www.instagram.com/p/{code}/", "shortCode": code,
+                             "ownerUsername": "joetownmn", "displayUrl": pics[0], "childPosts": [{"displayUrl": u} for u in pics[1:]]}
+    igrows = [ig("MERCH", ["https://x.cdninstagram.com/group.jpg", "https://x.cdninstagram.com/tee.jpg",
+                           "https://x.cdninstagram.com/small.jpg"]),
+              ig("OTHER", ["https://x.cdninstagram.com/other.jpg"])]
+    ng = news_groups([merch])
+    candidates(ng, igrows, {}, share=lambda u: 1 / 0)
+    check(ng[0]["key"] == "n1" and [c["url"].rsplit("/", 1)[1] for c in ng[0]["cands"]] == ["group.jpg", "tee.jpg", "small.jpg"]
+          and {c["from"] for c in ng[0]["cands"]} == {"post"}, "a News takes only its own post's pictures, never its place's other posts")
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        nsizes = {"group": (720, 960), "tee": (1365, 1820), "small": (640, 800)}
+
+        def ngrab(c, dest):
+            name = next(k for k in nsizes if k in c["url"])
+            Image.effect_noise(nsizes[name], 50 + 20 * list(nsizes).index(name)).convert("RGB").save(dest)
+            return nsizes[name]
+        check(not download(ng, out / "photos", ngrab) and [c["url"].rsplit("/", 1)[1] for c in ng[0]["cands"]] == ["group.jpg", "tee.jpg"],
+              f"a News keeps a picture down to {NEWS_MIN_WIDTH} px wide (Jesse's 720 px group shot); an Event's floor stays {MIN_WIDTH}")
+        sheets(ng, out / "photos")
+        said = json.loads((out / "photos" / "batch-1.txt").read_text().splitlines()[2])
+        check(said["event"] == "n1" and said["news"] is True and said["host"] == "JoeTown" and "date" not in said,
+              "the batch marks a News as one, with its words and no date")
+        check(plan([{"event": "n1", "pick": "c1", "flyer": True}], ng) == {}
+              and list(plan([{"event": "n1", "pick": "c1", "shows": "Four friends in the new tees"}], ng)) == ["n1"],
+              "a News takes a real photo, never a flyer")
+        (out / "photos" / "events.json").write_text(json.dumps(ng))
+        (out / "event_photos.jsonl").write_text('{"event": "n1", "pick": "c1", "shows": "Four friends in the new tees"}\n')
+        fake = place_photos.Unsent("https://db.example")
+        said = keep(out, db=fake, now=datetime(2026, 11, 8, 11, tzinfo=timezone.utc))
+        put = [p for m, p, b in fake.calls if m == "PUT"]
+        sent = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
+        check(len(put) == 1 and put[0].startswith(f"places/{TOWN}/news/news-") and len(sent) == 1
+              and {k: sent[0].get(k) for k in ("news_id", "event_id", "entry_id", "kind", "credit", "description", "source_url")}
+              == {"news_id": "news1", "event_id": None, "entry_id": "joetown", "kind": "news", "credit": "JoeTown",
+                  "description": "Four friends in the new tees", "source_url": "https://www.instagram.com/p/MERCH/"},
+              "keep saves a News's pick as its own kind, tied to the News, credited to its place, linking its post")
+        check([(m, p) for m, p, b in fake.calls if m == "PATCH"] == [("PATCH", "board_items?id=eq.news1")]
+              and said.endswith("; 1 of 1 new News from posts got their post's photo"),
+              f"the News is marked looked at, and the line counts it: {said}")
 
     def asked(new, kept_rows, others):
         class Kept:

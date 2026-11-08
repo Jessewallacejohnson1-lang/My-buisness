@@ -280,6 +280,10 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var title: String? = nil
     /// The interest it shares with you, by id, for its ••• sheet's why line (news-menu); nil when none.
     var interest: String? = nil
+    /// Whether you hearted it, and every account's hearts, as the read sent them (inside-cards 22);
+    /// `RealLifeActions` lays your taps over them.
+    var hearted = false
+    var heartCount = 0
 
     /// What the Town card sets as its title: the headline, else the facts stand in for it.
     var headline: String {

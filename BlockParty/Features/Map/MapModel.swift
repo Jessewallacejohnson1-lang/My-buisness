@@ -10,7 +10,8 @@
 //  app's one `club_events` connection (`LiveGames`, BP app codebase-health-2 08): a change
 //  that touches today asks the Town feed to read again (debounced), so a new happening gets
 //  its bubble and a deleted one goes, with no refresh. Lets go on disappear, re-reads on
-//  foreground, and rolls over at midnight.
+//  foreground, and rolls over at midnight. An Event's page or a held Town card can ask for one
+//  Event of any day, at the spot it already read (`ask`, BP app inside-cards 19).
 //
 
 import Foundation
@@ -39,6 +40,8 @@ final class MapModel: ObservableObject {
     /// Each of today's events' spot, once read; `asked` holds every id read, found or not.
     private var spots: [String: CLLocationCoordinate2D] = [:]
     private var asked: Set<String> = []
+    /// The Event an Event page or a held card asked for, whatever its day.
+    private var wanted: FeedCardItem?
 
     private var currentDate: String
 
@@ -57,7 +60,7 @@ final class MapModel: ObservableObject {
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
 
     func start(auth: AuthStore, feed: TownFeed, live: LiveGames) {
-        if readSpots == nil { readSpots = { try await CommunityAPI(auth: auth).eventSpots($0) } }
+        if readSpots == nil { readSpots = { try await CommunityAPI(auth: auth).eventSpots($0).compactMapValues(\.coordinate) } }
         self.feed = feed
         self.live = live
         guard !started else { return }
@@ -108,12 +111,23 @@ final class MapModel: ObservableObject {
 
     // MARK: Data
 
+    /// An Event its page or a held card asked for (inside-cards 19): on the map whatever its day, at the spot
+    /// its asker read, so it isn't read again.
+    func ask(_ event: FeedCardItem, at spot: CLLocationCoordinate2D) {
+        wanted = event
+        spots[event.id] = spot
+        asked.insert(event.id)
+        today = TodayPlaces(events: today.events, spots: spots, asked: event)
+        // Its picture, so its bubble pops in with it rather than empty glass: it wasn't read with today's.
+        POILogoCache.shared.prefetch(TodayBubble(id: "", coordinate: spot, events: [event]).picture.map { [$0.url] } ?? [])
+    }
+
     /// The Town feed's cards, as they change: today's, at the spots read for them. A new
     /// event's spot is read once; a failed read is asked again at the next change.
     func show(_ cards: [FeedCardItem]) {
         let day = Town.day(now())
         let events = cards.filter { $0.eventDate == day }
-        today = TodayPlaces(events: events, spots: spots)
+        today = TodayPlaces(events: events, spots: spots, asked: wanted)
         let new = events.map(\.id).filter { !asked.contains($0) }
         guard !new.isEmpty, let readSpots else { return }
         asked.formUnion(new)
@@ -123,7 +137,7 @@ final class MapModel: ObservableObject {
                 guard let self else { return }
                 self.spotsFailed = false
                 self.spots.merge(found) { $1 }
-                self.today = TodayPlaces(events: self.today.events, spots: self.spots)
+                self.today = TodayPlaces(events: self.today.events, spots: self.spots, asked: self.wanted)
                 // Warm the bubbles' pictures so each pops in with its photo, not empty glass.
                 POILogoCache.shared.prefetch(self.today.bubbles(now: TodayBubbleClock.now()).compactMap { $0.picture?.url })
             } catch {

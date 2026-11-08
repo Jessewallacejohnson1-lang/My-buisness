@@ -23,7 +23,24 @@ nonisolated struct EventWhen: Hashable {
     /// Johanna Kiln, Oct 16 to 25): a one-day all-day listing gives no hours.
     func isOn(_ now: Date) -> Bool {
         guard start <= now, now < end else { return false }
-        return timed || end > (Town.gregorian.date(byAdding: .day, value: 1, to: start) ?? end)
+        return timed || overDays
+    }
+
+    /// Runs longer than a day: the Johanna Kiln, an exhibition to Dec 15.
+    var overDays: Bool { end > (Town.gregorian.date(byAdding: .day, value: 1, to: start) ?? end) }
+
+    /// Began before today and isn't over: what the map says "Until" for (inside-cards 19).
+    func stillOnFromBefore(_ now: Date) -> Bool { Town.days(from: now, to: start) < 0 && now < end }
+
+    /// Its last day as "Until" says it from `now`: the time when that's today ("9 PM"), the weekday within
+    /// the week ("Sat"), else the date ("Dec 14"). An end at midnight counts as the day before.
+    func until(_ now: Date) -> String {
+        let last = end.addingTimeInterval(-60)
+        return switch Town.days(from: now, to: last) {
+        case 0: Town.clock(end)
+        case 1..<7: Town.format(last, "EEE")
+        default: Town.format(last, "MMMd")
+        }
     }
 
     /// "Today", "Tonight" (from 5 PM) or "Tomorrow"; nil any other day.

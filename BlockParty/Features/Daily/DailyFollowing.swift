@@ -167,21 +167,24 @@ final class FollowingNews {
     /// Numbers each read, so one an account change overtook never lands.
     @ObservationIgnored private var latestRead = 0
     @ObservationIgnored private let read: () async throws -> [TownNews]
+    /// Where each story's hearts go once read (inside-cards 22), so a heart shows right from the first frame.
+    @ObservationIgnored private let actions: RealLifeActions?
 
-    init(read: @escaping () async throws -> [TownNews]) {
+    init(read: @escaping () async throws -> [TownNews], actions: RealLifeActions? = nil) {
         self.read = read
+        self.actions = actions
     }
 
     /// The live read through `supabase`, the session's one client (`AppSession`); under DEBUG
     /// `-daily-samples` nothing, since the samples are the section's own.
-    convenience init(supabase: Supabase) {
+    convenience init(supabase: Supabase, actions: RealLifeActions? = nil) {
         #if DEBUG
         if DailySamples.on {
             self.init(read: { [] })
             return
         }
         #endif
-        self.init(read: { try await CommunityAPI(supabase).getFollowingNews() })
+        self.init(read: { try await CommunityAPI(supabase).getFollowingNews() }, actions: actions)
     }
 
     func refresh() async {
@@ -190,6 +193,7 @@ final class FollowingNews {
         do {
             let new = try await read()
             guard mine == latestRead else { return }
+            actions?.read(news: new)
             items = new
         } catch {
             guard mine == latestRead else { return }

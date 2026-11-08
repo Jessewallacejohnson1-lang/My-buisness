@@ -651,18 +651,25 @@ as $$
   left join public.clubs c on c.id = e.group_id
   left join labels l on l.series = e.series
   union all
-  -- A news item's row: its own columns, nulls and zeros for the rest.
-  select n.id, n.title, null::text, null::text, n.source_name, n.published_at,
+  -- A news item's row: its own columns, nulls and zeros for the rest. Its post's own photo, when the photo step
+  -- kept one (town-feed 53), is its image_url, and its shape rides in poster as {"aspect": w / h}, so the card
+  -- takes the photo's shape before it loads.
+  select n.id, n.title, null::text, np.url, n.source_name, n.published_at,
          null::text, n.leaves_at,
          case when n.matched is not null then 'interest' end, n.matched[1],
-         null::jsonb, 0, false, false,
+         -- Its hearts, every account's, and whether the caller gave one (inside-cards 22), as an Event's card says.
+         null::jsonb, private.news_heart_count(n.id),
+         exists (select 1 from public.news_likes h where h.item_id = n.id and h.user_id = auth.uid()), false,
          -- The place's logo first, as its Search tile and Instagram's avatars show a place; else its
          -- photo (place_picture).
          private.entry_picture(n.place_entry_id),
          n.blurb, null::uuid, false,
-         'news'::text, n.source_url, null::jsonb, null::jsonb, s.spot
+         'news'::text, n.source_url,
+         case when np.url is not null then jsonb_build_object('aspect', np.width::float8 / nullif(np.height, 0)) end,
+         null::jsonb, s.spot
   from news_scored n
   join spots s on s.id = n.id
+  left join public.place_photos np on np.news_id = n.id and np.status = 'live' and np.kind = 'news'
   union all
   -- A post's row (town-feed 29): its words as the title, its Place and photo, its hearts, and who
   -- posted it; nulls and zeros for the rest.

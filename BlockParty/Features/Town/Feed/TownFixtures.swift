@@ -14,6 +14,7 @@
 //
 
 #if DEBUG
+import CoreLocation
 import Foundation
 
 enum TownFixtures {
@@ -150,7 +151,9 @@ enum TownFixtures {
                                 picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
                                 leavesAt: now.addingTimeInterval(7 * 86_400),
                                 published: now.addingTimeInterval(-Double(i * 22 + 2) * 3600), title: s.1,
-                                interest: i == 0 ? "dining" : nil)
+                                interest: i == 0 ? "dining" : nil,
+                                // You hearted the first (inside-cards 22): red on its card and in Liked.
+                                hearted: i == 0, heartCount: i == 0 ? 1 : 0)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
     }
@@ -299,6 +302,18 @@ enum TownFixtures {
         ]
     }
 
+    /// `-town-spots`: where the samples are on the map (inside-cards 19), off the places table: the park concert today,
+    /// the market in two days, the organ recital next week, the trail cleanup at Sauk Centre's trailhead 50 km out, the
+    /// choral concert that's over; the council meeting Online, at no one place; the pancake breakfast with no spot yet.
+    static let spots: [String: EventSpot] = [
+        "e1": .at(CLLocationCoordinate2D(latitude: 45.57007, longitude: -94.32874)),   // Millstream Park
+        "e2": .at(CLLocationCoordinate2D(latitude: 45.57133, longitude: -94.31736)),   // Resurrection Lutheran
+        "e3": .at(CLLocationCoordinate2D(latitude: 45.73690, longitude: -94.95190)),   // Lake Wobegon Trail, Sauk Centre
+        "e4": .at(CLLocationCoordinate2D(latitude: 45.58003, longitude: -94.39229)),   // Saint John's Abbey
+        "e5": .noPlace,
+        "e6": .at(CLLocationCoordinate2D(latitude: 45.56060, longitude: -94.31950)),   // Sacred Heart Chapel
+    ]
+
     // MARK: - Builders
 
     private static func posting(
@@ -376,6 +391,13 @@ enum TownFixtures {
             item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
             item.startTime = townClock("h:mm a", start)
+        }
+        // `-town-spots`: each sample on its own day with its place line, the organ recital next week and the council
+        // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`.
+        if LaunchFlags.has(.townSpots), item.eventDate == nil {
+            item.location = id == "e5" ? "Online" : item.whereLine
+            item.startTime = item.shareTime
+            item.eventDate = townClock("yyyy-MM-dd", now.addingTimeInterval((id == "e4" ? 24 * 7 : hoursUntil) * 3600))
         }
         // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
         // its Join and the club's Group page in Search are one (rsvp-and-groups 07).

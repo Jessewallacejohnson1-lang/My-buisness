@@ -33,6 +33,9 @@ import Foundation
 import MapboxMaps
 
 enum BasemapPalette {
+    /// The style this palette recolours: Mapbox's light one, on the map and the Event page's small map.
+    static let style = StyleURI(rawValue: "mapbox://styles/mapbox/light-v11")!
+
     // MARK: Ground — Uber's map (Jesse, 2026-10-23; sampled off Mobbin, references/uber-map/)
     // One cool grey ground and one darker grey for buildings. The map no longer
     // continues the app's paper; Jesse picked Uber's look over that continuity.
@@ -69,9 +72,9 @@ enum BasemapPalette {
     // MARK: Labels — shared with the app's own ink ramp (not map-only)
     // Call sites use `Hue.inkSecondary.hexString`; light-v11 keeps its white halos.
 
-    /// Apply the shared static palette to light-v11. Call once from each map's
+    /// Apply the shared static palette to light-v11. Call once from each map's (or snapshot's)
     /// style-load callback; individual setters stay best-effort across style updates.
-    static func recolor(_ map: MapboxMap?) {
+    static func recolor(_ map: StyleManager?) {
         guard let map else { return }
         try? map.setLayerProperty(for: "land", property: "background-color", value: land)
 

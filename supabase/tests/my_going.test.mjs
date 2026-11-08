@@ -1,6 +1,6 @@
 // Fixed stories for get_my_going (supabase/migrations/*_my_going.sql), the You tab's read of
-// the caller's Going, and get_my_likes (*_heart_replaces_save.sql), You's Liked list, run in PGlite
-// like the Town feed's. Run: `npm install && npm test` in this folder.
+// the caller's Going, and get_my_likes (*_heart_replaces_save.sql), You's Liked list (its stories in
+// news_heart.test.mjs), run in PGlite like the Town feed's. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase, people } from './fixture.mjs';
@@ -411,7 +411,8 @@ test('Liked sends the same full Event card, saying you hearted it (codebase-heal
   const [row] = await asTheAppReads('likes', day);
   isFullCard(row.card, id, day);
   assert.deepEqual([row.card.heart_count, row.card.hearted], [2, true], "every account's hearts, and yours");
-  assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
+  // The card alone: no Event column copied beside it (ticket 03); `news` is a hearted story's (inside-cards 22).
+  assert.deepEqual([Object.keys(row), row.news], [['card', 'news'], null]);
 });
 
 test("a priced Event's card carries its price as words, for the Event page's line (inside-cards 14)", async () => {
@@ -432,5 +433,5 @@ test('Liked sends a bare Event card with empties, saying you are not Going (code
   const [row] = await asTheAppReads('likes', day);
   assert.deepEqual(Object.keys(row.card).sort(), CARD_KEYS);
   assert.deepEqual(row.card, bareCard(row.card, id, day, false));
-  assert.deepEqual(Object.keys(row), ['card']);
+  assert.deepEqual([Object.keys(row), row.news], [['card', 'news'], null]);
 });

@@ -23,6 +23,10 @@
 //  sit on the bubble's top right, up to two faces and then how many more, never anyone's
 //  location. The faces keep their size as the bubble grows, as the time tag does.
 //
+//  An Event its page asked for, of another day (BP app inside-cards 19): its tag says the day,
+//  "Thu, Nov 19", or "Until Dec 15" while one that began before today is still on, never a
+//  countdown, and it's first to pop in.
+//
 
 import SwiftUI
 import CoreLocation
@@ -79,8 +83,9 @@ enum TodayBubbleRules {
 
     /// A spot's events in the order its bubble and card show them: the ones on now (earliest
     /// start first), then the ones still to start (soonest first), then untimed ones. Ended
-    /// events drop off. The first is the one the bubble shows.
-    static func order(_ events: [FeedCardItem], now: Date) -> [FeedCardItem] {
+    /// events drop off. The first is the one the bubble shows. `first`, the Event an Event page
+    /// asked for (inside-cards 19), leads whatever its day, over or called off.
+    static func order(_ events: [FeedCardItem], now: Date, first: String? = nil) -> [FeedCardItem] {
         func rank(_ p: Phase) -> Int? {
             switch p {
             case .live: 0
@@ -90,9 +95,17 @@ enum TodayBubbleRules {
             }
         }
         return events
-            .compactMap { e in rank(phase(e, now: now)).map { (e, $0) } }
+            .compactMap { e in (e.id == first ? -1 : rank(phase(e, now: now))).map { (e, $0) } }
             .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : starts($0.0) < starts($1.0) }
             .map(\.0)
+    }
+
+    /// The tag under another day's bubble (inside-cards 19): "Tomorrow", "Thu, Nov 19", or "Until Dec 15"
+    /// while one that began before today is still on; never a countdown. nil for today's, which count down.
+    static func dayTag(_ event: FeedCardItem, now: Date) -> String? {
+        guard let when = event.when, Town.days(from: now, to: when.start) != 0 else { return nil }
+        if when.stillOnFromBefore(now) { return "Until \(when.until(now))" }
+        return when.dayWord(now) ?? Town.format(when.start, "EEEMMMd")
     }
 
     /// Everyone Going to any of a spot's events, each once, in the card's order. The Town feed
@@ -218,14 +231,17 @@ struct TodayEventBubble: View {
         // without being clipped by the annotation's frame; only the bead and faces take touches.
         let room = max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach))
         TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
-            let phase = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(tick.date))
+            let now = TodayBubbleClock.now(tick.date)
+            let phase = TodayBubbleRules.phase(bubble.event, now: now)
+            // Another day's Event, its page's ask (inside-cards 19): its day, unless it's on now.
+            let day = phase == .live ? nil : TodayBubbleRules.dayTag(bubble.event, now: now)
             ZStack {
                 ZStack {
                     if phase == .live { LiveBleed(bead: Self.bead, period: Self.breath, still: reduceMotion) }
                     breathing(phase == .live, gel(phase, scale: scale))
                 }
                 .scaleEffect(scale)
-                tag(phase)
+                tag(phase, day: day)
                     .offset(y: Self.bead * scale / 2 + 20)
                 if !friends.isEmpty {
                     BubbleFaces(friends: friends)
@@ -238,7 +254,7 @@ struct TodayEventBubble: View {
             .frame(width: room, height: room)
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.65), value: selected)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(a11yLabel(phase, friends: friends))
+            .accessibilityLabel(a11yLabel(phase, day: day, friends: friends))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
         }
@@ -363,20 +379,24 @@ struct TodayEventBubble: View {
     }
 
     @ViewBuilder
-    private func tag(_ phase: TodayBubbleRules.Phase) -> some View {
-        switch phase {
-        case .live:
-            HStack(spacing: 5) {
-                Circle().fill(Hue.now).frame(width: 7, height: 7)
-                Text("Now")
-            }
-            .modifier(BubbleTag())
-        case .upcoming(let left):
-            Text(TodayBubbleRules.countdown(left))
-                .monospacedDigit()
+    private func tag(_ phase: TodayBubbleRules.Phase, day: String?) -> some View {
+        if let day {
+            Text(day).modifier(BubbleTag())
+        } else {
+            switch phase {
+            case .live:
+                HStack(spacing: 5) {
+                    Circle().fill(Hue.now).frame(width: 7, height: 7)
+                    Text("Now")
+                }
                 .modifier(BubbleTag())
-        case .untimed, .ended:
-            EmptyView()
+            case .upcoming(let left):
+                Text(TodayBubbleRules.countdown(left))
+                    .monospacedDigit()
+                    .modifier(BubbleTag())
+            case .untimed, .ended:
+                EmptyView()
+            }
         }
     }
 
@@ -425,10 +445,11 @@ struct TodayEventBubble: View {
             }
     }
 
-    private func a11yLabel(_ phase: TodayBubbleRules.Phase, friends going: [FeedFriend]) -> String {
+    private func a11yLabel(_ phase: TodayBubbleRules.Phase, day: String?, friends going: [FeedFriend]) -> String {
         let more = bubble.events.count > 1 ? ", and \(bubble.events.count - 1) more here" : ""
         // "here": they may be Going to another of the spot's events than the one just named.
         let friends = RSVPWords.friendsLine(going.map(\.name), bar: false).map { ", \($0) here" } ?? ""
+        if let day { return "\(bubble.event.title), \(day)\(more)\(friends)" }
         switch phase {
         case .live: return "\(bubble.event.title), happening now\(more)\(friends)"
         case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))\(more)\(friends)"
