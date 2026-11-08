@@ -110,6 +110,22 @@ def plain(markup):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", markup or ""))).strip()
 
 
+# Where one sentence ends and the next begins: not after "St." or "Nov." or an initial, only before a capital.
+SENTENCE_END = re.compile(r"(?<=[.!?])(?<!\b[A-Z]\.)(?<!\b(?:St|Mr|Dr|Ms|Mt)\.)\s+(?=[A-Z\"“])")
+
+
+def news_line(text, limit=75):
+    """A News second line from a reader the judge never sees, held to judge.md's 75 characters (BP app
+    inside-cards 12): the whole sentences that fit, else none. Never cut mid-sentence."""
+    line = ""
+    for sentence in SENTENCE_END.split(text or ""):
+        longer = f"{line} {sentence}".strip()
+        if len(longer) > limit:
+            break
+        line = longer
+    return line or None
+
+
 def said(text):
     """The text, or None when it says nothing but a link: the City's feed gives each event's
     page as its description, and an Event page's About is never a bare link (Jesse, 2026-10-19)."""
@@ -552,7 +568,7 @@ def hcms_items(news, events, entry, src, today, town):
             continue  # News older than 7 days leaves the Town feed anyway
         title = plain(field(d, "title"))
         out.append(judged(entry, src, kind="news", title=title, sure=not CRIME.search(title),
-                          blurb=plain(field(d, "description"))[:300] or None, source_url=page, source_uid=x["id"]))
+                          blurb=news_line(plain(field(d, "description"))), source_url=page, source_uid=x["id"]))
     for x in events.get("items") or []:
         d = x["data"]
         at, loc = field(d, "eventdate") or {}, field(d, "location") or {}
@@ -1455,6 +1471,12 @@ def t_county():
     park = got[1]
     assert (park["start"], park["place"], park["area"]) == ("2026-10-14T18:00:00-05:00", "29709 Kipper Road, St Joseph", "town")
     assert got[0]["sure"] is True
+    assert got[0]["blurb"] == "Monday, October 12, is Indigenous Peoples Day.", got[0]["blurb"]  # 75 characters, whole sentences
+    assert news_line("Stearns County will celebrate the opening of its new Veteran Services Office in Melrose.") is None
+    assert news_line("Meet in St. Joseph at the Legion for the annual pancake breakfast on Sunday morning.") is None
+    assert news_line("Ribbon cutting Monday, Nov. 9, at noon. Drinks after.") == "Ribbon cutting Monday, Nov. 9, at noon. Drinks after."
+    assert news_line("Open 8 a.m. to 4:30 p.m. Monday. A full list of observed holidays is on the county's page.") == \
+        "Open 8 a.m. to 4:30 p.m. Monday."
     crime = {"items": [{"id": "x", "data": {"title": {"en": "Someone Indicted for Assault"}, "Date": {"iv": "2026-10-13T05:00:00Z"}}}]}
     assert hcms_items(crime, {}, {"_name": "Stearns County"}, src, TODAY, TOWNS["st-joseph-mn"])[0]["sure"] is False
     older = hcms_items(news, {}, {"_name": "Stearns County"}, src, date(2026, 8, 21), TOWNS["st-joseph-mn"])

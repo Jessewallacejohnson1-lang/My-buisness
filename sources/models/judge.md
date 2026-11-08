@@ -51,8 +51,10 @@ Read these first:
      `blurb` is its Event page's About: 2 to 4 sentences, about 300 to 500 characters, that
      answer "should I go?": what it is, who it is for, what it costs, what to bring or know.
      Only facts the page gives, never a guess or an ad's words; a page that gives only the
-     title and time gets one short line or none. News gets one line (Jesse, 2026-10-23). When one
-     post carries several offers, write one News whose blurb names them all: one post is one News.
+     title and time gets one short line or none. News gets one line (Jesse, 2026-10-23). A News blurb
+     says only what its title doesn't, in at most 75 characters. With nothing to add, leave the blurb out
+     (Jesse, 2026-11-06, BP app inside-cards 12). When one post carries several offers, write one News
+     whose blurb names them all: one post is one News.
 
 ## Event size
 
