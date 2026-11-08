@@ -4026,6 +4026,45 @@ test("News from the places you follow: every live story of theirs, newest first,
   assert.deepEqual(await followingNews('2026-10-08 12:00'), [], 'signed out, nobody follows anything');
 });
 
+test("a News shows its post's own live photo and its shape, in the feed and Following; taken down, the white card again (town-feed 53)", async () => {
+  await reset();
+  await db.exec('delete from public.place_photos');
+  await followPlace(ME);
+  const peony = { source_name: PEONY, place_entry_id: 'white-peony' };
+  await news('Fall arrivals', '2026-10-08 09:00', peony);
+  await news('Layer up', '2026-10-08 08:00', peony);
+  const id = (await db.query("select id from public.board_items where title = 'Fall arrivals'")).rows[0].id;
+  const photo = (status, url = 'https://x/news/arrivals.webp', newsId = id, kind = 'news') => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, news_id, credit, width, height)
+     values ('white-peony', $1, 'https://www.instagram.com/p/x/', $4, $2, $3, $5, 720, 960)`, [url, status, newsId, kind, PEONY]);
+  await photo('live');
+  await assert.rejects(photo('live', 'https://x/news/second.webp'), /place_photos_one_per_news/, 'one live photo per News');
+  await assert.rejects(photo('live', 'https://x/news/loose.webp', null), /place_photos_news_kind/, "a News's photo names its News");
+  await assert.rejects(photo('live', 'https://x/news/scene.webp', id, 'scene'), /place_photos_news_kind/, 'a scene names none');
+  const read = async () => {
+    await signIn(ME);
+    const feed = (await db.query(
+      `select title, image_url, poster from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'), true)
+       where kind = 'news' order by title`)).rows.map((r) => [r.title, r.image_url, r.poster]);
+    const following = (await db.query(
+      `select title, image_url, poster from public.get_following_news(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))
+       order by title`)).rows.map((r) => [r.title, r.image_url, r.poster]);
+    await db.exec('reset role; reset request.jwt.claim.sub');
+    return { feed, following };
+  };
+  const shown = [['Fall arrivals', 'https://x/news/arrivals.webp', { aspect: 0.75 }], ['Layer up', null, null]];
+  assert.deepEqual(await read(), { feed: shown, following: shown }, 'its photo and shape; a News with none sends neither');
+  assert.equal((await db.query("select public.place_picture('white-peony') as p")).rows[0].p, null,
+               "a News's photo is never its place's picture");
+  await db.query("update public.place_photos set status = 'retired' where news_id = $1", [id]);
+  const white = [['Fall arrivals', null, null], ['Layer up', null, null]];
+  assert.deepEqual(await read(), { feed: white, following: white }, 'taken down on request');
+  await db.query('delete from public.board_items where id = $1', [id]);
+  assert.equal((await db.query('select count(*)::int as n from public.place_photos where news_id is not null')).rows[0].n, 0,
+               'a News deleted takes its photo with it');
+  await db.exec('delete from public.place_photos');
+});
+
 test('News from the places you follow: 10 at most, the newest', async () => {
   await reset();
   await followPlace(ME);

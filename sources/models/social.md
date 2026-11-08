@@ -94,7 +94,9 @@ carry on with the rest.
    "Read `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with
    the JSON lines only." Write their lines to `.runs/morning/event_photos.jsonl`, then run
    `python3 sources/scripts/event_photos.py keep`. Each new Event that isn't a game gets the real photo of
-   it a helper picked from its post or its place's other posts, else its own flyer, or none (event-photos 09).
+   it a helper picked from its post or its place's other posts, else its own flyer, or none (event-photos 09);
+   each new News from a post gets the real photo from its own post that draws the eye most, or none (BP app
+   town-feed 53).
 
 **Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
@@ -110,8 +112,8 @@ carry on with the rest.
 
 ## Rules
 
-- Pictures are read for their facts only, except the one a Photos helper picks as an Event's photo:
-  it is saved, credited to its place and taken down on request (Jesse, 2026-10-30; ADR-020). No other
+- Pictures are read for their facts only, except the one a Photos helper picks as an Event's or a News's photo:
+  it is saved, credited to its place and taken down on request (Jesse, 2026-10-30 and 2026-11-08; ADR-020). No other
   picture is shown, uploaded or kept past this check. `.runs/` goes with the copy.
 - Apify's own schedules start every paid run, each task with its own spending cap; the routine
   starts none. A run that failed or is still going is a line in the answer.
