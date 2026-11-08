@@ -16,7 +16,10 @@ Screens here get built in passes, with Jesse directing. A UI request is a step i
 **Two colours define the app: white, and the logo's yellow.**
 
 1. **White is the ground.** `Hue.surface` #FFFFFF for cards, `Hue.paper` #FAFAF7 for
-   the page. The app reads as white; everything else sits on it.
+   the page. The app reads as white; everything else sits on it. Two pages are the exception,
+   each by Jesse's pick: a game's Event page is its teams' colours (2026-11-01) and every other
+   Event page is its picture's own colour, Apple Invites' melt (2026-11-08, BP app inside-cards
+   17, `EventLook`). A business page in Search stays white.
 2. **Yellow is the accent, and it is the logo's yellow — `#FCE804`.** Sampled from the
    master (`docs/brand/source-logo-1254.png`), the modal value across the field. It
    lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`, and **every yellow in the
