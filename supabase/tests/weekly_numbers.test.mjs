@@ -23,25 +23,29 @@ async function numbers(week, admin = true) {
   return rows;
 }
 
-// The week of Monday Oct 19, 2026. Anna sees three Events, goes to one after seeing it and
-// saves one she saw only after saving it; Ben sees two, sees the fair again, says Not
-// interested to the ride and shares the fair; Cal opens the app but not the feed and goes to
-// the quiz; Dee opens the app and does nothing. A view and a Going the week after don't count.
+// The week of Monday Oct 19, 2026. Anna sees three Events, goes to one after seeing it, hearts
+// the quiz after seeing it and saves the ride from an older build after seeing it (neither is acting
+// on it now: BP app inside-cards 16); Ben sees two, sees the fair again, says Not interested to the
+// ride, shares the fair and hearts it; Cal opens the app but not the feed and goes to the quiz; Dee
+// opens the app and does nothing. A view, a Going and a heart the week after don't count.
 await act(ANNA, FAIR, 'view', '2026-10-19 09:00');
 await act(ANNA, QUIZ, 'view', '2026-10-19 09:00');
 await act(ANNA, RIDE, 'view', '2026-10-20 18:00');
 await db.query(`insert into public.event_rsvps (event_id, user_id, created_at) values ($1, $2, $3)`, [FAIR, ANNA, at('2026-10-19 09:05')]);
-await db.query(`insert into public.event_saves (event_id, user_id, created_at) values ($1, $2, $3)`, [RIDE, ANNA, at('2026-10-20 17:00')]);
+await db.query(`insert into public.event_likes (event_id, user_id, created_at) values ($1, $2, $3)`, [QUIZ, ANNA, at('2026-10-19 09:10')]);
+await db.query(`insert into public.event_saves (event_id, user_id, created_at) values ($1, $2, $3)`, [RIDE, ANNA, at('2026-10-20 18:30')]);
 await act(BEN, FAIR, 'view', '2026-10-21 12:00');
 await act(BEN, FAIR, 'view', '2026-10-22 12:00');
 await act(BEN, RIDE, 'view', '2026-10-21 12:00');
 await act(BEN, RIDE, 'not_interested', '2026-10-21 12:01');
 await act(BEN, FAIR, 'share', '2026-10-22 12:05');
+await db.query(`insert into public.event_likes (event_id, user_id, created_at) values ($1, $2, $3)`, [FAIR, BEN, at('2026-10-22 12:06')]);
 for (const [who, day] of [[CAL, '2026-10-21'], [DEE, '2026-10-20'], [DEE, '2026-10-26']])
   await db.query(`insert into public.app_opens (user_id, day) values ($1, $2)`, [who, day]);
 await db.query(`insert into public.event_rsvps (event_id, user_id, created_at) values ($1, $2, $3)`, [QUIZ, CAL, at('2026-10-21 08:00')]);
 await act(BEN, QUIZ, 'view', '2026-10-26 10:00');
 await db.query(`insert into public.event_rsvps (event_id, user_id, created_at) values ($1, $2, $3)`, [QUIZ, BEN, at('2026-10-26 10:05')]);
+await db.query(`insert into public.event_likes (event_id, user_id, created_at) values ($1, $2, $3)`, [QUIZ, BEN, at('2026-10-26 10:06')]);
 
 test('a fixed week gives its three numbers', async () => {
   const [w] = await numbers('2026-10-21');
@@ -49,7 +53,8 @@ test('a fixed week gives its three numbers', async () => {
     week_start: '2026-10-19',
     // Anna's three and Ben's two; Ben's second fair view is the same Event shown.
     shown: 5,
-    // Anna's fair and Ben's shared fair: Anna's ride was saved before she saw it in the feed.
+    // Anna's fair and Ben's shared fair: Anna's heart on the quiz and her old build's save on the ride count
+    // for nothing here.
     acted_on: 2,
     action_rate: '0.4000',
     views: 6,
@@ -61,13 +66,15 @@ test('a fixed week gives its three numbers', async () => {
     reach: '0.7500',
     shares: 1,
     viewers: 2,
+    // Anna's on the quiz and Ben's on the fair: their own line.
+    hearts: 2,
   });
 });
 
 test("the next week counts only its own: Ben's Going after his view", async () => {
   const [w] = await numbers('2026-10-26');
   // Ben's view and Going, and Dee's open.
-  assert.deepEqual([w.shown, w.acted_on, w.views, w.openers, w.actors], [1, 1, 1, 2, 1]);
+  assert.deepEqual([w.shown, w.acted_on, w.views, w.openers, w.actors, w.hearts], [1, 1, 1, 2, 1, 1]);
 });
 
 test('an empty week has no rates, not zero divided by zero', async () => {

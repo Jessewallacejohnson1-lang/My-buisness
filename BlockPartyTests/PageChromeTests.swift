@@ -14,7 +14,7 @@ final class PageChromeTests: XCTestCase {
     private let width: CGFloat = 402
 
     func testTheBarIs44TallAndItsBackIs44Square() {
-        XCTAssertEqual(fit(PageBar(title: "Saved") {}), CGSize(width: width, height: 44))
+        XCTAssertEqual(fit(PageBar(title: "Liked") {}), CGSize(width: width, height: 44))
         XCTAssertEqual(fit(BackButton {}), CGSize(width: 44, height: 44))
     }
 

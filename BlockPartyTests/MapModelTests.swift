@@ -37,7 +37,7 @@ final class MapModelTests: XCTestCase {
 
     private func card(_ id: String, on day: String = "2026-11-07") -> FeedCardItem {
         var card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
         card.eventDate = day
         return card
     }

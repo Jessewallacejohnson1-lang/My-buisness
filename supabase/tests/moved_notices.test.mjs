@@ -122,6 +122,23 @@ test('Notifications lists what you follow and are Going to, and nothing else', a
   void quiet;
 });
 
+test('a Heart hears when its Event is called off, never when it moves; nobody else hears (inside-cards 16)', async () => {
+  await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps;
+                 delete from public.event_likes`);
+  const off = await game({ title: 'Music in Millstream Park', sport: null, team_ids: null });
+  const shifted = await game({ title: 'Fall fair', sport: null, team_ids: null });
+  const over = await game({ title: 'Book sale', sport: null, team_ids: null, event_date: soon(-2) });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $4), ($2, $4), ($3, $4)`,
+    [off, shifted, over, ME]);
+  await edit(off, `cancelled_at = now()`);
+  await edit(shifted, `start_time = '9 PM'`);
+  await edit(over, `cancelled_at = now()`);
+  const rows = await mine();
+  assert.deepEqual(rows.map((r) => [r.title, r.cancelled, r.hearted, r.going]),
+    [['Music in Millstream Park', true, true, false]], 'not the move, not one already over');
+  assert.deepEqual(await mine(OTHER), [], 'without a heart, nothing');
+});
+
 test('a whole school followed covers its activities, named with the sport', async () => {
   await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps`);
   const apollo = (await db.query(`select uuid from public.teams where id = 'apollo'`)).rows[0].uuid;
@@ -200,7 +217,8 @@ test('the bell sends a bare Event card with empties, never a missing key', async
   assert.deepEqual(card, {
     id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-    going_count: 2, going: true, cancelled: true, place_picture: null, host_picture: null, description: null,
+    going_count: 2, going: true, heart_count: 0, hearted: false, cancelled: true, place_picture: null,
+    host_picture: null, description: null,
     what: null, source_url: null, game: null, friends_going: [{ name: 'Anna', photo: null }], live_kind: false, friends_going_at: card.friends_going_at, recurrence: null,
   });
 });

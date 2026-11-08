@@ -19,8 +19,6 @@ final class AppSessionTests: XCTestCase {
     private lazy var phoneName: String = {
         let name = "AppSessionTests.\(UUID().uuidString)"
         addTeardownBlock {
-            UserDefaults.standard.removeObject(forKey: name)
-            UserDefaults.standard.removeObject(forKey: name + ".movedUp")
             UserDefaults(suiteName: name)?.removePersistentDomain(forName: name)
         }
         return name
@@ -42,8 +40,7 @@ final class AppSessionTests: XCTestCase {
     /// The shell's models, each reading for whoever is signed in: account a is Going to e1, b isn't.
     private func session(actions: RealLifeActions? = nil) -> AppSession {
         let actions = actions ?? RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                                 setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                                                 knownEvents: { _ in [] })
+                                                 setGoing: { _, _ in }, setHeart: { _, _ in })
         return AppSession(
             actions: actions,
             townFeed: TownFeed(read: {
@@ -57,9 +54,9 @@ final class AppSessionTests: XCTestCase {
                 let who = try await self.read("get_my_going")
                 return [self.event("going-\(who)")]
             }, groups: { _ = try await self.read("get_groups"); return [] }),
-            saves: YouModel(read: { _, _ in
-                let who = try await self.read("get_my_saves")
-                return [self.event("saved-\(who)")]
+            likes: YouModel(read: { _, _ in
+                let who = try await self.read("get_my_likes")
+                return [self.event("liked-\(who)")]
             }),
             eventOfTheDay: EventOfTheDay(read: { _ = try await self.read("get_event_of_the_day"); return [] }),
             dayPicks: DailyDayPicks(read: { _ in _ = try await self.read("get_event_of_the_day"); return [] }),
@@ -72,7 +69,7 @@ final class AppSessionTests: XCTestCase {
             // Never read here (a switch only clears it; the root view reads), but on the session's
             // client like the rest.
             profile: ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone),
-            hello: HelloInbox(keep: phone), saved: SavedStore(key: phoneName),
+            hello: HelloInbox(keep: phone),
             supabase: Supabase(auth: auth, send: server.send), phone: phone)
     }
 
@@ -89,18 +86,19 @@ final class AppSessionTests: XCTestCase {
         signIn("a")
         let session = session()
         await session.accountChanged(from: nil, to: "a", signedIn: true).value
-        // Account a's day: Going to e1, a Save tapped, a card hidden, a view waiting to go up,
-        // the You tab, the Saved list, the bell, the friends dot and the hello pill's look.
-        await session.saves.refresh()
+        // Account a's day: Going to e1, a Heart tapped, a card hidden, a view waiting to go up,
+        // the You tab, the Liked list, the bell, the friends dot and the hello pill's look.
+        await session.likes.refresh()
         let card = try XCTUnwrap(session.townFeed.cards.first)
         XCTAssertTrue(session.actions.going(card).isGoing)
-        session.actions.toggleSave(card)
-        XCTAssertTrue(session.actions.saved(card))
+        session.actions.toggleHeart(card)
+        XCTAssertTrue(session.actions.heart(card).isHearted)
+        XCTAssertEqual(session.actions.likedTapped.keys.sorted(), [card.id])
         await session.townFeed.hides.hide(id: "e2", host: "Library", mute: false)
         session.townFeed.views.opened(card.id)
         phone.set(["e1"], forKey: HelloInbox.seenKey)
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
-        XCTAssertEqual(session.saves.going?.map(\.id), ["saved-a"])
+        XCTAssertEqual(session.likes.going?.map(\.id), ["liked-a"])
         XCTAssertNotNil(session.you.groups)
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
@@ -115,10 +113,11 @@ final class AppSessionTests: XCTestCase {
 
         // In the same turn, before anything is read for b, every model has let a go.
         XCTAssertEqual(server.requests.count, sent, "nothing is read for b before every model lets a go")
-        XCTAssertFalse(session.actions.saved(card), "a's Save")
+        XCTAssertFalse(session.actions.heart(card).isHearted, "a's Heart")
+        XCTAssertTrue(session.actions.likedTapped.isEmpty, "a's Hearts this session")
         XCTAssertNil(session.you.going, "a's You tab")
         XCTAssertNil(session.you.groups, "a's groups")
-        XCTAssertNil(session.saves.going, "a's Saved list")
+        XCTAssertNil(session.likes.going, "a's Liked list")
         XCTAssertTrue(session.eventOfTheDay.needsRead(now: Date()), "a's Event of the day reads again")
         XCTAssertTrue(session.followingNews.items.isEmpty, "a's followed places' News")
         XCTAssertNil(session.notices.list, "a's bell")
@@ -194,12 +193,12 @@ final class AppSessionTests: XCTestCase {
         let session = session()
         await session.accountChanged(from: nil, to: "a", signedIn: true).value
         let card = try XCTUnwrap(session.townFeed.cards.first)
-        session.actions.toggleSave(card)
+        session.actions.toggleHeart(card)
 
         let sent = server.requests.count
         await session.accountChanged(from: "a", to: "a", signedIn: true).value
 
-        XCTAssertTrue(session.actions.saved(card))
+        XCTAssertTrue(session.actions.heart(card).isHearted)
         XCTAssertEqual(session.you.going?.map(\.id), ["going-a"])
         XCTAssertEqual(functions(from: sent), ["friends_dot", "get_chats"])
     }
@@ -207,16 +206,14 @@ final class AppSessionTests: XCTestCase {
     /// The shell coming up runs each launch job once, side by side, and they all stop when it goes.
     func testLaunchRunsEachJobOnceAndStopsWithTheShell() async throws {
         signIn("a")
-        // A save from before saves moved to the server, so moving them up asks which are Events.
-        UserDefaults.standard.set([UUID().uuidString], forKey: phoneName)
         let client = Supabase(auth: auth, send: server.send)
         let session = AppSession(profile: ProfileModel(supabase: client, phone: phone), supabase: client,
-                                 phone: phone, saved: SavedStore(key: phoneName))
+                                 phone: phone)
         addTeardownBlock { TownFeedCache.clear() }
         session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
-        let jobs = ["places", "place_photos", "place_names", "get_groups", "friends_dot", "club_events", "get_my_changes"]
+        let jobs = ["places", "place_photos", "place_names", "get_groups", "friends_dot", "get_my_changes"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")
@@ -247,9 +244,8 @@ final class AppSessionTests: XCTestCase {
         var written: [FollowTarget] = []
         let actions = RealLifeActions(signedIn: true, needsAccount: true, realAccount: { !self.auth.isAnonymous },
                                       hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                                      setFollow: { target, _ in written.append(target) },
-                                      knownEvents: { _ in [] })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setFollow: { target, _ in written.append(target) })
         let session = session(actions: actions)
 
         // At launch, and when the quiet account comes in: it can't take them.
@@ -286,9 +282,8 @@ final class AppSessionTests: XCTestCase {
         signIn("a")
         var written: [FollowTarget] = []
         let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                                      setFollow: { target, _ in written.append(target) },
-                                      knownEvents: { _ in [] })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setFollow: { target, _ in written.append(target) })
         let session = session(actions: actions)
 
         let launch = Task { await session.launched() }
@@ -304,20 +299,17 @@ final class AppSessionTests: XCTestCase {
     /// session to the live network or the last account's token.
     func testEveryModelReadsThroughTheSessionsClient() async {
         signIn("a")
-        // A save from before saves moved to the server, so the switch asks which are Events.
-        UserDefaults.standard.set([UUID().uuidString], forKey: phoneName)
-        let saved = SavedStore(key: phoneName)
         let client = Supabase(auth: auth, send: server.send)
         let session = AppSession(profile: ProfileModel(supabase: client, phone: phone), supabase: client,
-                                 phone: phone, saved: saved)
+                                 phone: phone)
         addTeardownBlock { TownFeedCache.clear() }
         // Search has read its groups, so it reads them again for the next account.
         session.searchModel.show([TownGroup]())
 
         signIn("b")
         await session.accountChanged(from: "a", to: "b", signedIn: true).value
-        // The reads a switch doesn't start: the Saved list, a day in Daily's week, a hide.
-        await session.saves.refresh()
+        // The reads a switch doesn't start: the Liked list, a day in Daily's week, a hide.
+        await session.likes.refresh()
         await session.dayPicks.refresh(DailyWeek.days(from: Date())[1])
         // A real Event's id: a sample's sends nothing.
         await session.townFeed.hides.hide(id: UUID().uuidString, host: "Library", mute: false)
@@ -325,7 +317,7 @@ final class AppSessionTests: XCTestCase {
         await session.profile.read()
 
         let reached = Set(functions(from: 0))
-        let every: Set = ["get_town_feed", "club_events", "get_groups", "get_my_going", "get_my_saves",
+        let every: Set = ["get_town_feed", "get_groups", "get_my_going", "get_my_likes",
                           "get_event_of_the_day", "get_my_changes", "friends_dot", "town_profiles",
                           "set_not_interested"]
         XCTAssertTrue(every.isSubset(of: reached), "never reached the session's client: \(every.subtracting(reached))")

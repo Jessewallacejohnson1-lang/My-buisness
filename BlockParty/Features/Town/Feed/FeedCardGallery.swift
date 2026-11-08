@@ -62,7 +62,6 @@ struct FeedCardGallery: View {
                 goingAvatars: [memorialPark, localBlend, farmersMarket],
                 likeCount: 12,
                 isLiked: false,
-                isSaved: false,
                 isJoined: false
             ),
             FeedCardItem(
@@ -78,7 +77,6 @@ struct FeedCardGallery: View {
                 goingAvatars: [riversBend],
                 likeCount: 5,
                 isLiked: false,
-                isSaved: true,
                 isJoined: false
             ),
             FeedCardItem(
@@ -94,7 +92,6 @@ struct FeedCardGallery: View {
                 goingAvatars: [localBlend],
                 likeCount: 0,
                 isLiked: false,
-                isSaved: false,
                 isJoined: false
             ),
             FeedCardItem(
@@ -108,7 +105,6 @@ struct FeedCardGallery: View {
                 goingAvatars: [wobegonTrail, memorialPark],
                 likeCount: 8,
                 isLiked: false,
-                isSaved: false,
                 isJoined: true
             ),
             FeedCardItem(
@@ -122,7 +118,6 @@ struct FeedCardGallery: View {
                 goingAvatars: [],
                 likeCount: 0,
                 isLiked: false,
-                isSaved: false,
                 isJoined: false
             )
         ]

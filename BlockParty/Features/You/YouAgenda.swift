@@ -142,7 +142,7 @@ private struct AgendaHeight: ViewModifier {
     }
 }
 
-/// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton
+/// What an Agenda shows, on the You page and in You's Liked (ticket 04, inside-cards 16): two skeleton
 /// cards while the first read is out, the retry when it failed, one line when there's
 /// nothing, else the cards.
 struct AgendaList: View {
@@ -154,7 +154,7 @@ struct AgendaList: View {
     let loading: String
     let now: Date
     var withDay = false
-    /// The friends Going on each card: the You Agenda's, not Saved's (ticket 07).
+    /// The friends Going on each card: the You Agenda's, not Liked's (ticket 07).
     var faces = false
     /// An empty today's next plan, under the line with how far off it is; a tap goes to its
     /// day through `pick` (You, ticket 11).

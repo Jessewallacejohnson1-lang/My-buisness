@@ -139,25 +139,25 @@ nonisolated enum Hue {
     /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
     /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
     ///
-    /// Accents are small by rule: the Town bar's map disc and every saved bookmark's
-    /// fill today, and whatever else Jesse scopes in later. The app's ground stays
+    /// Accents are small by rule: the Town bar's map disc today, and whatever else Jesse
+    /// scopes in later. The app's ground stays
     /// white/paper, except the top of the Daily page (Jesse, 2026-10-01).
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The brand yellow at FULL strength, solid. Four uses: the Town bar's map disc
-    /// (2026-09-24), the fill of every saved bookmark, `BookmarkGlyph` (Jesse,
-    /// 2026-09-26/27), the yellow ground at the top of the Daily page (Jesse,
+    /// The brand yellow at FULL strength, solid. Three uses: the Town bar's map disc
+    /// (2026-09-24), the yellow ground at the top of the Daily page (Jesse,
     /// 2026-10-01), and the date on the Town's Event of the day poster, as DICE prints
-    /// its own (Jesse, 2026-10-19, BP app event-card 03). The selected tab-bar icon was
+    /// its own (Jesse, 2026-10-19, BP app event-card 03). It filled every saved bookmark
+    /// from 2026-09-26 until the heart replaced Save (BP app inside-cards 16). The selected tab-bar icon was
     /// yellow from 2026-09-25 until the Instagram bar made it ink (Jesse, 2026-09-27). It
     /// was the tab bar's Create disc until Create was removed on 2026-09-24, which is why
     /// it is a disc token rather than a map one. The map disc used to be glass tinted with the yellow at 68%
     /// (`mapWash`, deleted 2026-09-24): a tint is not the brand yellow, and it went
     /// mustard over photos.
     ///
-    /// DESIGN.md's "accents are small by rule" still holds: the map disc, the saved
-    /// bookmark, Daily's top and the poster's date are the four, each scoped in by Jesse.
-    /// A fifth is his call, not an agent's. Onboarding is the fifth (Jesse, 2026-10-24): its
+    /// DESIGN.md's "accents are small by rule" still holds: the map disc, Daily's top and
+    /// the poster's date are the three, each scoped in by Jesse. Another is his call, not an
+    /// agent's. Onboarding is the fourth (Jesse, 2026-10-24): its
     /// progress bar fills with it. Its screens sat on a faint wash of it until 2026-11-02; they
     /// are white now (`OnboardingBackdrop`).
     static let brandDisc     = Color(hex: brandYellowHex)

@@ -33,19 +33,4 @@ struct SocialAPI {
         try await db.rest("event_likes", method: "DELETE", [("event_id", "eq.\(id)"), ("user_id", "eq.\(uid)")])
     }
 
-    // MARK: - Saves
-
-    func saveEvent(_ id: String) async throws {
-        let uid = try db.userID
-        // ignore-duplicates: a save is presence-only and event_saves has no UPDATE
-        // policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on re-save.
-        try await db.rest("event_saves", method: "POST", [("on_conflict", "event_id,user_id")],
-                          body: ["event_id": id, "user_id": uid],
-                          prefer: "resolution=ignore-duplicates,return=minimal")
-    }
-
-    func unsaveEvent(_ id: String) async throws {
-        let uid = try db.userID
-        try await db.rest("event_saves", method: "DELETE", [("event_id", "eq.\(id)"), ("user_id", "eq.\(uid)")])
-    }
 }

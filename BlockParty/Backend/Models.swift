@@ -117,8 +117,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The viewer's RSVP state. Defaulted so activities and profile callers that
     /// only need the event summary remain source-compatible.
     var rsvpd: Bool = false
-    /// The viewer's save. Only Profile's Saved read (`get_my_saves`) sets it.
-    var saved: Bool = false
+    /// Every account's hearts, and whether the viewer gave one: the Event card's (inside-cards 16), so a heart
+    /// shows the same from every door. A heart is a save: You's Liked lists them.
+    var heartCount: Int = 0
+    var hearted: Bool = false
     /// The organizing club, when this event belongs to one.
     var clubName: String? = nil
     /// The event category, with legacy/null rows falling back to the neutral icon.
@@ -242,9 +244,9 @@ nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
 
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event (its card, which says how
 /// it repeats), when it leaves the Town feed, why it's there (the recipe's top reason and the one name it
-/// needs), for the admin the points behind its place, its hearts (everyone's, and
-/// whether you hearted it) and whether you saved it. Rows kept from before the recipe
-/// have no reason, and from before hearts or saves, none of those.
+/// needs), for the admin the points behind its place, and its hearts (everyone's, and
+/// whether you hearted it), which its card carries too: a feed kept from before the card had them
+/// still shows them. Rows kept from before the recipe have no reason, and from before hearts, none.
 nonisolated struct TownFeedRow: Hashable {
     let event: UpcomingEvent
     let leavesAt: Date
@@ -252,7 +254,6 @@ nonisolated struct TownFeedRow: Hashable {
     var reasonName: String? = nil
     var heartCount = 0
     var hearted = false
-    var saved = false
     /// The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
     var groupID: String? = nil
     var inGroup = false

@@ -61,25 +61,25 @@ final class YouModel {
         }, groups: groups)
     }
 
-    /// Profile's Saved list (ticket 04), kept the same way: `get_my_saves` from this week's
-    /// Sunday on (`to` is unused; saves run as far ahead as they go), and `going` holds the
-    /// saves. The page leaves out what's over (`YouCalendar.saved`). Under DEBUG
-    /// `-town-samples` the You samples come back saved, and `-town-offline` fails.
-    static func saves(supabase: Supabase) -> YouModel {
+    /// You's Liked list (inside-cards 16, Saved's before it), kept the same way: `get_my_likes` from this
+    /// week's Sunday on (`to` is unused; hearts run as far ahead as they go), and `going` holds what you
+    /// hearted. The page leaves out what's over or called off (`YouCalendar.liked`). Under DEBUG
+    /// `-town-samples` the You samples come back hearted, and `-town-offline` fails.
+    static func likes(supabase: Supabase) -> YouModel {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
             return YouModel(read: { _, _ in throw URLError(.notConnectedToInternet) })
         case .samples:
             return YouModel(read: { _, _ in
-                YouCalendar.samples(now: Date()).map { var event = $0; event.saved = true; return event }
+                YouCalendar.samples(now: Date()).map { var event = $0; event.hearted = true; event.heartCount = 1; return event }
             })
         case .live:
             break
         }
         #endif
         return YouModel(read: { from, _ in
-            try await CommunityAPI(supabase).getMySaves(from: from)
+            try await CommunityAPI(supabase).getMyLikes(from: from)
         })
     }
 
@@ -194,13 +194,13 @@ enum YouCalendar {
             .sorted { order($0) < order($1) }
     }
 
-    /// Profile's Saved list (ticket 04), the same way: the read's and the Events saved this
-    /// session, each once, only those still saved, not called off and not over by `now`, in the
+    /// You's Liked list (inside-cards 16), the same way: the read's and the Events hearted this
+    /// session, each once, only those still hearted, not called off and not over by `now`, in the
     /// Calendar's order.
-    static func saved(read: [DailyEvent], tapped: [FeedCardItem], isSaved: (FeedCardItem) -> Bool,
+    static func liked(read: [DailyEvent], tapped: [FeedCardItem], isLiked: (FeedCardItem) -> Bool,
                       now: Date) -> [DailyEvent] {
         merged(read, tapped)
-            .filter { isSaved($0.item) && !$0.item.cancelled && $0.ends > now }
+            .filter { isLiked($0.item) && !$0.item.cancelled && $0.ends > now }
             .sorted { order($0) < order($1) }
     }
 

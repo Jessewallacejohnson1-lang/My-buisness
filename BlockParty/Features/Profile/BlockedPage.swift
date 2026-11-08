@@ -3,7 +3,7 @@
 //  Block Party — Profile's Blocked list (BP app docs/plans/friends, ticket 04): the people you
 //  blocked, newest first, each with Unblock. Unblocking takes them off the list at once and
 //  gives back only being findable: no friendship, no request. Pushed from Profile's Blocked
-//  row inside the sheet, under Saved's top (a back chevron, the title in the middle).
+//  row inside the sheet, under Liked's top (a back chevron, the title in the middle).
 //
 //  Reference: Instagram's Blocked accounts (BP app references/unfriend-block/ig-blocked-1.jpg),
 //  with the Friends page's 60pt row and its grey 36pt button. Mock Jesse said yes to on

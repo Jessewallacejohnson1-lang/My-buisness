@@ -30,19 +30,18 @@ tapped, and nothing else — never a border, never a background, never an error 
 A heart that stays ink reads as a shape; a heart that turns red reads as something you
 did, which is the control's whole job.
 
-**Accents are small by rule.** The yellow marks exactly two things. The Town bar's map
+**Accents are small by rule.** The yellow marks the Town bar's map
 disc, a 50pt circle in `Hue.brandDisc` — the brand yellow at FULL strength, solid, with
 no glass and no tint (2026-09-24). The tab bar has none: it copies Instagram's, every
 icon ink and the selected one filled (Jesse, 2026-09-27; it was yellow from
-2026-09-25). And every saved
-bookmark, filled `brandDisc` inside its ink outline, wherever it appears: the feed cards,
-the event page, the map's pin sheet and pin badge, and `SaveBookmarkButton`, all drawn by
-one `BookmarkGlyph` (Jesse, 2026-09-26 and 2026-09-27). The tab bar's Create disc that
-also wore it was removed on 2026-09-24, when posting was paused.
+2026-09-25). Every saved bookmark wore it from 2026-09-26 until the heart replaced Save
+(BP app inside-cards 16, 2026-11-07): there is no bookmark now, and a heart once yours is
+`Hue.heart`. The tab bar's Create disc that also wore it was removed on 2026-09-24, when
+posting was paused.
 
 It is not a background wash, not body copy, not a card, not a category colour. The map
 disc was the one; the tab icon the second and the saved bookmark the third, each scoped in
-by Jesse. More yellow is Jesse's call to scope, not an agent's to spread.
+by Jesse (the tab icon and the bookmark have since gone). More yellow is Jesse's call to scope, not an agent's to spread.
 
 **The one yellow ground: the top of Daily** (Jesse, 2026-10-01). The Daily page is
 `brandDisc` from under the clock down to just under the Spotlight's business line, so the
@@ -81,9 +80,9 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
-| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc and every saved bookmark's fill — the same yellow, solid, scoped to those two |
+| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc, Daily's top and the poster's date — the same yellow, solid, each scoped in by Jesse |
 | `Hue.onBrandDisc` | `#111111` | Ink ON the map disc, pinned to the light ramp (the disc is a fixed canvas) |
-| `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
+| `Hue.heart` | `#FF3040` | A heart once yours, which is a save too (BP app inside-cards 16), and nothing else. State, not chrome |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
 > `Hue.canvas` meant "page background". `Hue.paper` **is** the page background now, and

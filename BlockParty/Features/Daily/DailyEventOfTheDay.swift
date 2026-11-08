@@ -24,7 +24,7 @@ struct DailyEvent: Identifiable {
 
     /// Its square's photo: the Town card's pick (`FeedCardItem.image`, its own photo first, else
     /// its place's), so an Event whose only photo is its place's never shows the grey square on
-    /// the Agenda or in Saved. nil for a logo and for none.
+    /// the Agenda or in Liked. nil for a logo and for none.
     var photo: URL? { item.image.url }
 
     /// The card's time: "Now" while a real happening is on, as the Town card, else when
@@ -118,7 +118,7 @@ struct DailyEvent: Identifiable {
             id: id, title: title, dateChip: "TODAY", metaLine: place,
             image: flyer.map { .placePhoto($0, credit: nil) } ?? url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
-            likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+            likeCount: 0, isLiked: false, isJoined: false,
             eventDate: Town.day(starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )

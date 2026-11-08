@@ -482,7 +482,7 @@ final class TownFeedEventsTests: XCTestCase {
         func card(_ title: String, what: String) -> FeedCardItem {
             var item = FeedCardItem(id: "c", title: title, dateChip: "", metaLine: "", image: .fallback,
                                     recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
-                                    isLiked: false, isSaved: false, isJoined: false)
+                                    isLiked: false, isJoined: false)
             item.what = what
             return item
         }
@@ -524,7 +524,7 @@ final class TownFeedEventsTests: XCTestCase {
                    night: String? = nil, game isGame: Bool = false) throws -> [String] {
             var item = FeedCardItem(id: "c", title: title, dateChip: "", metaLine: "", image: .fallback,
                                     recurrence: "Every Sunday", goingCount: 0, goingAvatars: [], likeCount: 0,
-                                    isLiked: false, isSaved: false, isJoined: false)
+                                    isLiked: false, isJoined: false)
             item.what = what
             item.location = location
             item.hostName = host
@@ -557,7 +557,7 @@ final class TownFeedEventsTests: XCTestCase {
                        "a calendar isn't somewhere you can go")
         var poster = FeedCardItem(id: "c", title: "Cathedral Evening Open House", dateChip: "", metaLine: "", image: .fallback,
                                   recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
-                                  isLiked: false, isSaved: false, isJoined: false)
+                                  isLiked: false, isJoined: false)
         poster.location = "Cathedral High School, St. Cloud"
         XCTAssertEqual(poster.shortPlaces, ["Cathedral High School, St. Cloud", "Cathedral High School"])
         poster.location = nil
@@ -1403,8 +1403,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// `RealLifeActions`, so an event page pushed before a read shows the read's count.
     func testEveryListTellsRealLifeActions() async {
         let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in },
-                                      setSave: { _, _ in }, knownEvents: { _ in [] })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in })
         var going = 3
         let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
                             kept: { [TownFeed.entry(self.row("a", going: 1))] },
@@ -1418,8 +1417,7 @@ final class TownFeedEventsTests: XCTestCase {
 
         // Offline at launch: the kept list is all there is, and it sets the base too.
         let offlineActions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                             setGoing: { _, _ in }, setHeart: { _, _ in },
-                                      setSave: { _, _ in }, knownEvents: { _ in [] })
+                                             setGoing: { _, _ in }, setHeart: { _, _ in })
         let offline = TownFeed(read: { throw Offline() },
                                kept: { [TownFeed.entry(self.row("a", going: 1))] },
                                actions: offlineActions)

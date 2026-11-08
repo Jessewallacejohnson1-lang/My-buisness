@@ -8,7 +8,7 @@ import XCTest
 final class TodayBubblesTests: XCTestCase {
     private func ev(_ id: String, _ start: String?, endAt: Date? = nil) -> FeedCardItem {
         var card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
         card.eventDate = "2026-10-25"
         card.startTime = start
         card.endAt = endAt

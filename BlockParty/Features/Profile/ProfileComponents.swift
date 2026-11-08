@@ -72,7 +72,7 @@ struct FlowLayout: Layout {
 // MARK: - List rows + groups
 
 /// One tappable settings/activity row, styled to sit inside a `GlassGroup`. Its icon is an
-/// SF Symbol's name, or a view the row inks and sizes (Saved's `BookmarkGlyph`).
+/// SF Symbol's name, or a view the row inks (Liked's heart, `FeedActionGlyphView`).
 struct ProfileRow<Icon: View>: View {
     let icon: Icon
     let title: String
@@ -98,7 +98,7 @@ struct ProfileRow<Icon: View>: View {
                 .font(.sansSemibold(16))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 26)
-                // The title says it; VoiceOver read the symbols' names first ("Bookmark, Bookmark, Saved").
+                // The title says it; VoiceOver read the symbols' names first ("Bookmark, Bookmark, Saved" once).
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

@@ -1,6 +1,6 @@
 //
 //  EventCardTests.swift
-//  The Event card (BP app codebase-health-2, tickets 02 and 03): the Town feed, Daily's Event of the day, Saved
+//  The Event card (BP app codebase-health-2, tickets 02 and 03): the Town feed, Daily's Event of the day, Liked
 //  and the bell each send it alone, beside only their own, and read it through the one Event decoder, so an
 //  Event shows its found link, host picture and score from every tab. The Going read's card is
 //  `YouCalendarTests.testTheGoingReadsEventCardDecodesFullAndBare`; what each read sends is supabase/tests/
@@ -18,7 +18,8 @@ final class EventCardTests: XCTestCase {
     {"id":"e1","title":"Saint Benedict Volleyball vs Sartell","event_date":"2026-11-05","start_time":"7 PM",
      "location":"Clemens Gym","image_url":"https://x/flyer.jpg","category":"sports",
      "club_name":"Bennie Volleyball Boosters","source_name":"CSB Athletics","end_at":null,"all_day":false,
-     "created_at":"2026-10-01T12:00:00+00:00","going_count":2,"going":true,"cancelled":false,
+     "created_at":"2026-10-01T12:00:00+00:00","going_count":2,"going":true,"heart_count":3,"hearted":true,
+     "cancelled":false,
      "place_picture":{"url":"https://x/gym.webp","kind":"photo","credit":null,"site":"https://csbsju.edu/","more":[]},
      "host_picture":{"url":"https://x/csb-logo.webp","kind":"logo","hue":20},
      "description":"Senior night.","what":"Volleyball match",
@@ -43,10 +44,12 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(event.what, "Volleyball match", file: file, line: line)
         XCTAssertEqual(event.goingCount, 2, file: file, line: line)
         XCTAssertTrue(event.rsvpd, file: file, line: line)
+        XCTAssertEqual(event.heartCount, 3, "every account's hearts ride the card (inside-cards 16)", file: file, line: line)
+        XCTAssertTrue(event.hearted, "and yours", file: file, line: line)
     }
 
-    /// The Town feed's Event rows are their card; the feed's own extras (reason, saved, hearts, leaving time) stay
-    /// the row's. An Event row with no card, or one that doesn't decode, is left out, never the feed; news and
+    /// The Town feed's Event rows are their card; the feed's own extras (reason, hearts, leaving time) stay
+    /// the row's, and the old `saved` column builds before inside-cards 16 read is passed over. An Event row with no card, or one that doesn't decode, is left out, never the feed; news and
     /// posts carry no card.
     func testTheTownFeedsRowsReadTheirCard() throws {
         let json = """
@@ -69,7 +72,6 @@ final class EventCardTests: XCTestCase {
         assertIsTheCard(rows[0].event)
         XCTAssertEqual([rows[0].reason, rows[0].reasonName], ["friend", "Anna"])
         XCTAssertEqual(rows[0].heartCount, 5)
-        XCTAssertTrue(rows[0].saved)
         XCTAssertEqual(rows[0].leavesAt, DateHelpers.timestamp("2026-11-06T04:00:00+00:00"))
         let page = TownFeed.card(rows[0])
         XCTAssertEqual(page.sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
@@ -77,6 +79,8 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(page.game?.live?.score, [2, 1])
         XCTAssertEqual(page.friendsGoing.map(\.name), ["Anna"], "the card's friends ride the card")
         XCTAssertEqual(page.recurrence, "Every Thursday", "the repeat is the card's, not the row's")
+        XCTAssertEqual([page.likeCount], [5], "the row's hearts, as a feed kept from before the card had them shows")
+        XCTAssertTrue(page.isLiked)
     }
 
     /// Daily's Event of the day had no found link or host picture of its own: its card brings them to the
@@ -94,23 +98,32 @@ final class EventCardTests: XCTestCase {
         XCTAssertEqual(daily.item.hostPicture?.url, URL(string: "https://x/csb-logo.webp"))
     }
 
-    /// Saved's rows are their card alone, saved, Going only where the card says so. A row whose card doesn't
-    /// decode is left out, never the list.
-    func testSavedReadsTheCard() throws {
+    /// Liked's rows are their card alone, hearted as the card says, Going only where the card says so (inside-cards
+    /// 16). A row whose card doesn't decode is left out, never the list.
+    func testLikedReadsTheCard() throws {
         let notGoing = card.replacingOccurrences(of: #""going":true"#, with: #""going":false"#)
         let json = """
         [{"card":\(notGoing)}, {"card":{"title":"Quiz night"}}, {"card":null}]
         """
-        let saves = try CommunityAPI.myGoingRows(from: Data(json.utf8), saved: true)
-        XCTAssertEqual(saves.map(\.id), ["e1"])
-        let event = try XCTUnwrap(saves.first)
+        let likes = try CommunityAPI.myGoingRows(from: Data(json.utf8))
+        XCTAssertEqual(likes.map(\.id), ["e1"])
+        let event = try XCTUnwrap(likes.first)
         XCTAssertEqual(event.sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
         XCTAssertEqual(event.game?.live?.score, [2, 1])
         XCTAssertFalse(event.rsvpd, "the card says not Going")
-        XCTAssertTrue(event.saved)
         let page = FeedCardItem(event)
-        XCTAssertTrue(page.isSaved)
+        XCTAssertEqual([page.likeCount], [3])
+        XCTAssertTrue(page.isLiked, "the Event page opened from Liked shows the heart as yours")
         XCTAssertEqual(page.sourceURL, URL(string: "https://gobennies.com/sports/volleyball/schedule"))
+    }
+
+    /// A card kept from before it carried the heart still decodes, saying none.
+    func testACardWithoutTheHeartSaysNone() throws {
+        let old = card.replacingOccurrences(of: #""heart_count":3,"hearted":true,"#, with: "")
+        XCTAssertNotEqual(old, card)
+        let event = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data("[{\"card\":\(old)}]".utf8)).first)
+        XCTAssertEqual([event.heartCount], [0])
+        XCTAssertFalse(event.hearted)
     }
 
     /// The bell's rows are their card, its game with the live score, beside what changed, where it moved from

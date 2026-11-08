@@ -41,8 +41,8 @@ final class TownPageModelTests: XCTestCase {
 
     private func actions(_ server: Server) -> RealLifeActions {
         RealLifeActions(signedIn: true, needsAccount: true, hold: .milliseconds(50), flip: .milliseconds(20),
-                        retry: .milliseconds(10), setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                        setFollow: server.follow, knownEvents: { _ in [] })
+                        retry: .milliseconds(10), setGoing: { _, _ in }, setHeart: { _, _ in },
+                        setFollow: server.follow)
     }
 
     /// The switch: each page is read when it's shown, and kept, so flipping back shows it at once.

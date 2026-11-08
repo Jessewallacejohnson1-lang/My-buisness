@@ -591,7 +591,6 @@ final class TownFeed {
         card.followed = row.reason == "follow" ? row.reasonName : nil
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
-        card.isSaved = row.saved
         card.groupID = row.groupID
         card.inGroup = row.inGroup
         return card

@@ -224,7 +224,7 @@ struct DailyLists {
     static func make(day: DailyWeekDay, week: [DailyWeekDay], now: Date, picks: [DailyEvent],
                      cards: [FeedCardItem], posts: [TownPost] = [], news: [TownNews] = [],
                      interests: [String], topic: String?,
-                     isGoing: (FeedCardItem) -> Bool, isSaved: (FeedCardItem) -> Bool) -> DailyLists {
+                     isGoing: (FeedCardItem) -> Bool, isHearted: (FeedCardItem) -> Bool) -> DailyLists {
         let isToday = day == week.first
         // Another day's sections read from its midnight, so all of that day is still to come.
         let clock = isToday ? now : day.start
@@ -247,8 +247,8 @@ struct DailyLists {
         let friendsGoing = (DailyEvent.sampleFriendsGoing(now: clock)
             ?? DailyEvent.friendsGoing(from: cards, days: friendDays, now: clock, without: events))
             .filter { fits($0.item) }
-        // Suggestions never offer what you're Going to or saved (SPEC.md).
-        func left(_ item: FeedCardItem) -> Bool { fits(item) && !isGoing(item) && !isSaved(item) }
+        // Suggestions never offer what you're Going to or hearted (SPEC.md; a heart is a save, BP app inside-cards 16).
+        func left(_ item: FeedCardItem) -> Bool { fits(item) && !isGoing(item) && !isHearted(item) }
         let suggestions = DailyEvent.sampleSuggestions(now: clock).map {
             DailyEvent.showing($0.filter { left($0.item) }, now: clock, without: events + friendsGoing,
                                limit: DailyRowMetric.limit)
@@ -309,7 +309,7 @@ struct DailyPage: View {
         func lists(_ topic: String?) -> DailyLists {
             DailyLists.make(day: day, week: days, now: now, picks: isToday ? events : dayPicks.picks[day.id] ?? [],
                             cards: cards, posts: posts, news: news, interests: interests, topic: topic,
-                            isGoing: { actions.going($0).isGoing }, isSaved: { actions.saved($0) })
+                            isGoing: { actions.going($0).isGoing }, isHearted: { actions.heart($0).isHearted })
         }
         let all = lists(nil)
         // The day's topics come from all it has. A topic the day lacks reads as "Best of" there and
