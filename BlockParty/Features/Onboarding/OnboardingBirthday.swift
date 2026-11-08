@@ -64,7 +64,7 @@ struct OnboardingGenderRow: View {
             Text("Gender")
                 .font(.sansSemibold(15))
                 .foregroundStyle(Hue.ink)
-                .accessibilityHidden(true)   // the picker below says it
+                // VoiceOver reads it before the pair: a segmented control says only its segments.
             HStack(spacing: 12) {
                 ForEach(Self.options, id: \.value) { option in
                     GenderPill(label: option.label, on: pick == option.value) {

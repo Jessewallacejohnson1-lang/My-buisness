@@ -425,6 +425,14 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
+    /// Where a scrolling step meets the top row: the backdrop fading out over 16 pt.
+    private var scrollEdge: some View {
+        LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
+            .frame(height: 16)
+            .padding(.top, FollowGridMetric.scrollTop)
+            .allowsHitTesting(false)
+    }
+
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
     /// 190 pt, clear at the top and solid from 38% down (the mock's foot).
     private var foot: some View {
@@ -466,12 +474,7 @@ struct OnboardingFlow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.top, FollowGridMetric.scrollTop)
-                .overlay(alignment: .top) {
-                    LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
-                        .frame(height: 16)
-                        .padding(.top, FollowGridMetric.scrollTop)
-                        .allowsHitTesting(false)
-                }
+                .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
             } else if store.step == .birthday {
                 // With the gender row (onboarding 31) the step reaches past the Next bar on a small
@@ -484,11 +487,14 @@ struct OnboardingFlow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 32)
-                    .padding(.top, 128)
+                    .padding(.top, 128 - FollowGridMetric.scrollTop)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
                 .contentMargins(.bottom, Self.birthdayClear, for: .scrollContent)
+                // Under the top row it goes, as Interests' does.
+                .padding(.top, FollowGridMetric.scrollTop)
+                .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
