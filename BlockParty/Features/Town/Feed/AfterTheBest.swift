@@ -72,7 +72,7 @@ struct PlaceCard: View {
         if let cover {
             picture(cover)
         } else {
-            NoPhotoCard(logo: place.logo?.url, name: place.name, pill: nil, title: place.name, facts: place.sub,
+            NoPhotoCard(logo: place.logo?.url, name: place.name, when: nil, title: place.name, facts: place.sub,
                         drawsMark: false)
                 .overlay(alignment: .leading) {
                     NoPhotoCardMark(logo: place.logo?.url, name: place.name)

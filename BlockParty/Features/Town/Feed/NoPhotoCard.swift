@@ -4,10 +4,11 @@
 //
 //  A card with no photo of the Event used to spend a whole photo-sized frame on the place's logo
 //  over its backdrop, on ink, or on the place's cover (town-feed 40). It is a short white card now, Meetup's and Luma's
-//  event rows in the white game card's edge and shadow: the place's logo on the left, the day (or
-//  NEW for News) in a light grey pill, the title and its facts beside it. Jesse picked it over a
-//  post card, a logo tile, a logo watermark and a yellow pill ("that looks harsh"). The heart and
-//  the row under the card stay the Event card's own.
+//  event rows in the white game card's edge and shadow: the place's logo on the left, the title,
+//  when and its facts beside it. Jesse picked it over a post card, a logo tile, a logo watermark and
+//  a yellow pill ("that looks harsh"). When was in a light grey pill over the title until it moved
+//  under it in plain words, as on every Town card (Jesse, 2026-11-07, BP app inside-cards 26). The
+//  heart and the row under the card stay the Event card's own.
 //
 
 import SwiftUI
@@ -18,11 +19,11 @@ struct NoPhotoCard: View {
     /// A neighbour host's photo.
     var photo: URL? = nil
     let name: String
-    /// The day and time, or NEW; nil leaves the pill out.
-    let pill: String?
-    var pillSpoken: String? = nil
-    /// "Now" behind Apple's green, as the photo chip has it (event-card 04).
-    var pillDot: Color? = nil
+    /// The day and time under the title, or News's words; nil leaves the line out.
+    let when: String?
+    var whenSpoken: String? = nil
+    /// On right now: "Now" behind Apple's green dot in its place (event-card 04).
+    var now = false
     let title: String
     var facts: String? = nil
     var factsLines = 1
@@ -40,8 +41,8 @@ struct NoPhotoCard: View {
         static let gap: CGFloat = 14
         static let vertical: CGFloat = 14
         static let horizontal: CGFloat = 16
-        static let pillHeight: CGFloat = 22
-        static let pillPadding: CGFloat = 9
+        /// Between the title, when and the small line (the inside-cards 25 page's 3 pt).
+        static let lineGap: CGFloat = 3
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -54,28 +55,29 @@ struct NoPhotoCard: View {
                 Color.clear.frame(width: Metric.mark, height: Metric.mark)
             }
             VStack(alignment: .leading, spacing: 0) {
-                if let pill, !pill.isEmpty {
-                    pillView(pill)
-                        .padding(.bottom, 6)
-                }
                 Text(title)
                     .font(.eventDisplay(19))
                     .lineSpacing(-1)
                     .foregroundStyle(Hue.ink.onLightCanvas)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
+                // In the small line's grey, read after the title as on a photo card.
+                if now || !(when ?? "").isEmpty {
+                    CardTime(text: when ?? "", spoken: whenSpoken, now: now, color: Hue.inkSecondary.onLightCanvas)
+                        .padding(.top, Metric.lineGap)
+                }
                 if !factsTries.isEmpty {
                     SmallLine(tries: factsTries, wraps: true)
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary.onLightCanvas)
-                        .padding(.top, 3)
+                        .padding(.top, Metric.lineGap)
                 } else if let facts, !facts.isEmpty {
                     Text(facts)
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary.onLightCanvas)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : factsLines)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 3)
+                        .padding(.top, Metric.lineGap)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,26 +92,6 @@ struct NoPhotoCard: View {
                 .strokeBorder(.black.opacity(0.08), lineWidth: 0.5)
         }
         .shadow(color: .black.opacity(0.07), radius: 10, y: 6)
-    }
-
-    /// Light grey, easy on the eyes (Jesse, turning down BP yellow).
-    private func pillView(_ text: String) -> some View {
-        HStack(spacing: PhotoChip.dotGap) {
-            if let pillDot {
-                Circle().fill(pillDot).frame(width: PhotoChip.dotSide, height: PhotoChip.dotSide)
-            }
-            Text(text)
-                .font(.sansBold(12))
-                .foregroundStyle(Hue.ink.onLightCanvas.opacity(0.8))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, Metric.pillPadding)
-        .frame(minHeight: Metric.pillHeight)
-        .background(Capsule().fill(Hue.fill.onLightCanvas))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(pillSpoken ?? text)
-        // The title first, then when, as on a photo card.
-        .accessibilitySortPriority(-1)
     }
 }
 

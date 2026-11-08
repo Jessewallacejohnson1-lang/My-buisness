@@ -44,7 +44,7 @@ struct TownNewsCard: View {
     }
 
     private var face: some View {
-        NoPhotoCard(logo: news.logo, name: news.place, pill: "NEW",
+        NoPhotoCard(logo: news.logo, name: news.place, when: "NEW",
                     title: news.headline, facts: news.cardFacts, factsLines: 2)
     }
 

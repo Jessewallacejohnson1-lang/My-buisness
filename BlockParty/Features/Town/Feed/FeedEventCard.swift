@@ -13,9 +13,9 @@
 //  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
 //  else on the card, carries a 20pt corner and takes the photo's own shape, so an
 //  event reads as a cut card sunk into the page rather than a photo running off both
-//  bezels. The day and time ride a white chip on its top left; the title, the place and
-//  who's going stay over it (Jesse, 2026-10-19, BP app docs/plans/event-card; 2026-11-07,
-//  inside-cards 24). A card with no photo, the white card and a game's, has who's going in the
+//  bezels. The title, when, the place and who's going stay over it (Jesse, 2026-10-19, BP app
+//  docs/plans/event-card; 2026-11-07, inside-cards 24), when in plain words just under the title
+//  with no chip (inside-cards 26). A card with no photo, the white card and a game's, has who's going in the
 //  line under it. Nothing else is under a card: holding it opens Apple's menu, Share first
 //  (`TownCardHold`). Attend is the Event page's, and the Event of the day poster's (Jesse,
 //  event-card 07).
@@ -34,8 +34,8 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
-    /// The host's mark on the photo: the date chip's height, so the two sit level along the top.
-    /// A mark, not text, so it does not scale.
+    /// The host's mark on the photo: the photo chip's height, as when the day's chip sat level with it
+    /// (the time moved under the title, inside-cards 26). A mark, not text, so it does not scale.
     private static let hostMarkSide: CGFloat = PhotoChip.height
     /// Between the photo's credit and the host's mark beside it.
     private static let hostMarkGap: CGFloat = 8
@@ -244,18 +244,16 @@ struct FeedEventCard: View {
         if item.isPhotoless { whiteCard } else { imageSection }
     }
 
-    /// No photo: the place's logo on the left and the day in a grey pill, the chip's words (Jesse at
-    /// Check-in 1), turning to Now at the start minute as the chip does.
+    /// No photo: the place's logo on the left, and when under the title as on a photo card (inside-cards
+    /// 26), turning to Now at the start minute.
     private var whiteCard: some View {
         TimelineView(.everyMinute) { context in
-            let now = item.isNow(at: context.date)
             let line = item.whenLine(at: context.date)
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
-                        pill: now ? "Now" : line?.text, pillSpoken: now ? "Happening now" : line?.spoken,
-                        pillDot: now ? Hue.now : nil, title: item.title, factsTries: item.smallLines,
+                        when: line?.text, whenSpoken: line?.spoken, now: item.isNow(at: context.date),
+                        title: item.title, factsTries: item.smallLines,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
-                .animation(motionIsReduced ? nil : Motion.smooth, value: now)
         }
         // Called off: grey, as the photo goes (Jesse, 2026-10-15).
         .grayscale(item.cancelled ? 1 : 0)
@@ -332,32 +330,12 @@ struct FeedEventCard: View {
             }
         }
         .shadow(color: .black.opacity(item.game == nil ? 0 : 0.07), radius: 10, y: 6)
-        // Along the top: the day and time on the left, the photo's credit on the right, before the
-        // host's mark, so the title has the photo's whole width below (picked 2026-10-19: under the
-        // narrower inset card, a credit beside the title cut "Plant Bingo for Angel Reins" short).
-        // The white game card says when under its VS (game-card 06).
+        // Along the top, only the photo's credit, before the host's mark at the right, so the title has
+        // the photo's whole width below (picked 2026-10-19: under the narrower inset card, a credit beside
+        // the title cut "Plant Bingo for Angel Reins" short). When sits under the title (inside-cards 26);
+        // the white game card says it under its VS (game-card 06).
         .overlay(alignment: .top) {
             HStack(alignment: .center, spacing: 8) {
-                if item.game == nil, let when = item.whenLine {
-                    // Turns to Now at the start minute while you look at it (event-card 04).
-                    TimelineView(.everyMinute) { context in
-                        let now = item.isNow(at: context.date)
-                        let when = item.whenLine(at: context.date) ?? when
-                        // A ZStack, not a Group: a Group hands the transition to each chip, and
-                        // the one coming in never sees `now` change, so it would cut.
-                        ZStack(alignment: .leading) {
-                            if now {
-                                PhotoChip(text: "Now", spoken: "Happening now", dot: Hue.now)
-                                    .transition(.opacity)
-                            } else {
-                                PhotoChip(text: when.text, spoken: when.spoken)
-                                    .transition(.opacity)
-                            }
-                        }
-                        .animation(motionIsReduced ? nil : Motion.smooth, value: now)
-                    }
-                    .layoutPriority(1)
-                }
                 Spacer(minLength: 0)
                 // Without its own edge inset, so it sits as far in as the chip and, shorter
                 // than the chip, never moves the row when the photo lands and it appears.
@@ -370,7 +348,7 @@ struct FeedEventCard: View {
             }
             .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
-            // VoiceOver reads the title first, then when.
+            // VoiceOver reads the title and when first, then the credit.
             .accessibilitySortPriority(-1)
             .allowsHitTesting(false)
         }
@@ -458,9 +436,18 @@ struct FeedEventCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // What it is and a short place: "Lecture · Escher Auditorium". Date and time ride the chip on
-            // the photo (Jesse, 2026-10-19), which replaced their line, which replaced the yellow date
-            // banner (2026-09-24).
+            // When, 4 pt under the title in plain white words, turning to Now at the start minute while
+            // you look at it (Jesse, 2026-11-07, BP app inside-cards 26). It took over from the white chip
+            // on the photo's top left (2026-10-19), which replaced a when line, which replaced the yellow
+            // date banner (2026-09-24).
+            if let when = item.whenLine {
+                TimelineView(.everyMinute) { context in
+                    let line = item.whenLine(at: context.date) ?? when
+                    CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date), color: .white)
+                }
+            }
+
+            // What it is and a short place: "Lecture · Escher Auditorium".
             let lines = item.smallLines
             if !lines.isEmpty {
                 SmallLine(tries: lines, wraps: true)

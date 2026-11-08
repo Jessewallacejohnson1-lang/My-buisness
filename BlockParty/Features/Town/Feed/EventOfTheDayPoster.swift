@@ -5,8 +5,9 @@
 //
 //  The same pick Daily shows first (`EventOfTheDay`). Unlike a Town card it keeps one fixed
 //  shape: the photo square on top fading into the poster's dark, a white "Event of the day"
-//  chip on it, then what it is in a word or two ("Lecture", where DICE writes "Popular"), the title,
-//  the date in BP yellow, the place, the going line, and Attend with the heart inside the card,
+//  chip on it, then the title, when in BP yellow, and one small line, what it is and a short place
+//  ("Meat raffle · Sal's Bar and Grill"), in a photo card's look (Jesse, 2026-11-07, BP app
+//  inside-cards 26), the going line, and Attend with the heart inside the card,
 //  the heart in Town's glass at the row's right (inside-cards 24); the host is on the Event page
 //  (event-card 05). Going keeps it on top, saying You're going!. Held, it opens a Town card's menu,
 //  Share first (`TownCardHold`), which took its send and •••.
@@ -34,14 +35,17 @@ struct EventOfTheDayPoster: View {
         static let fade: [Gradient.Stop] = [.init(color: Hue.poster.opacity(0), location: 0.38),
                                             .init(color: Hue.poster.opacity(0.82), location: 0.78),
                                             .init(color: Hue.poster, location: 1)]
-        static let titleTop: CGFloat = 6
-        static let whenTop: CGFloat = 8
-        static let placeTop: CGFloat = 1
+        /// When 4 pt under the title and the small line 4 pt under it, as on a photo card (inside-cards 26).
+        static let whenTop: CGFloat = 4
+        static let lineTop: CGFloat = 4
         static let goingTop: CGFloat = 10
         static let goingHeight: CGFloat = 24
         static let rowTop: CGFloat = 16
         static let rowGap: CGFloat = 10
-        static let nowDot: CGFloat = 8
+        /// The credit's soft shadow under the "Event of the day" chip, so it keeps its edge on a pale sky:
+        /// without it the white chip's edge measured 1.3 to 1 on Nov 6's photo (inside-cards 25).
+        static let chipShadow: Double = 0.25
+        static let chipShadowRadius: CGFloat = 4
         /// A flyer stops this far above the words, and the dark is whole this far under its foot (picked on
         /// the mock, BP app `references/whole-flyer-frames/`).
         static let flyerGap: CGFloat = 8
@@ -119,6 +123,9 @@ struct EventOfTheDayPoster: View {
             .overlay(alignment: .top) {
                 HStack(spacing: 8) {
                     PhotoChip(text: "Event of the day")
+                        // One shadow round the chip's edge, not one under each of its words.
+                        .compositingGroup()
+                        .shadow(color: .black.opacity(Metric.chipShadow), radius: Metric.chipShadowRadius, y: 1)
                         .layoutPriority(1)
                     Spacer(minLength: 0)
                     PhotoCredit(names: photoShown ? [picture.attribution].compactMap { $0 } : [])
@@ -164,25 +171,19 @@ struct EventOfTheDayPoster: View {
         return VStack(alignment: .leading, spacing: 0) {
             // A stack, not a Group: measured as a Group, its lines would land on top of each other.
             VStack(alignment: .leading, spacing: 0) {
-                // What it is, plain, as DICE sets "Popular" over its title; none yet, the title leads.
-                if let what = item.whatLine {
-                    Text(what)
-                        .font(.sans(15))
-                        .lineLimit(1)
-                        .padding(.bottom, Metric.titleTop)
-                }
                 Text(item.title)
                     .font(.eventDisplay(28))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 when
                     .padding(.top, Metric.whenTop)
-                let places = item.shortPlaces
-                if !places.isEmpty {
-                    SmallLine(tries: places, wraps: true)
-                        .font(.sans(16))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .padding(.top, Metric.placeTop)
+                // What it is and a short place in one line, a photo card's own (`smallLines`).
+                let lines = item.smallLines
+                if !lines.isEmpty {
+                    SmallLine(tries: lines, wraps: true)
+                        .font(.sans(13))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.top, Metric.lineTop)
                 }
             }
             // Read with the link; a touch on them reaches it, so they open the page too.
@@ -224,22 +225,15 @@ struct EventOfTheDayPoster: View {
     /// The going words' turn: `RealLifeActions.flip`, or 0.15 s with Reduce Motion, as the pill's.
     private var flip: TimeInterval { reduceMotion ? 0.15 : RealLifeActions.flip }
 
-    /// "Today · 2 PM", in BP yellow; while it's on, "Now" behind Apple's green dot, as a Town
-    /// card's chip says it (Jesse at Check-in 1, 2026-10-21). Another day's, on Daily, says the
-    /// day short, "Sat · 4 PM" (`DailyEvent.dayLine`).
+    /// "Today · 2 PM" in every Town card's type, in BP yellow (Jesse, 2026-11-07, BP app inside-cards
+    /// 26); while it's on, "Now" behind Apple's green dot, as a Town card says it (Jesse at Check-in 1,
+    /// 2026-10-21). Another day's, on Daily, says the day short, "Sat · 4 PM" (`DailyEvent.dayLine`).
     @ViewBuilder
     private var when: some View {
-        if item.isNow(at: now) {
-            HStack(spacing: 6) {
-                Circle().fill(Hue.now).frame(width: Metric.nowDot, height: Metric.nowDot)
-                Text("Now")
-            }
-            .font(.sans(16))
-            .foregroundStyle(Hue.brandDisc)
-        } else if let when = item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text {
-            Text(when)
-                .font(.sans(16))
-                .foregroundStyle(Hue.brandDisc)
+        let on = item.isNow(at: now)
+        let text = item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text
+        if on || text != nil {
+            CardTime(text: text ?? "", now: on, color: Hue.brandDisc)
         }
     }
 
@@ -277,11 +271,11 @@ struct EventOfTheDayPoster: View {
 
     // MARK: -
 
-    /// What VoiceOver reads for the link: what it is ("Lecture") and its name, then when and where, and
-    /// who's going.
+    /// What VoiceOver reads for the link, in the order the poster shows it: its name, when, what it is
+    /// ("Lecture") and where, and who's going.
     private var spoken: String {
         let when = item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken
-        return ["Event of the day", item.whatLine, item.title, when, item.whereLine,
+        return ["Event of the day", item.title, when, item.whatLine, item.whereLine,
                 actions.rsvp(item)?.top].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 

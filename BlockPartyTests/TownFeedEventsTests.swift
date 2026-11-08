@@ -493,10 +493,11 @@ final class TownFeedEventsTests: XCTestCase {
         var poster = FeedCardItem(id: "c", title: "Cathedral Evening Open House", dateChip: "", metaLine: "", image: .fallback,
                                   recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
                                   isLiked: false, isSaved: false, isJoined: false)
+        // The poster's line is a photo card's small line since inside-cards 26.
         poster.location = "Cathedral High School, St. Cloud"
-        XCTAssertEqual(poster.shortPlaces, ["Cathedral High School, St. Cloud", "Cathedral High School"])
+        XCTAssertEqual(poster.smallLines, ["Cathedral High School, St. Cloud", "Cathedral High School"])
         poster.location = nil
-        XCTAssertEqual(poster.shortPlaces, [], "the poster's line says nothing with no place")
+        XCTAssertEqual(poster.smallLines, [], "the poster's line says nothing with no place")
     }
 
     /// Apple's `ViewThatFits` takes the first that fits at the card's real widths, and shows nothing, never

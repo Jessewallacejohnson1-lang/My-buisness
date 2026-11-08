@@ -963,7 +963,7 @@ struct WhiteGameCard: View {
                 .padding(.top, Metric.sportTop)
             HStack(alignment: .top, spacing: Metric.gap) {
                 team(0)
-                middle(status)
+                middle(status, at: date)
                 team(1)
             }
             .padding(.top, Metric.rowTop)
@@ -1007,7 +1007,7 @@ struct WhiteGameCard: View {
         return game.live.map { Text("\($0.score[0]) – \($0.score[1])") }
     }
 
-    private func middle(_ status: (dot: Color?, text: String)?) -> some View {
+    private func middle(_ status: (dot: Color?, text: String)?, at date: Date) -> some View {
         VStack(spacing: 4) {
             Group {
                 if let score {
@@ -1032,8 +1032,15 @@ struct WhiteGameCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .transition(.opacity)
+            } else if game.live == nil, game.final == nil, let when = item.whenLine {
+                // Before any score, the day and time, or Now, in every Town card's look (Jesse, 2026-11-07,
+                // BP app inside-cards 26). No moment comes before a score, so it needs no MomentLine.
+                CardTime(text: when.text, spoken: when.spoken, now: item.isNow(at: date), color: Hue.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
             } else if let status {
-                // A scoring play turns it into an ink capsule round the moment for 3 s (ticket 07).
+                // Live, the score's line and Final keep their own look. A scoring play turns it into an ink
+                // capsule round the moment for 3 s (ticket 07).
                 MomentLine(style: .onWhite) {
                     HStack(spacing: 5) {
                         if let dot = status.dot {
