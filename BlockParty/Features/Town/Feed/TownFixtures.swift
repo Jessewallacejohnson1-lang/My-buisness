@@ -369,6 +369,8 @@ enum TownFixtures {
         // under their titles (BP app inside-cards 26).
         if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) {
             let start = now.addingTimeInterval(-3600)
+            // Its place first: with a start time of its own the meta line no longer gives it.
+            item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
             item.startTime = townClock("h:mm a", start)
         }
