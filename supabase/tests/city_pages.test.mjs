@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase } from './fixture.mjs';
 import { townDay } from './town_day.mjs';
+import { CARD_KEYS } from './event_card.mjs';
 
 const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
@@ -164,4 +165,45 @@ test("a campus calendar is a page: a follow round-trips, it lists its own Events
   assert.deepEqual(await as(CAL, 'select target_type, target_id, name from public.event_host($1)', [clinic]),
                    [{ target_type: 'page', target_id: LIBRARIES, name: 'CSB SJU Libraries' }]);
   assert.equal((await db.query(`select count(*)::int n from public.town_pages where kind = 'College'`)).rows[0].n, 5);
+});
+
+// Every door to the Event page carries its card (BP app inside-cards 27): a Town page's Events and a board's meetings
+// each send the Event card, so a page opened from one shows your heart and its count before any other read, even for
+// an Event outside the Town feed's window. The row's own keys stay for apps from before it.
+const heart = (who, e) => db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [e, who]);
+
+test("a Town page's Events each send the Event card, with your heart and its count", async () => {
+  await reset();
+  const winterwalk = await event('Winterwalk', 'JoeTown', 40, { draw: 2, location: 'Downtown' });
+  await event('Shop Small Crawl', 'JoeTown', 3, { draw: 2 });
+  await heart(ANA, winterwalk);
+  await heart(BEN, winterwalk);
+  const [{ p }] = await as(ANA, `select public.town_page('st-joseph-mn', 'town') p`);
+  assert.deepEqual(p.events.map((e) => [e.title, e.card.id === e.id]), [['Shop Small Crawl', true], ['Winterwalk', true]]);
+  for (const e of p.events) assert.deepEqual(Object.keys(e.card).sort(), CARD_KEYS);
+  assert.deepEqual(p.events.map((e) => [e.card.hearted, e.card.heart_count]), [[false, 0], [true, 2]]);
+  assert.deepEqual(Object.keys(p.events[1]).sort(), ['card', 'date', 'id', 'location', 'recurrence', 'time', 'title'],
+                   'the row keeps its own keys for apps from before the card');
+
+  await db.exec('set role anon');
+  const signedOut = (await db.query(`select public.town_page('st-joseph-mn', 'town') p`)).rows[0].p;
+  await db.exec('reset role');
+  assert.deepEqual(signedOut.events.map((e) => [e.card.hearted, e.card.heart_count]), [[false, 0], [false, 2]],
+                   'signed out: the count, never a heart of its own');
+});
+
+test("a board's meetings each send the Event card, with your heart and its count", async () => {
+  await reset();
+  const far = await event('City Council Meeting', 'City of St. Joseph', 45, { location: 'City Hall' });
+  await event('City Council Work Session', 'City of St. Joseph', 2);
+  await heart(ANA, far);
+  await heart(CAL, far);
+  await heart(BEN, far);
+  const [{ m }] = await as(ANA, 'select public.board_meetings($1) m', [COUNCIL]);
+  assert.deepEqual(m.map((e) => [e.title, e.card.id === e.id]),
+                   [['City Council Work Session', true], ['City Council Meeting', true]]);
+  for (const e of m) assert.deepEqual(Object.keys(e.card).sort(), CARD_KEYS);
+  assert.deepEqual(m.map((e) => [e.card.hearted, e.card.heart_count]), [[false, 0], [true, 3]]);
+  assert.deepEqual(Object.keys(m[1]).sort(), ['card', 'date', 'id', 'location', 'recurrence', 'time', 'title'],
+                   'the row keeps its own keys for apps from before the card');
 });
