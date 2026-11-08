@@ -41,6 +41,8 @@ import SwiftUI
     /// cut after them (`LaunchShows`), DEBUG `-launch-kind` naming one; a link open while signed in
     /// turns it into `.link` as the URL arrives (`openedLink`).
     private(set) var kind: LaunchMotion.Kind
+    /// Where the ball was when a link turned the launch into the link open, to fade it out there.
+    var ballBefore: LaunchMotion.Ball?
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
     /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
@@ -168,9 +170,14 @@ struct LaunchHost<Content: View>: View {
             backScale = 1
             tilt.stop()
         }
-        // A link open starts over from the still: the ! appears, then Bp! pops out.
-        .onChange(of: stage.kind) { _, kind in
-            if kind == .link { clock.reset() }
+        // A link open starts over from the still: the ! appears, then Bp! pops out. A ball already
+        // on screen fades out where it was, and a tap before the link is forgotten.
+        .onChange(of: stage.kind) { was, kind in
+            guard kind == .link else { return }
+            let t = clock.t
+            if t > 0 { stage.ballBefore = LaunchMotion(screen: screen.size, kind: was).ball(at: t) }
+            skip = nil
+            clock.reset()
         }
         .onAppear {
             if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
@@ -201,13 +208,14 @@ struct LaunchHost<Content: View>: View {
     }
 
     private func moment(at date: Date) -> (frame: LaunchMotion.Frame, origin: CGPoint) {
-        let t = stage.frozenAt ?? clock.time(at: date, pace: stage.kind == .full ? LaunchMotion.fullPace : 1)
+        let t = stage.frozenAt ?? clock.time(at: date, pace: LaunchMotion.pace(for: stage.kind))
         var ending = LaunchMotion.Ending.zoom
         if let mark = stage.dailyMark, stage.kind != .link {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
         let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt,
-                                  reduceMotion: stage.reduceMotion, ending: ending, kind: stage.kind)
+                                  reduceMotion: stage.reduceMotion, ending: ending, kind: stage.kind,
+                                  ballBefore: stage.ballBefore)
         return (motion.frame(at: t), motion.origin)
     }
 

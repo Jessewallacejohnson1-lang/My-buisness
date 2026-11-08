@@ -108,11 +108,14 @@ nonisolated struct WaitingCode {
 
     /// `signedOut`: the launch has looked and found no account. While it's still looking that's
     /// false, and `foundNoAccount` puts it right.
-    mutating func opened(_ url: URL, signedOut: Bool) {
-        guard let read = YourCode.userID(from: url) else { return }
+    /// Whether the URL was a neighbour's code; anything else is let go.
+    @discardableResult
+    mutating func opened(_ url: URL, signedOut: Bool) -> Bool {
+        guard let read = YourCode.userID(from: url) else { return false }
         id = read
         // Nothing shows that it was caught, so they may scan again once they have an account.
         hadNoAccount = hadNoAccount || signedOut
+        return true
     }
 
     /// The launch finished looking and found no account.

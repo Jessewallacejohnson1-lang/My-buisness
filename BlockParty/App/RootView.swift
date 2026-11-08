@@ -211,10 +211,9 @@ struct RootView: View {
         }
         .animation(.smooth(duration: 0.35), value: flowUp)
         .onOpenURL { url in
-            code.opened(url, signedOut: signedOut)
-            // Signed in, the launch becomes the link open: Bp! pops out over what the link opened.
-            // Signed out, it plays whole, then the Welcome (Jesse, 2026-11-08).
-            if !signedOut { LaunchStage.shared.openedLink() }
+            // Signed in, a link that opens something turns the launch into the link open: Bp! pops
+            // out over what it opened. Signed out, it plays whole, then the Welcome (Jesse, 2026-11-08).
+            if code.opened(url, signedOut: signedOut), !signedOut { LaunchStage.shared.openedLink() }
         }
         .overlay {
             if onboarding.welcoming {

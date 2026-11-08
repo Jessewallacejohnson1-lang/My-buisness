@@ -22,7 +22,8 @@ nonisolated struct LaunchMotion {
 
     static let fullPace = 0.75
     /// The short cut and a link open play at full speed (Jesse, 2026-11-08).
-    var pace: Double { kind == .full ? Self.fullPace : 1 }
+    static func pace(for kind: Kind) -> Double { kind == .full ? fullPace : 1 }
+    var pace: Double { Self.pace(for: kind) }
     /// Gravity and the drop's starting speed, in points per second (per second).
     private static let gravity: CGFloat = 7600
     private static let dropSpeed: CGFloat = 650
@@ -152,6 +153,9 @@ nonisolated struct LaunchMotion {
     var reduceMotion = false
     var ending: Ending = .zoom
     var kind: Kind = .full
+    /// A link open that caught the ball already on screen (`LaunchStage.openedLink`): it fades
+    /// out where it was as the ! appears, rather than vanishing.
+    var ballBefore: Ball?
 
     // MARK: The path, worked out once per screen
 
@@ -162,12 +166,14 @@ nonisolated struct LaunchMotion {
     private let drop: Flight, toP: Flight, toDot: Flight
     let hitB: Double, hitP: Double, landAt: Double, ballEnd: Double
 
-    init(screen: CGSize, skip: Double? = nil, reduceMotion: Bool = false, ending: Ending = .zoom, kind: Kind = .full) {
+    init(screen: CGSize, skip: Double? = nil, reduceMotion: Bool = false, ending: Ending = .zoom, kind: Kind = .full,
+         ballBefore: Ball? = nil) {
         self.screen = screen
         self.skip = skip
         self.reduceMotion = reduceMotion
         self.ending = ending
         self.kind = kind
+        self.ballBefore = ballBefore
         let s = Self.scale
         origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2 + Self.centring.width,
                          y: (screen.height - Self.canvas.height * s) / 2 + Self.centring.height)
@@ -321,14 +327,14 @@ nonisolated struct LaunchMotion {
     private static let jumpLineWidth: [Key] = [(1.10, 0.07, .linear), (1.027, 0.16, lift)] + jumpWidth.dropFirst(2)
     private static let jumpLineHeight: [Key] = [(0.86, 0.07, .linear), (0.94, 0.16, lift)] + jumpHeight.dropFirst(2)
 
-    /// The short cut's jump: the same without the hang at the top (Jesse, 2026-11-08).
-    private static let jumpYShort: [Key] = [(0, 0.07, .linear), (-4, 0.16, lift), (0, 0.12, fall), (0, 0.22, .linear)]
-    private static let jumpWidthShort: [Key] = [(1.10, 0.07, .linear), (0.95, 0.16, lift), (0.97, 0.12, fall),
-                                                (1.14, 0.06, .linear), (0.97, 0.08, lift), (1, 0.08, .linear)]
-    private static let jumpHeightShort: [Key] = [(0.86, 0.07, .linear), (1.08, 0.16, lift), (1.05, 0.12, fall),
-                                                 (0.84, 0.06, .linear), (1.04, 0.08, lift), (1, 0.08, .linear)]
-    private static let jumpLineWidthShort: [Key] = [(1.10, 0.07, .linear), (1.027, 0.16, lift)] + jumpWidthShort.dropFirst(2)
-    private static let jumpLineHeightShort: [Key] = [(0.86, 0.07, .linear), (0.94, 0.16, lift)] + jumpHeightShort.dropFirst(2)
+    /// The short cut's jump: the same without the hang at the top, each track's third key (Jesse,
+    /// 2026-11-08).
+    private static func noHang(_ keys: [Key]) -> [Key] { Array(keys[..<2] + keys[3...]) }
+    private static let jumpYShort = noHang(jumpY)
+    private static let jumpWidthShort = noHang(jumpWidth)
+    private static let jumpHeightShort = noHang(jumpHeight)
+    private static let jumpLineWidthShort = noHang(jumpLineWidth)
+    private static let jumpLineHeightShort = noHang(jumpLineHeight)
     private var keysY: [Key] { kind == .short ? Self.jumpYShort : Self.jumpY }
     private var keysWidth: [Key] { kind == .short ? Self.jumpWidthShort : Self.jumpWidth }
     private var keysHeight: [Key] { kind == .short ? Self.jumpHeightShort : Self.jumpHeight }
@@ -594,9 +600,9 @@ nonisolated struct LaunchMotion {
     private func linked(at real: Double) -> Frame {
         var t = real
         if let skip, skip <= real, skip < Self.linkPop { t = Self.linkPop + (real - skip) }
-        var f = Frame(ball: ball(at: t), markOrigin: origin)
-        f.ballOpacity = 0
+        var f = Frame(ball: ballBefore ?? ball(at: t), markOrigin: origin)
         let v = CGFloat(Self.ease(t / Self.linkAppear))
+        f.ballOpacity = ballBefore == nil ? 0 : Double(1 - v)
         f.dotShown = true
         f.dotOpacity = Double(v)
         f.lineOpacity = Double(v)

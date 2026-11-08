@@ -281,6 +281,13 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: t).yellowOpacity, 0, accuracy: 0.001, "a fade, not the curtain")
         let tapped = LaunchMotion(screen: phone, skip: 0.05, ending: .zoom, kind: .link)
         XCTAssertGreaterThan(tapped.frame(at: 0.15).zoom, 1, "a tap jumps to the pop")
+        // The link caught the ball mid-air: it fades out where it was as the ! appears.
+        let full = LaunchMotion(screen: phone)
+        let caught = LaunchMotion(screen: phone, ending: .zoom, kind: .link, ballBefore: full.ball(at: 0.2))
+        XCTAssertEqual(caught.frame(at: 0).ball, full.ball(at: 0.2))
+        XCTAssertEqual(caught.frame(at: 0).ballOpacity, 1)
+        XCTAssertEqual(caught.frame(at: 0.06).ballOpacity, 1 - caught.frame(at: 0.06).dotOpacity, accuracy: 1e-9)
+        XCTAssertEqual(caught.frame(at: 0.12).ballOpacity, 0, accuracy: 1e-9)
     }
 
     /// Nothing on Bp! jumps in one frame of a 120 Hz screen: the crouch lets go and the !'s line
