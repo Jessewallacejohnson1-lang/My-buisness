@@ -147,7 +147,8 @@ enum TownFixtures {
         return samples.enumerated().map { i, s in
             let news = TownNews(id: "n\(i + 1)", place: s.0, words: s.2, post: URL(string: s.3)!,
                                 picture: s.4.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
-                                leavesAt: now.addingTimeInterval(7 * 86_400), title: s.1,
+                                leavesAt: now.addingTimeInterval(7 * 86_400),
+                                published: now.addingTimeInterval(-Double(i * 22 + 2) * 3600), title: s.1,
                                 interest: i == 0 ? "dining" : nil)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
         }
@@ -312,7 +313,6 @@ enum TownFixtures {
             likeCount: likes,
             commentCount: comments,
             isLiked: false,
-            isSaved: false,
             isFollowed: followed
         )
     }
@@ -349,7 +349,6 @@ enum TownFixtures {
             goingAvatars: [],
             likeCount: 0,
             isLiked: false,
-            isSaved: false,
             isJoined: false,
             description: description,
             category: category

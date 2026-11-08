@@ -17,7 +17,6 @@ struct PostingItem: Identifiable, Hashable {
     var likeCount: Int
     var commentCount: Int
     var isLiked: Bool
-    var isSaved: Bool
     /// You already follow whoever posted this, so the card offers no Follow.
     var isFollowed = false
 }

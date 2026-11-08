@@ -113,7 +113,7 @@ struct DailyFollowing: Identifiable {
                     _ caption: String) -> PostingItem {
             PostingItem(id: id, authorName: author, authorAvatar: photo(avatar), createdAt: at(hour),
                         image: photo(picture).map { .eventPhoto($0) } ?? .fallback, caption: caption,
-                        likeCount: 0, commentCount: 0, isLiked: false, isSaved: false,
+                        likeCount: 0, commentCount: 0, isLiked: false,
                         isFollowed: true)
         }
         return [

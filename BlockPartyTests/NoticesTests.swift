@@ -57,7 +57,7 @@ final class NoticesTests: XCTestCase {
 
     // MARK: The You tab
 
-    /// Jesse, 2026-10-15: a called-off Event leaves the Agenda and the Calendar (and Saved);
+    /// Jesse, 2026-10-15: a called-off Event leaves the Agenda and the Calendar (and Liked, inside-cards 16);
     /// back on its schedule, it comes back.
     func testCalledOffLeavesTheYouTabAndComesBackWhenOn() {
         let first = YouCalendar.firstDay(of: DateHelpers.timestamp("2026-10-20T17:00:00Z")!)
@@ -65,13 +65,13 @@ final class NoticesTests: XCTestCase {
             YouCalendar.going(read: events.compactMap(YouCalendar.event(from:)), tapped: [],
                               isGoing: { _ in true }, first: first).map(\.id)
         }
-        func saved(_ events: [UpcomingEvent]) -> [String] {
-            YouCalendar.saved(read: events.compactMap(YouCalendar.event(from:)), tapped: [],
-                              isSaved: { _ in true }, now: first).map(\.id)
+        func liked(_ events: [UpcomingEvent]) -> [String] {
+            YouCalendar.liked(read: events.compactMap(YouCalendar.event(from:)), tapped: [],
+                              isLiked: { _ in true }, now: first).map(\.id)
         }
         let off = [event("game", cancelled: true), event("trivia", cancelled: false, day: "2026-10-21")]
         XCTAssertEqual(going(off), ["trivia"])
-        XCTAssertEqual(saved(off), ["trivia"])
+        XCTAssertEqual(liked(off), ["trivia"])
         let on = [event("game", cancelled: false), event("trivia", cancelled: false, day: "2026-10-21")]
         XCTAssertEqual(going(on), ["game", "trivia"])
         XCTAssertFalse(FeedCardItem(on[0]).cancelled, "back on its schedule: no tag, no grey")

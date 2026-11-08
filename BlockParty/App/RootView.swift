@@ -369,7 +369,7 @@ struct MainTabsView: View {
     private var friendsBook: FriendsBook { session.friendsBook }
     private var chats: ChatBook { session.chats }
     private var you: YouModel { session.you }
-    private var saves: YouModel { session.saves }
+    private var likes: YouModel { session.likes }
     private var eventOfTheDay: EventOfTheDay { session.eventOfTheDay }
     private var dayPicks: DailyDayPicks { session.dayPicks }
     private var notices: Notices { session.notices }
@@ -725,7 +725,7 @@ struct MainTabsView: View {
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).
                         case .you:
-                            ProfileView(model: session.profile, saves: saves)
+                            ProfileView(model: session.profile, likes: likes)
                                 // Settings' Calendar switch, and what Muted and Following read.
                                 .environment(calendarSync)
                                 .environment(townFeed)

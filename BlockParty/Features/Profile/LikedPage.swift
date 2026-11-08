@@ -1,24 +1,24 @@
 //
-//  SavedPage.swift
-//  Block Party — Profile's Saved (BP app docs/plans/you-tab, ticket 04): every saved Event
-//  not over yet, soonest first, as the You tab's Agenda cards, each saying its day. Pushed
-//  from Profile's Saved row inside the sheet, under Instagram's Saved top: a back chevron and
+//  LikedPage.swift
+//  Block Party — You's Liked (BP app inside-cards 16, which took over you-tab 04's Saved): every
+//  Event you hearted, not over or called off, soonest first, as the You tab's Agenda cards, each
+//  saying its day. Pushed from ☰'s Liked row, under Instagram's Saved top: a back chevron and
 //  the title in the middle (BP app references/saved-in-profile), drawn as Search's shelf
 //  pages draw it, since Apple's bar dropped the page 20pt at the end of the push.
 //
-//  The read (`get_my_saves`, kept in the shell's `YouModel.saves(supabase:)`) gives the list; a save
-//  or unsave made anywhere since comes from `RealLifeActions`, so the list matches without a
-//  refresh and a save that turns back never shows.
+//  The read (`get_my_likes`, kept in the shell's `YouModel.likes(supabase:)`) gives the list; a heart
+//  given or taken back anywhere since, a double tap included, comes from `RealLifeActions`, so the
+//  list matches without a refresh and a heart that turns back never shows.
 //
 
 import SwiftUI
 
-struct SavedPage: View {
+struct LikedPage: View {
     let model: YouModel
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    /// The event page a card opened. Held here, outside the list, so unsaving the last
+    /// The event page a card opened. Held here, outside the list, so unhearting the last
     /// Event on its own page empties the list without closing the page.
     @State private var pushed: FeedCardItem?
 
@@ -33,8 +33,8 @@ struct SavedPage: View {
                     .padding(.bottom, YouMetric.emptyLine)
             }
         }
-        // "Saved" from the words page. The cards pass under it.
-        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Saved") { dismiss() } }
+        // Instagram's word for what you hearted. The cards pass under it.
+        .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Liked") { dismiss() } }
         .background(Hue.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $pushed) { EventPage(item: $0) }
@@ -46,15 +46,14 @@ struct SavedPage: View {
     }
 
     private func list(now: Date) -> some View {
-        // No account can't have saved anything: the empty line, never the retry.
+        // No account can't have hearted anything: the empty line, never the retry.
         let read = actions.canAct ? model.going : []
-        let saved = read.map {
-            YouCalendar.saved(read: $0, tapped: Array(actions.savedTapped.values),
-                              isSaved: { actions.saved($0) }, now: now)
+        let liked = read.map {
+            YouCalendar.liked(read: $0, tapped: Array(actions.likedTapped.values),
+                              isLiked: { actions.heart($0).isHearted }, now: now)
         }
-        // "Nothing saved yet" from the words page.
-        return AgendaList(events: saved, failed: model.failed, empty: "Nothing saved yet",
-                          loading: "Loading your saved Events", now: now, withDay: true,
+        return AgendaList(events: liked, failed: model.failed, empty: "Nothing liked yet",
+                          loading: "Loading your liked Events", now: now, withDay: true,
                           retry: { Task { await model.refresh() } }, open: { pushed = $0 })
     }
 }

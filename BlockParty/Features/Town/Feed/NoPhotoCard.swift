@@ -5,10 +5,10 @@
 //  A card with no photo of the Event used to spend a whole photo-sized frame on the place's logo
 //  over its backdrop, on ink, or on the place's cover (town-feed 40). It is a short white card now, Meetup's and Luma's
 //  event rows in the white game card's edge and shadow: the place's logo on the left, the title,
-//  when and its facts beside it. Jesse picked it over a post card, a logo tile, a logo watermark and
-//  a yellow pill ("that looks harsh"). When was in a light grey pill over the title until it moved
-//  under it in plain words, as on every Town card (Jesse, 2026-11-07, BP app inside-cards 26). The
-//  heart and the row under the card stay the Event card's own.
+//  when (or "News · 2d" for News) and its facts beside it. Jesse picked it over a post card, a logo
+//  tile, a logo watermark and a yellow pill ("that looks harsh"). When was in a light grey pill over
+//  the title until it moved under it in plain words, as on every Town card (Jesse, 2026-11-07, BP app
+//  inside-cards 26). The heart and the row under the card stay the Event card's own.
 //
 
 import SwiftUI
@@ -19,12 +19,13 @@ struct NoPhotoCard: View {
     /// A neighbour host's photo.
     var photo: URL? = nil
     let name: String
-    /// The day and time under the title, or News's words; nil leaves the line out.
+    /// The day and time under the title, or "News · 2d"; nil leaves the line out.
     let when: String?
     var whenSpoken: String? = nil
     /// On right now: "Now" behind Apple's green dot in its place (event-card 04).
     var now = false
     let title: String
+    var titleLines = 2
     var facts: String? = nil
     var factsLines = 1
     /// An Event's small line, in place of `facts`.
@@ -59,7 +60,7 @@ struct NoPhotoCard: View {
                     .font(.eventDisplay(19))
                     .lineSpacing(-1)
                     .foregroundStyle(Hue.ink.onLightCanvas)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : titleLines)
                     .fixedSize(horizontal: false, vertical: true)
                 // In the small line's grey, read after the title as on a photo card.
                 if now || !(when ?? "").isEmpty {

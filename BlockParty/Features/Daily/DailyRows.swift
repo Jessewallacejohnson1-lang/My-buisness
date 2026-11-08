@@ -43,7 +43,7 @@ nonisolated enum DailyRowMetric {
 extension DailyEvent {
     /// The shown day's events that match your interests, from the Town feed's cards, in the feed
     /// recipe's order (Town feed ticket 14). With no interests (signed out, or none picked), the
-    /// day's top. Never what's over or called off, your Event of the day, or what you're Going to or saved:
+    /// day's top. Never what's over or called off, your Event of the day, or what you're Going to or hearted:
     /// `without` and `left` say which.
     static func suggestions(from cards: [FeedCardItem], day: String, interests: [String], now: Date,
                             without shown: [DailyEvent], left: (FeedCardItem) -> Bool) -> [DailyEvent] {

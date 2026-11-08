@@ -174,18 +174,16 @@ struct FeedPostCard: View {
         FeedEventCardActionRow(
             kind: .event,
             showsHeart: actions.canAct,
-            showsSave: false,
             heartFailures: actions.heartFailureCount(post.id),
             state: Binding {
                 let heart = actions.heart(post)
-                return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted, isSaved: false)
+                return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted)
             } set: { new in
                 if new.isLiked != actions.heart(post).isHearted { actions.toggleHeart(post) }
             },
             reduceMotion: reduceMotion,
             autoplayStep: 0,
             onLike: nil,
-            onSave: nil,
             onComment: {},
             onShare: share
         )

@@ -193,8 +193,7 @@ as $$
   real_events as (
     select e.*,
            coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as host,
-           lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '')
-             || case when e.cancelled_at is not null then '|off' else '' end as series,
+           lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as series,
            -- The free-text start: "7 PM", "7:00 PM", "7pm", "noon", "19:00".
            case
              when e.all_day then null
@@ -238,18 +237,19 @@ as $$
       and (e.submitted_by is not null or e.source_name is not null)
       -- The window a series' wording reads, plus anything still running.
       and (e.event_date >= town.today - 60 or e.end_at > p_now)
-      -- Called off: out of the feed, unless someone Hearted it (Jesse, 2026-10-15).
-      and (e.cancelled_at is null or private.heart_count(e.id) > 0)
-      -- For college students (onboarding 21): only for those who picked College, or are Going or saved it.
+      -- Called off: out of the feed, Hearted or not. Whoever Hearted it or is Going hears it in the bell
+      -- (BP app inside-cards 16; until then a Heart kept it here).
+      and e.cancelled_at is null
+      -- For college students (onboarding 21): only for those who picked College, or are Going or Hearted it.
       and (not ('college' = any(e.interests) and e.interests_tagged_at is not null)
            or (select 'college' = any(me.interests) from me)
            or exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid())
-           or exists (select 1 from public.event_saves s where s.event_id = e.id and s.user_id = auth.uid()))
+           or exists (select 1 from public.event_likes l where l.event_id = e.id and l.user_id = auth.uid()))
       -- Followers only (a JV game, an away game, a banquet): only for those following its activity
       -- or its school (Jesse, 2026-10-25).
       and (not e.followers_only or fl.followed is not null)
       -- A City meeting reaches only those who follow that City or the meeting's board (town-feed 05, 27),
-      -- or are Going to it or saved it, which always stay (ticket 05).
+      -- or are Going to it or Hearted it, which always stay (ticket 05, inside-cards 16).
       and (not mt.is_meeting
            -- Or picked Town meetings, for one the tagger calls a meeting (onboarding 21): the City's
            -- compost site hours are draw 1 too.
@@ -257,7 +257,7 @@ as $$
            or exists (select 1 from my_pages p where p.source = lower(e.source_name))
            or exists (select 1 from my_boards b where b.id = mt.board)
            or exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid())
-           or exists (select 1 from public.event_saves s where s.event_id = e.id and s.user_id = auth.uid()))
+           or exists (select 1 from public.event_likes l where l.event_id = e.id and l.user_id = auth.uid()))
   ),
   timed as (
     select r.*,
@@ -291,8 +291,9 @@ as $$
                                        t.event_date, t.starts_at nulls first, t.id) as nth,
            exists (select 1 from public.event_rsvps r where r.event_id = t.id and r.user_id = auth.uid())
              as going,
-           exists (select 1 from public.event_saves s where s.event_id = t.id and s.user_id = auth.uid())
-             as saved
+           -- The caller's Heart, which is a save now (inside-cards 16).
+           exists (select 1 from public.event_likes l where l.event_id = t.id and l.user_id = auth.uid())
+             as hearted
     from timed t
     where t.leaves_at > p_now
   ),
@@ -328,7 +329,7 @@ as $$
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
       -- These go before the limit below, or the later list comes up short.
       and (not p_later or not yg.young
-           or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.saved
+           or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.hearted
            or exists (select 1 from private.friends_going(array[e.id])))
     -- Later Events come 20 at a time, soonest first, so the per-Event reads below run for those only.
     order by case when p_later then 1 end, sort_at
@@ -345,7 +346,7 @@ as $$
            -- last visit), its series' first date, and no date of it seen yet. Signed out, a found Event has
            -- no poster and no caller: still New.
            coalesce(greatest(s.created_at, coalesce(s.shows_from, s.event_date - 14)::timestamp at time zone town.zone) > least(lv.at, p_now - interval '24 hours')
-                    and s.cancelled_at is null and not s.going and not s.saved
+                    and not s.going and not s.hearted
                     and coalesce(s.submitted_by <> auth.uid(), true)
                     and s.event_date = lb.first_date
                     and sn.series is null, false) as is_new,
@@ -422,7 +423,8 @@ as $$
            -- 0, 1.5 or 3 points; one not rated yet counts as 2.
            (w->>'draw')::float8 * (coalesce(c.draw, 2) - 1) as draw_pts,
            power(0.5, c.days_away / (w->>'soonHalf')::float8) as soon,
-           case when c.going or c.saved then (w->>'acted')::float8 else 1 end as acted,
+           -- Going sinks it; a Heart doesn't (inside-cards 16): you hearted it to keep it in sight.
+           case when c.going then (w->>'acted')::float8 else 1 end as acted,
            -- A City meeting, for those who follow its City or board, sits lower (town-feed 27).
            case when c.is_meeting then (w->>'meeting')::float8 else 1 end as meeting_x,
            -- A host you said Not interested to (ticket 21): × 0.3 for its other Events, with no fade
@@ -437,30 +439,25 @@ as $$
                   when c.live_kind and c.days_off = 0 then c.seen_today
                   else c.seen_times end)) as seen_x
     from counted c, weights
-    -- Only for those who picked Middle school, follow it, have a friend Going, or are Going to it or saved it.
+    -- Only for those who picked Middle school, follow it, have a friend Going, or are Going to it or Hearted it.
     where not c.young
        or 'middle_school' = any(c.matched)
-       or c.followed is not null or c.friends_n > 0 or c.going or c.saved
+       or c.followed is not null or c.friends_n > 0 or c.going or c.hearted
   ),
   totals as (
     select c.*,
-           -- Called off and still here (Hearted): never promoted, so it goes last.
-           case when c.cancelled_at is null
-                then (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.new_pts + c.draw_pts)
-                     * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x
-                else 0 end as base,
-           -- Which pool it is in, for the Score line: yours or discovery; your own Going and saves,
-           -- and a called-off one, in neither.
-           case when c.going or c.saved or c.cancelled_at is not null then null
+           (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.new_pts + c.draw_pts)
+             * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x as base,
+           -- Which pool it is in, for the Score line: yours or discovery; your own Going in neither.
+           case when c.going then null
                 else c.friend_pts + c.follow_pts > 0 end as yours,
            -- A real happening on right now, seen on fewer than 2 opens today (town-feed 41).
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
-             and c.final_score is null and c.cancelled_at is null and c.hidden_x = 1
+             and c.final_score is null and c.hidden_x = 1
              and coalesce(c.seen_today, 0) < (select (w->>'liveOpens')::int from weights) as live_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
-           case when c.cancelled_at is not null then null
-                when c.followed is not null then 'follow'
+           case when c.followed is not null then 'follow'
                 when c.friends_n > 0 then 'friend'
                 when c.follow_pts > 0 then 'tapped'
                 when c.is_new then 'new'
@@ -631,9 +628,12 @@ as $$
            'total', round((e.base * p.spacing)::numeric, 4),
            'spot', p.spot, 'of', count(*) over ())
          end,
-         private.heart_count(e.id),
-         exists (select 1 from public.event_likes h where h.event_id = e.id and h.user_id = auth.uid()),
-         e.saved,
+         -- The Heart is the card's now (inside-cards 16); these two stay for builds that read them here.
+         (e.card->>'heart_count')::int,
+         e.hearted,
+         -- Save is gone (inside-cards 16): builds on phones before it still read their old saves here, until
+         -- event_saves is dropped.
+         exists (select 1 from public.event_saves s where s.event_id = e.id and s.user_id = auth.uid()),
          null::jsonb, null::text,
          -- The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
          case when c.status = 'approved' then c.id end,

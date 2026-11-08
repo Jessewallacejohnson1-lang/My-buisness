@@ -3,7 +3,7 @@
 //  Block Party — the You tab: your Profile (five-tabs 03), the profile page (`ProfilePage`, BP app
 //  references/profile-remake) with your full Calendar and Agenda under "Going" (`YouPage`), where a
 //  neighbour's page has its Going rows; only you see them. Edit profile and Settings sit in white
-//  circles on the cover; your settings, Saved among them, push from ☰ on the shell's stack, over
+//  circles on the cover; your settings, Liked among them, push from ☰ on the shell's stack, over
 //  the tab bar, as an Event page does.
 //
 //  Motion: the house SpringReveal cascade on Settings; press-scale on every control.
@@ -15,8 +15,8 @@ struct ProfileView: View {
     /// Your name, photo, cover and switches, kept in the shell (`AppSession`) so coming back to You
     /// shows them at once while they read again.
     let model: ProfileModel
-    /// Profile's Saved list, kept in the shell so a second visit shows the last list at once.
-    let saves: YouModel
+    /// You's Liked list, kept in the shell so a second visit shows the last list at once.
+    let likes: YouModel
     @EnvironmentObject private var auth: AuthStore
     @Environment(CalendarSync.self) private var calendarSync
     /// For Muted and Following: a page pushed on the shell's stack reads the stack's environment,
@@ -116,7 +116,7 @@ struct ProfileView: View {
 
     // MARK: - Settings
 
-    /// Today's rows, pushed from ☰ under Saved's top (`SavedPage`), on the shell's stack.
+    /// Today's rows, pushed from ☰ under Liked's top (`LikedPage`), on the shell's stack.
     private var settingsPage: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
@@ -206,14 +206,15 @@ struct ProfileView: View {
 
     // MARK: - Rows
 
-    /// One group of rows, as in the mock, Saved at the top (ticket 04).
+    /// One group of rows, as in the mock, Liked at the top (ticket 04, inside-cards 16).
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             GlassGroup {
                 // Apple's push, as Instagram's and Facebook's Saved open (Mobbin, BP app
-                // references/saved-in-profile). "Saved" from the words page.
-                NavigationLink { SavedPage(model: saves) } label: {
-                    ProfileRow(icon: BookmarkGlyph(saved: true), title: "Saved")
+                // references/saved-in-profile). Instagram's word and the app's own heart, in ink as
+                // every row's icon is (BP app inside-cards 16).
+                NavigationLink { LikedPage(model: likes) } label: {
+                    ProfileRow(icon: FeedActionGlyphView(glyph: .heart, size: 20), title: "Liked")
                 }
                 .buttonStyle(.press(.squish))
                 ProfileRowDivider()

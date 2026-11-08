@@ -348,7 +348,7 @@ final class SearchModelTests: XCTestCase {
                       cancelled: Bool = false) -> FeedCardItem {
         FeedCardItem(id: id, title: id, dateChip: "", metaLine: "",
                      image: photo ? .eventPhoto(URL(string: "https://x/\(id).webp")!) : .fallback, recurrence: repeats,
-                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false,
                      eventDate: day, startTime: time, allDay: allDay, cancelled: cancelled,
                      game: game ? Self.game : nil,
                      createdAt: added)

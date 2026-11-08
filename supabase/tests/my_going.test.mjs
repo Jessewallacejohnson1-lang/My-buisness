@@ -1,5 +1,5 @@
 // Fixed stories for get_my_going (supabase/migrations/*_my_going.sql), the You tab's read of
-// the caller's Going, and get_my_saves (*_my_saves.sql), Profile's Saved list, run in PGlite
+// the caller's Going, and get_my_likes (*_heart_replaces_save.sql), You's Liked list, run in PGlite
 // like the Town feed's. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ const ME = '00000000-0000-0000-0000-00000000000a';
 const NEIGHBOUR = '00000000-0000-0000-0000-00000000000b';
 
 async function reset() {
-  await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_saves;
+  await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_likes;
                  delete from public.club_events; delete from private.friendships;
                  delete from public.town_profiles; delete from auth.users;
                  delete from public.clubs; delete from public.sources;
@@ -112,111 +112,119 @@ test('a called-off Event still comes back, saying so: the app tells the people G
                    [['Sartell Volleyball vs ROCORI', true], ['Trivia night', false]]);
 });
 
-// get_my_saves: Profile's Saved list (BP app docs/plans/you-tab, ticket 04).
+// get_my_likes: You's Liked list (BP app inside-cards 16), which took over Saved (you-tab 04): what you hearted.
 
-async function save(user, eventId) {
-  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [eventId, user]);
+async function heart(user, eventId) {
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [eventId, user]);
 }
 
-async function saved(from, as = ME) {
+async function liked(from, as = ME) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
-  const { rows } = await db.query(`select card from public.get_my_saves($1::date)`, [from]);
+  const { rows } = await db.query(`select card from public.get_my_likes($1::date)`, [from]);
   await db.exec('reset role');
   return rows.map((r) => ({ ...r.card, day: r.card.event_date }));
 }
 
-test('saves: only the caller\'s own, with every account\'s Going count', async () => {
+test('Liked: only the caller\'s own, with every account\'s Going count', async () => {
   await reset();
   const trivia = await add('Trivia night', '2026-10-13');
   const market = await add('Fall market', '2026-10-24');
-  await save(ME, trivia);
-  await save(NEIGHBOUR, market);
+  await heart(ME, trivia);
+  await heart(NEIGHBOUR, market);
   await going(NEIGHBOUR, trivia);
-  const rows = await saved('2026-10-12');
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => [r.title, r.going_count]), [['Trivia night', 1]]);
 });
 
-test('saves: from the given day on, with no end; earlier days left out', async () => {
+test('Liked: a heart taken back leaves the list', async () => {
+  await reset();
+  const trivia = await add('Trivia night', '2026-10-13');
+  await heart(ME, trivia);
+  assert.deepEqual((await liked('2026-10-12')).map((r) => r.title), ['Trivia night']);
+  await db.query('delete from public.event_likes where event_id = $1 and user_id = $2', [trivia, ME]);
+  assert.deepEqual(await liked('2026-10-12'), []);
+});
+
+test('Liked: from the given day on, with no end; earlier days left out', async () => {
   await reset();
   for (const [title, day] of [['Yesterday', '2026-10-11'], ['Today', '2026-10-12'], ['Next year', '2027-10-12']]) {
-    await save(ME, await add(title, day));
+    await heart(ME, await add(title, day));
   }
-  const rows = await saved('2026-10-12');
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => r.title), ['Today', 'Next year']);
 });
 
-test('saves: an Event that began before the day and is still running stays', async () => {
+test('Liked: an Event that began before the day and is still running stays', async () => {
   await reset();
-  await save(ME, await add('Festival', '2026-10-10', { end_at: new Date(Date.now() + 86400000).toISOString() }));
-  await save(ME, await add('Over', '2026-10-10', { end_at: new Date(Date.now() - 86400000).toISOString() }));
-  const rows = await saved('2026-10-12');
+  await heart(ME, await add('Festival', '2026-10-10', { end_at: new Date(Date.now() + 86400000).toISOString() }));
+  await heart(ME, await add('Over', '2026-10-10', { end_at: new Date(Date.now() - 86400000).toISOString() }));
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => r.title), ['Festival']);
 });
 
-test('saves: says whether the caller is Going', async () => {
+test('Liked: says whether the caller is Going', async () => {
   await reset();
   const trivia = await add('Trivia night', '2026-10-13');
   const market = await add('Fall market', '2026-10-24');
-  await save(ME, trivia);
-  await save(ME, market);
+  await heart(ME, trivia);
+  await heart(ME, market);
   await going(ME, market);
   await going(NEIGHBOUR, trivia);
-  const rows = await saved('2026-10-12');
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => [r.title, r.going]), [['Trivia night', false], ['Fall market', true]]);
 });
 
-test('saves: says whether the Event is called off', async () => {
+test('Liked: says whether the Event is called off', async () => {
   await reset();
   const game = await add('Sartell Volleyball vs ROCORI', '2026-10-20');
-  await save(ME, game);
-  await save(ME, await add('Trivia night', '2026-10-21'));
+  await heart(ME, game);
+  await heart(ME, await add('Trivia night', '2026-10-21'));
   await db.query('update public.club_events set cancelled_at = now() where id = $1', [game]);
-  const rows = await saved('2026-10-12');
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => [r.title, r.cancelled]),
                    [['Sartell Volleyball vs ROCORI', true], ['Trivia night', false]]);
 });
 
-test('saves: ordered by day, then title', async () => {
+test('Liked: ordered by day, then title', async () => {
   await reset();
   for (const [title, day] of [['Zumba', '2026-10-14'], ['Book club', '2026-10-14'], ['Hike', '2026-10-13']]) {
-    await save(ME, await add(title, day));
+    await heart(ME, await add(title, day));
   }
-  const rows = await saved('2026-10-12');
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => `${r.day} ${r.title}`),
                    ['2026-10-13 Hike', '2026-10-14 Book club', '2026-10-14 Zumba']);
 });
 
-test('saves: pending, rejected, non-events and events with no host are left out', async () => {
+test('Liked: pending, rejected, a hearted post and events with no host are left out', async () => {
   await reset();
-  await save(ME, await add('Pending', '2026-10-13', { status: 'pending', submitted_by: NEIGHBOUR }));
-  await save(ME, await add('Rejected', '2026-10-13', { status: 'rejected' }));
-  await save(ME, await add('A post', '2026-10-13', { kind: 'post' }));
-  await save(ME, await add('Seeded sample', '2026-10-13', { source_name: null }));
-  await save(ME, await add('Posted by a neighbour', '2026-10-13', { source_name: null, submitted_by: NEIGHBOUR }));
-  const rows = await saved('2026-10-12');
+  await heart(ME, await add('Pending', '2026-10-13', { status: 'pending', submitted_by: NEIGHBOUR }));
+  await heart(ME, await add('Rejected', '2026-10-13', { status: 'rejected' }));
+  await heart(ME, await add('A post', '2026-10-13', { kind: 'post' }));
+  await heart(ME, await add('Seeded sample', '2026-10-13', { source_name: null }));
+  await heart(ME, await add('Posted by a neighbour', '2026-10-13', { source_name: null, submitted_by: NEIGHBOUR }));
+  const rows = await liked('2026-10-12');
   assert.deepEqual(rows.map((r) => r.title), ['Posted by a neighbour']);
 });
 
-test('saves: signed out reads nothing', async () => {
+test('Liked: signed out can\'t ask', async () => {
   await reset();
-  await save(ME, await add('Trivia night', '2026-10-13'));
+  await heart(ME, await add('Trivia night', '2026-10-13'));
   await db.exec('set role anon');
-  const { rows } = await db.query(`select * from public.get_my_saves('2026-10-12')`);
+  await assert.rejects(db.query(`select * from public.get_my_likes('2026-10-12')`), /permission denied/);
   await db.exec('reset role');
-  assert.equal(rows.length, 0);
 });
 
-test("your Going and your saves carry each event's place picture", async () => {
+test("your Going and your Liked carry each event's place picture", async () => {
   await reset();
   await db.exec(`insert into public.place_photos (entry_id, url, source_url, kind, status)
                  values ('krewe', 'https://x/food.webp', 'https://krewemn.com/', 'photo', 'live')`);
   const id = await add('Trivia', '2026-10-09');
   await db.query(`update public.club_events set place_entry_id = 'krewe' where id = $1`, [id]);
   await going(ME, id);
-  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [id, ME]);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   const g = (await db.query(`select card from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
-  const s = (await db.query(`select card from public.get_my_saves('2026-10-01')`)).rows;
+  const s = (await db.query(`select card from public.get_my_likes('2026-10-01')`)).rows;
   await db.exec('reset role; delete from public.place_photos;');
   assert.equal(g[0].card.place_picture.url, 'https://x/food.webp');
   assert.equal(s[0].card.place_picture.url, 'https://x/food.webp');
@@ -266,7 +274,7 @@ test('a friend who leaves drops off on the next read', async () => {
   assert.deepEqual((await friendsOn(day))[0].friends_going, []);
 });
 
-test('your saves carry friends Going too, never a stranger or a friend hiding plans (friends-on-event-page)', async () => {
+test('your Liked carries friends Going too, never a stranger or a friend hiding plans (friends-on-event-page)', async () => {
   await reset();
   const day = soon();
   const quiz = await add('Quiz night', day);
@@ -278,36 +286,36 @@ test('your saves carry friends Going too, never a stranger or a friend hiding pl
                  [FRIEND, FRIEND_PHOTO, HIDING, NEIGHBOUR]);
   await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1), ($1, $3, $1)',
                  [ME, FRIEND, HIDING]);
-  await save(ME, quiz);
-  await save(ME, fair);
+  await heart(ME, quiz);
+  await heart(ME, fair);
   for (const who of [FRIEND, HIDING, NEIGHBOUR]) await going(who, quiz);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const { rows } = await db.query(`select card from public.get_my_saves($1::date)`, [day]);
+  const { rows } = await db.query(`select card from public.get_my_likes($1::date)`, [day]);
   await db.exec('reset role');
   assert.deepEqual(rows.map(({ card: r }) => [r.title, r.friends_going]),
                    [['Craft fair', []], ['Quiz night', [{ name: 'Anna', photo: FRIEND_PHOTO }]]]);
 });
 
-test('your Going and your saves carry each event\'s description', async () => {
+test('your Going and your Liked carry each event\'s description', async () => {
   await reset();
   const id = await add('Trivia', '2026-10-09');
   await db.query(`update public.club_events set description = 'Teams of up to six.' where id = $1`, [id]);
   await going(ME, id);
-  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [id, ME]);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   const g = (await db.query(`select card from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
-  const s = (await db.query(`select card from public.get_my_saves('2026-10-01')`)).rows;
+  const s = (await db.query(`select card from public.get_my_likes('2026-10-01')`)).rows;
   await db.exec('reset role');
   assert.equal(g[0].card.description, 'Teams of up to six.');
   assert.equal(s[0].card.description, 'Teams of up to six.');
 });
 
-// The Event card (BP app codebase-health-2, tickets 01 to 03): get_my_going and get_my_saves send each Event's
+// The Event card (BP app codebase-health-2, tickets 01 to 03): get_my_going and get_my_likes send each Event's
 // card whole, as one nested value and nothing else, read here as PostgREST hands an RPC's rows to the app
 // (json_agg).
 async function asTheAppReads(read, day) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
-  const call = read === 'going' ? 'public.get_my_going($1::date, $1::date)' : 'public.get_my_saves($1::date)';
+  const call = read === 'going' ? 'public.get_my_going($1::date, $1::date)' : 'public.get_my_likes($1::date)';
   // From a subquery, so a one-column answer stays an object per row, as PostgREST sends it (its "single-column
   // TABLE return" spec), never the bare value Postgres gives `json_agg` of the function itself.
   const { rows } = await db.query(`select coalesce(json_agg(t), '[]')::text as body from (select * from ${call}) t`, [day]);
@@ -363,11 +371,11 @@ function isFullCard(card, id, day) {
   assert.deepEqual(card.friends_going, [{ name: 'Anna', photo: FRIEND_PHOTO }]);
 }
 
-// A neighbour's own posting with nothing else.
+// A neighbour's own posting with nothing else: Going, or else Hearted, by you alone.
 const bareCard = (card, id, day, going) => ({
   id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
   club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-  going_count: going ? 1 : 0, going, cancelled: false, place_picture: null, host_picture: null, description: null,
+  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null,
   what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
 });
 
@@ -377,6 +385,7 @@ test('the Going read sends a full Event card: photo, found link, about, host, ga
   const id = await fullEvent(day);
   const [row] = await asTheAppReads('going', day);
   isFullCard(row.card, id, day);
+  assert.deepEqual([row.card.heart_count, row.card.hearted], [0, false]);
   assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
 });
 
@@ -393,22 +402,24 @@ test('the Going read sends a bare Event card with empties, never a missing key',
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));
 });
 
-test('Saved sends the same full Event card (codebase-health-2 02)', async () => {
+test('Liked sends the same full Event card, saying you hearted it (codebase-health-2 02, inside-cards 16)', async () => {
   await reset();
   const day = soon();
   const id = await fullEvent(day);
-  await save(ME, id);
-  const [row] = await asTheAppReads('saves', day);
+  await heart(ME, id);
+  await heart(FRIEND, id);
+  const [row] = await asTheAppReads('likes', day);
   isFullCard(row.card, id, day);
+  assert.deepEqual([row.card.heart_count, row.card.hearted], [2, true], "every account's hearts, and yours");
   assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
 });
 
-test('Saved sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
+test('Liked sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
   await reset();
   const day = soon();
   const id = await add('Porch jam', day, { source_name: null, submitted_by: NEIGHBOUR });
-  await save(ME, id);
-  const [row] = await asTheAppReads('saves', day);
+  await heart(ME, id);
+  const [row] = await asTheAppReads('likes', day);
   assert.deepEqual(Object.keys(row.card).sort(), CARD_KEYS);
   assert.deepEqual(row.card, bareCard(row.card, id, day, false));
   assert.deepEqual(Object.keys(row), ['card']);

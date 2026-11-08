@@ -117,8 +117,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The viewer's RSVP state. Defaulted so activities and profile callers that
     /// only need the event summary remain source-compatible.
     var rsvpd: Bool = false
-    /// The viewer's save. Only Profile's Saved read (`get_my_saves`) sets it.
-    var saved: Bool = false
+    /// Every account's hearts, and whether the viewer gave one: the Event card's (inside-cards 16), so a heart
+    /// shows the same from every door. A heart is a save: You's Liked lists them.
+    var heartCount: Int = 0
+    var hearted: Bool = false
     /// The organizing club, when this event belongs to one.
     var clubName: String? = nil
     /// The event category, with legacy/null rows falling back to the neutral icon.
@@ -242,9 +244,9 @@ nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
 
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event (its card, which says how
 /// it repeats), when it leaves the Town feed, why it's there (the recipe's top reason and the one name it
-/// needs), for the admin the points behind its place, its hearts (everyone's, and
-/// whether you hearted it) and whether you saved it. Rows kept from before the recipe
-/// have no reason, and from before hearts or saves, none of those.
+/// needs), for the admin the points behind its place, and its hearts (everyone's, and
+/// whether you hearted it), which its card carries too: a feed kept from before the card had them
+/// still shows them. Rows kept from before the recipe have no reason, and from before hearts, none.
 nonisolated struct TownFeedRow: Hashable {
     let event: UpcomingEvent
     let leavesAt: Date
@@ -252,7 +254,6 @@ nonisolated struct TownFeedRow: Hashable {
     var reasonName: String? = nil
     var heartCount = 0
     var hearted = false
-    var saved = false
     /// The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
     var groupID: String? = nil
     var inGroup = false
@@ -283,8 +284,46 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
         return title.isEmpty ? words : title
     }
 
-    /// The facts under the headline, when they say more than it.
-    var facts: String? { words == headline ? nil : words }
+    /// The facts under the headline, only when they add something to it and its place's name
+    /// (`NewsWords`). `words` stays whole for the hello pill and sharing.
+    var facts: String? {
+        words == headline || !NewsWords.adds(words, to: "\(headline) \(place)") ? nil : words
+    }
+}
+
+/// Whether News's second line says something its headline doesn't (Jesse, 2026-11-06, BP app
+/// inside-cards 07 and 12): at least 2 in 5 of its real words are new. It counts words and can't
+/// read, and the numbers and lists were set on one day's 31 stories (`assets/07-words/rule.py`),
+/// so tune them here.
+nonisolated enum NewsWords {
+    static let new = 2, of = 5
+    /// Words that say nothing alone ("m" and "p" are what's left of "p.m.").
+    static let filler: Set<String> = ["a", "an", "and", "are", "as", "at", "be", "been", "by", "can", "for", "from",
+                                      "has", "have", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
+                                      "their", "this", "to", "up", "was", "were", "will", "with", "who", "m", "p"]
+    /// Words that say the same thing ("wins", "gets" and "gives" are already their word, as plurals are).
+    static let same = ["won": "win", "elected": "win", "received": "get"]
+
+    static func adds(_ line: String, to known: String) -> Bool {
+        let said = Set(real(known)), words = real(line)
+        return !words.isEmpty && words.count(where: { !said.contains($0) }) * of >= words.count * new
+    }
+
+    /// Lowercased, without "'s", split on anything but a to z and 0 to 9, filler out, a plural as its word.
+    static func real(_ text: String) -> [String] {
+        text.lowercased().replacing("'s", with: "").replacing("’s", with: "")
+            .split { !($0.isASCII && ($0.isLetter || $0.isNumber)) }
+            .map(String.init)
+            .filter { !filler.contains($0) }
+            .map { same[$0] ?? plural($0) }
+    }
+
+    /// "classes" is "class" and "clubs" is "club"; "class" stays.
+    private static func plural(_ word: String) -> String {
+        guard word.count > 3, word.hasSuffix("s") else { return word }
+        if word.hasSuffix("sses") { return String(word.dropLast(2)) }
+        return word.hasSuffix("ss") ? word : String(word.dropLast())
+    }
 }
 
 /// A neighbour's post in the Town feed (BP app town-feed 29, references/post-screen): their own words,

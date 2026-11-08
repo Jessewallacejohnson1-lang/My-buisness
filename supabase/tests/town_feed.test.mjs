@@ -262,7 +262,7 @@ test('a heart moves nothing: the order is the recipe\'s', async () => {
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale', 'Book swap']);
 });
 
-test('a called-off event leaves the feed unless someone Hearted it, and then is never promoted', async () => {
+test('a called-off event leaves the feed, even one Hearted, yours included (inside-cards 16)', async () => {
   await reset();
   await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
   // Today, a picked interest and new: it would lead the feed if it were on.
@@ -274,12 +274,11 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale']);
   await db.exec('reset role');
   await people(db, '00000000-0000-0000-0000-0000000000c4');
-  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
-                 [off, '00000000-0000-0000-0000-0000000000c4']);
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2), ($1, $3)`,
+                 [off, '00000000-0000-0000-0000-0000000000c4', ME]);
   await signIn(ME, ['watch_sports']);
-  // It says it's called off, so the card shows the Canceled tag (ticket 12).
-  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.cancelled]),
-                   [['Bake sale', 'tomorrow', false], ['Sartell Volleyball vs ROCORI', 'today', true]]);
+  // Hearted by a neighbour and by you, it's still gone: the bell tells you (moved_notices).
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale']);
   // Back on its schedule, it is an event like any other again.
   await db.exec('reset role');
   await db.query(`update public.club_events set cancelled_at = null where id = $1`, [off]);
@@ -288,7 +287,7 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   assert.deepEqual([first.title, first.cancelled], ['Sartell Volleyball vs ROCORI', false]);
 });
 
-test("a Hearted called-off date never stands in for its series' next live one", async () => {
+test("a Hearted called-off date leaves, and its series' next live one shows", async () => {
   await reset();
   const off = await add('Trivia night', '2026-10-08', { start_time: '7 PM' });
   await add('Trivia night', '2026-10-15', { start_time: '7 PM' });
@@ -297,8 +296,7 @@ test("a Hearted called-off date never stands in for its series' next live one", 
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
                  [off, '00000000-0000-0000-0000-0000000000c4']);
   await signIn(ME);
-  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.day, r.cancelled]),
-                   [['2026-10-15', false], ['2026-10-08', true]]);
+  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.day, r.cancelled]), [['2026-10-15', false]]);
 });
 
 // ---- The recipe (ticket 18): each neighbour's own order, by the playground's weights ----
@@ -331,16 +329,41 @@ test('points halve for every 7 days an event is away', async () => {
   assert.deepEqual(soon, { 'Today': 1, 'A week out': 0.5, 'Two weeks out': 0.25 });
 });
 
-test('what you are Going to or saved sits lower, but stays', async () => {
+test('what you are Going to sits lower, but stays; what you Hearted keeps its place (inside-cards 16)', async () => {
   await reset();
   const going = await add('Going', '2026-10-09', { start_time: '9 AM', source_name: 'A' });
-  const saved = await add('Saved', '2026-10-09', { start_time: '10 AM', source_name: 'B' });
+  const hearted = await add('Hearted', '2026-10-09', { start_time: '10 AM', source_name: 'B' });
   await add('Neither', '2026-10-09', { start_time: '6 PM', source_name: 'C' });
   await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [going, YOU]);
-  await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [saved, YOU]);
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Going', 'Saved', 'Neither']);
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [hearted, YOU]);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Going', 'Hearted', 'Neither']);
   await signIn(YOU);
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Neither', 'Going', 'Saved']);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Hearted', 'Neither', 'Going']);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  const acted = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, [r.score.acted, r.score.pool]]));
+  assert.deepEqual(acted, { Going: [0.4, null], Hearted: [1, 'discovery'], Neither: [1, 'discovery'] });
+});
+
+test('a save from an older build moves nothing now: it neither sinks nor stops New (inside-cards 16)', async () => {
+  await reset();
+  const saved = await add('Saved', '2026-10-09', { start_time: '9 AM', source_name: 'A', created_at: '2026-10-08 08:00-05' });
+  await add('Neither', '2026-10-09', { start_time: '10 AM', source_name: 'B' });
+  await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [saved, YOU]);
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  const rows = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
+  assert.deepEqual([rows.Saved.score.acted, rows.Saved.score.newSpot, rows.Saved.reason], [1, true, 'new']);
+});
+
+test('your Heart stops New, as Going does (inside-cards 16)', async () => {
+  await reset();
+  const fresh = { created_at: '2026-10-08 08:00-05' };
+  const hearted = await add('Hearted', '2026-10-09', { start_time: '9 AM', source_name: 'A', ...fresh });
+  await add('Fresh', '2026-10-09', { start_time: '10 AM', source_name: 'B', ...fresh });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [hearted, YOU]);
+  await signIn(YOU);
+  const reasons = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason]));
+  assert.deepEqual(reasons, { Hearted: 'tomorrow', Fresh: 'new' });
 });
 
 test('the feed says whether you saved each event, and only yours', async () => {
@@ -2849,15 +2872,16 @@ test("a City meeting reaches only those who follow the City or its board, and si
     ['City Council Meeting', 'follow', CITY]]);
 });
 
-test('a City meeting you are Going to or saved stays in your feed, lower, followed or not', async () => {
+test('a City meeting you are Going to or Hearted stays in your feed, followed or not; Going sits lower', async () => {
   await reset();
   const council = await meeting('City Council Meeting', '2026-10-09');
   const parks = await meeting('Park Board', '2026-10-10');
   await goes(council, ME);
-  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [parks, ME]);
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [parks, ME]);
   await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
   await signIn(ME);
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'City Council Meeting', 'Park Board']);
+  // The board you Hearted keeps its place; the council you're Going to sinks under it.
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Park Board', 'City Council Meeting']);
   await signIn(YOU);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "someone else's Going brings it to nobody else");
 });
@@ -2888,7 +2912,7 @@ test('a City meeting reaches those who picked Town meetings, lifted by it, as fo
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'not picked and following nothing City: out');
 });
 
-test('an Event for college students reaches only those who picked College, or are Going or saved it (onboarding 21)', async () => {
+test('an Event for college students reaches only those who picked College, or are Going or Hearted it (onboarding 21)', async () => {
   await reset();
   const dogs = await add('Therapy Dogs', '2026-10-09', { start_time: '7 PM', source_name: 'CSB SJU Libraries' });
   await db.query(`update public.club_events set interests = '{books,campus,college}', interests_tagged_at = now() where id = $1`, [dogs]);
@@ -2901,7 +2925,11 @@ test('an Event for college students reaches only those who picked College, or ar
   await db.exec('reset role');
   await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [dogs, YOU]);
   await signIn(YOU, ['campus', 'live_music', 'outdoors']);
-  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Christmas with CSB SJU', 'Therapy Dogs'], 'saved, it stays');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas with CSB SJU'], 'an old save lets nothing through now');
+  await db.exec('reset role');
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [dogs, YOU]);
+  await signIn(YOU, ['campus', 'live_music', 'outdoors']);
+  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Christmas with CSB SJU', 'Therapy Dogs'], 'Hearted, it stays');
   await db.exec('reset role; set role anon; reset request.jwt.claim.sub');
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas with CSB SJU'], 'signed out: the public concert only');
 });
@@ -3088,7 +3116,7 @@ async function busyWeekend() {
   await on('Fair cleanup', '2026-10-10', '8 AM', 'Fair board', ['outdoors']);
   await on('Legion fish fry', '2026-10-10', '5 PM', 'Legion', ['dining'], 3);
   await on('Second quilt show', '2026-10-13', '1 PM', 'Quilters', ['arts']);
-  // Called off, still in the feed for the Heart it has: never a pick.
+  // Called off, and Hearted: out of the feed all the same, so never a pick.
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [e.Parade]);
   await people(db, SHE);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [e.Parade, SHE]);
@@ -3353,7 +3381,7 @@ const FEED_KEYS = ['card', 'club_id', 'created_at', 'description', 'heart_count'
 const asTheAppReads = async (sql, params = []) => JSON.parse((await db.query(
   `select coalesce(json_agg(t), '[]')::text as body from (${sql}) t`, params)).rows[0].body);
 
-test('the Town feed sends a full Event card: photo, found link, about, host, game, friends, called off', async () => {
+test('the Town feed sends a full Event card: photo, found link, about, host, game, friends, hearts', async () => {
   await reset();
   // SJU Athletics' registry entry, as host_entries names it (live, and here from its migration).
   await db.exec(`delete from public.place_photos; delete from public.places;
@@ -3369,9 +3397,9 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
   await db.query(`update public.club_events set location = 'Clemens Field', image_url = 'https://x/flyer.jpg',
       end_at = $2::date + time '21:00', place_entry_id = 'clemens-field', description = 'Homecoming against the Cobbers.',
       what = 'Football game', source_url = 'https://gojohnnies.com/sports/football/schedule', sport = 'Football',
-      team_ids = '{saint-johns,concordia}', occasion = 'Homecoming', cancelled_at = now()
+      team_ids = '{saint-johns,concordia}', occasion = 'Homecoming'
     where id = $1`, [id, day(2)]);
-  // Called off stays in the feed only once someone Hearted it.
+  // A neighbour's Heart, counted on the card (inside-cards 16).
   await people(db, BEN);
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [id, BEN]);
   await neighbour(ANNA, 'Anna Lee', { photo: PHOTO });
@@ -3390,7 +3418,8 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
                    [id, 'SJU Football vs Concordia', day(2), '1 PM', 'Clemens Field', 'https://x/flyer.jpg', 'sports']);
   assert.equal(new Date(card.end_at).toISOString(), `${day(2)}T21:00:00.000Z`);
   assert.deepEqual([card.club_name, card.source_name], ['Johnnie Football Boosters', 'SJU Athletics']);
-  assert.deepEqual([card.going_count, card.going, card.cancelled, card.all_day], [2, true, true, false]);
+  assert.deepEqual([card.going_count, card.going, card.cancelled, card.all_day], [2, true, false, false]);
+  assert.deepEqual([card.heart_count, card.hearted], [1, false]);
   assert.equal(card.place_picture.url, 'https://x/field.webp');
   assert.deepEqual(card.host_picture, { url: 'https://x/sju-logo.webp', kind: 'logo', hue: 20 });
   assert.deepEqual([card.description, card.what, card.source_url],
@@ -3422,7 +3451,8 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
   assert.deepEqual(card, {
     id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-    going_count: 0, going: false, cancelled: false, place_picture: null, host_picture: null, description: null,
+    going_count: 0, going: false, heart_count: 0, hearted: false, cancelled: false, place_picture: null,
+    host_picture: null, description: null,
     what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));

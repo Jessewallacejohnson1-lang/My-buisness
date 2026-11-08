@@ -13,8 +13,8 @@
 //  use a neighbour's own activity, and deliberately:
 //
 //    · place + event recommendations — what gets surfaced is tailored to the
-//      person, from their interests, saves and RSVPs (`Interests`, `town_profiles`,
-//      `event_rsvps` / `event_saves` / `event_likes`, `town_follows`).
+//      person, from their interests, hearts and RSVPs (`Interests`, `town_profiles`,
+//      `event_rsvps` / `event_likes`, `town_follows`; older builds' `event_saves` until it's dropped).
 //    · `user_utility_prefs` — which utility tiles they chose, and in what order. Kept in
 //      the database; the app stopped reading and writing it on 2026-10-25.
 //    · `app_events` — first-party product analytics. The app stopped writing it on
