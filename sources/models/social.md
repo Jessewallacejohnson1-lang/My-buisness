@@ -69,7 +69,8 @@ carry on with the rest.
      listing), with no sale, deal, date or happening in it, is dropped. Jesse, 2026-11-08, on The House's
      "Joetown Burger and fries": "ads are fine as long as its a sale or something involved rather than just
      saying come buy this". A new sale or deal, a new product (one the place didn't sell before),
-     a limited-time item or a date to order by is still News; a post being new doesn't count (Jesse: "new
+     a seasonal item (Collegeville Orchards' pumpkins and apples in fall: Jesse, "its new and seasonal"), a
+     limited-time item or a date to order by is still News; a post being new doesn't count (Jesse: "new
      product or new sale not new post").
    - A post that gives the place's own hours for every week from now on (winter hours, new days, new
      times) also gets one `hours` item beside its News: `{"kind": "hours", "page": "<the flag's page id>",
