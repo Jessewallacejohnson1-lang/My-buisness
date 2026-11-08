@@ -96,11 +96,13 @@ struct RootView: View {
                 // both card shapes and the ranked order can be screenshotted.
                 TownFeedPreview()
             } else if LaunchFlags.has(.reviewQueuePreview) {
-                // The admin Review queue over the City's real found events, without
-                // auth or network. Its only real entry is the admin's profile, which a
-                // clean simulator can't reach. Add `-review-queue-fail` to make every
-                // decision fail, so the row coming back with a shake can be recorded.
+                // The admin Review queue over made-up and real items, without auth or
+                // network. Its only real entry is the admin's profile, which a clean
+                // simulator can't reach. Add `-review-queue-fail` to make every decision
+                // fail, so the row coming back with a shake can be recorded. An item's
+                // Event page reads the shell's actions, so the preview gets its own.
                 ModerationView(preview: true)
+                    .environment(RealLifeActions.preview)
             } else if LaunchFlags.has(.showSkeletons) {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()

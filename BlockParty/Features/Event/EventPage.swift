@@ -61,10 +61,15 @@ struct EventPage: View {
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
     private let goingChat: Bool
+    /// Opened from the Review queue (BP app launch-ready 07): an Event that may not be live yet, so
+    /// nothing on it acts. No Attend bar, no share or save, no Going chat, and no coming back to it
+    /// after a restart.
+    private let reviewing: Bool
 
-    init(item: FeedCardItem, goingChat: Bool = true) {
+    init(item: FeedCardItem, goingChat: Bool = true, reviewing: Bool = false) {
         self.item = item
-        self.goingChat = goingChat
+        self.goingChat = goingChat && !reviewing
+        self.reviewing = reviewing
         _landAt = State(initialValue: LeftOff.reopening(item.id) ? LeftOff.current?.eventY : nil)
     }
 
@@ -224,7 +229,7 @@ struct EventPage: View {
         // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
         // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let words = actions.rsvp(current, bar: true) {
+            if !reviewing, let words = actions.rsvp(current, bar: true) {
                 rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -247,7 +252,7 @@ struct EventPage: View {
         .onAppear {
             actions.pageOpened(item.id)
             live?.hold(liveHolder, [item])
-            LeftOff.page = item.id
+            if !reviewing { LeftOff.page = item.id }
         }
         .onDisappear {
             if LeftOff.page == item.id { LeftOff.page = nil }
@@ -401,28 +406,30 @@ struct EventPage: View {
 
             Spacer(minLength: 0)
 
-            // The card's share reveal. 15, not the row's 17: the Reference's share
-            // mark is 14 x 17 pt.
-            Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
-                              onColor: game != nil) {
-                ShareCenter.shared.present(.event(item))
-            }
+            if !reviewing {
+                // The card's share reveal. 15, not the row's 17: the Reference's share
+                // mark is 14 x 17 pt.
+                Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
+                                  onColor: game != nil) {
+                    ShareCenter.shared.present(.event(item))
+                }
 
-            // The heart where the bookmark was: a heart is a save now (BP app inside-cards 16), and lands
-            // the Event in You's Liked. The Town card's heart, red and filled once yours, popping to 1.3.
-            // A game's page keeps it here for good (inside-cards 21), red too.
-            let heart = actions.heart(item)
-            let failures = actions.heartFailureCount(item.id)
-            Self.circleButton(
-                glyph: FeedActionGlyphView(glyph: .heart, size: Metric.heart, filled: heart.isHearted)
-                    .foregroundStyle(heart.isHearted ? Hue.heart : game != nil ? .white : Hue.ink)
-                    .phaseAnimator([1, 1.3], trigger: heart.isHearted) { glyph, scale in
-                        glyph.scaleEffect(reduceMotion ? 1 : scale)
-                    } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) },
-                label: "Like", onColor: game != nil, action: toggleHeart)
-                .turnBackShake(failures: failures, shakes: !reduceMotion && heartTappedAt != failures)
-                .accessibilityValue(heart.isHearted ? "Liked" : "Not liked")
-                .accessibilityAddTraits(heart.isHearted ? .isSelected : [])
+                // The heart where the bookmark was: a heart is a save now (BP app inside-cards 16), and lands
+                // the Event in You's Liked. The Town card's heart, red and filled once yours, popping to 1.3.
+                // A game's page keeps it here for good (inside-cards 21), red too.
+                let heart = actions.heart(item)
+                let failures = actions.heartFailureCount(item.id)
+                Self.circleButton(
+                    glyph: FeedActionGlyphView(glyph: .heart, size: Metric.heart, filled: heart.isHearted)
+                        .foregroundStyle(heart.isHearted ? Hue.heart : game != nil ? .white : Hue.ink)
+                        .phaseAnimator([1, 1.3], trigger: heart.isHearted) { glyph, scale in
+                            glyph.scaleEffect(reduceMotion ? 1 : scale)
+                        } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) },
+                    label: "Like", onColor: game != nil, action: toggleHeart)
+                    .turnBackShake(failures: failures, shakes: !reduceMotion && heartTappedAt != failures)
+                    .accessibilityValue(heart.isHearted ? "Liked" : "Not liked")
+                    .accessibilityAddTraits(heart.isHearted ? .isSelected : [])
+            }
         }
         // A game's sport between the buttons, as Apple Sports names its league (the Football draft); the
         // score below says it to VoiceOver.
