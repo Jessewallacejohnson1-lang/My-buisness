@@ -17,6 +17,8 @@ struct CardTime: View {
     /// On right now: "Now" behind the green dot, in place of `text`.
     var now = false
     let color: Color
+    /// Lines at the default text sizes, one more at accessibility sizes: the game card's day over its time is 2.
+    var lines = 1
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,7 +44,7 @@ struct CardTime: View {
             Text(text)
                 .font(.sansSemibold(14))
                 .foregroundStyle(color)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? lines + 1 : lines)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spoken)

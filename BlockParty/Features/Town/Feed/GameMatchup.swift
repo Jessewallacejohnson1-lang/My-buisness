@@ -903,7 +903,6 @@ struct WhiteGameCard: View {
     let place: [String]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// The mock's After phone, on its 370 x 196 pt card: 196 pt tall at every width (inside-cards 24).
     enum Metric {
@@ -914,6 +913,9 @@ struct WhiteGameCard: View {
         static let column: CGFloat = 112
         static let gap: CGFloat = 14
         static let middle: CGFloat = 92
+        /// The time's room under VS: the column, the two gaps and the logos' clear sides, 168 pt, so a long
+        /// day reaches past VS's column without meeting a logo (inside-cards 26).
+        static let timeRoom: CGFloat = middle + 2 * gap + (column - logo)
         static let placeBottom: CGFloat = 16
         /// The place line keeps clear of the heart in the corner, on both sides so it stays centred.
         static let placeInset: CGFloat = 62
@@ -982,7 +984,7 @@ struct WhiteGameCard: View {
     }
 
     /// Under VS or the score: "Final", "Live · Q3 4:12" (the red dot), "Now" (the green dot), else the
-    /// day and time, which the photo cards' chip says.
+    /// day and time, as a photo card says it under its title.
     private func status(at date: Date) -> (dot: Color?, text: String)? {
         if game.final != nil { return (nil, "Final") }
         if let live = game.live, live.isLive(at: date) {
@@ -1037,13 +1039,18 @@ struct WhiteGameCard: View {
                 // Before a score, or under one gone quiet, the day and time, or Now, in every Town card's look
                 // (Jesse, 2026-11-07, BP app inside-cards 26). A moment comes only with a fresh score, so this
                 // needs no MomentLine.
-                CardTime(text: when.text, spoken: when.spoken, now: item.isNow(at: date), color: Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    // As the page draws it, the time keeps one line and reaches past VS's column into the gaps
-                    // beside the logos (up to 168 pt before it meets them), never cut ("Sat, Nov 21 · 8 AM" on a
-                    // 375 pt phone); at accessibility sizes it wraps inside the column.
-                    .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
-                    .frame(width: Metric.middle)
+                // As the page draws it, the time keeps one line and reaches past VS's column into the room beside
+                // the logos, never cut ("Sat, Nov 21 · 8 AM" on a 375 pt phone); too long for that room at a larger
+                // text size ("Wed, Nov 25 · 12:30 PM"), the day goes over the time.
+                let now = item.isNow(at: date)
+                ViewThatFits(in: .horizontal) {
+                    CardTime(text: when.text, spoken: when.spoken, now: now, color: Hue.inkSecondary)
+                    CardTime(text: when.text.replacingOccurrences(of: " · ", with: "\n"), spoken: when.spoken, now: now,
+                             color: Hue.inkSecondary, lines: 2)
+                }
+                .multilineTextAlignment(.center)
+                .frame(width: Metric.timeRoom)
+                .frame(width: Metric.middle)
             } else if let status {
                 // Live, the score's line and Final keep their own look. A scoring play turns it into an ink
                 // capsule round the moment for 3 s (ticket 07).
