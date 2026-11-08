@@ -1,7 +1,8 @@
 -- Place pages 02: the new place rows get their Apple Maps id (BP app docs/plans/place-pages/issues/02).
 -- Apple Maps decides a closing (Jesse, 2026-11-01); the morning finish reads each id's page and hides a
 -- place Apple calls Permanently Closed. Lines from `python3 sources/scripts/apple_maps.py match` on this
--- Mac (MapKit), 2026-11-08, over the 269 open places without an id: 127 matched
+-- Mac (MapKit), 2026-11-08, over the 269 open places without an id: 126 matched (a 127th, Casey's General Store,
+-- lost its row the same day: Jesse, there's no Casey's in town)
 -- (name = Apple's name, metres from our pin), 142 with no Apple Maps place near their pin that carries
 -- their name, listed at the end; they fall back on Google's monthly closed list.
 update public.places set apple_place_id = 'I930716DE5BCEB2FF' where id = '2d652189-e2cc-4d30-8a62-2afaa92822d5';  -- 2nd Avenue Cuts = 2nd Avenue Cuts (15 m)
@@ -25,7 +26,6 @@ update public.places set apple_place_id = 'IE6F451BAEA9BA75B' where id = '67e88d
 update public.places set apple_place_id = 'I70D5DB685728B039' where id = '147cfd74-3699-4a65-8be0-6e9f35c7706b';  -- Capital Storage Rental of St Joseph = Capital Storage Rental (65 m)
 update public.places set apple_place_id = 'I725C077EF17CB263' where id = '6912266d-af1d-44fc-a929-ab70aa27fa64';  -- Caribou Coffee = Caribou Coffee (2 m)
 update public.places set apple_place_id = 'I78B3F002501EB3CA' where id = 'f9c8c12e-bbd9-466c-aaad-0fd7ab65e7ef';  -- Carlson Crossing Townhomes = Carlson Crossing Town Homes (6 m)
-update public.places set apple_place_id = 'I7EDC2C695567B4B3' where id = 'f0f5f348-532b-40e8-bf2b-7a58e6a3acbc';  -- Casey's General Store = Casey's (50 m)
 update public.places set apple_place_id = 'IAEE78A888B097BC5' where id = '857e71d9-179c-4384-892c-0e5afe6f5172';  -- Chem-Dry of St. Cloud = Chem-Dry (41 m)
 update public.places set apple_place_id = 'I36B96C1B6867918F' where id = 'a4753fd1-f16b-4e91-b735-d4c1cf9e03bb';  -- Clemens Library = Clemens Library at College of St Benedict (66 m)
 update public.places set apple_place_id = 'I3425D5B114BE1307' where id = 'cbd3dec1-e1ed-4aa7-b32d-a02f7ae4ff8d';  -- Coborn's Grocery Store = Coborn's (5 m)
