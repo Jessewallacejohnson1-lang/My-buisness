@@ -221,9 +221,11 @@ struct FollowingSection: View {
                 FollowingRow(item: item, now: now)
             }
             // The Town feed's post and News cards, as Town draws them (daily-tab 23), `followingCardGap`
-            // under the last row and apart.
+            // under the last row and apart. A lazy stack, as the Town feed's: in a plain one the post's photo,
+            // which takes its height from its width, was squeezed to nothing and its height left blank at the
+            // page's end (seen in the first after recording).
             if !cards.isEmpty {
-                VStack(spacing: DailyMetric.followingCardGap) {
+                LazyVStack(spacing: DailyMetric.followingCardGap) {
                     ForEach(cards) { card in
                         switch card {
                         case .post(let post): FeedPostCard(post: post)
