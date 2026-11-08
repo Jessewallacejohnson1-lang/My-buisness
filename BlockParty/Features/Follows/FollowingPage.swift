@@ -342,8 +342,6 @@ struct EventHostRow: View {
     let item: FeedCardItem
     /// Paper above it once it shows; none while it doesn't.
     var top: CGFloat = 0
-    /// The place's name is on the photo above: a Place hosting doesn't say it again here (the card alone).
-    var placeNamed = false
     /// The plain row on an Event page's colour, white words; `sun`, ink words on the yellow page.
     var plain = false
     var sun = false
@@ -398,14 +396,12 @@ struct EventHostRow: View {
                               corner: host.targetType == .profile ? nil : Self.pictureCorner)
                     .trackFrame(picture)
                 VStack(alignment: .leading, spacing: 2) {
-                    if !(placeNamed && host.targetType == .place) {
-                        // Two lines at 17 pt, so a long name ("Saint Benedict's Monastery")
-                        // isn't cut beside Follow (picked).
-                        Text(host.name)
-                            .font(.sansSemibold(17))
-                            .foregroundStyle(Hue.ink)
-                            .lineLimit(2)
-                    }
+                    // Two lines at 17 pt, so a long name ("Saint Benedict's Monastery")
+                    // isn't cut beside Follow (picked).
+                    Text(host.name)
+                        .font(.sansSemibold(17))
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(2)
                     // `host-line`: "Host · 128 followers"; a person shows no count. A City
                     // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
                     Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]

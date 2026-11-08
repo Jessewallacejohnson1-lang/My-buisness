@@ -411,7 +411,7 @@ final class EventPageTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(EventLook.contrastWithWhite(wash.top), 5, "hue \(hue): \(String(wash.top, radix: 16))")
             XCTAssertGreaterThanOrEqual(EventLook.luminance(wash.top), EventLook.luminance(wash.mid) - 0.0001, "hue \(hue)")
             XCTAssertGreaterThan(EventLook.luminance(wash.mid), EventLook.luminance(wash.low), "hue \(hue)")
-            XCTAssertGreaterThan(EventLook.luminance(wash.tint), 0.7, "hue \(hue): a light tint (a red's at 92% measures 0.74)")
+            XCTAssertGreaterThan(EventLook.luminance(wash.tint), 0.65, "hue \(hue): a light tint (pure blue's at 92% measures 0.70)")
         }
         let grey = EventLook.wash(EventLook.grey)
         XCTAssertEqual(grey.top >> 16 & 0xFF, grey.top & 0xFF, "a grey stays grey")

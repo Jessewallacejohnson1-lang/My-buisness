@@ -236,7 +236,8 @@ struct EventPage: View {
         // ignores the safe area; a fixed frame can't (swift-traps).
         .overlay(alignment: .top) {
             if game == nil {
-                let top = sun ? Hue.brandDisc : Color(hex: wash?.top ?? EventLook.grey)
+                // Near-black until the picture's colour is here, never a grey band (review).
+                let top = sun ? Hue.brandDisc : wash.map { Color(hex: $0.top) } ?? Hue.gameNight
                 Color.clear
                     .overlay(alignment: .top) {
                         LinearGradient(stops: [.init(color: top, location: 0), .init(color: top, location: EventLook.topFadeSolid),
@@ -364,12 +365,13 @@ struct EventPage: View {
         return url
     }
 
-    /// A flyer's shape, width over height: as the database sent it, else as it decoded, else square.
+    /// A flyer's shape, width over height: as it decoded, so it never crops; before that as the database sent
+    /// it, else square.
     private var flyerAspect: CGFloat {
-        if case .placePhoto(_, _, let aspect?) = photos.first ?? .fallback { return aspect }
         if let url = flyer, let image = FeedCardImageLoader.shared.largest(for: url), image.height > 0 {
             return CGFloat(image.width) / CGFloat(image.height)
         }
+        if case .placePhoto(_, _, let aspect?) = photos.first ?? .fallback { return aspect }
         return 1
     }
 

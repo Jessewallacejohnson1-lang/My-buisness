@@ -53,10 +53,10 @@ enum EventLook {
     static let side: CGFloat = 16
     static let title: CGFloat = 34
     static let titleLine: CGFloat = 41
-    /// What `lineSpacing` adds to BP Event Heading's own line to make 41 at 34 pt (its line runs about 96% of
-    /// its size: 27 at the old 28), and 48 at the yellow page's 42 (picked from the 402 pt frames).
+    /// What `lineSpacing` adds to BP Event Heading's own line to make 41 at 34 pt and 48 at the yellow page's 42
+    /// (measured on the simulator: 41.3 and 48).
     static let titleSpacing: CGFloat = 8
-    static let sunTitleSpacing: CGFloat = 8
+    static let sunTitleSpacing: CGFloat = 11
     static let linesTop: CGFloat = 10
     static let line: CGFloat = 17
     static let lineHeight: CGFloat = 24.5
@@ -65,7 +65,7 @@ enum EventLook {
     static let lineNatural: CGFloat = 20.33
     /// The title's caps start this far under the picture's foot: the mock's half-leading (41 less 34, halved).
     static let titleTop: CGFloat = 3.5
-    /// A photo's credit chip, level with the heart: its top 86 pt above the foot.
+    /// A photo's credit chip, level with the heart: its bottom 68 pt above the foot, so its top sits about 86 up.
     static let creditAboveFoot: CGFloat = 68
     /// A flyer's credit sits under it at the right, 12 pt, in a 29 pt line.
     static let creditLine: CGFloat = 29
