@@ -74,7 +74,7 @@ struct OnboardingBirthdayWheel: View {
     }
 }
 
-/// "Come back when you're 13" (Turo's kind dead end): the wordmark on a soft yellow glow, the reason,
+/// "Come back when you're 13" (Turo's kind dead end): the wordmark on white, the reason,
 /// and Close, which clears everything and goes back to the Welcome. Back returns to the wheel.
 struct OnboardingTooYoung: View {
     let back: () -> Void
@@ -123,13 +123,9 @@ struct OnboardingTooYoung: View {
         .onAppear { headerFocused = true }
     }
 
-    /// The mock's 200 pt card: the wordmark tipped 4°, on yellow fading out from just below centre.
+    /// The mock's 200 pt card: the wordmark tipped 4°, on white (its yellow glow went 2026-11-08).
     private var glow: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(RadialGradient(stops: [.init(color: Hue.brandDisc.opacity(0.55), location: 0),
-                                         .init(color: Hue.brandDisc.opacity(0.1), location: 0.7),
-                                         .init(color: Hue.brandDisc.opacity(0), location: 1)],
-                                 center: UnitPoint(x: 0.5, y: 0.6), startRadius: 0, endRadius: 180))
+        Color.clear
             .frame(height: 200)
             .overlay {
                 BlockPartyWordmark(height: 190 / BlockPartyWordmark.aspect)
