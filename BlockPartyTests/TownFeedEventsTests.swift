@@ -146,12 +146,12 @@ final class TownFeedEventsTests: XCTestCase {
         var deleted: [String] = []
         let town = TownFeed(read: { entries }, deletePost: { deleted.append($0.id) })
         await town.refresh(at: now)
-        await town.delete(post)
+        await town.hides.delete(post)
         XCTAssertEqual(town.shown.map(\.id), [])
         XCTAssertEqual(deleted, ["p1"])
         let offline = TownFeed(read: { entries }, deletePost: { _ in throw Offline() })
         await offline.refresh(at: now)
-        await offline.delete(post)
+        await offline.hides.delete(post)
         XCTAssertEqual(offline.shown.map(\.id), ["p1"], "the server didn't take it: it comes back")
     }
 
@@ -584,7 +584,7 @@ final class TownFeedEventsTests: XCTestCase {
             town.cardOnScreen(id, true, at: now)
             town.cardOnScreen(id, false, at: now.addingTimeInterval(2))
         }
-        XCTAssertEqual(town.unsent, [FeedAction(itemID: "p1", kind: .view), FeedAction(itemID: "n1", kind: .news)])
+        XCTAssertEqual(town.views.unsent, [FeedAction(itemID: "p1", kind: .view), FeedAction(itemID: "n1", kind: .news)])
     }
 
     /// The column reports each of them by its own id; nothing else counts.
@@ -597,7 +597,7 @@ final class TownFeedEventsTests: XCTestCase {
 
     /// A pull counts what's on screen and sends it before it reads, so the new order knows.
     func testAPullSendsWhatYouJustSawBeforeItReads() async {
-        let sender = Sender()
+        let sender = FeedSender()
         var sentAtRead: [[FeedAction]] = []
         let rows = ["a", "b"].map { row($0) }
         let town = TownFeed(read: { sentAtRead = sender.batches; return rows.map(TownFeed.entry) }, send: sender.send)
@@ -615,17 +615,17 @@ final class TownFeedEventsTests: XCTestCase {
                             send: { _ in try await Task.sleep(for: .seconds(30)) })
         await town.reload(at: now)
         town.cameBack(at: now)
-        town.opened("a")
+        town.views.opened("a")
         let started = ContinuousClock.now
         await town.pulled(at: now.addingTimeInterval(60))
         XCTAssertEqual(reads, 2)
         XCTAssertLessThan(started.duration(to: .now), .seconds(10))
-        XCTAssertEqual(town.unsent, [FeedAction(itemID: "a", kind: .open)], "it goes again with the next batch")
+        XCTAssertEqual(town.views.unsent, [FeedAction(itemID: "a", kind: .open)], "it goes again with the next batch")
     }
 
     /// A new account starts with nothing on screen and no posters shown.
     func testANewAccountForgetsWhatWasOnScreen() async throws {
-        let sender = Sender()
+        let sender = FeedSender()
         let town = await shownFeed(sender)
         town.cardOnScreen("a", true, at: now)
         town.accountChanged()
@@ -636,7 +636,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// Each Event of the day shows as the poster once, and goes when a fresh order lands, never under
     /// the finger. The next pick takes the top, and with none left the cards open the feed.
     func testEachPosterShowsOnceAndGoesWithAFreshOrder() async throws {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         let picks = [try pick("x", from: 1, to: 2), try pick("y", from: 3, to: 4)]
         let top = { town.column(eventOfTheDay: picks, now: self.now).first?.id }
         XCTAssertEqual(top(), "event-of-the-day:x")
@@ -657,7 +657,7 @@ final class TownFeedEventsTests: XCTestCase {
 
     /// Going to it keeps it on top (event-card 03).
     func testAPosterYouAreGoingToStays() async throws {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         var going = try pick("x", from: 1, to: 2)
         going.item.isJoined = true
         town.cardOnScreen("x", true, at: now)
@@ -694,14 +694,14 @@ final class TownFeedEventsTests: XCTestCase {
     /// The column's poster is never a pick you said Not interested to, nor one whose host you
     /// muted (ticket 21): the next pick takes the top, and with none left the cards open it.
     func testAHiddenPickNeverTopsTheFeed() async throws {
-        let town = await choosingFeed(Chooser())
+        let town = await choosingFeed(FeedChooser())
         let picks = [try pick("x", from: 1, to: 2), try pick("y", from: 3, to: 4)]
         XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:x")
-        await town.hide(id: "x", host: "Parks", mute: false)
-        town.undoEnded("x")
+        await town.hides.hide(id: "x", host: "Parks", mute: false)
+        town.hides.undoEnded("x")
         XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).first?.id, "event-of-the-day:y")
-        await town.hide(id: "y", host: "Parks", mute: true)
-        town.undoEnded("y")
+        await town.hides.hide(id: "y", host: "Parks", mute: true)
+        town.hides.undoEnded("y")
         XCTAssertEqual(town.column(eventOfTheDay: picks, now: now).map(\.id), ["event:c", "caught-up"],
                        "Parks' pick and cards all go; the list still ends on its line (town-feed 23)")
     }
@@ -1721,19 +1721,8 @@ final class TownFeedEventsTests: XCTestCase {
 
     // MARK: Views and opens (ticket 20)
 
-    /// Keeps every batch it's sent, and fails when told to.
-    @MainActor
-    private final class Sender {
-        var batches: [[FeedAction]] = []
-        var error: Error?
-        func send(_ batch: [FeedAction]) async throws {
-            if let error { throw error }
-            batches.append(batch)
-        }
-    }
-
     /// A feed on screen with cards a, b and c, its views going to `sender`.
-    private func shownFeed(_ sender: Sender, ids: [String] = ["a", "b", "c"]) async -> TownFeed {
+    private func shownFeed(_ sender: FeedSender, ids: [String] = ["a", "b", "c"]) async -> TownFeed {
         let rows = ids.map { row($0) }
         let town = TownFeed(read: { rows.map(TownFeed.entry) }, send: sender.send)
         await town.reload(at: now)
@@ -1742,11 +1731,11 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     private func views(_ town: TownFeed) -> [String] {
-        town.unsent.filter { $0.kind == .view }.map(\.itemID)
+        town.views.unsent.filter { $0.kind == .view }.map(\.itemID)
     }
 
     func testOneSecondHalfOnScreenIsOneViewAndLessIsNone() async {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         town.cardOnScreen("a", true, at: now)
         town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
         town.cardOnScreen("b", true, at: now)
@@ -1755,7 +1744,7 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     func testACardSeenTwiceInOneFeedLoadIsOneView() async {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         for start in [0.0, 5.0] {
             town.cardOnScreen("a", true, at: now.addingTimeInterval(start))
             town.cardOnScreen("a", false, at: now.addingTimeInterval(start + 2))
@@ -1766,7 +1755,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// Leaving counts a card still on screen; time away counts nothing, and back on
     /// screen its second starts over.
     func testLeavingCountsWhatsOnScreenAndTimeAwayCountsNothing() async {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         town.cardOnScreen("a", true, at: now)
         town.cardOnScreen("b", true, at: now.addingTimeInterval(0.5))
         town.left(at: now.addingTimeInterval(1.2))
@@ -1780,7 +1769,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// A tab switch rebuilds the screen: its cards never report going off, so they're
     /// forgotten, and a later feed load counts only what the rebuilt screen reports.
     func testCardsFromAScreenThatWentAreNotCountedAgain() async {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         town.cardOnScreen("c", true, at: now)
         town.left(at: now.addingTimeInterval(2), viewGone: true)
         XCTAssertEqual(views(town), ["c"])
@@ -1792,7 +1781,7 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     func testAFreshOrderStartsANewFeedLoad() async {
-        let town = await shownFeed(Sender())
+        let town = await shownFeed(FeedSender())
         town.cardOnScreen("a", true, at: now)
         town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
         await town.reload(at: now.addingTimeInterval(60))
@@ -1802,91 +1791,24 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     func testACardNoLongerInTheListIsNotCounted() async {
-        let town = await shownFeed(Sender(), ids: ["a"])
+        let town = await shownFeed(FeedSender(), ids: ["a"])
         town.cardOnScreen("gone", true, at: now)
         town.cardOnScreen("gone", false, at: now.addingTimeInterval(2))
         XCTAssertEqual(views(town), [])
     }
 
-    func testOneBatchEvery30SecondsAndAtOnceWhenTheAppLeaves() async {
-        let sender = Sender()
-        let town = await shownFeed(sender)
-        town.opened("a")
-        await town.send(at: now)
-        XCTAssertEqual(sender.batches, [[FeedAction(itemID: "a", kind: .open)]], "the first goes at once")
-
-        town.opened("b")
-        await town.send(at: now.addingTimeInterval(29))
-        XCTAssertEqual(sender.batches.count, 1, "nothing before 30 s")
-        await town.send(at: now.addingTimeInterval(30))
-        XCTAssertEqual(sender.batches.count, 2)
-
-        town.opened("c")
-        await town.send(at: now.addingTimeInterval(31), always: true)
-        XCTAssertEqual(sender.batches.last, [FeedAction(itemID: "c", kind: .open)], "leaving sends now")
-    }
-
-    /// No network or no account: the batch waits for the next. A refused one is dropped.
-    func testAFailedBatchJoinsTheNextAndARefusedOneIsDropped() async {
-        let sender = Sender()
-        let town = await shownFeed(sender)
-        sender.error = URLError(.notConnectedToInternet)
-        town.opened("a")
-        await town.send(at: now)
-        sender.error = SupabaseError(message: "no session", status: 401)
-        town.opened("b")
-        await town.send(at: now.addingTimeInterval(30))
-        sender.error = nil
-        town.opened("c")
-        await town.send(at: now.addingTimeInterval(60))
-        XCTAssertEqual(sender.batches.last?.map(\.itemID), ["a", "b", "c"])
-
-        sender.error = SupabaseError(message: "bad row", status: 400)
-        town.opened("d")
-        await town.send(at: now.addingTimeInterval(90))
-        sender.error = nil
-        town.opened("e")
-        await town.send(at: now.addingTimeInterval(120))
-        XCTAssertEqual(sender.batches.last?.map(\.itemID), ["e"], "a refused batch would fail every one after it")
-    }
-
-    func testANewAccountDropsTheLastOnesWaitingViews() async {
-        let sender = Sender()
-        let town = await shownFeed(sender)
-        town.opened("a")
-        town.accountChanged()
-        await town.send(at: now, always: true)
-        XCTAssertEqual(sender.batches, [])
-    }
-
     /// The Town feed's own default sends nowhere, so tests and previews never write.
     func testAFeedBuiltForTestsSendsNowhere() async {
         let town = TownFeed(read: { [] })
-        town.opened("a")
-        await town.send(at: now, always: true)
-        XCTAssertEqual(town.unsent, [])
+        town.views.opened("a")
+        await town.views.send(at: now, always: true)
+        XCTAssertEqual(town.views.unsent, [])
     }
 
     // MARK: Not interested and Mute (ticket 21)
 
-    /// Keeps every choice it's told, answers a Mute with its host, and fails when told to.
-    @MainActor
-    private final class Chooser {
-        var told: [FeedChoice] = []
-        var error: Error?
-        var muted: [MutedHost] = []
-        var delay: Duration?
-        func choose(_ choice: FeedChoice) async throws -> String? {
-            if let delay { try await Task.sleep(for: delay) }
-            if let error { throw error }
-            told.append(choice)
-            if case .mute = choice { return "parks-key" }
-            return nil
-        }
-    }
-
     /// Cards a and b from Parks, c from the City, on screen.
-    private func choosingFeed(_ chooser: Chooser, rows extra: [TownFeedRow] = []) async -> TownFeed {
+    private func choosingFeed(_ chooser: FeedChooser, rows extra: [TownFeedRow] = []) async -> TownFeed {
         let rows = [row("a", source: "Parks"), row("b", source: "Parks"), row("c")] + extra
         let town = TownFeed(read: { rows.map(TownFeed.entry) }, choose: chooser.choose,
                             readMuted: { chooser.muted })
@@ -1896,44 +1818,20 @@ final class TownFeedEventsTests: XCTestCase {
 
     private func ids(_ town: TownFeed) -> [String] { town.cards.map(\.id) }
 
-    func testNotInterestedFoldsTheCardToItsUndoLineThenItGoesAndIsSent() async {
-        let chooser = Chooser()
-        let town = await choosingFeed(chooser)
-        await town.hide(town.cards[0], mute: false)
-        XCTAssertEqual(chooser.told, [.notInterested("a")], "sent straight away")
-        XCTAssertEqual(town.undo, FeedHide(id: "a", hostName: "Parks", mute: false))
-        XCTAssertEqual(ids(town), ["a", "b", "c"], "a stays in, drawn as its Undo line")
-        town.undoEnded("a")
-        XCTAssertNil(town.undo)
-        XCTAssertEqual(ids(town), ["b", "c"])
-    }
-
     func testMuteTakesEveryCardFromTheHost() async {
-        let chooser = Chooser()
+        let chooser = FeedChooser()
         let town = await choosingFeed(chooser)
         await town.hide(town.cards[1], mute: true)
         XCTAssertEqual(chooser.told, [.mute("b")])
         XCTAssertEqual(ids(town), ["b", "c"], "a goes at once; b shows its Undo line")
-        town.undoEnded("b")
+        town.hides.undoEnded("b")
         XCTAssertEqual(ids(town), ["c"])
-    }
-
-    func testUndoBringsTheCardBackAndTakesTheChoiceBack() async {
-        let chooser = Chooser()
-        let town = await choosingFeed(chooser)
-        await town.hide(town.cards[0], mute: false)
-        await town.undoHide()
-        await town.hide(town.cards[1], mute: true)
-        await town.undoHide()
-        XCTAssertEqual(chooser.told, [.notInterested("a"), .undoNotInterested("a"), .mute("b"), .unmute("parks-key")])
-        XCTAssertNil(town.undo)
-        XCTAssertEqual(ids(town), ["a", "b", "c"])
     }
 
     // MARK: News's ••• (news-menu)
 
     /// Event a from Parks, then Parks' news p1 and p2 and the City's news c1.
-    private func newsFeed(_ chooser: Chooser) async -> TownFeed {
+    private func newsFeed(_ chooser: FeedChooser) async -> TownFeed {
         let news = [("p1", "Parks"), ("p2", "Parks"), ("c1", "City of St. Joseph")].map { id, place in
             TownNews(id: id, place: place, words: "News \(id)", post: URL(string: "https://x/\(id)")!,
                      leavesAt: now.addingTimeInterval(86_400))
@@ -1946,22 +1844,22 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     func testNotInterestedOnNewsFoldsThatPostAloneAndSendsItsID() async {
-        let chooser = Chooser()
+        let chooser = FeedChooser()
         let town = await newsFeed(chooser)
-        await town.hide(id: "p1", host: "Parks", mute: false)
+        await town.hides.hide(id: "p1", host: "Parks", mute: false)
         XCTAssertEqual(chooser.told, [.notInterested("p1")])
         XCTAssertEqual(town.shown.map(\.id), ["a", "p1", "p2", "c1"], "p1 stays in, drawn as its Undo line")
-        town.undoEnded("p1")
+        town.hides.undoEnded("p1")
         XCTAssertEqual(town.shown.map(\.id), ["a", "p2", "c1"])
     }
 
     func testMuteOnNewsTakesItsPlacesNewsAndEventsAndUndoBringsThemBack() async {
-        let chooser = Chooser()
+        let chooser = FeedChooser()
         let town = await newsFeed(chooser)
-        await town.hide(id: "p2", host: "Parks", mute: true)
+        await town.hides.hide(id: "p2", host: "Parks", mute: true)
         XCTAssertEqual(chooser.told, [.mute("p2")])
         XCTAssertEqual(town.shown.map(\.id), ["p2", "c1"], "p2 shows its Undo line")
-        await town.undoHide()
+        await town.hides.undoHide()
         XCTAssertEqual(chooser.told, [.mute("p2"), .unmute("parks-key")])
         XCTAssertEqual(town.shown.map(\.id), ["a", "p1", "p2", "c1"])
     }
@@ -1973,106 +1871,56 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(news.eventID, "views still go for Events only")
     }
 
-    // MARK: Report (ticket 22)
-
-    func testReportSendsTheReasonThenTheCardFoldsAndUndoLiftsOnlyTheHide() async throws {
-        let chooser = Chooser()
-        let town = await choosingFeed(chooser)
-        try await town.report(town.cards[0], .scam)
-        XCTAssertEqual(chooser.told, [.report("a", .scam)])
-        XCTAssertEqual(ids(town), ["a", "b", "c"], "nothing moves while the sheet is open")
-        town.hideReported(town.cards[0])
-        XCTAssertEqual(town.undo, FeedHide(id: "a", hostName: "Parks", mute: false))
-        await town.undoHide()
-        XCTAssertEqual(chooser.told, [.report("a", .scam), .undoNotInterested("a")], "the report stays sent")
-        XCTAssertEqual(ids(town), ["a", "b", "c"])
-    }
-
-    func testAReportThatFailsThrowsAndHidesNothing() async {
-        let chooser = Chooser()
-        chooser.error = URLError(.notConnectedToInternet)
-        let town = await choosingFeed(chooser)
-        do {
-            try await town.report(town.cards[0], .nudity)
-            XCTFail("the sheet must hear it failed")
-        } catch {}
-        XCTAssertEqual(ids(town), ["a", "b", "c"])
-        XCTAssertNil(town.undo)
-    }
-
-    func testWrongPhotoOnlyWithASavedPhotoWrongInfoOnlyOnAFoundEventAndNeitherHides() {
-        XCTAssertEqual(ReportReason.offered(photo: false, found: false).map(\.label),
-                       ["Scam, fraud or spam", "Bullying or unwanted contact", "Violence, hate or exploitation",
-                        "Nudity or sexual activity", "Selling or promoting restricted items",
-                        "Suicide, self-injury or eating disorders"])
-        XCTAssertEqual(ReportReason.offered(photo: true, found: true).prefix(2), [.wrongPhoto, .wrongInfo])
-        XCTAssertEqual(ReportReason.allCases.filter { !$0.hides }, [.wrongPhoto, .wrongInfo])
-    }
-
-    /// A slow network: Undo tapped while the Mute is still on its way waits for it, so the server
-    /// gets the Mute first and Undo knows which host to unmute.
-    func testUndoWaitsForTheChoiceStillOnItsWay() async {
-        let chooser = Chooser()
-        let town = await choosingFeed(chooser)
-        chooser.delay = .milliseconds(200)
-        let card = town.cards[0]
-        let hiding = Task { await town.hide(card, mute: true) }
-        while town.undo == nil { await Task.yield() }
-        await town.undoHide()
-        await hiding.value
-        XCTAssertEqual(chooser.told, [.mute("a"), .unmute("parks-key")])
-        XCTAssertEqual(ids(town), ["a", "b", "c"])
-    }
-
-    func testAChoiceThatDoesntGoThroughBringsTheCardBack() async {
-        let chooser = Chooser()
-        chooser.error = URLError(.notConnectedToInternet)
-        let town = await choosingFeed(chooser)
-        await town.hide(town.cards[0], mute: true)
-        XCTAssertNil(town.undo)
-        XCTAssertEqual(ids(town), ["a", "b", "c"])
-    }
-
     func testAReadThatRacedTheChoiceDoesntBringTheCardBack() async {
-        let chooser = Chooser()
+        let chooser = FeedChooser()
         let town = await choosingFeed(chooser)
         await town.hide(town.cards[2], mute: false)
-        town.undoEnded("c")
+        town.hides.undoEnded("c")
         await town.reload(at: now)
         XCTAssertEqual(ids(town), ["a", "b"])
     }
 
     func testUnmuteTakesTheHostOffTheListAndBringsItsCardsBack() async {
-        let chooser = Chooser()
+        let chooser = FeedChooser()
         chooser.muted = [MutedHost(host: "parks-key", name: "Parks"), MutedHost(host: "x", name: "Loso's")]
         let town = await choosingFeed(chooser)
         await town.hide(town.cards[0], mute: true)
-        town.undoEnded("a")
+        town.hides.undoEnded("a")
         XCTAssertEqual(ids(town), ["c"])
-        await town.refreshMuted()
+        await town.hides.refreshMuted()
         await town.unmute(chooser.muted[0], at: now)
-        XCTAssertEqual(town.muted, [MutedHost(host: "x", name: "Loso's")])
+        XCTAssertEqual(town.hides.muted, [MutedHost(host: "x", name: "Loso's")])
         XCTAssertEqual(chooser.told.last, .unmute("parks-key"))
         XCTAssertEqual(ids(town), ["a", "b", "c"])
     }
 
-    func testAFailedUnmuteKeepsTheRowAndCountsAFailure() async {
-        let chooser = Chooser()
-        chooser.muted = [MutedHost(host: "parks-key", name: "Parks")]
-        let town = await choosingFeed(chooser)
-        await town.refreshMuted()
-        chooser.error = URLError(.notConnectedToInternet)
-        await town.unmute(chooser.muted[0])
-        XCTAssertEqual(town.muted, chooser.muted)
-        XCTAssertEqual(town.unmuteFailures["parks-key"], 1)
-    }
-
     func testANewAccountForgetsTheLastOnesHiddenCards() async {
-        let town = await choosingFeed(Chooser())
+        let town = await choosingFeed(FeedChooser())
         await town.hide(town.cards[0], mute: true)
         town.accountChanged()
-        XCTAssertNil(town.undo)
+        XCTAssertNil(town.hides.undo)
         XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    /// A new account starts with nothing hidden, muted or reported, no Undo line or Muted list, and
+    /// none of the last one's views and opens waiting (BP app codebase-health 30).
+    func testANewAccountClearsEveryHideAndEveryWaitingView() async throws {
+        let chooser = FeedChooser()
+        chooser.muted = [MutedHost(host: "parks-key", name: "Parks")]
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: false)
+        await town.hide(town.cards[2], mute: true)
+        try await town.hides.report(id: "b", .scam)
+        town.hides.hideReported(id: "b", host: "Parks")
+        await town.hides.refreshMuted()
+        town.views.opened("a")
+        town.accountChanged()
+        XCTAssertEqual(town.hides.hiddenIDs, [])
+        XCTAssertEqual(town.hides.mutedNames, [])
+        XCTAssertEqual(town.hides.reportedIDs, [])
+        XCTAssertNil(town.hides.undo)
+        XCTAssertNil(town.hides.muted)
+        XCTAssertEqual(town.views.unsent, [])
     }
 
     // MARK: After the best (town-feed 23)
@@ -2174,8 +2022,8 @@ final class TownFeedEventsTests: XCTestCase {
                             readMore: { _, _, _ in [] })
         await town.reload(at: now)
         await town.loadMore()
-        await town.hide(id: "x", host: "City of St. Joseph", mute: false)
-        town.undoEnded("x")
+        await town.hides.hide(id: "x", host: "City of St. Joseph", mute: false)
+        town.hides.undoEnded("x")
         XCTAssertEqual(town.column(eventOfTheDay: [], now: now).map(\.id), ["event:a", "caught-up", "event:y"])
     }
 }
@@ -2183,7 +2031,7 @@ final class TownFeedEventsTests: XCTestCase {
 
 private extension TownFeed {
     /// A card's own hide, as its ••• sheet sends it.
-    func hide(_ card: FeedCardItem, mute: Bool) async { await hide(id: card.id, host: card.hostName, mute: mute) }
+    func hide(_ card: FeedCardItem, mute: Bool) async { await hides.hide(id: card.id, host: card.hostName, mute: mute) }
 
 }
 

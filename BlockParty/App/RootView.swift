@@ -460,7 +460,7 @@ struct MainTabsView: View {
                             if reopened == item.id {
                                 reopened = nil
                             } else if tab == .town {
-                                townFeed.opened(item.id)
+                                townFeed.views.opened(item.id)
                             }
                         }
                 }

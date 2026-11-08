@@ -106,7 +106,7 @@ final class AppSession {
     /// slow one holds up nothing. Runs for as long as the shell is up: the Town feed's views and
     /// opens go up every 30 seconds, on any tab and under a pushed page (ticket 20), and the shell
     /// going cancels the lot. The DEBUG demo screens outside the shell never send.
-    func launched(sendEvery: Duration = .seconds(TownFeed.sendEvery)) async {
+    func launched(sendEvery: Duration = .seconds(FeedViews.sendEvery)) async {
         recordOpen()
         takeFollows()
         await withDiscardingTaskGroup { jobs in
@@ -121,7 +121,7 @@ final class AppSession {
             jobs.addTask {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: sendEvery)
-                    await self.townFeed.send()
+                    await self.townFeed.views.send()
                 }
             }
         }
@@ -193,7 +193,7 @@ final class AppSession {
     func wentAway() {
         liveGames.away(true)
         chats.stop()
-        Task { await townFeed.send(always: true) }
+        Task { await townFeed.views.send(always: true) }
     }
 
     /// Where you were stays on the phone, in case iOS shuts the app down while it's away (`LeftOff`).

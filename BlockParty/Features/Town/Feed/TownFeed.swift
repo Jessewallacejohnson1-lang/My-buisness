@@ -13,125 +13,18 @@
 //  keeps the order on screen: cards update in place, ones that went drop out, and new
 //  ones wait for the next fresh order.
 //
-//  It also records what the feed showed and what was opened (ticket 20): a card at least
-//  half on screen for 1 second is one view, once per card per feed load, and opening its
-//  Event page is an open. They go up in one batch at most every 30 seconds and when the
-//  app leaves the screen; the server turns views into popularity per view.
+//  It also counts what the feed showed (ticket 20): a card at least half on screen for
+//  1 second is one view, once per card per feed load. Views and opens wait in `views`
+//  (`FeedViews`) for the server.
 //
-//  Not interested and Mute (ticket 21) take a card out at once and go to the server straight
-//  away. The card folds into a "Hidden · Undo" line for 5 seconds, then goes; Undo brings it
-//  back and takes the choice back. The ids and host names hidden this session stay out of
-//  every list, so a read that raced the write, or a kept list, can't bring a card back.
+//  What you took out (Not interested, Mute, Report; ticket 21) is `hides` (`FeedHides`):
+//  the list leaves out whatever it says is hidden.
 //
 //  A game's card carries its newest score from Live games (`LiveGames`, BP app codebase-health-2 08),
 //  which the feed holds its games with while it's on screen.
 //
 
 import Foundation
-import UIKit
-
-/// One line of the Town feed: an event's card, town news (ticket 35) or a neighbour's post (ticket 29),
-/// and when it leaves.
-struct TownFeedEntry: Identifiable {
-    enum Item {
-        case event(FeedCardItem)
-        case news(TownNews)
-        case post(TownPost)
-    }
-    let item: Item
-    let leavesAt: Date
-
-    var id: String {
-        switch item {
-        case .event(let card): card.id
-        case .news(let news): news.id
-        case .post(let post): post.id
-        }
-    }
-
-    /// The event's card; nil for news and posts.
-    var card: FeedCardItem? {
-        if case .event(let card) = item { return card }
-        return nil
-    }
-
-    var isNews: Bool {
-        if case .news = item { return true }
-        return false
-    }
-
-    /// The neighbour's post; nil for the rest.
-    var post: TownPost? {
-        if case .post(let post) = item { return post }
-        return nil
-    }
-}
-
-extension TownFeedEntry {
-    init(card: FeedCardItem, leavesAt: Date) {
-        self.init(item: .event(card), leavesAt: leavesAt)
-    }
-}
-
-/// What the feed showed (a view), what was opened, or an Event shared from the app (ticket 26),
-/// for `feed_actions` (ticket 20).
-struct FeedAction: Equatable {
-    /// `news` is a view of Town news, which goes apart from the rest (`see_news`, town-feed 41).
-    enum Kind: String { case view, open, share, news }
-    let itemID: String
-    let kind: Kind
-}
-
-/// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
-/// gets back the host it muted; Unmute names that host. Report (ticket 22) names an Event and a
-/// reason; Undo on its Hidden line is undoNotInterested, which lifts the hide and keeps the report.
-enum FeedChoice: Equatable {
-    case notInterested(String), undoNotInterested(String), mute(String), unmute(String)
-    case report(String, ReportReason)
-}
-
-/// Why a neighbour reports an Event, in the sheet's order (words page `report-reasons`, Jesse
-/// 2026-10-12). Wrong photo shows only on a card with a photo Block Party saved, Wrong info only
-/// on a found Event; neither hides the card.
-enum ReportReason: String, CaseIterable, Identifiable {
-    case wrongPhoto = "wrong_photo", wrongInfo = "wrong_info", scam, bullying, violence, nudity,
-         restricted, selfHarm = "self_harm"
-
-    var id: String { rawValue }
-    var hides: Bool { self != .wrongPhoto && self != .wrongInfo }
-
-    var label: String {
-        switch self {
-        case .wrongPhoto: "Wrong photo"
-        case .wrongInfo: "Wrong info"
-        case .scam: "Scam, fraud or spam"
-        case .bullying: "Bullying or unwanted contact"
-        case .violence: "Violence, hate or exploitation"
-        case .nudity: "Nudity or sexual activity"
-        case .restricted: "Selling or promoting restricted items"
-        case .selfHarm: "Suicide, self-injury or eating disorders"
-        }
-    }
-
-    /// The reasons a card offers.
-    static func offered(photo: Bool, found: Bool) -> [ReportReason] {
-        allCases.filter { ($0 != .wrongPhoto || photo) && ($0 != .wrongInfo || found) }
-    }
-}
-
-/// A host you muted, as the Muted list shows it.
-struct MutedHost: Identifiable, Equatable, Decodable {
-    let host: String
-    let name: String
-    var id: String { host }
-}
-
-/// A card just hidden, showing its Undo line.
-struct FeedHide: Equatable {
-    let id: String
-    let hostName: String
-    let mute: Bool
-}
 
 @MainActor @Observable
 final class TownFeed {
@@ -197,38 +90,15 @@ final class TownFeed {
 
     /// A card at least half on screen this long is one view (ticket 20).
     static let viewAfter: TimeInterval = 1
-    /// Views and opens go up at most this often, and when the app leaves the screen.
-    nonisolated static let sendEvery: TimeInterval = 30
-    /// How long a pull waits for what you just saw to go up, before it reads anyway.
-    nonisolated static let sendWait: Duration = .seconds(1)
 
     /// Cards half on screen now, and since when (reset when the feed comes back).
     @ObservationIgnored private var onScreen: [String: Date] = [:]
     /// Cards already counted in this feed load: a view is once per card per load.
     @ObservationIgnored private var viewed: Set<String> = []
-    /// Views and opens not yet sent; a batch that fails for want of a network or an
-    /// account goes back in front.
-    @ObservationIgnored private(set) var unsent: [FeedAction] = []
-    @ObservationIgnored private var lastSent: Date = .distantPast
-
-    /// Events and News said Not interested to and host names muted this session (ticket 21).
-    private(set) var hiddenIDs: Set<String> = []
-    private(set) var mutedNames: Set<String> = []
-    /// The card showing "Hidden · Undo" in its place, for 5 seconds.
-    private(set) var undo: FeedHide?
-    /// How long the Undo line stays.
-    static let undoFor: Duration = .seconds(5)
-    /// The host each Mute this session muted, by name, so its Undo can unmute it.
-    @ObservationIgnored private var muteKeys: [String: String] = [:]
-    /// The last choice on its way: Undo waits for it, so the take-back never lands first.
-    @ObservationIgnored private var sending: Task<String?, Error>?
-    /// Ends the Undo line after 5 seconds, wherever the line has scrolled to.
-    @ObservationIgnored private var undoTimer: Task<Void, Never>?
-    /// The Muted list as the last read gave it; nil until read.
-    private(set) var muted: [MutedHost]?
-    private(set) var mutedFailed = false
-    /// Unmutes that didn't go through, by host: the row comes back and shakes.
-    private(set) var unmuteFailures: [String: Int] = [:]
+    /// Views and opens on their way to the server.
+    let views: FeedViews
+    /// Not interested, Mute, Report and their Undo, and the Muted list.
+    let hides: FeedHides
 
     private let read: () async throws -> [TownFeedEntry]
     private let kept: () -> [TownFeedEntry]?
@@ -238,11 +108,6 @@ final class TownFeed {
     /// Told each Event's Going and Heart from every list the feed takes, in the same
     /// turn, so a card and its Event page never disagree for a frame.
     private let actions: RealLifeActions?
-    /// Where views and opens go: the live table, or nowhere (tests, sample modes).
-    private let sender: ([FeedAction]) async throws -> Void
-    /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
-    private let choose: (FeedChoice) async throws -> String?
-    private let readMuted: () async throws -> [MutedHost]
     /// Every game's newest score: the feed holds its games there while it's on screen, and its cards
     /// carry what it says (codebase-health-2 08). nil in tests that don't need it.
     private let live: LiveGames?
@@ -251,8 +116,6 @@ final class TownFeed {
     private let readLater: () async throws -> [TownFeedEntry]
     private let readMore: (Int, [String], [String]) async throws -> [TownMoreRow]
     private let opened: () -> [String]
-    /// Where your own post's Delete goes (town-feed 29).
-    private let deletePost: (TownPost) async throws -> Void
     /// Keeps which Events of the day have had their one showing (town-feed 41), on the phone for the day.
     private let keepPosters: ([String]) -> Void
     /// Those shown so far, and those that have left the top: they go only when a fresh order lands, so
@@ -285,14 +148,12 @@ final class TownFeed {
         self.kept = kept
         self.keptLater = keptLater
         self.actions = actions
-        self.sender = send
-        self.choose = choose
-        self.readMuted = readMuted
         self.live = live
         self.readLater = readLater
         self.readMore = readMore
         self.opened = opened
-        self.deletePost = deletePost
+        hides = FeedHides(choose: choose, readMuted: readMuted, deletePost: deletePost)
+        views = FeedViews(send: send)
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
@@ -342,13 +203,13 @@ final class TownFeed {
             guard entry.leavesAt > (holding ? heldClock : clock) else { return nil }
             switch entry.item {
             case .event(let card):
-                guard !isHidden(card) else { return nil }
+                guard !hides.isHidden(card) else { return nil }
                 guard let live, let game = live.game(card), game != card.game else { return entry }
                 var card = card
                 card.game = game
                 return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
-            case .news(let news): return isHidden(id: news.id, host: news.place) ? nil : entry
-            case .post(let post): return isHidden(id: post.id, host: "") ? nil : entry
+            case .news(let news): return hides.isHidden(id: news.id, host: news.place) ? nil : entry
+            case .post(let post): return hides.isHidden(id: post.id, host: "") ? nil : entry
             }
         }
     }
@@ -365,7 +226,7 @@ final class TownFeed {
     /// Past the ranked list, its places as Search holds them (`places`, by `places.id`), town-feed 23.
     func column(eventOfTheDay picks: [DailyEvent], now: Date,
                 places: (String) -> SearchItem? = { _ in nil }) -> [TownFeedItem] {
-        let top = DailyEvent.showing(picks.filter { !isHidden($0.item) && (!postersGone.contains($0.id) || $0.item.isJoined) },
+        let top = DailyEvent.showing(picks.filter { !hides.isHidden($0.item) && (!postersGone.contains($0.id) || $0.item.isJoined) },
                                      now: posterClock(at: now), limit: 1).first
         posterOnTop = top?.id
         let ranked = shown
@@ -394,7 +255,7 @@ final class TownFeed {
         let at = holding ? heldClock : clock
         var items: [TownFeedItem] = [.caughtUp]
         items += later.filter { $0.leavesAt > at && above[$0.id] == nil }
-            .compactMap(\.card).filter { !isHidden($0) }.map(TownFeedItem.event)
+            .compactMap(\.card).filter { !hides.isHidden($0) }.map(TownFeedItem.event)
         for (round, rows) in rounds.enumerated() {
             for row in rows {
                 switch row.kind {
@@ -550,9 +411,9 @@ final class TownFeed {
     /// the read up on a bad network.
     func pulled(at now: Date = Date()) async {
         countOnScreen(at: now)
-        let sending = Task { await send(at: now, always: true) }
+        let sending = Task { await views.send(at: now, always: true) }
         let giveUp = Task {
-            try? await Task.sleep(for: Self.sendWait)
+            try? await Task.sleep(for: FeedViews.sendWait)
             sending.cancel()
         }
         await sending.value
@@ -655,187 +516,6 @@ final class TownFeed {
         }
     }
 
-    /// An Event page opened from the Town feed.
-    func opened(_ id: String) {
-        unsent.append(FeedAction(itemID: id, kind: .open))
-    }
-
-    /// Sends what is waiting, at most every 30 seconds, or now when the app leaves the
-    /// screen. A batch that found no network, no account or a server down goes back in
-    /// front of the next; one the server refuses (a bad row) is dropped, or it would
-    /// fail every batch after it.
-    func send(at now: Date = Date(), always: Bool = false) async {
-        guard !unsent.isEmpty, always || now.timeIntervalSince(lastSent) >= Self.sendEvery else { return }
-        let batch = unsent
-        unsent = []
-        lastSent = now
-        do {
-            try await sender(batch)
-        } catch {
-            Log.network("TownFeed: \(batch.count) views and opens not sent: \(error)")
-            if SupabaseHTTP.noAnswer(error) || Task.isCancelled { unsent = batch + unsent }
-        }
-    }
-
-    /// A new account: the last one's waiting views and hidden cards are not this one's.
-    func accountChanged() {
-        // The read out now was the old account's: it never lands, and nothing shares it.
-        latestRead &+= 1
-        readOut = nil
-        clearMore()
-        unsent = []
-        viewed = []
-        onScreen = [:]
-        keepPosters([])
-        postersShown = []
-        postersGone = []
-        hiddenIDs = []
-        reportedIDs = []
-        mutedNames = []
-        muteKeys = [:]
-        undoTimer?.cancel()
-        undo = nil
-        muted = nil
-    }
-
-    // MARK: Not interested and Mute (ticket 21)
-
-    /// Out of the feed: said Not interested to, or its host muted. The card showing Undo stays
-    /// in, drawn as its Undo line.
-    func isHidden(_ card: FeedCardItem) -> Bool { isHidden(id: card.id, host: card.hostName) }
-
-    /// An Event's card or a News post (news-menu), by its id and its host's name.
-    private func isHidden(id: String, host: String) -> Bool {
-        guard undo?.id != id else { return false }
-        return hiddenIDs.contains(id) || (!host.isEmpty && mutedNames.contains(host))
-    }
-
-    /// Report a card (ticket 22), from its sheet, which waits for the answer to say thanks or shake.
-    func report(_ card: FeedCardItem, _ reason: ReportReason) async throws {
-        try await report(id: card.id, reason)
-    }
-
-    /// An Event's or a neighbour's post's report (town-feed 29), by its id.
-    func report(id: String, _ reason: ReportReason) async throws {
-        _ = try await choose(.report(id, reason))
-        reportedIDs.insert(id)
-    }
-
-    /// Cards reported from this phone this session: their sheet has no Report row.
-    private(set) var reportedIDs: Set<String> = []
-
-    /// A reported card, once its sheet has closed: out, with the same Undo line as Not interested.
-    /// The report already went; Undo lifts only the hide.
-    func hideReported(_ card: FeedCardItem) {
-        hideReported(id: card.id, host: card.hostName)
-    }
-
-    func hideReported(id: String, host: String) {
-        hiddenIDs.insert(id)
-        showUndo(FeedHide(id: id, hostName: host, mute: false))
-    }
-
-    /// Your own post, deleted from its ••• (town-feed 29): out at once, with no Undo; one the server
-    /// didn't take comes back.
-    func delete(_ post: TownPost) async {
-        hiddenIDs.insert(post.id)
-        do {
-            try await deletePost(post)
-        } catch {
-            Log.network("TownFeed: post not deleted: \(error)")
-            hiddenIDs.remove(post.id)
-            Haptics.error()
-        }
-    }
-
-    private func showUndo(_ hide: FeedHide) {
-        undo = hide
-        undoTimer?.cancel()
-        // With VoiceOver on, the line waits for Undo or the next choice: 5 seconds is too short to
-        // find it by swiping.
-        if !UIAccessibility.isVoiceOverRunning {
-            undoTimer = Task { [weak self] in
-                try? await Task.sleep(for: Self.undoFor)
-                guard !Task.isCancelled else { return }
-                self?.undoEnded(hide.id)
-            }
-        }
-    }
-
-    /// Not interested (`mute` false) or Mute on an Event's card or a News post (news-menu), by its
-    /// id and its host's name: out at once, then to the server. One that doesn't go through comes
-    /// back. A newer one ends the last one's Undo.
-    func hide(id: String, host hostName: String, mute: Bool) async {
-        if mute { mutedNames.insert(hostName) } else { hiddenIDs.insert(id) }
-        showUndo(FeedHide(id: id, hostName: hostName, mute: mute))
-        let choose = self.choose
-        let send = Task { try await choose(mute ? .mute(id) : .notInterested(id)) }
-        sending = send
-        do {
-            let host = try await send.value
-            if mute, let host { muteKeys[hostName] = host }
-            muted = nil
-        } catch {
-            Log.network("TownFeed: \(mute ? "Mute" : "Not interested") not sent: \(error)")
-            if mute { mutedNames.remove(hostName) } else { hiddenIDs.remove(id) }
-            if undo?.id == id { undo = nil }
-            Haptics.error()
-        }
-    }
-
-    /// Undo on the line: the card comes back, and the choice is taken back on the server.
-    func undoHide() async {
-        guard let hide = undo else { return }
-        undo = nil
-        undoTimer?.cancel()
-        let earlier = sending
-        if hide.mute { mutedNames.remove(hide.hostName) } else { hiddenIDs.remove(hide.id) }
-        // The choice lands before it is taken back (a slow network sent both at once).
-        let answer = (try? await earlier?.value) ?? nil
-        if hide.mute {
-            // The Mute's own answer, when its `hide` hasn't kept it yet.
-            guard let host = muteKeys.removeValue(forKey: hide.hostName) ?? answer else { return }
-            _ = try? await choose(.unmute(host))
-            muted = nil
-        } else {
-            _ = try? await choose(.undoNotInterested(hide.id))
-        }
-    }
-
-    /// The Undo line's 5 seconds are up: the card goes.
-    func undoEnded(_ id: String) {
-        if undo?.id == id { undo = nil }
-    }
-
-    /// The Muted list, read when it opens.
-    func refreshMuted() async {
-        do {
-            muted = try await readMuted()
-            mutedFailed = false
-        } catch {
-            Log.network("TownFeed: Muted list: \(error)")
-            mutedFailed = muted == nil
-        }
-    }
-
-    /// Unmute from the Muted list: off the list at once; the host's Events come back with a fresh
-    /// read. One that doesn't go through comes back and shakes.
-    func unmute(_ host: MutedHost, at now: Date = Date()) async {
-        guard let at = muted?.firstIndex(of: host) else { return }
-        muted?.remove(at: at)
-        do {
-            _ = try await choose(.unmute(host.host))
-            mutedNames.remove(host.name)
-            await reload(at: now)
-        } catch {
-            Log.network("TownFeed: Unmute not sent: \(error)")
-            let count = muted?.count ?? 0
-            muted?.insert(host, at: min(at, count))
-            unmuteFailures[host.host, default: 0] += 1
-            Haptics.error()
-        }
-    }
-
     /// Once per card per feed load, and only for a card still in the list or on top as the poster.
     private func counted(_ id: String) {
         guard !viewed.contains(id) else { return }
@@ -846,7 +526,29 @@ final class TownFeed {
         let here = shown.first { $0.id == id } ?? later.first { $0.id == id }
         guard here != nil || id == posterOnTop else { return }
         viewed.insert(id)
-        unsent.append(FeedAction(itemID: id, kind: here?.isNews == true ? .news : .view))
+        views.viewed(id, news: here?.isNews == true)
+    }
+
+    /// A new account: the last one's waiting views and hidden cards are not this one's.
+    func accountChanged() {
+        // The read out now was the old account's: it never lands, and nothing shares it.
+        latestRead &+= 1
+        readOut = nil
+        clearMore()
+        views.reset()
+        viewed = []
+        onScreen = [:]
+        keepPosters([])
+        postersShown = []
+        postersGone = []
+        hides.reset()
+    }
+
+    // MARK: Not interested and Mute (ticket 21)
+
+    /// Unmute from the Muted list (`FeedHides.unmute`): the host's Events come back with a fresh read.
+    func unmute(_ host: MutedHost, at now: Date = Date()) async {
+        if await hides.unmute(host) { await reload(at: now) }
     }
 
     /// The list the last live read left on disk, or nil when there is none or it no
@@ -891,33 +593,3 @@ final class TownFeed {
         return card
     }
 }
-
-#if DEBUG
-/// `-town-samples`' Muted list: a Mute keeps the host by name, an Unmute drops it.
-@MainActor
-private final class SampleMutes {
-    var list = [MutedHost(host: "sample-library", name: "St. Joe Public Library")]
-    /// Each sample's host by its id, news by its place (news-menu).
-    private let names = Dictionary(TownFixtures.townEntries().map { entry in
-        switch entry.item {
-        case .event(let card): (card.id, card.hostName)
-        case .news(let news): (news.id, news.place)
-        case .post(let post): (post.id, post.poster.name)
-        }
-    }, uniquingKeysWith: { first, _ in first })
-
-    func choose(_ choice: FeedChoice) async throws -> String? {
-        switch choice {
-        case .mute(let id):
-            let name = names[id] ?? id
-            list.insert(MutedHost(host: name, name: name), at: 0)
-            return name
-        case .unmute(let host):
-            list.removeAll { $0.host == host }
-        case .notInterested, .undoNotInterested, .report:
-            break
-        }
-        return nil
-    }
-}
-#endif
