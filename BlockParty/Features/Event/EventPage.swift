@@ -2,20 +2,23 @@
 //  EventPage.swift
 //  Block Party — the Event page: the single event behind a card.
 //
-//  Laid out to the Fresha venue page Jesse picked (`references/fresha-venue-detail.png`,
-//  1180 px at 393 pt, 3.0 px a point): a photo carousel under three round buttons, a
-//  sheet over its bottom edge with the title, and an About that clamps at four lines. Every
-//  size in `Metric` is measured off that screen; the few it could not give are marked guessed.
-//  Under the title, the facts as Meetup's Event page lays them out (event-page-formats 06): a
-//  day row, a place row and the host in a grey card, the Interest in grey words under About.
-//  Over it floats Meetup's white capsule with the RSVP words and pill the Town card has
-//  (rsvp-and-groups 02, Figma "Meetup depth").
+//  Apple Invites' top (BP app docs/plans/inside-cards, ticket 17; Jesse, 2026-11-06: "copy apples invites
+//  top", "copy all of it"): the picture runs from the screen's top and melts into its own colour, near-black
+//  at the foot, under a big centred title and the facts in a light tint of that colour; two big round-ended
+//  buttons (Map and the page it was found on), the host's row with Follow, and About in Apple's font. A
+//  flyer stays whole, a logo sits on a white disc, and no picture is the exact yellow with ink words. The
+//  sizes are `EventLook`'s, off Apple's screen and the approved mock. The Attend bar is Meetup's floating
+//  capsule (rsvp-and-groups 02) until ticket 18.
+//
+//  A game's page keeps its own look (ticket 21): its teams' colours (`GameMatchup`), the round white buttons
+//  and the facts as Meetup's rows (`Metric`, measured off Fresha's venue page; a business page in Search
+//  shares those).
 //
 //  Every list pushes this onto the shell's stack; the system bar stays hidden.
 //
 //  PRODUCT RULE: never render a zero count or a placeholder. Every row below is
 //  optional and simply absent when the data is: no description, no About; no
-//  category (or `.other`), no Interest; no place, no place row; no photo, no hero.
+//  place, no Map; no link, no Website; no picture, the yellow page.
 //
 
 import EventKitUI
@@ -36,19 +39,25 @@ struct EventPage: View {
     /// `actions.heartFailureCount` when the heart was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var heartTappedAt = 0
-    @State private var photoPage: Int? = 0
-    /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
-    /// and a photo's credit waits for its photo.
+    /// Pictures whose bitmaps are on screen. Until then the page shows the skeleton, and a photo's
+    /// credit waits for its photo.
     @State private var shownPhotos: Set<URL> = []
-    /// Photos that could not be loaded. They leave the carousel, so a failure never
-    /// holds a skeleton on screen.
+    /// Pictures that could not be loaded. The next takes their place, so a failure never holds a
+    /// skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
-    /// The Event's place's name in its own lettering, once read (follows 02).
-    @State private var placeName: PlaceName?
-    /// Apple's add-to-Calendar sheet, from the day row, with the entry as it was at the tap: one
-    /// called off or ending while the sheet is up keeps its sheet, and Cancel.
+    /// The page's colour, read from its picture once the picture is here (`EventLook.dominant`); nil until
+    /// then, when the page is `Hue.gameNight` and the colour fades in. Called off, grey with the photo.
+    @State private var pageColor: UInt32?
+    /// A pale picture (mean brightness over 60%): its melt ends sooner.
+    @State private var pale = false
+    /// The page's width, for the picture's sizes, which scale with it. Width, never height: nothing the
+    /// scroll reads back may set its own content size (swift-traps).
+    @State private var width: CGFloat = EventLook.mockWidth
+    /// Apple's add-to-Calendar sheet, from the calendar button, with the entry as it was at the tap: one
+    /// called off or ending while the sheet is up keeps its sheet, and Cancel. Added, the button shows a check.
     @State private var calendarShown = false
     @State private var adding: CalendarEntry?
+    @State private var calendarAdded = false
     /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
     /// fade of its dark comes in behind them (game-card 08).
     @State private var scrolled = false
@@ -165,12 +174,14 @@ struct EventPage: View {
                     GameMatchup(game: game, when: current.whenLine?.text, cancelled: item.cancelled)
                         .padding(.horizontal, Metric.inset)
                         .padding(.top, Metric.buttonTop + Metric.tapBox)
+                    sheet
                 } else {
-                    hero
+                    lookHero
+                    lookWords
                 }
-                sheet
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
             scrolled = now
         }
@@ -194,33 +205,69 @@ struct EventPage: View {
             landAt = nil
         }
         .scrollPosition($position)
-        // The photo runs up under the status bar; with no photo the page starts
-        // below it like any other.
-        .ignoresSafeArea(edges: hasHero && game == nil ? .top : [])
+        // The picture runs up under the status bar, and the yellow page lays out from the screen's top too; a
+        // game's page starts below it.
+        .ignoresSafeArea(edges: game == nil ? .top : [])
         // A game's page is its teams' colors from edge to edge, fixed while the page scrolls over them
-        // (game-card 08); the rest are paper.
+        // (game-card 08); an Event's is its picture's colour, near-black at the foot, fixed the same way,
+        // and with no picture the exact yellow.
         .background {
-            if let game { GameMatchup.backdrop(game).ignoresSafeArea() } else { Hue.paper.ignoresSafeArea() }
+            if let game {
+                GameMatchup.backdrop(game).ignoresSafeArea()
+            } else if sun {
+                Hue.brandDisc.ignoresSafeArea()
+            } else {
+                ZStack {
+                    Hue.gameNight
+                    if let wash {
+                        LinearGradient(stops: wash.stops, startPoint: .top, endPoint: .bottom)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(reduceMotion ? nil : Motion.smooth, value: wash)
+                .ignoresSafeArea()
+            }
         }
         // Outside the scroll, so the buttons stay put while the page moves under them.
         // The sort priority asks VoiceOver to read them first, as they sit, not after the
         // About. AXe's element tree does not show sort priority, so the sim can't prove it.
+        // An Event's page's top colour fading in under the clock once the page scrolls, 118 pt from the
+        // screen's very top (the mock's), over the picture and under the buttons. A flexible clear view
+        // ignores the safe area; a fixed frame can't (swift-traps).
         .overlay(alignment: .top) {
-            topButtons
-                .accessibilityElement(children: .contain)
-                .accessibilitySortPriority(1)
-                // A game's dark fading in under the clock and the buttons once the page scrolls, the
-                // bottom bar's fade turned over.
-                .background(alignment: .top) {
-                    if game != nil {
-                        LinearGradient(colors: [Hue.gameNight, Hue.gameNight.opacity(0)], startPoint: .top, endPoint: .bottom)
-                            .padding(.bottom, -Metric.fadeBelowButtons)
-                            .ignoresSafeArea(edges: .top)
-                            .opacity(scrolled ? 1 : 0)
-                            .animation(reduceMotion ? nil : Motion.smooth, value: scrolled)
-                            .allowsHitTesting(false)
+            if game == nil {
+                let top = sun ? Hue.brandDisc : Color(hex: wash?.top ?? EventLook.grey)
+                Color.clear
+                    .overlay(alignment: .top) {
+                        LinearGradient(stops: [.init(color: top, location: 0), .init(color: top, location: EventLook.topFadeSolid),
+                                               .init(color: top.opacity(0), location: 1)], startPoint: .top, endPoint: .bottom)
+                            .frame(height: EventLook.topFade)
                     }
+                    .ignoresSafeArea(edges: .top)
+                    .opacity(scrolled ? 1 : 0)
+                    .animation(reduceMotion ? nil : Motion.smooth, value: scrolled)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .top) {
+            Group {
+                if game != nil { topButtons } else { lookButtons }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilitySortPriority(1)
+            // A game's dark fading in under the clock and the buttons once the page scrolls, the
+            // bottom bar's fade turned over.
+            .background(alignment: .top) {
+                if game != nil {
+                    LinearGradient(colors: [Hue.gameNight, Hue.gameNight.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .padding(.bottom, -Metric.fadeBelowButtons)
+                        .ignoresSafeArea(edges: .top)
+                        .opacity(scrolled ? 1 : 0)
+                        .animation(reduceMotion ? nil : Motion.smooth, value: scrolled)
+                        .allowsHitTesting(false)
                 }
+            }
         }
         .accessibilityElement(children: .contain)
         // Whether the person may act is the module's, not the card's the page was opened
@@ -235,8 +282,9 @@ struct EventPage: View {
             }
         }
         .animation(Motion.smooth, value: actions.canAct)
-        // Light words on a game's dark, its rows, buttons and bar with them, as a school's page (TeamPage).
-        .environment(\.colorScheme, game != nil ? .dark : colorScheme)
+        // Light words on a game's dark and an Event's, its rows, buttons and bar with them, as a school's
+        // page (TeamPage); the yellow page keeps ink.
+        .environment(\.colorScheme, game != nil || !sun ? .dark : colorScheme)
         // Hidden, never `navigationBarBackButtonHidden`. Hidden here, UIKit also turns
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)
@@ -245,7 +293,8 @@ struct EventPage: View {
         // (game-card 09), rather than the page jumping.
         .animation(reduceMotion ? nil : Motion.smooth, value: game?.plays.count)
         .sheet(isPresented: $calendarShown) {
-            if let adding { AddToCalendar(entry: adding) }
+            // Apple's sheet in the phone's own appearance, not the page's dark.
+            if let adding { AddToCalendar(entry: adding) { calendarAdded = true }.environment(\.colorScheme, colorScheme) }
         }
         // A failed Join or Heart shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
@@ -259,14 +308,20 @@ struct EventPage: View {
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
-        .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
     }
 
-    /// `event_place_name`; nothing under DEBUG samples or offline.
-    private static func readPlaceName(_ eventID: String) async -> PlaceName? {
-        guard LaunchFlags.backend == .live,
-              UUID(uuidString: eventID) != nil else { return nil }
-        return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
+    /// No picture and no logo: the whole page is the exact yellow, with ink words (Jesse, 2026-11-06).
+    private var sun: Bool { game == nil && !hasHero }
+
+    /// The page's colours from its picture's colour; none until the picture is here.
+    private var wash: EventLook.Wash? { pageColor.map(EventLook.wash) }
+
+    /// Reads the page's colour off a picture that's just landed: the most common colourful hue, or grey
+    /// once it's called off, since its photo is black and white (`EventLook`, tested).
+    private func takeColor(from image: CGImage) {
+        let pixels = EventLook.pixels(of: image)
+        pale = EventLook.brightness(pixels: pixels) > EventLook.pale
+        pageColor = item.cancelled ? EventLook.grey : EventLook.dominant(pixels: pixels)
     }
 
     /// Where it was found: every read sends it with the Event card (BP app codebase-health-2).
@@ -287,111 +342,230 @@ struct EventPage: View {
         return card
     }
 
-    // MARK: Photos
+    // MARK: The picture (inside-cards 15 and 17)
 
-    /// The card's photos (`FeedCardItem.photos`): saved by Block Party, so nothing is looked up.
+    /// The card's picture (`FeedCardItem.photos`): the Event's own, else its place's, saved by Block Party,
+    /// so nothing is looked up. One picture, so the page doesn't swipe (Jesse, 2026-11-06).
     private var photos: [FeedCardImageSource] {
         item.photos(failed: failedPhotos)
     }
 
-    /// A place we have no photo of fills the hero with its logo on its backdrop, as its
-    /// card does (Jesse, 2026-10-16).
+    /// A place we have no photo of puts its logo where the picture goes, on a white disc.
     private var heroLogo: SearchLogo? {
         photos.isEmpty ? item.place?.logo : nil
     }
 
     private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
 
-    /// The visible hero is exactly 303/393 of the width; the photos draw on
-    /// `heroUnderlap` further, under the sheet. Pulling the page down past its top
-    /// stretches the hero from its bottom edge. That is a visual effect only, so the
-    /// scroll never reads back a size it caused.
-    @ViewBuilder
-    private var hero: some View {
-        if hasHero {
-            Color.clear
-                .aspectRatio(Metric.heroAspect, contentMode: .fit)
-                .overlay(alignment: .top) {
-                    GeometryReader { proxy in
-                        heroPhotos
-                            .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
-                            // Called off: black and white, as on its card, with no tag over it
-                            // (Jesse, 2026-10-17).
-                            .grayscale(item.cancelled ? 1 : 0)
-                    }
-                }
-                .visualEffect { content, proxy in
-                    let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
-                    return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
-                }
-                // The place's name at the bottom centre, over its photos only: with none, the
-                // hero is its logo, which says it already.
-                .overlay(alignment: .bottom) {
-                    // Over a flyer it would cover the flyer's words (Jesse, 2026-11-05).
-                    if let placeName, !photos.isEmpty, flyer == nil {
-                        ZStack(alignment: .bottom) {
-                            if !placeName.emblem { PlaceNameArt.fade }
-                            PlaceNameArt(name: placeName, spoken: item.whereLine ?? "")
-                                .padding(.bottom, PlaceNameArt.bottom)
-                        }
-                        .transition(.opacity)
-                    }
-                }
-                // After the stretch, so it stays put at the hero's bottom corner, unscaled. No counter: the
-                // page shows one picture (BP app inside-cards 15).
-                .overlay(alignment: .bottomLeading) { credit }
-                .transition(.opacity)
-        }
-    }
-
-    @ViewBuilder
-    private var heroPhotos: some View {
-        if photos.isEmpty {
-            // Under the clock and between the round buttons, clear of the sheet (picked: 101 pt
-            // down, 150 pt tall on a 420 pt phone).
-            if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
-        } else {
-            PhotoPager(urls: photos.compactMap(\.url), page: $photoPage, shown: $shownPhotos,
-                       value: photoValue, onFailure: drop, flyer: flyer, flyerTop: HelloDropView.safeTop)
-        }
-    }
-
-    /// The first photo, when it is a flyer (BP app event-photos 16): one that failed to load has left the list.
+    /// The picture, when it is a flyer (BP app event-photos 16): one that failed to load has left the list.
     private var flyer: URL? {
         guard item.whole, let url = item.image.url, photos.first?.url == url else { return nil }
         return url
     }
 
-    /// The credit shows wherever its photo does (a site, or a free photo's author and
-    /// licence), and only once the photo itself is on screen. It sits outside the carousel, so the pull-down
-    /// stretch leaves it in place, bottom left as on a business page (`PhotoCredit` pads itself `edgeInset`).
-    /// A tap on it reports the photo (BP app place-photos 06).
-    @ViewBuilder
-    private var credit: some View {
-        if let credit = creditName {
-            // With two or more photos the carousel says it, with the photo's number;
-            // with one, the carousel is hidden, so the credit speaks for itself.
-            PhotoCredit(names: [credit], report: photos[photoPage ?? 0].report(place: item.whereLine),
-                        spoken: photos.count < 2)
-                .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
-                .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
+    /// A flyer's shape, width over height: as the database sent it, else as it decoded, else square.
+    private var flyerAspect: CGFloat {
+        if case .placePhoto(_, _, let aspect?) = photos.first ?? .fallback { return aspect }
+        if let url = flyer, let image = FeedCardImageLoader.shared.largest(for: url), image.height > 0 {
+            return CGFloat(image.width) / CGFloat(image.height)
         }
+        return 1
+    }
+
+    /// A photo's height at this width: edge to edge, 410 pt on the mock's phone.
+    private var photoHeight: CGFloat { EventLook.photoHeight * width / EventLook.mockWidth }
+
+    /// The picture at the top: a photo melting into the page, a flyer whole over its melt, or a logo on its
+    /// disc. Town's heart sits on it, and a photo's credit beside the heart; a flyer's credit goes under it,
+    /// so it never covers the flyer's words. Pulling the page down past its top stretches it from its
+    /// bottom edge, as before (guessed, until Apple Invites' own motion is recorded).
+    @ViewBuilder private var lookHero: some View {
+        if let picture = photos.first, let url = picture.url {
+            let isFlyer = flyer == url
+            let height = isFlyer ? EventFlyerHero.height(aspect: flyerAspect, width: width) : photoHeight
+            let flyerSize = EventFlyerHero.size(aspect: flyerAspect, width: width)
+            Group {
+                if isFlyer {
+                    EventFlyerHero(url: url, aspect: flyerAspect, width: width, pale: pale, cancelled: item.cancelled,
+                                   onReady: { shown(url) }, onFailure: { drop(url) })
+                } else {
+                    EventMeltHero(url: url, height: height, pale: pale, cancelled: item.cancelled,
+                                  onReady: { shown(url) }, onFailure: { drop(url) })
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(picture.attribution.map { "Photo, by \($0)" } ?? "Photo")
+            // A shimmer until the bitmap lands, as the carousel had.
+            .overlay(alignment: .top) {
+                if !PhotoPager.isShown(url, in: shownPhotos) {
+                    SkeletonBlock(cornerRadius: 0).frame(height: height).shimmering().transition(.opacity)
+                }
+            }
+            .animation(Motion.smooth, value: shownPhotos)
+            .visualEffect { content, proxy in
+                let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+                return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+            }
+            // After the stretch, so they stay put, unscaled.
+            .overlay(alignment: .bottomTrailing) {
+                if !reviewing {
+                    TownCardHeart(item: item)
+                        .padding(.trailing, isFlyer ? (width - flyerSize.width) / 2 + EventLook.heartFlyerInset : EventLook.heartInset)
+                        .padding(.bottom, isFlyer ? EventLook.flyerBottom + EventLook.heartFlyerInset
+                                                  : EventLook.heartAboveFoot - TownCardHeart.side)
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if !isFlyer, let credit = creditName {
+                    PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
+                        .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
+                        .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
+                }
+            }
+            .transition(.opacity)
+        } else if let heroLogo {
+            EventLogoHero(logo: heroLogo) { takeColor(from: $0) }
+                .visualEffect { content, proxy in
+                    let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+                    return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if !reviewing {
+                        TownCardHeart(item: item)
+                            .padding(.trailing, EventLook.heartInset)
+                            .padding(.bottom, EventLook.heartFlyerInset)
+                    }
+                }
+                .transition(.opacity)
+        }
+    }
+
+    /// The picture's bitmap is on screen: its credit can show, and the page takes its colour.
+    private func shown(_ url: URL) {
+        shownPhotos.insert(url)
+        if let image = FeedCardImageLoader.shared.largest(for: url) { takeColor(from: image) }
     }
 
     /// Whose photo is on screen, once it is: nil before, and for a photo with no credit.
     private var creditName: String? {
-        let page = photoPage ?? 0
-        guard photos.indices.contains(page), let url = photos[page].url,
-              PhotoPager.isShown(url, in: shownPhotos) else { return nil }
-        return photos[page].attribution
+        guard let picture = photos.first, let url = picture.url, PhotoPager.isShown(url, in: shownPhotos) else { return nil }
+        return picture.attribution
     }
 
-    /// "Photo 2 of 2, by Ada Lovelace": where VoiceOver is in the carousel, and whose
-    /// photo it is.
-    private var photoValue: String {
-        let page = photoPage ?? 0
-        let credit = photos.indices.contains(page) ? photos[page].attribution : nil
-        return "Photo \(page + 1) of \(photos.count)" + (credit.map { ", by \($0)" } ?? "")
+    // MARK: The words (inside-cards 17)
+
+    /// The lines' colour: a light tint of the page's colour; white until the colour is here.
+    private var tint: Color {
+        if sun { return Hue.onBrandDisc.opacity(EventLook.sunTint) }
+        return wash.map { Color(hex: $0.tint) } ?? .white
+    }
+
+    /// Under the picture: a flyer's credit, the big centred title, the date and place in the tint, the two
+    /// big buttons, the host's row, the Going chat and About. The yellow page starts its title 158 pt down.
+    private var lookWords: some View {
+        let ink: Color = sun ? Hue.onBrandDisc : .white
+        let link = self.link
+        let place = Self.placeText(item)
+        return VStack(spacing: 0) {
+            if flyer != nil, let credit = creditName, let picture = photos.first {
+                HStack {
+                    Spacer(minLength: 0)
+                    PhotoCredit(names: [credit], report: picture.report(place: item.whereLine))
+                        .padding(.trailing, -PhotoCredit.edgeInset)
+                }
+                .frame(height: EventLook.creditLine)
+            }
+            Text(item.title)
+                .font(.eventDisplay(sun ? EventLook.sunTitle : EventLook.title))
+                .lineSpacing(sun ? EventLook.sunTitleSpacing : EventLook.titleSpacing)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                .accessibilityAddTraits(.isHeader)
+                // Called off, VoiceOver says so with the title: the bar's red pill comes last.
+                .accessibilityValue(item.cancelled ? "Canceled" : "")
+                .padding(.top, sun ? EventLook.sunTitleTop : 0)
+
+            let date = Self.dateLine(current)
+            if date != nil || place != nil {
+                VStack(spacing: EventLook.lineHeight - EventLook.lineNatural) {
+                    if let date {
+                        Text(date.oneLine).accessibilityLabel(date.spoken)
+                    }
+                    if let place { Text(place) }
+                }
+                .font(.apple(EventLook.line))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(tint)
+                .animation(reduceMotion ? nil : Motion.smooth, value: pageColor)
+                .frame(maxWidth: .infinity)
+                .padding(.top, EventLook.linesTop)
+            }
+
+            // Map opens Apple Maps at the place until the map opens in place (inside-cards 19); the page it
+            // was found on by its app's name, else Website. With no one place, Website takes the whole row.
+            let directions = place.flatMap { Directions.url(forPlace: $0) }
+            if directions != nil || link != nil {
+                HStack(spacing: EventLook.buttonGap) {
+                    if let directions {
+                        EventBigButton(glyph: "map", word: "Map", sun: sun) { openURL(directions) }
+                    }
+                    if let link {
+                        EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) { openURL(link.url) }
+                    }
+                }
+                .padding(.top, EventLook.buttonsTop)
+            }
+
+            // Who hosts it, with Instagram's Follow, in a plain row (follows 02; inside-cards 09).
+            EventHostRow(item: item, top: EventLook.hostTop, plain: true, sun: sun)
+
+            if goingChat {
+                ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,
+                            listed: { [id = current.id] in $0.chat(forEvent: id) },
+                            quiet: actions.going(current).count > 0 ? "\(actions.going(current).count) going" : nil,
+                            access: { [id = current.id] in try await $0.goingAccess(id) },
+                            route: { [current] in .going(current, isHost: $0) })
+            }
+
+            if let about = Self.aboutText(item.description) {
+                EventAbout(text: about, sun: sun)
+                    .padding(.top, EventLook.aboutTop)
+            }
+        }
+        .padding(.horizontal, EventLook.side)
+        .padding(.bottom, Metric.contentBottom)
+        .frame(maxWidth: .infinity)
+        // The heart on the yellow page, where the picture's corner would be (the mock's spot).
+        .overlay(alignment: .topTrailing) {
+            if sun && !reviewing {
+                TownCardHeart(item: item, onWhite: true)
+                    .padding(.trailing, EventLook.sunHeartInset)
+                    .padding(.top, EventLook.sunHeartTop)
+            }
+        }
+    }
+
+    /// Apple Invites' round glass buttons over the picture: back at the left, the calendar at the right while
+    /// the Event is still to come, a check once it's added.
+    private var lookButtons: some View {
+        HStack(spacing: 0) {
+            EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { dismiss() }
+            Spacer(minLength: 0)
+            if let entry = Self.calendarEntry(current) {
+                EventGlassButton(glyph: calendarAdded ? "checkmark" : "calendar.badge.plus",
+                                 label: calendarAdded ? "Added to your calendar" : "Add to calendar", sun: sun,
+                                 tint: calendarAdded && !sun ? Hue.brandDisc : nil) {
+                    adding = entry
+                    calendarShown = true
+                }
+                .accessibilityHint(calendarAdded ? "" : "Adds it to your phone's calendar")
+            }
+        }
+        .padding(.leading, EventLook.backInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
+        .padding(.trailing, EventLook.calendarInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
+        .padding(.top, EventLook.glassTop - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
     }
 
     // MARK: Buttons
@@ -492,69 +666,53 @@ struct EventPage: View {
         .accessibilityLabel(label)
     }
 
-    // MARK: The sheet
+    // MARK: A game's sheet
 
-    private var sheet: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // A game's score says its title (game-card 08): its plays lead, the facts follow.
-            if let game {
+    /// A game's page under its score: its plays, then the facts as Meetup's rows, the host in a grey card,
+    /// About, the Interest and where it was found. As it was before inside-cards 17 (Jesse, 2026-11-06:
+    /// "game pages stay the same").
+    @ViewBuilder private var sheet: some View {
+        if let game {
+            VStack(alignment: .leading, spacing: 0) {
+                // A game's score says its title (game-card 08): its plays lead, the facts follow.
                 GameScoring(game: game, top: Metric.sectionTop)
-            } else {
-                Text(item.title)
-                    .font(.eventDisplay(28))
-                    .lineSpacing(Metric.titleLineSpacing)
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                    // Called off, VoiceOver says so with the title: the bar's red pill comes last.
-                    .accessibilityValue(item.cancelled ? "Canceled" : "")
-                    .padding(.top, Metric.titleTop)
+
+                facts
+                    .padding(.top, Metric.sectionTop - Metric.rowsTop)
+
+                // Who hosts it, with Follow (follows 02), in Meetup's grey card.
+                EventHostRow(item: item, top: Metric.hostTop)
+
+                if let about = Self.aboutText(item.description) {
+                    AboutSection(text: about)
+                        .padding(.top, Metric.sectionTop)
+                }
+
+                // Its Interest, in grey words that open nothing (event-page-formats 05).
+                if let interest = Self.categoryText(item.category) {
+                    Text(interest)
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .padding(.top, Self.aboutText(item.description) != nil ? Metric.interestTop : Metric.hostTop)
+                }
+
+                // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
+                if let link {
+                    InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
+                             glyphBox: SearchMetric.bizGlyphBox, leaves: true)
+                        .padding(.top, SearchMetric.bizLinksTop)
+                }
             }
-
-            facts
-                .padding(.top, game == nil ? 0 : Metric.sectionTop - Metric.rowsTop)
-
-            // Who hosts it, with Follow (follows 02), in Meetup's grey card.
-            EventHostRow(item: item, top: Metric.hostTop, placeNamed: placeName?.emblem == false && !photos.isEmpty && flyer == nil)
-
-            if let about = Self.aboutText(item.description) {
-                AboutSection(text: about)
-                    .padding(.top, Metric.sectionTop)
-            }
-
-            // Its Interest, in grey words that open nothing (event-page-formats 05).
-            if let interest = Self.categoryText(item.category) {
-                Text(interest)
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, Self.aboutText(item.description) != nil ? Metric.interestTop : Metric.hostTop)
-            }
-
-            // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
-            if let link {
-                InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
-                         glyphBox: SearchMetric.bizGlyphBox, leaves: true)
-                    .padding(.top, SearchMetric.bizLinksTop)
-            }
+            .padding(.horizontal, Metric.inset)
+            .padding(.bottom, Metric.contentBottom)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, Metric.inset)
-        .padding(.bottom, Metric.contentBottom)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            game == nil ? Hue.paper : .clear,
-            in: UnevenRoundedRectangle(
-                topLeadingRadius: Metric.sheetCorner,
-                topTrailingRadius: Metric.sheetCorner,
-                style: .continuous
-            )
-        )
-        .padding(.top, hasHero || game != nil ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
     }
 
     // MARK: The facts (event-page-formats 06)
 
-    /// The day and the place under the title, each its own row with Apple's glyph, as Meetup's
-    /// Event page lays them out: the day adds it to the phone's calendar, the place opens Maps.
+    /// A game's day and place under its score, each its own row with Apple's glyph, as Meetup's Event page
+    /// lays them out: the day adds it to the phone's calendar, the place opens Maps.
     @ViewBuilder private var facts: some View {
         let day = Self.dayLines(current)
         let place = Self.placeText(item)
@@ -619,8 +777,8 @@ struct EventPage: View {
             .padding(.horizontal, Metric.inset)
             .padding(.bottom, Metric.barBottom)
             .background {
-                // A game's page fades to its own near-black (game-card 08).
-                let ground = game == nil ? Hue.paper : Hue.gameNight
+                // A game's page and an Event's fade to their near-black foot (game-card 08); the yellow page to its yellow.
+                let ground = sun ? Hue.brandDisc : Hue.gameNight
                 LinearGradient(colors: [ground.opacity(0), ground], startPoint: .top, endPoint: .bottom)
                     .padding(.top, -Metric.fadeAboveBar)
                     .ignoresSafeArea(edges: .bottom)
@@ -628,10 +786,9 @@ struct EventPage: View {
             }
     }
 
-    /// Takes a photo that failed out of the carousel and keeps the page in range.
+    /// Takes a picture that failed out, so the next takes its place.
     private func drop(_ url: URL) {
         failedPhotos.insert(url)
-        photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
     }
 
     // MARK: Pure rules (EventPageTests)
@@ -663,6 +820,11 @@ struct EventPage: View {
         return BusinessPage.rows([PlaceLink(kind: kind, url: url.absoluteString)]).first
     }
 
+    /// The big button's word for the page it was found on: Facebook and Instagram by name, else Website.
+    static func linkWord(_ link: BusinessPage.LinkRow) -> String {
+        ["Facebook", "Instagram"].contains(link.text) ? link.text : "Website"
+    }
+
     /// A fact's two lines, as its row prints them and as VoiceOver reads them.
     struct FactLines: Equatable {
         let first: String
@@ -671,6 +833,24 @@ struct EventPage: View {
         var spoken: String {
             [first, second?.replacingOccurrences(of: " – ", with: " to ")].compactMap { $0 }.joined(separator: ", ")
         }
+
+        /// Both on one line, as the Event page's centred date line prints them.
+        var oneLine: String { [first, second].compactMap { $0 }.joined(separator: ", ") }
+    }
+
+    /// The Event page's one date line (inside-cards 17), Apple Invites' "Sat, 8 Feb, 6:00–8:00 PM" in the
+    /// app's words: the short day, its hours, then how it repeats: "Thu, Nov 19, 6 – 8 PM", "Sun, Nov 8,
+    /// 9 AM · Every Sunday", "Mon, Nov 16, until Wednesday, November 25". The year past six months off.
+    static func dateLine(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        guard let lines = dayAndHours(item, now: now) else { return nil }
+        let day = item.when.map { when in
+            let withYear = abs(Town.days(from: now, to: when.start)) > 183
+            return Town.format(when.start, withYear ? "EEEMMMdyyyy" : "EEEMMMd")
+        } ?? lines.first
+        var rest = lines.second
+        if rest?.hasPrefix("Until ") == true { rest = "until " + rest!.dropFirst(6) }
+        guard let repeats = nonempty(item.recurrence) else { return FactLines(first: day, second: rest) }
+        return FactLines(first: day, second: [rest, repeats].compactMap { $0 }.joined(separator: " · "))
     }
 
     /// The day row (event-page-formats 06): the day in full over its hours, "Monday, November 30" over
@@ -814,6 +994,8 @@ struct FactRow: View {
 /// store"); Add or Cancel comes back to the page.
 private struct AddToCalendar: UIViewControllerRepresentable {
     let entry: CalendarEntry
+    /// Add was tapped: the page's calendar button shows a check.
+    var onSaved: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> EKEventEditViewController {
@@ -828,14 +1010,19 @@ private struct AddToCalendar: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss, onSaved: onSaved) }
 
     final class Coordinator: NSObject, EKEventEditViewDelegate {
         let dismiss: DismissAction
-        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        let onSaved: () -> Void
+        init(dismiss: DismissAction, onSaved: @escaping () -> Void) {
+            self.dismiss = dismiss
+            self.onSaved = onSaved
+        }
 
         func eventEditViewController(_ controller: EKEventEditViewController,
                                      didCompleteWith action: EKEventEditViewAction) {
+            if action == .saved { onSaved() }
             dismiss()
         }
     }

@@ -331,6 +331,95 @@ final class EventPageTests: XCTestCase {
                        "no hours: the repeat alone")
     }
 
+    /// The Event page's one date line (inside-cards 17): the short day, its hours, then the repeat, as
+    /// Apple Invites writes "Sat, 8 Feb, 6:00–8:00 PM".
+    func testTheDateLineIsOneLine() {
+        let now = Town.midnight("2026-11-01")!
+        let nov19 = Town.midnight("2026-11-19")!
+        var item = FeedCardItem(event(imageUrl: nil))
+        item.eventDate = "2026-11-19"
+        item.startTime = "6 PM"
+        item.endAt = nov19.addingTimeInterval(20 * 3600)
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Thu, Nov 19, 6 – 8 PM")
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.spoken, "Thu, Nov 19, 6 to 8 PM")
+
+        var repeating = event(imageUrl: nil)
+        repeating.recurrence = "Every Sunday"
+        var sunday = FeedCardItem(repeating)
+        sunday.eventDate = "2026-11-08"
+        sunday.startTime = "9 AM"
+        XCTAssertEqual(EventPage.dateLine(sunday, now: now)?.oneLine, "Sun, Nov 8, 9 AM · Every Sunday")
+        sunday.startTime = nil
+        sunday.allDay = true
+        XCTAssertEqual(EventPage.dateLine(sunday, now: now)?.oneLine, "Sun, Nov 8, Every Sunday", "no hours: the day, then the repeat")
+
+        item.startTime = "after dark"
+        item.endAt = nil
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Thu, Nov 19, after dark", "as written")
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Thu, Nov 19", "all day: the day alone")
+        item.endAt = Town.midnight("2026-11-26")
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Thu, Nov 19, until Wednesday, November 25")
+        item.eventDate = "2027-06-01"
+        item.endAt = nil
+        XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Tue, Jun 1, 2027", "the year past six months off")
+    }
+
+    /// The big button's word: Facebook and Instagram by name, anything else Website.
+    func testTheFoundPagesButtonSaysItsApp() {
+        let page = EventPage.self
+        XCTAssertEqual(page.sourceLink(URL(string: "https://www.facebook.com/x/posts/1")).map(page.linkWord), "Facebook")
+        XCTAssertEqual(page.sourceLink(URL(string: "https://www.instagram.com/p/De/")).map(page.linkWord), "Instagram")
+        XCTAssertEqual(page.sourceLink(URL(string: "https://www.milkandhoneyciders.com/events")).map(page.linkWord), "Website")
+    }
+
+    /// The page's colour is its picture's most common colourful hue, weighted by saturation squared: greys,
+    /// near-blacks, near-whites and see-through pixels don't count, and a picture with no colour is grey.
+    func testThePageTakesItsPicturesMostCommonColourfulHue() {
+        func pixels(_ colours: [(UInt32, Int, UInt8)]) -> [UInt8] {
+            colours.flatMap { rgb, count, alpha in
+                Array(repeating: [UInt8(rgb >> 16 & 0xFF), UInt8(rgb >> 8 & 0xFF), UInt8(rgb & 0xFF), alpha], count: count).flatMap { $0 }
+            }
+        }
+        // Mostly a dull blue, with fewer but far more saturated reds: the reds' squared saturation doesn't
+        // beat four times the count at a saturation of 0.5.
+        let sky = EventLook.dominant(pixels: pixels([(0x4060A0, 400, 255), (0xFF2020, 100, 255), (0x808080, 2000, 255)]))
+        XCTAssertEqual(sky >> 16 & 0xFF, 0x40)
+        XCTAssertEqual(sky & 0xFF, 0xA0)
+        // Saturated reds a quarter as many as a pale blue win: 0.9² against 0.3².
+        let red = EventLook.dominant(pixels: pixels([(0x8090A0, 400, 255), (0xE02020, 150, 255)]))
+        XCTAssertEqual(red >> 16 & 0xFF, 0xE0)
+        XCTAssertEqual(EventLook.dominant(pixels: pixels([(0x808080, 100, 255), (0x101010, 100, 255), (0xF8F8F8, 100, 255)])),
+                       EventLook.grey, "no colourful hue: grey")
+        XCTAssertEqual(EventLook.dominant(pixels: pixels([(0xFF2020, 100, 20), (0x2020FF, 10, 255)])) & 0xFF, 0xFF,
+                       "see-through pixels don't count")
+        XCTAssertEqual(EventLook.dominant(pixels: []), EventLook.grey)
+
+        XCTAssertGreaterThan(EventLook.brightness(pixels: pixels([(0xF0F0F0, 10, 255)])), EventLook.pale, "a pale picture")
+        XCTAssertLessThan(EventLook.brightness(pixels: pixels([(0x203040, 10, 255), (0xFFFFFF, 10, 0)])), EventLook.pale,
+                          "a dark one, its see-through pixels not counted")
+    }
+
+    /// White reads on the page's top colour at 5 to 1 or better for every hue (Apple's measures 2.7; Jesse
+    /// agreed to darker), the colours go darker down the page, the lines' tint is light, and a grey stays grey.
+    func testWhiteReadsOnEveryPageColour() {
+        for hue in stride(from: 0.0, to: 360, by: 10) {
+            let (r, g, b) = Hue.hslToRGB(hue, 100, 50)
+            let rgb = UInt32(r * 255) << 16 | UInt32(g * 255) << 8 | UInt32(b * 255)
+            let wash = EventLook.wash(rgb)
+            XCTAssertGreaterThanOrEqual(EventLook.contrastWithWhite(wash.top), 5, "hue \(hue): \(String(wash.top, radix: 16))")
+            XCTAssertGreaterThanOrEqual(EventLook.luminance(wash.top), EventLook.luminance(wash.mid) - 0.0001, "hue \(hue)")
+            XCTAssertGreaterThan(EventLook.luminance(wash.mid), EventLook.luminance(wash.low), "hue \(hue)")
+            XCTAssertGreaterThan(EventLook.luminance(wash.tint), 0.75, "hue \(hue): a light tint")
+        }
+        let grey = EventLook.wash(EventLook.grey)
+        XCTAssertEqual(grey.top >> 16 & 0xFF, grey.top & 0xFF, "a grey stays grey")
+        XCTAssertEqual(grey.tint >> 16 & 0xFF, grey.tint & 0xFF)
+        // Apple's own: #63818B under the lines, which the mock measured.
+        XCTAssertGreaterThanOrEqual(EventLook.contrastWithWhite(EventLook.wash(0x63818B).top), 5)
+    }
+
     /// The day row adds the Event to the phone's calendar only while it's still to come: not once
     /// it's called off or over (event-page-formats 05).
     func testTheDayRowAddsToTheCalendarOnlyWhileItsStillOn() {
