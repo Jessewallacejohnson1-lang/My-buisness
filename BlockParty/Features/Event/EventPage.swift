@@ -350,9 +350,10 @@ struct EventPage: View {
         item.photos(failed: failedPhotos)
     }
 
-    /// A place we have no photo of puts its logo where the picture goes, on a white disc.
+    /// A place we have no photo of puts its logo where the picture goes, on a white disc: the card's own
+    /// picture when that is the logo, else its place's.
     private var heroLogo: SearchLogo? {
-        photos.isEmpty ? item.place?.logo : nil
+        photos.isEmpty ? item.image.logo ?? item.place?.logo : nil
     }
 
     private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
