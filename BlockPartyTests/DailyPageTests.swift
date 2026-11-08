@@ -527,12 +527,12 @@ final class DailyPageTests: XCTestCase {
     /// The page for the week's `day` (0 today), `picks` its Event of the day, for live music and coffee.
     @MainActor
     private func page(_ cards: [FeedCardItem], at now: Date, day: Int = 0, picks: [String],
-                      topic: String? = nil) -> DailyLists {
+                      topic: String? = nil, hearted: Set<String> = []) -> DailyLists {
         let week = DailyWeek.days(from: now)
         return DailyLists.make(day: week[day], week: week, now: now,
                                picks: cards.filter { picks.contains($0.id) }.compactMap { YouCalendar.event(from: $0) },
                                cards: cards, interests: ["live_music", "coffee"], topic: topic,
-                               isGoing: { _ in false }, isHearted: { _ in false })
+                               isGoing: { _ in false }, isHearted: { hearted.contains($0.id) })
     }
 
     /// Each section leaves out what one above it shows, and what you follow is Following's alone,
@@ -545,6 +545,15 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(lists.friendsGoing.map(\.id), ["Trivia night"])
         XCTAssertEqual(lists.suggestions.map(\.id), ["Live band"])
         XCTAssertEqual(Set(lists.items.map(\.id)).count, lists.items.count)
+    }
+
+    /// Suggestions never offer what you hearted, as they never offer what you're Going to: a heart is
+    /// a save (BP app inside-cards 16).
+    @MainActor
+    func testSuggestionsLeaveOutWhatYouHearted() {
+        let now = dayStart.addingTimeInterval(8 * 3600)
+        XCTAssertEqual(page(thursday(), at: now, picks: ["Live jazz"]).suggestions.map(\.id), ["Live band"])
+        XCTAssertEqual(page(thursday(), at: now, picks: ["Live jazz"], hearted: ["Live band"]).suggestions.map(\.id), [])
     }
 
     /// A topic keeps only its own, in every section (daily-tab 19).
