@@ -409,6 +409,19 @@ def since_lines(db, today):
     return [head] * bool(events or news or hours) + event_lines(events) + [f"- {n['title']} ({n['source_name']})" for n in news] + hours
 
 
+def place_lines(db):
+    """The place pages' counts (BP app place-pages 01): every open place, and how many have an Apple id, hours, a
+    logo in Search and a live photo, so the gap to a complete directory is one line. A read that fails is one line."""
+    try:
+        rows = db.rest("GET", "places?select=entry_id,apple_place_id,hours,search_logo&closed_at=is.null") or []
+        photos = {r["entry_id"] for r in db.rest("GET", "place_photos?select=entry_id&status=eq.live&kind=eq.photo") or []}
+    except Exception as e:
+        return [f"- Places: not counted ({' '.join(str(e).split())[:200]})"]
+    return [f"- Places: {len(rows)} open, {sum(1 for r in rows if r.get('apple_place_id'))} with an Apple id, "
+            f"{sum(1 for r in rows if r.get('hours'))} with hours, {sum(1 for r in rows if r.get('search_logo'))} with a logo, "
+            f"{sum(1 for r in rows if r.get('entry_id') in photos)} with a photo"]
+
+
 def photo_lines(db, today):
     """Every Event added since the last morning's report whose card shows its place's photo or logo, not a photo
     of what it is: this morning's, the social watch's of the evening before, and any a chat added (Jesse,
@@ -956,6 +969,7 @@ def finish(run, dry_run):
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
+                       ("places", lambda: place_lines(db)),
                        ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today))):
         waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
         if what == "Apple Maps" and late(run.stop) and not waited.saved:  # the maps took this part's time, once
@@ -1293,6 +1307,13 @@ def selftest():
     checks.append((since_lines(SinceDb(down=True), date(2026, 11, 5)) == [
                        "Since the last report: not read (Supabase GET club_events failed 503: Service Unavailable)"],
                    "a read that fails is one line"))
+    counted = FakeDb(answers={"places?": [{"entry_id": "a", "apple_place_id": "I1", "hours": {"mon": []}, "search_logo": {"url": "u"}},
+                                          {"entry_id": "b", "apple_place_id": None, "hours": None, "search_logo": None}],
+                              "place_photos?": [{"entry_id": "b"}, {"entry_id": "b"}, {"entry_id": "z"}]})
+    checks.append((place_lines(counted) == ["- Places: 2 open, 1 with an Apple id, 1 with hours, 1 with a logo, 1 with a photo"]
+                   and "closed_at=is.null" in counted.calls[0][1] and "status=eq.live&kind=eq.photo" in counted.calls[1][1]
+                   and place_lines(SinceDb(down=True))[0].startswith("- Places: not counted (Supabase GET"),
+                   f"the report counts the place pages and what each still lacks: {place_lines(counted)}"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
     refused = {"entry_id": "b", "url": "https://b/",
@@ -2480,6 +2501,7 @@ def whole_morning():
                     "- Sat Nov 7 · 2 PM · Holiday Market Bake Sale · Milk & Honey Ciders",
                     "- Sat Nov 21 · 7 PM · Sacred Heart Chapel Anniversary · Sacred Heart Chapel",
                     "- Map spots: set 4, 0 with no spot",
+                    "- Places: 0 open, 0 with an Apple id, 0 with hours, 0 with a logo, 0 with a photo",
                     "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
                     "Apify: $4.20 of $25 this month (resets after 2026-11-18)",
                     "Firecrawl: 1,000 of 1,000 credits left (resets after Nov 20)"],

@@ -407,8 +407,8 @@ struct MainTabsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// What a host row opens (follows 08): a person's page, a team's, a page, a board's meetings, or
-    /// a Place's business page flying out of its picture, as Search opens it; a Place Search can't
-    /// open (no logo) opens nothing.
+    /// a Place's business page flying out of its picture, as Search opens it (its logo, or its letter
+    /// disc while it has none); a Place Search hasn't read opens nothing.
     private func makeHostOpener() -> HostOpener {
         HostOpener(
             opens: { row in
@@ -428,9 +428,9 @@ struct MainTabsView: View {
                                                             following: actions.follow(row.target).isFollowing, next: nil),
                                                city: row.kind ?? Town.cityPage))
                 case .place:
-                    guard let item = placeItem(row), let logo = item.logo else { return }
+                    guard let item = placeItem(row) else { return }
                     placeOpener.open(item, from: .init(logo: picture, box: picture, radius: picture.width / 2,
-                                                       shadow: logo.shadow, fades: row.pictureKind != "logo"))
+                                                       shadow: item.markShadow, fades: row.pictureKind != "logo"))
                 default: break
                 }
             },

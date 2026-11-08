@@ -460,11 +460,10 @@ struct SearchPage: View {
     /// place-photos check needn't find it on the wall (BP app backlog 03).
     private func openDebugBusiness() {
         guard !Self.debugBusinessOpened, let id = LaunchFlags.value(.openBusiness),
-              let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }),
-              let logo = item.logo else { return }
+              let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }), item.opens else { return }
         Self.debugBusinessOpened = true
         let size = SearchMetric.logoOnTile, rect = CGRect(x: 160, y: 400, width: size, height: size)
-        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow, fades: true))
+        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow, fades: true))
     }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
@@ -525,7 +524,7 @@ struct Shelf: View {
                 ForEach(items) { item in
                     switch kind {
                     case .business:
-                        if let logo = item.logo { RowLogo(item: item, logo: logo) }
+                        RowLogo(item: item)
                     default:
                         PhotoCard(item: item, new: new)
                     }
@@ -577,7 +576,6 @@ struct ShelfSkeleton: View {
 
 private struct RowLogo: View {
     let item: SearchItem
-    let logo: SearchLogo
     @Environment(SearchModel.self) private var model
     @Environment(BusinessOpener.self) private var opener
     @State private var frame = FrameBox()
@@ -588,21 +586,50 @@ private struct RowLogo: View {
             // No tile to grow out of: the backdrop grows from the logo, as from the wall.
             let rect = frame.rect
             model.remember(item.id)
-            opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow))
+            opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow))
         } label: {
-            CastLogo(logo: logo, side: size)
+            PlaceMark(item: item, side: size)
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
         .buttonStyle(.press(.squish))
-        .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: size, height: size))
         .accessibilityLabel(item.name)
     }
 }
 
-/// Every business logo, cut out and bare on the page.
+/// A place's mark at `side`: its logo, cast on the page and popping in once loaded, or, with no logo yet,
+/// its first letter on a disc of the light fill, as a young team's (place-pages 01).
+struct PlaceMark: View {
+    let item: SearchItem
+    let side: CGFloat
+    var shadow: Color? = nil
+
+    var body: some View {
+        if let logo = item.logo {
+            CastLogo(logo: logo, side: side, shadow: shadow)
+                .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: side, height: side))
+        } else {
+            LetterDisc(initial: item.initial, side: side)
+        }
+    }
+}
+
+/// The first letter of a place's name on a disc of the light fill, the size a logo would be: the mark of a
+/// place with no logo yet, as a young team's on the game card (`LogoDisc`, Jesse 2026-11-05 and 2026-11-08).
+struct LetterDisc: View {
+    let initial: String
+    let side: CGFloat
+
+    var body: some View {
+        LogoDisc(logo: nil, initial: initial, logoSide: side, letter: .sansSemibold((side * 0.42).rounded()),
+                 disc: false, blank: Hue.fill)
+            .frame(width: side, height: side)
+    }
+}
+
+/// Every business logo, cut out and bare on the page; a place with no logo yet, its letter disc.
 private struct LogoWall: View {
     let items: [SearchItem]
 
@@ -610,7 +637,7 @@ private struct LogoWall: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: SearchMetric.wallGapX), count: 3),
                   spacing: SearchMetric.wallGapY) {
             ForEach(items) { item in
-                if let logo = item.logo { WallLogo(item: item, logo: logo) }
+                WallLogo(item: item)
             }
         }
         .padding(.horizontal, SearchMetric.side)
@@ -620,7 +647,6 @@ private struct LogoWall: View {
 
 private struct WallLogo: View {
     let item: SearchItem
-    let logo: SearchLogo
     @Environment(SearchModel.self) private var model
     @Environment(BusinessOpener.self) private var opener
     @State private var frame = FrameBox()
@@ -640,8 +666,7 @@ private struct WallLogo: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     GeometryReader { cell in
-                        CastLogo(logo: logo, side: size, shadow: shadow)
-                            .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: size, height: size))
+                        PlaceMark(item: item, side: size, shadow: shadow)
                             .position(x: cell.size.width / 2, y: cell.size.height * SearchMetric.logoCenterY)
                     }
                 }
@@ -693,15 +718,15 @@ struct PhotoCard: View {
         .accessibilityLabel([new ? "New" : nil, item.name, item.sub].compactMap { $0 }.joined(separator: ", "))
     }
 
-    /// A restaurant or coffee shop with a logo opens its page from the photo: the
-    /// logo flies out of the photo's middle.
+    /// A restaurant or coffee shop opens its page from the photo: the logo, or its letter disc, flies
+    /// out of the photo's middle.
     private func tap() {
         model.remember(item.id)
-        guard item.opens, let logo = item.logo else { return }
+        guard item.opens else { return }
         let box = photoFrame.rect, size = SearchMetric.logoOnTile
         opener.open(item, from: .init(
             logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
-            box: box, radius: Radius.photoCard, shadow: logo.shadow, fades: true))
+            box: box, radius: Radius.photoCard, shadow: item.markShadow, fades: true))
     }
 }
 
@@ -812,11 +837,10 @@ struct ItemRow: View {
     @ViewBuilder private var avatar: some View {
         if item.kind == .person {
             SearchPhoto(item: item).clipShape(Circle())
-        } else if let logo = item.logo {
-            CastLogo(logo: logo, side: SearchMetric.avatar)
+        } else if item.logo != nil || item.opens {
+            PlaceMark(item: item, side: SearchMetric.avatar)
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
-                .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.searchField))
         } else if item.photo?.credited ?? true {
             // No logo, and a saved photo carries its credit, with no room for one at this
             // size: what kind of place it is instead.
@@ -835,10 +859,10 @@ struct ItemRow: View {
 
     private func tap() {
         model.remember(item.id)
-        guard item.opens, let logo = item.logo else { return }
+        guard item.opens else { return }
         let box = avatarFrame.rect, size = SearchMetric.avatar
         let rect = CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size)
-        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow))
+        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow))
     }
 
     private func forget() {
@@ -968,7 +992,7 @@ private struct SavedPhoto: View {
     }
 }
 
-/// No photo: the logo bare, else what kind of place it is.
+/// No photo: the logo bare, a place with none yet its letter disc, else what kind of place it is.
 private struct NoPhoto: View {
     let item: SearchItem
 
@@ -976,6 +1000,8 @@ private struct NoPhoto: View {
         ZStack {
             if let logo = item.logo {
                 CastLogo(logo: logo, side: SearchMetric.logoOnTile)
+            } else if item.opens {
+                LetterDisc(initial: item.initial, side: SearchMetric.logoOnTile)
             } else {
                 Image(systemName: item.glyph)
                     .font(.glyph(28, weight: .light))

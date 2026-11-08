@@ -151,9 +151,9 @@ struct PlaceCard: View {
 
     /// Its business page, through the shell's opener, as a host's logo opens it.
     private func open() {
-        guard let opener, let id = place.placeID, let logo = place.logo else { return }
+        guard let opener, let id = place.placeID else { return }
         let row = FollowRow(targetType: .place, targetId: id, name: place.name, kind: nil,
-                            picture: logo.url.absoluteString, pictureKind: cover == nil ? "logo" : "photo")
+                            picture: place.logo?.url.absoluteString, pictureKind: cover == nil ? "logo" : "photo")
         if opener.opens(row) { opener.open(row, frame.rect) }
     }
 }
