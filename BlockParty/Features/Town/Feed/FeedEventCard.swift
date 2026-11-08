@@ -34,13 +34,9 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
-    /// The host's mark on the photo: the photo chip's height, as when the day's chip sat level with it
-    /// (the time moved under the title, inside-cards 26). A mark, not text, so it does not scale.
-    private static let hostMarkSide: CGFloat = PhotoChip.height
+    private static let hostMarkSide = HostMarkDisc.side
     /// Between the photo's credit and the host's mark beside it.
-    private static let hostMarkGap: CGFloat = 8
-    /// The white ring round the host's mark: Instagram's story ring, at its own 1.5 pt.
-    private static let hostMarkRing: CGFloat = 1.5
+    static let hostMarkGap: CGFloat = 8
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
@@ -179,8 +175,7 @@ struct FeedEventCard: View {
     /// moving it. Read before the title, as the row it replaced was.
     @ViewBuilder
     private var hostMark: some View {
-        let mark = hostAvatar
-            .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.hostMarkRing))
+        let mark = HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName)
             .trackFrame(hostFrame)
             .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
             .contentShape(Circle().inset(by: -(MeetupPillStyle.minTarget - Self.hostMarkSide) / 2))
@@ -220,19 +215,6 @@ struct FeedEventCard: View {
             } else {
                 opener.push(item)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var hostAvatar: some View {
-        if item.hostAvatar == nil, let picture = item.hostPicture, picture.kind == .logo {
-            // A place's logo on a white disc, as Town news shows a place (Jesse, 2026-10-23).
-            LogoDisc(logo: picture.url, initial: item.hostName.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
-                     logoSide: Self.hostMarkSide * 0.875, letter: .sansSemibold(14), fits: true)
-                .frame(width: Self.hostMarkSide, height: Self.hostMarkSide)
-                .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
-        } else {
-            Avatar(item.hostAvatar ?? item.hostPicture?.url, size: Self.hostMarkSide, blank: .initial(item.hostName))
         }
     }
 
@@ -593,6 +575,35 @@ struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
 /// the card's bottom right corner, and the poster's at the right of its Attend row. Over a picture,
 /// a 38 pt grey glass circle with the white heart; on white, the ink heart alone; red once yours.
 /// It pops out to 1.3 and back, and shakes once when the server turns a heart back.
+/// A host's picture on a Town card's photo, top right (Jesse, 2026-10-29): a place's logo on a white disc, as Town news
+/// shows a place (2026-10-23), else a person's or the place's photo, else the first letter, in a white ring. The Event
+/// card makes it a button to its host's page; a News card shows it alone (BP app town-feed 53).
+struct HostMarkDisc: View {
+    let picture: PlacePicture?
+    var photo: URL? = nil
+    let name: String
+
+    /// The photo chip's height, as when the day's chip sat level with it (the time moved under the title,
+    /// inside-cards 26). A mark, not text, so it does not scale.
+    static let side: CGFloat = PhotoChip.height
+    /// The white ring: Instagram's story ring, at its own 1.5 pt.
+    private static let ring: CGFloat = 1.5
+
+    var body: some View {
+        Group {
+            if photo == nil, let picture, picture.kind == .logo {
+                LogoDisc(logo: picture.url, initial: name.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
+                         logoSide: Self.side * 0.875, letter: .sansSemibold(14), fits: true)
+                    .frame(width: Self.side, height: Self.side)
+                    .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
+            } else {
+                Avatar(photo ?? picture?.url, size: Self.side, blank: .initial(name))
+            }
+        }
+        .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.ring))
+    }
+}
+
 struct TownCardHeart: View {
     let item: FeedCardItem
     var onWhite = false

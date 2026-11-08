@@ -277,6 +277,10 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var title: String? = nil
     /// The interest it shares with you, by id, for its ••• sheet's why line (news-menu); nil when none.
     var interest: String? = nil
+    /// Its post's own photo and that photo's shape, width over height (BP app town-feed 53): with one, the Town photo
+    /// card; nil keeps the white card.
+    var photo: URL? = nil
+    var photoAspect: Double? = nil
 
     /// What the Town card sets as its title: the headline, else the facts stand in for it.
     var headline: String {

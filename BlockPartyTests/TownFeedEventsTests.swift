@@ -166,6 +166,30 @@ final class TownFeedEventsTests: XCTestCase {
 
     /// A News card's words (found-posts): its headline over the picture and its facts under it;
     /// with no headline the facts stand in for it, and nothing is said twice.
+    /// A News whose post's own photo the photo step kept (town-feed 53) comes with it and its shape, in poster's
+    /// aspect alone, and is drawn on the Town photo card credited to its place, inside Instagram's shapes; one with
+    /// none keeps the white card.
+    func testNewsWithItsPostsPhotoCarriesItAndItsShape() throws {
+        let json = """
+        [{"id":"n1","title":"New Joetown merch","image_url":"https://x/news/merch.webp","source_name":"JoeTown",
+         "created_at":"2026-11-08T03:40:45+00:00","leaves_at":"2099-11-15T03:40:45+00:00","kind":"news",
+         "description":"Fresh Joetown tees and caps.","poster":{"aspect":0.75},
+         "source_url":"https://www.instagram.com/p/Dfde7-gjf99/"},
+         {"id":"n2","title":"Flight Friday","image_url":null,"source_name":"The Wandering Cow","poster":null,
+         "created_at":"2026-11-08T03:40:45+00:00","leaves_at":"2099-11-15T03:40:45+00:00","kind":"news",
+         "source_url":"https://www.instagram.com/p/x/"}]
+        """
+        let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
+        guard lines.count == 2, case .news(let merch) = lines[0], case .news(let flight) = lines[1]
+        else { return XCTFail("\(lines)") }
+        XCTAssertEqual(merch.photo?.absoluteString, "https://x/news/merch.webp")
+        XCTAssertEqual(merch.photoAspect, 0.75, "its shape, before the photo loads")
+        XCTAssertEqual(merch.photoSource?.attribution, "JoeTown", "credited to its place")
+        XCTAssertEqual(merch.photoSource?.cardAspect, 0.8, "a tall photo held at 4:5, as an Event's")
+        XCTAssertNil(flight.photo)
+        XCTAssertNil(flight.photoSource, "no photo: the white card")
+    }
+
     func testNewsCardSaysItsHeadlineThenItsFacts() {
         let post = URL(string: "https://www.instagram.com/p/Deki5CwgiQG/")!
         let flight = TownNews(id: "n1", place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",

@@ -304,7 +304,8 @@ struct CommunityAPI {
             /// news came from.
             let kind: String?
             let sourceUrl: String?
-            /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29).
+            /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29); a News's photo's
+            /// shape alone (town-feed 53).
             let poster: LenientPoster?
             /// The Event card (BP app codebase-health-2); nil on news and posts.
             let card: UpcomingEvent.Lenient?
@@ -321,7 +322,13 @@ struct CommunityAPI {
                 let friendsOnly: Bool?
             }
             let value: Poster?
-            init(from decoder: Decoder) { value = try? Poster(from: decoder) }
+            /// The photo's shape on its own: a News row's poster names no neighbour, so `value` is nil (town-feed 53).
+            let aspect: Double?
+            private enum Keys: String, CodingKey { case aspect }
+            init(from decoder: Decoder) {
+                value = try? Poster(from: decoder)
+                aspect = (try? decoder.container(keyedBy: Keys.self)).flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
+            }
         }
         return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
@@ -344,7 +351,8 @@ struct CommunityAPI {
                                       words: words.isEmpty ? title : words, post: post,
                                       picture: row.placePicture?.value, leavesAt: leavesAt,
                                       published: DateHelpers.timestamp(row.createdAt), title: title,
-                                      interest: row.reason == "interest" ? row.reasonName : nil))
+                                      interest: row.reason == "interest" ? row.reasonName : nil,
+                                      photo: row.imageUrl.flatMap(URL.init(string:)), photoAspect: row.poster?.aspect))
             }
             guard let event = row.card?.value else { return nil }
             return .event(TownFeedRow(event: event, leavesAt: leavesAt,

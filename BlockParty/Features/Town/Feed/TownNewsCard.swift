@@ -5,8 +5,9 @@
 //  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
 //  logo on the left, else its first letter with its name starting the facts; the headline, "News · 2d"
 //  under it in plain words, and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
-//  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never a photo: a post has no Event, so the only photo it could show is its place's cover
-//  (Jesse, 2026-11-04, BP app town-feed 40). A tap opens the post in Instagram or Facebook when that app is on the phone,
+//  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never its place's cover
+//  (Jesse, 2026-11-04, BP app town-feed 40); its post's own photo, when the photo step kept one, puts it on the Town
+//  photo card (Jesse, 2026-11-08, town-feed 53). A tap opens the post in Instagram or Facebook when that app is on the phone,
 //  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
 //
 
@@ -44,8 +45,19 @@ struct TownNewsCard: View {
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
 
-    /// With no second line, its two lines go to the headline (BP app inside-cards 12).
+    /// Its post's own photo on the Town photo card (town-feed 53), else the white card.
+    @ViewBuilder
     private var face: some View {
+        if let photo = news.photoSource {
+            NewsPhotoFace(news: news, photo: photo)
+        } else {
+            whiteFace
+        }
+    }
+
+    /// With no second line, its two lines go to the headline (BP app inside-cards 12). Shared as this, photo or
+    /// not: the share window draws at once, before any photo could load.
+    private var whiteFace: some View {
         NoPhotoCard(logo: news.logo, name: news.place, when: news.when(),
                     title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2)
     }
@@ -69,7 +81,7 @@ struct TownNewsCard: View {
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
                 // The card alone: the share window has none of the app's environment its hold reads.
-                face
+                whiteFace
                     .padding(.horizontal, TownFeedMetric.contentInset)
                     .frame(width: 320)
                     .padding(.vertical, 16)
@@ -79,9 +91,88 @@ struct TownNewsCard: View {
     }
 }
 
+/// A News with its post's own photo (town-feed 53): an Event photo card's face (`FeedEventCard`), the photo in its own
+/// shape known before it loads (square at accessibility sizes), its shade, the headline, "News · 2d" and its words over
+/// it, the place's mark with the photo's credit on its top right once the photo is on screen, no heart. A photo that
+/// can't load keeps the frame, as ink, so the feed never jumps.
+private struct NewsPhotoFace: View {
+    let news: TownNews
+    let photo: FeedCardImageSource
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var failed = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Group {
+                    if !failed, let url = photo.url {
+                        FeedCardURLPhoto(url: url, onReady: { shown = true }, onFailure: { failed = true })
+                    } else {
+                        Hue.ink
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+                FeedCardPhotoScrim(imageHeight: proxy.size.height)
+            }
+        }
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : photo.cardAspect, contentMode: .fit)
+        .overlay(alignment: .bottomLeading) { words }
+        .overlay(alignment: .topTrailing) { mark }
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    }
+
+    /// As an Event's over its photo: the headline, 4 pt under it when, then its words (2 lines; Jesse at town-feed 53's
+    /// Check-in 1). With no heart in the corner, they run to 16 pt from the right.
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(news.headline)
+                .font(.eventDisplay(28))
+                .lineSpacing(-2)
+                .foregroundStyle(.white)
+                .lineLimit(!dynamicTypeSize.isAccessibilitySize && photo.cardAspect > 1.5 ? 2 : 3)
+                .fixedSize(horizontal: false, vertical: true)
+            CardTime(text: news.when(), color: .white)
+            if let facts = news.facts {
+                Text(facts)
+                    .font(.sans(13))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .feedCardPhotoTypeShadow()
+    }
+
+    /// The photo's credit (its place) once the photo is on screen, then the place's mark: its logo, else its first
+    /// letter, never its cover. It only shows; the whole card opens the post.
+    private var mark: some View {
+        HStack(spacing: FeedEventCard.hostMarkGap) {
+            PhotoCredit(names: shown ? photo.attribution.map { [$0] } ?? [] : [], spoken: false)
+                .padding(-PhotoCredit.edgeInset)
+                .animation(reduceMotion ? nil : Motion.smooth, value: shown)
+            if !news.place.isEmpty {
+                HostMarkDisc(picture: news.picture?.kind == .logo ? news.picture : nil, name: news.place)
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+            }
+        }
+        .frame(minHeight: PhotoChip.height)
+        .padding(PhotoChip.inset)
+    }
+}
+
 extension TownNews {
     /// The place's logo; a photo is its cover, which News never shows (BP app town-feed 40).
     var logo: URL? { picture?.kind == .logo ? picture?.url : nil }
+
+    /// Its post's own photo as a Town card shows one, credited to its place (town-feed 53).
+    var photoSource: FeedCardImageSource? {
+        photo.map { .placePhoto($0, credit: place.isEmpty ? nil : place, aspect: photoAspect) }
+    }
 
     /// The card's small line. A first letter doesn't say whose post it is, so with no logo the place's
     /// name starts it, unless the card already names it (Jesse at town-feed 40's Check-in 2). "St." and
