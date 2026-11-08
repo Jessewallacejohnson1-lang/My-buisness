@@ -740,7 +740,8 @@ struct SearchFloor: View {
 
 /// The logo itself, with its own outline cast straight down onto the backdrop by an
 /// overhead light: dark and tight at the edge, wider and fainter further out
-/// (Photoroom's "Soft" shadow, taste.md 2026-10-02). Three layers, each a share of the
+/// (Photoroom's "Soft" shadow, taste.md 2026-10-02; lifted higher off the page 2026-11-08:
+/// it falls further below the logo and spreads wider, a little fainter). Three layers, each a share of the
 /// logo's size; the CSS blurs are halved, as a SwiftUI shadow radius blurs about as
 /// much as a CSS blur twice its size. `stretch` and `strength` lift it mid-flight.
 struct CastLogo: View {
@@ -764,9 +765,9 @@ struct CastLogo: View {
                     .interpolation(.high)
                     // Search's logos are square; a school's crest isn't, and kept its shape.
                     .scaledToFit()
-                    .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
-                    .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
-                    .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
+                    .shadow(color: color.opacity(0.32 * strength), radius: max(1.4, side * 0.02) * k / 2, y: side * 0.016 * k)
+                    .shadow(color: color.opacity(0.20 * strength), radius: side * 0.10 * k / 2, y: side * 0.055 * k)
+                    .shadow(color: color.opacity(0.13 * strength), radius: side * 0.26 * k / 2, y: side * 0.13 * k)
                     // Over the shadows, not under them: a new lean then redraws the light alone.
                     .overlay { if let tilt { LogoShine(image: image, side: side, tilt: tilt) } }
                     .transition(.opacity)
