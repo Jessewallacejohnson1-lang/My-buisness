@@ -314,7 +314,7 @@ struct EventPage: View {
     private var sun: Bool { game == nil && !hasHero }
 
     /// The page's colours from its picture's colour; none until the picture is here.
-    private var wash: EventLook.Wash? { pageColor.map(EventLook.wash) }
+    private var wash: EventLook.Wash? { pageColor.map { EventLook.wash($0) } }
 
     /// Reads the page's colour off a picture that's just landed: the most common colourful hue, or grey
     /// once it's called off, since its photo is black and white (`EventLook`, tested).
