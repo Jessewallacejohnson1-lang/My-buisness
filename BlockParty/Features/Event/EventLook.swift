@@ -243,13 +243,15 @@ struct EventMeltHero: View {
     let pale: Bool
     /// Called off: black and white, as on its card (Jesse, 2026-10-17).
     let cancelled: Bool
+    /// The bitmap is on screen: the melt draws it too. Before, it waits, so the one decode isn't three.
+    let ready: Bool
     let onReady: () -> Void
     let onFailure: () -> Void
 
     var body: some View {
         Color.clear
             .frame(height: height)
-            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale) }
+            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready) }
             .overlay(alignment: .top) {
                 // Near-black while it loads, never the dark ramp's near-white ink (the page is dark).
                 FeedCardURLPhoto(url: url, onReady: onReady, onFailure: onFailure, loadingFill: Hue.gameNight)
@@ -272,13 +274,19 @@ private struct EventMelt: View {
     let url: URL
     let height: CGFloat
     let pale: Bool
+    let ready: Bool
 
     var body: some View {
         let reach = pale ? EventLook.meltToPale : EventLook.meltTo
         VStack(spacing: 0) {
-            copy
-            copy.scaleEffect(x: 1, y: -1)
+            if ready {
+                copy
+                copy.scaleEffect(x: 1, y: -1)
+            } else {
+                Hue.gameNight.frame(height: 2 * height)
+            }
         }
+        .animation(Motion.smooth, value: ready)
         .saturation(EventLook.saturation)
         // Opaque, so the blur's edges stay solid; the mask alone fades it.
         .blur(radius: EventLook.blur, opaque: true)
@@ -310,6 +318,7 @@ struct EventFlyerHero: View {
     let width: CGFloat
     let pale: Bool
     let cancelled: Bool
+    let ready: Bool
     let onReady: () -> Void
     let onFailure: () -> Void
 
@@ -329,7 +338,7 @@ struct EventFlyerHero: View {
         let height = Self.height(aspect: aspect, width: width)
         Color.clear
             .frame(height: height)
-            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale) }
+            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready) }
             .overlay(alignment: .top) {
                 FeedCardURLPhoto(url: url, onReady: onReady, onFailure: onFailure, loadingFill: Hue.gameNight)
                     .frame(width: size.width, height: size.height)

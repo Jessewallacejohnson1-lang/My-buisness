@@ -387,10 +387,10 @@ struct EventPage: View {
             Group {
                 if isFlyer {
                     EventFlyerHero(url: url, aspect: flyerAspect, width: width, pale: pale, cancelled: item.cancelled,
-                                   onReady: { shown(url) }, onFailure: { drop(url) })
+                                   ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
                 } else {
                     EventMeltHero(url: url, height: height, pale: pale, cancelled: item.cancelled,
-                                  onReady: { shown(url) }, onFailure: { drop(url) })
+                                  ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
                 }
             }
             .accessibilityElement(children: .ignore)
