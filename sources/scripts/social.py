@@ -10,7 +10,8 @@ sources/models/social.md.
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
 check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
 schedules start them, the busy list at 6pm and 9pm Chicago and every other page (plus Facebook
-Events tabs, and a search of Facebook's events for the town: page_lists) on Thursdays at 3pm. The routines come half an hour or more later
+Events tabs, a search of Facebook's events for the town and Facebook's own events page for the town: page_lists)
+on Thursdays at 3pm. The routines come half an hour or more later
 and read whatever Apify saved since the last check they finished, so one the plan's usage limit
 skipped (the 9pm one on 2026-10-22) is read by the next.
 
@@ -81,11 +82,11 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
     ("busy", "facebook"): ("apify~facebook-posts-scraper", 0.40),
     ("busy", "instagram"): ("apify~instagram-post-scraper", 0.20),
     ("weekly", "facebook"): ("apify~facebook-posts-scraper", 2.50),
-    ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.75),
+    ("weekly", "instagram"): ("apify~instagram-post-scraper", 1.00),  # 0.75 stopped Nov 5 at 617 of 636 pages
     ("weekly", "events"): ("apify~facebook-events-scraper", 3.00),
-    ("weekly", "search"): ("apify~facebook-events-scraper", 0.60),
+    ("weekly", "search"): ("apify~facebook-events-scraper", 1.60),  # three pages (two searches and the town's events page), up to SEARCH_EVENTS each at a cent
 }
-SEARCH_EVENTS = 50  # most events one town search reads; Apify bills each one, a cent apiece
+SEARCH_EVENTS = 50  # most events each search page reads (maxEvents is per start URL); Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
 # A family's own day found by the search never reaches a model (a child's first birthday, 2026-11-03)
 PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\bgraduation party|\bcelebration of life|\bfuneral", re.I)
@@ -131,13 +132,21 @@ def events_tab(url):
     return url.rstrip("/") + "/upcoming_hosted_events"
 
 
-def search_page():
-    """The town's Facebook events search as a page of its own (the town file's facebook_events_search),
-    or None. Its events are hosted by places the list may not know (2026-11-03: a band at La Playette, a
-    parish craft fair), so each is named for its host."""
-    q = TOWNS[TOWN].get("facebook_events_search")
-    return q and {"entry_id": "", "name": "Facebook events search", "kind": "search", "busy": False,
-                  "url": "https://www.facebook.com/events/search/?q=" + quote(q)}
+def search_pages():
+    """The town's Facebook events searches as pages of their own: the words searches (the town file's
+    facebook_events_search, one query or a list; 2026-11-08: Collegeville too) and Facebook's own events page for the town (facebook_events_explore,
+    `events/explore/<town>/<Facebook city id>`, the location-based list; 2026-11-08: 20 events for 20 cents,
+    one of them in the words search, 8 in town and new). Their events are hosted by places the list may not
+    know (2026-11-03: a band at La Playette, a parish craft fair), so each is named for its host."""
+    town, pages = TOWNS[TOWN], []
+    queries = town.get("facebook_events_search") or []
+    for q in ([queries] if isinstance(queries, str) else queries):
+        pages.append({"entry_id": "", "name": f"Facebook events search: {q}", "kind": "search", "busy": False,
+                      "url": "https://www.facebook.com/events/search/?q=" + quote(q)})
+    if town.get("facebook_events_explore"):
+        pages.append({"entry_id": "", "name": "Facebook events page for the town", "kind": "search", "busy": False,
+                      "url": town["facebook_events_explore"]})
+    return pages
 
 
 def far_away(loc):
@@ -289,8 +298,8 @@ def page_lists(root, missed=None, now=None):
     month = bool(now) and monthly_try(now)
     out[("weekly", "events")] = [dict(p, category=category.get(p["entry_id"])) for p in all_pages(root)
                                  if p["kind"] == "facebook" and (p["busy"] or p.get("hidden") or month)]
-    if search_page():
-        out[("weekly", "search")] = [search_page()]
+    if search_pages():
+        out[("weekly", "search")] = search_pages()
     # ponytail: a list left empty keeps its task's last pages; give the task no pages if one ever empties
     return {k: v for k, v in out.items() if k in ACTORS}
 
@@ -764,7 +773,7 @@ def selftest():
     tab = lambda e: {"error": e, "input": "https://www.facebook.com/krewe/upcoming_hosted_events"}
     _, hidden = post_pages("events", [tab("no_results"), tab("blocked")], {events_tab(u): p for u, p in by_url.items()})
     check(hidden == ["Krewe: blocked"], "an events tab listing none says nothing; another error names its page")
-    sp = search_page()
+    sp, ex = search_pages()[0], search_pages()[-1]
     found = lambda eid, loc, **kw: {"inputUrl": sp["url"], "id": eid, "url": f"https://fb/e/{eid}", "name": "Stone Road Live",
                                     "location": loc, "dateTimeSentence": "Saturday, November 7, 2026 at 8:30 PM CST",
                                     "organizators": [{"name": "Stone Road"}], **kw}
@@ -772,12 +781,14 @@ def selftest():
             found("church", {"name": "Church of Saint Joseph of Saint Joseph", "contextualName": "Saint Joseph, MN, United States",
                              "latitude": 31.95, "longitude": -94.3}),
             found("avon", {"name": "Avon Community Church", "contextualName": "Avon, MN", "latitude": 45.609, "longitude": -94.451}),
-            found("old", {}, isPast=True), found("nobody", {}, organizators=[]), found("kid", {}, name="Serenity's First Birthday")]
-    got, _ = post_pages("search", rows, {canon(sp["url"]): sp})
-    check([p["file"] for p in got] == ["search-la", "search-church"] and got[0]["name"] == "Stone Road"
-          and "Hosted by Stone Road." in got[0]["text"] and "8:30 PM" in got[0]["text"],
-          "a found event is named for its host; one past, hostless, a family's own day, or pinned far from town with no "
-          "town word is left out")
+            found("old", {}, isPast=True), found("nobody", {}, organizators=[]), found("kid", {}, name="Serenity's First Birthday"),
+            found("obbink", {"name": "Obbink Distilling"}, inputUrl=ex["url"])]
+    got, _ = post_pages("search", rows, {canon(sp["url"]): sp, canon(ex["url"]): ex})
+    check([p["file"] for p in got] == ["search-la", "search-church", "search-obbink"] and got[0]["name"] == "Stone Road"
+          and "Hosted by Stone Road." in got[0]["text"] and "8:30 PM" in got[0]["text"]
+          and got[2]["text"].startswith("Found by searching Facebook's events"),
+          "a found event is named for its host, from the words search or the town's events page; one past, hostless, "
+          "a family's own day, or pinned far from town with no town word is left out")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
@@ -982,9 +993,9 @@ def set_aside_reads():
          and sal_lines[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
          "a social page is named the check it is set aside and the check it is back, and no other"),
         (events_lists == [["bo", "hall", "krewe", "la", "sals"], ["bo", "krewe", "la", "sals"]]
-         and inputs["after"]["bp-weekly-search"] == [search_page()["url"]],
+         and inputs["after"]["bp-weekly-search"] == [p["url"] for p in search_pages()],
          "the weekly Events tabs read the busy and hidden Facebook pages, and every one in a month's first week; "
-         "the town's events search is a task of its own"),
+         "the town's events search and its events page are one task of their own"),
         (monthly == [1, 1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week, "
                                "by the clock: a 9:30 PM check that starts past midnight still puts it on"),
         (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],

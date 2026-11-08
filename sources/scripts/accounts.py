@@ -25,11 +25,14 @@ handle names the place when several do.
 
   python3 sources/scripts/accounts.py setup     make or update the task and schedule
   python3 sources/scripts/accounts.py report [--town T]   the latest month's run, matched (.runs/accounts/)
+  python3 sources/scripts/accounts.py tagged [--town T]   Instagram accounts our pages tagged 3+ times this month
+                                                          (report prints them too)
   python3 sources/scripts/accounts.py --selftest
 """
 
 import argparse, json, os, re, sys, urllib.parse, urllib.request
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -39,6 +42,7 @@ from social import api, by_name, items
 from towns import DEFAULT, lookup
 
 TASK, ACTOR, CAP = "bp-monthly-places", "compass~crawler-google-places", 3.00
+TAGGED_AT_LEAST, TAGGED_BY_AT_LEAST = 3, 2  # tags in a month, and by how many different pages, before an account is proposed
 CRON = "0 5 1 * *"
 NOT_THE_PLACE = {"squarespace", "wix", "weebly", "godaddy", "shopify", "wordpress", "vagaro", "vagaropro",
                  "bookedonvagaro", "mindbody", "mindbodyonline", "square", "linktree", "yelp", "google",
@@ -333,8 +337,52 @@ def setup():
     print(f"[accounts] {TASK}: {len(body['input']['searchStringsArray'])} places, the 1st of each month at 5am Chicago, cap ${CAP:.0f}")
 
 
+def tag_counts(rows, known):
+    """{account: (times, [pages that tagged it])} from Instagram rows the social watch read: accounts our
+    pages tagged or mentioned TAGGED_AT_LEAST times or more, TAGGED_BY_AT_LEAST different pages among them (one
+    page's own staff, athletes and clients tag high on their own: 25 names on 2026-11-08's first count, one of
+    them a place), less the pages themselves and the list's own."""
+    counts, by = Counter(), {}
+    owners = {str(r.get("ownerUsername") or "").lower() for r in rows}
+    for r in rows:
+        owner = str(r.get("ownerUsername") or "").lower()
+        names = set(r.get("mentions") or []) | {t.get("username") for t in r.get("taggedUsers") or [] if isinstance(t, dict)}
+        for n in names:
+            n = str(n or "").lower().lstrip("@")
+            if n and n not in known and n not in owners:
+                counts[n] += 1
+                by.setdefault(n, set()).add(owner)
+    return {n: (c, sorted(by[n])) for n, c in counts.most_common() if c >= TAGGED_AT_LEAST and len(by[n]) >= TAGGED_BY_AT_LEAST}
+
+
+def tagged(town=DEFAULT, days=31):
+    """Instagram accounts the town's pages tagged TAGGED_AT_LEAST times or more in the last month's posts the
+    social watch already read (Apify keeps a run's rows 31 days, and reading them costs nothing), that the page
+    list lacks. The 2026-11-03 search test found @joetownmn this way, tagged 19 times and never watched (Jesse,
+    2026-11-08: yes). Returns (accounts, posts read)."""
+    root = find_root()
+    pages = json.loads((root / "sources" / "social" / f"{town}.json").read_text())
+    known = {m.group(1).lower() for p in pages if p["kind"] == "instagram"
+             for m in [re.search(r"instagram\.com/([^/?#]+)", p["url"])] if m}
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+    rows = []
+    for name, task in by_name("/actor-tasks").items():
+        if name in ("bp-busy-instagram", "bp-weekly-instagram"):
+            for r in api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=100")["data"]["items"]:
+                if r["status"] == "SUCCEEDED" and (r.get("startedAt") or "")[:19] >= since:
+                    rows += items(r["defaultDatasetId"])
+    return tag_counts(rows, known), len(rows)
+
+
+def say_tagged(tags, n):
+    print(f"[accounts] tagged: {len(tags)} Instagram accounts {TAGGED_BY_AT_LEAST}+ of our pages tagged {TAGGED_AT_LEAST}+ times "
+          f"in {n} posts this month and the list lacks")
+    for a, (c, b) in tags.items():
+        print(f"  @ {a}: tagged {c} times by {', '.join(b)}")
+
+
 def report(town=DEFAULT):
-    """The latest run matched to `town`'s places and its social page list."""
+    """The latest run matched to `town`'s places and its social page list, and the accounts they tag."""
     root = find_root()
     task = by_name("/actor-tasks").get(TASK)
     runs = api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=5")["data"]["items"] if task else []
@@ -344,6 +392,12 @@ def report(town=DEFAULT):
     pages = json.loads((root / "sources" / "social" / f"{town}.json").read_text())
     out = match([e for e in places(root, app_addresses()) if e["_town"] == town], items(run["defaultDatasetId"]), pages)
     out["run"] = {k: run.get(k) for k in ("id", "status", "finishedAt", "usageTotalUsd")}
+    try:
+        tags, n = tagged(town)
+        out["tagged"] = [{"account": a, "times": c, "by": b} for a, (c, b) in tags.items()]
+    except Exception as e:  # the proposal still lists Google's finds
+        tags, n = {}, 0
+        print(f"[accounts] tagged: not counted ({e})")
     dest = root / ".runs" / "accounts"
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "proposal.json").write_text(json.dumps(out, indent=1))
@@ -357,6 +411,7 @@ def report(town=DEFAULT):
         print(f"  ~ {r['name']}: {r['kind']} {r['was']} -> {r['url']}")
     for r in out["closed"]:
         print(f"  x {r['name']}: Google says permanently closed")
+    say_tagged(tags, n)
     changes, written = write_hours(out["hours"])
     print(f"[accounts] hours: {len(changes)} " + ("places updated on their pages" if written else
           "places with Google hours (SUPABASE_URL or a key not set: nothing written)"))
@@ -427,12 +482,22 @@ def selftest():
     short = {**post, "hours": {"thu": pm("16:00", "21:00"), "from": mark}}
     assert write_hours([short], lambda m, p, b=None: calls.append(m) or [{"entry_id": "mh", "hours": None}])[0][0]["short"] \
         and calls == ["GET"], "a short week is never written"
-    print("accounts.py selftest: 29 passed, 0 failed")
+    rows = [{"ownerUsername": "salsbarandgrill", "mentions": [], "taggedUsers": [{"username": "joetownmn"}]},
+            {"ownerUsername": "joetownsmash", "mentions": ["thehousefoodandtap"],
+             "taggedUsers": [{"username": "joetownmn"}, {"username": "thehousefoodandtap"}]},
+            {"ownerUsername": "joetownmn", "mentions": ["rubinskivisual"],
+             "taggedUsers": [{"username": "salsbarandgrill"}, {"username": "thehousefoodandtap"}]},
+            {"ownerUsername": "krewe", "mentions": ["@thehousefoodandtap"], "taggedUsers": None}] \
+        + [{"ownerUsername": "csb_athletics", "mentions": [], "taggedUsers": [{"username": "a_player"}]}] * 3
+    assert tag_counts(rows, {"joetownmn"}) == {"thehousefoodandtap": (3, ["joetownmn", "joetownsmash", "krewe"])}, \
+        "an account tagged 3+ times by 2+ of our pages, not on the list and not one of them, is proposed with who tagged " \
+        "it; one page's own player, tagged 3 times by it alone, is not"
+    print("accounts.py selftest: 30 passed, 0 failed")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["setup", "report"])
+    ap.add_argument("step", nargs="?", choices=["setup", "report", "tagged"])
     ap.add_argument("--town", default=DEFAULT, help="report: the town whose places and page list to match "
                                                      "(setup searches every town's places, each in its own town)")
     ap.add_argument("--selftest", action="store_true")
@@ -440,8 +505,10 @@ def main():
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("setup or report")
+        ap.error("setup, report or tagged")
     lookup(args.town)
+    if args.step == "tagged":
+        return say_tagged(*tagged(args.town))
     setup() if args.step == "setup" else report(args.town)
 
 

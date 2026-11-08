@@ -7,8 +7,15 @@ label: St. Joseph MN
 # The town's name in words: the cheap model's batches ("The town is St. Joseph,
 # Minnesota") and the social watch's post pages ("A St. Joseph place").
 display: St. Joseph
-# The weekly Facebook events search (social.py; 2026-11-03: 8 events the watch had missed, for 35 cents)
-facebook_events_search: St. Joseph, Minnesota
+# The weekly Facebook events searches, one page each (social.py; 2026-11-03: 8 events the watch had
+# missed, for 35 cents; Collegeville added 2026-11-08 for CSB, SJU, the Prep and the Abbey, Jesse's yes)
+facebook_events_search:
+  - St. Joseph, Minnesota
+  - Collegeville, Minnesota
+# Facebook's own events page for the town, the location-based list (social.py; 2026-11-08: 20 events
+# for 20 cents, one of them in the words search, 8 in town and new). The number is St. Joseph's Facebook
+# city id, read off the Location filter on facebook.com/events/search.
+facebook_events_explore: https://www.facebook.com/events/explore/saint-joseph-minnesota/106428566061156
 # The town's folder in the photo store and its place_photos.town (place_photos.py,
 # event_photos.py). Live data names it: never change it.
 photo_slug: st-joseph
