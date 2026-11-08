@@ -504,7 +504,7 @@ def long_titles(run):
     out = run.folder
     items = read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
     titles = write_judged.long_titles(items, write_judged.listed_in_db(run.db))
-    news = write_judged.long_headlines(items)
+    news = write_judged.long_headlines(items, write_judged.news_titles_in_db(run.db))
     heading = [f"News, {write_judged.NEWS_TITLE_MAX} characters at most:"] if news else []
     (out / "titles.txt").write_text("".join(t + "\n" for t in titles + heading + news))
     print(f"[morning] {len(titles)} titles over {write_judged.TITLE_MAX} characters"
