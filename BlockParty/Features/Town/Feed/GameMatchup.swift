@@ -913,6 +913,9 @@ struct WhiteGameCard: View {
         static let column: CGFloat = 112
         static let gap: CGFloat = 14
         static let middle: CGFloat = 92
+        /// The time's room under VS: the column, the two gaps and the logos' clear sides, 168 pt, so a long
+        /// day reaches past VS's column without meeting a logo (inside-cards 26).
+        static let timeRoom: CGFloat = middle + 2 * gap + (column - logo)
         static let placeBottom: CGFloat = 16
         /// The place line keeps clear of the heart in the corner, on both sides so it stays centred.
         static let placeInset: CGFloat = 62
@@ -963,7 +966,7 @@ struct WhiteGameCard: View {
                 .padding(.top, Metric.sportTop)
             HStack(alignment: .top, spacing: Metric.gap) {
                 team(0)
-                middle(status)
+                middle(status, at: date)
                 team(1)
             }
             .padding(.top, Metric.rowTop)
@@ -981,7 +984,7 @@ struct WhiteGameCard: View {
     }
 
     /// Under VS or the score: "Final", "Live · Q3 4:12" (the red dot), "Now" (the green dot), else the
-    /// day and time, which the photo cards' chip says.
+    /// day and time, as a photo card says it under its title.
     private func status(at date: Date) -> (dot: Color?, text: String)? {
         if game.final != nil { return (nil, "Final") }
         if let live = game.live, live.isLive(at: date) {
@@ -1007,7 +1010,7 @@ struct WhiteGameCard: View {
         return game.live.map { Text("\($0.score[0]) – \($0.score[1])") }
     }
 
-    private func middle(_ status: (dot: Color?, text: String)?) -> some View {
+    private func middle(_ status: (dot: Color?, text: String)?, at date: Date) -> some View {
         VStack(spacing: 4) {
             Group {
                 if let score {
@@ -1032,8 +1035,25 @@ struct WhiteGameCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .transition(.opacity)
+            } else if game.final == nil, game.live?.isLive(at: date) != true, let when = item.whenLine {
+                // Before a score, or under one gone quiet, the day and time, or Now, in every Town card's look
+                // (Jesse, 2026-11-07, BP app inside-cards 26). A moment comes only with a fresh score, so this
+                // needs no MomentLine.
+                // As the page draws it, the time keeps one line and reaches past VS's column into the room beside
+                // the logos, never cut ("Sat, Nov 21 · 8 AM" on a 375 pt phone); too long for that room at a larger
+                // text size ("Wed, Nov 25 · 12:30 PM"), the day goes over the time.
+                let now = item.isNow(at: date)
+                ViewThatFits(in: .horizontal) {
+                    CardTime(text: when.text, spoken: when.spoken, now: now, color: Hue.inkSecondary)
+                    CardTime(text: when.text.replacingOccurrences(of: " · ", with: "\n"), spoken: when.spoken, now: now,
+                             color: Hue.inkSecondary, lines: 2)
+                }
+                .multilineTextAlignment(.center)
+                .frame(width: Metric.timeRoom)
+                .frame(width: Metric.middle)
             } else if let status {
-                // A scoring play turns it into an ink capsule round the moment for 3 s (ticket 07).
+                // Live, the score's line and Final keep their own look. A scoring play turns it into an ink
+                // capsule round the moment for 3 s (ticket 07).
                 MomentLine(style: .onWhite) {
                     HStack(spacing: 5) {
                         if let dot = status.dot {

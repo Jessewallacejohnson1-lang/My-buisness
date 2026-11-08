@@ -116,7 +116,9 @@ struct DailyEvent: Identifiable {
         let flyer = LaunchFlags.value(.wholeFlyer).flatMap { URL(string: $0) }
         var item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
-            image: flyer.map { .placePhoto($0, credit: nil) } ?? url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
+            // `-town-photo <url>` dresses them in that photo, not whole (BP app inside-cards 26).
+            image: flyer.map { .placePhoto($0, credit: nil) } ?? TownFixtures.townPhoto ?? url.map { .eventPhoto($0) } ?? .fallback,
+            recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isJoined: false,
             eventDate: Town.day(starts), startTime: time.string(from: starts),

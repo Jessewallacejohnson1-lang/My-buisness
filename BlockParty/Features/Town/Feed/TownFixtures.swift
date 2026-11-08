@@ -340,7 +340,9 @@ enum TownFixtures {
             title: title,
             dateChip: chip,
             metaLine: meta,
-            image: photo ? Self.photoURL(id, credit: credit) : placeLogo ?? .fallback,
+            // `-town-photo <url>`: the first card wears that photo, for a pale or busy one no sample has
+            // (BP app inside-cards 26: the time under the title on Nov 6's pale gallery photo).
+            image: (id == "e1" ? Self.townPhoto : nil) ?? (photo ? Self.photoURL(id, credit: credit) : placeLogo ?? .fallback),
             recurrence: nil,
             hostName: host,
             hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,
@@ -363,6 +365,15 @@ enum TownFixtures {
         // `-town-cancelled`: the first card and the photo-less council meeting are called
         // off, for the red Canceled pill on a card and an Event page with a photo and with none.
         item.cancelled = ["e1", "e5"].contains(id) && LaunchFlags.has(.townCancelled)
+        // `-town-now`: the same two started an hour ago, so a photo card and a white card both say Now
+        // under their titles (BP app inside-cards 26).
+        if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) {
+            let start = now.addingTimeInterval(-3600)
+            // Its place first: with a start time of its own the meta line no longer gives it.
+            item.location = item.whereLine
+            item.eventDate = townClock("yyyy-MM-dd", start)
+            item.startTime = townClock("h:mm a", start)
+        }
         // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
         // its Join and the club's Group page in Search are one (rsvp-and-groups 07).
         if id == "e1" && LaunchFlags.has(.townGroup) {
@@ -385,6 +396,11 @@ enum TownFixtures {
         "millstream-arts-festival", "centennial-park", "bad-habit-brewing",
         "rivers-bend-park",
     ]
+
+    /// `-town-photo <url>`'s photo, as the Event's own.
+    static var townPhoto: FeedCardImageSource? {
+        LaunchFlags.value(.townPhoto).flatMap { URL(string: $0) }.map { .eventPhoto($0) }
+    }
 
     /// With a credit, the photo is one Block Party saved of the place, not the event's own.
     private static func photoURL(_ seed: String, credit: String? = nil) -> FeedCardImageSource {

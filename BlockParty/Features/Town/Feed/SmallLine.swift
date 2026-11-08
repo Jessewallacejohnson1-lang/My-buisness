@@ -55,12 +55,6 @@ extension FeedCardItem {
         return Self.distinct(led + (game == nil ? [] : [lead]) + [place, venue, lead])
     }
 
-    /// The Event of the day poster's place line: the short place, with its town when that fits.
-    var shortPlaces: [String] {
-        let (venue, town) = Self.shortPlace(whereLine)
-        return Self.distinct([town.isEmpty ? venue : "\(venue), \(town)", venue])
-    }
-
     /// A place as a neighbour would say it: no state, not our own town, nothing after a slash, no
     /// "St. Cloud" before a high school's name and no room after a school's name. After a comma it keeps
     /// only what reads as a town or campus, a capital and at most two words, and nothing when a room came

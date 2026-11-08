@@ -2,16 +2,15 @@
 //  PhotoChip.swift
 //  Block Party — the white chip on a photo's top left that says when.
 //
-//  Airbnb's trip card ("In 3 months"), measured for Daily's Event of the day, and since
-//  2026-10-19 the Town card's day and time too (BP app docs/plans/event-card, ticket 01).
+//  Airbnb's trip card ("In 3 months"), measured for Daily's Event of the day: its rows, and the
+//  poster's "Event of the day". The Town card's day and time rode it from 2026-10-19 (BP app
+//  docs/plans/event-card, ticket 01) until they moved under the title (inside-cards 26, `CardTime`).
 //
 
 import SwiftUI
 
 struct PhotoChip: View {
     let text: String
-    /// What VoiceOver reads, when the chip's words are shorter than the spoken ones.
-    var spoken: String? = nil
     /// A dot before the words: "Now" behind Apple's green (`Hue.now`, event-card 04).
     var dot: Color? = nil
 
@@ -40,6 +39,6 @@ struct PhotoChip: View {
         .frame(minHeight: Self.height)
         .background(Capsule().fill(Hue.surface))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spoken ?? text)
+        .accessibilityLabel(text)
     }
 }

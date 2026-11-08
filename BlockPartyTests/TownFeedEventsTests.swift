@@ -376,17 +376,17 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(NewsWords.real("The Meat Market's classes won"), ["meat", "market", "class", "win"])
     }
 
-    /// The pill says how long ago Block Party found it, as a neighbour's post does; "News" with no date.
-    func testNewsPillSaysHowOld() {
+    /// The line under the headline says how long ago Block Party found it, as a neighbour's post does; "News" with no date.
+    func testNewsLineSaysHowOld() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let news = { (published: Date?) in
             TownNews(id: "n", place: "Cow", words: "Scoops", post: URL(string: "https://x/p")!, leavesAt: .distantFuture,
                      published: published, title: "Pie")
         }
-        XCTAssertEqual(news(now.addingTimeInterval(-2 * 86_400)).pill(now: now), "News · 2d")
-        XCTAssertEqual(news(now.addingTimeInterval(-3 * 3600)).pill(now: now), "News · 3h")
-        XCTAssertEqual(news(now.addingTimeInterval(-9 * 86_400)).pill(now: now), "News · 1w")
-        XCTAssertEqual(news(nil).pill(now: now), "News")
+        XCTAssertEqual(news(now.addingTimeInterval(-2 * 86_400)).when(now: now), "News · 2d")
+        XCTAssertEqual(news(now.addingTimeInterval(-3 * 3600)).when(now: now), "News · 3h")
+        XCTAssertEqual(news(now.addingTimeInterval(-9 * 86_400)).when(now: now), "News · 1w")
+        XCTAssertEqual(news(nil).when(now: now), "News")
     }
 
     /// A flyer shows whole only while it is the card's picture: an Event's own photo beats it, and
@@ -558,10 +558,11 @@ final class TownFeedEventsTests: XCTestCase {
         var poster = FeedCardItem(id: "c", title: "Cathedral Evening Open House", dateChip: "", metaLine: "", image: .fallback,
                                   recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
                                   isLiked: false, isJoined: false)
+        // The poster's line is a photo card's small line since inside-cards 26.
         poster.location = "Cathedral High School, St. Cloud"
-        XCTAssertEqual(poster.shortPlaces, ["Cathedral High School, St. Cloud", "Cathedral High School"])
+        XCTAssertEqual(poster.smallLines, ["Cathedral High School, St. Cloud", "Cathedral High School"])
         poster.location = nil
-        XCTAssertEqual(poster.shortPlaces, [], "the poster's line says nothing with no place")
+        XCTAssertEqual(poster.smallLines, [], "the poster's line says nothing with no place")
     }
 
     /// Apple's `ViewThatFits` takes the first that fits at the card's real widths, and shows nothing, never

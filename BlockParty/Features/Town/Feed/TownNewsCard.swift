@@ -3,8 +3,8 @@
 //  Block Party — town news in the Town feed (BP app docs/plans/town-feed, ticket 35).
 //
 //  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
-//  logo on the left, else its first letter with its name starting the facts; "News · 2d" in the grey pill; the
-//  headline and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
+//  logo on the left, else its first letter with its name starting the facts; the headline, "News · 2d"
+//  under it in plain words, and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
 //  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never a photo: a post has no Event, so the only photo it could show is its place's cover
 //  (Jesse, 2026-11-04, BP app town-feed 40). A tap opens the post in Instagram or Facebook when that app is on the phone,
 //  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
@@ -46,7 +46,7 @@ struct TownNewsCard: View {
 
     /// With no second line, its two lines go to the headline (BP app inside-cards 12).
     private var face: some View {
-        NoPhotoCard(logo: news.logo, name: news.place, pill: news.pill(),
+        NoPhotoCard(logo: news.logo, name: news.place, when: news.when(),
                     title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2)
     }
 
@@ -93,9 +93,10 @@ extension TownNews {
         return [place, facts].compactMap { $0 }.joined(separator: " · ")
     }
 
-    /// "News · 2d", in a neighbour's post's short form, from when Block Party found it (not when the
-    /// place posted it); "News" with no date. Replaces NEW (Jesse, 2026-11-06, BP app inside-cards 12).
-    func pill(now: Date = .now) -> String {
+    /// "News · 2d" under the headline, in a neighbour's post's short form, from when Block Party found it
+    /// (not when the place posted it); "News" with no date. Replaces NEW (Jesse, 2026-11-06, BP app
+    /// inside-cards 12), and left its pill for plain words (inside-cards 26).
+    func when(now: Date = .now) -> String {
         published.map { "News · \(PostingCard.relativeLabel(for: $0, now: now))" } ?? "News"
     }
 }
