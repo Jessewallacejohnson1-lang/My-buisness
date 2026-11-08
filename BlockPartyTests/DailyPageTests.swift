@@ -221,7 +221,7 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(following.map { "\($0.name) \($0.what)" },
                        ["Cathedral Volleyball (girls) vs Sartell.", "Cathedral Choir Fall Choir Concert."])
         XCTAssertEqual(following.first?.avatar, URL(string: "https://x/cathedral.png"))
-        XCTAssertEqual(following.first?.event?.item.title, "Cathedral Volleyball vs Sartell", "a tap opens its Event page")
+        XCTAssertEqual(following.first?.event.item.title, "Cathedral Volleyball vs Sartell", "a tap opens its Event page")
     }
 
     /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
@@ -579,7 +579,7 @@ final class DailyPageTests: XCTestCase {
     func testNothingShowsTwiceOnOnePage() {
         let lists = page(thursday(), at: dayStart.addingTimeInterval(8 * 3600), picks: ["Live jazz"])
         XCTAssertEqual(lists.events.map(\.id), ["Live jazz"])
-        XCTAssertEqual(lists.following.compactMap(\.event?.id), ["Latte art"])
+        XCTAssertEqual(lists.following.compactMap(\.event.id), ["Latte art"])
         XCTAssertEqual(lists.friendsGoing.map(\.id), ["Trivia night"])
         XCTAssertEqual(lists.suggestions.map(\.id), ["Live band"])
         XCTAssertEqual(Set(lists.items.map(\.id)).count, lists.items.count)
@@ -616,7 +616,7 @@ final class DailyPageTests: XCTestCase {
                      dayCard("Trivia night", day: "2026-10-22", at: "6 PM", friends: ["Ana"])]
         let saturday = page(cards, at: dayStart.addingTimeInterval(15 * 3600), day: 2, picks: ["Jazz brunch"])
         XCTAssertEqual(saturday.events.map(\.id), ["Jazz brunch"])
-        XCTAssertEqual(saturday.following.compactMap(\.event?.id), ["Run club"])
+        XCTAssertEqual(saturday.following.compactMap(\.event.id), ["Run club"])
         XCTAssertEqual(saturday.friendsGoing.map(\.id), ["Market"])
         XCTAssertEqual(saturday.suggestions.map(\.id), ["Coffee tasting"])
     }
