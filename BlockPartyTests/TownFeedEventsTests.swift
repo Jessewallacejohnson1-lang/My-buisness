@@ -279,9 +279,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.goingOverPhoto), [false, true, false, false], "white, photo, game, called off")
     }
 
-    /// View on Map (inside-cards 24): today's Event with a spot opens our map; another day's, or one
-    /// with no spot yet, Apple Maps at its place; with no place and nothing on the map, no row.
-    func testViewOnMapGoesToOurMapOnlyForTodaysEventWithASpot() throws {
+    /// View on Map (inside-cards 24, then 19): any day's Event with a spot opens our map, over or not; one with
+    /// no spot yet, Apple Maps at its place; with neither, no route.
+    func testViewOnMapGoesToOurMapForAnyEventWithASpot() throws {
         let row = { (id: String, day: String, location: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-11-02T17:00:00+00:00",
          "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"\(day)","start_time":"10 AM",
@@ -291,16 +291,13 @@ final class TownFeedEventsTests: XCTestCase {
         let json = "[" + [row("today", "2026-10-31", "\"Fire Hall\""), row("later", "2026-11-01", "\"Fire Hall\""),
                           row("nowhere", "2026-11-01", "null")].joined(separator: ",") + "]"
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
-        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-31T14:00:00Z"), "9 AM in St. Joseph")
         let maps = try XCTUnwrap(Directions.url(forPlace: "Fire Hall"))
 
-        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: true), .ourMap, "today, with a spot")
-        XCTAssertEqual(EventMapRoute.route(cards[0], now: now, spot: false), .appleMaps(maps), "today, no spot yet")
-        XCTAssertEqual(EventMapRoute.route(cards[1], now: now, spot: true), .appleMaps(maps),
-                       "tomorrow: our map shows today's alone")
-        XCTAssertNil(EventMapRoute.route(cards[2], now: now, spot: true), "no place and not on the map: no row")
-        let evening = now.addingTimeInterval(10 * 3600)
-        XCTAssertEqual(EventMapRoute.route(cards[0], now: evening, spot: true), .appleMaps(maps), "over: off the map")
+        XCTAssertEqual(EventMapRoute.route(cards[0], spot: true), .ourMap, "today, with a spot")
+        XCTAssertEqual(EventMapRoute.route(cards[0], spot: false), .appleMaps(maps), "no spot yet")
+        XCTAssertEqual(EventMapRoute.route(cards[1], spot: true), .ourMap, "tomorrow too, now our map shows any day")
+        XCTAssertEqual(EventMapRoute.route(cards[2], spot: true), .ourMap, "a spot with no place line")
+        XCTAssertNil(EventMapRoute.route(cards[2], spot: false), "no place and no spot: no route")
     }
 
     /// News shows a logo or a first letter, never its place's photo, and a letter's card names the

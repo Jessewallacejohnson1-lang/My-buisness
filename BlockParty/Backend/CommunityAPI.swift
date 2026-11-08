@@ -91,6 +91,26 @@ extension UpcomingEvent: Decodable {
     }
 }
 
+/// Where an Event is (`CommunityAPI.eventSpots`): its spot on the map, or at no one place (Online, a bare
+/// town, several places), which has no Map button (inside-cards 19 and 20).
+nonisolated enum EventSpot: Equatable {
+    case at(CLLocationCoordinate2D)
+    case noPlace
+
+    var coordinate: CLLocationCoordinate2D? {
+        if case .at(let spot) = self { return spot }
+        return nil
+    }
+
+    static func == (a: EventSpot, b: EventSpot) -> Bool {
+        switch (a, b) {
+        case (.noPlace, .noPlace): true
+        case let (.at(x), .at(y)): x.latitude == y.latitude && x.longitude == y.longitude
+        default: false
+        }
+    }
+}
+
 struct CommunityAPI {
     let db: Supabase
 
@@ -193,17 +213,23 @@ struct CommunityAPI {
     // MARK: - Events (the map)
 
     /// Where each of these Events really is (`club_events.lat,lng`, set by the morning job
-    /// from the source registry), by id. One with no spot is left out. Signed out, it reads
-    /// with the public key, as the Town feed does.
-    func eventSpots(_ ids: [String]) async throws -> [String: CLLocationCoordinate2D] {
+    /// from the source registry), by id, or that it happens at no one place (`no_place`: Online,
+    /// a bare town, several places; inside-cards 19 and 20). One with neither is left out. Signed
+    /// out, it reads with the public key, as the Town feed does.
+    func eventSpots(_ ids: [String]) async throws -> [String: EventSpot] {
         guard !ids.isEmpty else { return [:] }
-        struct Row: Decodable { let id: String; let lat: Double?; let lng: Double? }
+        #if DEBUG
+        // `-town-spots`: the sample Events' spots, no read (docs/debug-flags.md).
+        if LaunchFlags.has(.townSpots) { return TownFixtures.spots.filter { ids.contains($0.key) } }
+        #endif
+        struct Row: Decodable { let id: String; let lat: Double?; let lng: Double?; let noPlace: Bool? }
         let rows: [Row] = try Supabase.decode(await db.rest("club_events", [
-            ("select", "id,lat,lng"), ("lat", "not.is.null"), ("id", "in.(\(ids.joined(separator: ",")))"),
+            ("select", "id,lat,lng,no_place"), ("or", "(lat.not.is.null,no_place.is.true)"),
+            ("id", "in.(\(ids.joined(separator: ",")))"),
         ], anon: true))
-        return Dictionary(rows.compactMap { r in
-            guard let lat = r.lat, let lng = r.lng else { return nil }
-            return (r.id, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        return Dictionary(rows.compactMap { r -> (String, EventSpot)? in
+            if let lat = r.lat, let lng = r.lng { return (r.id, .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))) }
+            return r.noPlace == true ? (r.id, .noPlace) : nil
         }, uniquingKeysWith: { a, _ in a })
     }
 

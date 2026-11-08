@@ -127,6 +127,23 @@ final class MapFocusTests: XCTestCase {
         XCTAssertEqual(focus.page, 1)
     }
 
+    /// An Event its page asked for (inside-cards 19): the card opens on it, not on the friends' one, and the
+    /// camera flies in to the opening zoom from the little way out the map opened at, whatever the camera says.
+    func testAnAskedForEventFliesInToItsCardAtTheOpeningZoom() {
+        var focus = MapFocus()
+        var shared = bubble("raffle", at: sals)
+        shared.events += bubble("auction", at: sals).events
+        shared.events[0].friendsGoing = [FeedFriend(name: "Sam", photo: nil)]
+
+        let move = focus.arrive(shared, on: "auction", mapWidth: width)
+
+        XCTAssertEqual(focus.selectedID, shared.id)
+        XCTAssertEqual(focus.page, 1, "the Event asked for, though friends go to the other")
+        XCTAssertEqual(move, MapFocus.Move(center: sals, zoom: SJMapView.openZoom, bearing: nil, pitch: nil,
+                                           lift: (402 - 40) * 198.6 / 352.7 + 110 + 55, glide: .arrive))
+        XCTAssertLessThan(MapFocus.arriveFrom, SJMapView.openZoom, "it opens a little way out")
+    }
+
     func testTheCompassLevelsInPlaceAndLeavesTheCard() {
         var focus = MapFocus()
         let benedicta = bubble("reflection", at: obbink)

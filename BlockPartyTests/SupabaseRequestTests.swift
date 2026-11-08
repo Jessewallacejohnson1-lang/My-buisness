@@ -46,9 +46,23 @@ final class SupabaseRequestTests: XCTestCase {
         _ = try await community.eventSpots(["a1", "b2"])
         XCTAssertEqual(server.requests.count, 1)
         XCTAssertEqual(last.httpMethod, "GET")
-        XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_events?select=id,lat,lng&lat=not.is.null&id=in.(a1,b2)")
+        XCTAssertEqual(last.url!.absoluteString,
+                       "\(rest)/club_events?select=id,lat,lng,no_place&or=(lat.not.is.null,no_place.is.true)&id=in.(a1,b2)")
         XCTAssertNil(last.value(forHTTPHeaderField: "Authorization"), "no login: the public key alone")
         XCTAssertEqual(last.value(forHTTPHeaderField: "apikey"), SupabaseConfig.publishableKey)
+    }
+
+    /// An Event's spot, or no one place (`no_place`, inside-cards 19 and 20): the Event page's Map button reads
+    /// it, so Online has none; one with neither isn't in the answer, and opens Apple Maps.
+    func testMapSpotsSayAnEventAtNoOnePlace() async throws {
+        server.answers["club_events"] = .init(body: """
+        [{"id":"park","lat":45.57,"lng":-94.33,"no_place":false},{"id":"online","lat":null,"lng":null,"no_place":true}]
+        """)
+        let spots = try await community.eventSpots(["park", "online", "nowhere"])
+        XCTAssertEqual(spots["park"]?.coordinate?.latitude, 45.57)
+        XCTAssertEqual(spots["park"]?.coordinate?.longitude, -94.33)
+        XCTAssertEqual(spots["online"], .noPlace)
+        XCTAssertNil(spots["nowhere"], "no spot yet: Apple Maps")
     }
 
     func testMapSpotsSignedInReadWithTheTokenAndNoneAskNothing() async throws {

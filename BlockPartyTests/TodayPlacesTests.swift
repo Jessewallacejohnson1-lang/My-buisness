@@ -43,6 +43,31 @@ final class TodayPlacesTests: XCTestCase {
         XCTAssertEqual(bubbles[0].event.id, "reflection")
     }
 
+    /// The Event an Event page asked for (inside-cards 19) is on the map whatever its day, over or called off:
+    /// first at a spot it shares with tonight's, its bubble first to pop in, still first once merged, and
+    /// left out of whether the day is over.
+    func testTheAskedForEventIsFirstWhateverItsDay() {
+        var nextWeek = event("auction", "6 PM")
+        nextWeek.eventDate = "2026-11-06"
+        let far = CLLocationCoordinate2D(latitude: 45.58, longitude: -94.39)
+        let places = TodayPlaces(events: [event("lecture", "4 PM", end: 20), event("raffle", "5 PM", end: 19)],
+                                 spots: ["lecture": far, "raffle": sals, "auction": sals], asked: nextWeek)
+        let now = at(18)
+        let bubbles = places.bubbles(now: now)
+        XCTAssertEqual(bubbles.map { $0.events.map(\.id) }, [["auction", "raffle"], ["lecture"]],
+                       "next week's first at its spot, its bubble first though the lecture started earlier")
+        XCTAssertEqual(bubbles.map(\.order), [0, 1])
+        let merged = TodayPlaces.merge(bubbles.reversed(), at: [CGPoint(x: 100, y: 100), CGPoint(x: 110, y: 100)],
+                                       within: 46, now: now, first: "auction")
+        XCTAssertEqual(merged.first?.events.map(\.id), ["auction", "lecture", "raffle"])
+
+        var calledOff = event("concert", "7 PM")
+        calledOff.cancelled = true
+        let over = TodayPlaces(events: [], spots: ["concert": obbink], asked: calledOff)
+        XCTAssertEqual(over.bubbles(now: at(21)).map(\.event.id), ["concert"], "called off still opens the map")
+        XCTAssertTrue(over.dayIsOver(now: at(21)), "nothing of today's left")
+    }
+
     /// Bubbles closer on screen than a bead merge into the first; the rest stay apart.
     func testTouchingBubblesMergeAndPageThroughAllTheirEvents() {
         let places = TodayPlaces(events: [event("bingo", "6 PM"), event("raffle", "5 PM", end: 19), event("lecture", "8 PM")],

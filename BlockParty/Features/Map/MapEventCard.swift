@@ -13,6 +13,10 @@
 //  A spot with several events today pages through them on the photo, as Airbnb pages a
 //  listing's photos. Tap opens the Event page; drag it down, or tap the map, to close.
 //
+//  Directions (BP app inside-cards 19, Jesse's yes at ticket 06): a black pill on the last line, as
+//  the mock Jesse pressed has it, opening Apple Maps to the Event's spot. Another day's time line
+//  says its day.
+//
 
 import SwiftUI
 
@@ -20,11 +24,14 @@ struct MapEventCard: View {
     /// The bubble's events, in its order; never empty.
     let events: [FeedCardItem]
     @Binding var page: Int
+    /// Apple Maps' directions to an Event's spot; nil, no pill.
+    var directions: (FeedCardItem) -> URL? = { _ in nil }
     let onOpen: (FeedCardItem) -> Void
     let onClose: () -> Void
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     @State private var pressed = false
     @State private var drag: CGFloat = 0
@@ -38,6 +45,11 @@ struct MapEventCard: View {
     private static let photoAspect: CGFloat = 352.7 / 198.6
     private static let circle: CGFloat = 32
     private static let circleInset: CGFloat = 12
+    /// Directions, off the mock's CSS: 38 pt tall, 14 pt in at each end, Inter Tight SemiBold 14, white on ink.
+    private static let pillHeight: CGFloat = 38
+    private static let pillPad: CGFloat = 14
+    private static let pillWord: CGFloat = 14
+    private static let pillGap: CGFloat = 10
 
     private var item: FeedCardItem { events[min(max(page, 0), events.count - 1)] }
 
@@ -176,7 +188,33 @@ struct MapEventCard: View {
 
     // MARK: Words
 
+    /// The four lines, with Directions at the end of the last.
     private var lines: some View {
+        HStack(alignment: .bottom, spacing: Self.pillGap) {
+            words
+            if let url = directions(item) {
+                Button {
+                    Haptics.light()
+                    openURL(url)
+                } label: {
+                    Text("Directions")
+                        .font(.displaySemi(Self.pillWord))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Self.pillPad)
+                        .frame(height: Self.pillHeight)
+                        .background(Hue.ink.onLightCanvas, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.press(.squish))
+                .accessibilityHint("Opens in Maps")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 15)
+    }
+
+    private var words: some View {
         let going = actions.going(item).count
         let live = item.isNow(at: TodayBubbleClock.now())
         return VStack(alignment: .leading, spacing: 0) {
@@ -212,9 +250,6 @@ struct MapEventCard: View {
         }
         .font(.sans(16))
         .foregroundStyle(Hue.inkSecondary)
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 15)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -240,10 +275,12 @@ struct MapEventCard: View {
     }
 
     /// "Tonight, 7 – 10 PM", "Today, 10 AM – 9 PM", "Tonight, 7 PM" with no end given,
-    /// "Today, all day".
+    /// "Today, all day"; another day's by its day, "Sun, Nov 15, 7 PM", and one that began before
+    /// today and is still on, "Until Dec 15", as its bubble's tag (inside-cards 19).
     static func timeLine(_ item: FeedCardItem, now: Date) -> String {
         guard let when = item.when else { return item.shareTime ?? "Today" }
-        let day = when.dayWord(now) ?? "Today"
+        if when.stillOnFromBefore(now) { return "Until \(when.until(now))" }
+        let day = when.dayWord(now) ?? Town.format(when.start, "EEEMMMd")
         guard when.timed else { return "\(day), all day" }
         let start = Town.clock(when.start)
         guard let endAt = item.endAt, endAt > when.start else { return "\(day), \(start)" }
