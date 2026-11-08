@@ -299,6 +299,27 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(try CommunityAPI.myLikesRows(from: Data("[]".utf8)).news, [])
     }
 
+    /// One story that doesn't read (no `leaves_at`, a title that isn't words) is left out of Liked, never the read:
+    /// the Events and the other stories still come (inside-cards 22, review).
+    func testABadStoryLeavesLikedReadable() throws {
+        let story = { (id: String, extra: String) in """
+        {"card":null,"news":{"id":"\(id)","source_name":"The Wandering Cow","created_at":"2026-10-08T14:00:00+00:00",
+         "place_picture":null,"description":"Four scoops.","kind":"news","source_url":"https://www.instagram.com/p/\(id)/",
+         "poster":null,"heart_count":1,"hearted":true\(extra)}}
+        """ }
+        let json = "[" + [
+            ##"{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":null,"location":null,"##
+                + ##""image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,"##
+                + ##""created_at":"2026-10-01T12:00:00+00:00","going_count":0,"going":false},"news":null}"##,
+            story("good", ##","title":"Flight Friday","leaves_at":"2026-10-15T14:00:00+00:00""##),
+            story("no-leave", ##","title":"Flight Friday""##),
+            story("bad-title", ##","title":12,"leaves_at":"2026-10-15T14:00:00+00:00""##),
+        ].joined(separator: ",") + "]"
+        let (events, news) = try CommunityAPI.myLikesRows(from: Data(json.utf8))
+        XCTAssertEqual(events.map(\.id), ["e1"])
+        XCTAssertEqual(news.map(\.id), ["good"])
+    }
+
     private func story(_ id: String, published: String, leaves: String, hearted: Bool = true) -> TownNews {
         TownNews(id: id, place: "The Wandering Cow", words: id, post: URL(string: "https://www.instagram.com/p/\(id)/")!,
                  leavesAt: town(leaves), published: town(published), title: id, hearted: hearted, heartCount: 1)
