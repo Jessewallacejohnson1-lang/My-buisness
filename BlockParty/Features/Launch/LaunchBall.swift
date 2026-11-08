@@ -31,6 +31,10 @@ import SwiftUI
     /// mock's simulation time, so frames line up with the mock's `#at-<ms>` ones.
     let frozenAt: Double?
     let skipAt: Double?
+    /// DEBUG: a link arrives this many ms (real time) after the first frame (`-launch-link-at`),
+    /// for a recording of the link open: the simulator's "Open in Block Party?" question keeps a
+    /// real `simctl openurl` from reaching the app.
+    let linkAt: Double?
     /// The launch is over and gone.
     private(set) var finished: Bool
     /// The tab bar's own Daily Bp! shows: the launch's has landed on it, so two never show.
@@ -54,6 +58,7 @@ import SwiftUI
     private init() {
         frozenAt = LaunchFlags.value(.launchAt).flatMap(Double.init).map { $0 / 1000 }
         skipAt = LaunchFlags.value(.launchSkip).flatMap(Double.init).map { $0 / 1000 }
+        linkAt = LaunchFlags.value(.launchLinkAt).flatMap(Double.init).map { $0 / 1000 }
         // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
         reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
@@ -190,6 +195,11 @@ struct LaunchHost<Content: View>: View {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
             stage.finish()
+        }
+        .task {
+            guard let at = stage.linkAt, stage.plays else { return }
+            try? await Task.sleep(for: .seconds(at))
+            stage.openedLink()
         }
     }
 
