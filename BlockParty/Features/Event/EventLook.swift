@@ -60,8 +60,11 @@ enum EventLook {
     static let linesTop: CGFloat = 10
     static let line: CGFloat = 17
     static let lineHeight: CGFloat = 24.5
-    /// SF Pro's own line at 17 pt (the body style), which the 24.5 pt lines space from.
-    static let lineNatural: CGFloat = 22
+    /// A one-line SF Pro 17 `Text`'s frame (20.5 pt on the simulator, measured: tighter than the body style's
+    /// 22 pt line), which the 24.5 pt lines space from.
+    static let lineNatural: CGFloat = 20.5
+    /// The title's caps start this far under the picture's foot: the mock's half-leading (41 less 34, halved).
+    static let titleTop: CGFloat = 3.5
     /// A photo's credit chip, level with the heart: its top 86 pt above the foot.
     static let creditAboveFoot: CGFloat = 68
     /// A flyer's credit sits under it at the right, 12 pt, in a 29 pt line.

@@ -485,7 +485,7 @@ struct EventPage: View {
                 .accessibilityAddTraits(.isHeader)
                 // Called off, VoiceOver says so with the title: the bar's red pill comes last.
                 .accessibilityValue(item.cancelled ? "Canceled" : "")
-                .padding(.top, sun ? EventLook.sunTitleTop : 0)
+                .padding(.top, sun ? EventLook.sunTitleTop : EventLook.titleTop)
 
             let date = Self.dateLine(current)
             if date != nil || place != nil {
