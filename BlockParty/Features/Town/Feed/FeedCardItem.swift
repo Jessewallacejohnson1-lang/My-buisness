@@ -148,12 +148,7 @@ struct FeedCardItem: Identifiable, Hashable {
     /// start reads as over: "Until 9 PM", "Until Sat", "Until Dec 14" (town-feed 41).
     func whenLine(at now: Date) -> FeedWhenLine? {
         guard isOpen(at: now), let when else { return whenLine }
-        let last = when.end.addingTimeInterval(-60)  // a run's end at midnight is the day before
-        let until = switch Town.days(from: now, to: last) {
-        case 0: Town.clock(when.end)
-        case 1..<7: Town.format(last, "EEE")
-        default: Town.format(last, "MMMd")
-        }
+        let until = when.until(now)
         return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
     }
 
