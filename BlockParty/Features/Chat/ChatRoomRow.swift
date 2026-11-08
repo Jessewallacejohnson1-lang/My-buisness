@@ -109,7 +109,7 @@ private struct ChatBirthday: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Image("BirthdayCake")
+            Image(decorative: "BirthdayCake")
                 .resizable()
                 .scaledToFit()
                 .frame(height: Self.cake)
