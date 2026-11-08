@@ -202,7 +202,7 @@ final class FeedWhenLineTests: XCTestCase {
     private func card(_ date: String, _ time: String?, endAt: Date? = nil, allDay: Bool = false,
                       cancelled: Bool = false) -> FeedCardItem {
         FeedCardItem(id: "n", title: "N", dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false,
                      eventDate: date, startTime: time, endAt: endAt, allDay: allDay, cancelled: cancelled)
     }
 
@@ -280,7 +280,7 @@ final class FeedWhenLineTests: XCTestCase {
             id: "t", title: "T", dateChip: "", metaLine: "7 PM",
             image: .fallback, recurrence: nil,
             goingCount: 0, goingAvatars: [],
-            likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+            likeCount: 0, isLiked: false, isJoined: false,
             startTime: "7 PM"
         )
         XCTAssertNil(timeOnly.whereLine)

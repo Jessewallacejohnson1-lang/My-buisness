@@ -27,15 +27,15 @@ struct EventPage: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    /// Going and Save, shared with the card behind the page (`RealLifeActions`).
+    /// Going and Heart, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
     /// Every game's newest score, from whatever tab opened the page (codebase-health-2 08); nil in previews.
     @Environment(LiveGames.self) private var live: LiveGames?
     /// The page's hold on Live games while it's open, its own, so two pages of one Event let go one at a time.
     @State private var liveHolder = "page:" + UUID().uuidString
-    /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
+    /// `actions.heartFailureCount` when the heart was last tapped: equal means a tap since the
     /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
-    @State private var saveTappedAt = 0
+    @State private var heartTappedAt = 0
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
     /// and a photo's credit waits for its photo.
@@ -86,6 +86,8 @@ struct EventPage: View {
         /// under the safe area. Share and save sit 44 pt apart, centre to centre.
         static let button: CGFloat = 36
         static let tapBox: CGFloat = 44
+        /// The heart in its circle: half the circle, the map card's 18 pt (inside-cards 16).
+        static let heart: CGFloat = 18
         static let buttonTop: CGFloat = 13.5
         /// With no photo, the sheet starts this far under the buttons (guessed).
         static let noPhotoGap: CGFloat = 16
@@ -240,7 +242,7 @@ struct EventPage: View {
         .sheet(isPresented: $calendarShown) {
             if let adding { AddToCalendar(entry: adding) }
         }
-        // A failed Join or Save shakes and buzzes only while its page is open: the buzz
+        // A failed Join or Heart shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear {
             actions.pageOpened(item.id)
@@ -406,14 +408,21 @@ struct EventPage: View {
                 ShareCenter.shared.present(.event(item))
             }
 
-            // The app's bookmark, as on the card: saved, the brand yellow exactly
-            // (Jesse, 2026-09-24) inside the ink outline, so it reads on the white circle.
-            let saved = actions.saved(item)
-            let failures = actions.saveFailureCount(item.id)
-            Self.circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save",
-                              onColor: game != nil, action: toggleSave)
-                .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
-                .accessibilityAddTraits(saved ? .isSelected : [])
+            // The heart where the bookmark was: a heart is a save now (BP app inside-cards 16), and lands
+            // the Event in You's Liked. The Town card's heart, red and filled once yours, popping to 1.3.
+            // A game's page keeps it here for good (inside-cards 21), red too.
+            let heart = actions.heart(item)
+            let failures = actions.heartFailureCount(item.id)
+            Self.circleButton(
+                glyph: FeedActionGlyphView(glyph: .heart, size: Metric.heart, filled: heart.isHearted)
+                    .foregroundStyle(heart.isHearted ? Hue.heart : game != nil ? .white : Hue.ink)
+                    .phaseAnimator([1, 1.3], trigger: heart.isHearted) { glyph, scale in
+                        glyph.scaleEffect(reduceMotion ? 1 : scale)
+                    } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) },
+                label: "Like", onColor: game != nil, action: toggleHeart)
+                .turnBackShake(failures: failures, shakes: !reduceMotion && heartTappedAt != failures)
+                .accessibilityValue(heart.isHearted ? "Liked" : "Not liked")
+                .accessibilityAddTraits(heart.isHearted ? .isSelected : [])
         }
         // A game's sport between the buttons, as Apple Sports names its league (the Football draft); the
         // score below says it to VoiceOver.
@@ -433,11 +442,13 @@ struct EventPage: View {
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
     }
 
-    /// A save is a commit, so it gets the light tap (taste.md, from `RealLifeActions`);
-    /// the fill springs in.
-    private func toggleSave() {
-        saveTappedAt = actions.saveFailureCount(item.id)
-        withAnimation(Motion.snappy) { actions.toggleSave(item) }
+    /// A heart gets the light tap (taste.md, from `RealLifeActions`); the fill springs in, as on the
+    /// Town card.
+    private func toggleHeart() {
+        heartTappedAt = actions.heartFailureCount(item.id)
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
+            actions.toggleHeart(item)
+        }
     }
 
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow
@@ -458,7 +469,7 @@ struct EventPage: View {
                 .foregroundStyle(onColor ? .white : Hue.ink)
                 .frame(width: Metric.button, height: Metric.button)
                 // The shadow on the circle alone: on the whole button it also lands
-                // under each glyph and dulled the saved yellow to #F8E404. On a game's colors
+                // under each glyph and dulled the old bookmark's yellow to #F8E404. On a game's colors
                 // (`onColor`, game-card 08) the circle is see-through white, as Apple Sports' are.
                 .background {
                     if onColor {

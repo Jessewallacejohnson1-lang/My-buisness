@@ -22,7 +22,7 @@ final class MapFocusTests: XCTestCase {
 
     private func bubble(_ id: String, at spot: CLLocationCoordinate2D) -> TodayBubble {
         let card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false,
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false,
                                 isJoined: false)
         return TodayBubble(id: "\(spot.latitude),\(spot.longitude)", coordinate: spot, events: [card])
     }

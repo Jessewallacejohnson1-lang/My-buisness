@@ -51,7 +51,7 @@ private struct FriendRow: Decodable {
 
 /// The app's one Event decoder: an Event card (`private.event_cards`, BP app codebase-health-2), everything
 /// one Event shows wherever it appears, as every Event read sends it in its `card` (the Town feed, the Event
-/// of the day, Going, Saved and the bell). A new Event field is one key in the card source and one here.
+/// of the day, Going, Liked and the bell). A new Event field is one key in the card source and one here.
 extension UpcomingEvent: Decodable {
     /// A card that doesn't decode is no Event: that row is left out, never the read.
     struct Lenient: Decodable {
@@ -61,8 +61,8 @@ extension UpcomingEvent: Decodable {
 
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
-             createdAt, goingCount, going, cancelled, placePicture, hostPicture, description, what, sourceUrl,
-             game, friendsGoing, liveKind, recurrence
+             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, what,
+             sourceUrl, game, friendsGoing, liveKind, recurrence
     }
 
     init(from decoder: Decoder) throws {
@@ -85,6 +85,9 @@ extension UpcomingEvent: Decodable {
                   friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),
                   liveKind: try c.decodeIfPresent(Bool.self, forKey: .liveKind) ?? false,
                   recurrence: try text(.recurrence))
+        // A card kept from before it carried the heart (inside-cards 16) says none.
+        heartCount = try c.decodeIfPresent(Int.self, forKey: .heartCount) ?? 0
+        hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
     }
 }
 
@@ -281,7 +284,6 @@ struct CommunityAPI {
             let reasonName: String?
             let heartCount: Int?
             let hearted: Bool?
-            let saved: Bool?
             let placePicture: PlacePicture.Lenient?
             let description: String?
             /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
@@ -337,7 +339,6 @@ struct CommunityAPI {
             return .event(TownFeedRow(event: event, leavesAt: leavesAt,
                                       reason: row.reason, reasonName: row.reasonName,
                                       heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
-                                      saved: row.saved ?? false,
                                       groupID: row.clubId, inGroup: row.inClub ?? false))
         }
     }
@@ -519,16 +520,6 @@ struct CommunityAPI {
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
-    /// Which of these ids are Events, for moving the phone's old saves up to the server
-    /// (`RealLifeActions.moveUp`): the phone's saved list holds the map's Places too.
-    func knownEventIDs(_ ids: [String]) async throws -> Set<String> {
-        guard !ids.isEmpty else { return [] }
-        struct Row: Decodable { let id: String }
-        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [("select", "id"), ("id", "in.(\(ids.joined(separator: ",")))")],
-                                                            anon: true))
-        return Set(rows.map(\.id))
-    }
-
     // MARK: - Neighbours (BP app docs/plans/friends)
 
     /// One neighbour by id, as search answers them: `get_neighbor`. nil for nobody you can find.
@@ -682,11 +673,11 @@ struct CommunityAPI {
         try Self.myGoingRows(from: await db.rpc("get_my_going", ["p_from": from, "p_to": to]))
     }
 
-    /// The neighbour's saved Events from `from` on, a Town day as "yyyy-MM-dd", and any
-    /// from before it still running: `get_my_saves`, Profile's Saved list (BP app
-    /// docs/plans/you-tab, ticket 04). Each comes back saved, saying whether they're Going.
-    func getMySaves(from: String) async throws -> [UpcomingEvent] {
-        try Self.myGoingRows(from: await db.rpc("get_my_saves", ["p_from": from]), saved: true)
+    /// The Events the neighbour hearted from `from` on, a Town day as "yyyy-MM-dd", and any
+    /// from before it still running: `get_my_likes`, You's Liked list (BP app inside-cards 16).
+    /// Each card says it's hearted and whether they're Going.
+    func getMyLikes(from: String) async throws -> [UpcomingEvent] {
+        try Self.myGoingRows(from: await db.rpc("get_my_likes", ["p_from": from]))
     }
 
     /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,
@@ -712,16 +703,12 @@ struct CommunityAPI {
         }
     }
 
-    /// `get_my_going`'s rows as events, each one the neighbour is Going to, and `get_my_saves`' (`saved`),
-    /// whose card says whether they are. Each row is its Event card alone; one that doesn't decode is left
+    /// `get_my_going`'s rows as events, each one the neighbour is Going to, and `get_my_likes`', whose
+    /// card says whether they are. Each row is its Event card alone; one that doesn't decode is left
     /// out, never the read.
-    static func myGoingRows(from data: Data, saved: Bool = false) throws -> [UpcomingEvent] {
+    static func myGoingRows(from data: Data) throws -> [UpcomingEvent] {
         struct Row: Decodable { let card: UpcomingEvent.Lenient? }
-        return try Supabase.decode(data, as: [Row].self).compactMap { row in
-            guard var event = row.card?.value else { return nil }
-            event.saved = saved
-            return event
-        }
+        return try Supabase.decode(data, as: [Row].self).compactMap { $0.card?.value }
     }
 
     // MARK: - Trails

@@ -312,7 +312,6 @@ enum TownFixtures {
             likeCount: likes,
             commentCount: comments,
             isLiked: false,
-            isSaved: false,
             isFollowed: followed
         )
     }
@@ -347,7 +346,6 @@ enum TownFixtures {
             goingAvatars: [],
             likeCount: 0,
             isLiked: false,
-            isSaved: false,
             isJoined: false,
             description: description,
             category: category

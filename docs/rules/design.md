@@ -40,14 +40,11 @@ allowlist of the palettes named below). A call split across lines is still caugh
     `glyphIcon(_:filled:tint:)`, which sets `foregroundStyle` closer to the glyph; an
     outer style silently loses.
   - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
-    **`brandDisc`** is that yellow at full strength, solid, for exactly **two uses: the
-    Town bar's map disc and the fill of every saved bookmark** (renamed from `createDisc`
-    on 2026-09-24 when the tab bar's Create disc was removed; saved bookmarks joined on
-    2026-09-26/27, and the selected tab icon, yellow from 2026-09-25, went back to ink on
-    2026-09-27 with the Instagram bar, Jesse). A saved bookmark is **`BookmarkGlyph`** (`ExploreKit.swift`):
-    the yellow inside an ink outline, on the feed cards, the event page, the map's pin
-    sheet and pin badge, and `SaveBookmarkButton`. Draw a new bookmark with it, never
-    with a yellow at the call site. `mapWash`, the 68% translucent version that disc used to use, is still
+    **`brandDisc`** is that yellow at full strength, solid, for **the Town bar's map disc**
+    (renamed from `createDisc` on 2026-09-24 when the tab bar's Create disc was removed; the
+    selected tab icon, yellow from 2026-09-25, went back to ink on 2026-09-27 with the
+    Instagram bar, Jesse). It filled every saved bookmark from 2026-09-26 until the heart
+    replaced Save (BP app inside-cards 16): the app has no bookmark now. `mapWash`, the 68% translucent version that disc used to use, is still
     declared but no longer drawn — it went mustard over photographs.
     The Town's Event of the day poster prints its date in `brandDisc`, as DICE does (Jesse,
     2026-10-19, BP app event-card 03), on the poster's own dark, `Hue.poster`.

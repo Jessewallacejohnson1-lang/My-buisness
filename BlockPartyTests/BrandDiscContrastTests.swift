@@ -107,27 +107,24 @@ final class BrandDiscContrastTests: XCTestCase {
         )
     }
 
-    // MARK: - Every saved bookmark is the brand yellow
+    // MARK: - A heart once yours is the heart red
 
-    /// Every saved bookmark in BP fills with the brand yellow exactly (Jesse,
-    /// 2026-09-27). `SaveBookmarkButton` is the one on Daily's Suggestions cards; this is
-    /// its proof: rendered saved, the middle of its bookmark is #FCE804 to the unit;
-    /// unsaved, not.
-    func testSavedBookmarkButtonFillsExactBrandYellow() throws {
-        let item = FeedCardItem(UpcomingEvent(id: "BrandDiscContrastTests.bookmark", title: "Bookmark",
+    /// The bookmark and its yellow went when the heart replaced Save (BP app inside-cards 16): the heart
+    /// is the save now. Rendered hearted, the middle of a Town card's heart is `Hue.heart` #FF3040 to the
+    /// unit; not hearted, it is not.
+    func testHeartFillsHeartRedOnceYours() throws {
+        let item = FeedCardItem(UpcomingEvent(id: "BrandDiscContrastTests.heart", title: "Heart",
                                               eventDate: "2026-10-12", startTime: nil, location: nil,
                                               goingCount: 0, createdAt: "2026-10-12T12:00:00+00:00",
                                               rsvpd: false))
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in },
-                                      setSave: { _, _ in }, knownEvents: { _ in [] })
-        let button = SaveBookmarkButton(item: item).environment(actions)
+                                      setGoing: { _, _ in }, setHeart: { _, _ in })
+        let heart = TownCardHeart(item: item, onWhite: true).environment(actions)
 
-        XCTAssertNotEqual(try centrePixel(of: button), Hue.brandYellowHex,
-                          "an unsaved bookmark is not yellow")
-        actions.toggleSave(item)
-        XCTAssertEqual(try centrePixel(of: button), Hue.brandYellowHex,
-                       "a saved bookmark is the brand yellow exactly")
+        XCTAssertNotEqual(try centrePixel(of: heart), 0xFF3040, "a heart not yet yours is not red")
+        actions.toggleHeart(item)
+        XCTAssertEqual(try centrePixel(of: heart), 0xFF3040, "a heart once yours is the heart red exactly")
+        XCTAssertNotEqual(Hue.brandYellowHex, 0xFF3040)
     }
 
     /// The pixel at the middle of `view`, rendered at 3x on paper, as 0xRRGGBB.

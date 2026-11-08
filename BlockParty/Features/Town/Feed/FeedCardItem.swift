@@ -28,7 +28,6 @@ struct FeedCardItem: Identifiable, Hashable {
     var friendsGoing: [FeedFriend] = []
     var likeCount: Int
     var isLiked: Bool
-    var isSaved: Bool
     var isJoined: Bool
     var eventDate: String? = nil
     var startTime: String? = nil
@@ -236,14 +235,12 @@ struct FeedWhenLine: Equatable {
 struct FeedCardActionState: Equatable {
     private(set) var likeCount: Int
     private(set) var isLiked: Bool
-    private(set) var isSaved: Bool
 
     /// The stored properties are `private(set)`, so there is no synthesised memberwise
     /// init to lean on.
-    init(likeCount: Int, isLiked: Bool, isSaved: Bool) {
+    init(likeCount: Int, isLiked: Bool) {
         self.likeCount = likeCount
         self.isLiked = isLiked
-        self.isSaved = isSaved
     }
 
     @discardableResult
@@ -262,11 +259,6 @@ struct FeedCardActionState: Equatable {
         return true
     }
 
-    @discardableResult
-    mutating func toggleSave() -> Bool {
-        isSaved.toggle()
-        return isSaved
-    }
 }
 
 /// What sits behind a feed card's title: the event's own photo, else the photo or logo of

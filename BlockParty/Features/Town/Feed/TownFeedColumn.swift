@@ -228,7 +228,7 @@ struct TownFeedSkeleton: View {
                         .padding(.horizontal, TownFeedMetric.contentInset)
                         .padding(.top, 10)
 
-                    // The heart, share and bookmark row: no shapes, its height only.
+                    // The heart and share row: no shapes, its height only.
                     Color.clear.frame(height: 44)
                         .padding(.top, 2)
                 }

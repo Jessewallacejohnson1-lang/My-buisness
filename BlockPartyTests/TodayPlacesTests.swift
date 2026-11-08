@@ -16,7 +16,7 @@ final class TodayPlacesTests: XCTestCase {
     private func at(_ hour: Double) -> Date { Town.midnight(day)!.addingTimeInterval(hour * 3600) }
     private func event(_ id: String, _ time: String? = "7 PM", end: Double? = nil) -> FeedCardItem {
         var card = FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
         card.eventDate = day
         card.startTime = time
         card.endAt = end.map(at)

@@ -15,7 +15,6 @@ import SwiftUI
 struct PostingCard: View {
     let posting: PostingItem
     var onLike: ((Bool) -> Void)?
-    var onSave: ((Bool) -> Void)?
     var onShare: (() -> Void)?
     var onFollow: ((Bool) -> Void)?
     var onLoadComments: (() async throws -> [EventComment])?
@@ -37,7 +36,6 @@ struct PostingCard: View {
         posting: PostingItem,
         comments: [EventComment] = [],
         onLike: ((Bool) -> Void)? = nil,
-        onSave: ((Bool) -> Void)? = nil,
         onShare: (() -> Void)? = nil,
         onFollow: ((Bool) -> Void)? = nil,
         onLoadComments: (() async throws -> [EventComment])? = nil,
@@ -45,7 +43,6 @@ struct PostingCard: View {
     ) {
         self.posting = posting
         self.onLike = onLike
-        self.onSave = onSave
         self.onShare = onShare
         self.onFollow = onFollow
         self.onLoadComments = onLoadComments
@@ -70,7 +67,6 @@ struct PostingCard: View {
                 reduceMotion: motionIsReduced,
                 autoplayStep: 0,
                 onLike: onLike,
-                onSave: onSave,
                 onComment: { commentsPresented = true },
                 onShare: onShare
             )
@@ -286,8 +282,7 @@ extension FeedCardActionState {
     init(posting: PostingItem) {
         self.init(
             likeCount: posting.likeCount,
-            isLiked: posting.isLiked,
-            isSaved: posting.isSaved
+            isLiked: posting.isLiked
         )
     }
 

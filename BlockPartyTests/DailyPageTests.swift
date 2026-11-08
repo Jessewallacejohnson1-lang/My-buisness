@@ -387,7 +387,7 @@ final class DailyPageTests: XCTestCase {
         let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
         func card(_ id: String) -> FeedCardItem {
             FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                         goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+                         goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
         }
         let news = TownNews(id: "n", place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",
                             post: URL(string: "https://www.instagram.com/p/x/")!, leavesAt: .distantFuture)
@@ -408,7 +408,7 @@ final class DailyPageTests: XCTestCase {
 
     private func topicCard(_ title: String, host: String = "") -> FeedCardItem {
         var card = FeedCardItem(id: title, title: title, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
-                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
         card.hostName = host
         return card
     }
@@ -532,7 +532,7 @@ final class DailyPageTests: XCTestCase {
         return DailyLists.make(day: week[day], week: week, now: now,
                                picks: cards.filter { picks.contains($0.id) }.compactMap { YouCalendar.event(from: $0) },
                                cards: cards, interests: ["live_music", "coffee"], topic: topic,
-                               isGoing: { _ in false }, isSaved: { _ in false })
+                               isGoing: { _ in false }, isHearted: { _ in false })
     }
 
     /// Each section leaves out what one above it shows, and what you follow is Following's alone,

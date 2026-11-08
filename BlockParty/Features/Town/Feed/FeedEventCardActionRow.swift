@@ -23,8 +23,6 @@ struct FeedEventCardActionRow: View {
     /// The heart and its count. Off while the person can't act yet (no account), as
     /// Join is (Jesse, 2026-10-11).
     var showsHeart = true
-    /// The bookmark. Off on the Town card, where RSVP took its place (2026-10-17).
-    var showsSave = true
     /// Each failed heart turned back while the card was open (`RealLifeActions`) shakes
     /// the heart once.
     var heartFailures = 0
@@ -32,18 +30,15 @@ struct FeedEventCardActionRow: View {
     let reduceMotion: Bool
     let autoplayStep: Int
     let onLike: ((Bool) -> Void)?
-    let onSave: ((Bool) -> Void)?
     let onComment: () -> Void
     let onShare: (() -> Void)?
     /// The Town card's •••, after the send (found-posts).
     var onMenu: (() -> Void)? = nil
 
     @State private var heartScale: CGFloat = 1
-    @State private var bookmarkOffset: CGFloat = 0
     @State private var heartGeneration = 0
     /// `heartFailures` at the last tap: a tap mid-shake stills it and acts at once.
     @State private var heartTappedAt = 0
-    @State private var bookmarkGeneration = 0
 
     /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
     /// a 24pt glyph, its count right beside it, and 16pt of air between one control
@@ -58,9 +53,8 @@ struct FeedEventCardActionRow: View {
     }
 
     var body: some View {
-        // Instagram's split: everything that acts on the post sits leading, in one
-        // cluster with its counts; the bookmark — the only control that files this
-        // away somewhere else — sits alone at the trailing edge.
+        // Everything that acts on the post sits leading, in one cluster with its counts. The heart
+        // is the save too (BP app inside-cards 16): Instagram's trailing bookmark has no place here.
         HStack(spacing: 0) {
             HStack(spacing: Metric.groupSpacing) {
                 if showsHeart {
@@ -83,16 +77,11 @@ struct FeedEventCardActionRow: View {
             }
 
             Spacer(minLength: 12)
-
-            if showsSave {
-                saveButton
-            }
         }
         .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
             switch step {
             case 1, 4: performHeartTap()
-            case 3: performSaveTap()
             default: break
             }
         }
@@ -151,24 +140,6 @@ struct FeedEventCardActionRow: View {
                 value: state.likeCount
             )
             .accessibilityHidden(true)
-    }
-
-    private var saveButton: some View {
-        Button(action: performSaveTap) {
-            // Saved is the brand yellow exactly, inside the ink outline: the app's
-            // one bookmark (`BookmarkGlyph`), yellow everywhere once saved (Jesse,
-            // 2026-09-27). The outline never moves, so unsaved draws as before.
-            BookmarkGlyph(saved: state.isSaved)
-                .font(.sans(Metric.glyph))
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(Hue.ink)
-                .offset(y: reduceMotion ? 0 : bookmarkOffset)
-            .frame(width: Metric.tapWidth, height: Metric.rowHeight)
-            .contentShape(actionShape)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(state.isSaved ? "Saved" : "Save")
-        .accessibilityAddTraits(state.isSaved ? .isSelected : [])
     }
 
     private var shareButton: some View {
@@ -264,31 +235,5 @@ struct FeedEventCardActionRow: View {
         }
 
         onLike?(state.isLiked)
-    }
-
-    private func performSaveTap() {
-        bookmarkGeneration += 1
-        let generation = bookmarkGeneration
-
-        if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                _ = state.toggleSave()
-            }
-        } else {
-            withAnimation(.easeOut(duration: 0.08)) {
-                _ = state.toggleSave()
-                bookmarkOffset = 4
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(80))
-                guard generation == bookmarkGeneration else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    bookmarkOffset = 0
-                }
-            }
-        }
-
-        onSave?(state.isSaved)
     }
 }

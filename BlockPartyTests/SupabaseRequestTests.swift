@@ -108,12 +108,10 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertFalse(AuthStore.isTokenRejected(limited))
     }
 
-    func testUpcomingTagsAndKnownEventsAskExactly() async throws {
+    func testUpcomingTagsAskExactly() async throws {
         _ = try await community.upcomingTags()
         XCTAssertEqual(last.url!.absoluteString,
                        "\(rest)/club_events?select=interests,category,interests_tagged_at,place_entry_id,team_ids,activity_team,source_name&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(Town.day(Date()))&or=(submitted_by.not.is.null,source_name.not.is.null)&followers_only=is.false")
-        _ = try await community.knownEventIDs(["a1", "b2"])
-        XCTAssertEqual(last.url!.absoluteString, "\(rest)/club_events?select=id&id=in.(a1,b2)")
     }
 
     func testFunctionsPostTheirArguments() async throws {
@@ -125,15 +123,17 @@ final class SupabaseRequestTests: XCTestCase {
         _ = try await community.getEventOfTheDay(at: moment)
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/rpc/get_event_of_the_day")
         XCTAssertEqual(lastBody, ["p_now": ISO8601DateFormatter().string(from: moment)])
+        // You's Liked (inside-cards 16): what you hearted, from a Town day on.
+        _ = try await community.getMyLikes(from: "2026-11-01")
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/rpc/get_my_likes")
+        XCTAssertEqual(lastBody, ["p_from": "2026-11-01"])
     }
 
     // MARK: - Writes
 
-    func testLikeSaveGoingAndJoinWriteOnePresenceRow() async throws {
+    func testLikeGoingAndJoinWriteOnePresenceRow() async throws {
         try await social.likeEvent("e1")
         assertPresenceRow("event_likes", "event_id")
-        try await social.saveEvent("e1")
-        assertPresenceRow("event_saves", "event_id")
         try await community.rsvpEvent("e1")
         assertPresenceRow("event_rsvps", "event_id")
         try await community.joinClub("e1")
@@ -150,8 +150,6 @@ final class SupabaseRequestTests: XCTestCase {
     func testUndoingDeletesOnlyYourRow() async throws {
         try await social.unlikeEvent("e1")
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/event_likes?event_id=eq.e1&user_id=eq.test-user")
-        try await social.unsaveEvent("e1")
-        XCTAssertEqual(last.url!.absoluteString, "\(rest)/event_saves?event_id=eq.e1&user_id=eq.test-user")
         try await community.unRsvpEvent("e1")
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/event_rsvps?event_id=eq.e1&user_id=eq.test-user")
         try await community.leaveClub("c1")

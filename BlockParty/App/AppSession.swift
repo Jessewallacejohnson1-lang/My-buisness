@@ -5,7 +5,7 @@
 //  holds one.
 //
 //  A model that keeps an account's state joins here: a property, its line in `accountChanged`,
-//  and its check in `AppSessionTests`, so the last account's Going or Saved never shows under
+//  and its check in `AppSessionTests`, so the last account's Going or Liked never shows under
 //  the next one.
 //
 
@@ -32,8 +32,8 @@ final class AppSession {
     let chats: ChatBook
     /// The You tab's three weeks of Going, kept like the Town feed's.
     let you: YouModel
-    /// Profile's Saved list (you-tab 04), kept the same way.
-    let saves: YouModel
+    /// You's Liked list (inside-cards 16, Saved's before it), kept the same way.
+    let likes: YouModel
     /// Daily's Event of the day (daily-tab 14), and the Town feed's top (event-card 03).
     let eventOfTheDay: EventOfTheDay
     /// The other days' picks in Daily's week (daily-tab 16).
@@ -48,15 +48,13 @@ final class AppSession {
     /// it keeps no account's data, only when it last read and the phone's own cut-offs.
     let helloPill: HelloPill
     private let hello: HelloInbox
-    /// Saves this phone kept before they moved to the server.
-    private let saved: SavedStore
     private let supabase: Supabase
     private let phone: UserDefaults
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
-         you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
+         you: YouModel, likes: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
          notices: Notices, profile: ProfileModel, hello: HelloInbox,
-         saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil, chats: ChatBook? = nil,
+         supabase: Supabase, liveGames: LiveGames? = nil, chats: ChatBook? = nil,
          phone: UserDefaults = .standard) {
         self.actions = actions
         self.townFeed = townFeed
@@ -67,7 +65,7 @@ final class AppSession {
         self.searchModel = searchModel
         self.friendsBook = friendsBook
         self.you = you
-        self.saves = saves
+        self.likes = likes
         self.eventOfTheDay = eventOfTheDay
         self.dayPicks = dayPicks
         self.notices = notices
@@ -76,28 +74,26 @@ final class AppSession {
         helloPill = HelloPill(reads: .live(you: you, townFeed: townFeed, friendsBook: friendsBook, actions: actions,
                                            supabase: supabase),
                               inbox: hello, phone: phone)
-        self.saved = saved
         self.supabase = supabase
         self.phone = phone
     }
 
     /// The live models, or the DEBUG samples each one's launch flags pick. Every one reads and
     /// writes through `supabase`, the app's one client (`Supabase.app`) unless a test hands it a
-    /// fake, so none of them can go around the account the session is on. `phone` and `saved`
-    /// are where the models keep what stays on the phone; a test hands its own.
-    convenience init(profile: ProfileModel, supabase: Supabase? = nil, phone: UserDefaults? = nil,
-                     saved: SavedStore? = nil) {
+    /// fake, so none of them can go around the account the session is on. `phone` is where the
+    /// models keep what stays on the phone; a test hands its own.
+    convenience init(profile: ProfileModel, supabase: Supabase? = nil, phone: UserDefaults? = nil) {
         let supabase = supabase ?? .app
         let actions = RealLifeActions(supabase: supabase)
         let live = LiveGames(token: { try? await supabase.auth.validAccessToken() })
         self.init(actions: actions, townFeed: TownFeed(supabase: supabase, actions: actions, live: live),
                   searchModel: SearchModel(supabase: supabase, defaults: phone ?? .standard, actions: actions),
                   friendsBook: FriendsBook(supabase: supabase), you: YouModel(supabase: supabase),
-                  saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
+                  likes: YouModel.likes(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
                   profile: profile,
-                  hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
+                  hello: phone.map { HelloInbox(keep: $0) } ?? .shared,
                   supabase: supabase, liveGames: live, chats: ChatBook(supabase: supabase, sockets: true),
                   phone: phone ?? .standard)
     }
@@ -113,9 +109,6 @@ final class AppSession {
             // Search's places, so a Place host opens its page from the first tap.
             jobs.addTask { @MainActor in if !self.searchModel.placesLoaded { await self.searchModel.load() } }
             jobs.addTask { await self.friendsBook.refreshDot() }
-            // Event saves this phone kept before they moved to the server go up once, at launch
-            // with an account or when one arrives (`accountChanged`).
-            jobs.addTask { await self.actions.moveUp(self.saved) }
             // Canceled or moved since you last looked.
             jobs.addTask { await self.notices.refresh() }
             jobs.addTask {
@@ -142,7 +135,7 @@ final class AppSession {
             // Views made before the first quiet account go up under it; another account's never do.
             if old != nil { townFeed.accountChanged() }
             you.accountChanged()
-            saves.accountChanged()
+            likes.accountChanged()
             eventOfTheDay.accountChanged()
             dayPicks.accountChanged()
             notices.reset()
@@ -159,7 +152,6 @@ final class AppSession {
             // The You row's groups, this account's.
             reads.append(Task { if let groups = await you.refreshGroups() { actions.read(groups) } })
             reads.append(Task { await eventOfTheDay.refresh() })
-            reads.append(Task { await actions.moveUp(saved) })
             reads.append(Task { await notices.refresh() })
         }
         // Friends are a real account's, so the same one logging in for real starts them over too.

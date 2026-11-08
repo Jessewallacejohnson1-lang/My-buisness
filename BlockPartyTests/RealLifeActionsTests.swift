@@ -22,13 +22,8 @@ final class RealLifeActionsTests: XCTestCase {
     private final class Server {
         var writes: [Bool] = []
         var hearts: [Bool] = []
-        /// Each save written, as "<event id> <saved>".
-        var saves: [String] = []
         /// Each join or leave written, as "<group id> <member>".
         var memberships: [String] = []
-        /// The ids that are Events, for the phone's old saves, and how often they were asked.
-        var events: Set<String> = []
-        var lookups = 0
         /// Answers "no" (a 403), the server refusing the write.
         var failing = false
         /// Never answers, as with no network.
@@ -56,12 +51,6 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
         }
 
-        func save(_ eventID: String, _ saved: Bool) async throws {
-            if delay > .zero { try? await Task.sleep(for: delay) }
-            saves.append("\(eventID) \(saved)")
-            try answer()
-        }
-
         func member(_ groupID: String, _ member: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             memberships.append("\(groupID) \(member)")
@@ -83,14 +72,6 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
             return card
         }
-
-        /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
-        func knownEvents(_ ids: [String]) async throws -> Set<String> {
-            lookups += 1
-            XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "a non-UUID would fail the whole read")
-            try answer()
-            return events.intersection(ids)
-        }
     }
 
     private func actions(_ server: Server, signedIn: Bool = true, anonymous: Bool = false,
@@ -99,9 +80,8 @@ final class RealLifeActionsTests: XCTestCase {
         RealLifeActions(signedIn: signedIn, needsAccount: true, realAccount: { !anonymous },
                         hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
-                        setGoing: server.write, setHeart: server.heart, setSave: server.save,
-                        setMember: server.member, setFollow: server.follow, readFollow: server.followCard,
-                        knownEvents: server.knownEvents)
+                        setGoing: server.write, setHeart: server.heart,
+                        setMember: server.member, setFollow: server.follow, readFollow: server.followCard)
     }
 
     /// A phone of its own for one test, emptied when it ends.
@@ -395,11 +375,17 @@ final class RealLifeActionsTests: XCTestCase {
         let actions = actions(server)
         let item = card()
 
-        actions.pageOpened(item.id)
         actions.toggleHeart(item)
         try await Task.sleep(for: (Self.hold + Self.flip) * 3)
         XCTAssertFalse(actions.heart(item).isHearted, "the heart still turns back")
-        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "card closed: no shake, no buzz")
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "nothing open: no shake, no buzz")
+
+        // The Event page has the heart where the bookmark was (inside-cards 16): it shakes there.
+        actions.pageOpened(item.id)
+        actions.toggleHeart(item)
+        try await waitWhile(actions.heartFailureCount(item.id) == 0)
+        XCTAssertEqual(actions.heartFailureCount(item.id), 1, "the Event page's heart shakes and buzzes")
+        XCTAssertEqual(actions.failureCount(item.id), 0, "Join never shakes for it")
         actions.pageClosed(item.id)
 
         actions.cardOpened(item.id)
@@ -594,27 +580,28 @@ final class RealLifeActionsTests: XCTestCase {
         let before = launched(server, store, as: "anna")
 
         before.toggleGoing(item)
-        before.toggleSave(item)
+        before.toggleHeart(item)
         try await Task.sleep(for: Self.retry * 2)
         before.accountChanged(signedIn: false)  // the app is gone; its writes stop
         try await Task.sleep(for: Self.retry * 8)
 
         server.offline = false
         server.writes = []
-        server.saves = []
+        server.hearts = []
         let after = actions(server, keep: store, owner: { "anna" })
         after.read([card(id: Self.event)])  // the kept list comes first, from before the taps
         XCTAssertFalse(after.going(item).isGoing, "nothing until the account is back")
         after.accountChanged(signedIn: true)
         XCTAssertTrue(after.going(item).isGoing, "Going is back after the relaunch")
-        XCTAssertTrue(after.saved(item), "and so is the Save")
+        XCTAssertTrue(after.heart(item).isHearted, "and so is the Heart")
 
         after.read([card(id: Self.event)])
         XCTAssertTrue(after.going(item).isGoing, "an older read doesn't undo a waiting tap")
         XCTAssertEqual(Set(after.goingTapped.keys), [Self.event], "You shows it too")
-        try await waitWhile(server.writes.isEmpty || server.saves.isEmpty)
+        XCTAssertEqual(Set(after.likedTapped.keys), [Self.event], "and Liked")
+        try await waitWhile(server.writes.isEmpty || server.hearts.isEmpty)
         XCTAssertEqual(server.writes, [true])
-        XCTAssertEqual(server.saves, ["\(Self.event) true"])
+        XCTAssertEqual(server.hearts, [true])
 
         after.read([card(id: Self.event, going: 5, joined: true)])
         XCTAssertTrue(after.going(item).isGoing)
@@ -643,18 +630,41 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertFalse(annaAgain.going(item).isGoing, "dropped for good once another account came")
     }
 
-    /// Daily's sample Suggestions are saved for this run only: never kept for the next.
-    func testASampleSaveIsNotKept() async throws {
+    /// Daily's sample Suggestions are hearted for this run only: never kept for the next.
+    func testASampleHeartIsNotKept() async throws {
         let server = Server()
         server.offline = true
         let store = phoneStore()
         let before = launched(server, store, as: "anna")
-        before.toggleSave(card(id: "daily-s1"))
+        before.toggleHeart(card(id: "daily-s1"))
         try await Task.sleep(for: Self.retry * 2)
         before.accountChanged(signedIn: false)
 
         let after = launched(server, store, as: "anna")
-        XCTAssertFalse(after.saved(card(id: "daily-s1")))
+        XCTAssertFalse(after.heart(card(id: "daily-s1")).isHearted)
+    }
+
+    /// An older build kept a Save tap waiting (inside-cards 16 took Save out): the kept list no longer
+    /// reads, so it is dropped once, Going taps with it, and never sent.
+    func testAnOlderBuildsWaitingSaveIsDroppedOnce() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let before = launched(server, store, as: "anna")
+        before.toggleGoing(card(id: Self.event))
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
+        let kept = try XCTUnwrap(store.data(forKey: "bp.waitingTaps").flatMap { String(data: $0, encoding: .utf8) })
+        XCTAssertTrue(kept.contains(#""going""#))
+        store.set(Data(kept.replacingOccurrences(of: #""going""#, with: #""save""#).utf8), forKey: "bp.waitingTaps")
+
+        server.offline = false
+        server.writes = []
+        let after = launched(server, store, as: "anna")
+        XCTAssertFalse(after.going(card(id: Self.event)).isGoing)
+        XCTAssertNil(store.data(forKey: "bp.waitingTaps"), "dropped, so the next launch starts clean")
+        try await Task.sleep(for: Self.retry * 8)
+        XCTAssertEqual(server.writes + server.hearts, [], "nothing sent")
     }
 
     /// A read sets each Event's heart base: everyone's count and your own heart.
@@ -680,146 +690,83 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.hearts, [])
     }
 
-    // MARK: Save
-
-    func testASaveShowsAtOnceAndStays() async throws {
-        let server = Server()
-        let actions = actions(server)
-        let item = card()
-
-        actions.toggleSave(item)
-        XCTAssertTrue(actions.saved(item), "saved at once")
-        try await Task.sleep(for: Self.hold * 3)
-        XCTAssertEqual(server.saves, ["e1 true"])
-        XCTAssertTrue(actions.saved(item), "a save that lands stays")
-        XCTAssertEqual(actions.saveFailureCount(item.id), 0)
-    }
-
-    /// A failed save turns back like Join, and shakes the bookmark or the page that is open.
-    /// The Town card has no bookmark (rsvp-and-groups 01), so it never shakes for one.
-    func testAFailedSaveTurnsBackThenCountsOneFailure() async throws {
-        let server = Server()
-        server.failing = true
-        let actions = actions(server)
-        let item = card()
-        actions.cardOpened(item.id)
-        actions.toggleSave(item)
-        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
-        XCTAssertFalse(actions.saved(item), "turned back")
-        XCTAssertEqual(actions.saveFailureCount(item.id), 0, "no bookmark on the Town card: no shake there")
-        actions.cardClosed(item.id)
-        actions.bookmarkOpened(item.id)
-
-        actions.toggleSave(item)
-        try await waitWhile(actions.saved(item))
-        XCTAssertFalse(actions.saved(item), "back to unsaved")
-        try await waitWhile(actions.saveFailureCount(item.id) == 0)
-        XCTAssertEqual(actions.saveFailureCount(item.id), 1, "one turn back, one shake")
-        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "the heart never shakes for it")
-
-        actions.bookmarkClosed(item.id)
-        actions.pageOpened(item.id)
-        actions.toggleSave(item)
-        try await waitWhile(actions.saveFailureCount(item.id) == 1)
-        XCTAssertEqual(actions.saveFailureCount(item.id), 2, "the Event page shakes for it too")
-        XCTAssertEqual(actions.failureCount(item.id), 0, "Join never shakes for it")
-    }
-
-    /// The feed's read says what you saved; the card, the page and Daily read one entry.
-    func testAFeedReadSetsSavedForEveryScreen() {
-        let actions = actions(Server())
-        let pushed = card()
-        var read = card()
-        read.isSaved = true
-        actions.read([read])
-        XCTAssertTrue(actions.saved(pushed), "a page pushed with an older item agrees with the read")
-        read.isSaved = false
-        actions.read([read])
-        XCTAssertFalse(actions.saved(pushed))
-    }
-
-    func testNoAccountMeansNoSave() async throws {
-        let server = Server()
-        let actions = actions(server, signedIn: false)
-        let item = card()
-
-        actions.toggleSave(item)
-        try await Task.sleep(for: Self.hold)
-        XCTAssertFalse(actions.saved(item))
-        XCTAssertEqual(server.saves, [])
-    }
-
-    // MARK: The phone's old saves move up once
+    // MARK: Heart is the save (inside-cards 16)
 
     private static let event = "6b1f3a2e-0c4d-4f8a-9b21-7e5d3c1a0f44"
-    private static let place = "3c9e7d14-5b62-4a08-9f37-2d8c6e1b5a90"
 
-    /// A saved list of its own, so no test touches the phone's real one.
-    private func phone(_ ids: [String]) -> SavedStore {
-        let key = "RealLifeActionsTests.\(UUID().uuidString)"
-        UserDefaults.standard.set(ids, forKey: key)
-        addTeardownBlock {
-            UserDefaults.standard.removeObject(forKey: key)
-            UserDefaults.standard.removeObject(forKey: key + ".movedUp")
-        }
-        return SavedStore(key: key)
-    }
-
-    func testOldPhoneSavesMoveUpOnceAndPlacesStay() async throws {
+    /// A heart lands in You's Liked at once, before the server answers, and stays once it does.
+    func testAHeartLandsInLikedAtOnceAndStays() async throws {
         let server = Server()
-        server.events = [Self.event]
+        server.delay = Self.hold
         let actions = actions(server)
-        let store = phone([Self.event, Self.place, "downtown", "daily-s1"])
+        let item = card()
 
-        await actions.moveUp(store)
-        XCTAssertEqual(server.saves, ["\(Self.event) true"])
-        XCTAssertEqual(store.ids, [Self.place, "downtown", "daily-s1"], "the map's Places stay on the phone")
-        XCTAssertTrue(actions.saved(card(id: Self.event)), "saved before any read says so")
-        XCTAssertTrue(SavedStore(key: store.key).ids == store.ids, "kept across launches")
-
-        server.events = []
-        await actions.moveUp(store)
-        XCTAssertEqual(server.saves, ["\(Self.event) true"], "running it again writes nothing")
-        XCTAssertTrue(store.movedUp)
-        XCTAssertEqual(server.lookups, 1, "done once: the map's Places never send another read")
+        actions.toggleHeart(item)
+        XCTAssertEqual(Set(actions.likedTapped.keys), ["e1"], "in Liked at once")
+        XCTAssertTrue(actions.heart(item).isHearted)
+        try await waitWhile(server.hearts.isEmpty)
+        try await Task.sleep(for: Self.hold * 2)
+        XCTAssertEqual(server.hearts, [true])
+        XCTAssertTrue(actions.heart(item).isHearted, "a heart that lands stays")
     }
 
-    /// A read that started before the move-up landed doesn't blank the bookmark.
-    func testAnOlderReadKeepsAMovedSaveShowing() async throws {
-        let server = Server()
-        server.events = [Self.event]
-        let actions = actions(server)
-        actions.read([card(id: Self.event)])
-
-        await actions.moveUp(phone([Self.event]))
-        XCTAssertTrue(actions.saved(card(id: Self.event)))
-        var agreed = card(id: Self.event)
-        agreed.isSaved = true
-        actions.read([agreed])
-        XCTAssertTrue(actions.saved(card(id: Self.event)))
+    /// The photo's double tap is a heart like any other: it lands in Liked too.
+    func testADoubleTapLandsInLiked() {
+        let actions = actions(Server())
+        let item = card()
+        actions.heartOn(item)
+        XCTAssertEqual(Set(actions.likedTapped.keys), ["e1"])
+        XCTAssertTrue(actions.heart(item).isHearted)
     }
 
-    func testAFailedMoveUpKeepsTheSaveOnThePhone() async throws {
-        let server = Server()
-        server.events = [Self.event]
-        server.failing = true
-        let actions = actions(server)
-        let store = phone([Self.event])
-
-        await actions.moveUp(store)
-        XCTAssertEqual(store.ids, [Self.event], "tried again next time")
-        XCTAssertFalse(actions.saved(card(id: Self.event)))
-        XCTAssertFalse(store.movedUp)
+    /// Unhearting keeps the Event among this session's taps but no longer hearted, so Liked leaves it
+    /// out (`YouCalendar.liked` reads `heart(_:)`).
+    func testUnheartingTakesItOutOfLiked() async throws {
+        let actions = actions(Server())
+        let item = card()
+        actions.toggleHeart(item)
+        try await Task.sleep(for: Self.hold)
+        actions.toggleHeart(item)
+        XCTAssertNotNil(actions.likedTapped["e1"])
+        XCTAssertFalse(actions.heart(item).isHearted)
     }
 
-    func testNoAccountMovesNothing() async throws {
+    /// A heart kept from before a relaunch and still being sent shows in Liked once the feed reads its
+    /// card, as Going does on You.
+    func testAHeartStillBeingSentShowsInLikedAfterARelaunch() async throws {
         let server = Server()
-        server.events = [Self.event]
-        let store = phone([Self.event])
+        server.offline = true
+        let store = phoneStore()
+        let before = launched(server, store, as: "anna")
+        before.toggleHeart(card(id: Self.event))
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
 
-        await actions(server, signedIn: false).moveUp(store)
-        XCTAssertEqual(server.saves, [])
-        XCTAssertEqual(store.ids, [Self.event])
+        let after = launched(server, store, as: "anna")
+        XCTAssertTrue(after.likedTapped.isEmpty, "nothing read yet")
+        after.read([card(id: Self.event)])
+        XCTAssertEqual(Set(after.likedTapped.keys), [Self.event], "the read's card, its heart still on its way")
+        XCTAssertTrue(after.heart(card(id: Self.event)).isHearted)
+        after.accountChanged(signedIn: false)
+    }
+
+    /// The card an Event page opens with, from any door (the bell, Going, Liked), carries the heart:
+    /// before any Town feed read the page shows it as the card says.
+    func testACardFromAnyDoorShowsItsHeart() {
+        let actions = actions(Server())
+        XCTAssertEqual(actions.heart(card(hearts: 3, hearted: true)), .init(isHearted: true, count: 3))
+        XCTAssertEqual(actions.heart(card(id: "e2", hearts: 0)), .init(isHearted: false, count: 0))
+    }
+
+    /// No account: nothing lands in Liked.
+    func testNoAccountHeartsNothingIntoLiked() async throws {
+        let server = Server()
+        let actions = actions(server, signedIn: false)
+        actions.toggleHeart(card())
+        actions.heartOn(card())
+        try await Task.sleep(for: Self.hold)
+        XCTAssertTrue(actions.likedTapped.isEmpty)
+        XCTAssertEqual(server.hearts, [])
     }
 
     // MARK: Being in a group (rsvp-and-groups 06)
@@ -1115,8 +1062,7 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertFalse(actions(Server(), signedIn: false).hasAccount, "no account at all")
         XCTAssertTrue(actions(Server()).hasAccount)
         let samples = RealLifeActions(signedIn: false, needsAccount: false, realAccount: { false }, hold: Self.hold,
-                                      flip: Self.flip, setGoing: { _, _ in }, setHeart: { _, _ in },
-                                      setSave: { _, _ in }, knownEvents: { _ in [] })
+                                      flip: Self.flip, setGoing: { _, _ in }, setHeart: { _, _ in })
         XCTAssertTrue(samples.hasAccount, "sample writes go nowhere and need none")
     }
 
