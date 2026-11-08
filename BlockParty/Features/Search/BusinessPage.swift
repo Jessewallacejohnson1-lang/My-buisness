@@ -163,8 +163,8 @@ struct BusinessPage: View {
     @Environment(BusinessOpener.self) private var opener
 
     var body: some View {
-        if let item = opener.item, let logo = item.logo, let source = opener.source {
-            BusinessPageBody(item: item, logo: logo, source: source, opener: opener)
+        if let item = opener.item, let source = opener.source {
+            BusinessPageBody(item: item, source: source, opener: opener)
                 // A new business starts on its first photo, at the top.
                 .id(item.id)
         }
@@ -234,14 +234,12 @@ private final class PageState {
 
 private struct BusinessPageBody: View {
     let item: SearchItem
-    let logo: SearchLogo
     let source: BusinessOpener.Source
     let opener: BusinessOpener
     @State private var page: PageState
 
-    init(item: SearchItem, logo: SearchLogo, source: BusinessOpener.Source, opener: BusinessOpener) {
+    init(item: SearchItem, source: BusinessOpener.Source, opener: BusinessOpener) {
         self.item = item
-        self.logo = logo
         self.source = source
         self.opener = opener
         _page = State(initialValue: PageState(hasPhotos: !item.photos.isEmpty))
@@ -272,7 +270,7 @@ private struct BusinessPageBody: View {
 
                 BackCircle(opener: opener, top: insets.top)
 
-                FlyingLogo(logo: logo, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
+                FlyingLogo(item: item, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
                            corner: BusinessPage.corner(width: full.width, top: insets.top),
                            middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page,
                            named: item.nameArt?.emblem == false,
@@ -668,9 +666,10 @@ private struct BackCircle: View {
 
 /// The logo flies from where it was tapped to its corner, or to the middle of the top when the
 /// business has no photo. Mid-flight it lifts: its shadow stretches and fades a little, and
-/// settles as it lands. Open, it scrolls away with the photos.
+/// settles as it lands. Open, it scrolls away with the photos. A place with no logo yet flies its
+/// letter disc the same way (place-pages 01).
 private struct FlyingLogo: View {
-    let logo: SearchLogo
+    let item: SearchItem
     let source: BusinessOpener.Source
     let from: CGRect
     let corner: CGRect
@@ -689,8 +688,14 @@ private struct FlyingLogo: View {
         let lift = sin(.pi * c)
         let fades = named && page.hasPhotos
         let flying = lerp(from, page.hasPhotos ? bottom ?? corner : middle, p)
-        CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
-                 stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
+        Group {
+            if let logo = item.logo {
+                CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
+                         stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
+            } else {
+                LetterDisc(initial: item.initial, side: flying.width)
+            }
+        }
             .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
             .opacity((source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1))
             .animation(Motion.smooth, value: fades)
