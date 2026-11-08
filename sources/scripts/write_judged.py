@@ -403,6 +403,21 @@ STREET = re.compile(r"^\d|\b(avenue|ave|street|st|road|rd|drive|dr|lane|ln|plaza
                     r"court|ct|parkway|pkwy)\.?(\s+(north|south|east|west|[nsew]|[ns][ew]|(north|south)(east|west)))?$", re.I)
 WEEKDAYS = r"(mon|tues|wednes|thurs|fri|satur|sun)days?"
 TITLE_MAX = 40
+# A News title gets its card's 2 lines (BP app inside-cards 13; Jesse, 2026-11-07: measured, on his 402 pt phone):
+# BP Event Heading at 19 pt in 234 pt, once News has its heart (402 - 32 column - 16 - 56 logo - 14 - 16 - 34 heart).
+# Each character's width at 19 pt was read once from the font (BP app docs/plans/inside-cards/assets/13-news-titles);
+# wrapped at spaces, they agree with the phone's wrap on 345 of 346 News titles and never call a long one short.
+# ponytail: a new heading font or card width means reading these again with that folder's wrap.py.
+HEADLINE_ROOM, HEADLINE_LINES = 234, 2
+HEADLINE_WIDTHS = dict(zip(
+    " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~é—’“”",
+    (4.09, 5.07, 10.22, 16.43, 10.57, 16.89, 14.95, 4.88, 6.73, 6.56, 7.39, 11.34, 5.07, 7.87, 4.9, 10.34, 14.63, 7.03,
+     13.53, 13.7, 14.63, 13.85, 14, 12.29, 14.16, 14, 5.24, 5.24, 11.1, 11.1, 11.1, 13.15, 16.93, 17.37, 14.31, 16.07,
+     14.95, 13.01, 12.54, 16.23, 14.46, 4.83, 13.98, 15.11, 12.22, 18.32, 14.8, 16.97, 14.31, 16.97, 14.63, 14.46, 14.31,
+     14.31, 17.14, 23.66, 16.8, 16.8, 14.63, 5.28, 5.28, 5.28, 8.92, 10.57, 6.33, 13.24, 14.38, 13.89, 14.38, 13.74, 9.96,
+     14.55, 13.24, 4.71, 6.69, 13.57, 4.88, 21.43, 13.41, 14.42, 14.74, 14.59, 11.76, 13.09, 10.09, 13.76, 15.41, 21.57,
+     15.09, 15.26, 13.41, 6.35, 4.94, 6.35, 11.1, 10.57, 19, 4.88, 10.22, 10.22)))
+NEWS_TITLE_MAX = 30  # what the morning job's model shortens a News title to: every one since July at 30 or fewer fits
 
 
 def caps(text):
@@ -569,6 +584,33 @@ def is_game(e):
         return True
     m = GAME_TITLE.match(str(e.get("title") or ""))
     return bool(m) and e.get("interest", e.get("category")) == "watch_sports" and not NOT_A_TEAM.search(m["them"])
+
+
+def headline_fits(title):
+    """Whether a News title fits its card's 2 lines, wrapped at spaces as the phone wraps it. A character the
+    font table lacks counts as an M, and a word wider than a line never fits."""
+    lines, line, space = 1, 0.0, HEADLINE_WIDTHS[" "]
+    for word in title.split():
+        w = sum(HEADLINE_WIDTHS.get(c, HEADLINE_WIDTHS["M"]) for c in word)
+        if w > HEADLINE_ROOM:
+            return False
+        if line and line + space + w > HEADLINE_ROOM:
+            lines, line = lines + 1, w
+        else:
+            line += (space if line else 0) + w
+    return lines <= HEADLINE_LINES
+
+
+def long_headlines(items):
+    """News titles past their card's 2 lines once tidied (headline_fits), for the morning job's model to shorten
+    to NEWS_TITLE_MAX in the source's own words (BP app inside-cards 13)."""
+    out = []
+    for it in items:
+        if isinstance(it, dict) and it.get("kind") == "news" and isinstance(it.get("title"), str):
+            t = tidy_title(it["title"], str(it.get("source_name") or "").strip(), event=False)
+            if not headline_fits(t) and t not in out:
+                out.append(t)
+    return out
 
 
 def long_titles(items, existing=()):
@@ -892,7 +934,7 @@ def news_lasts_until(old):
     return max(week, min(made + timedelta(NEWS_MOST), datetime.combine(last + timedelta(1), time(), LOCAL))) if last else week
 
 
-def news_of(it, interests, notes, today):
+def news_of(it, interests, notes, today, titles=None):
     start = it.get("start")
     try:
         day, at = when(start, it.get("all_day")) if start else (None, None)
@@ -907,7 +949,14 @@ def news_of(it, interests, notes, today):
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
     url = clean_link(it["source_url"])
-    return {"title": tidy_title(it["title"], it["source_name"], event=False), "blurb": (it.get("blurb") or "").strip() or None,
+    title = tidy_title(it["title"], it["source_name"], event=False)
+    short = (titles or {}).get(title)
+    # A short title keeps the long one's numbers, initials and dates, so tomorrow's read of the same story, long
+    # again, is still its repeat (repeat_of tells "SJU Athlete of the Week" from "CSB Athlete of the Week" by them).
+    if short and marks(short, title) != marks(title, short):
+        notes.append(f"short title {short!r} drops a number, initials or a date of {title!r}: kept as written")
+        short = None
+    return {"title": short or title, "blurb": (it.get("blurb") or "").strip() or None,
             "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
             "source_name": it["source_name"].strip(), "source_url": url,
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
@@ -1062,7 +1111,7 @@ def group(old=None, facts=None, home=HOME):
 def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, teams=None, recent_news=()):
     """Judged items + the events already listed -> what to write, and each item's outcome.
     `recent_news`: this week's News already in the app (news_in_db), so a repeat isn't added.
-    `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles).
+    `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
@@ -1082,13 +1131,16 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             continue
         why = skip_reason(it, town)
         if not why and it["kind"] == "news":
-            n, why = news_of(it, interests, out["notes"], today)
+            n, why = news_of(it, interests, out["notes"], today, titles)
         elif not why:
             ev, why = event_of(it, today, interests, home, out["notes"], titles, teams, made)
         if why:
             out["outcomes"][i] = ("skipped", why)
         elif it["kind"] == "news":
-            old = repeat_of(n, [*recent_news, *news.values()])
+            # The title as read too, when the morning gave it a short one: News written before it was short.
+            read = tidy_title(it["title"], it["source_name"], event=False)
+            old = (repeat_of(n, [*recent_news, *news.values()])
+                   or read != n["title"] and repeat_of({**n, "title": read}, [*recent_news, *news.values()]))
             if old:
                 out["outcomes"][i] = ("repeat", f"of {old['title']!r} (already in the app)")
                 continue
@@ -1301,6 +1353,9 @@ def report(items, r):
     for g in r["events"]:
         if g["row"] and len(g["row"]["title"]) > TITLE_MAX:
             print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
+    for n in r["news"]:
+        if not headline_fits(n["title"]):
+            print(f"[long title] {n['title']!r}: over its 2 lines; give it a shorter one (title-and-place)")
 
 
 INTERESTS = ["live_music", "families_kids", "bars", "markets", "art_theater", "watch_sports"]
@@ -1330,6 +1385,42 @@ def t_long_titles_shortened_and_kept():
     assert run([chapel], [old])["events"][0]["row"]["title"] == "Sacred Heart Chapel Anniversary"
     long_old = dict(old, title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9")
     assert run([hockey], [long_old])["events"][0]["row"]["title"] == hockey["title"]
+
+
+def t_news_titles_fit_their_two_lines():
+    # Real titles, wrapped on the phone in 234 pt (BP app inside-cards 13): 38 characters filling both lines to 0.2 pt
+    # of the edge, and 36 needing 1.3 pt more for its last word. A count of characters can't tell them apart.
+    at, over = "Johnnies football home opener, Sept. 5", "Pumpkin Crafted Cold Brew at Caribou"
+    assert headline_fits(at) and not headline_fits(over), "measured, not counted"
+    assert headline_fits("Kennedy Community School") and not headline_fits("St. Joseph Community Food Shelf")
+    assert not headline_fits("Supercalifragilisticexpialidocious"), "a word wider than a line never fits"
+    news = lambda t: item(kind="news", title=t, start=None, category="business")
+    assert long_headlines([news(over), news(at), news(over), item(title=over)]) == [over], \
+        "each News past its 2 lines once; an Event keeps its 40 characters (long_titles)"
+    short = {over: "Pumpkin Cold Brew at Caribou"}
+    assert len(short[over]) <= NEWS_TITLE_MAX and headline_fits(short[over])
+    assert plan([news(over)], [], TODAY, INTERESTS, titles=short)["news"][0]["title"] == short[over]
+    assert run([news(over)])["news"][0]["title"] == over, "no short one given: as written"
+    # A short one is still its story's repeat (review of inside-cards 13): a home page's News is told by its title alone.
+    county = lambda t: item(kind="news", title=t, start=None, category="road", source_name="Stearns County",
+                            source_url="https://www.stearnscountymn.gov/")
+    road, athlete = "County Road 75 closed 2 weeks for bridge repair", "SJU Athlete of the Week: Jane Doe, Cross Country"
+    shorts = {road: "CR 75 closed for bridge work", athlete: "Athlete of the Week: Jane Doe"}
+    r = plan([county(road), county(athlete)], [], TODAY, INTERESTS, titles=shorts)
+    assert [n["title"] for n in r["news"]] == [road, athlete] and len(r["notes"]) == 2, \
+        "a short title that drops a number or initials isn't taken"
+    stored = lambda t: {"title": t, "source_name": "Stearns County", "place_entry_id": "stearns-county"}
+    for before, now in (([stored(athlete)], {athlete: "SJU Athlete of the Week: Jane Doe"}),     # written long
+                        ([stored("SJU Athlete of the Week: Jane Doe")], {athlete: "SJU Athlete: Jane Doe"}),
+                        ([stored("SJU Athlete of the Week: Jane Doe")], {})):                   # no short one today
+        r = plan([county(athlete)], [], TODAY, INTERESTS, titles=now, recent_news=before)
+        assert outcome(r, 0) == "repeat", (before, now, r["outcomes"])
+    import contextlib, io
+    said = io.StringIO()
+    with contextlib.redirect_stdout(said):
+        report([news(over), news(at)], run([news(over), news(at)]))
+    longs = [ln for ln in said.getvalue().splitlines() if ln.startswith("[long title]")]
+    assert longs == [f"[long title] {over!r}: over its 2 lines; give it a shorter one (title-and-place)"], longs
 
 
 def t_short_levels_kept_apart():
@@ -2555,7 +2646,7 @@ TESTS = [t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day,
-         t_long_titles_shortened_and_kept, t_short_levels_kept_apart, t_one_host_listed_twice]
+         t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice]
 
 
 def selftest():

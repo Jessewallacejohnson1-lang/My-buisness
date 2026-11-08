@@ -30,8 +30,10 @@ command's output and your answer.
   <last>, the app has <first> to <last>`; nothing is written (Jesse approves new dates).
 - Run `python3 sources/scripts/morning.py titles`. Give each title in `.runs/morning/titles.txt`
   a shorter one by `.claude/skills/title-and-place`: 40 characters at most, never cut mid-word,
-  keeping the words a neighbour would recognise ("Sacred Heart Chapel Anniversary"). Write them
-  to `.runs/morning/titles.json` as `{"the long title": "the short one"}`.
+  keeping the words a neighbour would recognise ("Sacred Heart Chapel Anniversary"). The titles
+  under its `News, 30 characters at most:` line are News headlines past their card's 2 lines: 30
+  at most, keeping what happened ("Pumpkin Cold Brew at Caribou"). Write them all to
+  `.runs/morning/titles.json` as `{"the long title": "the short one"}`.
 
 **Save.** Run `python3 sources/scripts/morning.py save`. It writes the items and lays out the
 helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save refused` line
