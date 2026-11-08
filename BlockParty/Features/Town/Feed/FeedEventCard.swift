@@ -433,7 +433,10 @@ struct FeedEventCard: View {
                 // is how this codebase has always tightened a heading.
                 .lineSpacing(-2)
                 .foregroundStyle(.white)
-                .lineLimit(3)
+                // Two lines on a photo wider than 3:2: with the time under it, a third ran up into the
+                // credit on a 1.91:1 photo (BP app inside-cards 26's review). A square at accessibility
+                // sizes keeps three.
+                .lineLimit(!dynamicTypeSize.isAccessibilitySize && item.image.cardAspect > 1.5 ? 2 : 3)
                 .fixedSize(horizontal: false, vertical: true)
 
             // When, 4 pt under the title in plain white words, turning to Now at the start minute while
