@@ -315,11 +315,10 @@ private struct LaunchMark: View {
             // The yellow: fading for a zoom, or falling off the bottom of the screen as a curtain
             // into the tab bar (Jesse, 2026-11-08), its pictures dropping together.
             ZStack(alignment: .topLeading) {
-                // Plain yellow reaching above the screen, so the glass picture's rounded top
-                // corners show nothing through them as the curtain falls.
+                // Plain yellow under the glass picture, filling its rounded corners, so the
+                // curtain's top edge is straight as it falls (the screen's own corners clip it at rest).
                 Hue.brandDisc
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, -2 * Self.glassCorner)
                 // The launch screen's own picture, so its still and this first frame are one.
                 Image("LaunchGlass")
                     .resizable(capInsets: Self.glassCaps, resizingMode: .stretch)

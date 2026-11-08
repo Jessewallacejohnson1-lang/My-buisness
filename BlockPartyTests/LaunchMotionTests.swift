@@ -29,8 +29,8 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(LaunchMotion.centring.width, 20.293, accuracy: 0.001, "Bp, shrunk toward the !, sits in the screen's middle")
         XCTAssertEqual(LaunchMotion.centring.height, -4.9, accuracy: 0.001)
         XCTAssertEqual(LaunchMotion.canvas.width * LaunchMotion.scale, 320, accuracy: 1e-9)
-        XCTAssertEqual(LaunchMotion.ball, 49.491327, accuracy: 1e-5)
-        XCTAssertEqual(LaunchMotion.dot, 43.035936, accuracy: 1e-5)
+        XCTAssertEqual(LaunchMotion.ball, 49.491327, accuracy: 1e-4)   // the mock scales round 1's ball; this scales the canvas
+        XCTAssertEqual(LaunchMotion.dot, 43.035936, accuracy: 1e-4)
     }
 
     /// B and p shrink toward the !'s dot, so the ball lands on their tops where the mock's does.
@@ -211,7 +211,8 @@ final class LaunchMotionTests: XCTestCase {
         }
         XCTAssertEqual(m.ball(at: 0).r, 24.745663, accuracy: 1e-5)
         XCTAssertEqual(m.ball(at: 0).y, -44.900131, accuracy: 1e-5)
-        XCTAssertEqual(m.ball(at: 0.25).r, 21.517968, accuracy: 0.02, "the dot's size as it arrives")
+        XCTAssertEqual(m.ball(at: m.landAt - 1e-9).r, 21.517968, accuracy: 1e-3, "the dot's size as it arrives")
+        XCTAssertGreaterThan(m.ball(at: 0.15).r, 22, "still shrinking on the way down")
         let squashed = m.ball(at: 0.3)   // the mock at 300 ms
         XCTAssertEqual(squashed.y, 466.032586, accuracy: 1e-4)
         XCTAssertEqual(squashed.sx, 1.225124, accuracy: 1e-5)
@@ -229,9 +230,14 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: pop + 0.35).buzzes, 2, "the dot, then the landing")
         XCTAssertEqual(m.frame(at: pop + 0.49 - 0.01).markOrigin, m.origin, "the leap starts at 0.49")
         XCTAssertNotEqual(m.frame(at: pop + 0.49 + 0.2).markOrigin, m.origin)
+        // Bp! is in the slot and the curtain down about 1.3 s after the still; what's left of its
+        // squash, under 1%, plays out unseen after (the launch is done at 2.05 s).
+        let slot = pop + 0.49 + 0.07 + 0.26
+        XCTAssertLessThan(slot / m.pace, 1.3)
+        XCTAssertEqual(LaunchMotion.canvas.width * m.frame(at: slot + 0.01).markScale, tab.width, accuracy: 1e-6)
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertLessThan(t / m.pace, 1.6, "about 1.5 s after the still")
+        XCTAssertLessThan(t / m.pace, 2.1)
         XCTAssertEqual(m.frame(at: t).buzzes, 3)
         XCTAssertEqual(LaunchMotion.buzzKinds(.short).count, 3)
         XCTAssertEqual(LaunchMotion.buzzKinds(.full).count, 5)
