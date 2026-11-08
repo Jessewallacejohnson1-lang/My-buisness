@@ -10,6 +10,11 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-08 · `YouCalendarTests.testRealLifeActionsDriveLiked` (red at 0b154f22, a three-number
+  shadow change in `CastLogo` that can't reach it; the test is heart-replaces-save's, c573cbba, the
+  same day) · `["card"]` still shown where `[]` was expected after two heart toggles behind a fixed
+  50 ms sleep, the pattern the 2026-10-30 line fixed in its siblings · not fixed yet: wait on the
+  state (`waitWhile`) as its siblings do
 - 2026-10-30 · `town_feed.test.mjs` "the feed is read in under 100 ms with 5,000 people" · red on
   fix/rootview-typecheck (run 41157284060, a Swift-only change): median 250.2 ms against CI's 250 ms
   budget · a slow GitHub runner; green on main at fbd23337 and 4d97358e · no fix yet on GitHub (the
