@@ -61,6 +61,11 @@ final class OnboardingStore {
     var birthday: Date? {
         didSet { defaults.set(birthday.map { OnboardingAge.day.format($0) }, forKey: Self.birthdayKey) }
     }
+    /// The Birthday step's gender pick, "female" or "male", nil for none (onboarding 31). Optional,
+    /// kept and saved as the birthday is: on the device, then to the account with the onboarded stamp.
+    var gender: String? {
+        didSet { defaults.set(gender, forKey: Self.genderKey) }
+    }
     /// "Come back when you're 13" is up over the birthday step.
     private(set) var tooYoung = false
     /// Log in or Create account is up over the Welcome (onboarding 27). Never saved: a relaunch
@@ -103,6 +108,7 @@ final class OnboardingStore {
     private static let photoKey = "onboarding.photo"
     private static let pendingKey = "onboarding.answersPending"
     private static let birthdayKey = "onboarding.birthday"
+    private static let genderKey = "onboarding.gender"
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
     static let interestsKey = "onboarding.interests"
@@ -123,6 +129,7 @@ final class OnboardingStore {
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
+        gender = defaults.string(forKey: Self.genderKey)
         // A flow begun before the picks had a key of their own kept them in the phone's copy.
         interests = defaults.stringArray(forKey: Self.interestsKey) ?? Interests.get(defaults)
         schoolsOpened = defaults.bool(forKey: Self.schoolsOpenedKey)
@@ -234,6 +241,7 @@ final class OnboardingStore {
         lastName = ""
         photo = nil
         birthday = nil
+        gender = nil
         follows = []
         requests = []
         interests = []
@@ -306,6 +314,9 @@ struct OnboardingFlow: View {
         guard AuthStore.shared.hasAccount else { return [] }
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
+
+    /// What the Birthday step's column keeps clear at the bottom: the Next bar's 52 pt, 302 pt up, and 16.
+    private static let birthdayClear: CGFloat = 302 + 52 + 16
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -462,6 +473,23 @@ struct OnboardingFlow: View {
                         .allowsHitTesting(false)
                 }
                 .ignoresSafeArea(.container)
+            } else if store.step == .birthday {
+                // With the gender row (onboarding 31) the step reaches past the Next bar on a small
+                // phone or at a large text size: there it scrolls clear of the bar; where it fits it
+                // holds still.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        answer
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 128)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
+                .contentMargins(.bottom, Self.birthdayClear, for: .scrollContent)
+                .ignoresSafeArea(.container)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     heading
@@ -526,6 +554,7 @@ struct OnboardingFlow: View {
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 32)
+            OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
