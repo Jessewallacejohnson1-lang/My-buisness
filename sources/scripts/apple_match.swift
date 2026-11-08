@@ -3,7 +3,8 @@
 //     swift sources/scripts/apple_match.swift places.json
 //
 // Reads [{id, entry_id, name, address, lat, lon}] and prints one JSON line per place: the Apple Maps
-// place whose name carries most of ours, within 300 m of its pin (800 m when it carries all of it),
+// place whose name carries most of ours (or whose own name sits whole inside ours: Apple's "Casey's"
+// for our "Casey's General Store"), within 300 m of its pin (800 m when it carries all of ours),
 // nearest on a tie, searched by name and then by name and address, as
 // {id, entry_id, name, apple_place_id, apple_name, metres}; else with `missing`.
 // apple_maps.py runs it (`match`) and turns the lines into a migration; nothing here writes.
@@ -23,7 +24,28 @@ func likeness(_ ours: String, _ apple: String) -> Double {
     let mine = words(ours), theirs = words(apple)
     let squashed = apple.lowercased().filter { $0.isLetter || $0.isNumber }
     guard !mine.isEmpty else { return 0 }
-    return Double(mine.filter { theirs.contains($0) || squashed.contains($0) }.count) / Double(mine.count)
+    let ofOurs = Double(mine.filter { theirs.contains($0) || squashed.contains($0) }.count) / Double(mine.count)
+    // Apple writes a chain by its short name: "Casey's" and "Coborn's" for our "Casey's General Store" and
+    // "Coborn's Grocery Store" (BP app place-pages 02, 2026-11-08). Theirs whole inside ours counts as a
+    // match, short of a full one so the 300 m cap still holds; "Coborn's Liquor" (half) stays another place.
+    let ofTheirs = theirs.isEmpty ? 0 : Double(theirs.filter { mine.contains($0) }.count) / Double(theirs.count)
+    return max(ofOurs, ofTheirs == 1 ? 0.99 : 0)
+}
+
+if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "--selftest" {
+    let cases: [(String, String, Bool, String)] = [
+        ("Casey's General Store", "Casey's", true, "Apple's short chain name inside ours"),
+        ("Coborn's Grocery Store", "Coborn's", true, "the grocery is Coborn's"),
+        ("Coborn's Grocery Store", "Coborn's Liquor", false, "the liquor store is not"),
+        ("Coborn's Pharmacy", "Coborn's Liquor", false, "two Coborn's stay two"),
+        ("CMS Autobody", "CMS Auto Body", true, "a word Apple splits"),
+        ("St. Joseph Government Center", "City of St. Joseph, MN", false, "no shared word, no match"),
+    ]
+    var failed = 0
+    for (ours, apple, same, what) in cases where (likeness(ours, apple) > 0.5) != same {
+        failed += 1; print("FAIL \(what): likeness(\"\(ours)\", \"\(apple)\") = \(likeness(ours, apple))")
+    }
+    print("\(cases.count - failed) passed, \(failed) failed"); exit(failed == 0 ? 0 : 1)
 }
 
 func best(_ query: String, near here: CLLocation, name: String) async -> (MKMapItem, Int)? {

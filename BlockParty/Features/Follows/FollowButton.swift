@@ -65,6 +65,9 @@ struct FollowButton: View {
     let name: String
     var size: Size = .page
     var minWidth: CGFloat? = nil
+    /// On a coloured page (an Event page's host row, BP app inside-cards 17): the page's own ink, so the button
+    /// is it at 10% with a 16% line and 8 pt corners, and Following dims the word instead of going grey.
+    var ghost: Color? = nil
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -79,11 +82,17 @@ struct FollowButton: View {
         Button(action: tap) {
             Text(following ? "Following" : "Follow")
                 .font(.displaySemi(15))
-                .foregroundStyle(ink ? Hue.surface : Hue.ink)
+                .foregroundStyle(ghost.map { $0.opacity(following ? EventLook.dim : 1) } ?? (ink ? Hue.surface : Hue.ink))
                 .lineLimit(1)
                 .padding(.horizontal, size == .row ? FollowMetric.rowPad : FollowMetric.pagePad)
                 .frame(minWidth: minWidth ?? width, minHeight: height)
-                .background(ink ? Hue.ink : Hue.fill, in: shape)
+                .background(ghost.map { $0.opacity(EventLook.fill) } ?? (ink ? Hue.ink : Hue.fill), in: shape)
+                .overlay {
+                    if let ghost {
+                        RoundedRectangle(cornerRadius: EventLook.followCorner, style: .continuous)
+                            .strokeBorder(ghost.opacity(EventLook.fillLine), lineWidth: 0.5)
+                    }
+                }
                 // Drawn 32 or 36 pt, 44 pt to the finger.
                 .contentShape(Rectangle().inset(by: (height - PageMetric.tapMin) / 2))
         }
@@ -107,7 +116,8 @@ struct FollowButton: View {
     }
 
     private var shape: AnyShape {
-        size == .row ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        if ghost != nil { return AnyShape(RoundedRectangle(cornerRadius: EventLook.followCorner, style: .continuous)) }
+        return size == .row ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 
     private func tap() {
