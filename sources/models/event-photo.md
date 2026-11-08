@@ -44,9 +44,21 @@ On the sheet each Event is one row, headed by its key and title, its pictures nu
   - one too dark, blurred or small to make out
 - When you are unsure, pick none.
 
+## A News
+
+A line with `"news": true` is a News found in a place's post (BP app town-feed 53): a new product, a sale, a
+win, a menu item. Its pictures are its own post's only. Pick the real photo that draws the eye most in a
+neighbour's feed, the way the post's best picture would on Instagram:
+- People doing something before one person posing, and a group before a portrait: of JoeTown's new merch post,
+  Jesse took the four friends in the tees with their fists up over a sharp photo of one woman in the tee ("the
+  other ones get attention of users more", 2026-11-08). A smaller picture is fine when it is the better moment.
+- Else the thing itself: the dish, the new product, the shop's new room.
+- Never a flyer, a graphic or a picture with words set on it, never a logo, and none of the "never" list above:
+  a News with no real photo stays a card with words, so pick none. Never mark a News's pick `"flyer": true`.
+
 ## Answer
 
-One JSON line per Event in your batch, nothing else:
+One JSON line per Event or News in your batch, nothing else:
 
     {"event": "e3", "pick": "c7", "shows": "The cast on the lit stage"}
     {"event": "e5", "pick": "c9", "shows": "Pizza night schedule", "flyer": true}

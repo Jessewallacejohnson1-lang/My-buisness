@@ -453,8 +453,9 @@ class Unsent:
         self.calls.append(('PUT', path, data))
 
 
-KINDS = ('photo', 'logo', 'scene', 'event', 'flyer')
+KINDS = ('photo', 'logo', 'scene', 'event', 'flyer', 'news')
 EVENT_KINDS = ('event', 'flyer')  # an Event's own picture: it names its Event and takes no slot of its place
+NAMED_KINDS = EVENT_KINDS + ('news',)  # an Event's or a News's own picture (town-feed 53): it names its item, in no slot
 
 
 def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), rows=None, replaces=None,
@@ -470,19 +471,21 @@ def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), ro
     `db` when not given; what is saved is added to them, so the next save sees it. An Event's photo or flyer
     (`events`: [(event id, its place's entry id)]) is one file and a row per Event, in no slot. `more` are the
     row's other columns (credit, description, hue, subjects, seasons, proposed_by): None leaves a column's default.
+    A News's photo (kind 'news', BP app town-feed 53) is the same with `events` naming the News: [(its id, its
+    place's entry id)], saved under <town>/news/ and tied by news_id.
     `db` is the Adapter: db.py's Db, or Unsent. Returns the rows sent, [] when the file is already there."""
-    event = kind in EVENT_KINDS
-    if kind not in KINDS or event != bool(events) or event == bool(entry_id):
-        raise ValueError(f'a {kind} names {"its Events" if event else "one place"}')
+    named = kind in NAMED_KINDS
+    if kind not in KINDS or named != bool(events) or named == bool(entry_id):
+        raise ValueError(f'a {kind} names {"its Events or News" if named else "one place"}')
     data = webp(im, logo=kind == 'logo')
     width, height = Image.open(io.BytesIO(data)).size  # the Town card takes the photo's shape before it loads
-    folder = 'events' if event else entry_id
+    folder = 'news' if kind == 'news' else 'events' if named else entry_id
     path = f"{town}/{folder}/{kind}-{name[:70] + '-' if name else ''}{hashlib.sha1(data).hexdigest()[:10]}.webp"
     url = f'{db.url}/storage/v1/object/public/places/{urllib.parse.quote(path)}'
     row = {'town': town, 'url': url, 'source_url': source_url, 'kind': kind, 'status': status, 'width': width,
            'height': height, **{k: v for k, v in more.items() if v is not None}}
-    if event:
-        out = [{'entry_id': e, 'event_id': ev, **row} for ev, e in events]
+    if named:
+        out = [{'entry_id': e, 'news_id' if kind == 'news' else 'event_id': ev, **row} for ev, e in events]
     else:
         if rows is None:
             rows = db.rest('GET', 'place_photos?select=id,url,position,status,kind'
@@ -495,7 +498,7 @@ def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), ro
                 raise ValueError(f'row {replaces} is not a live row of {entry_id}')
             position, row['status'] = old['position'], 'proposed'
         else:
-            taken = [r['position'] for r in rows if r['status'] != 'retired' and r.get('kind') not in EVENT_KINDS]
+            taken = [r['position'] for r in rows if r['status'] != 'retired' and r.get('kind') not in NAMED_KINDS]
             position = max(taken) + 1 if taken else 0
         out = [{'entry_id': entry_id, 'position': position, **row}]
     try:
@@ -504,7 +507,7 @@ def save_picture(db, im, kind, source_url, *, town, entry_id=None, events=(), ro
         if x.status not in (400, 409):  # the same file from an earlier, interrupted run
             raise
     db.rest('POST', 'place_photos', out, 'return=minimal')
-    if not event:
+    if not named:
         rows += out
     return out
 
@@ -889,6 +892,12 @@ def _saves():
     flyer = Unsent('https://db.example')
     save_picture(flyer, other, 'flyer', 'https://facebook.com/p/1', town='st-joseph',
                  events=[('ev1', 'bakery'), ('ev2', 'unplaced')], description='Pizza night schedule', credit='Bakery')
+    news = Unsent('https://db.example')
+    save_picture(news, other, 'news', 'https://instagram.com/p/1', town='st-joseph', events=[('n1', 'joetown')],
+                 description='Four friends in the new tees', credit='JoeTown')
+    slot_rows = [{'id': 1, 'url': 'n', 'position': 0, 'status': 'live', 'kind': 'news'}]
+    after_news = save_picture(Unsent('https://db.example'), big, 'photo', 'x', town='st-joseph', entry_id='joetown',
+                              rows=slot_rows)
 
     class Taken(Unsent):
         def __init__(self, status):
@@ -933,6 +942,14 @@ def _saves():
          and [(r['event_id'], r['entry_id'], r['kind'], r['credit']) for r in flyer.calls[1][2]]
          == [('ev1', 'bakery', 'flyer', 'Bakery'), ('ev2', 'unplaced', 'flyer', 'Bakery')]
          and not any('position' in r for r in flyer.calls[1][2])),
+        ("a News's photo (town-feed 53): one file under <town>/news/, a row naming the News by news_id, in no slot; "
+         "a place photo after it still takes the first slot",
+         [c[0] for c in news.calls] == ['PUT', 'POST'] and news.calls[0][1].startswith('places/st-joseph/news/news-')
+         and [(r.get('news_id'), r.get('event_id'), r['entry_id'], r['kind'], r['credit']) for r in news.calls[1][2]]
+         == [('n1', None, 'joetown', 'news', 'JoeTown')] and not any('position' in r for r in news.calls[1][2])
+         and after_news[0]['position'] == 0),
+        ('a News photo names its News, not a place',
+         raises(lambda: save_picture(Unsent('x'), other, 'news', 'x', town='t', entry_id='joetown'))),
         ('a flyer names its Events, a photo one place',
          raises(lambda: save_picture(Unsent('x'), other, 'flyer', 'x', town='t', entry_id='bakery'))
          and raises(lambda: save_picture(Unsent('x'), other, 'photo', 'x', town='t', events=[('ev1', 'bakery')]))

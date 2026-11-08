@@ -40,7 +40,8 @@ helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save 
 ends the morning: answer with it.
 
 **Helpers.** First run `python3 sources/scripts/event_photos.py prepare`: it lays out each new Event's
-pictures, games aside, on sheets in `.runs/morning/photos/` (event-photos 09). Then start the helpers
+pictures, games aside, and each new News's own post pictures, on sheets in `.runs/morning/photos/` (event-photos 09,
+town-feed 53). Then start the helpers
 together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
