@@ -903,6 +903,7 @@ struct WhiteGameCard: View {
     let place: [String]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// The mock's After phone, on its 370 x 196 pt card: 196 pt tall at every width (inside-cards 24).
     enum Metric {
@@ -1032,12 +1033,17 @@ struct WhiteGameCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .transition(.opacity)
-            } else if game.live == nil, game.final == nil, let when = item.whenLine {
-                // Before any score, the day and time, or Now, in every Town card's look (Jesse, 2026-11-07,
-                // BP app inside-cards 26). No moment comes before a score, so it needs no MomentLine.
+            } else if game.final == nil, game.live?.isLive(at: date) != true, let when = item.whenLine {
+                // Before a score, or under one gone quiet, the day and time, or Now, in every Town card's look
+                // (Jesse, 2026-11-07, BP app inside-cards 26). A moment comes only with a fresh score, so this
+                // needs no MomentLine.
                 CardTime(text: when.text, spoken: when.spoken, now: item.isNow(at: date), color: Hue.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.8)
+                    // As the page draws it, the time keeps one line and reaches past VS's column into the gaps
+                    // beside the logos (up to 168 pt before it meets them), never cut ("Sat, Nov 21 · 8 AM" on a
+                    // 375 pt phone); at accessibility sizes it wraps inside the column.
+                    .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
+                    .frame(width: Metric.middle)
             } else if let status {
                 // Live, the score's line and Final keep their own look. A scoring play turns it into an ink
                 // capsule round the moment for 3 s (ticket 07).
