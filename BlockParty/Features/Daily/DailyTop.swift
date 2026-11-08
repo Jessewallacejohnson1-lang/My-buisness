@@ -42,8 +42,7 @@ enum DailyTopic {
     }
 
     static func matches(_ row: DailyFollowing, _ topic: String) -> Bool {
-        if let event = row.event { return matches(event.item, topic) }
-        return matches(text: "\(row.name) \(row.what)", topic)
+        matches(row.event.item, topic)
     }
 
     /// The interest's keywords as whole words, plural too: "park" finds "parks" but not "parking",

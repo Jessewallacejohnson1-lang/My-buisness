@@ -63,6 +63,11 @@ final class AppSessionTests: XCTestCase {
             }),
             eventOfTheDay: EventOfTheDay(read: { _ = try await self.read("get_event_of_the_day"); return [] }),
             dayPicks: DailyDayPicks(read: { _ in _ = try await self.read("get_event_of_the_day"); return [] }),
+            followingNews: FollowingNews(read: {
+                let who = try await self.read("get_following_news")
+                return [TownNews(id: "news-\(who)", place: "The House", words: "Soup's on.",
+                                 post: URL(string: "https://www.instagram.com/p/x/")!, leavesAt: .distantFuture)]
+            }),
             notices: Notices(read: { _ = try await self.read("get_my_changes"); return [] }, keep: phone),
             // Never read here (a switch only clears it; the root view reads), but on the session's
             // client like the rest.
@@ -100,6 +105,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))
+        XCTAssertEqual(session.followingNews.items.map(\.id), ["news-a"])
         XCTAssertNotNil(session.chats.chats, "a's chats")
         session.profile.avatarUrl = "photo-a"   // a's read: the root view's, not the session's
 
@@ -114,6 +120,7 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNil(session.you.groups, "a's groups")
         XCTAssertNil(session.saves.going, "a's Saved list")
         XCTAssertTrue(session.eventOfTheDay.needsRead(now: Date()), "a's Event of the day reads again")
+        XCTAssertTrue(session.followingNews.items.isEmpty, "a's followed places' News")
         XCTAssertNil(session.notices.list, "a's bell")
         XCTAssertFalse(session.friendsBook.dot, "a's friends dot")
         XCTAssertNil(session.chats.chats, "a's chats")
@@ -125,12 +132,14 @@ final class AppSessionTests: XCTestCase {
         // Then b's reads, every one as b.
         await reads.value
         XCTAssertEqual(Set(functions(from: sent)), ["get_town_feed", "get_my_going", "get_groups",
-                                                    "get_event_of_the_day", "get_my_changes", "friends_dot", "get_chats"],
+                                                    "get_event_of_the_day", "get_following_news", "get_my_changes",
+                                                    "friends_dot", "get_chats"],
                        "no profile read: the root view's read is the one for each account")
         XCTAssertEqual(Set(server.requests[sent...].map { $0.value(forHTTPHeaderField: "Authorization") }),
                        ["Bearer token-b"])
         XCTAssertFalse(session.actions.going(card).isGoing, "a's Going left with b's feed")
         XCTAssertEqual(session.you.going?.map(\.id), ["going-b"])
+        XCTAssertEqual(session.followingNews.items.map(\.id), ["news-b"])
         XCTAssertNotNil(session.notices.list)
         XCTAssertTrue(session.friendsBook.dot)
         XCTAssertFalse(session.eventOfTheDay.needsRead(now: Date()))

@@ -303,6 +303,10 @@ final class TownFeed {
     /// The events still on, in the database's order.
     var cards: [FeedCardItem] { shown.compactMap(\.card) }
 
+    /// The neighbours' posts still on, in the database's order, for the Block Party tab's Following
+    /// (daily-tab 23).
+    var posts: [TownPost] { shown.compactMap(\.post) }
+
     /// When the next card leaves: the feed reads again then.
     var nextLeave: Date? {
         entries?.lazy.map(\.leavesAt).filter { $0 > self.clock }.min()

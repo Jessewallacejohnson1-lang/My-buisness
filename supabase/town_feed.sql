@@ -533,16 +533,17 @@ as $$
     -- An Event's recipe by age instead of day (town-feed 29): 1, plus following for your own post or one from
     -- someone you follow (friends follow each other), plus New, the whole halving every 24 hours and
     -- sinking as you see it (town-feed 41).
+    -- `followed` goes on the row too (daily-tab 23): the Block Party tab's Following shows these posts.
     select p.*,
-           (1 + case when p.mine or exists (select 1 from my_people mp where mp.id = p.submitted_by)
-                     then (w->>'follow')::float8 else 0 end
+           (1 + case when p.followed then (w->>'follow')::float8 else 0 end
               + case when not p.mine and p.created_at > least(lv.at, p_now - interval '24 hours')
                           and not exists (select 1 from my_seen_rows v where v.item_id = p.id)
                      then (w->>'new')::float8 else 0 end)
              * power(0.5, extract(epoch from p_now - p.created_at) / 3600 / (w->>'newHalf')::float8)
              * greatest((w->>'seenFloor')::float8, power((w->>'seen')::float8,
                  coalesce((select sum(v.times) from my_seen_rows v where v.item_id = p.id), 0))) as base
-    from posts p, weights, last_visit lv
+    from (select p.*, p.mine or exists (select 1 from my_people mp where mp.id = p.submitted_by) as followed
+          from posts p) p, weights, last_visit lv
   ),
   -- Live first (town-feed 41): up to 3, what you're Going to, then most Going, then the draw, your town's
   -- counting more, then the latest to start.
@@ -667,7 +668,9 @@ as $$
   -- posted it; nulls and zeros for the rest.
   select p.id, p.title, p.location, p.image_url, null::text, p.created_at,
          null::text, p.created_at + interval '7 days',
-         null::text, null::text, null::jsonb,
+         -- From you or someone you follow it says so, with their name, as an Event's row does (daily-tab 23: the
+         -- Block Party tab's Following shows these); a stranger's says nothing.
+         case when p.followed then 'follow' end, case when p.followed then pp.poster->>'name' end, null::jsonb,
          private.heart_count(p.id),
          exists (select 1 from public.event_likes h where h.event_id = p.id and h.user_id = auth.uid()),
          false, null::jsonb,
@@ -675,12 +678,12 @@ as $$
          'post'::text, null::text,
          -- and the post's own: its photo's shape, which sets the card's before the photo loads, and whether
          -- only friends see it, which its card says.
-         private.post_poster(p.submitted_by, p.tagged)
-           || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only)),
+         pp.poster || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only)),
          null::jsonb,
          s.spot
   from posts_scored p
   join spots s on s.id = p.id
+  cross join lateral (select private.post_poster(p.submitted_by, p.tagged) as poster) pp
   )
   select r.id, r.title, r.location, r.image_url, r.source_name, r.created_at, r.recurrence, r.leaves_at,
          r.reason, r.reason_name, r.score, r.heart_count, r.hearted, r.saved, r.place_picture, r.description,

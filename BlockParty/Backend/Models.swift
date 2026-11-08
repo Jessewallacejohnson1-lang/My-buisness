@@ -351,6 +351,9 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     let leavesAt: Date
     var heartCount = 0
     var hearted = false
+    /// From you or someone you follow (friends follow each other), as the feed's row says: the Block
+    /// Party tab's Following shows it (daily-tab 23).
+    var followed = false
 
     /// "Jesse is with Sam Lee at Sal's.", Facebook's line, or the name alone.
     var line: String { Self.line(name: poster.name, with: tagged.map(\.name), at: place) }

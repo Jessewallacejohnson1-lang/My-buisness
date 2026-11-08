@@ -123,35 +123,73 @@ final class DailyPageTests: XCTestCase {
 
     // MARK: Following
 
-    /// Events still to come, soonest first, then today's updates so far, newest first.
-    /// The samples: events at 9–13, 15–16 and 17:30–18:30, updates at 7:15 and 11.
+    /// Today's events still on or to come, soonest first. The samples: 9–13, 15–16 and 17:30–18:30.
     @MainActor
-    func testFollowingPutsEventsSoonestFirstThenUpdatesNewestFirst() {
+    func testFollowingPutsTodaysEventsSoonestFirst() {
         let samples = DailyFollowing.samples(on: day)
         XCTAssertEqual(DailyFollowing.showing(samples.reversed(), now: town(12), limit: 10).map(\.id),
-                       ["follow-1", "follow-2", "follow-3", "follow-4", "follow-5"])
-        // At 8 the 11 o'clock update hasn't gone up; at 14 the porch sale is over.
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(8), limit: 10).map(\.id),
-                       ["follow-1", "follow-2", "follow-3", "follow-5"])
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14), limit: 10).map(\.id),
-                       ["follow-2", "follow-3", "follow-4", "follow-5"])
+                       ["follow-1", "follow-2", "follow-3"])
+        // At 14 the porch sale is over.
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14), limit: 10).map(\.id), ["follow-2", "follow-3"])
         // Not one a section above shows, and no more than the limit.
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(12), without: [samples[1].event!], limit: 3).map(\.id),
-                       ["follow-1", "follow-3", "follow-4"])
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(12), without: [samples[1].event], limit: 1).map(\.id),
+                       ["follow-1"])
     }
 
-    /// An event says when it starts; an update says how long ago it went up.
+    /// A row says when its event starts, "Now" once it has.
     @MainActor
-    func testFollowingTimeIsTheStartOrHowLongAgo() {
+    func testFollowingTimeIsTheStart() {
         let samples = DailyFollowing.samples(on: day)
         func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
         XCTAssertEqual(plain(samples[2].time(now: town(12))), "5:30 PM")
         XCTAssertEqual(samples[0].time(now: town(12)), "Now")
-        XCTAssertEqual(samples[3].time(now: town(13.5)), "2h")
-        XCTAssertEqual(samples[3].time(now: town(11.25)), "15m")
-        XCTAssertEqual(samples[3].spokenTime(now: town(11.25)), "15 minutes ago")
+    }
+
+    /// The samples under the rows: the Town feed's two posts and two News, newest first (daily-tab 23).
+    @MainActor
+    func testFollowingSampleCardsAreTheTownFeedsPostsAndNews() {
+        XCTAssertEqual(DailyFollowingCard.samples(now: day).map(\.id), ["post-sample-post-2", "post-sample-post-1", "news-n1", "news-n2"])
     }
     #endif
+
+    private func post(_ id: String, hoursAgo: Double, followed: Bool) -> TownPost {
+        TownPost(id: id, poster: .init(id: "person-\(id)", name: "Kay"), words: "Hi", posted: day.addingTimeInterval(-hoursAgo * 3600),
+                 leavesAt: .distantFuture, followed: followed)
+    }
+
+    private func news(_ id: String, hoursAgo: Double) -> TownNews {
+        TownNews(id: id, place: "The House", words: "Soup's on.", post: URL(string: "https://www.instagram.com/p/x/")!,
+                 leavesAt: .distantFuture, published: day.addingTimeInterval(-hoursAgo * 3600))
+    }
+
+    /// Under the rows (daily-tab 23): the posts the feed says are from who you follow and the followed
+    /// places' News, newest first, as many as the rows leave of the section's 10.
+    func testFollowingCardsAreFollowedPostsAndNewsNewestFirstUnderTheRows() {
+        let posts = [post("stranger", hoursAgo: 0.5, followed: false), post("kay", hoursAgo: 3, followed: true),
+                     post("sam", hoursAgo: 1, followed: true)]
+        let stories = [news("house", hoursAgo: 2), news("milk", hoursAgo: 30)]
+        XCTAssertEqual(DailyFollowingCard.showing(posts: posts, news: stories, rows: 2, limit: 10).map(\.id),
+                       ["post-sam", "news-house", "post-kay", "news-milk"])
+        XCTAssertEqual(DailyFollowingCard.showing(posts: posts, news: stories, rows: 9, limit: 10).map(\.id), ["post-sam"])
+        XCTAssertTrue(DailyFollowingCard.showing(posts: posts, news: stories, rows: 10, limit: 10).isEmpty)
+    }
+
+    /// The cards are today's page's under Best of alone: a topic, or another day in the week, shows the
+    /// rows alone, and with cards and no rows the section still shows (Jesse at daily-tab 23's Check-in 1).
+    @MainActor
+    func testFollowingCardsShowOnTodaysPageUnderBestOfOnly() {
+        let days = DailyWeek.days(from: day)
+        func lists(day picked: DailyWeekDay, topic: String?) -> DailyLists {
+            DailyLists.make(day: picked, week: days, now: day, picks: [], cards: [],
+                            posts: [post("kay", hoursAgo: 1, followed: true)], news: [news("house", hoursAgo: 2)],
+                            interests: [], topic: topic, isGoing: { _ in false }, isSaved: { _ in false })
+        }
+        let today = lists(day: days[0], topic: nil)
+        XCTAssertEqual(today.followingCards.map(\.id), ["post-kay", "news-house"])
+        XCTAssertTrue(today.following.isEmpty && today.items.isEmpty, "the cards alone still show the section")
+        XCTAssertTrue(lists(day: days[0], topic: "dining").followingCards.isEmpty, "a topic")
+        XCTAssertTrue(lists(day: days[1], topic: nil).followingCards.isEmpty, "another day")
+    }
 
     /// What you follow (school-activities 03): the Town feed's cards it lifts for a follow, on the
     /// day, as rows naming the activity, who a game is against, and the school's logo.

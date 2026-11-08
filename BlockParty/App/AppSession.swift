@@ -38,6 +38,8 @@ final class AppSession {
     let eventOfTheDay: EventOfTheDay
     /// The other days' picks in Daily's week (daily-tab 16).
     let dayPicks: DailyDayPicks
+    /// News from the places you follow, under the Block Party tab's Following (daily-tab 23).
+    let followingNews: FollowingNews
     /// What the bell holds: Events you follow or are Going to that were canceled or moved (BP app
     /// docs/plans/school-activities, ticket 04).
     let notices: Notices
@@ -55,7 +57,7 @@ final class AppSession {
 
     init(actions: RealLifeActions, townFeed: TownFeed, searchModel: SearchModel, friendsBook: FriendsBook,
          you: YouModel, saves: YouModel, eventOfTheDay: EventOfTheDay, dayPicks: DailyDayPicks,
-         notices: Notices, profile: ProfileModel, hello: HelloInbox,
+         followingNews: FollowingNews, notices: Notices, profile: ProfileModel, hello: HelloInbox,
          saved: SavedStore, supabase: Supabase, liveGames: LiveGames? = nil, chats: ChatBook? = nil,
          phone: UserDefaults = .standard) {
         self.actions = actions
@@ -70,6 +72,7 @@ final class AppSession {
         self.saves = saves
         self.eventOfTheDay = eventOfTheDay
         self.dayPicks = dayPicks
+        self.followingNews = followingNews
         self.notices = notices
         self.profile = profile
         self.hello = hello
@@ -95,6 +98,7 @@ final class AppSession {
                   friendsBook: FriendsBook(supabase: supabase), you: YouModel(supabase: supabase),
                   saves: YouModel.saves(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
+                  followingNews: FollowingNews(supabase: supabase),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
                   profile: profile,
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared, saved: saved ?? .shared,
@@ -145,6 +149,7 @@ final class AppSession {
             saves.accountChanged()
             eventOfTheDay.accountChanged()
             dayPicks.accountChanged()
+            followingNews.accountChanged()
             notices.reset()
             // Only lets go: the root view's read is the one for each new account (it runs while
             // onboarding is up too, before this shell exists).
@@ -159,6 +164,7 @@ final class AppSession {
             // The You row's groups, this account's.
             reads.append(Task { if let groups = await you.refreshGroups() { actions.read(groups) } })
             reads.append(Task { await eventOfTheDay.refresh() })
+            reads.append(Task { await followingNews.refresh() })
             reads.append(Task { await actions.moveUp(saved) })
             reads.append(Task { await notices.refresh() })
         }
@@ -183,8 +189,11 @@ final class AppSession {
         Task { await notices.refresh() }
         chats.start()
         Task { await chats.refresh() }
-        // Back the next morning on Daily: today's picks, not yesterday's.
-        if tab == .blockParty { Task { await eventOfTheDay.refresh() } }
+        // Back the next morning on Daily: today's picks, not yesterday's, and the followed places' News.
+        if tab == .blockParty {
+            Task { await eventOfTheDay.refresh() }
+            Task { await followingNews.refresh() }
+        }
         // Back the next day on Search: today's Events, not yesterday's (five-tabs 04).
         if tab == .search { Task { await townFeed.refresh() } }
     }

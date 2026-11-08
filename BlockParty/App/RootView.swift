@@ -372,6 +372,7 @@ struct MainTabsView: View {
     private var saves: YouModel { session.saves }
     private var eventOfTheDay: EventOfTheDay { session.eventOfTheDay }
     private var dayPicks: DailyDayPicks { session.dayPicks }
+    private var followingNews: FollowingNews { session.followingNews }
     private var notices: Notices { session.notices }
     /// The day picked in Daily's week (daily-tab 16), nil for today: kept here so it stays while
     /// you switch tabs, and a new launch opens on today.
@@ -465,9 +466,6 @@ struct MainTabsView: View {
                                 townFeed.views.opened(item.id)
                             }
                         }
-                }
-                .navigationDestination(for: PostingItem.self) { posting in
-                    DailyPostPage(posting: posting)
                 }
                 // Messages and a chat (five-tabs 05).
                 .navigationDestination(for: ChatRoute.self) { route in
@@ -704,12 +702,18 @@ struct MainTabsView: View {
                                 if DailySpotlight.today != nil || eventOfTheDay.events != nil {
                                     DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
                                               picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
-                                              cards: townFeed.cards)
+                                              cards: townFeed.cards, posts: townFeed.posts,
+                                              // A story you hid or whose place you muted goes here too.
+                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) })
+                                        // Following's post and News cards (daily-tab 23): the •••'s Delete and
+                                        // the hold's Not interested and Mute.
+                                        .environment(townFeed)
                                 } else {
                                     Hue.paper.ignoresSafeArea()
                                 }
                             }
                             .task { await eventOfTheDay.refresh() }
+                            .task { await followingNews.refresh() }
                         // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
                         // Town feed's cards for what friends are going to.
                         case .friends:

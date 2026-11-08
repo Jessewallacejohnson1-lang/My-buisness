@@ -111,8 +111,9 @@ enum TownFixtures {
         return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
     }
 
-    /// Two invented neighbours' posts (town-feed 29): a photo with words, and words alone, tagged.
-    private static func postSamples(now: Date) -> [TownFeedEntry] {
+    /// Two invented neighbours' posts (town-feed 29): a photo with words, and words alone, tagged. The Block
+    /// Party tab's Following samples take them too (daily-tab 23).
+    static func postSamples(now: Date) -> [TownFeedEntry] {
         let photo = Bundle.main.url(forResource: "downtown", withExtension: "jpg")
         let posts = [
             TownPost(id: "sample-post-1", poster: .init(id: "sample:Marlene Ostendorf", name: "Marlene Ostendorf"),
@@ -131,7 +132,7 @@ enum TownFixtures {
     /// The places' saved logos in Storage, read from the network.
     private static let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
 
-    private static func newsSamples(now: Date) -> [TownFeedEntry] {
+    static func newsSamples(now: Date) -> [TownFeedEntry] {
         let samples: [(String, String, String, String, String?)] = [
             ("The Wandering Cow", "Flight Friday", "Four scoops for $5 at Wandering Cow on Fridays.",
              "https://www.instagram.com/p/Deki5CwgiQG/", "ChIJFfdMxRVZtFIR77H-NqLzUTc/logo-7225f2ed.webp"),
