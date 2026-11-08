@@ -157,9 +157,9 @@ nonisolated enum Hue {
     ///
     /// DESIGN.md's "accents are small by rule" still holds: the map disc, Daily's top and
     /// the poster's date are the three, each scoped in by Jesse. Another is his call, not an
-    /// agent's. Onboarding is the fourth (Jesse, 2026-10-24): its
-    /// progress bar fills with it. Its screens sat on a faint wash of it until 2026-11-02; they
-    /// are white now (`OnboardingBackdrop`).
+    /// agent's. Onboarding was the fourth (Jesse, 2026-10-24): its progress bar filled with it,
+    /// and its screens sat on a faint wash of it until 2026-11-02. Onboarding has none of it
+    /// since 2026-11-08 (BP app onboarding 32).
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
