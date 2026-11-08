@@ -34,9 +34,6 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
-    private static let hostMarkSide = HostMarkDisc.side
-    /// Between the photo's credit and the host's mark beside it.
-    static let hostMarkGap: CGFloat = 8
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
@@ -178,7 +175,7 @@ struct FeedEventCard: View {
         let mark = HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName)
             .trackFrame(hostFrame)
             .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
-            .contentShape(Circle().inset(by: -(MeetupPillStyle.minTarget - Self.hostMarkSide) / 2))
+            .contentShape(Circle().inset(by: -(MeetupPillStyle.minTarget - HostMarkDisc.side) / 2))
             .accessibilityLabel(item.hostName)
             .accessibilitySortPriority(1)
         if hostOpener != nil {
@@ -326,7 +323,7 @@ struct FeedEventCard: View {
                     // Fades in with its photo, and across to the next one's on a swipe.
                     .animation(motionIsReduced ? nil : Motion.smooth, value: creditNames)
                     // The host's mark rides above the photo in its own layer (`hostMark`).
-                    .padding(.trailing, showsHostMark ? Self.hostMarkSide + Self.hostMarkGap : 0)
+                    .padding(.trailing, showsHostMark ? HostMarkDisc.side + HostMarkDisc.gap : 0)
             }
             .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
@@ -571,10 +568,6 @@ struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
     }
 }
 
-/// A Town card's heart (event-card 06; inside-cards 24): one spot on every Town card, 12 pt in from
-/// the card's bottom right corner, and the poster's at the right of its Attend row. Over a picture,
-/// a 38 pt grey glass circle with the white heart; on white, the ink heart alone; red once yours.
-/// It pops out to 1.3 and back, and shakes once when the server turns a heart back.
 /// A host's picture on a Town card's photo, top right (Jesse, 2026-10-29): a place's logo on a white disc, as Town news
 /// shows a place (2026-10-23), else a person's or the place's photo, else the first letter, in a white ring. The Event
 /// card makes it a button to its host's page; a News card shows it alone (BP app town-feed 53).
@@ -586,6 +579,8 @@ struct HostMarkDisc: View {
     /// The photo chip's height, as when the day's chip sat level with it (the time moved under the title,
     /// inside-cards 26). A mark, not text, so it does not scale.
     static let side: CGFloat = PhotoChip.height
+    /// Between the photo's credit and the mark beside it.
+    static let gap: CGFloat = 8
     /// The white ring: Instagram's story ring, at its own 1.5 pt.
     private static let ring: CGFloat = 1.5
 
@@ -604,6 +599,10 @@ struct HostMarkDisc: View {
     }
 }
 
+/// A Town card's heart (event-card 06; inside-cards 24): one spot on every Town card, 12 pt in from
+/// the card's bottom right corner, and the poster's at the right of its Attend row. Over a picture,
+/// a 38 pt grey glass circle with the white heart; on white, the ink heart alone; red once yours.
+/// It pops out to 1.3 and back, and shakes once when the server turns a heart back.
 struct TownCardHeart: View {
     let item: FeedCardItem
     var onWhite = false

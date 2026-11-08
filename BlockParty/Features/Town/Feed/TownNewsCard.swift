@@ -50,6 +50,8 @@ struct TownNewsCard: View {
     private var face: some View {
         if let photo = news.photoSource {
             NewsPhotoFace(news: news, photo: photo)
+                // A new photo for this News starts over: not failed, its credit waiting for it.
+                .id(photo.url)
         } else {
             whiteFace
         }
@@ -151,7 +153,7 @@ private struct NewsPhotoFace: View {
     /// The photo's credit (its place) once the photo is on screen, then the place's mark: its logo, else its first
     /// letter, never its cover. It only shows; the whole card opens the post.
     private var mark: some View {
-        HStack(spacing: FeedEventCard.hostMarkGap) {
+        HStack(spacing: HostMarkDisc.gap) {
             PhotoCredit(names: shown ? photo.attribution.map { [$0] } ?? [] : [], spoken: false)
                 .padding(-PhotoCredit.edgeInset)
                 .animation(reduceMotion ? nil : Motion.smooth, value: shown)

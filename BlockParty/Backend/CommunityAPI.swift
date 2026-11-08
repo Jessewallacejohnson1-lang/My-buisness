@@ -318,11 +318,10 @@ struct CommunityAPI {
                 let name: String
                 let photo: String?
                 let tagged: [Tag]?
-                let aspect: Double?
                 let friendsOnly: Bool?
             }
             let value: Poster?
-            /// The photo's shape on its own: a News row's poster names no neighbour, so `value` is nil (town-feed 53).
+            /// The photo's shape, a post's or a News's (whose poster names no neighbour, so `value` is nil; town-feed 53).
             let aspect: Double?
             private enum Keys: String, CodingKey { case aspect }
             init(from decoder: Decoder) {
@@ -337,7 +336,7 @@ struct CommunityAPI {
                       let posted = DateHelpers.timestamp(row.createdAt) else { return nil }
                 return .post(TownPost(id: row.id, poster: .init(id: poster.id, name: poster.name),
                                       posterPhoto: poster.photo.flatMap(URL.init(string:)), words: words,
-                                      photo: row.imageUrl.flatMap(URL.init(string:)), aspect: poster.aspect,
+                                      photo: row.imageUrl.flatMap(URL.init(string:)), aspect: row.poster?.aspect,
                                       place: row.location,
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
                                       friendsOnly: poster.friendsOnly ?? false,

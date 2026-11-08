@@ -164,8 +164,6 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(TownPost.line(name: "Jesse", with: ["Sam", "Ana", "Bo"], at: nil), "Jesse is with Sam and 2 others.")
     }
 
-    /// A News card's words (found-posts): its headline over the picture and its facts under it;
-    /// with no headline the facts stand in for it, and nothing is said twice.
     /// A News whose post's own photo the photo step kept (town-feed 53) comes with it and its shape, in poster's
     /// aspect alone, and is drawn on the Town photo card credited to its place, inside Instagram's shapes; one with
     /// none keeps the white card.
@@ -190,6 +188,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(flight.photoSource, "no photo: the white card")
     }
 
+    /// A News card's words (found-posts): its headline over the picture and its facts under it;
+    /// with no headline the facts stand in for it, and nothing is said twice.
     func testNewsCardSaysItsHeadlineThenItsFacts() {
         let post = URL(string: "https://www.instagram.com/p/Deki5CwgiQG/")!
         let flight = TownNews(id: "n1", place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",
