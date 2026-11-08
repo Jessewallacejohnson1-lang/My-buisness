@@ -91,6 +91,12 @@ hidden, their events are not), and every Facebook page's in the first week of ea
 for each tab, empty or not. To pay for it, 13 busy pages that posted twice or less in 23 checks moved to
 the Thursday read. Searching Instagram (hashtags, places) found no events and was dropped; Facebook post
 and page searches were left off the schedule, since the store's tool for them may sign in on its side.
+**Amended 2026-11-08 (Jesse, "yes", after a 20-cent test):** the Thursday search also reads Facebook's own
+events page for the town (`events/explore/saint-joseph-minnesota/<Facebook city id>`), the location-based
+list: the test's 20 events overlapped the words search on one, and 8 were in-town events Block Party lacked
+(a church craft fair, a history talk at Bad Habit, a band at Obbink, two bus tours, a giveaway). Up to 50
+events a week from each page, a cent each. Facebook's location filter on a search URL gives a logged-out
+reader nothing, so the explore page is the way.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
