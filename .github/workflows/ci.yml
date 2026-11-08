@@ -175,8 +175,13 @@ jobs:
 
       # The database stories run the migrations in PGlite (Postgres compiled to WASM): no
       # Docker, no live data. They ran only when an agent remembered (BP app retro,
-      # 2026-10-16). Node comes with the runner; package.json pins PGlite exactly and the
-      # lock file stays out of git, so install rather than ci.
+      # 2026-10-16). package.json pins PGlite exactly and the lock file stays out of git, so
+      # install rather than ci. Node 24 imports the live-scores function's TypeScript as it is
+      # (live_scores_function.test.mjs, BP app game-card 22).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Database stories
         run: bash scripts/ci_checks.sh db
 

@@ -22,6 +22,12 @@ flake moves to Fixed, dated, and stays there.
   code: the card never moved (659 not under 609) · passed 3 of 3 alone straight after, at load 16 to 26 · no fix
   yet: a 0.05 s press before the drag may read as a hold on a loaded Mac
 
+- 2026-11-07 · `morning.py --selftest` "finish once more writes nothing new but the report's one row, and
+  says the same" · red once on the Mac on feat/never-blind (a change to `live_lines` only), green on the next
+  two runs · the report's Firecrawl line ("credits unknown (... Could not reach the Composio Dashboard ...)")
+  comes from a live call, so two runs a moment apart can word it differently · no fix yet: fake the credits read
+  in the self-test
+
 ## Fixed
 
 - 2026-11-01 · `EventCardPhotoTapTests.testASwipeOnTheTitlePagesThePhoto` · red again on 076c0223, a
