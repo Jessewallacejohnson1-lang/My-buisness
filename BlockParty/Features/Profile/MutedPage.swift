@@ -18,9 +18,9 @@ struct MutedPage: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if let muted = feed.muted {
+                if let muted = feed.hides.muted {
                     ForEach(muted) { row($0) }
-                } else if feed.mutedFailed {
+                } else if feed.hides.mutedFailed {
                     // The Town feed's words for a read that failed.
                     Text("Check your connection and try again.")
                         .font(.sans(15))
@@ -44,21 +44,21 @@ struct MutedPage: View {
                 }
             }
             .padding(.top, FriendsMetric.resultsTop)
-            .animation(Motion.smooth, value: feed.muted)
+            .animation(Motion.smooth, value: feed.hides.muted)
         }
         // A read that failed is tried again by pulling down.
-        .refreshable { await feed.refreshMuted() }
+        .refreshable { await feed.hides.refreshMuted() }
         // `muted-row`
         .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Muted") { dismiss() } }
         .overlay {
-            if feed.muted?.isEmpty == true {
+            if feed.hides.muted?.isEmpty == true {
                 ContentUnavailableView("You haven't muted anyone", systemImage: "speaker.slash")
                     .allowsHitTesting(false)
             }
         }
         .background(Hue.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .task { await feed.refreshMuted() }
+        .task { await feed.hides.refreshMuted() }
     }
 
     /// Blocked's row: the host's mark, its name, Unmute at the right. A failed Unmute comes back
@@ -70,7 +70,7 @@ struct MutedPage: View {
             RowButton("Unmute") { Task { await feed.unmute(host) } }
                 .accessibilityLabel("Unmute, \(host.name)")
         }
-        .turnBackShake(failures: feed.unmuteFailures[host.host] ?? 0, shakes: !reduceMotion)
+        .turnBackShake(failures: feed.hides.unmuteFailures[host.host] ?? 0, shakes: !reduceMotion)
         .transition(.opacity)
     }
 }

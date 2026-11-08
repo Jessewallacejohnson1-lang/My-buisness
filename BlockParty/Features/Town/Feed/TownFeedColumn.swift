@@ -92,7 +92,7 @@ struct TownFeedColumn: View {
 
     @ViewBuilder
     private func card(for item: TownFeedItem) -> some View {
-        if let feed, let hide = feed.undo, hide.id == item.hideID {
+        if let feed, let hide = feed.hides.undo, hide.id == item.hideID {
             FeedUndoLine(hide: hide, feed: feed)
         } else {
             plainCard(for: item)
@@ -166,7 +166,7 @@ struct FeedUndoLine: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button {
                 Haptics.light()
-                Task { await feed.undoHide() }
+                Task { await feed.hides.undoHide() }
             } label: {
                 Text("Undo")
                     .font(.sansSemibold(15))

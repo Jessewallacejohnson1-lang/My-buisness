@@ -97,7 +97,7 @@ struct FeedPostCard: View {
                     .confirmationDialog("Delete post?", isPresented: $deleting, titleVisibility: .visible) {
                         Button("Delete", role: .destructive) {
                             Haptics.light()
-                            Task { await feed?.delete(post) }
+                            Task { await feed?.hides.delete(post) }
                         }
                     } message: {
                         Text("You can't undo this.")

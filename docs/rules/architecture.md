@@ -253,6 +253,10 @@ person (BP app `docs/plans/town-feed`). `TownView` holds `TownBar` and the feed.
   reports each card crossing half on screen, the shell's Event page route reports an open
   from the Town tab, and the shell sends a batch every 30 s and on going to the background.
   Its sender is injected too: live, or nowhere for tests, previews and the sample modes.
+  The feed counts views; the batch waits in `FeedViews` (`feed.views`). Not interested, Mute,
+  Report, their Undo and the Muted list are `FeedHides` (`feed.hides`, `FeedHidesTests`), which
+  the screens call directly; the list leaves out whatever it says is hidden (BP app
+  codebase-health 30).
 - **`RealLifeActions` is the app's one home for Going and Heart** `[test]` (`RealLifeActionsTests`;
   BP app `docs/plans/real-life-actions`, tickets 02 and 03; Save joins it in 04). `MainTabsView`
   holds it beside `TownFeed`, hands it to `TownFeed` (every list the feed takes sets each Event's
