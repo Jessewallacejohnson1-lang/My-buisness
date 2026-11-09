@@ -71,6 +71,8 @@ struct EventOfTheDayPoster: View {
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var linkPressed = false
+    /// Two fingers have lifted the poster (`pinchToZoom`): its squish lets go at once.
+    @State private var lifted = false
     @State private var likeBurst = FeedLikeBurst()
     /// Report from the hold menu: the ••• sheet, opened at its reasons.
     @State private var menuPresented = false
@@ -97,13 +99,15 @@ struct EventOfTheDayPoster: View {
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
             .overlay(alignment: .bottom) { copy }
+            // Two fingers lift the poster, its words too, where it sits (BP app photo-zoom).
+            .pinchToZoom(corner: Radius.poster, slot: Hue.paper, lifted: $lifted)
             // Held: Apple's menu with the poster lifted as itself, words and buttons included
             // (inside-cards 24).
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why,
                                    share: { ShareCenter.shared.present(.event(item)) },
                                    report: item.why == nil ? nil : $menuPresented, event: item))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
-            .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
+            .scaleEffect(lifted ? 1 : FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,

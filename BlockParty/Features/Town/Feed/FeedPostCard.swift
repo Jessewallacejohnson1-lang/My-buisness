@@ -165,6 +165,8 @@ struct FeedPostCard: View {
             .aspectRatio(CGFloat(post.photoAspect), contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipped()
+            // Two fingers lift it where it sits (BP app photo-zoom).
+            .pinchToZoom(slot: Hue.paper)
             .accessibilityLabel(post.words.isEmpty ? "Photo from \(post.poster.name)" : "Photo")
     }
 

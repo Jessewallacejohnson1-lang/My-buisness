@@ -50,6 +50,8 @@ struct FeedEventCard: View {
     /// The link's press, so the photo sinks in. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
+    /// Two fingers have lifted the card's face (`pinchToZoom`): its squish lets go at once.
+    @State private var faceLifted = false
     /// The photo's size, so the heart on its corner sinks in with it.
     @State private var photoSize: CGSize = .zero
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
@@ -76,6 +78,8 @@ struct FeedEventCard: View {
                     // Only the photo sinks in on a press; the line under it stays still
                     // (Jesse, 2026-10-27).
                     face
+                        // Two fingers lift the whole face, words and buttons too, where it sits (BP app photo-zoom).
+                        .pinchToZoom(corner: Radius.card, slot: Hue.paper, lifted: $faceLifted)
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
                         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
@@ -475,7 +479,7 @@ struct FeedEventCard: View {
     static let whiteHeartRoom: CGFloat = 34
 
     private var pressScale: CGFloat {
-        FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
+        faceLifted ? 1 : FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced)
     }
 
     private var motionIsReduced: Bool {
