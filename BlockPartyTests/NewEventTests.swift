@@ -44,6 +44,59 @@ final class NewEventTests: XCTestCase {
         XCTAssertEqual(input.category, EventCategory.other.rawValue)
     }
 
+    // MARK: Filter (BP app town-feed 52)
+
+    func testFilterSendsNothingUntilSomethingIsPicked() {
+        let input = NewEventDraft().input(id: "abc", imageURL: nil)
+        XCTAssertNil(input.forGender)
+        XCTAssertNil(input.ages)
+    }
+
+    func testFilterSendsTheGenderAsOnboardingSavesItAndTheAgeAsTheCardSaysIt() {
+        var draft = NewEventDraft()
+        draft.gender = .female
+        draft.ages = EventAges(youngest: 18, oldest: EventAges.top)
+        let input = draft.input(id: "abc", imageURL: nil)
+        XCTAssertEqual(input.forGender, "female")
+        XCTAssertEqual(input.ages, "18+")
+    }
+
+    func testAnAgeRangeReadsInTheCardsShapes() {
+        XCTAssertNil(EventAges().words, "all ages says nothing")
+        XCTAssertEqual(EventAges(youngest: 21, oldest: EventAges.top).words, "21+")
+        XCTAssertEqual(EventAges(youngest: 0, oldest: 12).words, "Ages 12 and under")
+        XCTAssertEqual(EventAges(youngest: 6, oldest: 14).words, "Ages 6–14")
+    }
+
+    func testAnEndNeverPassesTheOtherOrTheSlidersEnds() {
+        var ages = EventAges(youngest: 10, oldest: 20)
+        ages.move(.youngest, to: 30)
+        XCTAssertEqual(ages.youngest, 19)
+        ages.move(.oldest, to: 5)
+        XCTAssertEqual(ages.oldest, 20)
+        ages.move(.youngest, to: -4)
+        XCTAssertEqual(ages.youngest, 0)
+        ages.move(.oldest, to: 200)
+        XCTAssertEqual(ages.oldest, EventAges.top)
+    }
+
+    func testAFingerTakesTheEndItIsPastElseTheNearer() {
+        let ages = EventAges(youngest: 10, oldest: 30)
+        XCTAssertEqual(ages.end(nearest: 4), .youngest)
+        XCTAssertEqual(ages.end(nearest: 50), .oldest)
+        XCTAssertEqual(ages.end(nearest: 14), .youngest)
+        XCTAssertEqual(ages.end(nearest: 26), .oldest)
+        // Both ends at the far left: dragging right moves the oldest only once past it.
+        XCTAssertEqual(EventAges(youngest: 0, oldest: 1).end(nearest: 0), .youngest)
+    }
+
+    func testTheFilterRowSumsUpThePicks() {
+        XCTAssertNil(NewEventFilterCopy.summary(gender: nil, ages: EventAges()))
+        XCTAssertEqual(NewEventFilterCopy.summary(gender: .female, ages: EventAges()), "Women")
+        XCTAssertEqual(NewEventFilterCopy.summary(gender: .male, ages: EventAges(youngest: 21, oldest: EventAges.top)), "Men · 21+")
+        XCTAssertEqual(NewEventFilterCopy.summary(gender: nil, ages: EventAges(youngest: 6, oldest: 14)), "Ages 6–14")
+    }
+
     func testANameAndAPlaceAreBothNeeded() {
         var draft = NewEventDraft()
         XCTAssertFalse(draft.ready)

@@ -492,6 +492,8 @@ struct CommunityAPI {
         if let v = input.id { b["id"] = v }
         if let v = input.description { b["description"] = v }
         if let v = input.imageUrl { b["image_url"] = v }
+        if let v = input.forGender { b["for_gender"] = v }
+        if let v = input.ages { b["ages"] = v }
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
     }
 

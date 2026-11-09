@@ -24,6 +24,9 @@ nonisolated struct NewEventDraft: Equatable {
     var place = ""
     /// New post's words, as its description.
     var about = ""
+    /// Filter (BP app town-feed 52): who it's for, by gender and age. Nothing picked is everyone.
+    var gender: EventGender?
+    var ages = EventAges()
 
     init(now: Date = Date()) { when = Self.defaultWhen(now: now) }
 
@@ -49,7 +52,7 @@ nonisolated struct NewEventDraft: Equatable {
         let about = about.trimmingCharacters(in: .whitespacesAndNewlines)
         return NewEventInput(id: id, title: title, eventDate: Town.day(when), startTime: Self.clock(when),
                              location: location, description: about.isEmpty ? nil : String(about.prefix(NewPostDraft.wordsLimit)),
-                             imageUrl: imageURL)
+                             imageUrl: imageURL, forGender: gender?.rawValue, ages: ages.words)
     }
 }
 
@@ -496,7 +499,7 @@ struct NewPostSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    enum Step: Hashable { case tag, place }
+    enum Step: Hashable { case tag, place, filter }
     private enum Field: Hashable { case words, name }
 
     var body: some View {
@@ -547,6 +550,8 @@ struct NewPostSheet: View {
                 switch step {
                 case .tag: NewPostTag(tagged: $model.draft.tagged)
                 case .place: NewEventPlace(places: places, place: $model.draft.place)
+                case .filter: NewEventFilter(gender: Bindable(model.eventModel).draft.gender,
+                                             ages: Bindable(model.eventModel).draft.ages)
                 }
             }
             .photosPicker(isPresented: $picking, selection: $pick, matching: .images, photoLibrary: .shared())
@@ -747,6 +752,23 @@ struct NewPostSheet: View {
                         Text(model.draft.location ?? NewEventCopy.addPlace)
                             .font(.sans(16))
                             .foregroundStyle(model.draft.location == nil ? Hue.inkSecondary : Hue.ink)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(15, weight: .semibold))
+                            .foregroundStyle(Hue.control)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.press(.squish))
+            // Filter (BP app town-feed 52): Badoo's Filter, one screen deeper, as Place is.
+            Button { focus = nil; path.append(.filter) } label: {
+                row(NewEventFilterCopy.filter, icon: { Image(systemName: "slider.horizontal.3").font(.glyph(NewPostMetric.symbol)) }) {
+                    let summary = NewEventFilterCopy.summary(gender: model.eventModel.draft.gender, ages: model.eventModel.draft.ages)
+                    HStack(spacing: 8) {
+                        Text(summary ?? NewEventFilterCopy.add)
+                            .font(.sans(16))
+                            .foregroundStyle(summary == nil ? Hue.inkSecondary : Hue.ink)
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
                             .font(.glyph(15, weight: .semibold))
