@@ -31,11 +31,11 @@ enum OnboardingStep: Int, CaseIterable {
         }
     }
 
-    /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34).
+    /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34). The
+    /// Welcome and Profile draw no circle.
     var symbol: String {
         switch self {
-        case .welcome:   "house"
-        case .profile:   "person"
+        case .welcome, .profile: "person"
         case .birthday:  "birthday.cake"
         case .interests: "heart"
         case .follow:    "mappin.and.ellipse"
@@ -196,7 +196,7 @@ final class OnboardingStore {
         defaults.data(forKey: followsKey).flatMap { try? JSONDecoder().decode([FollowTarget].self, from: $0) } ?? []
     }
 
-    /// 1 to 7 on the question steps, 0 on the Welcome.
+    /// 1 to 6 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
 
     /// The Name box as typed, trimmed; nil while it holds nothing but spaces.
@@ -289,8 +289,20 @@ final class OnboardingStore {
         step = .welcome
     }
 
-    /// "Not now" on Find your friends skips Contacts too (SPEC step 9).
-    func skipFriends() { finish() }
+    /// "Not now" on Find your friends skips Contacts too (SPEC step 9), and sends nobody ticked there
+    /// before going back.
+    func skipFriends() {
+        requests = []
+        finish()
+    }
+
+    /// Apple's contacts prompt answered on Find your friends: allowed goes on to Contacts, refused ends
+    /// the flow as Not now does, with no nag. Only from Find your friends: a second tap's answer lands
+    /// too, and would otherwise skip Contacts.
+    func answeredContacts(allowed: Bool) {
+        guard step == .friends else { return }
+        allowed ? next() : skipFriends()
+    }
 
     func finish() {
         finishedHere = true
@@ -357,6 +369,11 @@ struct OnboardingFlow: View {
             .filter { $0.relation == .stranger && seen.insert($0.displayName).inserted }
         return zip(phones, people.prefix(3)).map { (code: $0, neighbor: $1) }
     }
+
+    /// `-town-samples` answers Contacts' check, so its answer counts as a real one (`firstHere`).
+    static var samplesCheck: Bool { LaunchFlags.backend == .samples }
+    #else
+    static let samplesCheck = false
     #endif
 
     /// The Next pill's lift over the birthday wheel, above the home indicator's 34: 12 pt over the
@@ -369,12 +386,12 @@ struct OnboardingFlow: View {
     private static let keyboardClear: CGFloat = 12 + OnboardingNextBar.height + 16
 
     private var bottomClear: CGFloat {
-        if store.step == .birthday && store.account == nil { return Self.birthdayClear }
+        if on(.birthday) { return Self.birthdayClear }
         return keyboardUp ? Self.keyboardClear : Self.slotClear
     }
 
     /// Out-quint over 0.34 s, the mock's question slide.
-    private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
+    private static let slide: Animation = Motion.outQuint(0.34)
 
     var body: some View {
         // The question frame sits under the Welcome the whole time, so the Welcome fades off
@@ -508,7 +525,7 @@ struct OnboardingFlow: View {
 
     private var question: some View {
         Group {
-            if store.step == .profile && store.account == nil {
+            if on(.profile) {
                 // Luma's profile screen whole (onboarding 35): its own band, photo and title, no icon circle.
                 OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
             } else if store.step == .follow {
@@ -539,10 +556,10 @@ struct OnboardingFlow: View {
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
-            } else if store.step == .friends && store.account == nil {
+            } else if on(.friends) {
                 // Luma's contacts ask whole (onboarding 37): its faces and white sheet, no icon circle.
                 OnboardingFriendsAsk(focused: $questionFocused)
-            } else if store.step == .contacts && store.account == nil {
+            } else if on(.contacts) {
                 // Contacts' question scrolls away with its search and rows, as Interests' does (onboarding 37).
                 OnboardingContactsList(model: contacts, requests: store.requests,
                                        toggle: { [store] in store.toggleRequest($0) }) {
@@ -553,8 +570,8 @@ struct OnboardingFlow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // No fade at the top, as Follow 3: its search pins there (mock v8 `.pin`).
                 .padding(.top, FollowGridMetric.scrollTop)
-                .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
             } else {
                 // A step that reaches past the Next pill on a small phone or at a large text size (the
@@ -588,7 +605,7 @@ struct OnboardingFlow: View {
     private var heading: some View {
         OnboardingHeading(symbol: store.account?.symbol ?? store.step.symbol,
                           question: store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question),
-                          cake: store.account == nil && store.step == .birthday,
+                          cake: on(.birthday),
                           focused: $questionFocused)
             .contentTransition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: firstHere)
@@ -598,7 +615,7 @@ struct OnboardingFlow: View {
     /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask, and a
     /// phone with no numbers or emails asks nobody.
     private var firstHere: Bool {
-        guard store.step == .contacts, AuthStore.shared.hasAccount || LaunchFlags.backend == .samples,
+        guard store.step == .contacts, AuthStore.shared.hasAccount || Self.samplesCheck,
               case .ready(let onApp, let invite) = contacts.state else { return false }
         return onApp.isEmpty && !invite.isEmpty
     }
@@ -634,8 +651,7 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, profile: onProfile,
-                              white: store.step == .friends && store.account == nil, action: nextAction)
+                              busy: form.busy, refused: form.refusals, style: nextStyle, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
@@ -657,7 +673,7 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// "Pick 2 more" until step 7 has its 3, "Follow 2 more" until step 8 has.
+    /// "Pick 2 more" until Interests has its 3, "Follow 2 more" until Follow 3 has.
     private var nextTitle: String {
         if let way = store.account { return way.button }
         if store.step == .profile { return "Save Profile" }
@@ -685,7 +701,7 @@ struct OnboardingFlow: View {
         return Interests.count(store.interests) + store.follows.filter(schools.contains).count
     }
 
-    /// Follows still to make on step 8; none while the read is out, when it failed or when it found
+    /// Follows still to make on Follow 3; none while the read is out, when it failed or when it found
     /// fewer than 3, so a neighbour on a weak signal is never stuck there (SPEC: never block on the network).
     private var followsNeeded: Int {
         guard let suggestions, suggestions.count >= 3 else { return 0 }
@@ -709,11 +725,16 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// Profile is up, so the pill is Luma's Save Profile (onboarding 35).
-    private var onProfile: Bool { store.step == .profile && store.account == nil }
+    /// Save Profile on Profile (onboarding 35), the white pill on Find your friends (37).
+    private var nextStyle: OnboardingNextBar.Style {
+        on(.profile) ? .profile : on(.friends) ? .white : .standard
+    }
 
     /// The Welcome, alone: nothing past it is up yet.
-    private var onWelcome: Bool { store.step == .welcome && store.account == nil }
+    private var onWelcome: Bool { on(.welcome) }
+
+    /// `step` is up, with no Log in or Create account over it.
+    private func on(_ step: OnboardingStep) -> Bool { store.step == step && store.account == nil }
 
     private var nextAction: () -> Void {
         if store.account != nil { return submitAccount }
@@ -746,11 +767,7 @@ struct OnboardingFlow: View {
             _ = try? await CNContactStore().requestAccess(for: .contacts)
             let status = CNContactStore.authorizationStatus(for: .contacts)
             let allowed = status == .authorized || status == .limited
-            // A second tap's answer lands too: only the first moves on, or it would skip Contacts.
-            go { [store] in
-                guard store.step == .friends else { return }
-                allowed ? store.next() : store.finish()
-            }()
+            go { [store] in store.answeredContacts(allowed: allowed) }()
         }
     }
 
@@ -917,6 +934,6 @@ private struct Rise: ViewModifier {
         content
             .opacity(shown || reduceMotion ? 1 : 0)
             .offset(y: shown || reduceMotion ? 0 : distance)
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: duration).delay(delay), value: shown)
+            .animation(Motion.outQuint(duration).delay(delay), value: shown)
     }
 }

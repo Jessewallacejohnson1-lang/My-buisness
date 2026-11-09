@@ -63,7 +63,11 @@ re-hunt is the friction — it reads as the app being unsteady, and it is the di
 between a flow that feels premium and one that feels assembled.
 
 What may change per step: the button's **title** (`Continue`, `Continue · 3`, `Done`)
-and its **enabled state**. Nothing else. Specifically not allowed:
+and its **enabled state**. Nothing else, apart from two looks Jesse approved in mock v8
+(2026-11-09): Profile's Save Profile is Luma's 352 x 49 pt pill with a soft shadow (BP app
+onboarding 35), and Find your friends' pill is white with ink words (onboarding 37). Neither
+moves the spot: Save Profile's bottom edge sits where every step's does, and the white pill is
+the same frame. Specifically not allowed:
 
 - A centred button on one screen and a bottom-pinned one on the next.
 - A button that rides up or down with the content length (short step = button in the
@@ -92,9 +96,8 @@ VStack(spacing: 0) {
 ```
 
 Step content that can overflow scrolls inside its own region — the footer is outside
-the scroll view, so the button never rides the content. `InterestPickerView`'s `footer`
-is the shape to copy (hairline, then `ContinueButton` with fixed padding, on a
-`Hue.paper` bar).
+the scroll view, so the button never rides the content. `OnboardingFlow`'s `bottom` is the
+shape to copy: the one `OnboardingNextBar` at a fixed padding, with its fixed slot under it.
 
 Slide only the question between steps; do not move the chrome — the chrome is not part of
 the transition. Reduce Motion degrades the step change to a cross-fade.
@@ -110,7 +113,7 @@ per step, or a frame-montage of the flow. A build is not done until that passes.
 - **Never ask for what can be derived or deferred.** Anything the app can infer, or ask
   later in context, is not an onboarding question.
 - **One tap per step wherever possible.** Typing is the most expensive input; reserve
-  it for the name and nothing else.
+  it for the name and the optional Bio beside it on Profile (BP app onboarding 35), and nothing else.
 - **No dead ends.** Back always goes somewhere real, and a first step with nowhere to
   go back to shows no back button at all rather than a dead one.
 - **Progress is always visible** and always honest — the bar's total is the real number

@@ -43,8 +43,8 @@ struct OnboardingProgressBar: View {
     let total: Int
 
     static let height: CGFloat = 4
-    /// The mock's `cubic-bezier(.22,1,.36,1)` over 420 ms.
-    static let glide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.42)
+    /// The mock's out-quint over 420 ms.
+    static let glide: Animation = Motion.outQuint(0.42)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -150,12 +150,18 @@ struct OnboardingNextBar: View {
     var busy = false
     /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
     var refused = 0
-    /// Profile's Save Profile (onboarding 35): Luma's 352 x 49 pt pill, words at 17 pt medium, a soft
-    /// shadow under it, in the same spot (its bottom edge where every step's sits).
-    var profile = false
-    /// Find your friends' Luma's white pill, ink words, a soft shadow and a hair of edge (mock v8 `.btn.white`).
-    var white = false
+    var style = Style.standard
     let action: () -> Void
+
+    /// The pill's two approved exceptions (ONBOARDING.md), each in the same spot as every step's.
+    enum Style {
+        case standard
+        /// Profile's Save Profile (onboarding 35): Luma's 352 x 49 pt pill, words at 17 pt medium, a soft
+        /// shadow under it, its bottom edge where every step's sits.
+        case profile
+        /// Find your friends' Luma's white pill, ink words, a soft shadow and a hair of edge (mock v8 `.btn.white`).
+        case white
+    }
 
     static let height: CGFloat = 48
     static let profileSize = CGSize(width: 352, height: 49)
@@ -171,7 +177,7 @@ struct OnboardingNextBar: View {
                 ProgressView().tint(.white)
             } else {
                 Text(title)
-                    .font(.apple(17, weight: profile ? .medium : .semibold))
+                    .font(.apple(17, weight: style == .profile ? .medium : .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
@@ -180,8 +186,8 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, profile: profile, white: white))
-        .frame(maxWidth: profile ? Self.profileSize.width : .infinity)
+        .buttonStyle(NextBarStyle(allowed: allowed, style: style))
+        .frame(maxWidth: style == .profile ? Self.profileSize.width : .infinity)
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -200,25 +206,28 @@ struct OnboardingNextBar: View {
 
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
-    var profile = false
-    var white = false
+    let style: OnboardingNextBar.Style
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
-        let on = profile ? Hue.saveProfile : white ? Hue.surface : Hue.ink
-        let off = profile ? Hue.saveProfileOff : Hue.nextOff
-        let words = white ? Hue.ink : Color.white
+        let fill, pressed, off, words, offWords: Color
+        switch style {
+        case .standard: (fill, pressed, off, words, offWords) = (Hue.ink, Hue.nextPressed, Hue.nextOff, .white, Hue.nextOffWords)
+        case .profile: (fill, pressed, off, words, offWords) = (Hue.saveProfile, Hue.nextPressed, Hue.saveProfileOff, .white, Hue.saveProfileOffWords)
+        case .white: (fill, pressed, off, words, offWords) = (Hue.surface, Hue.nextWhiteDown, Hue.nextOff, Hue.ink, Hue.nextOffWords)
+        }
         return configuration.label
-            .foregroundStyle(allowed ? words : (profile ? Hue.saveProfileOffWords : Hue.nextOffWords))
+            .foregroundStyle(allowed ? words : offWords)
             .frame(maxWidth: .infinity)
-            .frame(height: profile ? OnboardingNextBar.profileSize.height : OnboardingNextBar.height)
+            .frame(height: style == .profile ? OnboardingNextBar.profileSize.height : OnboardingNextBar.height)
             .background {
                 Capsule()
-                    .fill(allowed ? (down ? (white ? Hue.nextWhiteDown : Hue.nextPressed) : on) : off)
-                    .strokeBorder(Hue.ink.opacity(white ? 0.04 : 0), lineWidth: 1)
+                    .fill(allowed ? (down ? pressed : fill) : off)
+                    .strokeBorder(Hue.ink.opacity(style == .white ? 0.04 : 0), lineWidth: 1)
                     // Luma's soft shadow under Save Profile (mock v8 `0 12px 24px -12px`), and under the white
                     // pill (`0 6px 20px` at 9%).
-                    .shadow(color: Hue.ink.opacity(profile ? 0.2 : white ? 0.09 : 0), radius: 10, y: white ? 6 : 10)
+                    .shadow(color: Hue.ink.opacity(style == .profile ? 0.2 : style == .white ? 0.09 : 0), radius: 10,
+                            y: style == .white ? 6 : 10)
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())
@@ -234,7 +243,7 @@ struct OnboardingFieldBox: ViewModifier {
     var focused = false
     static let height: CGFloat = 46
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
         content
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: Self.height, alignment: .leading)
@@ -277,10 +286,12 @@ struct OnboardingLink: View {
     }
 }
 
-/// The search box over Follow 3's places: Luma's 40 pt grey box, no edge, 16 pt under the question.
+/// The search box over Follow 3's places and Contacts' people: Luma's 40 pt grey box, no edge, `top`
+/// under the question (16 pt; Contacts' pinned one sets its own room).
 struct OnboardingSearchField: View {
     let prompt: String
     @Binding var query: String
+    var top: CGFloat = 16
     @FocusState private var searching: Bool
 
     static let height: CGFloat = 40
@@ -302,10 +313,10 @@ struct OnboardingSearchField: View {
         // 40 pt, growing with large text so its words aren't cut.
         .padding(.vertical, 6)
         .frame(minHeight: Self.height)
-        .background(Hue.onboardingField, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Hue.onboardingField, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         // The whole box takes the tap, not only the line of text.
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
-        .padding(.top, 16)
+        .padding(.top, top)
     }
 }

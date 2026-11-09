@@ -22,7 +22,7 @@ private enum Metric {
     static let indent: CGFloat = 12 + icon + iconGap
     static let ring: CGFloat = 24
     static let chip: CGFloat = 34
-    static let corner: CGFloat = 16
+    static let corner: CGFloat = Radius.tile
     /// Logos in rows of 3 under a kind of school, 10 pt apart (mock v8 `.grid`).
     static let tileGap: CGFloat = 10
 }

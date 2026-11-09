@@ -200,11 +200,13 @@ final class ProfileModel {
 
     /// Onboarding's name, bio, photo and Interests on your row (BP app onboarding 18, 20, 35): only
     /// the answers given travel. Throws, keeping nothing, when the photo or the row is refused. A bio
-    /// goes from a real account only, as Edit profile's does.
+    /// goes from a real account only, as Edit profile's does: till there is one, all of them wait on
+    /// the phone with it, so it isn't lost.
     private func saveAnswers(name: String?, bio: String?, photo: Data?, interests: [String]) async throws {
+        guard bio == nil || canDescribe else { throw BioWaits() }
         turn += 1
         var url: String?
-        let bio = canDescribe ? bio.map(Self.clampBio) : nil
+        let bio = bio.map(Self.clampBio)
         if let photo { url = try await profiles.uploadPhoto(photo) }
         try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, bio: bio, interests: interests)
         turn += 1   // and a read sent while it was out
@@ -214,6 +216,9 @@ final class ProfileModel {
         if !interests.isEmpty { interestIds = interests }
         keep()
     }
+
+    /// A quiet account has onboarding's bio to send but can't take one yet.
+    private struct BioWaits: Error {}
 
     // MARK: - Onboarding's hand-off (BP app codebase-health-2 10)
 

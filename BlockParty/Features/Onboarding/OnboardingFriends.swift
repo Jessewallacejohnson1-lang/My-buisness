@@ -146,7 +146,7 @@ struct OnboardingFriendsAsk: View {
     }
 
     private func rise(delay: Double, duration: Double) -> Animation {
-        reduceMotion ? .easeOut(duration: 0.2) : .timingCurve(0.22, 1, 0.36, 1, duration: duration).delay(delay)
+        reduceMotion ? .easeOut(duration: 0.2) : Motion.outQuint(duration).delay(delay)
     }
 }
 
@@ -154,7 +154,7 @@ struct OnboardingFriendsAsk: View {
 private enum RowMetric {
     static let face: CGFloat = 40
     static let minHeight: CGFloat = 62
-    static let corner: CGFloat = 16
+    static let corner: CGFloat = Radius.tile
     static let invite = CGSize(width: 72, height: 30)
 }
 
@@ -176,9 +176,13 @@ struct OnboardingContactsList<Heading: View>: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+            // The search pins at the scroll's top as the rest goes under it (mock v8 `.pin`, sticky), as
+            // Follow 3's does.
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
                 heading
-                rows
+                // Mock v8's 16 pt and the `.pin`'s 12 over the box, outside the pin so it holds the box at the top.
+                if searchable { Color.clear.frame(height: 28) }
+                Section { rows } header: { if searchable { search } }
             }
             .padding(.horizontal, FollowGridMetric.gutter)
             .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
@@ -207,12 +211,6 @@ struct OnboardingContactsList<Heading: View>: View {
             // Only people you could still add: a friend, a request either way or a block isn't offered again.
             let people = onApp.filter { $0.relation == .stranger && matches($0.displayName) }
             let others = invite.filter { matches($0.name) }
-            if !onApp.isEmpty || !invite.isEmpty {
-                // Mock v8's `.pin` around it: 12 pt more over it and 10 under.
-                OnboardingSearchField(prompt: "Search contacts", query: $query)
-                    .padding(.top, 12)
-                    .padding(.bottom, 10)
-            }
             if !people.isEmpty {
                 section("On Block Party")
                 card(people) { index, person in personRow(person, index: index) }
@@ -225,6 +223,21 @@ struct OnboardingContactsList<Heading: View>: View {
                 line(query.isEmpty ? "No contacts with a phone number or email." : "No contacts found")
             }
         }
+    }
+
+    /// The check found anyone, so there's someone to search for.
+    private var searchable: Bool {
+        guard case .ready(let onApp, let invite) = model.state else { return false }
+        return !onApp.isEmpty || !invite.isEmpty
+    }
+
+    /// Mock v8's `.pin`: pinned, the box sits at the scroll's top on the canvas, 10 pt of it under the box.
+    private var search: some View {
+        OnboardingSearchField(prompt: "Search contacts", query: $query, top: 0)
+            .padding(.bottom, 10)
+            .padding(.horizontal, FollowGridMetric.gutter)
+            .background(Hue.onboardingCanvas)
+            .padding(.horizontal, -FollowGridMetric.gutter)
     }
 
     private func matches(_ name: String) -> Bool {
@@ -250,7 +263,7 @@ struct OnboardingContactsList<Heading: View>: View {
     private func personRow(_ person: Neighbor, index: Int) -> some View {
         let on = requests.contains(person.id)
         return Button { Haptics.light(); toggle(person.id) } label: {
-            face(name: person.displayName, line: "In your contacts") {
+            row(name: person.displayName, line: "In your contacts") {
                 Avatar(avatarUrl: person.avatarUrl, size: RowMetric.face)
             } end: {
                 InterestCheckCircle(on: on).padding(.leading, 4)
@@ -268,7 +281,7 @@ struct OnboardingContactsList<Heading: View>: View {
     /// Someone to invite: iOS's small grey Invite at the end, grey "Invited" once Messages opened.
     private func inviteRow(_ contact: PhoneContact, index: Int) -> some View {
         let done = invited.contains(contact.id)
-        return face(name: contact.name, line: contact.phone) {
+        return row(name: contact.name, line: contact.phone) {
             ContactFace(contact: contact, size: RowMetric.face)
         } end: {
             Button {
@@ -309,8 +322,8 @@ struct OnboardingContactsList<Heading: View>: View {
     }
 
     /// One row, the mock's: a 40 pt face, the name over a grey line, what's at the end.
-    private func face<Face: View, End: View>(name: String, line: String?, @ViewBuilder face: () -> Face,
-                                             @ViewBuilder end: () -> End) -> some View {
+    private func row<Face: View, End: View>(name: String, line: String?, @ViewBuilder face: () -> Face,
+                                            @ViewBuilder end: () -> End) -> some View {
         HStack(spacing: 12) {
             face()
             VStack(alignment: .leading, spacing: 0) {

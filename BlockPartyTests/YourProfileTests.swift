@@ -312,6 +312,30 @@ final class YourProfileTests: XCTestCase {
         XCTAssertNil(saved?["bio"], "no bio typed, none sent")
     }
 
+    /// A quiet account can't take a bio (only a real one has one), so a flow finished on one keeps the
+    /// bio waiting on the phone, and it goes once a real account arrives (onboarding 35's review).
+    func testABioWaitsOnThePhoneUntilARealAccountCanTakeIt() async {
+        auth.isAnonymous = true
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.name = "Avery"
+        onboarding.bio = "Coffee and lakes."
+        onboarding.finish()
+        let profile = model()
+
+        await profile.finished(onboarding).value
+        XCTAssertTrue(onboarding.answersPending, "the bio still waits")
+
+        auth.isAnonymous = false
+        server.answers["town_profiles"] = row("a", photo: "photo-a")
+        await profile.arrived(onboarding)
+
+        let bios = server.requests.filter { $0.httpMethod == "POST" && $0.url!.path.hasSuffix("town_profiles") }
+            .compactMap { $0.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+            .compactMap { $0["bio"] as? String }
+        XCTAssertEqual(bios, ["Coffee and lakes."])
+        XCTAssertFalse(onboarding.answersPending)
+    }
+
     // MARK: - Onboarding's hand-off (codebase-health-2 10)
 
     private var stamps: [[String: Any]] {

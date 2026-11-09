@@ -74,7 +74,9 @@ allowlist of the palettes named below). A call split across lines is still caugh
     (static Bold and SemiBold, OFL licence alongside; Jesse, 2026-11-02); event, news and game
     card titles are **BP Event Heading** via `Font.eventDisplay`; body/UI/data are **BP Body**
     via `Font.sans*`/`Font.mono*`, with numbers tabular via `.monospacedDigit()`. Jost is left
-    only in the frozen `Font.logo` word.
+    only in the frozen `Font.logo` word. **Onboarding is the exception:** every word in
+    `Features/Onboarding/`, the Welcome and Done included, is Apple's system font via
+    `Font.apple`/`appleFont` (Jesse, 2026-11-09; BP app onboarding 34).
   - **PostScript names must be used exactly** `[prose]` — `InterTight-Bold`,
     `InterTight-SemiBold`, and Jost's `JostRoman-SemiBold`. A wrong name falls back to the
     system font **silently**; `testEveryFaceIsBundled` catches it.

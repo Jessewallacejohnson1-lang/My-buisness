@@ -544,6 +544,43 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(sent, [])
     }
 
+    /// Ticked on Contacts, back to Find your friends, then Not now: none go (onboarding 37's review).
+    func testNotNowSendsNoneOfTheTickedRequests() async {
+        let store = onContacts()
+        store.toggleRequest("maya")
+        store.toggleRequest("sam")
+        store.back()
+        XCTAssertEqual(store.step, .friends)
+        store.skipFriends()
+        XCTAssertTrue(store.finished)
+        await store.saveAnswers { _, _, _ in }
+        var sent: [String] = []
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(OnboardingStore(defaults: defaults).requests, [], "none wait for a relaunch either")
+    }
+
+    /// Refused on Apple's contacts prompt: the flow ends there, as Not now, with nobody sent; allowed
+    /// goes on to Contacts. An answer landing once off Find your friends moves nothing.
+    func testContactsRefusedEndsTheFlowAndAllowedGoesOnToContacts() async {
+        let refused = onContacts()
+        refused.toggleRequest("maya")
+        refused.back()
+        refused.answeredContacts(allowed: false)
+        XCTAssertTrue(refused.finished)
+        XCTAssertTrue(refused.finishedHere, "the Done island's")
+        XCTAssertEqual(refused.requests, [])
+
+        defaults.removePersistentDomain(forName: "OnboardingStoreTests")
+        let allowed = onContacts()
+        allowed.back()
+        allowed.answeredContacts(allowed: true)
+        XCTAssertEqual(allowed.step, .contacts)
+        allowed.answeredContacts(allowed: false)
+        XCTAssertEqual(allowed.step, .contacts, "a second tap's answer doesn't end the flow")
+        XCTAssertFalse(allowed.finished)
+    }
+
     func testTooYoungForgetsTheRequests() {
         let store = OnboardingStore(defaults: defaults)
         store.toggleRequest("maya")

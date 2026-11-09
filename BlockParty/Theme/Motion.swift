@@ -38,6 +38,11 @@ enum Motion {
     /// than `card`: it GROWS where it stands rather than arriving from somewhere, so
     /// it should settle rather than pop.
     static let bentoExpand: Animation = .spring(response: 0.44, dampingFraction: 0.82)
+
+    /// Onboarding's out-quint, mock v8's `cubic-bezier(.22,1,.36,1)`: fast off the mark, settling long.
+    static func outQuint(_ duration: Double) -> Animation {
+        .timingCurve(0.22, 1, 0.36, 1, duration: duration)
+    }
 }
 
 /// How a button answers the finger. Everything pressable is one of these three, unless it

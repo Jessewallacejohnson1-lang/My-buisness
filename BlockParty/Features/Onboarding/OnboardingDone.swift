@@ -63,7 +63,7 @@ struct OnboardingDone: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
-                HelloConfetti(burst: burst, from: CGPoint(x: geo.size.width / 2, y: top + height / 2))
+                HelloConfetti(burst: burst, colors: Hue.doneConfettiHexes, from: CGPoint(x: geo.size.width / 2, y: top + height / 2))
                     .allowsHitTesting(false)
                 pill
                     .padding(.top, top)

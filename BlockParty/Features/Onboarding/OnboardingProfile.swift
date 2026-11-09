@@ -28,7 +28,7 @@ struct OnboardingProfile: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     OnboardingProfilePhoto(store: store)
-                    Text("Your Profile")
+                    Text(OnboardingStep.profile.question)
                         .appleFont(20, weight: .semibold)
                         .foregroundStyle(Hue.ink)
                         .accessibilityAddTraits(.isHeader)
@@ -162,7 +162,8 @@ private extension View {
             .padding(.horizontal, 16)
             .padding(.vertical, top)
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-            .background(Hue.profileField, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            // Luma's 10 pt field corner: the app's field radius, iOS's search field's.
+            .background(Hue.profileField, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
             // The whole box takes the tap.
             .contentShape(Rectangle())
     }
@@ -235,16 +236,9 @@ struct OnboardingProfilePhoto: View {
         .contentShape(Circle())
     }
 
-    /// The mock's empty photo: mint to lilac, a green glow top right and a violet one bottom left.
+    /// Empty: one flat circle in the blank-photo grey (ticket 35: a plain colour circle).
     private var blank: some View {
-        Circle()
-            .fill(LinearGradient(colors: [Hue.profileBlankMint, Hue.profileBlankBlue, Hue.profileBlankLilac],
-                                 startPoint: UnitPoint(x: 0.33, y: 0), endPoint: UnitPoint(x: 0.67, y: 1)))
-            .overlay(RadialGradient(colors: [Hue.profileBlankGreen, Hue.profileBlankGreen.opacity(0)],
-                                    center: UnitPoint(x: 0.78, y: 0.18), startRadius: 0, endRadius: Self.side * 0.5))
-            .overlay(RadialGradient(colors: [Hue.profileBlankViolet, Hue.profileBlankViolet.opacity(0)],
-                                    center: UnitPoint(x: 0.22, y: 0.88), startRadius: 0, endRadius: Self.side * 0.55))
-            .clipShape(Circle())
+        Circle().fill(Hue.blankAvatar)
     }
 }
 

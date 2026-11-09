@@ -134,7 +134,6 @@ struct AccountFields: View {
                 .foregroundStyle(Hue.ink)
                 .tint(Hue.ink)
                 .focused($focus, equals: field)
-                .frame(minHeight: OnboardingFieldBox.height)
                 .onboardingField(focused: focus == field)
                 .contentShape(Rectangle())
                 .onTapGesture { focus = field }

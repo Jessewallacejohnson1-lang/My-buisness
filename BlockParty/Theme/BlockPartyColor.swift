@@ -219,13 +219,6 @@ nonisolated enum Hue {
     static let saveProfile      = Color(hex: 0x1A1A1C)
     static let saveProfileOff   = Color(hex: 0xA7A7A9)
     static let saveProfileOffWords = Color(hex: 0xE4E4E6)
-    /// Profile's empty photo, the mock's plain colour circle (not Luma's face): mint to blue to lilac,
-    /// a green glow top right and a violet one bottom left. For that circle only.
-    static let profileBlankMint   = Color(hex: 0x8FD7B6)
-    static let profileBlankBlue   = Color(hex: 0x9AA3D9)
-    static let profileBlankLilac  = Color(hex: 0xB98AD8)
-    static let profileBlankGreen  = Color(hex: 0x6CD9A6)
-    static let profileBlankViolet = Color(hex: 0xC76BDA)
     /// Find your friends, Luma's contacts ask (onboarding 37, mock v8 `.face`): the three glowing faces,
     /// one graphite and two periwinkle, each lit from the top, and the glow under the periwinkle ones.
     /// For those faces only.
@@ -245,8 +238,11 @@ nonisolated enum Hue {
     static let welcomeScrim  = Color(hex: 0x000000)
     /// The Done island's black (onboarding 24): the Dynamic Island's own, so the pill grows out of it unseen.
     static let island        = Color(hex: 0x000000)
-    /// Onboarding's empty photo, Instagram's blank profile picture measured from its sign-up
+    /// Done's confetti, ink and two greys in equal shares, as mock v8 shows (Jesse, 2026-11-09): no yellow.
+    nonisolated static let doneConfettiHexes: [UInt32] = [0x111111, 0x8E8E93, 0xD1D1D6]
+    /// A person's empty photo, Instagram's blank profile picture measured from its sign-up
     /// (BP app references/onboarding-name-photo): a blue-grey circle and a near-white figure.
+    /// Onboarding's Profile draws the circle alone, flat (onboarding 35).
     static let blankAvatar   = Color(hex: 0xCBD2DA)
     static let blankAvatarFigure = Color(hex: 0xF4F5F9)
     /// The circle behind Jesse's birthday cake on "When's your birthday?" (Jesse, 2026-11-08, BP app
