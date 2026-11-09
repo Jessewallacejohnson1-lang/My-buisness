@@ -209,6 +209,21 @@ nonisolated enum Hue {
     /// The Next pill while not allowed, and its words.
     static let nextOff       = Color(hex: 0xC2C2C7)
     static let nextOffWords  = Color(hex: 0xF4F4F6)
+    /// Profile, Luma's profile screen (onboarding 35, mock v8 `.ffade`, `.lf`, `.btn.lb`): the plain grey
+    /// band at the top, which fades into `onboardingCanvas`; the Name and Bio boxes; Save Profile, on
+    /// and while not allowed, with its words then.
+    static let profileBand      = Color(light: 0xE2E2E4, dark: 0x1E1E1B)
+    static let profileField     = Color(light: 0xF0F0F2, dark: 0x23231F)
+    static let saveProfile      = Color(hex: 0x1A1A1C)
+    static let saveProfileOff   = Color(hex: 0xA7A7A9)
+    static let saveProfileOffWords = Color(hex: 0xE4E4E6)
+    /// Profile's empty photo, the mock's plain colour circle (not Luma's face): mint to blue to lilac,
+    /// a green glow top right and a violet one bottom left. For that circle only.
+    static let profileBlankMint   = Color(hex: 0x8FD7B6)
+    static let profileBlankBlue   = Color(hex: 0x9AA3D9)
+    static let profileBlankLilac  = Color(hex: 0xB98AD8)
+    static let profileBlankGreen  = Color(hex: 0x6CD9A6)
+    static let profileBlankViolet = Color(hex: 0xC76BDA)
     /// The Welcome's white pills, and pressed (ticket 25 mock).
     static let welcomePill = Color(hex: 0xFFFFFF)
     static let welcomePillDown = Color(hex: 0xECECEA)

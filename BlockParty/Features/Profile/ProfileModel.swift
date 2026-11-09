@@ -198,15 +198,18 @@ final class ProfileModel {
         keep()
     }
 
-    /// Onboarding's name, photo and Interests on your row (BP app onboarding 18, 20): only the
-    /// answers given travel. Throws, keeping nothing, when the photo or the row is refused.
-    private func saveAnswers(name: String?, photo: Data?, interests: [String]) async throws {
+    /// Onboarding's name, bio, photo and Interests on your row (BP app onboarding 18, 20, 35): only
+    /// the answers given travel. Throws, keeping nothing, when the photo or the row is refused. A bio
+    /// goes from a real account only, as Edit profile's does.
+    private func saveAnswers(name: String?, bio: String?, photo: Data?, interests: [String]) async throws {
         turn += 1
         var url: String?
+        let bio = canDescribe ? bio.map(Self.clampBio) : nil
         if let photo { url = try await profiles.uploadPhoto(photo) }
-        try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, interests: interests)
+        try await profiles.setNameAndPhoto(displayName: name, avatarUrl: url, bio: bio, interests: interests)
         turn += 1   // and a read sent while it was out
         if let name { displayName = name }
+        if let bio { self.bio = bio }
         if let url { avatarUrl = url }
         if !interests.isEmpty { interestIds = interests }
         keep()
@@ -281,8 +284,8 @@ final class ProfileModel {
     /// one later can.
     private func sendAnswers(_ onboarding: OnboardingStore) async {
         guard onboarding.finished else { return }
-        await onboarding.saveAnswers { name, photo in
-            try await saveAnswers(name: name, photo: photo, interests: onboarding.interests)
+        await onboarding.saveAnswers { name, bio, photo in
+            try await saveAnswers(name: name, bio: bio, photo: photo, interests: onboarding.interests)
         }
         guard auth.hasAccount else { return }
         let community = CommunityAPI(supabase)

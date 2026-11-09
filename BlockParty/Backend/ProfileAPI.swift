@@ -91,13 +91,15 @@ struct ProfileAPI {
                           prefer: "resolution=merge-duplicates,return=minimal")
     }
 
-    /// Onboarding's name, photo and interests (BP app onboarding 18, 20) on the caller's row,
+    /// Onboarding's name, bio, photo and interests (BP app onboarding 18, 20, 35) on the caller's row,
     /// making it if there is none yet. Only the answers given travel, so the onboarded stamp and
     /// anything left blank are left alone.
-    func setNameAndPhoto(displayName: String?, avatarUrl: String?, interests: [String] = []) async throws {
+    func setNameAndPhoto(displayName: String?, avatarUrl: String?, bio: String? = nil,
+                         interests: [String] = []) async throws {
         var b: [String: Any] = ["user_id": try db.userID]
         if let displayName { b["display_name"] = displayName }
         if let avatarUrl { b["avatar_url"] = avatarUrl }
+        if let bio { b["bio"] = bio }
         if !interests.isEmpty { b["interests"] = interests }
         try await db.rest("town_profiles", method: "POST", [("on_conflict", "user_id")], body: b,
                           prefer: "resolution=merge-duplicates,return=minimal")

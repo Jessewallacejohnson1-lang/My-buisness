@@ -256,7 +256,7 @@ final class YourProfileTests: XCTestCase {
     /// date it landed.
     func testOnboardingAnswersAreYoursAtOnce() async {
         let onboarding = OnboardingStore(defaults: phone)
-        onboarding.firstName = "Avery"
+        onboarding.name = "Avery"
         onboarding.interests = ["faith", "coffee"]
         onboarding.finish()
         let profile = model()
@@ -269,6 +269,47 @@ final class YourProfileTests: XCTestCase {
         await finishing.value
         XCTAssertNotNil(profile.onboardedAt)
         XCTAssertEqual(reads, 0)
+    }
+
+    /// A finished flow's Profile reaches the account (onboarding 35): the photo's upload, then one
+    /// write with the name, the bio and the photo's address, on the row the display name and bio
+    /// already live on. Nothing new is stored.
+    func testAFinishedFlowSavesNameBioAndPhoto() async {
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.name = " Avery Lund "
+        onboarding.bio = " Coffee and lakes. "
+        onboarding.photo = Data([1, 2, 3])
+        onboarding.finish()
+        let profile = model()
+
+        await profile.finished(onboarding).value
+
+        let uploads = server.requests.filter { $0.url!.path.contains("/storage/") }
+        XCTAssertEqual(uploads.count, 1, "the photo goes up once")
+        let rows = server.requests.filter { $0.httpMethod == "POST" && $0.url!.path.hasSuffix("town_profiles") }
+            .compactMap { $0.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+        let saved = rows.first { $0["display_name"] != nil }
+        XCTAssertEqual(saved?["display_name"] as? String, "Avery Lund")
+        XCTAssertEqual(saved?["bio"] as? String, "Coffee and lakes.")
+        XCTAssertTrue((saved?["avatar_url"] as? String)?.contains("/avatars/a/avatar-") == true)
+        XCTAssertEqual(profile.displayName, "Avery Lund")
+        XCTAssertEqual(profile.bio, "Coffee and lakes.")
+        XCTAssertFalse(onboarding.answersPending)
+    }
+
+    /// No bio typed: none is sent, so nothing already on the account is cleared.
+    func testAFlowWithNoBioLeavesTheBioAlone() async {
+        let onboarding = OnboardingStore(defaults: phone)
+        onboarding.name = "Avery"
+        onboarding.finish()
+
+        await model().finished(onboarding).value
+
+        let saved = server.requests.filter { $0.httpMethod == "POST" && $0.url!.path.hasSuffix("town_profiles") }
+            .compactMap { $0.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+            .first { $0["display_name"] != nil }
+        XCTAssertEqual(saved?["display_name"] as? String, "Avery")
+        XCTAssertNil(saved?["bio"], "no bio typed, none sent")
     }
 
     // MARK: - Onboarding's hand-off (codebase-health-2 10)

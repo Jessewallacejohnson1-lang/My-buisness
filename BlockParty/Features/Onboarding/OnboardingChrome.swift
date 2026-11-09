@@ -124,9 +124,13 @@ struct OnboardingNextBar: View {
     var busy = false
     /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
     var refused = 0
+    /// Profile's Save Profile (onboarding 35): Luma's 352 x 49 pt pill, words at 17 pt medium, a soft
+    /// shadow under it, in the same spot (its bottom edge where every step's sits).
+    var profile = false
     let action: () -> Void
 
     static let height: CGFloat = 48
+    static let profileSize = CGSize(width: 352, height: 49)
 
     @State private var shakes = 0
 
@@ -139,7 +143,7 @@ struct OnboardingNextBar: View {
                 ProgressView().tint(.white)
             } else {
                 Text(title)
-                    .font(.apple(17, weight: .semibold))
+                    .font(.apple(17, weight: profile ? .medium : .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
@@ -148,7 +152,8 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed))
+        .buttonStyle(NextBarStyle(allowed: allowed, profile: profile))
+        .frame(maxWidth: profile ? Self.profileSize.width : .infinity)
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -167,16 +172,21 @@ struct OnboardingNextBar: View {
 
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
+    var profile = false
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
+        let on = profile ? Hue.saveProfile : Hue.ink
+        let off = profile ? Hue.saveProfileOff : Hue.nextOff
         return configuration.label
-            .foregroundStyle(allowed ? Color.white : Hue.nextOffWords)
+            .foregroundStyle(allowed ? Color.white : (profile ? Hue.saveProfileOffWords : Hue.nextOffWords))
             .frame(maxWidth: .infinity)
-            .frame(height: OnboardingNextBar.height)
+            .frame(height: profile ? OnboardingNextBar.profileSize.height : OnboardingNextBar.height)
             .background {
                 Capsule()
-                    .fill(allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff)
+                    .fill(allowed ? (down ? Hue.nextPressed : on) : off)
+                    // Luma's soft shadow under Save Profile (mock v8 `0 12px 24px -12px`).
+                    .shadow(color: Hue.ink.opacity(profile ? 0.2 : 0), radius: 10, y: 10)
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())

@@ -16,14 +16,14 @@ final class OnboardingStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: "OnboardingStoreTests")
     }
 
-    func testStartsOnWelcomeAndWalksTheSevenBarSteps() {
+    func testStartsOnWelcomeAndWalksTheSixBarSteps() {
         let store = OnboardingStore(defaults: defaults)
         XCTAssertEqual(store.step, .welcome)
         XCTAssertEqual(store.barIndex, 0)
         var indexes: [Int] = []
         for _ in 0..<OnboardingStep.barTotal { store.next(); indexes.append(store.barIndex) }
-        XCTAssertEqual(indexes, Array(1...7))
-        XCTAssertEqual(OnboardingStep.barTotal, 7, "Phone and Code wait for phone sign-in (onboarding 24)")
+        XCTAssertEqual(indexes, Array(1...6))
+        XCTAssertEqual(OnboardingStep.barTotal, 6, "Phone and Code wait for phone sign-in (onboarding 24); Name and Photo are one Profile step (35)")
         XCTAssertEqual(store.step, .contacts)
         XCTAssertFalse(store.finished)
         store.next()
@@ -33,23 +33,23 @@ final class OnboardingStoreTests: XCTestCase {
     func testBackGoesToThePreviousStepAndStopsAtTheFirstQuestion() {
         let store = OnboardingStore(defaults: defaults)
         store.next(); store.next()
-        XCTAssertEqual(store.step, .photo)
+        XCTAssertEqual(store.step, .birthday)
         store.back()
-        XCTAssertEqual(store.step, .name)
+        XCTAssertEqual(store.step, .profile)
         XCTAssertFalse(store.forward)
         store.back()
-        XCTAssertEqual(store.step, .name, "the account is made before Name: Back would make a second one")
+        XCTAssertEqual(store.step, .profile, "the account is made before Profile: Back would make a second one")
     }
 
     func testRelaunchResumesOnTheSameStep() {
         let store = OnboardingStore(defaults: defaults)
         for _ in 0..<2 { store.next() }
-        XCTAssertEqual(OnboardingStore(defaults: defaults).step, .photo)
+        XCTAssertEqual(OnboardingStore(defaults: defaults).step, .birthday)
     }
 
     func testFinishedStaysFinished() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<6 { store.next() }
+        for _ in 0..<5 { store.next() }
         XCTAssertEqual(store.step, .friends)
         store.skipFriends()
         XCTAssertTrue(store.finishedHere, "finished through the flow: the Done island's")
@@ -92,7 +92,7 @@ final class OnboardingStoreTests: XCTestCase {
         store.open(.create)
         store.created()
         XCTAssertNil(store.account)
-        XCTAssertEqual(store.step, .name)
+        XCTAssertEqual(store.step, .profile)
     }
 
     func testLogInGoesStraightInOnlyWhenOnboardingWasFinished() {
@@ -105,7 +105,7 @@ final class OnboardingStoreTests: XCTestCase {
         done.open(.logIn)
         done.loggedIn(onboarded: false)
         XCTAssertFalse(done.finished)
-        XCTAssertEqual(done.step, .name, "an unfinished account picks up at the first question")
+        XCTAssertEqual(done.step, .profile, "an unfinished account picks up at the first question")
     }
 
     func testSignedOutTheNextAccountStartsFromTheWelcome() {
@@ -122,49 +122,86 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertFalse(next.arrivedBefore)
     }
 
-    // MARK: Name and photo (ticket 18)
+    // MARK: Profile (onboarding 35): Name and Photo became one step
 
-    func testNameNeedsAFirstNameAndJoinsTheLastOne() {
+    func testProfileIsTheFirstQuestionAndBirthdayFollowsIt() {
         let store = OnboardingStore(defaults: defaults)
-        XCTAssertNil(store.displayName)
-        store.lastName = "Lund"
-        store.firstName = "   "
-        XCTAssertNil(store.displayName, "spaces or a last name alone don't make a name")
-        store.firstName = " Avery "
-        XCTAssertEqual(store.displayName, "Avery Lund")
-        store.lastName = ""
-        XCTAssertEqual(store.displayName, "Avery")
+        store.next()
+        XCTAssertEqual(store.step, .profile)
+        XCTAssertEqual(store.barIndex, 1)
+        store.next()
+        XCTAssertEqual(store.step, .birthday, "no Photo step after it")
+        XCTAssertEqual(OnboardingStep.barTotal, 6, "the bar loses a step")
     }
 
-    func testNameAndPhotoSurviveARelaunch() {
+    func testAFlowSavedOnTheOldNameStepResumesOnProfileWithWhatWasTyped() {
+        defaults.set("name", forKey: "onboarding.step")
+        defaults.set("Avery", forKey: "onboarding.firstName")
+        defaults.set("Lund", forKey: "onboarding.lastName")
         let store = OnboardingStore(defaults: defaults)
-        store.firstName = "Avery"
-        store.lastName = "Lund"
+        XCTAssertEqual(store.step, .profile)
+        XCTAssertEqual(store.name, "Avery Lund")
+        XCTAssertEqual(store.displayName, "Avery Lund")
+    }
+
+    func testAFlowSavedOnTheOldPhotoStepResumesOnProfileWithItsPhoto() {
+        defaults.set("photo", forKey: "onboarding.step")
+        defaults.set("Avery", forKey: "onboarding.firstName")
+        defaults.set(Data([4, 2]), forKey: "onboarding.photo")
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertEqual(store.step, .profile)
+        XCTAssertEqual(store.name, "Avery")
+        XCTAssertEqual(store.photo, Data([4, 2]))
+    }
+
+    func testProfileNeedsANameAndTheBioIsOptional() {
+        let store = OnboardingStore(defaults: defaults)
+        store.next()
+        XCTAssertFalse(store.profileDone, "nothing typed")
+        store.bio = "Coffee and lakes."
+        store.photo = Data([1])
+        XCTAssertFalse(store.profileDone, "a bio and a photo don't make a name")
+        store.name = "   "
+        XCTAssertFalse(store.profileDone, "spaces aren't a name")
+        store.name = " Avery Lund "
+        XCTAssertTrue(store.profileDone)
+        XCTAssertEqual(store.displayName, "Avery Lund")
+    }
+
+    func testNameBioAndPhotoSurviveARelaunch() {
+        let store = OnboardingStore(defaults: defaults)
+        store.next()
+        store.name = "Avery Lund"
+        store.bio = "Coffee and lakes."
         store.photo = Data([1, 2, 3])
         let again = OnboardingStore(defaults: defaults)
-        XCTAssertEqual(again.displayName, "Avery Lund")
+        XCTAssertEqual(again.step, .profile)
+        XCTAssertEqual(again.name, "Avery Lund")
+        XCTAssertEqual(again.bio, "Coffee and lakes.")
         XCTAssertEqual(again.photo, Data([1, 2, 3]))
         XCTAssertTrue(again.answersPending)
     }
 
     func testAnswersSaveOnceAndWaitAfterAFailure() async {
         let store = OnboardingStore(defaults: defaults)
-        var calls: [(String?, Data?)] = []
-        await store.saveAnswers { calls.append(($0, $1)) }
+        var calls: [(String?, String?, Data?)] = []
+        await store.saveAnswers { calls.append(($0, $1, $2)) }
         XCTAssertTrue(calls.isEmpty, "nothing answered, nothing sent")
 
-        store.firstName = "Avery"
+        store.name = "Avery"
+        store.bio = "  Coffee and lakes. "
         store.photo = Data([9])
-        await store.saveAnswers { _, _ in throw URLError(.notConnectedToInternet) }
+        await store.saveAnswers { _, _, _ in throw URLError(.notConnectedToInternet) }
         XCTAssertTrue(OnboardingStore(defaults: defaults).answersPending, "a failed save keeps them waiting")
 
-        await store.saveAnswers { calls.append(($0, $1)) }
+        await store.saveAnswers { calls.append(($0, $1, $2)) }
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.0, "Avery")
-        XCTAssertEqual(calls.first?.1, Data([9]))
+        XCTAssertEqual(calls.first?.1, "Coffee and lakes.")
+        XCTAssertEqual(calls.first?.2, Data([9]))
         XCTAssertFalse(OnboardingStore(defaults: defaults).answersPending)
 
-        await store.saveAnswers { calls.append(($0, $1)) }
+        await store.saveAnswers { calls.append(($0, $1, $2)) }
         XCTAssertEqual(calls.count, 1, "saved answers aren't sent again")
     }
 
@@ -188,8 +225,8 @@ final class OnboardingStoreTests: XCTestCase {
         let store = OnboardingStore(defaults: defaults)
         store.photo = Data([7])
         var calls = 0
-        async let first: Void = store.saveAnswers { _, _ in calls += 1; try await Task.sleep(for: .milliseconds(50)) }
-        async let second: Void = store.saveAnswers { _, _ in calls += 1 }
+        async let first: Void = store.saveAnswers { _, _, _ in calls += 1; try await Task.sleep(for: .milliseconds(50)) }
+        async let second: Void = store.saveAnswers { _, _, _ in calls += 1 }
         _ = await (first, second)
         XCTAssertEqual(calls, 1)
     }
@@ -435,7 +472,7 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testRequestsWaitForTheFinishAndTheSavedName() async {
         let store = OnboardingStore(defaults: defaults)
-        store.firstName = "Avery"
+        store.name = "Avery"
         store.toggleRequest("maya")
         var sent: [String] = []
         await store.sendRequests { sent.append($0) }
@@ -443,7 +480,7 @@ final class OnboardingStoreTests: XCTestCase {
         store.finish()
         await store.sendRequests { sent.append($0) }
         XCTAssertEqual(sent, [], "not before the name is on the account")
-        await store.saveAnswers { _, _ in }
+        await store.saveAnswers { _, _, _ in }
         await store.sendRequests { sent.append($0) }
         XCTAssertEqual(sent, ["maya"])
         XCTAssertEqual(store.requests, [])
@@ -451,11 +488,11 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testNoSignalKeepsTheRequestsAndARefusalDropsThem() async {
         let store = OnboardingStore(defaults: defaults)
-        store.firstName = "Avery"
+        store.name = "Avery"
         store.toggleRequest("maya")
         store.toggleRequest("sam")
         store.finish()
-        await store.saveAnswers { _, _ in }
+        await store.saveAnswers { _, _, _ in }
         await store.sendRequests { _ in throw URLError(.notConnectedToInternet) }
         XCTAssertEqual(OnboardingStore(defaults: defaults).requests, ["maya", "sam"], "kept for the next launch")
         await store.sendRequests { id in

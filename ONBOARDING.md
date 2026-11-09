@@ -8,8 +8,9 @@ changing any first-run screen.
 Built and on (BP app onboarding tickets 16 to 24, 2026-10-30): `Features/Onboarding/
 OnboardingFlow.swift` holds the steps, the saved place (`OnboardingStore`) and the Welcome;
 `OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar;
-`OnboardingDone.swift` the Done island. Seven question steps: Phone and its texted code come
-back with phone sign-in (ticket 17). A first launch shows it; an install that opened the tabs
+`OnboardingDone.swift` the Done island. Six question steps: Phone and its texted code come
+back with phone sign-in (ticket 17), and Name and Photo are one Profile step, Luma's profile screen
+(`OnboardingProfile.swift`, ticket 35). A first launch shows it; an install that opened the tabs
 before it was on never does. DEBUG `-skip-onboarding` (eyes.py adds it) and `-ui-tests` skip it,
 and `-onboarding` shows it anyway. Finishing stamps `town_profiles.onboarded_at` with the
 birthday and interests before the Town feed's first read, and a stamp already on the server

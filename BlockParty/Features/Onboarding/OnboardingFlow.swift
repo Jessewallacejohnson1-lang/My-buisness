@@ -2,7 +2,7 @@
 //  OnboardingFlow.swift
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
 //  Welcome (Nextdoor's layout, ticket 25 mock), Log in or Create account (onboarding 27), then
-//  seven question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
+//  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
 //  back and the progress line on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
 //  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
@@ -11,18 +11,18 @@
 import Contacts
 import SwiftUI
 
-/// The flow's steps in order. The bar counts the seven after the Welcome. Phone and its texted code
+/// The flow's steps in order. The bar counts the six after the Welcome. Phone and its texted code
 /// (SPEC steps 2 and 3) come back with phone sign-in (onboarding 17): empty, they stay out (Jesse, 24).
+/// Name and Photo became the one Profile step (onboarding 35, mock v8).
 enum OnboardingStep: Int, CaseIterable {
-    case welcome, name, photo, birthday, interests, follow, friends, contacts
+    case welcome, profile, birthday, interests, follow, friends, contacts
 
     static let barTotal = allCases.count - 1
 
     var question: String {
         switch self {
         case .welcome:   "Love where\nyou live."
-        case .name:      "What's your name?"
-        case .photo:     "Add a profile picture"
+        case .profile:   "Your Profile"
         case .birthday:  "When's your birthday?"
         case .interests: "What do you love doing?"
         case .follow:    "Follow 3 places"
@@ -35,8 +35,7 @@ enum OnboardingStep: Int, CaseIterable {
     var symbol: String {
         switch self {
         case .welcome:   "house"
-        case .name:      "person"
-        case .photo:     "camera"
+        case .profile:   "person"
         case .birthday:  "birthday.cake"
         case .interests: "heart"
         case .follow:    "mappin.and.ellipse"
@@ -47,11 +46,7 @@ enum OnboardingStep: Int, CaseIterable {
 
     /// The link in the slot under the Next bar, where the step has one.
     var slot: String? {
-        switch self {
-        case .photo:   "Skip"
-        case .friends: "Not now"
-        default:       nil
-        }
+        self == .friends ? "Not now" : nil
     }
 }
 
@@ -86,10 +81,10 @@ final class OnboardingStore {
     /// opens on the Welcome.
     private(set) var account: OnboardingAccount?
 
-    /// Name and Photo's answers (ticket 18), kept on the phone until they reach
-    /// `town_profiles` (`saveAnswers`).
-    var firstName: String { didSet { keep(firstName, Self.firstKey) } }
-    var lastName: String { didSet { keep(lastName, Self.lastKey) } }
+    /// Profile's answers (tickets 18 and 35), kept on the phone until they reach `town_profiles`
+    /// (`saveAnswers`): the one Name box, which is the display name, and the bio.
+    var name: String { didSet { keep(name, Self.nameKey) } }
+    var bio: String { didSet { keep(bio, Self.bioKey) } }
     /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
     var photo: Data? { didSet { keep(photo, Self.photoKey) } }
     /// Interests' picks (ticket 20), in the order made. Kept on the phone until the flow is done,
@@ -117,6 +112,9 @@ final class OnboardingStore {
     private let defaults: UserDefaults
     private static let stepKey = "onboarding.step"
     private static let finishedKey = "onboarding.finished"
+    private static let nameKey = "onboarding.name"
+    private static let bioKey = "onboarding.bio"
+    /// The first and last name boxes before Profile (onboarding 35): read once, to resume on them.
     private static let firstKey = "onboarding.firstName"
     private static let lastKey = "onboarding.lastName"
     private static let photoKey = "onboarding.photo"
@@ -130,16 +128,19 @@ final class OnboardingStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        // Saved by name, so a step added or moved later still resumes on the right one.
-        let saved = defaults.string(forKey: Self.stepKey)
+        // Saved by name, so a step added or moved later still resumes on the right one. Someone
+        // saved on the old Name or Photo step comes back to Profile, which took both (onboarding 35).
+        let saved = defaults.string(forKey: Self.stepKey).map { ["name", "photo"].contains($0) ? "profile" : $0 }
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         // An install that opened the tabs before onboarding was switched on (the hello pill's last
         // look) is already in: it never gets the flow (onboarding 24). DEBUG `-onboarding` shows it anyway.
         let before = !defaults.bool(forKey: Self.finishedKey)
             && defaults.double(forKey: HelloDrop.lastSeenKey) > 0 && !LaunchFlags.has(.onboarding)
         finished = defaults.bool(forKey: Self.finishedKey) || before
-        firstName = defaults.string(forKey: Self.firstKey) ?? ""
-        lastName = defaults.string(forKey: Self.lastKey) ?? ""
+        name = defaults.string(forKey: Self.nameKey)
+            ?? [Self.firstKey, Self.lastKey].compactMap { defaults.string(forKey: $0)?.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }.joined(separator: " ")
+        bio = defaults.string(forKey: Self.bioKey) ?? ""
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
@@ -189,22 +190,26 @@ final class OnboardingStore {
     /// 1 to 7 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
 
-    /// "Avery Lund", or "Avery" alone; nil before a first name is typed.
-    var displayName: String? {
-        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !first.isEmpty else { return nil }
-        return last.isEmpty ? first : "\(first) \(last)"
+    /// The Name box as typed, trimmed; nil while it holds nothing but spaces.
+    var displayName: String? { Self.trimmed(name) }
+
+    /// Profile may go on (Save Profile): it needs a name; the photo and bio are optional.
+    var profileDone: Bool { displayName != nil }
+
+    private static func trimmed(_ text: String) -> String? {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? nil : words
     }
 
-    /// Hands the name and photo to `write` (the account's `town_profiles` row) when either
+    /// Hands the name, bio and photo to `write` (the account's `town_profiles` row) when any
     /// changed since it last succeeded. A failure, or no account yet, keeps them waiting on
     /// the phone for the next try.
-    func saveAnswers(_ write: (_ name: String?, _ photo: Data?) async throws -> Void) async {
-        guard answersPending, !saving, displayName != nil || photo != nil else { return }
+    func saveAnswers(_ write: (_ name: String?, _ bio: String?, _ photo: Data?) async throws -> Void) async {
+        let bio = Self.trimmed(bio)
+        guard answersPending, !saving, displayName != nil || bio != nil || photo != nil else { return }
         saving = true
         defer { saving = false }
-        do { try await write(displayName, photo) } catch { return }
+        do { try await write(displayName, bio, photo) } catch { return }
         answersPending = false
         defaults.set(false, forKey: Self.pendingKey)
     }
@@ -220,7 +225,7 @@ final class OnboardingStore {
 
     func back() {
         // The account is made before the first question: Back there would make a second one.
-        guard step != .name, let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
+        guard step != .profile, let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
         move(to: before, forward: false)
     }
 
@@ -251,8 +256,8 @@ final class OnboardingStore {
     /// the beginning. Every answer is dropped, then every `onboarding.` key the device kept, and the
     /// tabs' last look, so the next account isn't taken for an install from before onboarding.
     func reset() {
-        firstName = ""
-        lastName = ""
+        name = ""
+        bio = ""
         photo = nil
         birthday = nil
         gender = nil
@@ -421,9 +426,9 @@ struct OnboardingFlow: View {
             HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
                 OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
-                    .opacity(store.step == .name ? 0 : 1)
+                    .opacity(store.step == .profile ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
-                    .disabled(store.step == .name || form.busy)
+                    .disabled(store.step == .profile || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
                     .opacity(store.account == nil ? 1 : 0)
             }
@@ -478,7 +483,10 @@ struct OnboardingFlow: View {
 
     private var question: some View {
         Group {
-            if store.step == .follow {
+            if store.step == .profile && store.account == nil {
+                // Luma's profile screen whole (onboarding 35): its own band, photo and title, no icon circle.
+                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
+            } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
                                      schoolsFirst: store.schoolsOpened, follows: store.follows,
@@ -569,14 +577,6 @@ struct OnboardingFlow: View {
 
     @ViewBuilder private var stepAnswer: some View {
         switch store.step {
-        case .name:
-            OnboardingNameFields(store: store, done: go { [store] in store.next() })
-        case .photo:
-            Text("So friends know it's you.")
-                .font(.apple(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, 6)
-            OnboardingPhotoCircle(store: store)
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 24)
@@ -596,7 +596,7 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, action: nextAction)
+                              busy: form.busy, refused: form.refusals, profile: onProfile, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
@@ -607,11 +607,11 @@ struct OnboardingFlow: View {
         .padding(.bottom, keyboardUp ? 12 : 0)
     }
 
-    /// Skip on Photo, Not now on Find your friends (which skips Contacts too), else empty.
+    /// Not now on Find your friends (which skips Contacts too), else empty.
     @ViewBuilder private var slot: some View {
         if store.account == nil, let title = store.step.slot {
             OnboardingLink(title: title, action: go { [store] in
-                if store.step == .friends { store.skipFriends() } else { store.next() }
+                store.skipFriends()
             })
         } else {
             Color.clear
@@ -621,6 +621,7 @@ struct OnboardingFlow: View {
     /// "Pick 2 more" until step 7 has its 3, "Follow 2 more" until step 8 has.
     private var nextTitle: String {
         if let way = store.account { return way.button }
+        if store.step == .profile { return "Save Profile" }
         if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         return "Next"
@@ -651,7 +652,7 @@ struct OnboardingFlow: View {
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
-    /// Name waits for a first name, Photo for a photo (Skip moves on without one).
+    /// Profile waits for a name; its photo and bio are optional (onboarding 35).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
@@ -659,14 +660,16 @@ struct OnboardingFlow: View {
         #endif
         if store.account != nil { return form.canSubmit }
         switch store.step {
-        case .name:  return store.displayName != nil
-        case .photo: return store.photo != nil
+        case .profile: return store.profileDone
         case .birthday: return store.birthday != nil
         case .interests: return picksMade >= 3
         case .follow: return followsNeeded == 0
         default:     return true
         }
     }
+
+    /// Profile is up, so the pill is Luma's Save Profile (onboarding 35).
+    private var onProfile: Bool { store.step == .profile && store.account == nil }
 
     /// The Welcome, alone: nothing past it is up yet.
     private var onWelcome: Bool { store.step == .welcome && store.account == nil }
