@@ -237,6 +237,19 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(again.step, .birthday)
     }
 
+    func testGenderSurvivesRelaunchAndGoesOnClose() {
+        // Onboarding 31: the Birthday step's optional pick is kept on the phone as the birthday is.
+        let store = onBirthday()
+        store.gender = "female"
+        XCTAssertEqual(OnboardingStore(defaults: defaults).gender, "female")
+        store.gender = nil   // a second tap on the picked one
+        XCTAssertNil(OnboardingStore(defaults: defaults).gender)
+        store.gender = "male"
+        store.reset()
+        XCTAssertNil(store.gender)
+        XCTAssertNil(OnboardingStore(defaults: defaults).gender)
+    }
+
     func testCloseClearsEverythingTheDeviceKeptAndStartsOver() {
         let store = onBirthday()
         store.interests = ["coffee", "campus", "faith"]   // picked, then back to the birthday

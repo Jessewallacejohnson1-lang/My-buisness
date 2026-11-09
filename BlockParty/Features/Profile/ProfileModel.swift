@@ -256,12 +256,13 @@ final class ProfileModel {
     /// for its own answers again.
     func forgetOnboarding() { answersLanded = false }
 
-    /// The onboarded stamp with the birthday and the picks. On the account, the birthday leaves the
-    /// phone, so another account signing in here later can't take it.
+    /// The onboarded stamp with the birthday, the gender and the picks. On the account, the birthday
+    /// and gender leave the phone, so another account signing in here later can't take them.
     private func stamp(_ onboarding: OnboardingStore) async {
         let interests = onboarding.interests
         turn += 1
-        guard (try? await profiles.markOnboarded(birthday: onboarding.birthday, interests: interests)) != nil else { return }
+        guard (try? await profiles.markOnboarded(birthday: onboarding.birthday, gender: onboarding.gender,
+                                                      interests: interests)) != nil else { return }
         turn += 1   // and a read sent while it was out
         onboardedAt = DateHelpers.timestampString(Date())
         sinceLabel = ProfileModel.since(from: onboardedAt)
@@ -270,6 +271,7 @@ final class ProfileModel {
             keep()
         }
         onboarding.birthday = nil
+        onboarding.gender = nil
         if !onboarding.finishedHere || answersLanded { lateLandings += 1 }
     }
 

@@ -365,7 +365,8 @@ private struct InterestChip: View {
     }
 }
 
-private struct InterestChipStyle: ButtonStyle {
+/// The chips' raised edge, ink once on; the Birthday step's gender pills wear it too (onboarding 31).
+struct InterestChipStyle: ButtonStyle {
     let on: Bool
     /// A kind of school whose schools are showing: the app's light fill, not white.
     var opened = false
