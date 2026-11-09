@@ -203,6 +203,7 @@ test("team logos: a new team's logo and colors", async () => {
     where id = $1 and logo_url is null`, ['mankato-east', 'https://x/logo.png', '#F2B417', ['#F2B417', '#000000']]);
   assert.deepEqual(await asJob('read back', `select logo_url, colors from public.teams where id = 'mankato-east'`),
     [{ logo_url: 'https://x/logo.png', colors: ['#F2B417', '#000000'] }]);
+  await asJob('team logos: the ones taken down before', 'select id, name, logo_refused from public.teams where logo_url is null');
 });
 
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
@@ -223,6 +224,7 @@ test('the Watch key is refused: deleting an Event, the waitlist, sign-in account
   await refused('see who is Going', 'select user_id from public.event_rsvps');
   await refused('rename a Place', `update public.places set name = 'x'`);
   await refused('rename a team', `update public.teams set name = 'x'`);
+  await refused('put back a logo taken down', `update public.teams set logo_refused = '{}'`);
   await refused("change a Place's Apple Maps id", `update public.places set apple_place_id = 'x'`);
   await refused('take a place photo down', `update public.place_photos set status = 'retired'`);
   await refused("decide a take-down (Jesse's Keep)", 'update public.photo_takedowns set kept_at = now()');

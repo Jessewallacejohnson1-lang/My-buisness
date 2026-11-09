@@ -41,7 +41,7 @@ WIKI = "https://en.wikipedia.org/w/api.php"
 WIKI_GAP = 4   # Wikipedia answered 429 after five quick lookups (find_wiki.py, 2026-10-20)
 WIKI_LOGO = re.compile(r"logo|mascot|athletic|wordmark|emblem", re.I)
 # Words a school's name carries beside its own: "Becker High School" names Becker.
-GENERIC = {"high", "school", "schools", "secondary", "senior", "junior", "hs", "sr", "jr", "area", "public", "community",
+GENERIC = {"high", "school", "schools", "secondary", "university", "college", "senior", "junior", "hs", "sr", "jr", "area", "public", "community",
            "the", "of", "and"}
 
 
@@ -71,7 +71,8 @@ def first_school(name):
 def todo(db, today, most=MAX):
     """The teams with no logo and a game waiting, rotated by the day; each with its waiting games' sports."""
     games = db.rest("GET", "club_events?select=team_ids,sport&status=eq.waiting_logo&kind=eq.event&cancelled_at=is.null") or []
-    bare = {t["id"]: t["name"] for t in db.rest("GET", "teams?select=id,name&logo_url=is.null") or []}
+    rows = db.rest("GET", "teams?select=id,name,logo_refused&logo_url=is.null") or []
+    bare, refused = {t["id"]: t["name"] for t in rows}, {t["id"]: t.get("logo_refused") or [] for t in rows}
     sports = {}
     for g in games:
         for t in g.get("team_ids") or []:
@@ -80,7 +81,8 @@ def todo(db, today, most=MAX):
     ids = sorted(sports)
     start = today.toordinal() % len(ids) if ids else 0
     picked = (ids[start:] + ids[:start])[:most]
-    return [{"id": t, "name": bare[t], "sports": [s for s, _ in sports[t].most_common() if s]} for t in picked], len(ids) - len(picked)
+    return [{"id": t, "name": bare[t], "refused": refused[t], "sports": [s for s, _ in sports[t].most_common() if s]}
+            for t in picked], len(ids) - len(picked)
 
 
 # --- Where each logo is ---------------------------------------------------------------------------------------------
@@ -244,6 +246,8 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, gra
     from PIL import Image
     import place_photos
     grab = grab or place_photos.download
+    for name in READINGS:  # an earlier prepare's answers: its keys were other teams'
+        (folder.parent / name).unlink(missing_ok=True)
     if folder.exists():
         for f in folder.iterdir():
             f.unlink()
@@ -258,6 +262,9 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, gra
             continue
         if not p:
             missed.append({**t, "why": "no school page names it (league or Wikipedia)"})
+            continue
+        if p["logo"] and p["logo"] in t.get("refused", []):  # taken down before: never put back on its own
+            missed.append({**t, "why": f"{p['title']}'s page shows the logo taken down before"})
             continue
         if not p["logo"]:
             missed.append({**t, "why": f"{p['title']}'s page has no logo"})
@@ -277,8 +284,9 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, gra
                       "logo_url": p["logo"], "source": p["source"], "hex": colors(im)})
     if found:
         sheet(found, folder)
-    (folder / "found.json").write_text(json.dumps({"today": str(today), "teams": found, "missed": missed, "later": later},
+    (folder / "found.json.new").write_text(json.dumps({"today": str(today), "teams": found, "missed": missed, "later": later},
                                                   indent=1, ensure_ascii=False))
+    (folder / "found.json.new").replace(folder / "found.json")  # whole or not at all
     print(f"[logos] {len(found)} logos to check, {len(missed)} teams not found, {later} for another morning"
           + (f" ({folder / 'batch.txt'})" if found else ""))
     return found
@@ -297,14 +305,29 @@ def answers_in(text):
             a = json.loads(ln.strip().strip(","))
         except ValueError:
             continue
-        if isinstance(a, dict) and a.get("team"):
+        if isinstance(a, dict) and isinstance(a.get("team"), str):
             out[a["team"]] = a
     return out
 
 
 def keep(run_, dry_run=False):
     """Each logo with both yeses goes live; every team looked up today is one report line. Kept as the step's lines,
-    so a finish run again neither writes nor reports twice."""
+    so a finish run again neither writes nor reports twice. Anything that breaks is one line: finish catches only a
+    database error, and a lost morning report costs more than a logo a day late."""
+    try:
+        return kept_lines(run_, dry_run)
+    except Exception as e:
+        return [f"[morning] team logos failed: {' '.join(str(e).split())[:200]}"]
+
+
+def take_down(t):
+    """The migration line that takes a logo down and keeps it down: the morning never puts back a logo refused."""
+    q = lambda v: "'" + str(v).replace("'", "''") + "'"
+    return (f"update public.teams set logo_url = null, color = null, colors = null, logo_refused = "
+            f"array_append(logo_refused, {q(t['logo_url'])}) where id = {q(t['id'])};")
+
+
+def kept_lines(run_, dry_run):
     folder = run_.folder / "logos"
     if not (folder / "found.json").exists():
         return []
@@ -333,15 +356,17 @@ def keep(run_, dry_run=False):
                     if "Duplicate" not in str(e.body) and "already exists" not in str(e.body):
                         raise
                 url = f"{run_.db.url}/storage/v1/object/public/{path}"
-                run_.db.rest("PATCH", f"teams?id=eq.{urllib.parse.quote(t['id'])}&logo_url=is.null",
-                             {"logo_url": url, "color": t["hex"][0] if t["hex"] else None, "colors": t["hex"] or None},
-                             prefer="return=minimal")
+                took = run_.db.rest("PATCH", f"teams?id=eq.{urllib.parse.quote(t['id'])}&logo_url=is.null&select=id",
+                                    {"logo_url": url, "color": t["hex"][0] if t["hex"] else None,
+                                     "colors": t["hex"] or None}, prefer="return=representation")
+                if not took:  # it got a logo another way since prepare: that one stays
+                    lines.append(f"- Logo already there: {t['name']} has one now, so the one found was left out")
+                    continue
         except DbError as e:
             lines.append(f"[morning] team logo for {t['name']} failed: {' '.join(str(e).split())[:200]}")
             continue
         lines.append(f"- Logo live: {t['name']}, {whose} from {t['source']} ({t['page']}); its page names it and both readings "
-                     f"said yes. Wrong? Take it down with a migration: update public.teams set logo_url = null, color = null, "
-                     f"colors = null where id = '{t['id']}';" + (" (dry run: nothing written)" if dry_run else ""))
+                     f"said yes. Wrong? Take it down with a migration: {take_down(t)}" + (" (dry run: nothing written)" if dry_run else ""))
     lines += [f"- Still waiting on a logo: {m['name']}: {m['why']}" for m in found["missed"]]
     if found.get("later"):
         lines.append(f"- Still waiting on a logo: {found['later']} more teams, looked up on another morning")
@@ -375,7 +400,7 @@ def selftest():
         "teams?": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}, {"id": "d", "name": "D"}]})
     got, later = todo(db, date.fromordinal(5), most=2)
     ok([t["id"] for t in got] == ["b", "c"] and later == 2, "the day picks where the rotation starts")
-    ok(todo(db, date.fromordinal(4))[0][0] == {"id": "a", "name": "A", "sports": ["Girls Hockey"]},
+    ok(todo(db, date.fromordinal(4))[0][0] == {"id": "a", "name": "A", "refused": [], "sports": ["Girls Hockey"]},
        "a team's sports are its waiting games', level aside")
 
     search = ('<form id="views-exposed-form-schools-list"></form><ul><li><a href="/schools/becker-high-school">'
@@ -419,20 +444,27 @@ def selftest():
 
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp) / "morning"
-        db = FakeDb(answers={"club_events?": [{"team_ids": ["becker-big-lake", "a"], "sport": "Boys Hockey"},
-                                              {"team_ids": ["nwc", "a"], "sport": "Girls Hockey"},
-                                              {"team_ids": ["shanley", "a"], "sport": "Girls Basketball"}],
+        teams = ["becker-big-lake", "nwc", "shanley", "elk", "lp"]
+        db = FakeDb(answers={"club_events?": [{"team_ids": [t, "a"], "sport": "Boys Hockey"} for t in teams],
+                             # the PATCH answers the row it changed: "lp" got a logo another way since prepare
+                             "teams?id=eq.": lambda m, path, body: [] if "eq.lp" in path else [{"id": "x"}],
                              "teams?": [{"id": "becker-big-lake", "name": "Becker-Big Lake"}, {"id": "nwc", "name": "North Wright County"},
-                                        {"id": "shanley", "name": "Shanley"}]})
+                                        {"id": "shanley", "name": "Shanley"},
+                                        {"id": "elk", "name": "Elk River-Zimmerman", "logo_refused": [p["logo"]]},
+                                        {"id": "lp", "name": "Long Prairie"}]})
         db.url = "https://db.example"
+        (folder).mkdir()
+        (folder / "logos-2.jsonl").write_text('{"team": "t1", "answer": "yes"}\n')  # an earlier prepare's
         db.storage_put = lambda path, data, kind: db.calls.append(("PUT", path, kind))
         pages = {"Becker-Big Lake": dict(p, page="https://www.mshsl.org/schools/becker-high-school"), "Shanley": None,
-                 "North Wright County": None}
+                 "North Wright County": None, "Elk River-Zimmerman": dict(p, page="e"),
+                 "Long Prairie": dict(p, page="l", logo="https://x/lp.png")}
         found = prepare(folder / "logos", db, date(2026, 11, 10), league=lambda t: pages[t["name"]],
                         wikipedia=lambda t: w if t["name"] == "Shanley" else None,
                         grab=lambda url, dest: red.save(dest))
         batch = (folder / "logos" / "batch.txt").read_text().splitlines()
-        ok(len(found) == 2 and (folder / "logos" / "sheet.png").exists() and len(batch) == 4
+        ok(not (folder / "logos-2.jsonl").exists(), "an earlier prepare's answers go: their keys were other teams'")
+        ok(len(found) == 3 and (folder / "logos" / "sheet.png").exists() and len(batch) == 5
            and next(json.loads(b) for b in batch[2:] if "Becker" in b)["co_op"].startswith("Becker-Big Lake plays as one team"),
            "the found logos go on one sheet, a co-op's line saying whose logo it is")
         key = {t["name"]: t["key"] for t in found}
@@ -440,24 +472,38 @@ def selftest():
                                             f'prose\n{{"team": "{key["Shanley"]}", "answer": "yes", "why": "an S"}}\n')
         (folder / "logos-2.jsonl").write_text(f'{{"team": "{key["Becker-Big Lake"]}", "answer": "yes", "why": "a bulldog"}}\n'
                                               f'{{"team": "{key["Shanley"]}", "answer": "unsure", "why": "no name on it"}}\n')
+        for f in ("logos.jsonl", "logos-2.jsonl"):
+            with open(folder / f, "a") as out:
+                out.write(f'{{"team": "{key["Long Prairie"]}", "answer": "yes"}}\n{{"team": ["t9"], "answer": "yes"}}\n')
         r = Run(folder, date(2026, 11, 10), db)
         lines = keep(r)
         puts = [c for c in db.calls if c[0] == "PUT"]
         patch = [c for c in db.calls if c[0] == "PATCH"]
-        ok(len(puts) == 1 and puts[0][1].startswith("places/teams/becker-big-lake/logo-") and len(patch) == 1
-           and patch[0][1] == "teams?id=eq.becker-big-lake&logo_url=is.null"
+        patch = [c for c in patch if "becker" in c[1]]
+        ok(len(puts) == 2 and puts[0][1].startswith("places/teams/becker-big-lake/logo-") and len(patch) == 1
+           and patch[0][1] == "teams?id=eq.becker-big-lake&logo_url=is.null&select=id"
            and patch[0][2]["logo_url"] == "https://db.example/storage/v1/object/public/" + puts[0][1]
            and patch[0][2]["colors"][0] == patch[0][2]["color"], "two yeses: the logo is saved once and the team takes it")
         lines = order(lines)
         ok(lines[0].startswith("- Logo live: Becker-Big Lake, Becker High School's, as its first school")
-           and "where id = 'becker-big-lake'" in lines[0], "the report says whose logo it is and how to take it down")
+           and f"logo_refused = array_append(logo_refused, '{p['logo']}') where id = 'becker-big-lake';" in lines[0],
+           "the report says whose logo it is and how to take it down for good")
+        ok("- Logo already there: Long Prairie has one now, so the one found was left out" in lines,
+           "a team that got a logo another way since prepare keeps it, and the report doesn't call the found one live")
+        ok("- Still waiting on a logo: Elk River-Zimmerman: Becker High School's page shows the logo taken down before" in lines,
+           "a logo taken down is never put back")
         ok(lines[1] == "- Still waiting on a logo: Shanley: Shanley High School from Wikipedia, the check said unsure: no name on it",
            "anything but two yeses waits, and says why")
-        ok(lines[2] == "- Still waiting on a logo: North Wright County: no school page names it (league or Wikipedia)",
+        ok("- Still waiting on a logo: North Wright County: no school page names it (league or Wikipedia)" in lines,
            "a team not found says so")
         n = len(db.calls)
         ok(order(keep(r)) == lines and len(db.calls) == n, "a finish run again neither writes nor reports twice")
         ok(keep(Run(Path(tmp) / "none", date(2026, 11, 10), db)) == [], "no logos looked up: no lines")
+        broken = Run(Path(tmp) / "broken", date(2026, 11, 10), db)
+        (broken.folder / "logos").mkdir(parents=True)
+        (broken.folder / "logos" / "found.json").write_text('{"teams": [{"key"')
+        ok(keep(broken)[0].startswith("[morning] team logos failed:"), "a step that breaks is a line, never a lost report")
+    ok(names("St. Cloud State University", "St. Cloud State"), "a college's article names it")
 
     failed = [why for good, why in checks if not good]
     for why in failed:
