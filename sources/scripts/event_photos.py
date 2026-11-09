@@ -637,14 +637,15 @@ def free_round(folder):
 # A title the free rungs left bare, whose place has a Facebook or Instagram page on the town's list
 # (sources/social/<town>.json), gets that place's posts of the last year read through the dig's own Apify tasks: the
 # place's own pictures of its own people (Jesse, 2026-11-07: "thats were the accuracy is"). Last, since it alone costs
-# money: at most 10¢ a place and $5 a calendar month (dig-deeper 07); at the limit the rest stay with the free rungs.
+# money: at most 10¢ a place and $5 in Apify's month (dig-deeper 07); at the limit the rest stay with the free rungs.
 
 POSTS_ACTORS = {"facebook": "apify~facebook-posts-scraper", "instagram": "apify~instagram-post-scraper"}
 POSTS_SHARE = {"facebook": 0.06, "instagram": 0.04}  # a place's 10¢: a Facebook post costs about 0.4¢, an Instagram
                                                        # one 0.2¢ (dig-deeper 16's runs)
 PER_PLACE = sum(POSTS_SHARE.values())
 POSTS_READ = 12             # posts read on one page, inside its share
-POSTS_MONTH = 5.0           # the dig's Apify dollars in a calendar month
+POSTS_MONTH = 5.0           # the dig's Apify dollars in Apify's month, the 21st to the 20th
+FIRST_CYCLE = datetime(2026, 11, 21, tzinfo=timezone.utc)  # the first Apify month the dig may spend in
 POLL = 15                   # seconds between looks at a run still going
 TITLE_WORD = re.compile(r"[a-z]{4,}")
 COMMON = {"with", "from", "your", "this", "that", "night", "class", "event", "minutes", "free", "join", "come", "open"}
@@ -676,8 +677,13 @@ def posts_pages(groups, listed):
 
 
 def dig_spend(now):
-    """What the dig's own Apify tasks (bp-dig-*) spent this calendar month, Chicago time; never the social watch's."""
-    start = now.astimezone(LOCAL).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    """What the dig's own Apify tasks (bp-dig-*) spent in Apify's own month (the 21st to the 20th), never the social
+    watch's. Before FIRST_CYCLE, the whole $5 as if spent: the account's cap was set before the dig existed
+    (Jesse, 2026-11-09), so the dig stays on its free rungs until Apify's month resets."""
+    start = datetime.fromisoformat(social.api("GET", "/users/me/limits")["data"]["monthlyUsageCycle"]["startAt"]
+                                   .replace("Z", "+00:00"))
+    if start < FIRST_CYCLE:
+        return POSTS_MONTH
     total = 0.0
     for name, t in social.by_name("/actor-tasks").items():
         if name.startswith("bp-dig-"):
@@ -1282,16 +1288,18 @@ def selftest():
               and about_it("Liver Fry", "Burger special") == 0, "a post that says the title's words is about it")
 
         class Apify:  # the dig's Apify: one Facebook task already there, $1 spent this month before
-            def __init__(self, spent=1.0):
-                self.calls, self.spent, self.looks = [], spent, 0
+            def __init__(self, spent=1.0, cycle="2026-11-21T00:00:00.000Z"):
+                self.calls, self.spent, self.cycle, self.looks = [], spent, cycle, 0
 
             def api(self, method, path, body=None):
                 self.calls.append((method, path, body))
+                if path == "/users/me/limits":
+                    return {"data": {"monthlyUsageCycle": {"startAt": self.cycle}}}
                 if path.startswith("/actor-tasks?"):
                     return {"data": {"items": [{"name": "bp-dig-facebook", "id": "tf"}, {"name": "bp-busy-facebook", "id": "tb"}]}}
                 if path.startswith("/actor-tasks/tf/runs?desc"):
-                    return {"data": {"items": [{"startedAt": "2026-11-02T12:00:00Z", "usageTotalUsd": self.spent},
-                                               {"startedAt": "2026-10-30T12:00:00Z", "usageTotalUsd": 3.0}]}}
+                    return {"data": {"items": [{"startedAt": "2026-11-22T12:00:00Z", "usageTotalUsd": self.spent},
+                                               {"startedAt": "2026-11-20T12:00:00Z", "usageTotalUsd": 3.0}]}}
                 if path.startswith("/actor-tasks/tb"):
                     raise AssertionError("the social watch's own runs are never the dig's spend")
                 if path == "/actor-tasks":
@@ -1386,6 +1394,10 @@ def selftest():
         social.api, social.items = broke.api, broke.items
         try:
             none = dig_posts(out, now=now, grab=grab3, listed=listed, wait=0)
+            held = Apify(spent=0, cycle="2026-10-21T00:00:00.000Z")
+            social.api = held.api
+            check(dig_spend(now) == POSTS_MONTH and not any("/actor-tasks" in p for m, p, b in held.calls),
+                  "in Apify's month before the dig's first, it spends nothing")
         finally:
             social.api, social.items = real
         fake = place_photos.Unsent("https://db.example")
