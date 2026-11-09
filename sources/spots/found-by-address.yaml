@@ -1,0 +1,87 @@
+# Map spots found by street address (BP app inside-cards 20, Jesse's idea 2026-11-09): an away or
+# unlisted venue's address was copied from a page that names it, found a second time by a separate search
+# that did not see the first answer (same address, or two points within 300 m, or one campus), then turned into a
+# point by the US Census geocoder (public domain). Each line says the address, whether it is the venue's or its
+# school's, and the page. Same rules as st-joseph-mn.yaml: a line is matched whole, from any host.
+
+"Alexandria Area High School AAHS": [45.85259, -95.35733]  # 4300 Pioneer Rd Se, Alexandria, MN, 56308 (school): https://aahs.alexschools.org/contactus
+"Arrow Health, Sauk Centre": [45.73432, -94.95181]  # 519 Main St S, Sauk Centre, MN, 56378 (venue): https://www.arrowhealthmn.com/
+"Bemidji Community Arena": [47.46854, -94.92529]  # 3000 Division St W, Bemidji, MN, 56601 (venue): https://www.bemidjicommunityarena.com/
+"Benson High School": [45.31872, -95.59801]  # 1400 Montana Ave, Benson, MN, 56215 (school): https://benson.k12.mn.us/registration-and-enrollment
+"Big Lake High School Main Gym": [45.33606, -93.73972]  # 501 Minnesota Ave E, Big Lake, MN, 55309 (school): https://blhs.biglakeschools.org/site-map
+"Big Lake High School Main Gym, Center Court Main Gym": [45.33606, -93.73972]  # 501 Minnesota Ave E, Big Lake, MN, 55309 (school): https://blhs.biglakeschools.org/
+"Breezy Point Ice Arena": [46.6004, -94.24792]  # 7370 Co Rd 11, Breezy Point, MN, 56472 (venue): https://www.mnhockeycamps.com/
+"Brooklyn Park Community Center": [45.10894, -93.35151]  # 5600 85Th Ave N, Brooklyn Park, MN, 55443 (venue): https://www.brooklynpark.org/venue/community-activity-center/
+"Buffalo Lake-Hector-Stewart High School": [44.74384, -94.71836]  # 220 3Rd St W, Hector, MN, 55342 (school): https://www.blhsd.org/
+"Camp Ripley": [46.07523, -94.34784]  # 15000 State Hwy 115, Little Falls, MN, 56345 (venue): https://mn.gov/mnng/contact-us/
+"Champlin Ice Forum": [45.17441, -93.39527]  # 12165 Ensign Ave N, Champlin, MN, 55316 (venue): https://www.champlinmn.gov/Facilities/Facility/Details/Champlin-Ice-Forum-36
+"Cold Spring Elementary CSE Gym": [45.46301, -94.42634]  # 601 Red River Ave N, Cold Spring, MN, 56320 (school): https://www.rocori.k12.mn.us/cold-spring-elementary-home/about
+"Dassel-Cokato High School East Gym": [45.08255, -94.23634]  # 4852 Reardon Ave Sw, Cokato, MN, 55321 (school): https://www.isd466.org/Page/70
+"Dassel-Cokato REC Center": [45.08255, -94.23634]  # 4852 Reardon Ave Sw, Cokato, MN, 55321 (venue): https://www.isd466.org/departments/buildings-and-grounds/rec-center
+"Dodge County Ice Arena": [44.03942, -92.74815]  # 100 11Th St Ne, Kasson, MN, 55944 (venue): https://dodgecountymn.gov/services/
+"East Grand Forks Civic Center": [47.94007, -97.01594]  # 300 15Th St Ne, East Grand Forks, MN, 56721 (venue): https://www.eastgrandforks.gov/305/Civic-Center
+"Esko High School": [46.70684, -92.34978]  # 2 E State Rte 61, Esko, MN, 55733 (school): https://www.esko.k12.mn.us/new_families/esko_high_school
+"Fergus Falls High School Gold Gym": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://www.mshsl.org/schools/fergus-falls-high-school
+"Fergus Falls High School Gold Gym Main Gym": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://counseling.fergusotters.org/high-school-profile
+"Fergus Falls High School Gold Gym Main gym": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://sites.google.com/fergusotters.org/counseling/high-school-profile
+"Fergus Falls High School Gold Gym Silver Court": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://www.mshsl.org/schools/fergus-falls-high-school
+"Fergus Falls High School Maroon Gym": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://counseling.fergusotters.org/high-school-profile
+"Fergus Falls High School Pool": [46.2895, -96.06493]  # 601 Randolph Ave, Fergus Falls, MN, 56537 (school): https://visitfergusfalls.com/sports/sport-facilities/
+"Fergus Falls Ice Arena": [46.28601, -96.0692]  # 340 Friberg Ave, Fergus Falls, MN, 56537 (venue): https://www.fergusfallsmn.gov/arena
+"Fergus Falls Roosevelt Gym": [46.28601, -96.0692]  # 340 Friberg Ave, Fergus Falls, MN, 56537 (venue): https://visitfergusfalls.com/sports/sport-facilities/
+"Foley Elementary School Foley Elementary Gym": [45.66958, -93.90782]  # 743 Penn St, Foley, MN, 56329 (school): https://fes.foley.k12.mn.us
+"Foley High School Main Gym": [45.66956, -93.91136]  # 621 Penn St, Foley, MN, 56329 (school): https://fhs.foley.k12.mn.us/cta-button
+"Foley Intermediate School Foley Field House": [45.67182, -93.91486]  # 840 Norman Ave N, Foley, MN, 56329 (school): https://fis.foley.k12.mn.us
+"Foley Intermediate School Foley Field House, Court 1": [45.67182, -93.91486]  # 840 Norman Ave N, Foley, MN, 56329 (school): https://fis.foley.k12.mn.us
+"Foley Intermediate School Foley Field House, Court 4": [45.67182, -93.91486]  # 840 Norman Ave N, Foley, MN, 56329 (school): https://fis.foley.k12.mn.us/about
+"Front picnic area, Hemker Park & Zoo, Freeport": [45.67208, -94.66667]  # 26715 Co Rd 39, Freeport, MN, 56331 (venue): https://hemkerzoo.com/contact/
+"Herb Brooks National Hockey Center, St. Cloud": [45.54716, -94.15304]  # 1204 4Th Ave S, Saint Cloud, MN, 56301 (venue): https://campusmap.stcloudstate.edu/building.aspx?bldgAbbr=HBNHC
+"Hibbing Memorial Arena": [47.42388, -92.93764]  # 400 E 23Rd St, Hibbing, MN, 55746 (venue): https://hibbingmn.gov/200/Memorial-Building-Arena
+"Holdingford High School": [45.73323, -94.46764]  # 900 5Th St, Holdingford, MN, 56340 (school): https://www.isd738.org
+"Holiday Inn, St. Cloud": [45.5519, -94.20344]  # 75 37Th Ave S, Saint Cloud, MN, 56301 (venue): https://exploreminnesota.com/profile/holiday-inn-suites-st-cloud/1082
+"Kent Freeman Arena": [46.80922, -95.85317]  # 1310 Rossman Ave, Detroit Lakes, MN, 56501 (venue): https://cityofdetroitlakes.com/index.asp?SEC=18331390-4770-4212-87D5-05DEF8DA0816
+"Lake Sagatagan beach, Saint John's Abbey Arboretum": [45.5829, -94.39334]  # 2850 Abbey Rd, Collegeville, MN, 56321 (school): https://www.csbsju.edu/outdooru/events/luminary/
+"Litchfield Civic Arena": [45.13595, -94.51907]  # 900 N Gilman Ave, Litchfield, MN, 55355 (venue): https://www.litchfieldmn.com/ice-skating/
+"Little Falls Community High School Gymnasium": [45.97001, -94.3498]  # 1001 5Th Ave Se, Little Falls, MN, 56345 (school): https://hs.lfalls.k12.mn.us/about
+"Maple Grove Middle School MGMS Gym D": [45.08138, -93.43108]  # 7000 Hemlock Ln N, Maple Grove, MN, 55369 (school): https://mgms.osseoschools.org/fs/pages/1282
+"Maple Lake Public Schools High School Gym": [45.23221, -94.00339]  # 200 State Hwy 55, Maple Lake, MN, 55358 (school): https://www.maplelake.k12.mn.us/contact-us
+"Maple Lake Public Schools High School North Gymnastics Gym": [45.23221, -94.00339]  # 200 State Hwy 55, Maple Lake, MN, 55358 (school): https://www.maplelake.k12.mn.us/contact-us
+"Marshall High School Gym": [44.45433, -95.75005]  # 400 Tiger Dr, Marshall, MN, 56258 (school): https://www.marshall.k12.mn.us/o/marsh-schools-mn/page/contact-high-school
+"Marshall High School Gym, North": [44.45433, -95.75005]  # 400 Tiger Dr, Marshall, MN, 56258 (school): https://www.marshall.k12.mn.us/o/marsh-schools-mn/page/contact-high-school
+"Marshall High School Gym, South (Main)": [44.45433, -95.75005]  # 400 Tiger Dr, Marshall, MN, 56258 (school): https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/4092/Marsh_Schools_Mn/bbad1518-297a-47c2-a9c2-8219d8a0494b/MHS_Handbook_2025-2026.pdf
+"Melrose Area High School": [45.68844, -94.80726]  # 546 5Th Ave Ne, Melrose, MN, 56352 (school): https://www.mshsl.org/schools/melrose-area-high-school
+"Melrose Area High School Pool- Door 13": [45.68844, -94.80726]  # 546 5Th Ave Ne, Melrose, MN, 56352 (school): https://www.mshsl.org/schools/melrose-area-high-school
+"Minneapolis Southwest High School": [44.91797, -93.32293]  # 3414 W 47Th St, Minneapolis, MN, 55410 (school): https://southwest.mpschools.org/about/contact
+"Minnehaha Academy, Upper School": [44.94768, -93.20489]  # 3100 W River Pkwy, Minneapolis, MN, 55406 (school): https://www.minnehahaacademy.net/
+"Minnesota Flyers Competition Gym": [46.8093, -95.85316]  # 1306 Rossman Ave, Detroit Lakes, MN, 56501 (venue): https://www.mnflyersgym.org
+"Moose Lake High School": [46.42517, -92.76191]  # 4812 Co Rd 10, Moose Lake, MN, 55767 (school): https://mshsl.org/schools/moose-lake-high-school
+"Mora High School MHS Main Gym": [45.8861, -93.29621]  # 118 N 9Th St, Mora, MN, 55051 (school): https://www.moraschools.org/o/mhs
+"Mora High School Welia Center": [45.8861, -93.2958]  # 200 N 9Th St, Mora, MN, 55051 (venue): https://weliahealth.org/locations/welia-center
+"Mora High School Welia Center Court 1": [45.8861, -93.2958]  # 200 N 9Th St, Mora, MN, 55051 (venue): https://www.weliahealth.org/location/welia-center/
+"Osakis High School": [45.86478, -95.15063]  # 500 1St Ave E, Osakis, MN, 56360 (school): https://mshsl.org/schools/osakis-high-school
+"Pellegrene Auditorium, SJU": [45.5829, -94.39334]  # 2850 Abbey Rd, Collegeville, MN, 56321 (school): https://www.csbsju.edu/sju-events-and-conferences/facilities-guide/auditoriums
+"Pine Island High School Gold Gym": [44.19511, -92.64501]  # 223 1St Ave Se, Pine Island, MN, 55963 (school): https://www.mshsl.org/schools/pine-island-high-school
+"Prime West Runestone Community Center Old National Bank Arena": [45.89281, -95.38847]  # 802 3Rd Ave W, Alexandria, MN, 56308 (venue): https://alexandriamn.city/?p=270
+"Prince of Peace Lutheran School": [45.5862, -94.2147]  # 4770 Co Rd 120, Saint Cloud, MN, 56303 (school): https://www.princeofpeacels.org/contact-us
+"Princeton High School": [45.56119, -93.58491]  # 807 8Th Ave S, Princeton, MN, 55371 (school): https://www.isd477.org/fs/pages/245
+"ROCORI Middle School Gym": [45.46356, -94.42991]  # 534 5Th Ave N, Cold Spring, MN, 56320 (school): https://www.rocori.k12.mn.us/rocori-middle-school-home/about
+"Roseau Memorial Arena": [48.84885, -95.76371]  # 321 2Nd Ave Nw, Roseau, MN, 56751 (venue): https://goroseau.com/events/live-music-the-poitin-band/
+"Roseville Ice Arena": [45.02216, -93.14932]  # 2661 Civic Center Rd, Roseville, MN, 55113 (venue): https://www.cityofroseville.com/229/Skating-Center-OVAL
+"Royalton High School": [45.82867, -94.28291]  # 120 S Hawthorn St, Royalton, MN, 56373 (school): https://hs.royaltonpublicschools.org/accessibility
+"Royalton High School Central Gym": [45.82867, -94.28291]  # 120 S Hawthorn St, Royalton, MN, 56373 (school): https://hs.royaltonpublicschools.org/
+"Royalton High School North Gym": [45.82867, -94.28291]  # 120 S Hawthorn St, Royalton, MN, 56373 (school): https://hs.royaltonpublicschools.org/accessibility
+"Sauk Centre Civic Arena Hockey Arena": [45.73136, -94.95885]  # 818 Centre St, Sauk Centre, MN, 56378 (venue): https://saukcentremn.gov/vertical/sites/%7BD28FAE32-EDE3-421C-BD2D-FA8E76EA5F8C%7D/uploads/07.03.24_City__Council_Meeting_Packet.pdf
+"Sauk Centre High School": [45.7271, -94.9435]  # 903 State Rd, Sauk Centre, MN, 56378 (school): https://sites.google.com/isd743.org/scparentsquare/sc-parentsquare
+"Sauk Rapids Arena East": [45.57477, -94.15739]  # 1410 3Rd Ave S, Sauk Rapids, MN, 56379 (venue): http://www.bentoncountymn.gov/BusinessDirectoryII.aspx?lngBusinessCategoryID=28
+"Southwest Christian High School Main Gym": [44.8121, -93.61231]  # 1981 Bavaria Rd, Chaska, MN, 55318 (school): https://www.swchs.org
+"Spidahl's Ski Gaard": [46.42591, -95.94718]  # 26002 Co Hwy 22, Erhard, MN, 56534 (venue): https://www.exploreminnesota.com/profile/spidahl-ski-gaard/1897
+"St. Croix Valley Recreation Center": [45.04098, -92.83983]  # 1675 Market Dr, Stillwater, MN, 55082 (venue): https://www.stillwatermn.gov/community/amenities/ice-rinks
+"St. Michael-Albertville Middle School East Gym #3": [45.22496, -93.62385]  # 4862 Naber Ave Ne, Saint Michael, MN, 55376 (school): https://me.stma.k12.mn.us/who-we-are/contact-hours
+"St. Paul Johnson High School Main Gym-Wood Floor": [44.98197, -93.06608]  # 1349 Arcade St, Saint Paul, MN, 55106 (school): https://johnsonsr.spps.org/
+"TCO Sports Garden Rink #1": [45.05026, -93.03711]  # 1490 Co Rd E E, Vadnais Heights, MN, 55110 (venue): https://www.ramseycountymn.gov/residents/parks-recreation/ice-arenas-fieldhouse/arena-locations
+"The Mall at St. Ben's": [45.5599, -94.31693]  # 37 College Ave S, Saint Joseph, MN, 56374 (school): https://www.csbsju.edu/news/christmas-tree-lightings-help-spread-the-joy-of-the-season/
+"University of Minnesota Williams Arena": [44.97641, -93.22867]  # 1925 University Ave Se, Minneapolis, MN, 55414 (venue): https://gophersports.com/news/2006/6/27/williams_arena
+"VandenBerge Middle School Pool": [45.31368, -93.57728]  # 948 Proctor Ave Nw, Elk River, MN, 55330 (school): https://vms.isd728.org/
+"Victoria Ice Arena": [44.86326, -93.64662]  # 8475 Kochia Ln, Victoria, MN, 55386 (venue): https://www.victoriamn.gov/community/recreation_center/indoor_ice_arena.php
+"Waconia City Ice Arena": [44.83753, -93.80853]  # 1250 Oak Ave, Waconia, MN, 55387 (venue): https://www.waconiaicearena.com/
+"Willmar, Civic Center Cardinal Arena": [45.14674, -95.00744]  # 2707 Arena Dr, Willmar, MN, 56201 (venue): https://willmarmn.gov/civic_center/
