@@ -47,11 +47,22 @@ nonisolated struct EventAges: Equatable {
         if age >= oldest { return .oldest }
         return age - youngest <= oldest - age ? .youngest : .oldest
     }
+
+    /// Whether a finger at `age` is on both knobs at once, `reach` years being a knob's half width: then
+    /// the way it moves picks (`end(movingUp:)`), so a pair pushed to either end never sticks.
+    func onBoth(_ age: Int, reach: Int) -> Bool {
+        abs(age - youngest) <= reach && abs(age - oldest) <= reach
+    }
+
+    func end(movingUp: Bool) -> AgeEnd { movingUp ? .oldest : .youngest }
+
+    /// The ages a drag ticks on: the ends and the ages that change what a teen sees.
+    static let ticks: Set<Int> = [0, 13, 18, 21, top]
 }
 
 nonisolated enum AgeEnd { case youngest, oldest }
 
-enum NewEventFilterCopy {
+nonisolated enum NewEventFilterCopy {
     static let filter = "Filter"
     static let add = "Add"
     static let clearAll = "Clear all"
@@ -82,6 +93,9 @@ private nonisolated enum FilterMetric {
     static let boxRing: CGFloat = 1.6
     static let afterBoxes: CGFloat = 30
     static let knob: CGFloat = 28
+    static let ring: CGFloat = 1.5
+    /// How far a finger on both knobs moves before it has picked one.
+    static let decide: CGFloat = 2
     static let track: CGFloat = 4
     static let slider: CGFloat = 44
     static let barPad: CGFloat = 16
@@ -115,7 +129,9 @@ struct NewEventFilter: View {
                 HStack {
                     Text(NewEventFilterCopy.ageRange).foregroundStyle(Hue.inkSecondary)
                     Spacer(minLength: 8)
+                    // Badoo's number, in bold.
                     Text(pickedAges.words ?? NewEventFilterCopy.allAges).foregroundStyle(Hue.ink)
+                        .font(.sansSemibold(15))
                         .contentTransition(.numericText())
                 }
                 .font(.sans(15))
@@ -207,27 +223,40 @@ struct AgeRangeSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in
-                        let at = age(drag.location.x)
-                        let end = grabbed ?? ages.end(nearest: age(drag.startLocation.x))
-                        if grabbed == nil { grabbed = end }
-                        ages.move(end, to: at)
+                        let start = age(drag.startLocation.x)
+                        if grabbed == nil {
+                            let reach = Int((FilterMetric.knob / 2 / run * CGFloat(EventAges.top)).rounded(.up))
+                            if ages.onBoth(start, reach: reach) {
+                                // On both knobs: wait for the finger to say which way.
+                                guard abs(drag.translation.width) >= FilterMetric.decide else { return }
+                                grabbed = ages.end(movingUp: drag.translation.width > 0)
+                            } else {
+                                grabbed = ages.end(nearest: start)
+                            }
+                        }
+                        if let grabbed { ages.move(grabbed, to: age(drag.location.x)) }
                     }
                     .onEnded { _ in grabbed = nil }
             )
         }
         .frame(height: FilterMetric.slider)
-        .sensoryFeedback(.selection, trigger: ages)
+        // A tick at the ends, 13, 18 and 21, not one a year.
+        .sensoryFeedback(.selection, trigger: ages) { old, new in
+            (old.youngest != new.youngest && EventAges.ticks.contains(new.youngest))
+                || (old.oldest != new.oldest && EventAges.ticks.contains(new.oldest))
+        }
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(NewEventFilterCopy.ageRange)
     }
 
     private func knob(_ end: AgeEnd) -> some View {
         let value = end == .youngest ? ages.youngest : ages.oldest
         let open = end == .youngest ? value == 0 : value == EventAges.top
+        // Badoo's knob: white with an ink ring.
         return Circle()
             .fill(Hue.surface)
+            .overlay { Circle().strokeBorder(Hue.ink, lineWidth: FilterMetric.ring) }
             .frame(width: FilterMetric.knob, height: FilterMetric.knob)
-            .shadow(color: Hue.ink.opacity(0.12), radius: 2, y: 0.5)
-            .shadow(color: Hue.ink.opacity(0.12), radius: 6.5, y: 6)
             .scaleEffect(grabbed == end && !reduceMotion ? 1.15 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: grabbed)
             .accessibilityElement()

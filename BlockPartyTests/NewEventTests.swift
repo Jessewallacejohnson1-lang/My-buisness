@@ -86,8 +86,21 @@ final class NewEventTests: XCTestCase {
         XCTAssertEqual(ages.end(nearest: 50), .oldest)
         XCTAssertEqual(ages.end(nearest: 14), .youngest)
         XCTAssertEqual(ages.end(nearest: 26), .oldest)
-        // Both ends at the far left: dragging right moves the oldest only once past it.
-        XCTAssertEqual(EventAges(youngest: 0, oldest: 1).end(nearest: 0), .youngest)
+    }
+
+    func testAPairPushedToAnEndGoesTheWayTheFingerMoves() {
+        // Youngest dragged up to 74 sits on Oldest at 75: a finger on the pair must be able to pull it back down.
+        let top = EventAges(youngest: EventAges.top - 1, oldest: EventAges.top)
+        XCTAssertTrue(top.onBoth(EventAges.top, reach: 3))
+        XCTAssertEqual(top.end(movingUp: false), .youngest)
+        var ages = top
+        ages.move(top.end(movingUp: false), to: 60)
+        XCTAssertEqual(ages.words, "60+")
+        // And the same at the left end.
+        let bottom = EventAges(youngest: 0, oldest: 1)
+        XCTAssertTrue(bottom.onBoth(0, reach: 3))
+        XCTAssertEqual(bottom.end(movingUp: true), .oldest)
+        XCTAssertFalse(EventAges(youngest: 10, oldest: 30).onBoth(12, reach: 3), "apart, the nearer one")
     }
 
     func testTheFilterRowSumsUpThePicks() {
