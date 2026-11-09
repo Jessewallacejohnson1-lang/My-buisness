@@ -235,7 +235,12 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   a bare town name no one place too: `club_events.no_place` is set and the Event page shows no
   Map button. Apple's spots are never used, since Apple's terms forbid storing them or drawing
   them on our Mapbox map (Jesse, 2026-11-06). A place line the maps can't agree on stays without
-  a spot and opens Apple Maps, until someone adds it here.
+  a spot and opens Apple Maps, until someone adds it here, or until two searches agree on its street address:
+  `spots/found-by-address.yaml` holds the 81 found by hand on 2026-11-09, and `scripts/venue_spots.py` does the same
+  each morning for new lines (two helpers, `models/venue-spot.md`; the US Census geocoder turns the address into a
+  point; `club_events.spot_looked_at` keeps a line from being looked up daily). The cloud can't read the OpenStreetMap
+  file (Geofabrik resets its connection), so the maps step there reads nothing. Never run `spots.py --write` from a
+  Mac with the maps: a spot placed by address is not the maps' answer, and that fill would empty it.
 - **Runners default to dry-run.** Writing to production requires an explicit `--write`
   (ADR-009).
 - **Run `sources/validate` after every edit.** It is instant, and it is the only thing between
