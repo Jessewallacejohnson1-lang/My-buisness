@@ -852,7 +852,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, live: false,
+    interest: 3, gender: 0, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, live: false,
     popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
     soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
   });
@@ -4075,4 +4075,81 @@ test('News from the places you follow: 10 at most, the newest', async () => {
   const rows = await followingNews('2026-10-08 12:00');
   assert.equal(rows.length, 10);
   assert.deepEqual([rows[0].title, rows[9].title], ['Story 11', 'Story 2']);
+});
+
+// Town-feed 52: an Event for women or men moves up for them, by its mark or its Going crowd; nothing else moves.
+async function answered(id, gender) {
+  await signIn(id);
+  await db.exec('reset role');
+  await db.query('update public.town_profiles set gender = $2 where user_id = $1', [id, gender]);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${id}'`);
+}
+async function going(event, ...who) {
+  await db.exec('reset role');
+  for (const [n, gender] of who.entries()) {
+    const id = `00000000-0000-0000-0000-0000000052${String(n).padStart(2, '0')}`;
+    await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [id]);
+    await db.query(`insert into public.town_profiles (user_id, gender) values ($1, $2)
+                    on conflict (user_id) do update set gender = excluded.gender`, [id, gender]);
+    await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2) on conflict do nothing`, [event, id]);
+  }
+}
+
+test("an Event marked for your gender moves up; the other gender's feed and no answer's are as before (town-feed 52)", async () => {
+  await reset();
+  await add('Book club', '2026-10-12', { start_time: '3 PM', source_name: 'Library' });
+  const marked = await add('Women in Religion', '2026-10-14', { start_time: '3 PM', source_name: 'CSB SJU Campus Events' });
+  await db.query(`update public.club_events set for_gender = 'female' where id = $1`, [marked]);
+  const before = ['Book club', 'Women in Religion'];
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), before, 'no answer: as before');
+  await answered(ME, 'male');
+  assert.deepEqual(await titles('2026-10-08 12:00'), before, 'the other gender: as before, never lower');
+  await answered(ME, 'female');
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title), ['Women in Religion', 'Book club']);
+  assert.notEqual(rows[0].reason, 'interest', 'the card says no reason for it');
+  await db.exec('reset role');
+  await assert.rejects(db.query(`update public.club_events set for_gender = 'women'`), /club_events_for_gender/);
+});
+
+test('a Going crowd that leans to your gender lifts it, once 3 who answered are Going; a crowd like the town lifts nothing', async () => {
+  await reset();
+  await add('Book club', '2026-10-12', { start_time: '3 PM', source_name: 'Library' });
+  const yoga = await add('Sunrise yoga', '2026-10-14', { start_time: '3 PM', source_name: 'Studio' });
+  await going(yoga, 'female', 'female');
+  await answered(ME, 'female');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Book club', 'Sunrise yoga'], 'two who answered are too few');
+  await going(yoga, 'female', 'female', 'female');   // the same two, and a third
+  await answered(ME, 'female');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Sunrise yoga', 'Book club']);
+  // For a woman: 4 of 4 answered are women, b = 5/6, s = (3 + 2b) / 5, lean = (s − b) / (1 − b) = 0.6, 1.8 points.
+  // For a man (you, and one more): b = 3/7 and none of the crowd, so s < b: nothing.
+  await db.exec('reset role');
+  await db.query(`insert into auth.users (id) values ('00000000-0000-0000-0000-000000005299') on conflict do nothing`);
+  await db.query(`insert into public.town_profiles (user_id, gender) values ('00000000-0000-0000-0000-000000005299', 'male')`);
+  await answered(ME, 'male');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Book club', 'Sunrise yoga'], 'for men: nothing');
+});
+
+test("nobody reads anyone's gender: the lean is the caller's own, and none without an answer", async () => {
+  await reset();
+  const yoga = await add('Sunrise yoga', '2026-10-14', { start_time: '3 PM', source_name: 'Studio' });
+  await going(yoga, 'female', 'female', 'female');
+  await signIn(ME);
+  assert.deepEqual((await db.query('select * from private.gender_lean($1)', [[yoga]])).rows, []);
+  assert.deepEqual((await db.query('select gender from public.town_profiles where gender is not null')).rows, [],
+    "another neighbour's answer stays theirs");
+});
+
+test("under 18 never sees an Event its host's Filter keeps to 18+ (town-feed 52)", async () => {
+  await reset();
+  const bar = await add('Pub crawl', '2026-10-09', { start_time: '7 PM' });
+  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
+  await db.exec('reset role');
+  await db.query(`update public.club_events set ages = '21+' where id = $1`, [bar]);
+  await born(ME, '2010-03-01');   // 16
+  assert.deepEqual(await titles('2026-10-08 18:00'), ['Bake sale']);
+  await born(ME, '1990-03-01');
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Pub crawl']);
 });

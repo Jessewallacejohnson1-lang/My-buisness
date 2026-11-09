@@ -326,7 +326,9 @@ as $$
       and not exists (select 1 from muted m where m.host = e.host)
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
-      and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
+      -- A host's own 18+ or 21+ (town-feed 52) counts as those words do.
+      and (me.adult or not private.adults_only(e.place_entry_id, e.club_id,
+                                               e.title || ' ' || coalesce(e.description, '') || ' ' || coalesce(e.ages, '')))
       -- These go before the limit below, or the later list comes up short.
       and (not p_later or not yg.young
            or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.hearted
@@ -370,7 +372,10 @@ as $$
            -- What the caller follows that this Event is of, by name: an activity or school first, then
            -- a meeting's board, the neighbour who posted it, the Place it's at, a page (the City,
            -- Joetown), a Group they're in (town-feed 37, 27).
-           coalesce(s.school_followed, fw.name) as followed
+           coalesce(s.school_followed, fw.name) as followed,
+           -- How much it is for the caller's gender, 0 to 1 (town-feed 52): its host's or page's mark, else its
+           -- Going crowd against the town's mix. No answer, nothing.
+           coalesce(gl.lean, 0) as gender_lean
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
     -- The game's team you've tapped on the most other days, its host team first on a tie (town-feed 39).
@@ -404,6 +409,7 @@ as $$
     cross join town
     -- The Event card, friends Going (ticket 28) with it: asked once for every shown Event.
     left join private.event_cards(array(select x.id from shown x)) ec on ec.id = s.id
+    left join private.gender_lean(array(select x.id from shown x)) gl on gl.event_id = s.id
     left join labels lb on lb.series = s.series
     left join my_seen sn on sn.series = lower(btrim(s.title)) || '|' || s.host
     left join lateral (select pl.lat, pl.lon from public.places pl where pl.entry_id = s.place_entry_id limit 1) pt on true
@@ -414,6 +420,8 @@ as $$
            -- adds nothing.
            (w->>'interest')::float8 * least(coalesce(array_length(c.matched, 1), 0), 1) as interest_pts,
            case when c.friends_n > 0 then (w->>'friend')::float8 else 0 end as friend_pts,
+           -- For the caller's gender (town-feed 52): up to an interest's points, and never a reason on the card.
+           (w->>'interest')::float8 * c.gender_lean as gender_pts,
            -- Something you follow (school-activities 03, town-feed 37), or a host you've been into (ticket 30),
            -- never routine business (draw 1).
            case when c.followed is not null or (c.tapped_n > 0 and coalesce(c.draw, 2) <> 1)
@@ -446,7 +454,7 @@ as $$
   ),
   totals as (
     select c.*,
-           (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.new_pts + c.draw_pts)
+           (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.gender_pts + c.new_pts + c.draw_pts)
              * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x as base,
            -- Which pool it is in, for the Score line: yours or discovery; your own Going in neither.
            case when c.going then null
@@ -617,7 +625,7 @@ as $$
               when e.lift = 'tapped' then coalesce(e.tapped_team, c.name, e.source_name) end,
          -- The Score line (ticket 18): the keys the shipped app reads stay, the dropped parts at 0.
          case when public.is_admin() then jsonb_build_object(
-           'interest', e.interest_pts, 'yours', e.friend_pts + e.follow_pts, 'new', e.new_pts,
+           'interest', e.interest_pts, 'gender', e.gender_pts, 'yours', e.friend_pts + e.follow_pts, 'new', e.new_pts,
            'friend', e.friend_pts,
            'follow', case when e.followed is not null then e.follow_pts else 0 end,
            'tapped', case when e.followed is null then e.follow_pts else 0 end,

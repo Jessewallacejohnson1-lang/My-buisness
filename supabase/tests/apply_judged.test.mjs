@@ -164,6 +164,12 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal(await ages(), '21+', 'a re-read that says no age keeps it');
   await assert.rejects(db.query(`update public.club_events set ages = 'all ages'`), /club_events_ages_shape/,
     'words outside the shapes are refused, so the app shows the field as it is');
+  // Who it's for by gender too (town-feed 52), and a re-read that doesn't say keeps it.
+  const gender = async () => (await db.query('select for_gender as g from public.club_events')).rows[0].g;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, gender: 'female' })), [], [], []);
+  assert.equal(await gender(), 'female');
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.equal(await gender(), 'female', 'a re-read that says no gender keeps it');
   await db.exec(`update public.club_events set about_written_at = null`);
 
   // A re-read with no place keeps the one it had (Sal's, 2026-10-25); a new place still moves it.
