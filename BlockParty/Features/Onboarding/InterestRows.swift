@@ -144,7 +144,7 @@ struct InterestRows<Heading: View>: View {
                 if count > 0 && !shown {
                     Text("\(count)")
                         .font(.sansBold(14))
-                        .foregroundStyle(Hue.brandDisc)
+                        .foregroundStyle(Color.white)
                         .frame(width: Metric.disc, height: Metric.disc)
                         .background(Hue.ink, in: Circle())
                         .transition(.opacity)
@@ -186,7 +186,7 @@ struct InterestRows<Heading: View>: View {
                 if full {
                     Text("\(count)")
                         .font(.sansBold(15))
-                        .foregroundStyle(Hue.brandDisc)
+                        .foregroundStyle(Color.white)
                 }
                 Image(systemName: "chevron.down")
                     .font(.glyph(12, weight: .semibold))
@@ -303,7 +303,7 @@ private struct InterestRises: ViewModifier {
     }
 }
 
-/// The disc at the end of a row that picks at once: + on grey, or a yellow check on ink that pops
+/// The disc at the end of a row that picks at once: + on grey, or a white check on ink that pops
 /// to 106% as it turns.
 private struct InterestPickDisc: View {
     let on: Bool
@@ -315,7 +315,7 @@ private struct InterestPickDisc: View {
     var body: some View {
         Image(systemName: on ? "checkmark" : "plus")
             .font(.glyph(13, weight: .bold))
-            .foregroundStyle(on ? Hue.brandDisc : Hue.ink)
+            .foregroundStyle(on ? Color.white : Hue.ink)
             .frame(width: side, height: side)
             .background(on ? Hue.ink : Hue.fill, in: Circle())
             .scaleEffect(pop)
@@ -328,7 +328,7 @@ private struct InterestPickDisc: View {
     }
 }
 
-/// One chip: words with a + (or, picked, a yellow check on ink) on Duolingo's raised edge.
+/// One chip: words with a + (or, picked, a white check on ink) on Duolingo's raised edge.
 /// Sinks 2 pt on press. Its touch area reaches 44 pt tall, into half of the 8 pt gaps around it.
 private struct InterestChip: View {
     let label: String
@@ -343,7 +343,7 @@ private struct InterestChip: View {
             HStack(spacing: 6) {
                 Text(on ? "\u{2713}" : "+")
                     .font(.sansSemibold(17))
-                    .foregroundStyle(on ? Hue.brandDisc : Hue.inkSecondary)
+                    .foregroundStyle(on ? Color.white : Hue.inkSecondary)
                     .frame(width: 12)
                     .scaleEffect(check)
                 Text(label)
@@ -365,7 +365,8 @@ private struct InterestChip: View {
     }
 }
 
-private struct InterestChipStyle: ButtonStyle {
+/// The chips' raised edge, ink once on; the Birthday step's gender pills wear it too (onboarding 31).
+struct InterestChipStyle: ButtonStyle {
     let on: Bool
     /// A kind of school whose schools are showing: the app's light fill, not white.
     var opened = false

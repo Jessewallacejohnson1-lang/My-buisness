@@ -171,13 +171,14 @@ final class SupabaseRequestTests: XCTestCase {
     }
 
     func testTheOnboardedStampCarriesWhatTheFeedSortsBy() async throws {
-        // Onboarding 24: the birthday and the interests travel with the stamp, in one write before
+        // Onboarding 24: the birthday, the gender (31) and the interests travel with the stamp, in one write before
         // the Town feed's first read; a name or photo already on the row is left alone.
         let birthday = try OnboardingAge.day.parse("2001-10-24")
-        try await profiles.markOnboarded(birthday: birthday, interests: ["live_music", "coffee"])
+        try await profiles.markOnboarded(birthday: birthday, gender: "female", interests: ["live_music", "coffee"])
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/town_profiles?on_conflict=user_id")
         let body = try XCTUnwrap(server.lastBody as? [String: Any])
         XCTAssertEqual(body["birthday"] as? String, "2001-10-24")
+        XCTAssertEqual(body["gender"] as? String, "female", "onboarding 31, private as the birthday")
         XCTAssertEqual(body["interests"] as? [String], ["live_music", "coffee"])
         XCTAssertNotNil(body["onboarded_at"])
         XCTAssertNil(body["display_name"])
