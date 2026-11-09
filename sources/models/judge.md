@@ -55,7 +55,8 @@ Read these first:
      the page's words ("Free", "$10 at the door", "$22, $20 seniors"), left out when the page says
      nothing. Who it's for by age goes in `ages` when the page says it, as the page says it ("adults
      21+ only", "ages 10 and up", "ages 6 to 14"): the app shows it like a LEGO box's "18+" (Jesse,
-     2026-11-08, BP app inside-cards 30). Left out for "all ages", "family friendly" or a guess: a bar's
+     2026-11-08, BP app inside-cards 30). Left out for "all ages", "family friendly", grades, a price for some ("kids 12 and
+     under free") or a guess: a bar's
      bingo night is no 21+ unless its page says so. Only facts the page gives, never a guess or an ad's words; a page that gives only the
      title and time gets one short line or none. News gets one line (Jesse, 2026-10-23). A News blurb
      says only what its title doesn't, in at most 75 characters. With nothing to add, leave the blurb out

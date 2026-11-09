@@ -281,10 +281,7 @@ final class EventPageTests: XCTestCase {
     /// nothing when unknown, never a placeholder.
     func testThePriceLineShowsOnlyWhenKnown() {
         let page = EventPage.self
-        XCTAssertNil(page.priceText(nil))
-        XCTAssertNil(page.priceText(" \n"), "blank is unknown")
-        XCTAssertEqual(page.priceText(" Free\n"), "Free")
-        XCTAssertEqual(page.priceText("$22, $20 seniors, $15 students"), "$22, $20 seniors, $15 students")
+        XCTAssertEqual(page.priceLine(ages: nil, price: "$22, $20 seniors, $15 students"), ["$22, $20 seniors, $15 students"])
 
         var priced = event(imageUrl: nil)
         priced.price = "$5 at the door"

@@ -64,7 +64,7 @@ struct NoPhotoCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 // In the small line's grey, read after the title as on a photo card.
                 if now || !(when ?? "").isEmpty {
-                    CardTime(text: when ?? "", spoken: whenSpoken, now: now, color: Hue.inkSecondary.onLightCanvas)
+                    CardTime(text: when ?? "", spoken: whenSpoken, now: now, color: Hue.inkSecondary.onLightCanvas, lines: 2)
                         .padding(.top, Metric.lineGap)
                 }
                 if !factsTries.isEmpty {

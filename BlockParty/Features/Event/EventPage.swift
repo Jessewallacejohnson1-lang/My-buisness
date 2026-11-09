@@ -918,11 +918,6 @@ struct EventPage: View {
         nonempty(description)
     }
 
-    /// The price line's words (inside-cards 14): what a source said it costs, else nothing.
-    static func priceText(_ price: String?) -> String? {
-        nonempty(price)
-    }
-
     /// The price line's facts (inside-cards 30): who it's for by age first, as a LEGO box leads with "18+", then the
     /// price; each only when a source said it.
     static func priceLine(ages: String?, price: String?) -> [String] {

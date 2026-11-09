@@ -261,6 +261,8 @@ enum TownFixtures {
                 photo: false, hoursUntil: 64, going: 12,
                 category: .service,
                 description: "Meet at the trailhead. We'll have gloves, bags, grabbers and coffee. Wear shoes you don't mind getting muddy.",
+                // The longest age, so the white card's time line shows it whole on fixed data (inside-cards 30).
+                ages: "Ages 12 and under",
                 now: now
             ),
             event(
@@ -351,7 +353,7 @@ enum TownFixtures {
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, going: Int,
-        category: EventCategory? = nil, description: String? = nil, price: String? = nil,
+        category: EventCategory? = nil, description: String? = nil, price: String? = nil, ages: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
         friends: [(name: String, photo: String?)] = [], credit: String? = nil,
         logo: String? = nil,
@@ -378,6 +380,7 @@ enum TownFixtures {
             // `-town-no-about`: no sample has an About, for a short Event page (inside-cards 19's small map, review).
             description: LaunchFlags.has(.townNoAbout) ? nil : description,
             price: price,
+            ages: ages,
             category: category
         )
         // Why each is in the feed, as `get_town_feed` would say it by default: the day.

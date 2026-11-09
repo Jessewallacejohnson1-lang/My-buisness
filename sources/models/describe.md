@@ -46,7 +46,8 @@ that link, read this morning (empty when it couldn't be read).
   research: move the cost to `price` and answer with the About without it.
 - Who it's for by age goes in `ages` when a source says it, in the source's words ("adults 21+ only",
   "ages 10 and up", "ages 6 to 14"); the app shows it like a LEGO box's "18+" (Jesse, 2026-11-08, BP app
-  inside-cards 30). Empty for "all ages", "family friendly" or a guess: a bar's bingo night is no 21+
+  inside-cards 30). Empty for "all ages", "family friendly", grades, a price for some ("kids 12 and under free") or
+  a guess: a bar's bingo night is no 21+
   unless a source says so.
 - Only what a source states, in your own calm words.
 - Keep the good facts in `about`. With nothing more found, answer with `about` as it is.
