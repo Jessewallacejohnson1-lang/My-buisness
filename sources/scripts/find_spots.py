@@ -239,6 +239,13 @@ def save_maps(folder):
     spare.replace(folder / "maps.json")
 
 
+def last_line(text):
+    """What a stopped process said last, the exception's own line: the report shows a message's first 200 characters,
+    and the end of a traceback's last 300 had its cause cut off (the Nov 8 and 9 mornings)."""
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    return lines[-1][:160] if lines else "no message"
+
+
 def read(folder, fresh_hours=20, minutes=7):
     """Maps from `folder`/maps.json, saved first when it's missing or older than `fresh_hours`. The saving runs
     as a process of its own, stopped after `minutes`: a cloud that runs out of memory or time ends it with an
@@ -248,7 +255,7 @@ def read(folder, fresh_hours=20, minutes=7):
         r = subprocess.run([sys.executable, __file__, "--save-maps", str(folder)], capture_output=True, text=True,
                            timeout=minutes * 60)
         if r.returncode:
-            raise RuntimeError(f"reading the maps stopped ({r.returncode}): {(r.stderr or r.stdout).strip()[-300:]}")
+            raise RuntimeError(f"reading the maps stopped ({r.returncode}): {last_line(r.stderr or r.stdout)}")
     d = json.loads(saved.read_text())
     return Maps(d["overture"], d["osm"], d["towns"])
 
@@ -315,7 +322,13 @@ def selftest():
         if is_nowhere(line) != want:
             failed += 1
             print(f"FAIL is_nowhere({line!r}) is {not want}")
-    print(f"{len(cases) + 8 - failed} passed, {failed} failed")
+    boom = "urllib.error.URLError: <urlopen error [Errno -3] Temporary failure in name resolution>"
+    for text, want in (('Traceback (most recent call last):\n  File "x.py", line 1, in do_open\n    raise URLError(err)\n' + boom + "\n", boom),
+                       ("", "no message"), (None, "no message")):
+        if last_line(text) != want:
+            failed += 1
+            print(f"FAIL last_line({text!r}) is {last_line(text)!r}")
+    print(f"{len(cases) + 11 - failed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
 
 
