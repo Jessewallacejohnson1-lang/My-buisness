@@ -20,8 +20,8 @@ exception. Posts, their photos and their words still wait for the place's yes.
   `not_available` row, billed as a post. That is about 0.5¢ per Facebook page and 0.23¢ per
   Instagram account per check, so frequency is budgeted per page per check, not per post.
 - **Schedule.** A busy list (26 places that post events, town pages included, approved by
-  Jesse on 2026-10-22: 24 Facebook pages and 13 Instagram accounts) is checked at 6pm and
-  9pm Chicago time; every other place on Thursday at 3pm. Both Facebook and Instagram are
+  Jesse on 2026-10-22: 24 Facebook pages and 13 Instagram accounts) is checked at noon and
+  9pm Chicago time (6pm until Jesse's change on 2026-11-09); every other place on Thursday at 3pm. Both Facebook and Instagram are
   checked where a place has both. Each check asks only for posts since the last one. The
   busy list's Facebook Events tabs are read weekly, and public town groups weekly for tips
   (Events tabs and a town events search widened 2026-11-03, below).

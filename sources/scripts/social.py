@@ -9,7 +9,7 @@ sources/models/social.md.
 
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
 check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
-schedules start them, the busy list at 6pm and 9pm Chicago and every other page (plus Facebook
+schedules start them, the busy list at noon and 9pm Chicago (Jesse, 2026-11-09: was 6pm and 9pm) and every other page (plus Facebook
 Events tabs, a search of Facebook's events for the town and Facebook's own events page for the town: page_lists)
 on Thursdays at 3pm. The routines come half an hour or more later
 and read whatever Apify saved since the last check they finished, so one the plan's usage limit
@@ -92,8 +92,8 @@ NEAR_KM = 10  # a found event farther than this from the town, by its map positi
 PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\bgraduation party|\bcelebration of life|\bfuneral", re.I)
 # Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
 # reaches an hour past the last one, so a post that lands while a run starts is never lost.
-SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
-             ("bp-busy-9pm", "0 21 * * *", "busy", "4 hours"),
+SCHEDULES = [("bp-busy-noon", "0 12 * * *", "busy", "16 hours"),
+             ("bp-busy-9pm", "0 21 * * *", "busy", "10 hours"),
              ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
 HEADS_UP = 0.75  # of the cap; private.apify_level says the same for the 8 AM email
 STORE = "bp-social-watch"
@@ -167,7 +167,7 @@ def far_away(loc):
 
 
 def actor_input(kind, urls, window):
-    """A task's input: the pages, and how far back to read ("22 hours"); a schedule overrides the window."""
+    """A task's input: the pages, and how far back to read ("16 hours"); a schedule overrides the window."""
     if kind == "facebook":
         return {"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     if kind == "instagram":
@@ -751,14 +751,14 @@ def selftest():
             globals()["last_read"] = real_last_read
     thu, fri = t(29, 6, 0), t(30, 6, 0)  # Oct 29, 2026 is a Thursday
     check(missed(t(28, 21, 1), t(22, 15, 1), thu) == [], "the 9 PM run read by morning: nothing to say, and no weekly word on a Thursday")
-    check(missed(t(28, 18, 1), t(22, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 6:01 PM)"],
-          "only the 6 PM run read: last evening's last check didn't finish")
+    check(missed(t(28, 12, 1), t(22, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 12:01 PM)"],
+          "only the noon run read: last evening's last check didn't finish")
     check(missed(t(29, 21, 1), t(29, 15, 1), fri) == [], "a Friday with both read")
     check(missed(t(29, 21, 1), t(22, 15, 1), fri) == ["Thursday's weekly check didn't finish (read up to Thu Oct 22 3:01 PM)"],
           "a Friday with Thursday's weekly unread")
     check(missed(None, t(29, 15, 1), fri) == ["last evening's check didn't finish (never read)"], "no mark at all")
     check(actor_input("facebook", ["u"], "4 hours")["onlyPostsNewerThan"] == "4 hours", "a task reads a window back from now")
-    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["22 hours", "4 hours"], "6pm reads back past last night's 9pm, 9pm past 6pm")
+    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["16 hours", "10 hours"], "noon reads back past last night's 9pm, 9pm past noon")
     check(task_name("weekly", "events") == "bp-weekly-events", "a task's name")
     by_url = {"https://www.facebook.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "https://www.facebook.com/krewe"}}
     rows = [{"inputUrl": "https://www.facebook.com/krewe/", "postId": "1", "url": "https://fb/p/1", "text": "Trivia tonight at 7!",
