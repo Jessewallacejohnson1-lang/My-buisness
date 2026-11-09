@@ -326,9 +326,9 @@ as $$
       and not exists (select 1 from muted m where m.host = e.host)
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
-      -- A host's own 18+ or 21+ (town-feed 52) counts as those words do.
-      and (me.adult or not private.adults_only(e.place_entry_id, e.club_id,
-                                               e.title || ' ' || coalesce(e.description, '') || ' ' || coalesce(e.ages, '')))
+      and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
+      -- Nor an Event whose age mark starts at 18 or older: a host's Filter can say 19+ or Ages 18–30 (town-feed 52).
+      and (me.adult or coalesce((regexp_match(e.ages, '^(?:Ages )?(\d+)(?:\+|–)'))[1]::int, 0) < 18)
       -- These go before the limit below, or the later list comes up short.
       and (not p_later or not yg.young
            or 'middle_school' = any(me.interests) or e.school_followed is not null or e.going or e.hearted

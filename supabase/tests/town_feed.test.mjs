@@ -4142,14 +4142,17 @@ test("nobody reads anyone's gender: the lean is the caller's own, and none witho
     "another neighbour's answer stays theirs");
 });
 
-test("under 18 never sees an Event its host's Filter keeps to 18+ (town-feed 52)", async () => {
+test("under 18 never sees an Event whose age mark starts at 18 or older (town-feed 52)", async () => {
   await reset();
-  const bar = await add('Pub crawl', '2026-10-09', { start_time: '7 PM' });
-  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
-  await db.exec('reset role');
-  await db.query(`update public.club_events set ages = '21+' where id = $1`, [bar]);
+  const marks = { 'Pub crawl': '21+', 'Wine walk': '19+', 'Young adults night': 'Ages 18–30', 'Teen dance': 'Ages 13–17',
+                  'Story time': 'Ages 12 and under', 'Kids art': '6+' };
+  for (const [title, ages] of Object.entries(marks)) {
+    const id = await add(title, '2026-10-09', { start_time: '7 PM', source_name: title });
+    await db.exec('reset role');
+    await db.query(`update public.club_events set ages = $2 where id = $1`, [id, ages]);
+  }
   await born(ME, '2010-03-01');   // 16
-  assert.deepEqual(await titles('2026-10-08 18:00'), ['Bake sale']);
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Kids art', 'Story time', 'Teen dance']);
   await born(ME, '1990-03-01');
-  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Pub crawl']);
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), Object.keys(marks).sort());
 });
