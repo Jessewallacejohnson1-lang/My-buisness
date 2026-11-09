@@ -34,6 +34,10 @@ command's output and your answer.
   under its `News, 30 characters at most:` line are News headlines past their card's 2 lines: 30
   at most, keeping what happened ("Pumpkin Cold Brew at Caribou"). Write them all to
   `.runs/morning/titles.json` as `{"the long title": "the short one"}`.
+- `titles` also lays out `.runs/morning/repeats.txt`: each new News the word rules didn't settle, beside
+  what its place already has. Not empty: start one helper on the cheap model (Haiku) with: "Read
+  `sources/models/repeat.md` and follow it for `.runs/morning/repeats.txt`. Answer with the JSON lines
+  only." Write its lines to `.runs/morning/repeats.jsonl`. Save holds back each News it calls a repeat.
 
 **Save.** Run `python3 sources/scripts/morning.py save`. It writes the items and lays out the
 helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save refused` line

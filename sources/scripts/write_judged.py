@@ -94,7 +94,11 @@ THE RULES
     7 days (as long as the Town feed shows it) with much the same title (one title's words all in
     the other's, or two shared words at least and two thirds of the shorter title's; a plural or
     "pre-" is the same word; the place's own name, weekdays, free and new not counted) is a repeat
-    and is not added (repeat_of).
+    and is not added (repeat_of). The title rule also reads the place's News taken out in the last 14 days, so
+    a take-out stands. What the word rules leave, the cheap model reads beside its place's News (whatever their
+    status) and Events from the last 14 days (told, sources/models/repeat.md), and a News it calls the same story
+    is a repeat too: another wording, an update to a story still showing, or an Event already there (BP app
+    smooth-mornings 16; morning.py lays out the questions, check_repeats.py is its eval).
   Merging: same place (or two names for one registry place), start within an hour (all-day ones: a day apart; one with no time: the
     same day), shared title words = one
     Event; a hyphen inside a word doesn't count ("Boo-tique" is "Bootique"). Shared means
@@ -1131,19 +1135,122 @@ def joined(title, other):
     return title
 
 
+REPEAT_DAYS, REPEAT_AHEAD, REPEAT_MOST = 14, 30, 30
+REPEAT_MODEL = Path(__file__).resolve().parents[1] / "models" / "repeat.md"
+
+
+def same_host(a, b):
+    """Two rows from one place: the same source, or the same registry place."""
+    return bool(({a.get("source_name"), a.get("place_entry_id")} - {None})
+                & ({b.get("source_name"), b.get("place_entry_id")} - {None}))
+
+
+def news_written(row, today):
+    """The day a News went up (this morning's own have no stamp yet)."""
+    stamp = row.get("published_at") or row.get("created_at")
+    return local(stamp).date() if stamp else today
+
+
+def event_days(row):
+    first = date.fromisoformat(str(row["event_date"])[:10])
+    last = local(row["end_at"]).date() if row.get("end_at") else first
+    return first, max(first, last)
+
+
+def told(n, history, today):
+    """What a new News's place already has that it may repeat (BP app smooth-mornings 16): its News of the last
+    REPEAT_DAYS whatever their status, so a take-out stands, newest first; then its Events running from REPEAT_DAYS
+    ago to REPEAT_AHEAD days ahead, rejected ones too, nearest first. REPEAT_MOST at most, for one cheap call."""
+    news, events = [], []
+    for old in history:
+        if old is n or not same_host(old, n):
+            continue
+        if old.get("event_date"):
+            first, last = event_days(old)
+            if last >= today - timedelta(REPEAT_DAYS) and first <= today + timedelta(REPEAT_AHEAD):
+                events.append(old)
+        elif news_written(old, today) >= today - timedelta(REPEAT_DAYS):
+            news.append(old)
+    # The likeliest first: most title words shared (cut to four letters, so "closes" meets "closing"), then the
+    # newest News and the nearest Event; News before Events at a tie. A model reading 30 rows finds a match up top.
+    mine = stems(n["title"], n["source_name"])
+    news.sort(key=lambda r: news_written(r, today), reverse=True)
+    events.sort(key=lambda r: abs((event_days(r)[0] - today).days))
+    return sorted(news + events, key=lambda r: -len(mine & stems(r["title"], r["source_name"])))[:REPEAT_MOST]
+
+
+def stems(title, host=""):
+    return {w[:4] for w in words(title, STOP | FILLER) - words(host)}
+
+
+def _short(text, n=150):
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= n else text[:n].rsplit(" ", 1)[0] + "…"
+
+
+def story_line(row, today):
+    if row.get("event_date"):
+        first, last = event_days(row)
+        days = f"{first:%b} {first.day}" + (f" to {last:%b} {last.day}" if last != first else "")
+        return f"Event, {days}: {row['title']}. {_short(row.get('description'))}".rstrip(". ") + "."
+    day = news_written(row, today)
+    said = "goes up" if day > today else "written"  # a closing waiting for its week
+    return f"News {said} {day:%b} {day.day}: {row['title']}. {_short(row.get('blurb'))}".rstrip(". ") + "."
+
+
+def repeat_questions(asks, today):
+    """The cheap model's message (sources/models/repeat.md): each new News, numbered, over what its place has."""
+    out = [f"Today is {today:%A, %b} {today.day}, {today.year}.\n"]
+    for i, (n, candidates) in enumerate(asks, 1):
+        out.append(f"## News {i}, posted by {n['source_name']}: {n['title']}. {_short(n.get('blurb'), 300)}".rstrip(". ") + ".")
+        out += [f"  {j}. {story_line(c, today)}" for j, c in enumerate(candidates, 1)]
+        out.append("")
+    return "\n".join(out)
+
+
+def same_story(answer, asks):
+    """The model's lines as {question number: the row it repeats, or None}; a number it made up, or one whose title
+    it says back wrong, counts as None."""
+    got = {}
+    for line in (answer or "").splitlines():
+        line = line.strip().strip(",")
+        try:
+            a = json.loads(line) if line.startswith("{") else None
+        except ValueError:
+            continue
+        if not isinstance(a, dict) or not isinstance(a.get("news"), int) or not 1 <= a["news"] <= len(asks):
+            continue
+        cands, j = asks[a["news"] - 1][1], a.get("same_as")
+        row = cands[j - 1] if isinstance(j, int) and not isinstance(j, bool) and 1 <= j <= len(cands) else None
+        # Its title said back: a number that slipped to the next row holds back nothing.
+        got[a["news"]] = row if row and words(a.get("title")) == words(row["title"]) else None
+    return got
+
+
+def repeat_key(n):
+    return f"{n['source_name']}\n{n['title'].lower()}"
+
+
 def group(old=None, facts=None, home=HOME):
     return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old, home), "items": [],
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
-def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, teams=None, recent_news=()):
+def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, teams=None, recent_news=(),
+         history=None, asked=None):
     """Judged items + the events already listed -> what to write, and each item's outcome.
     `recent_news`: this week's News already in the app (news_in_db), so a repeat isn't added.
+    `history`: the News (any status) and Events its News's places have from the last two weeks (history_in_db). The
+    title rule reads its News too, so a take-out stands; a News it leaves gets a question for the cheap model in
+    out["ask"], [(News, what its place has)], unless `asked` answers it: {repeat_key(News as read): the row it repeats,
+    or None} (BP app smooth-mornings 16). With no history, nothing is asked.
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
-           "teams_checked": teams is not None}
+           "teams_checked": teams is not None, "ask": []}
+    asked = asked or {}
+    taken_out = [r for r in history or () if not r.get("event_date") and r.get("status") != "published"]
     made = {}  # this run's new teams, by id: their one name
     schedules = []
     groups, by_uid, news, also = [group(row, home=home) for row in existing], {}, {}, {}
@@ -1167,10 +1274,10 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
         elif it["kind"] == "news":
             # The title as read too, when the morning gave it a short one: News written before it was short.
             read = tidy_title(it["title"], it["source_name"], event=False)
-            old = (repeat_of(n, [*recent_news, *news.values()])
-                   or read != n["title"] and repeat_of({**n, "title": read}, [*recent_news, *news.values()]))
+            seen = [*recent_news, *taken_out, *news.values()]
+            old = repeat_of(n, seen) or read != n["title"] and repeat_of({**n, "title": read}, seen)
             if old:
-                out["outcomes"][i] = ("repeat", f"of {old['title']!r} (already in the app)")
+                out["outcomes"][i] = ("repeat", f"of {old['title']!r} ({'taken out' if old in taken_out else 'already in the app'})")
                 continue
             # One post is one News (smooth-mornings 05): a second News from the same post joins the first's
             # blurb by its title (Well & Company's one post was three News on Oct 23).
@@ -1180,6 +1287,14 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 also.setdefault(id(post), (post, []))[1].append(n["title"])
                 out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
                 continue
+            # The word rules leave it: the cheap model reads it beside what its place has (smooth-mornings 16).
+            mine = {**n, "title": read}
+            if history is not None and repeat_key(mine) in asked:
+                if same := asked[repeat_key(mine)]:
+                    out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the cheap model says)")
+                    continue
+            elif history is not None and (candidates := told(mine, [*history, *news.values()], today)):
+                out["ask"].append((mine, candidates))
             n["status"] = "published"
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
             out["outcomes"][i] = ("news", "")
@@ -1364,6 +1479,29 @@ def news_in_db(now=None, db=None):
     return [r for r in rows if now < news_lasts_until(r)]
 
 
+def history_in_db(items, today, db=None, before=None):
+    """What the places of this morning's News have from the last REPEAT_DAYS, for told(): their News whatever the status,
+    and their Events (games aside) running from then to REPEAT_AHEAD days ahead, whatever the status. `before`, a time
+    with its offset: only rows made before it, to replay a morning."""
+    hosts = sorted({it["source_name"].strip() for it in items if isinstance(it, dict) and it.get("kind") == "news"
+                    and isinstance(it.get("source_name"), str)})
+    if not hosts:
+        return []
+    places = sorted({p for p in map(lambda h: where(None, h), hosts) if p})
+    listed = lambda values: quote(",".join('"' + v.replace('"', '') + '"' for v in values), safe=',"')
+    who = f"or=(source_name.in.({listed(hosts)})" + (f",place_entry_id.in.({listed(places)})" if places else "") + ")"
+    db = db or Supabase()
+    since = (today - timedelta(REPEAT_DAYS)).isoformat()
+    if before:
+        who += f"&created_at=lt.{quote(local(before).isoformat(), safe=':')}"
+    news = db.rest("GET", "board_items?select=title,blurb,source_name,place_entry_id,status,created_at,published_at"
+                          f"&created_at=gte.{since}&{who}") or []
+    events = db.rest("GET", "club_events?select=title,description,event_date,end_at,source_name,place_entry_id,status,sport,team_ids"
+                            f"&kind=eq.event&event_date=gte.{(today - timedelta(REPEAT_DAYS + 30)).isoformat()}"
+                            f"&event_date=lte.{(today + timedelta(REPEAT_AHEAD)).isoformat()}&{who}") or []
+    return news + [e for e in events if not is_game(e)]
+
+
 def report(items, r):
     for i, (it, (what, detail)) in enumerate(zip(items, r["outcomes"])):
         it = it if isinstance(it, dict) else {}
@@ -1383,6 +1521,9 @@ def report(items, r):
         print(f"[back on] {str(o['event_date'])[:10]} {o['title']!r}")
     for n in r["notes"]:
         print(f"[note] {n}")
+    for n, candidates in r.get("ask", ()):
+        print(f"[ask] {n['title']!r} ({n['source_name']}): same story as one of {len(candidates)} from its place? "
+              "Not asked: it goes up")
     for g in r["events"]:
         if g["row"] and len(g["row"]["title"]) > TITLE_MAX:
             print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
@@ -1598,6 +1739,56 @@ def t_news_repeat_left_out():
     assert [outcome(r, i) for i in range(11)] == ["repeat", "repeat", "repeat", "news", "news", "news", "news", "news",
                                                   "repeat", "news", "news"], r["outcomes"]
     assert "Thanksgiving pre-orders are open" in r["outcomes"][0][1]
+
+
+def t_a_repeat_is_asked_about():
+    """BP app smooth-mornings 16, the morning of 2026-11-09: three repeats the word rules let through. A News its words
+    don't settle is asked about beside what its place has (News whatever their status, Events running near today); the
+    model's answer holds it back, and a take-out's words stand against the next wording."""
+    today = date(2026, 11, 9)
+    stamp = lambda days: (datetime.combine(today, time(8), LOCAL) - timedelta(days)).isoformat()
+    peony = dict(kind="news", start=None, category="business", source_name="White Peony Boutique",
+                 source_url="https://www.instagram.com/p/Dff4ydQkZrJ/")
+    table = dict(peony, source_name="The North Table", source_url="https://www.instagram.com/p/Dffql_QGEVL/")
+    soon = {"title": "Closing for the Season Soon", "blurb": "Open for now.", "source_name": "The North Table",
+            "place_entry_id": where(None, "The North Table"), "status": "published", "created_at": stamp(3)}
+    giving = {"title": "12 Days of Giving", "description": "A new deal each day.", "event_date": "2026-11-09",
+              "end_at": "2026-11-20T23:59:00-06:00", "source_name": "White Peony Boutique", "status": "approved",
+              "place_entry_id": where(None, "White Peony Boutique")}
+    twinkle = {"title": "Twinkle & Toast holiday collection", "source_name": "White Peony Boutique", "status": "archived",
+               "place_entry_id": where(None, "White Peony Boutique"), "created_at": stamp(2)}
+    old_news = dict(soon, title="Pumpkin latte is back", created_at=stamp(15))
+    far = dict(giving, title="Spring sale", event_date="2027-03-01", end_at=None)
+    history = [soon, giving, twinkle, old_news, far]
+    items = [item(title="12 Days of Giving, Nov 9-20", **peony), item(title="The North Table closes for the winter", **table),
+             item(title="Twinkle & Toast holiday collection", **dict(peony, source_url="https://www.instagram.com/p/Dfe0FKWjzfs/")),
+             item(title="Soft Luxe Collection drops Friday", **dict(peony, source_url="https://www.instagram.com/p/DfNew/"))]
+    r = plan(items, [], today, INTERESTS, recent_news=[soon], history=history)
+    assert [outcome(r, i) for i in range(4)] == ["news", "news", "repeat", "news"], r["outcomes"]
+    assert "(taken out)" in r["outcomes"][2][1], "a take-out's words stand"
+    asks = r["ask"]
+    assert [n["title"] for n, _ in asks] == ["12 Days of Giving, Nov 9-20", "The North Table closes for the winter",
+                                             "Soft Luxe Collection drops Friday"], asks
+    assert [c["title"] for c in asks[0][1]] == ["12 Days of Giving", "Twinkle & Toast holiday collection"], \
+        "the most words shared first, then News newest first and Events near today; not another place's, a News " \
+        "past 14 days or a far Event"
+    assert "12 Days of Giving, Nov 9-20" in [c["title"] for c in asks[2][1]], "this morning's own News count too"
+    text = repeat_questions(asks, today)
+    assert "## News 2, posted by The North Table: The North Table closes for the winter." in text, text
+    assert "  1. News written Nov 6: Closing for the Season Soon. Open for now." in text, text
+    assert "  1. Event, Nov 9 to Nov 20: 12 Days of Giving. A new deal each day." in text, text
+    assert "News goes up Nov 20: Closed" in repeat_questions([(asks[1][0], [dict(soon, title="Closed", published_at=
+                                                                            "2026-11-20T00:00:00-06:00")])], today)
+    got = same_story('{"news": 1, "same_as": 1, "title": "12 Days of Giving"}\nprose\n'
+                     '{"news": 2, "same_as": 1, "title": "Closing for the season soon"},\n{"news": 3, "same_as": 9}\n'
+                     '{"news": 7, "same_as": 1}', asks)
+    assert {k: v and v["title"] for k, v in got.items()} == {1: "12 Days of Giving", 2: "Closing for the Season Soon", 3: None}, got
+    assert same_story('{"news": 1, "same_as": 2, "title": "12 Days of Giving"}', asks) == {1: None}, "the next row's number"
+    asked = {repeat_key(n): got.get(i) for i, (n, _) in enumerate(asks, 1)}
+    r = plan(items, [], today, INTERESTS, recent_news=[soon], history=history, asked=asked)
+    assert [outcome(r, i) for i in range(4)] == ["repeat", "repeat", "repeat", "news"] and not r["ask"], r["outcomes"]
+    assert "the same story as 'Closing for the Season Soon' (the cheap model says)" in r["outcomes"][1][1], r["outcomes"][1]
+    assert not plan(items, [], today, INTERESTS)["ask"], "no history, nothing asked"
 
 
 def t_closings_wait():
@@ -2687,7 +2878,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_a_repeat_is_asked_about, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
@@ -2718,6 +2909,9 @@ def main():
     ap.add_argument("--town", default=DEFAULT)
     ap.add_argument("--sql", help="write the live write as SQL to this file")
     ap.add_argument("--apply", action="store_true", help="write to the database (service role key in the environment)")
+    ap.add_argument("--ask", metavar="MODEL", help="ask MODEL (haiku) about News the word rules leave, through Claude Code "
+                                                   "on this Mac (sources/models/repeat.md); the morning job's helper asks it there")
+    ap.add_argument("--before", help="with --news db: only rows made before this time (ISO, with offset), to replay a morning")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -2739,8 +2933,19 @@ def main():
     # A live write always checks this week's News: the database no longer drops a link it already has.
     news_from = args.news or ("db" if args.apply else None)
     news = [] if not news_from else news_in_db() if news_from == "db" else json.loads(Path(news_from).read_text())
-    r = plan(items, existing, today, interests, town, teams=known_teams() if args.apply else None,
-             recent_news=news)
+    # What the News's places already have, for the cheap model's question (smooth-mornings 16): with the News from db.
+    history = history_in_db(items, today, before=args.before) if news_from == "db" else None
+    if args.before:
+        news = [r for r in news if local(r["created_at"]) < local(args.before)]
+    teams = known_teams() if args.apply else None
+    r = plan(items, existing, today, interests, town, teams=teams, recent_news=news, history=history)
+    if r["ask"] and args.ask:
+        asks = r["ask"]
+        from check_flags import ask
+        answer, _ = ask(args.ask, REPEAT_MODEL.read_text(), repeat_questions(asks, today))
+        got = same_story(answer, asks)
+        r = plan(items, existing, today, interests, town, teams=teams, recent_news=news, history=history,
+                 asked={repeat_key(n): got.get(i) for i, (n, _) in enumerate(asks, 1)})
     report(items, r)
     if args.sql:
         Path(args.sql).write_text(to_sql(r, today))

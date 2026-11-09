@@ -16,7 +16,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             that failed, naming the town's own (smooth-mornings 04)
   titles    list the event titles still over 40 characters once tidied (games aside), then the News titles
             past their card's 2 lines, in .runs/morning/titles.txt, for the routine's model to shorten into
-            titles.json (.claude/skills/title-and-place; Jesse, 2026-10-21; BP app inside-cards 13)
+            titles.json (.claude/skills/title-and-place; Jesse, 2026-10-21; BP app inside-cards 13); and lay out
+            the News the word rules leave beside what their places have, in repeats.txt, for one helper on the
+            cheap model (sources/models/repeat.md), whose answers save reads from repeats.jsonl (smooth-mornings 16)
   save      once the judge is done: merge the feed items with the judge's items, give long titles their
             short ones (titles.json), write them (public.apply_judged over the service role key), put a post's
             new lasting week on its place (save_hours: the judge's `hours` items, social.md), then save
@@ -283,6 +285,19 @@ def read_items(path):
     return items
 
 
+def repeat_check_lines(result):
+    """What the cheap model's repeat check did (smooth-mornings 16): how many it read, each News it held back, and
+    any it wasn't asked about because its answer never came, which went up."""
+    asked, answered = result.get("repeat_check") or (0, 0)
+    held = [(i, d) for i, (what, d) in enumerate(result["outcomes"]) if what == "repeat" and "the cheap model" in d]
+    lines = [f"- Repeat check: {answered} of {asked} News read by the cheap model, {len(held)} held back"] if asked else []
+    lines += [f"- Held back as a repeat: {d}" for _, d in held]
+    if result.get("ask"):
+        lines.append(f"- Repeat check not answered for {len(result['ask'])} News: "
+                     + "; ".join(n["title"] for n, _ in result["ask"]) + " (they went up)")
+    return lines
+
+
 def summary_lines(prep, result, written):
     """The new counts are what the database did (apply_judged's `added`: smooth-mornings 05), and the new
     Events and News are listed from the rows it added. A dry run's are the plan's."""
@@ -306,6 +321,7 @@ def summary_lines(prep, result, written):
     lines += not_recorded_lines(prep)
     lines += [f"- Reader failed: {r.split('FAILED', 1)[1].strip()}" for r in prep["readers"] if "FAILED" in r]
     lines += [f"- Folded: {detail}" for what, detail in result["outcomes"] if what == "folded"]
+    lines += repeat_check_lines(result)
     lines += [f"- Still over {write_judged.TITLE_MAX} characters: {g['row']['title']}" for g in result["events"]
               if g["row"] and len(g["row"]["title"]) > write_judged.TITLE_MAX]
     lines += [f"- Still past its 2 lines: {n['title']}" for n in news if not write_judged.headline_fits(n["title"])]
@@ -527,6 +543,44 @@ def long_titles(run):
           + (f", {len(news)} News past their 2 lines" if news else "") + f" ({out / 'titles.txt'})")
 
 
+def repeat_questions(run):
+    """The News the word rules leave beside what their places have (write_judged.told), in repeats.txt for one helper
+    on the cheap model (sources/models/repeat.md), and what each number stands for in repeats-asked.json, for save
+    (BP app smooth-mornings 16). The judge's items as they stand after the titles step."""
+    out, db = run.folder, run.db
+    items = news_items(out)
+    asks = []
+    if items:
+        result = write_judged.plan(items, write_judged.listed_in_db(db), run.today, write_judged.interest_ids(), TOWNS[run.town],
+                                   recent_news=write_judged.news_in_db(db=db),
+                                   history=write_judged.history_in_db(items, run.today, db))
+        asks = result["ask"]
+    (out / "repeats.txt").write_text(write_judged.repeat_questions(asks, run.today) if asks else "")
+    (out / "repeats-asked.json").write_text(json.dumps([[write_judged.repeat_key(n), c] for n, c in asks], default=str))
+    (out / "repeats.jsonl").unlink(missing_ok=True)  # an answer is only ever to these questions
+    print(f"[morning] {len(asks)} News for the cheap model's repeat check" + (f" ({out / 'repeats.txt'})" if asks else ""))
+
+
+def news_items(out):
+    """The morning's News items, feeds' and judge's."""
+    return [x for x in read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
+            if isinstance(x, dict) and x.get("kind") == "news"]
+
+
+def repeat_answers(out):
+    """{repeat_key: the row it repeats, or None} from the helper's repeats.jsonl, for the questions in
+    repeats-asked.json, and how many were asked. No answer file: nothing is answered, and every News goes up."""
+    try:
+        asked = json.loads((out / "repeats-asked.json").read_text())
+    except (OSError, ValueError):
+        return {}, 0
+    path = out / "repeats.jsonl"
+    if not path.exists():
+        return {}, len(asked)
+    got = write_judged.same_story(path.read_text(), [({}, cands) for _, cands in asked])
+    return {key: got.get(i) for i, (key, _) in enumerate(asked, 1) if i in got}, len(asked)
+
+
 def short_titles(out):
     """titles.json, {long: short}: only shorter ones, so a slip never makes a title longer."""
     path = out / "titles.json"
@@ -546,8 +600,11 @@ def write(run, dry_run):
     hours = [x for x in judged if isinstance(x, dict) and x.get("kind") == "hours"]
     items = feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")]
     existing = write_judged.listed_in_db(db)
+    asked, questions = repeat_answers(out)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
-                               teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db))
+                               teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db),
+                               history=write_judged.history_in_db(items, today, db), asked=asked)
+    result["repeat_check"] = (questions, len(asked))
     write_judged.report(items, result)
     try:
         written = None if dry_run else write_judged.apply(result, db)
@@ -1228,6 +1285,27 @@ def selftest():
                                                 "Sacred Heart Chapel Anniversary"},
                    "only shorter titles are taken from titles.json"))
     tmp.with_name("titles.json").unlink()
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory() as folder:  # the repeat check's answers (smooth-mornings 16)
+        folder = Path(folder)
+        soon = {"title": "Closing for the Season Soon", "source_name": "The North Table"}
+        none_yet = repeat_answers(folder)
+        (folder / "repeats-asked.json").write_text(json.dumps([["The North Table\nclosing", [soon]], ["A\nb", [soon]]]))
+        unanswered = repeat_answers(folder)
+        (folder / "repeats.jsonl").write_text('{"news": 1, "same_as": 1, "title": "Closing for the Season Soon"}\n')
+        answered = repeat_answers(folder)
+    held = {"outcomes": [("repeat", "'Closing', the same story as 'Closing for the Season Soon' (the cheap model says)"),
+                         ("repeat", "of 'x' (already in the app)"), ("news", "")],
+            "ask": [({"title": "Bingo"}, [soon])], "repeat_check": (3, 2)}
+    checks += [
+        (none_yet == ({}, 0) and unanswered == ({}, 2), "no questions, or no answers: nothing held back"),
+        (answered == ({"The North Table\nclosing": soon}, 2), "an answer names the row; an unanswered question is left out"),
+        (repeat_check_lines(held) == ["- Repeat check: 2 of 3 News read by the cheap model, 1 held back",
+                                      "- Held back as a repeat: 'Closing', the same story as 'Closing for the Season Soon' (the cheap model says)",
+                                      "- Repeat check not answered for 1 News: Bingo (they went up)"],
+         "the report says what the repeat check did"),
+        (repeat_check_lines({"outcomes": [], "ask": []}) == [], "no questions, no line"),
+    ]
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
     result = {"outcomes": [("published", ""), ("repeat", "of 'x'"), ("news", ""), ("merged", "into x"),
@@ -2587,6 +2665,7 @@ def main(argv=None):
         prepare(run)
     elif args.step == "titles":
         long_titles(run)
+        repeat_questions(run)
     elif args.step == "save":
         save(run, args.dry_run)
     elif args.step == "today":
