@@ -58,9 +58,10 @@ together, at most 10 running at once:
   picks every photo, BP app dig-deeper 08) with: "Read
   `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with the
   JSON lines only." Their lines go to `.runs/morning/event_photos.jsonl`.
-- when `.runs/morning/logos/batch.txt` exists, one helper on the cheap model (Haiku) with: "Read
+- when `.runs/morning/logos/batch.txt` exists, two helpers on the cheap model (Haiku), each with: "Read
   `sources/models/team-logo.md` and follow it for `.runs/morning/logos/batch.txt`. Answer with the JSON lines only."
-  Its lines go to `.runs/morning/logos.jsonl`. Only its yes puts a logo live: never answer for it yourself.
+  The first's lines go to `.runs/morning/logos.jsonl`, the second's to `.runs/morning/logos-2.jsonl`. Only both
+  their yeses put a logo live: never answer for them yourself.
 - Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked
   photos), then `python3 sources/scripts/morning.py today`, then read
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's

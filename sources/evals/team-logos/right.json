@@ -146,7 +146,8 @@
   "nickname": "Zephyrs",
   "town": "Mahtomedi",
   "colors_said": "Navy and Gold",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "M"
  },
  {
   "id": "pine-city",
@@ -237,7 +238,8 @@
   "nickname": "Dragons",
   "town": "Litchfield",
   "colors_said": "Green, White, Black",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "L"
  },
  {
   "id": "marshall",
@@ -355,7 +357,8 @@
   "nickname": "Tigers",
   "town": "Princeton",
   "colors_said": "Black, Orange, White",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "P"
  },
  {
   "id": "coon-rapids",
@@ -399,7 +402,8 @@
   "nickname": "Dutchmen",
   "town": "Melrose",
   "colors_said": "Purple and Gold",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "M"
  },
  {
   "id": "simley",
@@ -443,7 +447,8 @@
   "nickname": "Dragons",
   "town": "Litchfield",
   "colors_said": "Green, White, Black",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "L"
  },
  {
   "id": "annandale-maple-lake",
@@ -471,7 +476,8 @@
   "nickname": "Cardinals",
   "town": "Upsala",
   "colors_said": "Red and White",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "U"
  },
  {
   "id": "hibbing-chisholm",
@@ -628,7 +634,8 @@
   "nickname": "",
   "town": "Esko",
   "colors_said": "Blue and Gold",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "E"
  },
  {
   "id": "zimmerman",
@@ -642,7 +649,8 @@
   "nickname": "Thunder",
   "town": "Zimmerman",
   "colors_said": "Navy/Columbia/Grey",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "T"
  },
  {
   "id": "north-tartan",
@@ -754,7 +762,8 @@
   "nickname": "Raiders",
   "town": "Northfield",
   "colors_said": "Maroon and Gold",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "N"
  },
  {
   "id": "south-st-paul",
@@ -928,7 +937,8 @@
   "nickname": "Spuds",
   "town": "Moorhead",
   "colors_said": "Orange and Black",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "M"
  },
  {
   "id": "monticello",
@@ -942,7 +952,8 @@
   "nickname": "Magic",
   "town": "Monticello",
   "colors_said": "Red, Black",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "M"
  },
  {
   "id": "prairie-centre",
@@ -1033,7 +1044,7 @@
   ],
   "logo_of": "Kasson-Mantorville High School",
   "coop": true,
-  "nickname": "Wildcats",
+  "nickname": "KoMets",
   "source": "the school's own site"
  },
  {
@@ -1246,7 +1257,8 @@
   "nickname": "Lakers",
   "town": "Howard Lake",
   "colors_said": "Navy Blue,Gold",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "L"
  },
  {
   "id": "grand-forks-central",
@@ -1272,7 +1284,8 @@
   "nickname": "Cougars",
   "town": "Circle Pines",
   "colors_said": "Red, Black and White",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "C"
  },
  {
   "id": "rockford",
@@ -1286,7 +1299,8 @@
   "nickname": "Rockets",
   "town": "Rockford",
   "colors_said": "Green, black, white",
-  "source": "the state league"
+  "source": "the state league",
+  "letter": "R"
  },
  {
   "id": "minneapolis-camden",

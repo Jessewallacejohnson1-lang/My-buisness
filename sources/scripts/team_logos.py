@@ -117,8 +117,10 @@ def from_league(team, get=run.fetch):
     tried = set()
     for query in dict.fromkeys(q for q in (name, first, " ".join(name.split()[:2])) if q):
         for path, listed in league_search(query, get):
-            # Read only a page whose listed name could pass check 1: each page is a second of the league's time.
-            if path in tried or not (names(listed, name, listed) or (first and names(listed, first, listed))):
+            # Read only a page whose listed name could pass check 1 (every word of it the team's; the town is on the
+            # page): each page is a second of the league's time.
+            fits = lambda n: n and words(listed) - GENERIC <= words(n)
+            if path in tried or not (fits(name) or fits(first)):
                 continue
             tried.add(path)
             _, page = get(LEAGUE + path)
@@ -282,6 +284,11 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, gra
     return found
 
 
+# The helper's two readings of the sheet: a logo goes live only on two yeses. One reading in about 20 says yes to a
+# logo its own words had just ruled out ("SF is St. Francis, not St. Cloud"); two readings together never have.
+READINGS = ("logos.jsonl", "logos-2.jsonl")
+
+
 def answers_in(text):
     """The helper's JSON lines, by team key; a line that isn't one is skipped."""
     out = {}
@@ -304,14 +311,16 @@ def keep(run_, dry_run=False):
     done = run_.part(f"logos/kept{'-dry-run' if dry_run else ''}.json")
     if done.saved is not None:
         return done.saved
-    said = run_.folder / "logos.jsonl"
-    found, said = json.loads((folder / "found.json").read_text()), answers_in(said.read_text() if said.exists() else "")
+    found = json.loads((folder / "found.json").read_text())
+    readings = [answers_in(f.read_text() if f.exists() else "") for f in (run_.folder / n for n in READINGS)]
     lines = []
     for t in found["teams"]:
-        a = said.get(t["key"]) or {}
+        said = [r.get(t["key"]) or {} for r in readings]
         whose = f"{t['logo_of']}'s, as its first school" if t.get("coop") else t["logo_of"]
-        if str(a.get("answer", "")).lower() != "yes":
-            why = f"the check said {a['answer']}: {a.get('why', '')}".rstrip(": ") if a.get("answer") else "the check gave no answer"
+        doubt = next((a for a in said if str(a.get("answer", "")).lower() != "yes"), None)
+        if doubt is not None:
+            why = (f"the check said {doubt['answer']}: {doubt.get('why', '')}".rstrip(": ") if doubt.get("answer")
+                   else "the check gave no answer")
             lines.append(f"- Still waiting on a logo: {t['name']}: {whose} from {t['source']}, {why}")
             continue
         try:
@@ -330,7 +339,7 @@ def keep(run_, dry_run=False):
         except DbError as e:
             lines.append(f"[morning] team logo for {t['name']} failed: {' '.join(str(e).split())[:200]}")
             continue
-        lines.append(f"- Logo live: {t['name']}, {whose} from {t['source']} ({t['page']}); its page names it and the check "
+        lines.append(f"- Logo live: {t['name']}, {whose} from {t['source']} ({t['page']}); its page names it and both readings "
                      f"said yes. Wrong? Take it down with a migration: update public.teams set logo_url = null, color = null, "
                      f"colors = null where id = '{t['id']}';" + (" (dry run: nothing written)" if dry_run else ""))
     lines += [f"- Still waiting on a logo: {m['name']}: {m['why']}" for m in found["missed"]]
@@ -428,7 +437,9 @@ def selftest():
            "the found logos go on one sheet, a co-op's line saying whose logo it is")
         key = {t["name"]: t["key"] for t in found}
         (folder / "logos.jsonl").write_text(f'{{"team": "{key["Becker-Big Lake"]}", "answer": "yes", "why": "a bulldog in blue"}}\n'
-                                            f'prose\n{{"team": "{key["Shanley"]}", "answer": "unsure", "why": "no name on it"}}\n')
+                                            f'prose\n{{"team": "{key["Shanley"]}", "answer": "yes", "why": "an S"}}\n')
+        (folder / "logos-2.jsonl").write_text(f'{{"team": "{key["Becker-Big Lake"]}", "answer": "yes", "why": "a bulldog"}}\n'
+                                              f'{{"team": "{key["Shanley"]}", "answer": "unsure", "why": "no name on it"}}\n')
         r = Run(folder, date(2026, 11, 10), db)
         lines = keep(r)
         puts = [c for c in db.calls if c[0] == "PUT"]
@@ -441,7 +452,7 @@ def selftest():
         ok(lines[0].startswith("- Logo live: Becker-Big Lake, Becker High School's, as its first school")
            and "where id = 'becker-big-lake'" in lines[0], "the report says whose logo it is and how to take it down")
         ok(lines[1] == "- Still waiting on a logo: Shanley: Shanley High School from Wikipedia, the check said unsure: no name on it",
-           "anything but yes waits, and says why")
+           "anything but two yeses waits, and says why")
         ok(lines[2] == "- Still waiting on a logo: North Wright County: no school page names it (league or Wikipedia)",
            "a team not found says so")
         n = len(db.calls)
