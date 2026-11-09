@@ -303,8 +303,9 @@ private struct InterestRises: ViewModifier {
 }
 
 /// Luma's check circle at the end of a row that picks at once: an empty grey ring, filled ink with a
-/// white check once picked, popping .6 to 112% and back over 0.26 s as it fills (mock v8 `.ring`).
-private struct InterestCheckCircle: View {
+/// white check once picked, popping .6 to 112% and back over 0.26 s as it fills (mock v8 `.ring`). Contacts' rows
+/// tick with it too (onboarding 37).
+struct InterestCheckCircle: View {
     let on: Bool
 
     @State private var pop: CGFloat = 1
@@ -320,6 +321,8 @@ private struct InterestCheckCircle: View {
                 .opacity(on ? 1 : 0)
         }
         .frame(width: Metric.ring, height: Metric.ring)
+        // The row says picked or not; the check's own "Selected" would say it even when empty.
+        .accessibilityHidden(true)
         .scaleEffect(pop)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
         .onChange(of: on) { _, now in

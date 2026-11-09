@@ -51,6 +51,7 @@ nonisolated enum LaunchFlags {
         case newPostWords = "-new-post-words"
         case noticeSamples = "-notice-samples"
         case onboarding = "-onboarding"
+        case onboardingFirstHere = "-onboarding-first-here"
         case onboardingNoIsland = "-onboarding-no-island"
         case onboardingNotYet = "-onboarding-not-yet"
         case openBusiness = "-open-business"

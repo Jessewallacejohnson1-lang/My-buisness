@@ -163,6 +163,15 @@ final class OnboardingStore {
         if let i = requests.firstIndex(of: id) { requests.remove(at: i) } else { requests.append(id) }
     }
 
+    /// Contacts' one button (onboarding 37, mock v8): "Add 2 friends" as people are ticked, "Next" with none.
+    var contactsButton: String {
+        switch requests.count {
+        case 0: "Next"
+        case 1: "Add 1 friend"
+        case let n: "Add \(n) friends"
+        }
+    }
+
     /// Hands Contacts' requests to `send` once the flow is done and the name has reached the account,
     /// forgetting each the server answered, sent or refused. No answer (no signal, the server down)
     /// keeps the rest for the next save, which every launch makes.
@@ -330,9 +339,25 @@ struct OnboardingFlow: View {
     /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
     /// sign-in makes one at step 2 (onboarding 17) it finds nobody.
     @State private var contacts = ContactsMatch { emails, phones in
+        #if DEBUG
+        if LaunchFlags.backend == .samples { return OnboardingFlow.sampleMatches(phones) }
+        #endif
         guard AuthStore.shared.hasAccount else { return [] }
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
+
+    #if DEBUG
+    /// `-town-samples`: the sample neighbours you could add, found as the phone's first contacts, so
+    /// Contacts shows people on Block Party with no account and nothing asked of the server.
+    /// `-onboarding-first-here` finds nobody, as a town's first neighbours would.
+    static func sampleMatches(_ phones: [String]) -> [(code: String, neighbor: Neighbor)] {
+        guard !LaunchFlags.has(.onboardingFirstHere) else { return [] }
+        var seen = Set<String>()
+        let people = (Neighbor.samples + Neighbor.sampleSuggestions)
+            .filter { $0.relation == .stranger && seen.insert($0.displayName).inserted }
+        return zip(phones, people.prefix(3)).map { (code: $0, neighbor: $1) }
+    }
+    #endif
 
     /// The Next pill's lift over the birthday wheel, above the home indicator's 34: 12 pt over the
     /// wheel's top, as over a keyboard (mock v8).
@@ -514,10 +539,27 @@ struct OnboardingFlow: View {
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
-            } else if store.step != .contacts || store.account != nil {
+            } else if store.step == .friends && store.account == nil {
+                // Luma's contacts ask whole (onboarding 37): its faces and white sheet, no icon circle.
+                OnboardingFriendsAsk(focused: $questionFocused)
+            } else if store.step == .contacts && store.account == nil {
+                // Contacts' question scrolls away with its search and rows, as Interests' does (onboarding 37).
+                OnboardingContactsList(model: contacts, requests: store.requests,
+                                       toggle: { [store] in store.toggleRequest($0) }) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        // Only while there's someone to pick: nobody here leaves the Invite list alone.
+                        if peopleHere { OnboardingSubline("Pick who to add. They get a friend request.") }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.top, FollowGridMetric.scrollTop)
+                .overlay(alignment: .top) { scrollEdge }
+                .ignoresSafeArea(.container)
+            } else {
                 // A step that reaches past the Next pill on a small phone or at a large text size (the
                 // Birthday's gender row, onboarding 31; any step at the largest sizes, 34) scrolls clear
-                // of it; where it fits it holds still. Contacts' list scrolls on its own.
+                // of it; where it fits it holds still.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
@@ -534,15 +576,6 @@ struct OnboardingFlow: View {
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container, edges: .top)
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    heading
-                    answer
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, FollowGridMetric.gutter)
-                .padding(.top, FollowGridMetric.headingTop)
-                .ignoresSafeArea(.container)
             }
         }
         .onAppear { questionFocused = true }
@@ -565,9 +598,15 @@ struct OnboardingFlow: View {
     /// Check-in 1). Only from a real check: a quiet account finds nobody because it can't ask, and a
     /// phone with no numbers or emails asks nobody.
     private var firstHere: Bool {
-        guard store.step == .contacts, AuthStore.shared.hasAccount,
+        guard store.step == .contacts, AuthStore.shared.hasAccount || LaunchFlags.backend == .samples,
               case .ready(let onApp, let invite) = contacts.state else { return false }
         return onApp.isEmpty && !invite.isEmpty
+    }
+
+    /// Contacts' check found someone you could still add, so the line under the question says how.
+    private var peopleHere: Bool {
+        guard case .ready(let onApp, _) = contacts.state else { return false }
+        return onApp.contains { $0.relation == .stranger }
     }
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
@@ -585,11 +624,6 @@ struct OnboardingFlow: View {
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 24)
             OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
-        case .friends:
-            OnboardingFriendsReason()
-        case .contacts:
-            OnboardingContactsList(model: contacts, requests: store.requests,
-                                   toggle: { [store] in store.toggleRequest($0) })
         default:
             EmptyView()
         }
@@ -600,7 +634,8 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, profile: onProfile, action: nextAction)
+                              busy: form.busy, refused: form.refusals, profile: onProfile,
+                              white: store.step == .friends && store.account == nil, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
@@ -628,6 +663,7 @@ struct OnboardingFlow: View {
         if store.step == .profile { return "Save Profile" }
         if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
+        if store.step == .contacts { return store.contactsButton }
         return "Next"
     }
 
@@ -636,6 +672,7 @@ struct OnboardingFlow: View {
         switch store.step {
         case .interests: max(0, 3 - picksMade)
         case .follow: followsNeeded
+        case .contacts: store.requests.count
         default: 0
         }
     }
@@ -863,8 +900,8 @@ private struct WelcomePillPress: ButtonStyle {
 }
 
 extension View {
-    /// The Welcome's entrance: up 14 pt and in over 0.55 s, out-quint, after `delay`. Find your
-    /// friends' lines rise 10 pt over 0.38 s (mock v7).
+    /// The Welcome's entrance: up 14 pt and in over 0.55 s, out-quint, after `delay`. Contacts' rows
+    /// rise 8 pt over 0.32 s, 30 ms apart (mock v8).
     func rise(_ shown: Bool, delay: Double, by distance: CGFloat = 14, duration: Double = 0.55) -> some View {
         modifier(Rise(shown: shown, delay: delay, distance: distance, duration: duration))
     }

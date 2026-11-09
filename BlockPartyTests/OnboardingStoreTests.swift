@@ -501,6 +501,49 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(store.requests, [], "the server answered both: one refused, one sent")
     }
 
+    // MARK: Contacts' one button (onboarding 37, mock v8)
+
+    /// On Contacts with Profile's name typed, as a real flow gets there.
+    private func onContacts() -> OnboardingStore {
+        let store = OnboardingStore(defaults: defaults)
+        store.name = "Avery"
+        while store.step != .contacts { store.next() }
+        return store
+    }
+
+    func testTheButtonCountsWhoIsTicked() {
+        let store = onContacts()
+        XCTAssertEqual(store.contactsButton, "Next")
+        store.toggleRequest("maya")
+        XCTAssertEqual(store.contactsButton, "Add 1 friend")
+        store.toggleRequest("sam")
+        XCTAssertEqual(store.contactsButton, "Add 2 friends")
+        store.toggleRequest("maya")
+        XCTAssertEqual(store.contactsButton, "Add 1 friend")
+    }
+
+    func testTickingTwoAndPressingTheButtonSendsTwoAndMovesOn() async {
+        let store = onContacts()
+        store.toggleRequest("maya")
+        store.toggleRequest("sam")
+        store.next()
+        XCTAssertTrue(store.finished, "the button moves on: Contacts is the last step")
+        await store.saveAnswers { _, _, _ in }
+        var sent: [String] = []
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, ["maya", "sam"])
+    }
+
+    func testNoneTickedMovesOnWithNoneSent() async {
+        let store = onContacts()
+        store.next()
+        XCTAssertTrue(store.finished)
+        await store.saveAnswers { _, _, _ in }
+        var sent: [String] = []
+        await store.sendRequests { sent.append($0) }
+        XCTAssertEqual(sent, [])
+    }
+
     func testTooYoungForgetsTheRequests() {
         let store = OnboardingStore(defaults: defaults)
         store.toggleRequest("maya")

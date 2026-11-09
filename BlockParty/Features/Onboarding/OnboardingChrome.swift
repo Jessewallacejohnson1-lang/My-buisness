@@ -153,6 +153,8 @@ struct OnboardingNextBar: View {
     /// Profile's Save Profile (onboarding 35): Luma's 352 x 49 pt pill, words at 17 pt medium, a soft
     /// shadow under it, in the same spot (its bottom edge where every step's sits).
     var profile = false
+    /// Find your friends' Luma's white pill, ink words, a soft shadow and a hair of edge (mock v8 `.btn.white`).
+    var white = false
     let action: () -> Void
 
     static let height: CGFloat = 48
@@ -178,7 +180,7 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, profile: profile))
+        .buttonStyle(NextBarStyle(allowed: allowed, profile: profile, white: white))
         .frame(maxWidth: profile ? Self.profileSize.width : .infinity)
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
@@ -199,20 +201,24 @@ struct OnboardingNextBar: View {
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
     var profile = false
+    var white = false
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
-        let on = profile ? Hue.saveProfile : Hue.ink
+        let on = profile ? Hue.saveProfile : white ? Hue.surface : Hue.ink
         let off = profile ? Hue.saveProfileOff : Hue.nextOff
+        let words = white ? Hue.ink : Color.white
         return configuration.label
-            .foregroundStyle(allowed ? Color.white : (profile ? Hue.saveProfileOffWords : Hue.nextOffWords))
+            .foregroundStyle(allowed ? words : (profile ? Hue.saveProfileOffWords : Hue.nextOffWords))
             .frame(maxWidth: .infinity)
             .frame(height: profile ? OnboardingNextBar.profileSize.height : OnboardingNextBar.height)
             .background {
                 Capsule()
-                    .fill(allowed ? (down ? Hue.nextPressed : on) : off)
-                    // Luma's soft shadow under Save Profile (mock v8 `0 12px 24px -12px`).
-                    .shadow(color: Hue.ink.opacity(profile ? 0.2 : 0), radius: 10, y: 10)
+                    .fill(allowed ? (down ? (white ? Hue.nextWhiteDown : Hue.nextPressed) : on) : off)
+                    .strokeBorder(Hue.ink.opacity(white ? 0.04 : 0), lineWidth: 1)
+                    // Luma's soft shadow under Save Profile (mock v8 `0 12px 24px -12px`), and under the white
+                    // pill (`0 6px 20px` at 9%).
+                    .shadow(color: Hue.ink.opacity(profile ? 0.2 : white ? 0.09 : 0), radius: 10, y: white ? 6 : 10)
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())
@@ -293,7 +299,9 @@ struct OnboardingSearchField: View {
                 .focused($searching)
         }
         .padding(.horizontal, 12)
-        .frame(height: Self.height)
+        // 40 pt, growing with large text so its words aren't cut.
+        .padding(.vertical, 6)
+        .frame(minHeight: Self.height)
         .background(Hue.onboardingField, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         // The whole box takes the tap, not only the line of text.
         .contentShape(Rectangle())

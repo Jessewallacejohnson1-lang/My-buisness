@@ -226,6 +226,18 @@ nonisolated enum Hue {
     static let profileBlankLilac  = Color(hex: 0xB98AD8)
     static let profileBlankGreen  = Color(hex: 0x6CD9A6)
     static let profileBlankViolet = Color(hex: 0xC76BDA)
+    /// Find your friends, Luma's contacts ask (onboarding 37, mock v8 `.face`): the three glowing faces,
+    /// one graphite and two periwinkle, each lit from the top, and the glow under the periwinkle ones.
+    /// For those faces only.
+    static let friendsFaceGraphiteTop = Color(hex: 0x8C8C90)
+    static let friendsFaceGraphite    = Color(hex: 0x39393C)
+    static let friendsFaceLilacTop    = Color(hex: 0xB3BCEA)
+    static let friendsFaceLilac       = Color(hex: 0x7882C4)
+    static let friendsFaceGlow        = Color(hex: 0x6874C8)
+    /// Find your friends' white Next pill under the finger (mock v8 `.btn.white.pressed`).
+    static let nextWhiteDown = Color(hex: 0xF2F2F4)
+    /// Contacts' small grey Invite, iOS's GET button (mock v8 `.get`).
+    static let inviteGet = Color(hex: 0xEDEDF0)
     /// The Welcome's white pills, and pressed (ticket 25 mock).
     static let welcomePill = Color(hex: 0xFFFFFF)
     static let welcomePillDown = Color(hex: 0xECECEA)
