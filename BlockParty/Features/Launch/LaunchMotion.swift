@@ -6,9 +6,13 @@
 //  mock.template.html holds the original). Every tuning value was GUESSED in the mock and
 //  approved as played; change one only with Jesse.
 //
-//  Times here are the mock's simulation time. The screen plays them at `pace`, so each
-//  motion takes 1.33x its value (Jesse: "can you do .75 speed"; slower still was tried and
-//  dropped on 2026-11-02: "nvm do 1 speed").
+//  Times here are the mock's simulation time. The screen plays the full show at `fullPace`, so
+//  each motion takes 1.33x its value (Jesse: "can you do .75 speed"; slower still was tried and
+//  dropped on 2026-11-02: "nvm do 1 speed"); the short cut and a link open play at full speed.
+//
+//  Three kinds (Jesse, 2026-11-08; BP app references/launch-short): the full show on the day's
+//  first two cold starts; after them the short cut, the ball dropping straight into the dot; and
+//  a link open, no ball, the ! appearing and Bp! popping out over the page the link opened.
 //
 
 import SwiftUI
@@ -16,7 +20,10 @@ import SwiftUI
 nonisolated struct LaunchMotion {
     // MARK: Tuning (the mock's `T`)
 
-    static let pace = 0.75
+    static let fullPace = 0.75
+    /// The short cut and a link open play at full speed (Jesse, 2026-11-08).
+    static func pace(for kind: Kind) -> Double { kind == .full ? fullPace : 1 }
+    var pace: Double { Self.pace(for: kind) }
     /// Gravity and the drop's starting speed, in points per second (per second).
     private static let gravity: CGFloat = 7600
     private static let dropSpeed: CGFloat = 650
@@ -48,6 +55,18 @@ nonisolated struct LaunchMotion {
     /// one beat with one firm buzz. The ending starts 0.63 in, once the landing has rebounded.
     static let jumpLands = 0.49
     private static let jumpEnds = 0.63
+    /// The short cut's jump has no hang at the top (Jesse, 2026-11-08: about 1.5 s in all).
+    static let jumpLandsShort = 0.35
+    private static let jumpEndsShort = 0.49
+    var landBeat: Double { kind == .short ? Self.jumpLandsShort : Self.jumpLands }
+    private var jumpEnd: Double { kind == .short ? Self.jumpEndsShort : Self.jumpEnds }
+    /// A link open: the ! appears over `linkAppear`, then Bp! pops out from `linkPop`.
+    static let linkAppear = 0.12
+    static let linkPop = 0.20
+    /// Into the tab bar, the yellow falls off the bottom of the screen like a curtain, gathering
+    /// speed, gone as Bp! lands (Jesse, 2026-11-08: "curtain"); quicker after a tap. A zoom fades.
+    static let curtainTime = 0.36
+    static let curtainTimeFast = 0.22
     /// Bp! leaps into the tab bar (Jesse, 2026-11-02: "faster and not just a straight animation
     /// with no emotion"): it crouches onto its foot, is tossed along a parabola (its middle point
     /// 190 pt above where it starts) down into the slot, leaning 12° and stretching as it flies,
@@ -85,19 +104,25 @@ nonisolated struct LaunchMotion {
     // MARK: The mark: the Daily mark's canvas, viewBox 137 302 751 422
 
     static let canvas = CGRect(x: 137, y: 302, width: 751, height: 422)
-    /// The middle of the still's Bp (B and p at 90%) on the canvas, measured off `LaunchStill`.
-    /// It sits in the screen's middle and the ! reaches past it on the right (Jesse, 2026-11-02:
-    /// "recenter that the BP is in the middle"), so the whole launch, the ball's start included,
-    /// moves by `centring` from the canvas's own middle.
-    static let bpMiddle = CGPoint(x: 429.75, y: 524.5)
+    /// The middle of the still's Bp (B and p at 90%, shrunk toward the !) on the canvas: the full
+    /// Bp's middle (429.75, 513) taken 90% of the way from `letterAnchor`. It sits in the screen's
+    /// middle and the ! reaches past it on the right (Jesse, 2026-11-02: "recenter that the BP is
+    /// in the middle"), so the whole launch, the ball's start included, moves by `centring` from
+    /// the canvas's own middle.
+    static let bpMiddle = CGPoint(x: 464.875, y: 524.5)
     static let centring = CGSize(width: (canvas.midX - bpMiddle.x) * scale, height: (canvas.midY - bpMiddle.y) * scale)
-    /// Round 1's 17.2 pt ball, 125% larger (Jesse: "joetown logo needs to be 125% larger"),
-    /// and the dot 15% smaller than it. The dot is 101 canvas units across, which sets the
-    /// points per unit and so Bp!'s 249.6 pt width.
-    static let ball: CGFloat = 49 * 320 / 1051 * 1.15 * 2.25
-    static let dot = ball / 1.15
-    static let scale = dot / 101
-    /// Where B and p grow from: the middle of their feet on the baseline.
+    /// Bp! is 320 pt wide (Jesse, 2026-11-08: "320", from 249.6: "the current one is
+    /// underwhelming"), which sets the points per canvas unit. The dot is 101 canvas units across
+    /// and the ball 15% larger than it (round 1's 17.2 pt ball 125% larger, then grown with Bp!).
+    static let markWidth: CGFloat = 320
+    static let scale = markWidth / canvas.width
+    static let dot = scale * 101
+    static let ball = dot * 1.15
+    /// What B and p shrink toward at their 90%: the !'s dot on the baseline, so the word never
+    /// splits (Jesse, 2026-11-08: "i dont like how the letters are separated", "together with the
+    /// !"; each about its own foot, the gaps had grown 9 and 7 pt). `footB` and `footP` are the
+    /// middles of their feet.
+    static let letterAnchor = CGPoint(x: 781, y: 627)
     static let footB = CGPoint(x: 294, y: 627)
     static let footP = CGPoint(x: 581.5, y: 627)
     /// The tops of B and p, and where along each the ball lands.
@@ -117,11 +142,20 @@ nonisolated struct LaunchMotion {
         case zoom
     }
 
+    /// Which launch plays (file header): the full show, the short cut, or a link open.
+    enum Kind: String {
+        case full, short, link
+    }
+
     let screen: CGSize
     /// When a tap skipped, in simulation time; ignored at moments before it.
     var skip: Double?
     var reduceMotion = false
     var ending: Ending = .zoom
+    var kind: Kind = .full
+    /// A link open that caught the ball already on screen (`LaunchStage.openedLink`): it fades
+    /// out where it was as the ! appears, rather than vanishing.
+    var ballBefore: Ball?
 
     // MARK: The path, worked out once per screen
 
@@ -132,11 +166,14 @@ nonisolated struct LaunchMotion {
     private let drop: Flight, toP: Flight, toDot: Flight
     let hitB: Double, hitP: Double, landAt: Double, ballEnd: Double
 
-    init(screen: CGSize, skip: Double? = nil, reduceMotion: Bool = false, ending: Ending = .zoom) {
+    init(screen: CGSize, skip: Double? = nil, reduceMotion: Bool = false, ending: Ending = .zoom, kind: Kind = .full,
+         ballBefore: Ball? = nil) {
         self.screen = screen
         self.skip = skip
         self.reduceMotion = reduceMotion
         self.ending = ending
+        self.kind = kind
+        self.ballBefore = ballBefore
         let s = Self.scale
         origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2 + Self.centring.width,
                          y: (screen.height - Self.canvas.height * s) / 2 + Self.centring.height)
@@ -147,22 +184,43 @@ nonisolated struct LaunchMotion {
         capB = (Self.footB.y - Self.topB) * s
         capP = (Self.footP.y - Self.topP) * s
         let r0 = Self.ball / 2
-        // The ball lands on each letter's top at its starting size.
-        let k = Self.startSize
-        onB = CGPoint(x: u(Self.footB.x + k * (Self.landB - Self.footB.x), 0).x, y: base - k * capB - r0)
-        onP = CGPoint(x: u(Self.footP.x + k * (Self.landP - Self.footP.x), 0).x, y: base - k * capP - r0)
+        // The ball lands on each letter's top at its starting size, the letters shrunk toward the !.
+        let k = Self.startSize, a = Self.letterAnchor.x
+        onB = CGPoint(x: u(a + k * (Self.landB - a), 0).x, y: base - k * capB - r0)
+        onP = CGPoint(x: u(a + k * (Self.landP - a), 0).x, y: base - k * capP - r0)
         onDot = u(Self.dotCentre.x, Self.dotCentre.y)
 
         let g = Self.gravity, v0 = Self.dropSpeed
         let start = CGPoint(x: Self.start.x + Self.centring.width, y: Self.start.y + Self.centring.height)
-        let dropTime = (-v0 + (v0 * v0 + 2 * g * (onB.y - start.y)).squareRoot()) / g
-        drop = Flight(from: start, time: Double(dropTime), vy: v0,
-                      vx: (onB.x - start.x) / dropTime, spin: (-120, 0), shrinks: false)
-        toP = Flight.arc(from: onB, to: onP, height: Self.arcB, spin: (0, 360))
-        toDot = Flight.arc(from: onP, to: onDot, height: Self.arcP, spin: (360, 720), shrinks: true)
-        hitB = drop.time
-        hitP = hitB + Self.contact + toP.time
-        landAt = hitP + Self.contact + toDot.time
+        func fall(_ from: CGPoint, to: CGPoint) -> CGFloat { (-v0 + (v0 * v0 + 2 * g * (to.y - from.y)).squareRoot()) / g }
+        switch kind {
+        case .full:
+            let dropTime = fall(start, to: onB)
+            drop = Flight(from: start, time: Double(dropTime), vy: v0,
+                          vx: (onB.x - start.x) / dropTime, spin: (-120, 0), shrinks: false)
+            toP = Flight.arc(from: onB, to: onP, height: Self.arcB, spin: (0, 360))
+            toDot = Flight.arc(from: onP, to: onDot, height: Self.arcP, spin: (360, 720), shrinks: true)
+            hitB = drop.time
+            hitP = hitB + Self.contact + toP.time
+            landAt = hitP + Self.contact + toDot.time
+        case .short:
+            // Straight down into the dot from above it, shrinking on the way (Jesse, 2026-11-08).
+            let from = CGPoint(x: onDot.x, y: start.y)
+            drop = Flight(from: from, time: Double(fall(from, to: onDot)), vy: v0, vx: 0, spin: (-120, 360), shrinks: true)
+            toP = drop
+            toDot = drop
+            hitB = .infinity
+            hitP = .infinity
+            landAt = drop.time
+        case .link:
+            // No ball: the ! is there from the start.
+            drop = Flight(from: onDot, time: 0, vy: 0, vx: 0, spin: (0, 0), shrinks: false)
+            toP = drop
+            toDot = drop
+            hitB = .infinity
+            hitP = .infinity
+            landAt = 0
+        }
         ballEnd = landAt + Self.contact
     }
 
@@ -195,7 +253,11 @@ nonisolated struct LaunchMotion {
     /// The ball as it flies and bounces, with no tap.
     func ball(at t: Double) -> Ball {
         let r0 = Self.ball / 2, rf = Self.dot / 2
-        if t >= ballEnd { return Ball(x: onDot.x, y: onDot.y, r: rf, roll: 720) }
+        if kind == .link || t >= ballEnd { return Ball(x: onDot.x, y: onDot.y, r: rf, roll: kind == .full ? 720 : 360) }
+        if kind == .short {
+            if t < landAt { return fly(drop, t, r0) }
+            return hit(t - landAt, at: onDot, r: rf, roll: 360, squash: Self.squashDot, letter: nil)
+        }
         if t < hitB { return fly(drop, t, r0) }
         if t < hitB + Self.contact { return hit(t - hitB, at: onB, r: r0, roll: 0, squash: Self.squash, letter: (hitB, capB, Self.dipB)) }
         if t < hitP { return fly(toP, t - hitB - Self.contact, r0) }
@@ -265,6 +327,20 @@ nonisolated struct LaunchMotion {
     private static let jumpLineWidth: [Key] = [(1.10, 0.07, .linear), (1.027, 0.16, lift)] + jumpWidth.dropFirst(2)
     private static let jumpLineHeight: [Key] = [(0.86, 0.07, .linear), (0.94, 0.16, lift)] + jumpHeight.dropFirst(2)
 
+    /// The short cut's jump: the same without the hang at the top, each track's third key (Jesse,
+    /// 2026-11-08).
+    private static func noHang(_ keys: [Key]) -> [Key] { Array(keys[..<2] + keys[3...]) }
+    private static let jumpYShort = noHang(jumpY)
+    private static let jumpWidthShort = noHang(jumpWidth)
+    private static let jumpHeightShort = noHang(jumpHeight)
+    private static let jumpLineWidthShort = noHang(jumpLineWidth)
+    private static let jumpLineHeightShort = noHang(jumpLineHeight)
+    private var keysY: [Key] { kind == .short ? Self.jumpYShort : Self.jumpY }
+    private var keysWidth: [Key] { kind == .short ? Self.jumpWidthShort : Self.jumpWidth }
+    private var keysHeight: [Key] { kind == .short ? Self.jumpHeightShort : Self.jumpHeight }
+    private var keysLineWidth: [Key] { kind == .short ? Self.jumpLineWidthShort : Self.jumpLineWidth }
+    private var keysLineHeight: [Key] { kind == .short ? Self.jumpLineHeightShort : Self.jumpLineHeight }
+
     private static func track(_ keys: [Key], from start: CGFloat, at time: Double) -> CGFloat {
         var from = start, t = time
         for key in keys {
@@ -302,6 +378,8 @@ nonisolated struct LaunchMotion {
         /// Reduce Motion only: B and p at full size, fading in over the 90% ones as the ! appears.
         var fullLetters = 0.0
         var dotShown = false
+        /// A link open fades the dot in; everywhere else it simply shows once `dotShown`.
+        var dotOpacity = 1.0
         var lineOpacity = 0.0
         /// The jump: how far up everything is, in the tab bar's points, and the !'s line and dot's
         /// squash and stretch about their feet.
@@ -323,7 +401,12 @@ nonisolated struct LaunchMotion {
         var tabDip: CGFloat = 0
         var zoom: CGFloat = 1
         var markOpacity = 1.0
+        /// How much of the yellow is left, for the shade on it and whether a tap is the launch's.
         var yellow = 1.0
+        /// How the yellow goes: fading (a zoom), or falling off the screen's bottom (the curtain,
+        /// into the tab bar), its pictures' opacity and how far they have dropped, in points.
+        var yellowOpacity = 1.0
+        var yellowDrop: CGFloat = 0
         /// The app behind: 98.5% growing to full size under Bp!'s glide, or 105% settling for a zoom.
         var backScale: CGFloat = 1
         /// Welcome's logo and headline may rise: the zoom is half done.
@@ -343,19 +426,27 @@ nonisolated struct LaunchMotion {
         private static let small = LaunchMotion.startSize
     }
 
-    static let buzzKinds: [SensoryFeedback] = [.impact(weight: .light), .impact(weight: .light),
-                                               .impact(weight: .medium), .impact(weight: .medium),
-                                               .impact(weight: .light)]
+    /// The buzzes in order: the full show's five, or the short cut's three (the dot, the jump's
+    /// landing, the tab bar). A link open has none.
+    static func buzzKinds(_ kind: Kind) -> [SensoryFeedback] {
+        switch kind {
+        case .full: [.impact(weight: .light), .impact(weight: .light), .impact(weight: .medium), .impact(weight: .medium), .impact(weight: .light)]
+        case .short: [.impact(weight: .medium), .impact(weight: .medium), .impact(weight: .light)]
+        case .link: []
+        }
+    }
 
     func frame(at t: Double) -> Frame {
-        reduceMotion ? reduced(at: t) : moving(at: t)
+        if reduceMotion { return reduced(at: t) }
+        if kind == .link { return linked(at: t) }
+        return moving(at: t)
     }
 
     private func moving(at t: Double) -> Frame {
         let rf = Self.dot / 2
         let skip = self.skip.flatMap { $0 <= t ? $0 : nil }
         let swapNormally = landAt + Self.blacken
-        let endNormally = swapNormally + Self.jumpEnds
+        let endNormally = swapNormally + jumpEnd
         // A tap before the ball has turned into the dot sends it there and drops the jump.
         let early = skip.flatMap { $0 < swapNormally ? $0 : nil }
         let swapAt = early.map { $0 + Self.skipMove } ?? swapNormally
@@ -386,7 +477,7 @@ nonisolated struct LaunchMotion {
         // The ball's shadow on the glass: farther off, softer and fainter while the ball is high
         // above where it comes down next, closing in under it as it lands.
         if !swapped {
-            let next = t < hitB ? onB : t < hitP ? onP : onDot
+            let next = kind == .short ? onDot : t < hitB ? onB : t < hitP ? onP : onDot
             let height = max(0, next.y - f.ball.y)
             f.shadeDrop = 3 + 0.10 * height
             f.shadeBlur = 1.5 + 0.05 * height
@@ -398,7 +489,7 @@ nonisolated struct LaunchMotion {
         func jump(_ keys: [Key], _ rest: CGFloat) -> CGFloat {
             h < 0 ? rest : rest + (Self.track(keys, from: rest, at: h) - rest) * CGFloat(settle)
         }
-        let jumpWidth = jump(Self.jumpWidth, 1), jumpHeight = jump(Self.jumpHeight, 1)
+        let jumpWidth = jump(keysWidth, 1), jumpHeight = jump(keysHeight, 1)
 
         // B and p dip and bulge on their hit and stay at 90%, then grow to full size on the jump's
         // way up. A tap grows them as the ! appears, and a letter the ball never reached doesn't dip.
@@ -420,11 +511,11 @@ nonisolated struct LaunchMotion {
         // The ! : after a tap it simply appears; otherwise it jumps with B and p, its line growing
         // out of the dot during the crouch and fading in over its first 40 ms. It grows on a plain
         // ease-out: on the mock's sharp one it was nearly full height in two frames, a pop (2026-11-07).
-        f.lift = jump(Self.jumpY, 0)
+        f.lift = jump(keysY, 0)
         f.dot = CGSize(width: jumpWidth, height: jumpHeight)
         if let popAt {
-            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(UnitCurve.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(Self.jumpLineHeight, 1)
-            f.line = CGSize(width: jump(Self.jumpLineWidth, 1), height: h < 0 ? 0 : height)
+            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(UnitCurve.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(keysLineHeight, 1)
+            f.line = CGSize(width: jump(keysLineWidth, 1), height: h < 0 ? 0 : height)
             f.lineOpacity = clamp01((t - popAt) / 0.04)
         } else {
             f.lineOpacity = swapped ? 1 : 0
@@ -433,10 +524,10 @@ nonisolated struct LaunchMotion {
         // The ending: Bp! leaps into the tab bar's Bp!, or zooms through.
         guard t >= endAt else {
             f.backScale = ending == .zoom ? 1.05 : 0.985
-            f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + Self.jumpLands } ?? .infinity])
+            f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + landBeat } ?? .infinity])
             return f
         }
-        f.ending = Self.paced(skip == nil ? Self.glide : Self.glideFast)
+        f.ending = paced(skip == nil ? Self.glide : Self.glideFast)
         var settled: Bool
         var landed = Double.infinity
         switch ending {
@@ -487,19 +578,64 @@ nonisolated struct LaunchMotion {
             f.headerUp = p >= 0.5
             settled = abs(p - 1) < 0.003 && abs(v) < 0.01
         }
-        f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + Self.jumpLands } ?? .infinity, landed])
-        f.yellow = 1 - Self.ease((t - endAt) / (skip == nil ? Self.yellowFade : Self.yellowFadeFast))
+        f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + landBeat } ?? .infinity, landed])
+        if case .tab = ending {
+            // The curtain: the yellow, glass and signature with it, falls off the bottom of the
+            // screen gathering speed (Jesse, 2026-11-08), gone about as Bp! lands in the tab bar.
+            let v = clamp01((t - endAt) / (skip == nil ? Self.curtainTime : Self.curtainTimeFast))
+            f.yellow = 1 - v * v
+            f.yellowDrop = screen.height * v * v
+        } else {
+            f.yellow = 1 - Self.ease((t - endAt) / (skip == nil ? Self.yellowFade : Self.yellowFadeFast))
+            f.yellowOpacity = f.yellow
+        }
         f.done = settled && f.yellow <= 0.001
         return f
     }
 
-    /// The buzzes this far, none after a tap.
+    /// A link open, signed in (Jesse, 2026-11-08: "pops out at you ... and goes to the event
+    /// directly"): no ball. From the still, the ! appears where the icon has it and B and p grow to
+    /// full size; then Bp! pops out (the zoom, on the fast spring) over the page the link opened,
+    /// which settles from 105%. A tap jumps to the pop.
+    private func linked(at real: Double) -> Frame {
+        var t = real
+        if let skip, skip <= real, skip < Self.linkPop { t = Self.linkPop + (real - skip) }
+        var f = Frame(ball: ballBefore ?? ball(at: t), markOrigin: origin)
+        let v = CGFloat(Self.ease(t / Self.linkAppear))
+        f.ballOpacity = ballBefore == nil ? 0 : Double(1 - v)
+        f.dotShown = true
+        f.dotOpacity = Double(v)
+        f.lineOpacity = Double(v)
+        f.dot = CGSize(width: lerp(0.6, 1, v), height: lerp(0.6, 1, v))
+        f.line = CGSize(width: lerp(0.6, 1, v), height: lerp(0.5, 1, v))
+        let k = size(t, hit: 0)
+        f.b = CGSize(width: k, height: k)
+        f.p = f.b
+        guard t >= Self.linkPop else {
+            f.backScale = 1.05
+            return f
+        }
+        let spring = Self.glideFast
+        f.ending = paced(spring)
+        let p = spring.value(target: 1.0, time: t - Self.linkPop), speed = spring.velocity(target: 1.0, time: t - Self.linkPop)
+        f.zoom = 1 + (Self.zoomTo - 1) * CGFloat(max(0, p))
+        f.markOpacity = 1 - clamp01((p - 0.1) / 0.5)
+        f.backScale = 1 + 0.05 * (1 - CGFloat(clamp01(p)))
+        f.headerUp = p >= 0.5
+        f.yellow = 1 - Self.ease((t - Self.linkPop) / Self.yellowFadeFast)
+        f.yellowOpacity = f.yellow
+        f.done = abs(p - 1) < 0.003 && abs(speed) < 0.01 && f.yellow <= 0.001
+        return f
+    }
+
+    /// The buzzes this far, none after a tap. A beat that never comes (a letter the short cut's
+    /// ball never hits) doesn't hold the ones after it.
     private func buzzes(at t: Double, skip: Double?, beats: [Double]) -> Int {
-        beats.prefix { beat in beat <= t && (skip.map { beat <= $0 } ?? true) }.count
+        beats.filter(\.isFinite).prefix { beat in beat <= t && (skip.map { beat <= $0 } ?? true) }.count
     }
 
     /// A spring in the screen's time, which plays every motion at `pace`.
-    private static func paced(_ s: Spring) -> Spring {
+    private func paced(_ s: Spring) -> Spring {
         Spring(response: s.response / pace, dampingRatio: s.dampingRatio)
     }
 
@@ -535,6 +671,7 @@ nonisolated struct LaunchMotion {
         f.fullLetters = f.lineOpacity
         f.letters = 1 - clamp01((t - 0.65) / 0.15)
         f.yellow = 1 - out
+        f.yellowOpacity = f.yellow
         f.markOpacity = 1 - out
         f.headerUp = true
         f.done = out >= 1

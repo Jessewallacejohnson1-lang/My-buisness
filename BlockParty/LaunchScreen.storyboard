@@ -5,9 +5,10 @@
      62 pt display corners, its middle stretching on other screens), and the app icon's "Bp" in its
      ink with the icon's soft shade (`LaunchStill`, B and p at 90% of their size, no ! yet). It is the
      first frame of the launch animation (`LaunchBall`), so the hand-off can't be seen: the same
-     249.6 pt Bp! canvas in the middle of the 282 x 173 pt picture, moved 27.502 pt right and
-     3.822 pt up so that Bp sits in the screen's middle (`LaunchMotion.centring`). Both
-     pictures are drawn by BP app references/launch-ball/make_still.py from the mock's own CSS.
+     320 pt Bp! canvas in the middle of the 360 x 200 pt picture, moved 20.293 pt right and
+     4.900 pt up so that Bp sits in the screen's middle (`LaunchMotion.centring`; B and p shrink
+     toward the !, Jesse 2026-11-08). The glass is drawn by BP app references/launch-ball/make_still.py
+     and the still by references/launch-short/make_still.py, from the mock's own CSS.
      At the bottom, Jesse's signature (`LaunchFooter`, 64 pt above the screen's bottom, Bending
      Spoons' sizes; mock round 12). iPhone caches this screen: reinstall to see a change.
      (2026-09-18 to 2026-11-01 it was bare paper, Jesse's no-splash call, now reversed.)
@@ -39,10 +40,10 @@
                                 </constraints>
                             </imageView>
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchStill" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
-                                <rect key="frame" x="87.502" y="346.678" width="282" height="173"/>
+                                <rect key="frame" x="41.293" y="332.1" width="360" height="200"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="282" id="launch-still-w"/>
-                                    <constraint firstAttribute="height" constant="173" id="launch-still-h"/>
+                                    <constraint firstAttribute="width" constant="360" id="launch-still-w"/>
+                                    <constraint firstAttribute="height" constant="200" id="launch-still-h"/>
                                 </constraints>
                             </imageView>
                         </subviews>
@@ -55,8 +56,8 @@
                             <constraint firstItem="launch-glass" firstAttribute="trailing" secondItem="launch-root-view" secondAttribute="trailing" id="launch-glass-r"/>
                             <constraint firstItem="launch-footer" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="launch-footer-x"/>
                             <constraint firstItem="launch-root-view" firstAttribute="bottom" secondItem="launch-footer" secondAttribute="bottom" constant="64" id="launch-footer-b"/>
-                            <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="27.502" id="launch-still-x"/>
-                            <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="-3.822" id="launch-still-y"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" constant="20.293" id="launch-still-x"/>
+                            <constraint firstItem="launch-still" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" constant="-4.9" id="launch-still-y"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -67,7 +68,7 @@
     </scenes>
     <resources>
         <image name="LaunchGlass" width="402" height="874"/>
-        <image name="LaunchStill" width="282" height="173"/>
+        <image name="LaunchStill" width="360" height="200"/>
         <image name="LaunchFooter" width="240" height="60"/>
     </resources>
 </document>

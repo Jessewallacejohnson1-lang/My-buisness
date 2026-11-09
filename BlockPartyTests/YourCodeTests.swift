@@ -31,8 +31,9 @@ final class YourCodeTests: XCTestCase {
     /// Nothing shows that it was caught, so they may scan again once they have an account.
     func testScanningAgainWithAnAccountStillSendsTheRequest() {
         var waiting = WaitingCode()
-        waiting.opened(link, signedOut: true)
-        waiting.opened(link, signedOut: false)
+        XCTAssertTrue(waiting.opened(link, signedOut: true))
+        XCTAssertTrue(waiting.opened(link, signedOut: false))
+        XCTAssertFalse(waiting.opened(URL(string: "https://example.com/nothing")!, signedOut: false), "not a code: the launch isn't told")
         XCTAssertEqual(waiting.take(ready: true)?.addFriend, true)
     }
 
