@@ -1128,20 +1128,6 @@
   "source": "the state league"
  },
  {
-  "id": "crookston",
-  "name": "Crookston",
-  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/crookston/logo-d77c5d8c85.png",
-  "sports": [
-   "Girls Hockey"
-  ],
-  "logo_of": "Crookston High School",
-  "coop": false,
-  "nickname": "Pirates",
-  "town": "Crookston",
-  "colors_said": "Navy and Gold",
-  "source": "the state league"
- },
- {
   "id": "fusion",
   "name": "Fusion",
   "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/fusion/logo-ffdd43ae8c.png",
@@ -1343,18 +1329,6 @@
   "source": "the state league"
  },
  {
-  "id": "anoka-hennepin",
-  "name": "Anoka-Hennepin",
-  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/anoka-hennepin/logo-811dd914bc.png",
-  "sports": [
-   "Adapted Floor Hockey"
-  ],
-  "logo_of": "Anoka-Hennepin",
-  "coop": false,
-  "nickname": "",
-  "source": "the school's own site"
- },
- {
   "id": "minneapolis-north",
   "name": "Minneapolis North",
   "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/minneapolis-north/logo-52a7ca1760.png",
@@ -1392,20 +1366,6 @@
   "nickname": "Bulldogs",
   "town": "Swanville",
   "colors_said": "Royal, White",
-  "source": "the state league"
- },
- {
-  "id": "proctor",
-  "name": "Proctor",
-  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/proctor/logo-ad0884d331.png",
-  "sports": [
-   "Girls Basketball"
-  ],
-  "logo_of": "Proctor High School",
-  "coop": false,
-  "nickname": "Rails",
-  "town": "Proctor",
-  "colors_said": "Dark Green and White",
   "source": "the state league"
  },
  {
