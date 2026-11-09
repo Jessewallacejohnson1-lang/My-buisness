@@ -82,7 +82,7 @@ struct FeedEventCard: View {
                         .pinchToZoom(corner: Radius.card, slot: Hue.paper, lifted: $faceLifted)
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
-                        .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
+                        .opacity(faceLifted ? 1 : FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
                 }
                 .contentShape(Rectangle())

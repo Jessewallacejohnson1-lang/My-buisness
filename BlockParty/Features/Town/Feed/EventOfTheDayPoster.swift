@@ -108,7 +108,7 @@ struct EventOfTheDayPoster: View {
                                    report: item.why == nil ? nil : $menuPresented, event: item))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(lifted ? 1 : FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
-            .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
+            .opacity(lifted ? 1 : FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
             .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
                                         report: picture.report(place: item.whereLine)))

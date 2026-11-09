@@ -284,9 +284,13 @@ struct EventPage: View {
         }
         .overlay(alignment: .top) {
             Group {
-                // Removed, not hidden, while the picture is lifted: they're glass (swift-traps).
-                if game != nil { topButtons } else if !heroLifted { lookButtons }
+                // Removed, not hidden, while the picture is lifted: they're glass (swift-traps). They go at once,
+                // before the picture's snapshot, and fade back in once it has landed.
+                if game != nil { topButtons } else if !heroLifted {
+                    lookButtons.transition(.asymmetric(insertion: .opacity, removal: .identity))
+                }
             }
+            .animation(reduceMotion ? nil : Motion.smooth, value: heroLifted)
             .accessibilityElement(children: .contain)
             .accessibilitySortPriority(1)
             // A game's dark fading in under the clock and the buttons once the page scrolls, the

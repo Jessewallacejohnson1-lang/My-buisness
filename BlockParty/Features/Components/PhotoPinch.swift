@@ -68,11 +68,7 @@ private struct PinchToZoom: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { spot.rect = $0 }
-            .gesture(PhotoPinch(spot: spot, corner: corner, slot: UIColor(slot)) { up in
-                var quiet = Transaction()
-                quiet.disablesAnimations = true
-                withTransaction(quiet) { lifted?.wrappedValue = up }
-            })
+            .gesture(PhotoPinch(spot: spot, corner: corner, slot: UIColor(slot)) { lifted?.wrappedValue = $0 })
     }
 }
 
@@ -111,16 +107,19 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
 
     func handleUIGestureRecognizerAction(_ recognizer: UIPinchGestureRecognizer, context: Context) {
         let lift = context.coordinator.lift
-        guard let window = recognizer.view?.window else { return }
-        let fingers = recognizer.location(in: window)
-        switch recognizer.state {
-        case .began:
-            lift.begin(in: window, spot: spot.rect, corner: corner, slot: slot, fingers: fingers, onLift: onLift)
-        case .changed:
-            // One finger up ends it, as Instagram's does: its lone finger would jump the photo.
-            if recognizer.numberOfTouches < 2 { lift.land() } else { lift.move(fingers: fingers, scale: recognizer.scale) }
-        default:
+        // Gone from the screen mid-pinch (a swipe back, a refresh): it still lands, so nothing stays up.
+        guard recognizer.state == .began || recognizer.state == .changed, let window = recognizer.view?.window else {
             lift.land()
+            return
+        }
+        let fingers = recognizer.location(in: window)
+        if recognizer.state == .began {
+            lift.begin(in: window, spot: spot.rect, corner: corner, slot: slot, fingers: fingers, onLift: onLift)
+        } else if recognizer.numberOfTouches < 2 {
+            // One finger up ends it, as Instagram's does: its lone finger would jump the photo.
+            lift.land()
+        } else {
+            lift.move(fingers: fingers, scale: recognizer.scale)
         }
     }
 }
@@ -176,10 +175,11 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
         fingers = CGPoint(x: point.x - spot.minX, y: point.y - spot.minY)
         anchor = fingers
         onLift(true)
-        // A turn later, once what steps aside for the lift (a press's squish) has drawn without it.
+        // A turn later, once what steps aside for the lift (a press's squish) has drawn without it. As it's on
+        // screen, not drawn again: a fresh draw leaves out the grey glass heart.
         DispatchQueue.main.async { [self] in
             guard held, photo == nil,
-                  let picture = window.resizableSnapshotView(from: spot, afterScreenUpdates: true, withCapInsets: .zero)
+                  let picture = window.resizableSnapshotView(from: spot, afterScreenUpdates: false, withCapInsets: .zero)
             else { if photo == nil { finish() }; return }
             stage.frame = window.bounds
             ground.frame = spot
