@@ -227,7 +227,7 @@ struct FeedEventCard: View {
     /// 26), turning to Now at the start minute.
     private var whiteCard: some View {
         TimelineView(.everyMinute) { context in
-            let line = item.whenLine(at: context.date)
+            let line = item.cardWhen(at: context.date)
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         when: line?.text, whenSpoken: line?.spoken, now: item.isNow(at: context.date),
@@ -424,7 +424,8 @@ struct FeedEventCard: View {
             // date banner (2026-09-24).
             if let when = item.whenLine {
                 TimelineView(.everyMinute) { context in
-                    let line = item.whenLine(at: context.date) ?? when
+                    // Who it's for by age after the time, "Tonight · 7 PM · 21+" (inside-cards 30).
+                    let line = item.cardWhen(at: context.date) ?? when
                     CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date), color: .white)
                 }
             }

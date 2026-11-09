@@ -520,15 +520,18 @@ struct EventPage: View {
                 .padding(.top, sun ? EventLook.sunTitleTop : EventLook.titleTop)
 
             let date = Self.dateLine(current)
-            let price = Self.priceText(item.price)
-            if date != nil || place != nil || price != nil {
+            let price = Self.priceLine(ages: item.ages, price: item.price)
+            if date != nil || place != nil || !price.isEmpty {
                 VStack(spacing: EventLook.lineHeight - EventLook.lineNatural) {
                     if let date {
                         Text(date.oneLine).accessibilityLabel(date.spoken)
                     }
                     if let place { Text(place) }
-                    // The price when a source said it (inside-cards 14); nothing when unknown, never a placeholder.
-                    if let price { Text(price) }
+                    // The price when a source said it (inside-cards 14), led by who it's for by age like a LEGO
+                    // box's "18+ | 10273 | 3231 pcs" (inside-cards 30); nothing when unknown, never a placeholder.
+                    if !price.isEmpty {
+                        Self.priceText(price).accessibilityLabel(price.joined(separator: ", "))
+                    }
                 }
                 .font(.apple(EventLook.line))
                 .multilineTextAlignment(.center)
@@ -918,6 +921,19 @@ struct EventPage: View {
     /// The price line's words (inside-cards 14): what a source said it costs, else nothing.
     static func priceText(_ price: String?) -> String? {
         nonempty(price)
+    }
+
+    /// The price line's facts (inside-cards 30): who it's for by age first, as a LEGO box leads with "18+", then the
+    /// price; each only when a source said it.
+    static func priceLine(ages: String?, price: String?) -> [String] {
+        [nonempty(ages), nonempty(price)].compactMap { $0 }
+    }
+
+    /// The facts with LEGO's thin rule between them, the rule a step lighter than the words.
+    static func priceText(_ facts: [String]) -> Text {
+        facts.dropFirst().reduce(Text(verbatim: facts.first ?? "")) { line, fact in
+            Text("\(line)\(Text(verbatim: "  |  ").foregroundStyle(.secondary))\(Text(verbatim: fact))")
+        }
     }
 
     /// The found page as the Business page draws a link: "Facebook", "Instagram", else the site's name.

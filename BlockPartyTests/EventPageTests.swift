@@ -292,6 +292,36 @@ final class EventPageTests: XCTestCase {
         XCTAssertNil(FeedCardItem(event(imageUrl: nil)).price)
     }
 
+    /// Who it's for by age leads the price line, like a LEGO box's "18+" (inside-cards 30): "21+ | $15", the age
+    /// alone with no price, the price alone with no age, nothing with neither. Never a placeholder.
+    func testTheAgeLeadsThePriceLine() {
+        let page = EventPage.self
+        XCTAssertEqual(page.priceLine(ages: "21+", price: "$15 a packet, 11 games"), ["21+", "$15 a packet, 11 games"])
+        XCTAssertEqual(page.priceLine(ages: "Ages 6–14", price: nil), ["Ages 6–14"])
+        XCTAssertEqual(page.priceLine(ages: " ", price: " Free\n"), ["Free"], "blank is unknown")
+        XCTAssertEqual(page.priceLine(ages: nil, price: nil), [])
+
+        var aged = event(imageUrl: nil)
+        aged.ages = "10+"
+        XCTAssertEqual(FeedCardItem(aged).ages, "10+", "the card carries it to the page")
+        XCTAssertNil(FeedCardItem(event(imageUrl: nil)).ages)
+    }
+
+    /// The card sends who it's for by age (`private.event_cards`, inside-cards 30); a card from before the field says none.
+    func testTheCardCarriesTheAge() throws {
+        let card = """
+        {"id":"e1","title":"Better With Age Bash","event_date":"2027-04-09","start_time":"5:30 PM",
+         "location":"River's Edge","image_url":null,"category":null,"club_name":null,"source_name":"Grey Face Rescue",
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":0,"going":false,
+         "heart_count":0,"hearted":false,"cancelled":false,"place_picture":null,"host_picture":null,"description":null,
+         "price":null,"ages":"21+","what":null,"source_url":null,"game":null,"friends_going":[],"live_kind":true,
+         "recurrence":null}
+        """
+        XCTAssertEqual(try Supabase.decode(Data(card.utf8), as: UpcomingEvent.self).ages, "21+")
+        let before = card.replacingOccurrences(of: #""ages":"21+","#, with: "")
+        XCTAssertNil(try Supabase.decode(Data(before.utf8), as: UpcomingEvent.self).ages)
+    }
+
     /// The card sends the price (`private.event_cards`, inside-cards 14); a card from before the field says none.
     func testTheCardCarriesThePrice() throws {
         let card = """

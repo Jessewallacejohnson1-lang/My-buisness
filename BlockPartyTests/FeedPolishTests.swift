@@ -247,6 +247,17 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.phase(gallery, now: at(24, 15)), .untimed, "no live ring on the map")
     }
 
+    /// The Town card's time line ends with who it's for by age when a source says it (inside-cards 30):
+    /// "Thu, Sep 24 · 7 PM · 21+", read aloud the same; with no age, the time line as it was.
+    func testTheCardTimeEndsWithTheAge() {
+        var bash = card("2026-09-24", "7 PM")
+        XCTAssertEqual(bash.cardWhen(at: at(20, 12)), bash.whenLine(at: at(20, 12)), "no age, no change")
+        bash.ages = "21+"
+        let line = bash.cardWhen(at: at(20, 12))
+        XCTAssertEqual(line?.text, (bash.whenLine(at: at(20, 12))?.text ?? "") + " · 21+")
+        XCTAssertEqual(line?.spoken, (bash.whenLine(at: at(20, 12))?.spoken ?? "") + ", 21+")
+    }
+
     /// A place open rather than a happening on says how long, or its start reads as over.
     func testAPlaceBeingOpenSaysUntilWhen() {
         var gallery = card("2026-09-24", "2 PM", endAt: at(24, 20))

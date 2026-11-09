@@ -152,6 +152,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// What it costs, as words a source said ("Free", "$22, $20 seniors, $15 students"; `club_events.price`, BP app
     /// inside-cards 14): the Event page's price line. nil when no source says, and the page shows nothing then.
     var price: String? = nil
+    /// Who it's for by age as a source said it, "21+" or "Ages 6–14" (`club_events.ages`, BP app inside-cards 30): it
+    /// leads the Event page's price line and ends the Town card's time line, like a LEGO box's "18+". nil shows nothing.
+    var ages: String? = nil
     /// Where it is (the card's `lat`, `lng` and `no_place`, BP app inside-cards 19): its spot, at no one place, or nil
     /// when not known, on a row with no card or one read before the card said so. What its page's Map does.
     var spot: EventSpot? = nil

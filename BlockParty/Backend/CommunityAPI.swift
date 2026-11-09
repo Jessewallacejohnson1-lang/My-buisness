@@ -63,7 +63,7 @@ extension UpcomingEvent: Decodable {
 
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
-             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price,
+             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price, ages,
              what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
     }
 
@@ -81,7 +81,7 @@ extension UpcomingEvent: Decodable {
                   cancelled: try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false,
                   placePicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .placePicture)?.value,
                   hostPicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .hostPicture)?.value,
-                  description: try text(.description), price: try text(.price),
+                  description: try text(.description), price: try text(.price), ages: try text(.ages),
                   game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
                   sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
                   friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),

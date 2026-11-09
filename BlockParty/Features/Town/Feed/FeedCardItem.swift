@@ -40,6 +40,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var description: String? = nil
     /// What it costs, as words (`UpcomingEvent.price`): the Event page's price line, under the place. nil hides it.
     var price: String? = nil
+    /// Who it's for by age (`UpcomingEvent.ages`): leads the Event page's price line, ends the card's time line.
+    var ages: String? = nil
     /// Where it is (`UpcomingEvent.spot`): what its page's Map and a held card's View on Map do (`EventMapRoute`).
     var spot: EventSpot? = nil
     var category: EventCategory? = nil
@@ -152,6 +154,14 @@ struct FeedCardItem: Identifiable, Hashable {
         guard isOpen(at: now), let when else { return whenLine }
         let until = when.until(now)
         return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
+    }
+
+    /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's
+    /// "18+" ("Tonight · 7 PM · 21+"; Jesse, 2026-11-08, BP app inside-cards 30).
+    func cardWhen(at now: Date) -> FeedWhenLine? {
+        guard let line = whenLine(at: now) else { return nil }
+        guard let ages = ages?.trimmingCharacters(in: .whitespacesAndNewlines), !ages.isEmpty else { return line }
+        return FeedWhenLine(text: "\(line.text) · \(ages)", spoken: "\(line.spoken), \(ages)")
     }
 
     /// The where line under the when line: just the venue, because the when line
