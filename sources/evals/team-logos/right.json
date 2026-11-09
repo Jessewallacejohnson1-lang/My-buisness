@@ -1,0 +1,1411 @@
+[
+ {
+  "id": "river-lakes",
+  "name": "River Lakes",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/river-lakes/logo-f23d88c0cd.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "River Lakes",
+  "coop": false,
+  "nickname": "Stars",
+  "source": "the school's own site"
+ },
+ {
+  "id": "st-cloud",
+  "name": "St. Cloud",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-cloud/logo-9cad76ea78.png",
+  "sports": [
+   "Girls Basketball",
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "St. Cloud",
+  "coop": false,
+  "nickname": "Crush",
+  "source": "the school's own site"
+ },
+ {
+  "id": "brainerd",
+  "name": "Brainerd",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/brainerd/logo-39e1e37f1f.png",
+  "sports": [
+   "Boys Basketball",
+   "Girls Basketball",
+   "Boys Swim"
+  ],
+  "logo_of": "Brainerd High School",
+  "coop": false,
+  "nickname": "Warriors",
+  "town": "Brainerd",
+  "colors_said": "Blue, White and Silver",
+  "source": "the state league"
+ },
+ {
+  "id": "pierz",
+  "name": "Pierz",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/pierz/logo-22655f6fbe.png",
+  "sports": [
+   "Girls Basketball",
+   "Boys Basketball"
+  ],
+  "logo_of": "Pierz High School",
+  "coop": false,
+  "nickname": "Pioneers",
+  "town": "Pierz",
+  "colors_said": "Red, White, & Black",
+  "source": "the state league"
+ },
+ {
+  "id": "pequot-lakes",
+  "name": "Pequot Lakes",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/pequot-lakes/logo-3314b639c8.png",
+  "sports": [
+   "Girls Basketball",
+   "Boys Basketball"
+  ],
+  "logo_of": "Pequot Lakes High School",
+  "coop": false,
+  "nickname": "Patriots",
+  "town": "Pequot Lakes",
+  "colors_said": "Red,White and Blue",
+  "source": "the state league"
+ },
+ {
+  "id": "milaca",
+  "name": "Milaca",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/milaca/logo-2a16c549a5.png",
+  "sports": [
+   "Girls Basketball",
+   "Boys Basketball"
+  ],
+  "logo_of": "Milaca High School",
+  "coop": false,
+  "nickname": "Wolves",
+  "town": "Milaca",
+  "colors_said": "Red and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "hutchinson",
+  "name": "Hutchinson",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/hutchinson/logo-1eda85b73c.png",
+  "sports": [
+   "Boys Hockey",
+   "Boys Basketball",
+   "Girls Hockey"
+  ],
+  "logo_of": "Hutchinson High School",
+  "coop": false,
+  "nickname": "Tigers",
+  "town": "Hutchinson",
+  "colors_said": "Black and Yellow",
+  "source": "the state league"
+ },
+ {
+  "id": "st-michael-albertville",
+  "name": "St. Michael-Albertville",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-michael-albertville/logo-d46d965486.png",
+  "sports": [
+   "Boys Basketball",
+   "Boys Hockey"
+  ],
+  "logo_of": "St. Michael-Albertville High School",
+  "coop": false,
+  "nickname": "Knights",
+  "town": "St. Michael",
+  "colors_said": "Blue and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "brainerd-little-falls",
+  "name": "Brainerd-Little Falls",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/brainerd-little-falls/logo-39e1e37f1f.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Brainerd High School",
+  "coop": true,
+  "nickname": "Warriors",
+  "town": "Brainerd",
+  "colors_said": "Blue, White and Silver",
+  "source": "the state league"
+ },
+ {
+  "id": "mahtomedi",
+  "name": "Mahtomedi",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/mahtomedi/logo-20dab81405.png",
+  "sports": [
+   "Boys Basketball",
+   "Boys Hockey"
+  ],
+  "logo_of": "Mahtomedi High School",
+  "coop": false,
+  "nickname": "Zephyrs",
+  "town": "Mahtomedi",
+  "colors_said": "Navy and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "pine-city",
+  "name": "Pine City",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/pine-city/logo-37dd5cc21e.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "Pine City High School",
+  "coop": false,
+  "nickname": "Dragons",
+  "town": "Pine City",
+  "colors_said": "Kelly Green and White",
+  "source": "the state league"
+ },
+ {
+  "id": "osseo",
+  "name": "Osseo",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/osseo/logo-b58e9b1e48.png",
+  "sports": [
+   "Boys Basketball",
+   "Girls Basketball"
+  ],
+  "logo_of": "Osseo High School",
+  "coop": false,
+  "nickname": "Orioles",
+  "town": "Osseo",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "buffalo",
+  "name": "Buffalo",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/buffalo/logo-28aecbf15d.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey",
+   "Wrestling"
+  ],
+  "logo_of": "Buffalo High School",
+  "coop": false,
+  "nickname": "Bison",
+  "town": "Buffalo",
+  "colors_said": "Purple and White",
+  "source": "the state league"
+ },
+ {
+  "id": "delano",
+  "name": "Delano",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/delano/logo-1106fa2a8e.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Delano High School",
+  "coop": false,
+  "nickname": "Tigers",
+  "town": "Delano",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "annandale",
+  "name": "Annandale",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/annandale/logo-1db35d1043.png",
+  "sports": [
+   "Boys Basketball",
+   "Gymnastics",
+   "Football"
+  ],
+  "logo_of": "Annandale High School",
+  "coop": false,
+  "nickname": "Cardinals",
+  "town": "Annandale",
+  "colors_said": "Red, Black, White",
+  "source": "the state league"
+ },
+ {
+  "id": "litchfield-dassel-cokato",
+  "name": "Litchfield-Dassel-Cokato",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/litchfield-dassel-cokato/logo-007fc56db7.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "Litchfield High School",
+  "coop": true,
+  "nickname": "Dragons",
+  "town": "Litchfield",
+  "colors_said": "Green, White, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "marshall",
+  "name": "Marshall",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/marshall/logo-0646c38af8.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Marshall High School",
+  "coop": false,
+  "nickname": "Tigers",
+  "town": "Marshall",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "warroad",
+  "name": "Warroad",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/warroad/logo-4e8ae0e101.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Warroad High School",
+  "coop": false,
+  "nickname": "Warriors",
+  "town": "Warroad",
+  "colors_said": "Black and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "cloquet-esko-carlton",
+  "name": "Cloquet-Esko-Carlton",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/cloquet-esko-carlton/logo-ac7522cc17.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Cloquet High School",
+  "coop": true,
+  "nickname": "Lumberjacks",
+  "town": "Cloquet",
+  "colors_said": "purple and white",
+  "source": "the state league"
+ },
+ {
+  "id": "roseau",
+  "name": "Roseau",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/roseau/logo-a55bfefe2c.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Roseau High School",
+  "coop": false,
+  "nickname": "Rams",
+  "town": "Roseau",
+  "colors_said": "Green and White",
+  "source": "the state league"
+ },
+ {
+  "id": "becker",
+  "name": "Becker",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/becker/logo-091b526c5f.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Becker High School",
+  "coop": false,
+  "nickname": "Bulldogs",
+  "town": "Becker",
+  "colors_said": "Columbia Blue and White",
+  "source": "the state league"
+ },
+ {
+  "id": "orono",
+  "name": "Orono",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/orono/logo-acec6d269a.png",
+  "sports": [
+   "Boys Hockey",
+   "Boys Basketball"
+  ],
+  "logo_of": "Orono High School",
+  "coop": false,
+  "nickname": "Spartans",
+  "town": "Long Lake",
+  "colors_said": "Navy/Scarlet",
+  "source": "the state league"
+ },
+ {
+  "id": "holy-family-catholic",
+  "name": "Holy Family Catholic",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/holy-family-catholic/logo-2903f8ce53.png",
+  "sports": [
+   "Boys Hockey",
+   "Boys Basketball"
+  ],
+  "logo_of": "Holy Family Catholic High School",
+  "coop": false,
+  "nickname": "Fire",
+  "town": "Victoria",
+  "colors_said": "Forest Green & White",
+  "source": "the state league"
+ },
+ {
+  "id": "princeton",
+  "name": "Princeton",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/princeton/logo-9663da7225.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Basketball"
+  ],
+  "logo_of": "Princeton High School",
+  "coop": false,
+  "nickname": "Tigers",
+  "town": "Princeton",
+  "colors_said": "Black, Orange, White",
+  "source": "the state league"
+ },
+ {
+  "id": "coon-rapids",
+  "name": "Coon Rapids",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/coon-rapids/logo-ba8b45bc38.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Coon Rapids High School",
+  "coop": false,
+  "nickname": "Cardinals",
+  "town": "Coon Rapids",
+  "colors_said": "Red and White",
+  "source": "the state league"
+ },
+ {
+  "id": "mora",
+  "name": "Mora",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/mora/logo-8360b5e49f.png",
+  "sports": [
+   "Girls Basketball",
+   "Boys Hockey"
+  ],
+  "logo_of": "Mora High School",
+  "coop": false,
+  "nickname": "Mustangs",
+  "town": "Mora",
+  "colors_said": "Royal Blue, White",
+  "source": "the state league"
+ },
+ {
+  "id": "melrose",
+  "name": "Melrose",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/melrose/logo-01646b2d06.png",
+  "sports": [
+   "Boys Basketball",
+   "Girls Basketball"
+  ],
+  "logo_of": "Melrose Area High School",
+  "coop": false,
+  "nickname": "Dutchmen",
+  "town": "Melrose",
+  "colors_said": "Purple and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "simley",
+  "name": "Simley",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/simley/logo-3b0743966d.png",
+  "sports": [
+   "Girls Basketball",
+   "Girls Hockey"
+  ],
+  "logo_of": "Simley High School",
+  "coop": false,
+  "nickname": "Spartans",
+  "town": "Inver Grove Heights",
+  "colors_said": "Col.Blue,Scarlet,Whi",
+  "source": "the state league"
+ },
+ {
+  "id": "new-ulm",
+  "name": "New Ulm",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/new-ulm/logo-6c9381cffc.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "New Ulm High School",
+  "coop": false,
+  "nickname": "Eagles",
+  "town": "New Ulm",
+  "colors_said": "Purple and White",
+  "source": "the state league"
+ },
+ {
+  "id": "litchfield",
+  "name": "Litchfield",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/litchfield/logo-007fc56db7.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Litchfield High School",
+  "coop": false,
+  "nickname": "Dragons",
+  "town": "Litchfield",
+  "colors_said": "Green, White, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "annandale-maple-lake",
+  "name": "Annandale-Maple Lake",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/annandale-maple-lake/logo-1db35d1043.png",
+  "sports": [
+   "Wrestling"
+  ],
+  "logo_of": "Annandale High School",
+  "coop": true,
+  "nickname": "Cardinals",
+  "town": "Annandale",
+  "colors_said": "Red, Black, White",
+  "source": "the state league"
+ },
+ {
+  "id": "upsala",
+  "name": "Upsala",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/upsala/logo-7938cbe5b5.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Upsala High School",
+  "coop": false,
+  "nickname": "Cardinals",
+  "town": "Upsala",
+  "colors_said": "Red and White",
+  "source": "the state league"
+ },
+ {
+  "id": "hibbing-chisholm",
+  "name": "Hibbing-Chisholm",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/hibbing-chisholm/logo-6966630d9e.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "Hibbing High School",
+  "coop": true,
+  "nickname": "Bluejackets",
+  "town": "Hibbing",
+  "colors_said": "Navy Blue, White",
+  "source": "the state league"
+ },
+ {
+  "id": "st-francis",
+  "name": "St. Francis",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-francis/logo-6be5322f80.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "St. Francis High School",
+  "coop": false,
+  "nickname": "Saints",
+  "town": "St. Francis",
+  "colors_said": "Navy Blue and White",
+  "source": "the state league"
+ },
+ {
+  "id": "anoka",
+  "name": "Anoka",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/anoka/logo-7b9dffea68.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Anoka High School",
+  "coop": false,
+  "nickname": "Tornadoes",
+  "town": "Anoka",
+  "colors_said": "Maroon and White",
+  "source": "the state league"
+ },
+ {
+  "id": "hopkins-park",
+  "name": "Hopkins-Park",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/hopkins-park/logo-abed367a1a.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Hopkins High School",
+  "coop": true,
+  "nickname": "Royals",
+  "town": "Minnetonka",
+  "colors_said": "Royal Blue & Silver",
+  "source": "the state league"
+ },
+ {
+  "id": "spring-lake-park",
+  "name": "Spring Lake Park",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/spring-lake-park/logo-296c598dc6.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Spring Lake Park High School",
+  "coop": false,
+  "nickname": "Panthers",
+  "town": "Spring Lake Park",
+  "colors_said": "Royal, Scarlet, White",
+  "source": "the state league"
+ },
+ {
+  "id": "chisago-lakes",
+  "name": "Chisago Lakes",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/chisago-lakes/logo-c41e31138f.png",
+  "sports": [
+   "Girls Basketball",
+   "Girls Hockey"
+  ],
+  "logo_of": "Chisago Lakes High School",
+  "coop": false,
+  "nickname": "Wildcats",
+  "town": "Lindstrom",
+  "colors_said": "Forest Green/Vegas Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "big-lake",
+  "name": "Big Lake",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/big-lake/logo-c95d3d6b7d.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Big Lake High School",
+  "coop": false,
+  "nickname": "Hornets",
+  "town": "Big Lake",
+  "colors_said": "Blue and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "delano-rockford",
+  "name": "Delano-Rockford",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/delano-rockford/logo-1106fa2a8e.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Delano High School",
+  "coop": true,
+  "nickname": "Tigers",
+  "town": "Delano",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "gentry-academy",
+  "name": "Gentry Academy",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/gentry-academy/logo-4a842911bc.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Gentry Academy",
+  "coop": false,
+  "nickname": "Stars",
+  "town": "Vadnais Heights",
+  "colors_said": "Black, Red, Blue, White",
+  "source": "the state league"
+ },
+ {
+  "id": "cambridge-isanti",
+  "name": "Cambridge-Isanti",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/cambridge-isanti/logo-528cd22fae.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Cambridge-Isanti High School",
+  "coop": false,
+  "nickname": "Bluejackets",
+  "town": "Cambridge",
+  "colors_said": "Royal Blue & White",
+  "source": "the state league"
+ },
+ {
+  "id": "esko",
+  "name": "Esko",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/esko/logo-21cb505e0d.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Esko High School",
+  "coop": false,
+  "nickname": "",
+  "town": "Esko",
+  "colors_said": "Blue and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "zimmerman",
+  "name": "Zimmerman",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/zimmerman/logo-0344187500.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Zimmerman High School",
+  "coop": false,
+  "nickname": "Thunder",
+  "town": "Zimmerman",
+  "colors_said": "Navy/Columbia/Grey",
+  "source": "the state league"
+ },
+ {
+  "id": "north-tartan",
+  "name": "North-Tartan",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/north-tartan/logo-643de67496.png",
+  "sports": [
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "North St. Paul",
+  "coop": true,
+  "nickname": "Polars",
+  "source": "the school's own site"
+ },
+ {
+  "id": "new-london-spicer",
+  "name": "New London-Spicer",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/new-london-spicer/logo-ed01c2ceab.png",
+  "sports": [
+   "Gymnastics",
+   "Football"
+  ],
+  "logo_of": "New London-Spicer High School",
+  "coop": false,
+  "nickname": "Wildcats",
+  "town": "New London",
+  "colors_said": "Black and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "roseville",
+  "name": "Roseville",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/roseville/logo-7797bebff2.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Roseville Area High School",
+  "coop": false,
+  "nickname": "Raiders",
+  "town": "Roseville",
+  "colors_said": "Black and Silver",
+  "source": "the state league"
+ },
+ {
+  "id": "rogers",
+  "name": "Rogers",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/rogers/logo-e68b8de579.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Rogers High School",
+  "coop": false,
+  "nickname": "Royals",
+  "town": "Rogers",
+  "colors_said": "Royal, White, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "champlin-park",
+  "name": "Champlin Park",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/champlin-park/logo-5b64ad3572.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Champlin Park High School",
+  "coop": false,
+  "nickname": "Rebels",
+  "town": "Champlin",
+  "colors_said": "Navy, Silver, White",
+  "source": "the state league"
+ },
+ {
+  "id": "minneapolis-southwest",
+  "name": "Minneapolis Southwest",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/minneapolis-southwest/logo-e8252d8829.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Minneapolis Southwest High School",
+  "coop": false,
+  "nickname": "Lakers",
+  "town": "Minneapolis",
+  "colors_said": "Purple and White",
+  "source": "the state league"
+ },
+ {
+  "id": "robbinsdale-cooper",
+  "name": "Robbinsdale Cooper",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/robbinsdale-cooper/logo-75ae447408.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Robbinsdale Cooper High School",
+  "coop": false,
+  "nickname": "Hawks",
+  "town": "New Hope",
+  "colors_said": "Orange and Blue",
+  "source": "the state league"
+ },
+ {
+  "id": "northfield",
+  "name": "Northfield",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/northfield/logo-0eff5fd2b4.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "Northfield High School",
+  "coop": false,
+  "nickname": "Raiders",
+  "town": "Northfield",
+  "colors_said": "Maroon and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "south-st-paul",
+  "name": "South St. Paul",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/south-st-paul/logo-907475436a.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "South St. Paul",
+  "coop": false,
+  "nickname": "Packers",
+  "source": "the school's own site"
+ },
+ {
+  "id": "farmington",
+  "name": "Farmington",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/farmington/logo-ef03e45ae7.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Farmington High School",
+  "coop": false,
+  "nickname": "Tigers",
+  "town": "Farmington",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "st-michael-albertville-buffalo-monticello",
+  "name": "St. Michael-Albertville-Buffalo-Monticello",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-michael-albertville-buffalo-monticello/logo-d46d965486.png",
+  "sports": [
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "St. Michael-Albertville",
+  "coop": true,
+  "nickname": "Knights",
+  "source": "the school's own site"
+ },
+ {
+  "id": "redwood-valley",
+  "name": "Redwood Valley",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/redwood-valley/logo-45e82fc953.png",
+  "sports": [
+   "Football"
+  ],
+  "logo_of": "Redwood Valley High School",
+  "coop": false,
+  "nickname": "Cardinals",
+  "town": "Redwood Falls",
+  "colors_said": "Red and White",
+  "source": "the state league"
+ },
+ {
+  "id": "windom",
+  "name": "Windom",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/windom/logo-f9a6dc4792.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Windom Area High School",
+  "coop": false,
+  "nickname": "Eagles",
+  "town": "Windom",
+  "colors_said": "Blue and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "blake",
+  "name": "Blake",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/blake/logo-618ac9d0aa.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Blake",
+  "coop": false,
+  "nickname": "Bears",
+  "town": "Minneapolis",
+  "colors_said": "Royal, Kelly, White",
+  "source": "the state league"
+ },
+ {
+  "id": "maple-lake",
+  "name": "Maple Lake",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/maple-lake/logo-b022a3feab.png",
+  "sports": [
+   "Gymnastics"
+  ],
+  "logo_of": "Maple Lake High School",
+  "coop": false,
+  "nickname": "Irish",
+  "town": "Maple Lake",
+  "colors_said": "Green, White, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "north-branch",
+  "name": "North Branch",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/north-branch/logo-6910d98a51.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "North Branch Area High School",
+  "coop": false,
+  "nickname": "Vikings",
+  "town": "North Branch",
+  "colors_said": "Red and White",
+  "source": "the state league"
+ },
+ {
+  "id": "st-cloud-srr",
+  "name": "St. Cloud-SRR",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-cloud-srr/logo-9cad76ea78.png",
+  "sports": [
+   "Gymnastics"
+  ],
+  "logo_of": "St. Cloud",
+  "coop": true,
+  "nickname": "",
+  "source": "the school's own site"
+ },
+ {
+  "id": "st-cloud-rocori",
+  "name": "St. Cloud-ROCORI",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-cloud-rocori/logo-9cad76ea78.png",
+  "sports": [
+   "Boys Swim"
+  ],
+  "logo_of": "St. Cloud",
+  "coop": true,
+  "nickname": "",
+  "source": "the school's own site"
+ },
+ {
+  "id": "paynesville-area-evw",
+  "name": "Paynesville Area-EVW",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/paynesville/logo-89ec96de97.png",
+  "sports": [
+   "Gymnastics"
+  ],
+  "logo_of": "Paynesville Area High School",
+  "coop": true,
+  "nickname": "Bulldogs",
+  "town": "Paynesville",
+  "colors_said": "Kelly Green and White",
+  "source": "the state league"
+ },
+ {
+  "id": "northern-lakes",
+  "name": "Northern Lakes",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/northern-lakes/logo-bc2ea1383e.png",
+  "sports": [
+   "Boys Hockey",
+   "Girls Hockey"
+  ],
+  "logo_of": "Northern Lakes",
+  "coop": false,
+  "nickname": "Lightning",
+  "source": "the school's own site"
+ },
+ {
+  "id": "moorhead",
+  "name": "Moorhead",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/moorhead/logo-5cd1b111cc.png",
+  "sports": [
+   "Boys Basketball",
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "Moorhead High School",
+  "coop": false,
+  "nickname": "Spuds",
+  "town": "Moorhead",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "monticello",
+  "name": "Monticello",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/monticello/logo-468a0d111a.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Monticello High School",
+  "coop": false,
+  "nickname": "Magic",
+  "town": "Monticello",
+  "colors_said": "Red, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "prairie-centre",
+  "name": "Prairie Centre",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/prairie-centre/logo-e7531248a9.png",
+  "sports": [
+   "Girls Hockey",
+   "Boys Hockey"
+  ],
+  "logo_of": "Prairie Centre",
+  "coop": false,
+  "nickname": "Blue Devils",
+  "source": "the school's own site"
+ },
+ {
+  "id": "dassel-cokato",
+  "name": "Dassel-Cokato",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/dassel-cokato/logo-09af9ba722.png",
+  "sports": [
+   "Girls Basketball",
+   "Boys Basketball"
+  ],
+  "logo_of": "Dassel-Cokato High School",
+  "coop": false,
+  "nickname": "Chargers",
+  "town": "Cokato",
+  "colors_said": "Navy/White",
+  "source": "the state league"
+ },
+ {
+  "id": "fargo-davies",
+  "name": "Fargo Davies",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/fargo-davies/logo-4ef5f8fa24.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Fargo Davies",
+  "coop": false,
+  "nickname": "Eagles",
+  "source": "the school's own site"
+ },
+ {
+  "id": "hermantown",
+  "name": "Hermantown",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/hermantown/logo-64c3961bdc.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Hermantown High School",
+  "coop": false,
+  "nickname": "Hawks",
+  "town": "Hermantown",
+  "colors_said": "Navy and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "rosemount",
+  "name": "Rosemount",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/rosemount/logo-e3226a6573.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Rosemount High School",
+  "coop": false,
+  "nickname": "Irish",
+  "town": "Rosemount",
+  "colors_said": "Navy, Gold, Green",
+  "source": "the state league"
+ },
+ {
+  "id": "moose-lake-willow-river",
+  "name": "Moose Lake-Willow River",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/moose-lake-willow-river/logo-9d90d53cdc.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Moose Lake-Willow River",
+  "coop": false,
+  "nickname": "Rebels",
+  "source": "the school's own site"
+ },
+ {
+  "id": "dodge-county",
+  "name": "Dodge County",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/dodge-county/logo-2093c1a584.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Kasson-Mantorville High School",
+  "coop": true,
+  "nickname": "Wildcats",
+  "source": "the school's own site"
+ },
+ {
+  "id": "breck",
+  "name": "Breck",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/breck/logo-e5c78d6ab9.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Breck School",
+  "coop": false,
+  "nickname": "Mustangs",
+  "town": "Golden Valley",
+  "colors_said": "Navy and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "robbinsdale-armstrong-cooper",
+  "name": "Robbinsdale Armstrong-Cooper",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/robbinsdale-armstrong-cooper/logo-52b0e48f25.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Robbinsdale Armstrong-Cooper",
+  "coop": false,
+  "nickname": "Wings",
+  "source": "the school's own site"
+ },
+ {
+  "id": "fargo-north",
+  "name": "Fargo North",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/fargo-north/logo-c08d30c6a3.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Fargo North",
+  "coop": false,
+  "nickname": "Spartans",
+  "source": "the school's own site"
+ },
+ {
+  "id": "totino-grace",
+  "name": "Totino-Grace",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/totino-grace/logo-5cc2906249.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Totino-Grace High School",
+  "coop": false,
+  "nickname": "Eagles",
+  "town": "Fridley",
+  "colors_said": "Navy Blue, Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "st-paul-johnson",
+  "name": "St. Paul Johnson",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-paul-johnson/logo-428a10ca52.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "St. Paul Johnson High School",
+  "coop": false,
+  "nickname": "Governors",
+  "town": "St. Paul",
+  "colors_said": "Maroon and White",
+  "source": "the state league"
+ },
+ {
+  "id": "dawson-boyd",
+  "name": "Dawson-Boyd",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/dawson-boyd/logo-cabaee5e8b.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Dawson-Boyd High School",
+  "coop": false,
+  "nickname": "Blackjacks",
+  "town": "Dawson",
+  "colors_said": "Black and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "crookston",
+  "name": "Crookston",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/crookston/logo-d77c5d8c85.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Crookston High School",
+  "coop": false,
+  "nickname": "Pirates",
+  "town": "Crookston",
+  "colors_said": "Navy and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "fusion",
+  "name": "Fusion",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/fusion/logo-ffdd43ae8c.png",
+  "sports": [
+   "Boys Swim"
+  ],
+  "logo_of": "Fusion",
+  "coop": false,
+  "nickname": "Fusion",
+  "source": "the school's own site"
+ },
+ {
+  "id": "morris-area-chokio-alberta-hancock",
+  "name": "Morris Area-Chokio-Alberta-Hancock",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/morris-area-chokio-alberta-hancock/logo-9e982e6060.png",
+  "sports": [
+   "Gymnastics"
+  ],
+  "logo_of": "Morris Area School",
+  "coop": true,
+  "nickname": "Tigers",
+  "town": "Morris",
+  "colors_said": "Orange and Black",
+  "source": "the state league"
+ },
+ {
+  "id": "braham",
+  "name": "Braham",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/braham/logo-7ac89a9372.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Braham High School",
+  "coop": false,
+  "nickname": "Bombers",
+  "town": "Braham",
+  "colors_said": "Blue and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "benson",
+  "name": "Benson",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/benson/logo-bd37286cb1.png",
+  "sports": [],
+  "logo_of": "Benson High School",
+  "coop": false,
+  "nickname": "Braves",
+  "town": "Benson",
+  "colors_said": "Maroon & Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "providence-academy",
+  "name": "Providence Academy",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/providence-academy/logo-026f26b9a6.png",
+  "sports": [],
+  "logo_of": "Providence Academy",
+  "coop": false,
+  "nickname": "Lions",
+  "town": "Plymouth",
+  "colors_said": "Navy and Old Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "chaska-chanhassen",
+  "name": "Chaska-Chanhassen",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/chaska-chanhassen/logo-b75138f855.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Chaska-Chanhassen",
+  "coop": false,
+  "nickname": "StormHawks",
+  "source": "the school's own site"
+ },
+ {
+  "id": "hope-academy",
+  "name": "Hope Academy",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/hope-academy/logo-ed7cf82a7e.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Hope Academy",
+  "coop": false,
+  "nickname": "Lions",
+  "town": "Minneapolis",
+  "colors_said": "Red, White, Black",
+  "source": "the state league"
+ },
+ {
+  "id": "benson-kms",
+  "name": "Benson-KMS",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/benson-kms/logo-bd37286cb1.png",
+  "sports": [
+   "Gymnastics"
+  ],
+  "logo_of": "Benson High School",
+  "coop": true,
+  "nickname": "Braves",
+  "town": "Benson",
+  "colors_said": "Maroon & Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "howard-lake-waverly-winsted",
+  "name": "Howard Lake-Waverly-Winsted",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/howard-lake-waverly-winsted/logo-532e5dff09.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Howard Lake-Waverly-Winsted High School",
+  "coop": false,
+  "nickname": "Lakers",
+  "town": "Howard Lake",
+  "colors_said": "Navy Blue,Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "grand-forks-central",
+  "name": "Grand Forks Central",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/grand-forks-central/logo-75e6075ceb.png",
+  "sports": [
+   "Girls Hockey"
+  ],
+  "logo_of": "Grand Forks Central",
+  "coop": false,
+  "nickname": "Knights",
+  "source": "the school's own site"
+ },
+ {
+  "id": "centennial-spring-lake-park",
+  "name": "Centennial-Spring Lake Park",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/centennial-spring-lake-park/logo-32fbb27f22.png",
+  "sports": [
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "Centennial High School",
+  "coop": true,
+  "nickname": "Cougars",
+  "town": "Circle Pines",
+  "colors_said": "Red, Black and White",
+  "source": "the state league"
+ },
+ {
+  "id": "rockford",
+  "name": "Rockford",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/rockford/logo-66248b239a.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Rockford High School",
+  "coop": false,
+  "nickname": "Rockets",
+  "town": "Rockford",
+  "colors_said": "Green, black, white",
+  "source": "the state league"
+ },
+ {
+  "id": "minneapolis-camden",
+  "name": "Minneapolis Camden",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/minneapolis-camden/logo-e5fb0f25f3.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Minneapolis Camden High School",
+  "coop": false,
+  "nickname": "Patriots",
+  "town": "Minneapolis",
+  "colors_said": "Red and Grey",
+  "source": "the state league"
+ },
+ {
+  "id": "morris-benson",
+  "name": "Morris-Benson",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/morris-benson/logo-95430b2487.png",
+  "sports": [
+   "Boys Hockey"
+  ],
+  "logo_of": "Morris-Benson",
+  "coop": false,
+  "nickname": "Storm",
+  "source": "the school's own site"
+ },
+ {
+  "id": "maple-grove",
+  "name": "Maple Grove",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/maple-grove/logo-fdf3fac935.png",
+  "sports": [
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "Maple Grove High School",
+  "coop": false,
+  "nickname": "Crimson",
+  "town": "Maple Grove",
+  "colors_said": "Crimson and Gold",
+  "source": "the state league"
+ },
+ {
+  "id": "anoka-hennepin",
+  "name": "Anoka-Hennepin",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/anoka-hennepin/logo-811dd914bc.png",
+  "sports": [
+   "Adapted Floor Hockey"
+  ],
+  "logo_of": "Anoka-Hennepin",
+  "coop": false,
+  "nickname": "",
+  "source": "the school's own site"
+ },
+ {
+  "id": "minneapolis-north",
+  "name": "Minneapolis North",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/minneapolis-north/logo-52a7ca1760.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Minneapolis North Community High School",
+  "coop": false,
+  "nickname": "Polars",
+  "town": "Minneapolis",
+  "colors_said": "Royal Blue & White",
+  "source": "the state league"
+ },
+ {
+  "id": "st-croix-prep",
+  "name": "St. Croix Prep",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/st-croix-prep/logo-f3f83fc38c.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "St. Croix Prep",
+  "coop": false,
+  "nickname": "Lions",
+  "source": "the school's own site"
+ },
+ {
+  "id": "swanville",
+  "name": "Swanville",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/swanville/logo-aaa268ec71.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Swanville High School",
+  "coop": false,
+  "nickname": "Bulldogs",
+  "town": "Swanville",
+  "colors_said": "Royal, White",
+  "source": "the state league"
+ },
+ {
+  "id": "proctor",
+  "name": "Proctor",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/proctor/logo-ad0884d331.png",
+  "sports": [
+   "Girls Basketball"
+  ],
+  "logo_of": "Proctor High School",
+  "coop": false,
+  "nickname": "Rails",
+  "town": "Proctor",
+  "colors_said": "Dark Green and White",
+  "source": "the state league"
+ },
+ {
+  "id": "goodhue",
+  "name": "Goodhue",
+  "logo_url": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/goodhue/logo-27bc8abc87.png",
+  "sports": [
+   "Boys Basketball"
+  ],
+  "logo_of": "Goodhue High School",
+  "coop": false,
+  "nickname": "Wildcats",
+  "town": "Goodhue",
+  "colors_said": "Purple and White",
+  "source": "the state league"
+ }
+]

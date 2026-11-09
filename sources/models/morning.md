@@ -46,7 +46,8 @@ ends the morning: answer with it.
 
 **Helpers.** First run `python3 sources/scripts/event_photos.py prepare`: it lays out each new Event's
 pictures, games aside, and each new News's own post pictures, on sheets in `.runs/morning/photos/` (event-photos 09,
-town-feed 53). Then start the helpers
+town-feed 53). Then run `python3 sources/scripts/team_logos.py prepare`: it looks up a logo for each team whose games
+wait on one, on a sheet in `.runs/morning/logos/` (game-card 17). Then start the helpers
 together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
@@ -57,6 +58,9 @@ together, at most 10 running at once:
   picks every photo, BP app dig-deeper 08) with: "Read
   `sources/models/event-photo.md` and follow it for `.runs/morning/photos/batch-N.txt`. Answer with the
   JSON lines only." Their lines go to `.runs/morning/event_photos.jsonl`.
+- when `.runs/morning/logos/batch.txt` exists, one helper on the cheap model (Haiku) with: "Read
+  `sources/models/team-logo.md` and follow it for `.runs/morning/logos/batch.txt`. Answer with the JSON lines only."
+  Its lines go to `.runs/morning/logos.jsonl`. Only its yes puts a logo live: never answer for it yourself.
 - Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked
   photos), then `python3 sources/scripts/morning.py today`, then read
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
@@ -86,8 +90,8 @@ dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py` and `event_photos.py` (the registry's fetcher obeys robots rules and
-  Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
+- Pages are fetched only by `morning.py`, `event_photos.py` and `team_logos.py` (the registry's fetcher obeys robots
+  rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
 - The database is written only by `morning.py save` and `finish`, and `event_photos.py keep` and `dig-keep`. SQL by
   hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

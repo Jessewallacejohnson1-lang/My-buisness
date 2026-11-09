@@ -194,6 +194,17 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   }
 });
 
+// The finish's team logos step (team_logos.keep, BP app game-card 17): a team's logo, saved once, and the team
+// takes it, which shows its waiting games (private.team_logo_changed, run as the job).
+test("team logos: a new team's logo and colors", async () => {
+  await asJob('team logos: the team', `insert into public.teams (id, name, short_name) values ('mankato-east', 'Mankato East', 'Mankato East')`);
+  await asJob('team logos: the file', `insert into storage.objects (bucket_id, name) values ('places', 'teams/mankato-east/logo-0a1b2c3d4e.png')`);
+  await asJob('team logos: the team takes it', `update public.teams set logo_url = $2, color = $3, colors = $4
+    where id = $1 and logo_url is null`, ['mankato-east', 'https://x/logo.png', '#F2B417', ['#F2B417', '#000000']]);
+  assert.deepEqual(await asJob('read back', `select logo_url, colors from public.teams where id = 'mankato-east'`),
+    [{ logo_url: 'https://x/logo.png', colors: ['#F2B417', '#000000'] }]);
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
 test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
   const refused = async (what, sql) => {
@@ -211,6 +222,7 @@ test('the Watch key is refused: deleting an Event, the waitlist, sign-in account
   await refused("change a neighbour's comment", `update public.event_comments set body = 'x'`);
   await refused('see who is Going', 'select user_id from public.event_rsvps');
   await refused('rename a Place', `update public.places set name = 'x'`);
+  await refused('rename a team', `update public.teams set name = 'x'`);
   await refused("change a Place's Apple Maps id", `update public.places set apple_place_id = 'x'`);
   await refused('take a place photo down', `update public.place_photos set status = 'retired'`);
   await refused("decide a take-down (Jesse's Keep)", 'update public.photo_takedowns set kept_at = now()');

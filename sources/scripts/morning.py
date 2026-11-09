@@ -85,6 +85,7 @@ import social
 import spots
 import find_spots
 import apple_maps
+import team_logos
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, minutes_left, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1059,9 +1060,11 @@ def finish(run, dry_run):
     lines = list(kept)
     # After the helpers' saves, the Events since the last report showing no photo of what they are, each new
     # Event's spot on the map, and the ones with none listed (BP app references/map-reset),
-    # then the places Apple Maps calls closed for good, hidden (Jesse, 2026-11-01).
+    # then the places Apple Maps calls closed for good, hidden (Jesse, 2026-11-01). A team's logo the
+    # helper said yes to goes live, and each team still waiting says why (game-card 17).
     for what, step in (("tags", lambda: tag(run, dry_run)), ("Abouts", lambda: describe(run, dry_run)),
                        ("standouts", lambda: standouts(run, dry_run)),
+                       ("team logos", lambda: team_logos.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
