@@ -1,34 +1,33 @@
 //
 //  OnboardingChrome.swift
-//  Block Party — the pieces every onboarding question screen shares (BP app
-//  docs/plans/onboarding, mock v7): the white backdrop, the back chevron, Duolingo's
-//  chunky ink progress bar and the one Next bar. `OnboardingFlow` owns where they sit;
-//  the steps draw none of them. `ContinueButton` is Edit Profile's interests' Done, kept from
+//  Block Party — the pieces every onboarding question screen shares, in Luma's look (BP app
+//  onboarding 34, mock v8): the pale grey canvas, the back chevron, the 4 pt progress line, the icon
+//  circle over the question, the one Next pill, the grey field box. `OnboardingFlow` owns where they
+//  sit; the steps draw none of them. `ContinueButton` is Edit Profile's interests' Done, kept from
 //  the deleted wizard.
 //
 
 import SwiftUI
 
-/// Plain white behind every onboarding screen after the Welcome, Log in and Create account
-/// included (Jesse, 2026-11-02: "change to whit back ground for all onboarding"). It was a faint
-/// yellow wash from 2026-10-24.
+/// Luma's pale grey behind every onboarding screen after the Welcome, Log in and Create account
+/// included, so white cards stand off it (mock v8 `--canvas`). It was plain white from 2026-11-02.
 struct OnboardingBackdrop: View {
     var body: some View {
-        Hue.surface
+        Hue.onboardingCanvas
             .ignoresSafeArea()
             .accessibilityHidden(true)
     }
 }
 
-/// The back chevron at the top left of every question step: control grey, 44 pt to tap,
-/// sinking to 88% under the finger.
+/// The back chevron at the top left of every question step: Luma's thin ink chevron, 44 pt to tap,
+/// sinking under the finger.
 struct OnboardingBackChevron: View {
     let action: () -> Void
     var body: some View {
         Button(action: { Haptics.selection(); action() }) {
             Image(systemName: "chevron.left")
-                .font(.glyph(22, weight: .bold))
-                .foregroundStyle(Hue.control)
+                .font(.glyph(20, weight: .medium))
+                .foregroundStyle(Hue.ink)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -37,68 +36,85 @@ struct OnboardingBackChevron: View {
     }
 }
 
-/// Duolingo's bar in ink: a 16 pt capsule on an 8% ink track, no yellow and no highlight stripe
-/// (Jesse, 2026-11-08: "take the yellow out of onboarding"). Each step it rises past its mark by 7.5% of
-/// a step, peaks at 0.23 s and settles by 0.4 s (iOS refs/onboarding/REFERENCE-SPEC.md §8),
-/// and a glint runs along it going forward.
+/// A 4 pt ink line on a grey track (mock v8). Each step it glides to its mark over 0.42 s on the
+/// mock's out-quint and stops: no overshoot, stripe or glint. Reduce Motion cross-fades it instead.
 struct OnboardingProgressBar: View {
     /// 1 to `total`.
     let index: Int
     let total: Int
 
-    /// The spring that overshoots 7.5% and peaks at 0.23 s: damping ratio 0.636 gives
-    /// exp(-ζπ/√(1-ζ²)) = 0.075, and response 0.355 puts the first peak at π/ω_d = 0.23 s.
-    static let advance: Animation = .spring(response: 0.355, dampingFraction: 0.636)
+    static let height: CGFloat = 4
+    /// The mock's `cubic-bezier(.22,1,.36,1)` over 420 ms.
+    static let glide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.42)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Counts steps forward only, so Back runs no glint.
-    @State private var forwardMoves = 0
 
     var body: some View {
         GeometryReader { geo in
-            let w = max(16, geo.size.width * CGFloat(index) / CGFloat(max(total, 1)))
+            let w = geo.size.width * CGFloat(index) / CGFloat(max(total, 1))
             Capsule()
-                .fill(Hue.ink.opacity(0.08))
+                .fill(Hue.onboardingTrack)
                 .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(Hue.ink)
-                        .overlay(alignment: .leading) { if !reduceMotion { glint(width: w) } }
-                        .clipShape(Capsule())
-                        .frame(width: w)
-                        .animation(reduceMotion ? .easeOut(duration: 0.2) : Self.advance, value: index)
+                    if reduceMotion {
+                        // A new fill per step, faded over the old one, so nothing slides.
+                        Capsule().fill(Hue.ink).frame(width: w)
+                            .id(index)
+                            .transition(.opacity)
+                            .animation(.easeOut(duration: 0.2), value: index)
+                    } else {
+                        Capsule().fill(Hue.ink).frame(width: w)
+                            .animation(Self.glide, value: index)
+                    }
                 }
         }
-        .frame(height: 16)
-        .onChange(of: index) { old, new in if new > old { forwardMoves += 1 } }
+        .frame(height: Self.height)
         .accessibilityElement()
         .accessibilityLabel("Step \(index) of \(total)")
     }
+}
 
-    /// A 30 pt band of light that sweeps the fill once per step forward: in from nothing over
-    /// a quarter of its run, out over the rest, 0.52 s after a 0.14 s wait (mock v4).
-    private func glint(width: CGFloat) -> some View {
-        LinearGradient(colors: [.white.opacity(0), .white.opacity(0.85), .white.opacity(0)],
-                       startPoint: .leading, endPoint: .trailing)
-            .frame(width: 30)
-            .keyframeAnimator(initialValue: CGFloat(1), trigger: forwardMoves) { band, t in
-                band
-                    .offset(x: t * (width - 30))
-                    .opacity(t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75)
-            } keyframes: { _ in
-                LinearKeyframe(0, duration: 0)
-                LinearKeyframe(0, duration: 0.14)
-                CubicKeyframe(1, duration: 0.52)
-            }
-            .allowsHitTesting(false)
+/// What sits over every question, Luma's: a 52 pt grey circle holding a small grey SF Symbol where
+/// the wordmark used to sit, then the question 18 pt under it, 24 pt semibold on a 30 pt line.
+struct OnboardingHeading: View {
+    let symbol: String
+    let question: String
+    @AccessibilityFocusState.Binding var focused: Bool
+
+    static let disc: CGFloat = 52
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: symbol)
+                .font(.glyph(24, weight: .regular))
+                .foregroundStyle(Hue.onboardingIcon)
+                .frame(width: Self.disc, height: Self.disc)
+                .background(Hue.onboardingField, in: Circle())
+                .accessibilityHidden(true)
+            OnboardingQuestion(question)
+                .accessibilityFocused($focused)
+        }
     }
 }
 
-/// The one primary button, Duolingo's build lit as BP's charcoal pill: a 48 pt face on a 4 pt
-/// edge (`Hue.nextEdge`). Pressed, the face sinks onto the edge in 80 ms and springs back in
-/// 70 ms with a hair of overshoot (REFERENCE-SPEC §8: 4 pt travel, damping 0.62), with a light
-/// haptic on the press-down. Not allowed, it greys and shakes instead of acting, so it stays
-/// tappable: a disabled button could not shake. The same charcoal bar on every step, Find your
-/// friends included (its yellow went 2026-11-08).
+/// The question alone: Apple's font, 24 pt semibold, 30 pt line, ink.
+struct OnboardingQuestion: View {
+    let words: String
+    init(_ words: String) { self.words = words }
+    var body: some View {
+        Text(words)
+            .appleFont(24, weight: .semibold)
+            .lineSpacing(1.4)   // SF's 28.6 pt line at 24 pt, to the mock's 30
+            .kerning(-0.36)     // the mock's -.015em
+            .foregroundStyle(Hue.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// The one primary button, Luma's flat black pill: 48 pt, no raised edge. Pressed, it squishes to
+/// 97% (`Press`, the 5 pt any width loses, 97% at this width) and lifts to `Hue.nextPressed` over 80 ms,
+/// then springs back, with a light haptic on the press-down. Not allowed, it greys and shakes instead of
+/// acting, so it stays tappable: a disabled button could not shake. The same pill on every step.
 struct OnboardingNextBar: View {
     let title: String
     /// What's still to pick or follow, so the title's number rolls the way it goes.
@@ -109,6 +125,8 @@ struct OnboardingNextBar: View {
     /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
     var refused = 0
     let action: () -> Void
+
+    static let height: CGFloat = 48
 
     @State private var shakes = 0
 
@@ -121,7 +139,7 @@ struct OnboardingNextBar: View {
                 ProgressView().tint(.white)
             } else {
                 Text(title)
-                    .font(.displaySemi(17))
+                    .font(.apple(17, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
@@ -150,37 +168,52 @@ struct OnboardingNextBar: View {
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var face: some ShapeStyle {
-        LinearGradient(stops: [.init(color: Hue.pillTop, location: 0),
-                               .init(color: Hue.pillDeep, location: 0.25),
-                               .init(color: Hue.pillBottom, location: 1)],
-                       startPoint: .top, endPoint: .bottom)
-            .shadow(.inner(color: .white.opacity(0.16), radius: 0, x: 0, y: 1))
-    }
-
     func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed
-        return ZStack(alignment: .top) {
-            Capsule().fill(allowed ? Hue.nextEdge : Hue.nextOffEdge)
-            configuration.label
-                .foregroundStyle(allowed ? Color.white : Hue.inkSecondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background {
-                    if allowed { Capsule().fill(face) } else { Capsule().fill(Hue.nextOffFace) }
-                }
-                .offset(y: down && !reduceMotion ? 4 : 0)
-                .animation(Press.push(down: down), value: down)
-        }
-        .frame(height: 52)
-        // One shadow under the whole bar, so the words cast none on the face.
-        .compositingGroup()
-        .shadow(color: Hue.ink.opacity(allowed ? (down ? 0.2 : 0.3) : 0),
-                radius: down ? 3 : 8, y: down ? 2 : 6)
-        .contentShape(Capsule())
-        .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+        let down = configuration.isPressed && allowed
+        return configuration.label
+            .foregroundStyle(allowed ? Color.white : Hue.nextOffWords)
+            .frame(maxWidth: .infinity)
+            .frame(height: OnboardingNextBar.height)
+            .background {
+                Capsule()
+                    .fill(allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff)
+                    .animation(.easeOut(duration: Press.inSeconds), value: down)
+            }
+            .contentShape(Capsule())
+            .press(.squish, down: down)
+            .animation(.easeOut(duration: 0.2), value: allowed)
+            .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+    }
+}
+
+/// Luma's field: a soft grey box, 46 pt tall, 12 pt corners, the words 16 pt in. Focused, a 1.5 pt
+/// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it.
+struct OnboardingFieldBox: ViewModifier {
+    var focused = false
+    static let height: CGFloat = 46
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        content
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: Self.height, alignment: .leading)
+            .background(Hue.onboardingField, in: shape)
+            .overlay(shape.strokeBorder(Hue.ink, lineWidth: focused ? 1.5 : 0))
+    }
+}
+
+extension View {
+    func onboardingField(focused: Bool = false) -> some View { modifier(OnboardingFieldBox(focused: focused)) }
+}
+
+/// The small grey label over a field, 6 pt above it (mock v8 `.flabel`).
+struct OnboardingFieldLabel: View {
+    let words: String
+    init(_ words: String) { self.words = words }
+    var body: some View {
+        Text(words)
+            .font(.apple(13))
+            .foregroundStyle(Hue.inkSecondary)
+            .padding(.bottom, 6)
     }
 }
 
@@ -192,7 +225,7 @@ struct OnboardingLink: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.sansSemibold(15))
+                .font(.apple(15, weight: .semibold))
                 .foregroundStyle(Hue.ink)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
@@ -202,12 +235,13 @@ struct OnboardingLink: View {
     }
 }
 
-/// The search box over Follow 3's places: a 44 pt white box on a 1.5 pt
-/// hairline, 24 pt under the question's line.
+/// The search box over Follow 3's places: Luma's 40 pt grey box, no edge, 16 pt under the question.
 struct OnboardingSearchField: View {
     let prompt: String
     @Binding var query: String
     @FocusState private var searching: Bool
+
+    static let height: CGFloat = 40
 
     var body: some View {
         HStack(spacing: 8) {
@@ -215,7 +249,7 @@ struct OnboardingSearchField: View {
                 .font(.glyph(15, weight: .semibold))
                 .foregroundStyle(Hue.inkSecondary)
             TextField(prompt, text: $query, prompt: Text(prompt).foregroundStyle(Hue.inkSecondary))
-                .font(.sans(15))
+                .font(.apple(16))
                 .foregroundStyle(Hue.ink)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
@@ -223,13 +257,12 @@ struct OnboardingSearchField: View {
                 .focused($searching)
         }
         .padding(.horizontal, 12)
-        .frame(height: 44)
-        .background(Hue.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Hue.hairline, lineWidth: 1.5))
-        // The whole 44 pt box takes the tap, not only the line of text.
+        .frame(height: Self.height)
+        .background(Hue.onboardingField, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // The whole box takes the tap, not only the line of text.
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
-        .padding(.top, 24)
+        .padding(.top, 16)
     }
 }
 
@@ -242,7 +275,7 @@ struct ContinueButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.displaySemi(17))
+                .font(.apple(17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)

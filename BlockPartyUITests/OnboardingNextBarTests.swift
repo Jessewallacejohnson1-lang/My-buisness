@@ -85,7 +85,7 @@ final class OnboardingNextBarTests: XCTestCase {
         next.tap()
         XCTAssertTrue(bar(app, 2).waitForExistence(timeout: 3), "never reached step 2")
         let home = resting(next)
-        XCTAssertEqual(home.height, 52, accuracy: 0.5)
+        XCTAssertEqual(home.height, 48, accuracy: 0.5)   // Luma's flat pill (onboarding 34)
         XCTAssertEqual(riding.width, home.width, "Next bar changed width over the keyboard")
         XCTAssertLessThanOrEqual(riding.minY, home.minY, "Next bar dropped under the keyboard")
 

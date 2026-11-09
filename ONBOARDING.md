@@ -15,19 +15,26 @@ and `-onboarding` shows it anyway. Finishing stamps `town_profiles.onboarded_at`
 birthday and interests before the Town feed's first read, and a stamp already on the server
 skips the flow on a reinstall.
 
-`refs/onboarding/REFERENCE-SPEC.md` still holds the measured Duolingo press and progress
-numbers the Next bar and progress bar use (section 8).
+`OnboardingChrome.swift` draws Luma's look (BP app onboarding 34, 2026-11-09): the pale grey
+canvas, a grey icon circle over each question, the 4 pt progress line and the flat Next pill.
+`refs/onboarding/REFERENCE-SPEC.md`'s Duolingo press and progress numbers (section 8) are history:
+nothing uses them now.
 
 ## Direction — Jesse's calls
 
 **The spec is BP app `docs/plans/onboarding/SPEC.md`** (charted with Jesse 2026-10-23 and
-2026-10-24), with its build tickets in `docs/plans/onboarding/issues/`. The Reference for every
-screen is the approved mock (v7, `docs/plans/onboarding/assets/08-mock/`) and, for the Welcome,
-the ticket 25 mock (`references/welcome-screen/mock.html`). It replaces the old direction here
-(a near 1:1 Duolingo clone, 20 screens, 6 questions): only Duolingo's progress bar and button
-press are kept. Everything below this section still holds, except where the spec says
-otherwise: between steps only the question slides (Reduce Motion: a cross-fade), not a
-cross-fade of the whole step.
+2026-10-24), with its build tickets in `docs/plans/onboarding/issues/`. **The look is Luma's** (Jesse,
+2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
+https://claude.ai/artifact/MP8F7en27xmiB9Nz3d2k6J, source `docs/plans/onboarding/assets/33-new-look/mock/`
+(its sizes are in its CSS; the Luma screens it copies are in `mock/refs/`). Where it and an older
+mock or the spec's look differ, mock v8 wins. In short: Apple's font for every word, Welcome and
+Done included; Luma's pale grey canvas; a 52 pt grey icon circle above each question; the question
+at 24 pt semibold on a 30 pt line; a 4 pt ink progress line that glides to each step and stops; Luma's
+flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
+allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
+layout (ticket 25). Duolingo's chunky bar, glint and raised button are gone. Everything below this
+section still holds, except where the spec says otherwise: between steps only the question slides
+(Reduce Motion: a cross-fade), not a cross-fade of the whole step.
 
 ## The bar
 

@@ -24,7 +24,7 @@ nonisolated enum OnboardingAge {
     static let day = Date.ISO8601FormatStyle(timeZone: calendar.timeZone).year().month().day()
 }
 
-/// The field: "Birthday (25 years old)" over the date, in a 14 pt box with an ink edge.
+/// The field, Luma's: "Birthday · 25 years old" in the small grey label, over the date in a grey box.
 struct OnboardingBirthdayField: View {
     let date: Date
     let now: Date
@@ -32,21 +32,15 @@ struct OnboardingBirthdayField: View {
     var body: some View {
         let age = OnboardingAge.years(from: date, to: now)
         VStack(alignment: .leading, spacing: 0) {
-            Text("Birthday (\(age) years old)")
-                .font(.sans(12))
-                .foregroundStyle(Hue.inkSecondary)
+            OnboardingFieldLabel("Birthday · \(age) years old")
             Text(date.formatted(Date.FormatStyle(date: .long, time: .omitted, timeZone: OnboardingAge.calendar.timeZone)))
-                .font(.sansMedium(20))
+                .font(.apple(17))
                 .monospacedDigit()
                 .foregroundStyle(Hue.ink)
                 .contentTransition(.numericText())
+                .padding(.vertical, 12)
+                .onboardingField()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
-        .background(Hue.surface, in: .rect(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Hue.ink, lineWidth: 1.5))
         .accessibilityElement(children: .combine)
     }
 }
@@ -61,10 +55,8 @@ struct OnboardingGenderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Gender")
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-                // VoiceOver reads it before the pair: a segmented control says only its segments.
+            // VoiceOver reads it before the pair: a segmented control says only its segments.
+            OnboardingFieldLabel("Gender")
             HStack(spacing: 12) {
                 ForEach(Self.options, id: \.value) { option in
                     GenderPill(label: option.label, on: pick == option.value) {
@@ -72,7 +64,6 @@ struct OnboardingGenderRow: View {
                     }
                 }
             }
-            .padding(.top, 10)
             .accessibilityRepresentation {
                 Picker("Gender", selection: $pick) {
                     ForEach(Self.options, id: \.value) { Text($0.label).tag(Optional($0.value)) }
@@ -81,10 +72,10 @@ struct OnboardingGenderRow: View {
             }
             .accessibilityAction(named: "Clear") { pick = nil }
             Text("Only you see your birthday and gender.")
-                .font(.sans(13))
+                .font(.apple(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
+                .padding(.top, 10)
         }
         .padding(.top, 24)
     }
@@ -105,11 +96,11 @@ private struct GenderPill: View {
             HStack(spacing: 6) {
                 if on {
                     Text("\u{2713}")
-                        .font(.sansSemibold(17))
+                        .font(.apple(17, weight: .semibold))
                         .scaleEffect(check)
                 }
                 Text(label)
-                    .font(.sansMedium(17))
+                    .font(.apple(17, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width pill
             }
@@ -147,15 +138,18 @@ struct OnboardingBirthdayWheel: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, 34)
             .frame(height: Self.height, alignment: .center)
-            .background(Hue.fill)
+            .background(Hue.onboardingCanvas)
     }
 }
 
-/// "Come back when you're 13" (Turo's kind dead end): the wordmark on white, the reason,
-/// and Close, which clears everything and goes back to the Welcome. Back returns to the wheel.
+/// "Come back when you're 13" (Turo's kind dead end): the clock in the grey circle every question
+/// has, the reason, and Close, which clears everything and goes back to the Welcome. Back returns to
+/// the wheel. Ticket 36 makes the rest Luma's quiet empty state.
 struct OnboardingTooYoung: View {
     let back: () -> Void
     let close: () -> Void
+
+    static let symbol = "clock"
 
     @AccessibilityFocusState private var headerFocused: Bool
 
@@ -163,44 +157,36 @@ struct OnboardingTooYoung: View {
         ZStack(alignment: .top) {
             OnboardingBackdrop()
             VStack(alignment: .leading, spacing: 0) {
-                BlockPartyWordmark(height: 33)
-                    .foregroundStyle(Hue.ink)
-                bigWordmark
-                Text("Come back when you're 13")
-                    .font(.display(30))
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 32)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($headerFocused)
+                OnboardingHeading(symbol: Self.symbol, question: "Come back when you're 13", focused: $headerFocused)
                 Text("Block Party is for neighbors 13 and up. We didn't save anything you entered.")
-                    .font(.sans(15))
+                    .font(.apple(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
+                    .padding(.top, 6)
+                bigWordmark
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.top, 128)
+            .padding(.horizontal, FollowGridMetric.gutter)
+            .padding(.top, FollowGridMetric.headingTop)
             .ignoresSafeArea(.container)
 
             HStack {
                 OnboardingBackChevron(action: back)
                 Spacer()
             }
-            .padding(.leading, 10)
-            .padding(.top, 56)
+            .padding(.leading, 6)
+            .padding(.top, 54)
             .ignoresSafeArea(.container)
         }
         .overlay(alignment: .bottom) {
             OnboardingNextBar(title: "Close", action: close)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, FollowGridMetric.gutter)
                 .padding(.bottom, 50)   // 84 from the bottom, over the home indicator's 34
         }
         .onAppear { headerFocused = true }
     }
 
-    /// The mock's 200 pt card: the wordmark tipped 4°, on white (its yellow glow went 2026-11-08).
+    /// The mock v7 200 pt card: the wordmark tipped 4°. Ticket 36 decides whether it stays.
     private var bigWordmark: some View {
         Color.clear
             .frame(height: 200)

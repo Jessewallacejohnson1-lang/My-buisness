@@ -94,7 +94,7 @@ struct OnboardingDone: View {
                 .transition(words)
             }
         }
-        .font(.sansBold(20))   // BP Body, as all of onboarding (taste.md 2026-10-25)
+        .font(.apple(20, weight: .bold))   // Apple's font, as all of onboarding (Luma's look, onboarding 34)
         .foregroundStyle(.white)
         .lineLimit(1)
         .minimumScaleFactor(0.8)

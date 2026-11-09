@@ -1,7 +1,7 @@
 //
 //  LoginView.swift
-//  Block Party — Log in and Create account (BP app onboarding 27): onboarding's white screen with
-//  the wordmark, a header, Instagram's two boxes and the charcoal Next bar. No app icon (Jesse,
+//  Block Party — Log in and Create account (BP app onboarding 27): onboarding's grey canvas with
+//  the icon circle, a header, Luma's two labelled grey boxes and the black Next pill (onboarding 34). No app icon (Jesse,
 //  2026-11-02: "no logo icon i dont like it"). Onboarding shows them from the Welcome.
 //
 
@@ -13,6 +13,8 @@ enum OnboardingAccount {
 
     var title: String { self == .logIn ? "Log in" : "Create account" }
     var button: String { self == .logIn ? "Log in" : "Next" }
+    /// The SF Symbol in the grey circle over the header (onboarding 34): both are email for now.
+    var symbol: String { "envelope" }
 }
 
 /// What's typed into Log in or Create account, and the server's answer.
@@ -61,9 +63,8 @@ final class AccountForm {
     }
 }
 
-/// The two boxes, Instagram's (BP app references/log-in: 60 pt tall, 12 pt corners, 12 pt apart,
-/// a 1 pt line), each label rising out of the way once the box is touched; the hint on Create
-/// account and the server's no under them.
+/// The two boxes, Luma's (onboarding 34): each a small grey label over a grey box; the hint on
+/// Create account and the server's no under them.
 struct AccountFields: View {
     @Bindable var form: AccountForm
     let way: OnboardingAccount
@@ -76,8 +77,8 @@ struct AccountFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(spacing: 12) {
-                box("Email", .email, filled: !form.email.isEmpty) {
+            VStack(alignment: .leading, spacing: 0) {
+                box("Email", .email) {
                     TextField("", text: $form.email)
                         .textContentType(.username)
                         .keyboardType(.emailAddress)
@@ -86,7 +87,7 @@ struct AccountFields: View {
                         .submitLabel(.next)
                         .accessibilityLabel("Email")
                 }
-                box("Password", .password, filled: !form.password.isEmpty) {
+                box("Password", .password) {
                     HStack(spacing: 0) {
                         Group {
                             if showPassword { TextField("", text: $form.password) } else { SecureField("", text: $form.password) }
@@ -101,16 +102,15 @@ struct AccountFields: View {
                     }
                 }
             }
-            .padding(.top, 32)
             if way == .create {
                 Text("6 or more characters")
-                    .font(.sans(15))
+                    .font(.apple(13))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, 12)
             }
             if let message = form.message {
                 Label { Text(message) } icon: { Image(systemName: "exclamationmark.circle.fill") }
-                    .font(.sans(15))
+                    .font(.apple(15))
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 12)
@@ -122,33 +122,24 @@ struct AccountFields: View {
         .onAppear { focus = .email }
     }
 
-    /// One box: white, the hairline going ink while it's typed in. The label sits in the middle
-    /// until the box is touched or filled, then rises to the top at 12 pt.
-    private func box<Input: View>(_ label: String, _ field: Field, filled: Bool,
+    /// One box, Luma's: the small grey label 24 pt above it, a 46 pt grey box, an ink line inside its
+    /// edge while typing in it (mock v8 `.flabel`, `.field`).
+    private func box<Input: View>(_ label: String, _ field: Field,
                                   @ViewBuilder input: () -> Input) -> some View {
-        let up = filled || focus == field
-        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-        return ZStack(alignment: .leading) {
-            Text(label)
-                .font(.sans(17))
-                .foregroundStyle(Hue.inkSecondary)
-                .scaleEffect(up ? 12.0 / 17.0 : 1, anchor: .leading)
-                .offset(y: up ? -12 : 0)
+        VStack(alignment: .leading, spacing: 0) {
+            OnboardingFieldLabel(label)
                 .accessibilityHidden(true)
             input()
-                .font(.sans(17))
+                .font(.apple(17))
                 .foregroundStyle(Hue.ink)
                 .tint(Hue.ink)
                 .focused($focus, equals: field)
-                .offset(y: 9)
+                .frame(minHeight: OnboardingFieldBox.height)
+                .onboardingField(focused: focus == field)
+                .contentShape(Rectangle())
+                .onTapGesture { focus = field }
         }
-        .padding(.leading, 16)
-        .frame(height: 60)
-        .background(Hue.surface, in: shape)
-        .overlay(shape.strokeBorder(focus == field ? Hue.ink : Hue.hairline, lineWidth: focus == field ? 1.5 : 1))
-        .contentShape(shape)
-        .onTapGesture { focus = field }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: up)
+        .padding(.top, 24)
     }
 
     /// Shows or hides the password, keeping the keyboard on it.
@@ -164,8 +155,7 @@ struct AccountFields: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))
-        .padding(.trailing, 4)
-        .offset(y: -9)
+        .padding(.trailing, -12)
         .accessibilityLabel(showPassword ? "Hide password" : "Show password")
     }
 }

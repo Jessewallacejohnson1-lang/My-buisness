@@ -259,7 +259,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
                             .padding(.top, 20)
                     }
                     .padding(.horizontal, FollowGridMetric.gutter)
-                    .padding(.top, 128 - FollowGridMetric.scrollTop)
+                    .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
                     .padding(.bottom, 200)
                     // While searching, room to stay pinned however few the results, so the field never
                     // drops away under the typing.
@@ -286,7 +286,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
                     // VoiceOver keeps the field in its slot, which it scrolls back to.
                     OnboardingSearchField(prompt: "Search places", query: $query)
                         .padding(.horizontal, FollowGridMetric.gutter)
-                        .offset(y: FollowGridMetric.scrollTop - 24)
+                        .offset(y: FollowGridMetric.scrollTop - 16)
                         .accessibilityHidden(true)
                 }
             }
@@ -307,7 +307,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
             let shown = q.isEmpty ? order : FollowSuggestions.search(order, q)
             if shown.isEmpty {
                 Text("No places found")
-                    .font(.sans(15))
+                    .font(.apple(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, 4)
             }
@@ -322,7 +322,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
         } else if suggestions != nil {
             // The Town feed's words for a read that failed.
             Text("Check your connection and try again.")
-                .font(.sans(15))
+                .font(.apple(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 4)
         } else {
@@ -398,20 +398,22 @@ private struct Arrive: ViewModifier {
     }
 }
 
-/// The grid's sizes: Search's 80 pt logos, Instagram's 104 x 32 pill, three across the 32 pt gutters.
+/// The grid's sizes: Search's 80 pt logos, Instagram's 104 x 32 pill, three across the 20 pt gutters (mock v8).
 enum FollowGridMetric {
-    static let gutter: CGFloat = 32
+    static let gutter: CGFloat = 20
     static let columnGap: CGFloat = 13
     static let rowGap: CGFloat = 18
     static let art: CGFloat = 80
     /// Two lines of 13 pt names, so every pill in a row lines up.
     static let name: CGFloat = 34
     static let tile: CGFloat = art + 8 + name + 8 + FollowMetric.rowHeight
-    static let search: CGFloat = 44
-    /// The scroll's top, under the back chevron and progress bar.
-    static let scrollTop: CGFloat = 104
+    static let search: CGFloat = OnboardingSearchField.height
+    /// The scroll's top, under the back chevron and progress line (mock v8's 98).
+    static let scrollTop: CGFloat = 98
+    /// The question's icon circle sits 110 pt down on every step (mock v8 `.screen`).
+    static let headingTop: CGFloat = 110
 
-    /// 104 on a 402 pt phone, Instagram's pill width.
+    /// 112 on a 402 pt phone.
     static func column(_ width: CGFloat) -> CGFloat { (width - 2 * gutter - 2 * columnGap) / 3 }
     static func columns(_ column: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(column), spacing: columnGap), count: 3) }
 }
@@ -446,7 +448,7 @@ struct FollowTile: View {
                 FollowTileArt(suggestion: suggestion)
                     .offset(y: hop)
                 Text(suggestion.name)
-                    .font(.sansSemibold(13))
+                    .font(.apple(13, weight: .semibold))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -483,7 +485,7 @@ private struct FollowTileArt: View {
                                 .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
                         } else {
                             Text(initials)
-                                .font(.sansBold(22))
+                                .font(.apple(22, weight: .bold))
                                 .foregroundStyle(Hue.ink)
                         }
                     }
@@ -527,7 +529,7 @@ struct OnboardingPillFace: View {
 
     var body: some View {
         Text(title)
-            .font(.displaySemi(15))
+            .font(.apple(15, weight: .semibold))
             .foregroundStyle(on ? Hue.ink : Hue.surface)
             .lineLimit(1)
             .minimumScaleFactor(0.8)

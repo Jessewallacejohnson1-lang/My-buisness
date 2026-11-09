@@ -192,13 +192,23 @@ nonisolated enum Hue {
     /// The 1 pt line of light along the pill's inside top: white at 8%.
     static let pillRim       = Color(hex: 0xFFFFFF, alpha: 0.08)
 
-    // MARK: Onboarding's Next bar (BP app docs/plans/onboarding, mock v7)
+    // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 
-    /// The 4 pt edge under the Next bar's charcoal face, Duolingo's build: the face sinks onto it.
+    /// The pale grey behind every question step, so white cards stand off it.
+    static let onboardingCanvas = Color(light: 0xF5F5F7, dark: 0x141412)
+    /// A field box, and the circle behind each question's icon.
+    static let onboardingField  = Color(light: 0xEAEAED, dark: 0x23231F)
+    /// The icon in that circle (mock `--ink2`). Words stay `inkSecondary`, which reads at 4.5:1 here.
+    static let onboardingIcon   = Color(hex: 0x85858A)
+    /// The progress line's track.
+    static let onboardingTrack  = Color(light: 0xE1E1E5, dark: 0x33332E)
+    /// The raised ink edge under a picked interest chip or gender pill, until onboarding 36 flattens them.
     static let nextEdge      = Color(hex: 0x0A0A0B)
-    /// The Next bar while not allowed: a grey face on a darker grey edge.
-    static let nextOffFace   = Color(hex: 0xE6E5DF)
-    static let nextOffEdge   = Color(hex: 0xCFCEC7)
+    /// The Next pill under the finger: ink lifted a touch.
+    static let nextPressed   = Color(hex: 0x2B2B2E)
+    /// The Next pill while not allowed, and its words.
+    static let nextOff       = Color(hex: 0xC2C2C7)
+    static let nextOffWords  = Color(hex: 0xF4F4F6)
     /// The Welcome's white pills, and pressed (ticket 25 mock).
     static let welcomePill = Color(hex: 0xFFFFFF)
     static let welcomePillDown = Color(hex: 0xECECEA)

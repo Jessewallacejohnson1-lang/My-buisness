@@ -2,9 +2,9 @@
 //  OnboardingFlow.swift
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
 //  Welcome (Nextdoor's layout, ticket 25 mock), Log in or Create account (onboarding 27), then
-//  seven question steps on one fixed frame: the white backdrop, back and the progress bar on top,
-//  the wordmark, and the one
-//  Next bar 84 pt from the bottom with its slot under it. Only the question moves between
+//  seven question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
+//  back and the progress line on top, an icon circle over each question, and the one
+//  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
 //  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
 //
 
@@ -28,6 +28,20 @@ enum OnboardingStep: Int, CaseIterable {
         case .follow:    "Follow 3 places"
         case .friends:   "Find your friends"
         case .contacts:  "Friends on Block Party"
+        }
+    }
+
+    /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34).
+    var symbol: String {
+        switch self {
+        case .welcome:   "house"
+        case .name:      "person"
+        case .photo:     "camera"
+        case .birthday:  "birthday.cake"
+        case .interests: "heart"
+        case .follow:    "mappin.and.ellipse"
+        case .friends:   "person.2"
+        case .contacts:  "person.2"
         }
     }
 
@@ -315,11 +329,19 @@ struct OnboardingFlow: View {
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
 
-    /// The Next bar's lift over the birthday wheel, above the home indicator's 34: the mock's 302 pt
-    /// from the bottom.
-    private static let overWheel: CGFloat = 302 - 34
-    /// What the Birthday step's column keeps clear above the safe area: that lift, the bar's 52 pt, and 16.
-    private static let birthdayClear: CGFloat = overWheel + 52 + 16
+    /// The Next pill's lift over the birthday wheel, above the home indicator's 34: 12 pt over the
+    /// wheel's top, as over a keyboard (mock v8).
+    private static let overWheel: CGFloat = OnboardingBirthdayWheel.height + 12 - 34
+    /// What the Birthday step's column keeps clear above the safe area: that lift, the pill, and 16.
+    private static let birthdayClear: CGFloat = overWheel + OnboardingNextBar.height + 16
+    /// What any other step keeps clear: the pill and its slot, or the pill over the keyboard, and 16.
+    private static let slotClear: CGFloat = OnboardingNextBar.height + 6 + 44 + 16
+    private static let keyboardClear: CGFloat = 12 + OnboardingNextBar.height + 16
+
+    private var bottomClear: CGFloat {
+        if store.step == .birthday && store.account == nil { return Self.birthdayClear }
+        return keyboardUp ? Self.keyboardClear : Self.slotClear
+    }
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -396,7 +418,7 @@ struct OnboardingFlow: View {
                         removal: .opacity.animation(.easeOut(duration: 0.12))))
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
                 OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
                     .opacity(store.step == .name ? 0 : 1)
@@ -405,9 +427,11 @@ struct OnboardingFlow: View {
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
                     .opacity(store.account == nil ? 1 : 0)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 32)
-            .padding(.top, 56)
+            // Mock v8's top row: 44 pt tall from 54 pt down, the chevron at 6, the line 20 from the right.
+            .frame(height: 44)
+            .padding(.leading, 6)
+            .padding(.trailing, FollowGridMetric.gutter)
+            .padding(.top, 54)
             .ignoresSafeArea(.container)
 
             if [.interests, .follow, .contacts].contains(store.step) { foot.transition(.opacity) }
@@ -430,7 +454,7 @@ struct OnboardingFlow: View {
 
     /// Where a scrolling step meets the top row: the backdrop fading out over 16 pt.
     private var scrollEdge: some View {
-        LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
+        LinearGradient(colors: [Hue.onboardingCanvas, Hue.onboardingCanvas.opacity(0)], startPoint: .top, endPoint: .bottom)
             .frame(height: 16)
             .padding(.top, FollowGridMetric.scrollTop)
             .allowsHitTesting(false)
@@ -466,35 +490,35 @@ struct OnboardingFlow: View {
                              isFollowing: { [store] in store.follows.contains($0) },
                              toggleFollow: { toggleFollow($0) },
                              schoolsOpened: { store.schoolsOpened = true; readAgain() },
-                             topInset: 128 - FollowGridMetric.scrollTop) {
+                             topInset: FollowGridMetric.headingTop - FollowGridMetric.scrollTop) {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
                         Text("We'll show events, groups and places that match.")
-                            .font(.sans(15))
+                            .font(.apple(15))
                             .foregroundStyle(Hue.inkSecondary)
-                            .padding(.top, 8)
+                            .padding(.top, 6)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
-            } else if store.step == .birthday {
-                // With the gender row (onboarding 31) the step reaches past the Next bar on a small
-                // phone or at a large text size: there it scrolls clear of the bar; where it fits it
-                // holds still.
+            } else if store.step != .contacts || store.account != nil {
+                // A step that reaches past the Next pill on a small phone or at a large text size (the
+                // Birthday's gender row, onboarding 31; any step at the largest sizes, 34) scrolls clear
+                // of it; where it fits it holds still. Contacts' list scrolls on its own.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
                         answer
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 128 - FollowGridMetric.scrollTop)
+                    .padding(.horizontal, FollowGridMetric.gutter)
+                    .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
-                .contentMargins(.bottom, Self.birthdayClear, for: .scrollContent)
+                .contentMargins(.bottom, bottomClear, for: .scrollContent)
                 // Under the top row it goes, as Interests' does; the bottom keeps the safe area, as the bar does.
                 .padding(.top, FollowGridMetric.scrollTop)
                 .overlay(alignment: .top) { scrollEdge }
@@ -505,8 +529,8 @@ struct OnboardingFlow: View {
                     answer
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 32)
-                .padding(.top, 128)
+                .padding(.horizontal, FollowGridMetric.gutter)
+                .padding(.top, FollowGridMetric.headingTop)
                 .ignoresSafeArea(.container)
             }
         }
@@ -516,20 +540,13 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// The wordmark and the question under it.
+    /// The icon circle and the question under it (Luma's, onboarding 34).
     private var heading: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            BlockPartyWordmark(height: 33)
-                .foregroundStyle(Hue.ink)
-            Text(store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question))
-                .font(.display(30))   // Inter Tight, as every header (Jesse, 2026-11-02)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.2), value: firstHere)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($questionFocused)
-        }
+        OnboardingHeading(symbol: store.account?.symbol ?? store.step.symbol,
+                          question: store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question),
+                          focused: $questionFocused)
+            .contentTransition(.opacity)
+            .animation(.easeInOut(duration: 0.2), value: firstHere)
     }
 
     /// Contacts' check found nobody on Block Party, so the question says so (Jesse at onboarding 23's
@@ -556,13 +573,13 @@ struct OnboardingFlow: View {
             OnboardingNameFields(store: store, done: go { [store] in store.next() })
         case .photo:
             Text("So friends know it's you.")
-                .font(.sans(15))
+                .font(.apple(15))
                 .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, 8)
+                .padding(.top, 6)
             OnboardingPhotoCircle(store: store)
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
-                .padding(.top, 32)
+                .padding(.top, 24)
             OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         case .friends:
             OnboardingFriendsReason()
@@ -574,15 +591,15 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// The Next bar, 84 pt from the bottom with a fixed 44 pt slot under it, or 12 pt above an
-    /// open keyboard (the slot hides behind the keyboard then).
+    /// The Next pill, 84 pt from the bottom with a fixed 44 pt slot under it, or 12 pt above an
+    /// open keyboard or the wheel (the slot hides then), 20 pt in from each side (mock v8).
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
                               busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, FollowGridMetric.gutter)
         // Over the birthday wheel as over a keyboard.
         .padding(.bottom, store.step == .birthday ? Self.overWheel : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
@@ -733,8 +750,8 @@ struct OnboardingWelcome: View {
                 .foregroundStyle(.white)
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
-                .font(.display(36))
-                .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
+                .appleFont(36, weight: .bold)   // Apple's font, as every onboarding word (Jesse, 2026-11-09)
+                .lineSpacing(-3)   // SF's 43 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)
@@ -757,7 +774,7 @@ struct OnboardingWelcome: View {
                 .rise(shown, delay: 0.16)
                 .padding(.horizontal, 24)
             terms
-                .font(.sans(13))
+                .font(.apple(13))
                 .foregroundStyle(.white.opacity(0.88))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -774,7 +791,7 @@ struct OnboardingWelcome: View {
 
     private var logInLine: some View {
         Text("Already have an account? \(Text("Log in").fontWeight(.semibold))")
-            .font(.sans(15))
+            .font(.apple(15))
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
@@ -817,7 +834,7 @@ private struct WelcomePill: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 icon.scaledToFit().font(.glyph(19, weight: .medium)).frame(width: 19, height: 19)
-                Text(title).font(.displaySemi(17))
+                Text(title).font(.apple(17, weight: .semibold))
             }
             .foregroundStyle(Hue.onBrandDisc)
             .frame(maxWidth: .infinity, minHeight: 48)

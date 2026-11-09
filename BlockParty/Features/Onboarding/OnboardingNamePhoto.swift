@@ -1,16 +1,17 @@
 //
 //  OnboardingNamePhoto.swift
 //  Block Party — onboarding steps 4 and 5 (BP app docs/plans/onboarding, ticket 18), drawn
-//  under the question: Hinge's underlined name fields and Instagram's empty photo circle.
+//  under the question: Luma's grey name boxes (onboarding 34) and Instagram's empty photo circle.
 //  The answers live in `OnboardingStore`; `OnboardingFlow` owns the Next bar and Skip.
 //
 
 import SwiftUI
 import PhotosUI
 
-/// "What's your name?": first name, then "Last name", each on a 1.5 pt underline (ink once
-/// typed in, control grey while empty), 48 pt under the question, the keyboard up from the
-/// start. Return goes to the last name, then on when a first name is in.
+/// "What's your name?": first name, then "Last name", each in Luma's grey box (an ink line inside
+/// the edge while typing in it), 24 pt under the question and 12 pt apart, the keyboard up from the
+/// start. Return goes to the last name, then on when a first name is in. Ticket 35 makes this Luma's
+/// Profile step.
 struct OnboardingNameFields: View {
     @Bindable var store: OnboardingStore
     let done: () -> Void
@@ -23,13 +24,13 @@ struct OnboardingNameFields: View {
             field("First name", text: $store.firstName, .first)
                 .textContentType(.givenName)
                 .submitLabel(.next)
-                .padding(.top, 48)
+                .padding(.top, 24)
             field("Last name", text: $store.lastName, .last)
                 .textContentType(.familyName)
                 .submitLabel(.done)
-                .padding(.top, 24)
+                .padding(.top, 12)
             Text("So friends and neighbors know it's you.")
-                .font(.sans(13))
+                .font(.apple(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 12)
         }
@@ -40,20 +41,19 @@ struct OnboardingNameFields: View {
     }
 
     private func field(_ placeholder: String, text: Binding<String>, _ which: Field) -> some View {
-        let empty = text.wrappedValue.isEmpty
-        return VStack(alignment: .leading, spacing: 8) {
-            TextField(placeholder, text: text,
-                      prompt: Text(placeholder).foregroundStyle(Hue.inkSecondary))
-                .font(empty ? .sans(28) : .sansMedium(28))
-                .foregroundStyle(Hue.ink)
-                .tint(Hue.ink)
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
-                .focused($focus, equals: which)
-            Rectangle()
-                .fill(empty ? Hue.control : Hue.ink)
-                .frame(height: 1.5)
-        }
+        TextField(placeholder, text: text,
+                  prompt: Text(placeholder).foregroundStyle(Hue.inkSecondary))
+            .font(.apple(17))
+            .foregroundStyle(Hue.ink)
+            .tint(Hue.ink)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .focused($focus, equals: which)
+            .padding(.vertical, 12)
+            .onboardingField(focused: focus == which)
+            // The whole box takes the tap.
+            .contentShape(Rectangle())
+            .onTapGesture { focus = which }
     }
 }
 

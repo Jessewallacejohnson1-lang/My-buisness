@@ -16,7 +16,7 @@ struct OnboardingFriendsReason: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("See which neighbors are already here.")
-                .font(.sans(15))
+                .font(.apple(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 8)
             VStack(alignment: .leading, spacing: 24) {
@@ -37,7 +37,7 @@ struct OnboardingFriendsReason: View {
                 .frame(width: 24, height: 24)
                 .accessibilityHidden(true)
             Text(words)
-                .font(.sans(15))
+                .font(.apple(15))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(Hue.ink)
@@ -56,14 +56,14 @@ struct OnboardingContactsList: View {
     @State private var invited: Set<String> = []
 
     var body: some View {
-        // Edge to edge, the rows back in by the 32 pt gutter, so Invite's shadow isn't cut at the side.
+        // Edge to edge, the rows back in by the 20 pt gutter, so Invite's shadow isn't cut at the side.
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 4) { rows }
                 .padding(.top, 4)
                 .padding(.bottom, 200)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 20)
         }
-        .padding(.horizontal, -32)
+        .padding(.horizontal, -20)
         // Once a visit of onboarding: back to step 9 and on again shows the same list, no check spent.
         .task { await model.load() }
     }
@@ -118,7 +118,7 @@ struct OnboardingContactsList: View {
             invited.insert(contact.id)
             FriendsInvitePresenter.messages(to: contact.phone)
         } label: {
-            Text(done ? "Invited" : "Invite").font(.displaySemi(15)).lineLimit(1)
+            Text(done ? "Invited" : "Invite").font(.apple(15, weight: .semibold)).lineLimit(1)
         }
         .buttonStyle(MeetupPillStyle(height: FollowMetric.rowHeight, minWidth: FollowMetric.listWidth,
                                      grey: done, sidePadding: 16))
@@ -127,7 +127,7 @@ struct OnboardingContactsList: View {
 
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.displaySemi(15))
+            .font(.apple(15, weight: .semibold))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, 24)
@@ -136,7 +136,7 @@ struct OnboardingContactsList: View {
 
     private func line(_ words: String) -> some View {
         Text(words)
-            .font(.sans(15))
+            .font(.apple(15))
             .foregroundStyle(Hue.inkSecondary)
             .padding(.top, 24)
     }
@@ -148,12 +148,12 @@ struct OnboardingContactsList: View {
             face()
             VStack(alignment: .leading, spacing: 0) {
                 Text(name)
-                    .font(.sansSemibold(15))
+                    .font(.apple(15, weight: .semibold))
                     .foregroundStyle(Hue.ink)
                     .lineLimit(1)
                 if let line {
                     Text(line)
-                        .font(.sans(13))
+                        .font(.apple(13))
                         .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                 }

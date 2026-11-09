@@ -116,7 +116,7 @@ struct InterestRows<Heading: View>: View {
                 .frame(width: Metric.icon, height: Metric.icon)
                 .accessibilityHidden(true)
             Text(row.label)
-                .font(.displaySemi(17))
+                .font(.apple(16, weight: .semibold))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: Metric.iconGap) { end() }
@@ -143,7 +143,7 @@ struct InterestRows<Heading: View>: View {
             face(row) {
                 if count > 0 && !shown {
                     Text("\(count)")
-                        .font(.sansBold(14))
+                        .font(.apple(13, weight: .semibold))
                         .foregroundStyle(Color.white)
                         .frame(width: Metric.disc, height: Metric.disc)
                         .background(Hue.ink, in: Circle())
@@ -178,14 +178,14 @@ struct InterestRows<Heading: View>: View {
         } label: {
             HStack(spacing: 6) {
                 Text(type.label)
-                    .font(.sansMedium(15))
+                    .font(.apple(15, weight: .medium))
                     .foregroundStyle(full ? Color.white : Hue.ink)
                     .lineLimit(1)
                     // So its touch area reaches 44 pt, as an interest chip's does.
                     .frame(minHeight: 21)
                 if full {
                     Text("\(count)")
-                        .font(.sansBold(15))
+                        .font(.apple(15, weight: .bold))
                         .foregroundStyle(Color.white)
                 }
                 Image(systemName: "chevron.down")
@@ -205,7 +205,7 @@ struct InterestRows<Heading: View>: View {
             if schools.isEmpty {
                 // The Town feed's words for a read that failed.
                 Text("Check your connection and try again.")
-                    .font(.sans(15))
+                    .font(.apple(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, gutter)
             } else {
@@ -342,12 +342,12 @@ private struct InterestChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(on ? "\u{2713}" : "+")
-                    .font(.sansSemibold(17))
+                    .font(.apple(17, weight: .semibold))
                     .foregroundStyle(on ? Color.white : Hue.inkSecondary)
                     .frame(width: 12)
                     .scaleEffect(check)
                 Text(label)
-                    .font(.sansMedium(15))
+                    .font(.apple(15, weight: .medium))
                     .foregroundStyle(on ? Color.white : Hue.ink)
                     .lineLimit(1)
             }

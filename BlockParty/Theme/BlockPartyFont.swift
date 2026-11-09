@@ -166,6 +166,8 @@ extension Font {
     /// SF Pro at the nearest text style, scaling with it: Profile's text under the name (Jesse,
     /// 2026-10-25: "use same font as group page", the Group page's SF Pro before BP Body; BP app
     /// taste/you.md). The pills' words moved to Inter Tight (2026-11-02).
+    /// Onboarding uses it for every word on a step of Apple's ladder (Luma's look, BP app onboarding 34);
+    /// a size between steps takes `appleFont` below.
     static func apple(_ size: CGFloat, weight: Weight = .regular) -> Font {
         .system(nearestTextStyle(to: size), weight: weight)
     }
@@ -194,5 +196,29 @@ extension Font {
     /// `.accessibilityShowsLargeContentViewer()` so a long press still enlarges it.
     static func glyph(_ size: CGFloat, weight: Weight = .regular) -> Font {
         .system(size: size, weight: weight)
+    }
+}
+
+extension View {
+    /// Apple's font at an exact size between the ladder's steps (onboarding's 24 pt question, the
+    /// Welcome's 36 pt headline), growing with Dynamic Type at its nearest text style's rate, as the
+    /// display faces do. A modifier, not a `Font`: SwiftUI has no scaling system font at a set size,
+    /// so the size is a `@ScaledMetric` that follows the text size live.
+    func appleFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
+        modifier(AppleExactFont(size: size, weight: weight))
+    }
+}
+
+private struct AppleExactFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: Font.nearestTextStyle(to: size))
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight))
     }
 }
