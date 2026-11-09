@@ -553,7 +553,7 @@ def repeat_questions(run):
     if items:
         result = write_judged.plan(items, write_judged.listed_in_db(db), run.today, write_judged.interest_ids(), TOWNS[run.town],
                                    recent_news=write_judged.news_in_db(db=db),
-                                   history=write_judged.history_in_db(items, run.today, db))
+                                   history=told_before(items, run.today, db))
         asks = result["ask"]
     folder, size = out / "repeats", write_judged.REPEAT_BATCH
     shutil.rmtree(folder, ignore_errors=True)
@@ -564,6 +564,15 @@ def repeat_questions(run):
     (out / "repeats.jsonl").unlink(missing_ok=True)  # an answer is only ever to these questions
     print(f"[morning] {len(asks)} News for the repeat check"
           + (f" in {-(-len(asks) // size)} batches ({folder})" if asks else ""))
+
+
+def told_before(items, today, db):
+    """write_judged.history_in_db, or None when it can't be read: the repeat check is skipped and the morning goes on."""
+    try:
+        return write_judged.history_in_db(items, today, db)
+    except Exception as e:  # a read the check needs failing must never stop the save
+        print(f"[repeats] what the News's places have couldn't be read, so nothing is asked: {type(e).__name__}: {e}")
+        return None
 
 
 def news_items(out):
@@ -608,8 +617,10 @@ def write(run, dry_run):
     asked, questions = repeat_answers(out)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
                                teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db),
-                               history=write_judged.history_in_db(items, today, db), asked=asked)
+                               history=(history := told_before(items, today, db)), asked=asked)
     result["repeat_check"] = (questions, len(asked))
+    if history is None:
+        result["notes"].append("repeat check skipped: what the News's places have couldn't be read (see the [repeats] line)")
     write_judged.report(items, result)
     try:
         written = None if dry_run else write_judged.apply(result, db)
@@ -1310,6 +1321,8 @@ def selftest():
                                       "- Repeat check not answered for 1 News: Bingo (they went up)"],
          "the report says what the repeat check did"),
         (repeat_check_lines({"outcomes": [], "ask": []}) == [], "no questions, no line"),
+        (told_before([{"kind": "news", "source_name": "Sal's"}], date(2026, 11, 9),
+                     type("Db", (), {"rest": lambda self, *a, **k: 1 / 0})()) is None, "a failed read skips the check, not the save"),
     ]
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
