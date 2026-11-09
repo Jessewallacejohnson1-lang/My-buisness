@@ -91,6 +91,10 @@ enum EventLook {
     static let smallMapGrowInset: CGFloat = 10
     static let smallMapGrowGlyph: CGFloat = 15
     static let smallMapClear: CGFloat = 12
+    /// Mapbox's ⓘ credit on the still (their terms ask for one on every map; Jesse 2026-11-08): an 11 pt glyph in a
+    /// 28 pt tap square at the bottom right corner.
+    static let smallMapCreditGlyph: CGFloat = 11
+    static let smallMapCredit: CGFloat = 28
     static let smallMapSpring: Animation = .spring(duration: 0.36, bounce: 0)
     /// Follow: a row 18 under the buttons, 12 pt tall at each end, the host's logo in a 40 pt white circle,
     /// Instagram's 70 x 32 Follow with 8 pt corners.
@@ -517,7 +521,28 @@ struct EventSmallMap: View {
         .buttonStyle(.press(.squish))
         .animation(Motion.smooth, value: shot != nil)
         .accessibilityLabel("See it on the map")
+        .overlay(alignment: .bottomTrailing) { credit }
     }
+
+    /// The map's credits, as the full map's ⓘ lists them.
+    private var credit: some View {
+        Menu {
+            Link("© Mapbox", destination: Self.mapbox)
+            Link("© OpenStreetMap", destination: Self.openStreetMap)
+            Link("Improve this map", destination: Self.improve)
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.glyph(EventLook.smallMapCreditGlyph))
+                .foregroundStyle(Hue.ink.onLightCanvas.opacity(0.55))
+                .frame(width: EventLook.smallMapCredit, height: EventLook.smallMapCredit)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Map credits")
+    }
+
+    private static let mapbox = URL(string: "https://www.mapbox.com/about/maps/")!
+    private static let openStreetMap = URL(string: "https://www.openstreetmap.org/copyright")!
+    private static let improve = URL(string: "https://apps.mapbox.com/feedback/")!
 
     /// The Event's photo, else its place's, else its logo, as its bubble on the map; the yellow with none.
     private var pin: some View {
