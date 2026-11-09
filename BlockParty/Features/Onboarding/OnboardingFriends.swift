@@ -208,7 +208,10 @@ struct OnboardingContactsList<Heading: View>: View {
             let people = onApp.filter { $0.relation == .stranger && matches($0.displayName) }
             let others = invite.filter { matches($0.name) }
             if !onApp.isEmpty || !invite.isEmpty {
+                // Mock v8's `.pin` around it: 12 pt more over it and 10 under.
                 OnboardingSearchField(prompt: "Search contacts", query: $query)
+                    .padding(.top, 12)
+                    .padding(.bottom, 10)
             }
             if !people.isEmpty {
                 section("On Block Party")
