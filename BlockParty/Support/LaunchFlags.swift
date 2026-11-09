@@ -33,6 +33,8 @@ nonisolated enum LaunchFlags {
         case helloSeenDays = "-hello-seen-days"
         case helloWelcome = "-hello-welcome"
         case launchAt = "-launch-at"
+        case launchKind = "-launch-kind"
+        case launchLinkAt = "-launch-link-at"
         case launchPlay = "-launch-play"
         case launchReduce = "-launch-reduce"
         case launchSkip = "-launch-skip"

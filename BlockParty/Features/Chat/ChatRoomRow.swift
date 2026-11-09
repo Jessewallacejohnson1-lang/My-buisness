@@ -98,18 +98,30 @@ private struct ChatBirthday: View {
     @State private var saving = false
     @State private var failures = 0
 
-    /// Its height: the words, field and button over the wheel (picked); the button as Onboarding's.
-    private static let height: CGFloat = OnboardingBirthdayWheel.height + 280
+    /// Jesse's cake (BP app references/birthday-icon): 36 pt tall in a 52 pt circle, 18 pt over the
+    /// question, as on onboarding's Birthday step in the Luma mock (BP app onboarding 33).
+    private static let disc: CGFloat = 52
+    private static let cake: CGFloat = 36
+    private static let cakeGap: CGFloat = 18
+    /// Its height: the cake, words, field and button over the wheel (picked); the button as Onboarding's.
+    private static let height: CGFloat = OnboardingBirthdayWheel.height + 280 + disc + cakeGap
     private static let button: CGFloat = 50
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Image(decorative: "BirthdayCake")
+                .resizable()
+                .scaledToFit()
+                .frame(height: Self.cake)
+                .frame(width: Self.disc, height: Self.disc)
+                .background(Hue.birthdayDisc, in: Circle())
+                .padding(.top, EventPage.Metric.inset)
             Text("When's your birthday?")
                 .font(.display(28))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.top, EventPage.Metric.inset)
+                .padding(.top, Self.cakeGap)
             // Never says why: naming the age would tell someone under 18 which answer gets them in (Jesse, 2026-11-04).
             Text("Only you see your birthday.")
                 .font(.sans(15))

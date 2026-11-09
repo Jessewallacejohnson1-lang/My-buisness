@@ -61,6 +61,11 @@ final class OnboardingStore {
     var birthday: Date? {
         didSet { defaults.set(birthday.map { OnboardingAge.day.format($0) }, forKey: Self.birthdayKey) }
     }
+    /// The Birthday step's gender pick, "female" or "male", nil for none (onboarding 31). Optional,
+    /// kept and saved as the birthday is: on the device, then to the account with the onboarded stamp.
+    var gender: String? {
+        didSet { defaults.set(gender, forKey: Self.genderKey) }
+    }
     /// "Come back when you're 13" is up over the birthday step.
     private(set) var tooYoung = false
     /// Log in or Create account is up over the Welcome (onboarding 27). Never saved: a relaunch
@@ -103,6 +108,7 @@ final class OnboardingStore {
     private static let photoKey = "onboarding.photo"
     private static let pendingKey = "onboarding.answersPending"
     private static let birthdayKey = "onboarding.birthday"
+    private static let genderKey = "onboarding.gender"
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
     static let interestsKey = "onboarding.interests"
@@ -123,6 +129,7 @@ final class OnboardingStore {
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
+        gender = defaults.string(forKey: Self.genderKey)
         // A flow begun before the picks had a key of their own kept them in the phone's copy.
         interests = defaults.stringArray(forKey: Self.interestsKey) ?? Interests.get(defaults)
         schoolsOpened = defaults.bool(forKey: Self.schoolsOpenedKey)
@@ -234,6 +241,7 @@ final class OnboardingStore {
         lastName = ""
         photo = nil
         birthday = nil
+        gender = nil
         follows = []
         requests = []
         interests = []
@@ -306,6 +314,12 @@ struct OnboardingFlow: View {
         guard AuthStore.shared.hasAccount else { return [] }
         return try await CommunityAPI(auth: AuthStore.shared).matchContacts(emails: emails, phones: phones)
     }
+
+    /// The Next bar's lift over the birthday wheel, above the home indicator's 34: the mock's 302 pt
+    /// from the bottom.
+    private static let overWheel: CGFloat = 302 - 34
+    /// What the Birthday step's column keeps clear above the safe area: that lift, the bar's 52 pt, and 16.
+    private static let birthdayClear: CGFloat = overWheel + 52 + 16
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -414,6 +428,14 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
+    /// Where a scrolling step meets the top row: the backdrop fading out over 16 pt.
+    private var scrollEdge: some View {
+        LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
+            .frame(height: 16)
+            .padding(.top, FollowGridMetric.scrollTop)
+            .allowsHitTesting(false)
+    }
+
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
     /// 190 pt, clear at the top and solid from 38% down (the mock's foot).
     private var foot: some View {
@@ -455,13 +477,28 @@ struct OnboardingFlow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.top, FollowGridMetric.scrollTop)
-                .overlay(alignment: .top) {
-                    LinearGradient(colors: [Hue.surface, Hue.surface.opacity(0)], startPoint: .top, endPoint: .bottom)
-                        .frame(height: 16)
-                        .padding(.top, FollowGridMetric.scrollTop)
-                        .allowsHitTesting(false)
-                }
+                .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
+            } else if store.step == .birthday {
+                // With the gender row (onboarding 31) the step reaches past the Next bar on a small
+                // phone or at a large text size: there it scrolls clear of the bar; where it fits it
+                // holds still.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        answer
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 128 - FollowGridMetric.scrollTop)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
+                .contentMargins(.bottom, Self.birthdayClear, for: .scrollContent)
+                // Under the top row it goes, as Interests' does; the bottom keeps the safe area, as the bar does.
+                .padding(.top, FollowGridMetric.scrollTop)
+                .overlay(alignment: .top) { scrollEdge }
+                .ignoresSafeArea(.container, edges: .top)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     heading
@@ -526,6 +563,7 @@ struct OnboardingFlow: View {
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 32)
+            OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         case .friends:
             OnboardingFriendsReason()
         case .contacts:
@@ -541,13 +579,12 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              yellow: store.step == .friends && store.account == nil,
                               busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
-        // Over the birthday wheel as over a keyboard, at the mock's 302 pt from the bottom.
-        .padding(.bottom, store.step == .birthday ? 302 - 34 : 0)
+        // Over the birthday wheel as over a keyboard.
+        .padding(.bottom, store.step == .birthday ? Self.overWheel : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
         .padding(.bottom, keyboardUp ? 12 : 0)

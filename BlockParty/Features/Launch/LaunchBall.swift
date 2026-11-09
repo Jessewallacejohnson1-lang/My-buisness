@@ -4,7 +4,9 @@
 //  launch lines). On a fresh start the Town's round logo drops onto Bp, bounces off B and p,
 //  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
 //  Bp!, or zooms through when Welcome is up. It plays over the app, which loads underneath and
-//  never waits on it. A tap skips it.
+//  never waits on it. A tap skips it. The day's first two cold starts play it whole; after
+//  them the short cut, and a link open pops Bp! out over the page it opened (Jesse, 2026-11-08;
+//  `LaunchMotion.Kind`, BP app references/launch-short).
 //
 //  `LaunchMotion` holds the numbers; this file draws them, one frame at a time, from a
 //  `TimelineView`, so a tap can redirect it at any instant. No `phaseAnimator`: the splash
@@ -29,12 +31,22 @@ import SwiftUI
     /// mock's simulation time, so frames line up with the mock's `#at-<ms>` ones.
     let frozenAt: Double?
     let skipAt: Double?
+    /// DEBUG: a link arrives this many ms (real time) after the first frame (`-launch-link-at`),
+    /// for a recording of the link open: the simulator's "Open in Block Party?" question keeps a
+    /// real `simctl openurl` from reaching the app.
+    let linkAt: Double?
     /// The launch is over and gone.
     private(set) var finished: Bool
     /// The tab bar's own Daily Bp! shows: the launch's has landed on it, so two never show.
     private(set) var landed: Bool
     /// Welcome's logo and headline may rise: the zoom through is half done.
     private(set) var headerUp: Bool
+    /// Which launch this start plays: the full show on the day's first two cold starts, the short
+    /// cut after them (`LaunchShows`), DEBUG `-launch-kind` naming one; a link open while signed in
+    /// turns it into `.link` as the URL arrives (`openedLink`).
+    private(set) var kind: LaunchMotion.Kind
+    /// Where the ball was when a link turned the launch into the link open, to fade it out there.
+    var ballBefore: LaunchMotion.Ball?
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
     /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
@@ -46,6 +58,7 @@ import SwiftUI
     private init() {
         frozenAt = LaunchFlags.value(.launchAt).flatMap(Double.init).map { $0 / 1000 }
         skipAt = LaunchFlags.value(.launchSkip).flatMap(Double.init).map { $0 / 1000 }
+        linkAt = LaunchFlags.value(.launchLinkAt).flatMap(Double.init).map { $0 / 1000 }
         // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
         reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
@@ -54,6 +67,19 @@ import SwiftUI
         landed = !plays || reduceMotion
         headerUp = !plays || reduceMotion
         townSettles = !plays || reduceMotion
+        let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
+        // Only a real cold start counts toward the day's full shows: not a held frame or a test.
+        kind = named ?? (plays && frozenAt == nil && !LaunchFlags.has(.uiTests) ? LaunchShows.kind() : .full)
+    }
+
+    /// A link opened while signed in: the launch, still on its way, becomes the link open, which
+    /// has no tab bar to land on (the page the link opened is up) and zooms through.
+    func openedLink() {
+        guard plays, !finished, frozenAt == nil, kind != .link else { return }
+        kind = .link
+        landed = true
+        headerUp = true
+        townSettles = true
     }
 
     func raiseHeader() { headerUp = true }
@@ -121,7 +147,8 @@ struct LaunchHost<Content: View>: View {
                     .allowsHitTesting(moment.frame.takesTaps)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
                     .sensoryFeedback(trigger: moment.frame.buzzes) { _, count in
-                        LaunchMotion.buzzKinds.indices.contains(count - 1) ? LaunchMotion.buzzKinds[count - 1] : nil
+                        let kinds = LaunchMotion.buzzKinds(stage.kind)
+                        return kinds.indices.contains(count - 1) ? kinds[count - 1] : nil
                     }
                     .onChange(of: backTarget(moment.frame), initial: true) { _, target in
                         settleBack(to: target, moment.frame)
@@ -148,6 +175,15 @@ struct LaunchHost<Content: View>: View {
             backScale = 1
             tilt.stop()
         }
+        // A link open starts over from the still: the ! appears, then Bp! pops out. A ball already
+        // on screen fades out where it was, and a tap before the link is forgotten.
+        .onChange(of: stage.kind) { was, kind in
+            guard kind == .link else { return }
+            let t = clock.t
+            if t > 0 { stage.ballBefore = LaunchMotion(screen: screen.size, kind: was).ball(at: t) }
+            skip = nil
+            clock.reset()
+        }
         .onAppear {
             if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
             guard stage.plays || LeftOff.current != nil, UIAccessibility.isVoiceOverRunning else { return }
@@ -159,6 +195,11 @@ struct LaunchHost<Content: View>: View {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
             stage.finish()
+        }
+        .task {
+            guard let at = stage.linkAt, stage.plays else { return }
+            try? await Task.sleep(for: .seconds(at))
+            stage.openedLink()
         }
     }
 
@@ -177,13 +218,14 @@ struct LaunchHost<Content: View>: View {
     }
 
     private func moment(at date: Date) -> (frame: LaunchMotion.Frame, origin: CGPoint) {
-        let t = stage.frozenAt ?? clock.time(at: date)
+        let t = stage.frozenAt ?? clock.time(at: date, pace: LaunchMotion.pace(for: stage.kind))
         var ending = LaunchMotion.Ending.zoom
-        if let mark = stage.dailyMark {
+        if let mark = stage.dailyMark, stage.kind != .link {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
         let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt,
-                                  reduceMotion: stage.reduceMotion, ending: ending)
+                                  reduceMotion: stage.reduceMotion, ending: ending, kind: stage.kind,
+                                  ballBefore: stage.ballBefore)
         return (motion.frame(at: t), motion.origin)
     }
 
@@ -236,12 +278,18 @@ final class LaunchClock {
     private(set) var t = 0.0
     private var last: Date?
 
-    func time(at date: Date) -> Double {
+    func time(at date: Date, pace: Double) -> Double {
         if let last, date > last {
-            t += min(0.05, date.timeIntervalSince(last)) * LaunchMotion.pace
+            t += min(0.05, date.timeIntervalSince(last)) * pace
         }
         if last.map({ date > $0 }) ?? true { last = date }
         return t
+    }
+
+    /// Back to the still: a link open starts the launch over as the link open.
+    func reset() {
+        t = 0
+        last = nil
     }
 }
 
@@ -282,36 +330,45 @@ private struct LaunchMark: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // The launch screen's own picture, so its still and this first frame are one.
-            Image("LaunchGlass")
-                .resizable(capInsets: Self.glassCaps, resizingMode: .stretch)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(frame.yellow)
-            // The light catches the glass edge the phone tilts toward, as Liquid Glass's does
-            // (Jesse, 2026-11-02, "tilt shine"); held as it was, it's the icon's own edge.
-            RoundedRectangle(cornerRadius: Self.glassCorner, style: .continuous)
-                .strokeBorder(LinearGradient(colors: [Color.white.opacity(0.6 * Self.lean(tilt)), Color.white.opacity(0)],
-                                             startPoint: UnitPoint(x: 0.5 + tilt.dx / 2, y: 0.5 + tilt.dy / 2),
-                                             endPoint: .center),
-                              lineWidth: 10)
-                .blur(radius: 5)
-                .opacity(frame.yellow)
-            // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02:
-            // "the bottom copy the written font spacing and size but put block party. made by
-            // jesse"; "make BP larger than my name"): the launch screen's own picture, so the still
-            // and this frame are one.
-            Image("LaunchFooter")
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, Self.footerLift)
-                .opacity(frame.yellow)
-                .accessibilityHidden(true)
+            // The yellow: fading for a zoom, or falling off the bottom of the screen as a curtain
+            // into the tab bar (Jesse, 2026-11-08), its pictures dropping together.
             ZStack(alignment: .topLeading) {
+                // Plain yellow under the glass picture, filling its rounded corners, so the
+                // curtain's top edge is straight as it falls (the screen's own corners clip it at rest).
+                Rectangle()   // a shape, not `Color`: a Color here reached 120 pt above the screen (measured, 2026-11-08)
+                    .fill(Hue.brandDisc)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The launch screen's own picture, so its still and this first frame are one.
+                Image("LaunchGlass")
+                    .resizable(capInsets: Self.glassCaps, resizingMode: .stretch)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The light catches the glass edge the phone tilts toward, as Liquid Glass's does
+                // (Jesse, 2026-11-02, "tilt shine"); held as it was, it's the icon's own edge.
+                RoundedRectangle(cornerRadius: Self.glassCorner, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [Color.white.opacity(0.6 * Self.lean(tilt)), Color.white.opacity(0)],
+                                                 startPoint: UnitPoint(x: 0.5 + tilt.dx / 2, y: 0.5 + tilt.dy / 2),
+                                                 endPoint: .center),
+                                  lineWidth: 10)
+                    .blur(radius: 5)
+                // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02:
+                // "the bottom copy the written font spacing and size but put block party. made by
+                // jesse"; "make BP larger than my name"): the launch screen's own picture, so the
+                // still and this frame are one.
+                Image("LaunchFooter")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, Self.footerLift)
+                    .accessibilityHidden(true)
+            }
+            .offset(y: frame.yellowDrop)
+            .opacity(frame.yellowOpacity)
+            ZStack(alignment: .topLeading) {
+                // Both shrink toward the !, so Bp! never splits (Jesse, 2026-11-08).
                 piece("LaunchMarkB")
-                    .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.footB))
+                    .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.letterAnchor))
                     .offset(y: frame.lift * Self.hopPoints * k)
                     .opacity(frame.letters)
                 piece("LaunchMarkP")
-                    .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.footP))
+                    .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.letterAnchor))
                     .offset(y: frame.lift * Self.hopPoints * k)
                     .opacity(frame.letters)
                 // Reduce Motion's full-size B and p, fading in over the 90% ones.
@@ -344,7 +401,7 @@ private struct LaunchMark: View {
         piece("DailyMarkBangDot")
             .scaleEffect(x: frame.dot.width, y: frame.dot.height, anchor: DailyMarkGlyph.dotBase)
             .offset(y: frame.lift * Self.hopPoints * k)
-            .opacity(frame.dotShown ? 1 : 0)
+            .opacity(frame.dotShown ? frame.dotOpacity : 0)
     }
 
     /// The ball's shadow on the glass (Jesse, 2026-11-02, "ball shadow"). SwiftUI's blur radius is
@@ -360,11 +417,15 @@ private struct LaunchMark: View {
 
     private static func lean(_ tilt: CGVector) -> Double { min(1, Double(hypot(tilt.dx, tilt.dy))) }
 
+    /// The Town's round logo, or Block Party's own crest in a Town that has none yet (Jesse,
+    /// 2026-11-08: "bp crest").
+    private static let ballImage = UIImage(named: Town.logo) == nil ? "LaunchCrest" : Town.logo
+
     /// The Town's round logo: rolling, stretched along its speed, squashed on a hit, and going
     /// black as it lands.
     private var ball: some View {
         let b = frame.ball
-        return Image(Town.logo)
+        return Image(Self.ballImage)
             .resizable()
             .scaledToFill()
             .frame(width: 2 * b.r * k, height: 2 * b.r * k)

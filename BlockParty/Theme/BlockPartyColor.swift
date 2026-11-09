@@ -157,9 +157,9 @@ nonisolated enum Hue {
     ///
     /// DESIGN.md's "accents are small by rule" still holds: the map disc, Daily's top and
     /// the poster's date are the three, each scoped in by Jesse. Another is his call, not an
-    /// agent's. Onboarding is the fourth (Jesse, 2026-10-24): its
-    /// progress bar fills with it. Its screens sat on a faint wash of it until 2026-11-02; they
-    /// are white now (`OnboardingBackdrop`).
+    /// agent's. Onboarding was the fourth (Jesse, 2026-10-24): its progress bar filled with it,
+    /// and its screens sat on a faint wash of it until 2026-11-02. Onboarding has none of it
+    /// since 2026-11-08 (BP app onboarding 32).
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
@@ -210,6 +210,9 @@ nonisolated enum Hue {
     /// (BP app references/onboarding-name-photo): a blue-grey circle and a near-white figure.
     static let blankAvatar   = Color(hex: 0xCBD2DA)
     static let blankAvatarFigure = Color(hex: 0xF4F5F9)
+    /// The circle behind Jesse's birthday cake on "When's your birthday?" (Jesse, 2026-11-08, BP app
+    /// references/birthday-icon): a pale lilac, the frame he drew around it. For that cake only.
+    static let birthdayDisc  = Color(hex: 0xF1EAFC)
     /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
     /// The second red after `heart`, and for this one pill only.
     static let canceled      = Color(uiColor: .systemRed)

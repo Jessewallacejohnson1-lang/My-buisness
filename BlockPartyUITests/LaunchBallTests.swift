@@ -20,7 +20,7 @@ final class LaunchBallTests: XCTestCase {
         // `-launch-play` plays the launch under `-ui-tests`, which otherwise skips it, and shows it
         // to XCUITest as the element `launch`.
         app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
-                               "-daily-samples", "-daily-hour", "12"]
+                               "-launch-kind", "full", "-daily-samples", "-daily-hour", "12"]
         app.launch()
         XCTAssertTrue(app.otherElements["launch"].waitForExistence(timeout: 10), "the launch didn't play")
 
@@ -35,15 +35,15 @@ final class LaunchBallTests: XCTestCase {
     }
 
     /// Once the yellow is mostly gone, a tap goes through to Town under the glide; before that the
-    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 1850 is
-    /// in the leap with the yellow gone but the launch not done (LaunchMotionTests checks both),
+    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 2200 is
+    /// in the leap with the curtain down but the launch not done (LaunchMotionTests checks both),
     /// 1000 is the ! hopping on full yellow.
     func testATapLateInTheGlideReachesTown() {
         continueAfterFailure = false
-        for (moment, opens) in [("1850", true), ("1000", false)] {
+        for (moment, opens) in [("2200", true), ("1000", false)] {
             let app = XCUIApplication()
             app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
-                                   "-launch-at", moment, "-daily-samples", "-daily-hour", "12"]
+                                   "-launch-at", moment, "-launch-kind", "full", "-daily-samples", "-daily-hour", "12"]
             app.launch()
             let card = app.buttons["event-card-link"].firstMatch
             XCTAssertTrue(card.waitForExistence(timeout: 10), "no event card on Town")

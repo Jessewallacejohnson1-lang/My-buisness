@@ -51,6 +51,83 @@ struct OnboardingBirthdayField: View {
     }
 }
 
+/// "Gender" over Female and Male, two equal pills on the interest chips' raised edge, and who sees it
+/// (BP app onboarding 31, mock B). Optional: a tap on the picked one clears it. VoiceOver reads the
+/// pair as Apple's segmented control ("Female, 1 of 2"), with Clear to take a pick back.
+struct OnboardingGenderRow: View {
+    @Binding var pick: String?
+
+    private static let options = [(value: "female", label: "Female"), (value: "male", label: "Male")]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Gender")
+                .font(.sansSemibold(15))
+                .foregroundStyle(Hue.ink)
+                // VoiceOver reads it before the pair: a segmented control says only its segments.
+            HStack(spacing: 12) {
+                ForEach(Self.options, id: \.value) { option in
+                    GenderPill(label: option.label, on: pick == option.value) {
+                        pick = pick == option.value ? nil : option.value
+                    }
+                }
+            }
+            .padding(.top, 10)
+            .accessibilityRepresentation {
+                Picker("Gender", selection: $pick) {
+                    ForEach(Self.options, id: \.value) { Text($0.label).tag(Optional($0.value)) }
+                }
+                .pickerStyle(.segmented)
+            }
+            .accessibilityAction(named: "Clear") { pick = nil }
+            Text("Only you see your birthday and gender.")
+                .font(.sans(13))
+                .foregroundStyle(Hue.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
+        }
+        .padding(.top, 24)
+    }
+}
+
+/// One of the pair: 48 pt on the raised edge, a check before the word once picked, popping in as an
+/// interest chip's does. Face and words fade over the mock's 0.18 s both ways.
+private struct GenderPill: View {
+    let label: String
+    let on: Bool
+    let action: () -> Void
+
+    @State private var check: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if on {
+                    Text("\u{2713}")
+                        .font(.sansSemibold(17))
+                        .scaleEffect(check)
+                }
+                Text(label)
+                    .font(.sansMedium(17))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width pill
+            }
+            .foregroundStyle(on ? Color.white : Hue.ink)
+            .frame(maxWidth: .infinity, minHeight: 48 - 7 - 6 - 1.5 - 3.5)   // 48 with the style's padding
+        }
+        .buttonStyle(InterestChipStyle(on: on))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+        .onChange(of: on) { _, now in
+            guard now, !reduceMotion else { return }
+            check = 0.4
+            withAnimation(.easeOut(duration: 0.1)) { check = 1.06 } completion: {
+                withAnimation(.easeOut(duration: 0.1)) { check = 1 }
+            }
+        }
+    }
+}
+
 /// Apple's wheel where the keyboard sits, 272 pt with the home indicator's 34 under it. The stock
 /// picker ticks under the finger on its own.
 struct OnboardingBirthdayWheel: View {
@@ -74,7 +151,7 @@ struct OnboardingBirthdayWheel: View {
     }
 }
 
-/// "Come back when you're 13" (Turo's kind dead end): the wordmark on a soft yellow glow, the reason,
+/// "Come back when you're 13" (Turo's kind dead end): the wordmark on white, the reason,
 /// and Close, which clears everything and goes back to the Welcome. Back returns to the wheel.
 struct OnboardingTooYoung: View {
     let back: () -> Void
@@ -88,7 +165,7 @@ struct OnboardingTooYoung: View {
             VStack(alignment: .leading, spacing: 0) {
                 BlockPartyWordmark(height: 33)
                     .foregroundStyle(Hue.ink)
-                glow
+                bigWordmark
                 Text("Come back when you're 13")
                     .font(.display(30))
                     .foregroundStyle(Hue.ink)
@@ -123,13 +200,9 @@ struct OnboardingTooYoung: View {
         .onAppear { headerFocused = true }
     }
 
-    /// The mock's 200 pt card: the wordmark tipped 4°, on yellow fading out from just below centre.
-    private var glow: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(RadialGradient(stops: [.init(color: Hue.brandDisc.opacity(0.55), location: 0),
-                                         .init(color: Hue.brandDisc.opacity(0.1), location: 0.7),
-                                         .init(color: Hue.brandDisc.opacity(0), location: 1)],
-                                 center: UnitPoint(x: 0.5, y: 0.6), startRadius: 0, endRadius: 180))
+    /// The mock's 200 pt card: the wordmark tipped 4°, on white (its yellow glow went 2026-11-08).
+    private var bigWordmark: some View {
+        Color.clear
             .frame(height: 200)
             .overlay {
                 BlockPartyWordmark(height: 190 / BlockPartyWordmark.aspect)
