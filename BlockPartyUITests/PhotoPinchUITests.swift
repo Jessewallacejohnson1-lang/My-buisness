@@ -46,6 +46,17 @@ final class PhotoPinchUITests: XCTestCase {
         XCTAssertTrue(pageOpened(timeout: 15), "after a pinch a tap on the poster didn't open the Event page")
     }
 
+    /// A Town card pinches as the poster does, and opens nothing.
+    func testATownCardPinchesAndOpensNothing() {
+        let link = app.buttons["event-card-link"].firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 10), "no event card on Town")
+        // Out from under the tab bar first.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+        link.pinch(withScale: 2.5, velocity: 2)
+        XCTAssertFalse(pageOpened(timeout: 2), "a pinch on a Town card opened the Event page")
+    }
+
     /// On the Event page the picture pinches, and its Back comes back once it has landed.
     func testThePagePicturePinchesAndItsButtonsComeBack() {
         let poster = app.buttons["event-of-the-day-poster"]
@@ -53,9 +64,7 @@ final class PhotoPinchUITests: XCTestCase {
         poster.tap()
         XCTAssertTrue(pageOpened(timeout: 15), "the Event page didn't open")
 
-        // The picture reads as one element, "Photo" or "Photo, by …".
-        let picture = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
+        let picture = app.descendants(matching: .any)["event-page-picture"]
         XCTAssertTrue(picture.waitForExistence(timeout: 10), "no picture on the Event page")
         picture.pinch(withScale: 2.5, velocity: 2)
         XCTAssertTrue(pageOpened(timeout: 3), "Back didn't come back after the picture landed")

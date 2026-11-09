@@ -430,6 +430,7 @@ struct EventPage: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(picture.attribution.map { "Photo, by \($0)" } ?? "Photo")
+            .accessibilityIdentifier("event-page-picture")
             // A shimmer until the bitmap lands, as the carousel had.
             .overlay(alignment: .top) {
                 if !PhotoPager.isShown(url, in: shownPhotos) {
@@ -441,7 +442,9 @@ struct EventPage: View {
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
             }
-            // Two fingers lift it where it sits, its heart and credit too (BP app photo-zoom).
+            // Two fingers lift it where it sits, its heart and credit too (BP app photo-zoom). The melt's
+            // ground is clear, so the whole picture takes the fingers.
+            .contentShape(Rectangle())
             .pinchToZoom(slot: wash.map { Color(hex: $0.top) } ?? Hue.gameNight, lifted: $heroLifted)
             // After the stretch, so they stay put, unscaled.
             .overlay(alignment: .bottomTrailing) {
