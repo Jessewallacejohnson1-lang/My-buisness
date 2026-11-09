@@ -45,9 +45,9 @@ struct OnboardingBirthdayField: View {
     }
 }
 
-/// "Gender" over Female and Male, two equal pills on the interest chips' raised edge, and who sees it
-/// (BP app onboarding 31, mock B). Optional: a tap on the picked one clears it. VoiceOver reads the
-/// pair as Apple's segmented control ("Female, 1 of 2"), with Clear to take a pick back.
+/// "Gender" over Female and Male, two equal grey boxes (mock v8 `.gp`), and who sees it (BP app onboarding
+/// 31, 36). Optional: a tap on the picked one clears it. VoiceOver reads the pair as Apple's segmented
+/// control ("Female, 1 of 2"), with Clear to take a pick back.
 struct OnboardingGenderRow: View {
     @Binding var pick: String?
 
@@ -57,7 +57,7 @@ struct OnboardingGenderRow: View {
         VStack(alignment: .leading, spacing: 0) {
             // VoiceOver reads it before the pair: a segmented control says only its segments.
             OnboardingFieldLabel("Gender")
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 ForEach(Self.options, id: \.value) { option in
                     GenderPill(label: option.label, on: pick == option.value) {
                         pick = pick == option.value ? nil : option.value
@@ -81,8 +81,8 @@ struct OnboardingGenderRow: View {
     }
 }
 
-/// One of the pair: 48 pt on the raised edge, a check before the word once picked, popping in as an
-/// interest chip's does. Face and words fade over the mock's 0.18 s both ways.
+/// One of the pair: Luma's 46 pt grey box, ink with a white check before the word once picked, the
+/// check popping in. Face and words fade over the mock's 0.18 s both ways.
 private struct GenderPill: View {
     let label: String
     let on: Bool
@@ -96,18 +96,21 @@ private struct GenderPill: View {
             HStack(spacing: 6) {
                 if on {
                     Text("\u{2713}")
-                        .font(.apple(17, weight: .semibold))
+                        .font(.apple(17, weight: .bold))
                         .scaleEffect(check)
                 }
                 Text(label)
                     .font(.apple(17, weight: .medium))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width pill
+                    .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width box
             }
             .foregroundStyle(on ? Color.white : Hue.ink)
-            .frame(maxWidth: .infinity, minHeight: 48 - 7 - 6 - 1.5 - 3.5)   // 48 with the style's padding
+            .frame(maxWidth: .infinity, minHeight: OnboardingFieldBox.height)
+            .background(on ? Hue.ink : Hue.onboardingField,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(InterestChipStyle(on: on))
+        .buttonStyle(.press(.squish, haptic: true))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
         .onChange(of: on) { _, now in
             guard now, !reduceMotion else { return }
@@ -142,9 +145,9 @@ struct OnboardingBirthdayWheel: View {
     }
 }
 
-/// "Come back when you're 13" (Turo's kind dead end): the clock in the grey circle every question
-/// has, the reason, and Close, which clears everything and goes back to the Welcome. Back returns to
-/// the wheel. Ticket 36 makes the rest Luma's quiet empty state.
+/// "Come back when you're 13": Luma's quiet empty state (mock v8, onboarding 36), the grey clock in
+/// the circle every question has and the short line under it. Close clears everything and goes back to
+/// the Welcome; Back returns to the wheel.
 struct OnboardingTooYoung: View {
     let back: () -> Void
     let close: () -> Void
@@ -158,12 +161,7 @@ struct OnboardingTooYoung: View {
             OnboardingBackdrop()
             VStack(alignment: .leading, spacing: 0) {
                 OnboardingHeading(symbol: Self.symbol, question: "Come back when you're 13", focused: $headerFocused)
-                Text("Block Party is for neighbors 13 and up. We didn't save anything you entered.")
-                    .font(.apple(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
-                bigWordmark
+                OnboardingSubline("Block Party is for neighbors 13 and up. We didn't save anything you entered.")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, FollowGridMetric.gutter)
@@ -184,18 +182,5 @@ struct OnboardingTooYoung: View {
                 .padding(.bottom, 50)   // 84 from the bottom, over the home indicator's 34
         }
         .onAppear { headerFocused = true }
-    }
-
-    /// The mock v7 200 pt card: the wordmark tipped 4°. Ticket 36 decides whether it stays.
-    private var bigWordmark: some View {
-        Color.clear
-            .frame(height: 200)
-            .overlay {
-                BlockPartyWordmark(height: 190 / BlockPartyWordmark.aspect)
-                    .foregroundStyle(Hue.ink)
-                    .rotationEffect(.degrees(-4))
-            }
-            .padding(.top, 32)
-            .accessibilityHidden(true)
     }
 }

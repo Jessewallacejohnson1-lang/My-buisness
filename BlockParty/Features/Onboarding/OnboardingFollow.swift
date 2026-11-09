@@ -313,7 +313,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
             }
             LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
                 ForEach(shown.map { Tile(suggestion: $0, showing: showing[$0.target, default: 0]) }) { tile in
-                    FollowTile(suggestion: tile.suggestion, on: follows.contains(tile.suggestion.target), width: column) {
+                    FollowTile(suggestion: tile.suggestion, on: follows.contains(tile.suggestion.target)) {
                         follow(tile.suggestion, column: column)
                     }
                     .transition(arrival(tile.suggestion.target))
@@ -327,16 +327,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
                 .padding(.top, 4)
         } else {
             LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
-                ForEach(0..<9, id: \.self) { _ in
-                    VStack(spacing: 8) {
-                        SkeletonBlock(cornerRadius: FollowGridMetric.art / 2).frame(width: FollowGridMetric.art, height: FollowGridMetric.art)
-                        SkeletonBlock(cornerRadius: 6).frame(width: column * 0.7, height: 12)
-                            .frame(height: FollowGridMetric.name, alignment: .top)
-                        SkeletonBlock(cornerRadius: FollowMetric.rowHeight / 2).frame(width: column, height: FollowMetric.rowHeight)
-                    }
-                    .shimmering()
-                    .accessibilityHidden(true)
-                }
+                ForEach(0..<9, id: \.self) { _ in FollowTileSkeleton() }
             }
         }
     }
@@ -398,103 +389,133 @@ private struct Arrive: ViewModifier {
     }
 }
 
-/// The grid's sizes: Search's 80 pt logos, Instagram's 104 x 32 pill, three across the 20 pt gutters (mock v8).
+/// The grid's sizes, mock v8's: 88 pt logos on white with a plus on each, three across the 20 pt gutters,
+/// 10 pt apart, 22 between rows (onboarding 36).
 enum FollowGridMetric {
     static let gutter: CGFloat = 20
-    static let columnGap: CGFloat = 13
-    static let rowGap: CGFloat = 18
-    static let art: CGFloat = 80
-    /// Two lines of 13 pt names, so every pill in a row lines up.
+    static let columnGap: CGFloat = 10
+    static let rowGap: CGFloat = 22
+    static let art: CGFloat = 88
+    /// Two lines of 13 pt names at the default text size.
     static let name: CGFloat = 34
-    static let tile: CGFloat = art + 8 + name + 8 + FollowMetric.rowHeight
+    static let tile: CGFloat = art + 8 + name
     static let search: CGFloat = OnboardingSearchField.height
     /// The scroll's top, under the back chevron and progress line (mock v8's 98).
     static let scrollTop: CGFloat = 98
     /// The question's icon circle sits 110 pt down on every step (mock v8 `.screen`).
     static let headingTop: CGFloat = 110
 
-    /// 112 on a 402 pt phone.
+    /// 114 on a 402 pt phone.
     static func column(_ width: CGFloat) -> CGFloat { (width - 2 * gutter - 2 * columnGap) / 3 }
-    static func columns(_ column: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(column), spacing: columnGap), count: 3) }
+    static func columns(_ column: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(column), spacing: columnGap, alignment: .top), count: 3) }
 }
 
-/// One place: its logo, its name and Follow under it. The whole tile is the button (Spotify's), and sinks
-/// under the finger; following turns the pill at once with its 106% pop while the logo hops.
+/// One place: its logo on white with a small plus on it, its name under it (mock v8, onboarding 36). The
+/// whole tile is the button and sinks under the finger; following turns the plus to an ink check that
+/// pops to 112% and back.
 struct FollowTile: View {
     let suggestion: FollowSuggestion
     let on: Bool
-    let width: CGFloat
+    /// The ring around the plus, the colour behind the tile: the canvas, or white inside Interests' card.
+    var ring: Color = Hue.onboardingCanvas
     let tap: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pop: CGFloat = 1
-    @State private var hop: CGFloat = 0
+
+    private static let badge: CGFloat = 28
 
     var body: some View {
         Button {
             Haptics.light()
-            let following = !on
             tap()
             guard !reduceMotion else { return }
-            withAnimation(.easeOut(duration: 0.1)) { pop = 1.06 } completion: {
-                withAnimation(.easeOut(duration: 0.1)) { pop = 1 }
-            }
-            guard following else { return }
-            withAnimation(.easeOut(duration: 0.12)) { hop = -6 } completion: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) { hop = 0 }
+            withAnimation(.easeOut(duration: 0.11)) { pop = 1.12 } completion: {
+                withAnimation(.easeOut(duration: 0.11)) { pop = 1 }
             }
         } label: {
             VStack(spacing: 8) {
                 FollowTileArt(suggestion: suggestion)
-                    .offset(y: hop)
+                    .overlay(alignment: .bottomTrailing) { badge.offset(x: 1, y: 1) }
                 Text(suggestion.name)
                     .font(.apple(13, weight: .semibold))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .frame(width: width, height: FollowGridMetric.name, alignment: .top)
-                OnboardingPillFace(title: on ? "Following" : "Follow", on: on, width: min(FollowMetric.listWidth, width))
-                    .scaleEffect(pop)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    // A caption under an 88 pt logo, a third of the width: past this size a word like
+                    // "College" breaks in half (picked, onboarding 36; the Welcome caps the same way).
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
-            .frame(width: width)
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))
+        // Read as before: what it does and whose it is, and Selected once followed.
         .accessibilityLabel("\(on ? "Following" : "Follow"), \(suggestion.name)")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
+
+    /// The plus, or an ink check once followed: a 28 pt white circle ringed in the colour behind it.
+    private var badge: some View {
+        Image(systemName: on ? "checkmark" : "plus")
+            .font(.glyph(13, weight: .bold))
+            .foregroundStyle(on ? Color.white : Hue.ink)
+            .frame(width: Self.badge, height: Self.badge)
+            .background(on ? Hue.ink : Hue.surface, in: Circle())
+            .background(Circle().fill(ring).padding(-2.5))
+            .shadow(color: Hue.ink.opacity(0.16), radius: 2, y: 1)
+            .scaleEffect(pop)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+    }
 }
 
-/// A place's picture at 80 pt: Search's bare logo with its cast shadow, the Town's logo, or in a circle
-/// its logo inset on white, its photo, or its initials.
+/// A tile while the places are read: a shimmering circle and a name.
+struct FollowTileSkeleton: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            SkeletonBlock(cornerRadius: FollowGridMetric.art / 2)
+                .frame(width: FollowGridMetric.art, height: FollowGridMetric.art)
+            SkeletonBlock(cornerRadius: 6)
+                .frame(width: FollowGridMetric.art * 0.8, height: 12)
+                .frame(height: FollowGridMetric.name, alignment: .top)
+        }
+        .frame(maxWidth: .infinity)
+        .shimmering()
+        .accessibilityHidden(true)
+    }
+}
+
+/// A place's picture at 88 pt, always on a white circle with a hairline (mock v8): Search's cut-out
+/// logo inset without its cast shadow, the Town's logo, a logo or photo, or its initials.
 private struct FollowTileArt: View {
     let suggestion: FollowSuggestion
     private static let side = FollowGridMetric.art
+    /// A logo's margin inside the circle, so its corners stay clear of the edge.
+    private static let inset = side * 0.14
 
     var body: some View {
-        Group {
-            if let logo = suggestion.logo {
-                CastLogo(logo: logo, side: Self.side)
-            } else if suggestion.isTown {
-                Image(Town.logo).resizable().interpolation(.high).scaledToFit()
-            } else {
-                Circle().fill(Hue.surface)
-                    .overlay {
-                        if let url = suggestion.picture {
-                            FeedCardURLPhoto(url: url, loadingFill: Hue.surface)
-                                .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
-                        } else {
-                            Text(initials)
-                                .font(.apple(22, weight: .bold))
-                                .foregroundStyle(Hue.ink)
-                        }
-                    }
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(Hue.hairline, lineWidth: 1))
+        Circle().fill(Hue.surface)
+            .overlay {
+                if let logo = suggestion.logo {
+                    CastLogo(logo: logo, side: Self.side - 2 * Self.inset, strength: 0)
+                } else if suggestion.isTown {
+                    Image(Town.logo).resizable().interpolation(.high).scaledToFit()
+                        .padding(Self.inset)
+                } else if let url = suggestion.picture {
+                    FeedCardURLPhoto(url: url, loadingFill: Hue.surface)
+                        .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
+                } else {
+                    Text(initials)
+                        .font(.apple(22, weight: .bold))
+                        .foregroundStyle(Hue.ink)
+                }
             }
-        }
-        .frame(width: Self.side, height: Self.side)
-        .accessibilityHidden(true)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Hue.hairline, lineWidth: 1))
+            .frame(width: Self.side, height: Self.side)
+            .accessibilityHidden(true)
     }
 
     /// "CS" of "City of St. Joseph": the first two capitals that start a word, so "of" is skipped.

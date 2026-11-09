@@ -330,12 +330,13 @@ private struct InterestsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Interests")
-                .font(.displaySemi(17))
+                .font(.apple(17, weight: .semibold))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
+            // Onboarding's white card on its grey canvas, one look for both (Jesse, 2026-11-09).
             InterestRows(picked: $picked, schools: schools, isFollowing: isFollowing, toggleFollow: toggleFollow,
-                         schoolsOpened: schoolsOpened, gutter: 24, topInset: 8, bottomInset: 120) {
+                         schoolsOpened: schoolsOpened, bottomInset: 120) {
                 EmptyView()
             }
         }
@@ -349,17 +350,18 @@ private struct InterestsSheet: View {
             }
         }
         .overlay(alignment: .bottom) {
-            ContinueButton(title: count == 0 ? "Pick 1" : "Done", enabled: count > 0) {
+            // Onboarding's Next pill: grey and shaking until one thing is picked or followed.
+            OnboardingNextBar(title: count == 0 ? "Pick 1" : "Done", allowed: count > 0) {
                 Haptics.selection(); dismiss()
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, FollowGridMetric.gutter)
             .padding(.top, 32)
             .padding(.bottom, 8)
-            // The rows scroll away under a paper fade, as onboarding's do under its Next bar.
-            .background(LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .center)
+            // The rows scroll away under the canvas, as onboarding's do under its Next pill.
+            .background(LinearGradient(colors: [Hue.onboardingCanvas.opacity(0), Hue.onboardingCanvas], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea())
         }
-        .background(Hue.paper.ignoresSafeArea())
+        .background(Hue.onboardingCanvas.ignoresSafeArea())
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(count == 0)
     }
