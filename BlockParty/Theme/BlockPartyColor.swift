@@ -202,8 +202,10 @@ nonisolated enum Hue {
     static let onboardingIcon   = Color(hex: 0x85858A)
     /// The progress line's track.
     static let onboardingTrack  = Color(light: 0xE1E1E5, dark: 0x33332E)
-    /// The raised ink edge under a picked interest chip or gender pill, until onboarding 36 flattens them.
-    static let nextEdge      = Color(hex: 0x0A0A0B)
+    /// An interest row's empty check circle (mock v8 `.ring`, onboarding 36).
+    static let onboardingRing = Color(hex: 0xC5C5CA)
+    /// The chevron at the end of an interest row that opens (mock v8 `.chev`).
+    static let onboardingChevron = Color(hex: 0xB0B0B6)
     /// The Next pill under the finger: ink lifted a touch.
     static let nextPressed   = Color(hex: 0x2B2B2E)
     /// The Next pill while not allowed, and its words.

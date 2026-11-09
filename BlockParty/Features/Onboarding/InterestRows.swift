@@ -1,22 +1,30 @@
 //
 //  InterestRows.swift
-//  Block Party — "What do you love doing?" as X's Add Topics (BP app onboarding 28): 9 rows, each an
-//  icon, its words and at the end a + that picks at once or a chevron that opens the row in place.
-//  Schools opens to the kinds of school, and each kind to its schools' Follow 3 tiles. Onboarding's
-//  step and Edit Profile's interests both show it.
+//  Block Party — "What do you love doing?" as X's Add Topics (BP app onboarding 28), set as Luma's white
+//  card of rows on the grey canvas (onboarding 36, mock v8): each row a round icon, its words and at the
+//  end a check circle that picks at once or a chevron that opens the row in place. Schools opens to the
+//  kinds of school, and each kind to its schools, Follow 3's logos in rows of 3. Onboarding's step and
+//  Edit Profile's interests both show it.
 //
 //  What's inside a row stays mounted and moves on one bool, so a tap halfway turns it around.
 //
 
 import SwiftUI
 
-/// X's rows, measured off its Add Topics at 393 pt; the disc is the mock's. Outside the view: a generic
-/// type can't store statics.
+/// Mock v8's rows at 402 pt. Outside the view: a generic type can't store statics.
 private enum Metric {
     static let row: CGFloat = 56
-    static let icon: CGFloat = 24
+    /// The round icon at a row's start, and the space before the words.
+    static let icon: CGFloat = 36
     static let iconGap: CGFloat = 12
-    static let disc: CGFloat = 26
+    /// What sits before the words: the card's 12 pt, the icon and its gap. Separators and what a row
+    /// opens to start here.
+    static let indent: CGFloat = 12 + icon + iconGap
+    static let ring: CGFloat = 24
+    static let chip: CGFloat = 34
+    static let corner: CGFloat = 16
+    /// Logos in rows of 3 under a kind of school, 10 pt apart (mock v8 `.grid`).
+    static let tileGap: CGFloat = 10
 }
 
 struct InterestRows<Heading: View>: View {
@@ -50,70 +58,89 @@ struct InterestRows<Heading: View>: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 heading
-                    .padding(.horizontal, gutter)
                 VStack(spacing: 0) {
-                    ForEach(Interests.rows) { row($0) }
+                    ForEach(Array(Interests.rows.enumerated()), id: \.element.id) { index, row in
+                        self.row(row)
+                            // Luma's hairline between rows, from where the words start.
+                            .overlay(alignment: .top) {
+                                if index > 0 {
+                                    Hue.hairline.frame(height: 1).padding(.leading, Metric.indent)
+                                }
+                            }
+                    }
                 }
-                .padding(.top, 12)
+                .background(Hue.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
+                .padding(.top, 24)
             }
+            .padding(.horizontal, gutter)
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
         }
     }
 
+    /// A row and what it opens to, one block, so the hairline sits over the row alone.
     @ViewBuilder private func row(_ row: InterestRow) -> some View {
         switch row.kind {
         case .pick(let pick):
             pickRow(row, pick)
         case .chips(let picks):
             let shown = open.contains(row.id)
-            opener(row, count: picks.filter { $0.isOn(in: picked) }.count)
-            InterestOpening(open: shown, animation: opening) {
-                FlowLayout(spacing: 8) {
-                    ForEach(Array(picks.enumerated()), id: \.element.id) { index, pick in
-                        InterestChip(label: pick.label, on: pick.isOn(in: picked)) { toggle(pick) }
-                            .modifier(InterestRises(shown: shown, index: index))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, gutter)
-                .padding(.top, 2)
-                .padding(.bottom, 14)
-            }
-        case .schools:
-            let shown = open.contains(row.id)
-            opener(row, count: FollowSuggestions.schoolTargets(in: schools ?? []).filter(isFollowing).count)
-            InterestOpening(open: shown, animation: opening) {
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 0) {
+                opener(row, count: picks.filter { $0.isOn(in: picked) }.count)
+                InterestOpening(open: shown, animation: opening) {
                     FlowLayout(spacing: 8) {
-                        ForEach(Array(types.enumerated()), id: \.element.id) { index, type in
-                            typeChip(type)
+                        ForEach(Array(picks.enumerated()), id: \.element.id) { index, pick in
+                            InterestChip(label: pick.label, on: pick.isOn(in: picked)) { toggle(pick) }
                                 .modifier(InterestRises(shown: shown, index: index))
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, gutter)
-                    ForEach(types) { type in
-                        InterestOpening(open: shown && openType == type.id, animation: opening) {
-                            if schoolsMounted {
-                                tiles(type, shown: shown && openType == type.id)
-                                    .padding(.top, 14)
+                    .padding(.leading, Metric.indent)
+                    .padding(.trailing, 16)
+                    .padding(.top, 2)
+                    .padding(.bottom, 16)
+                }
+            }
+        case .schools:
+            let shown = open.contains(row.id)
+            VStack(spacing: 0) {
+                opener(row, count: FollowSuggestions.schoolTargets(in: schools ?? []).filter(isFollowing).count)
+                InterestOpening(open: shown, animation: opening) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        FlowLayout(spacing: 8) {
+                            ForEach(Array(types.enumerated()), id: \.element.id) { index, type in
+                                typeChip(type)
+                                    .modifier(InterestRises(shown: shown, index: index))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, Metric.indent)
+                        .padding(.trailing, 16)
+                        ForEach(types) { type in
+                            InterestOpening(open: shown && openType == type.id, animation: opening) {
+                                if schoolsMounted {
+                                    tiles(type, shown: shown && openType == type.id)
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 14)
+                                }
                             }
                         }
                     }
+                    .padding(.top, 2)
+                    .padding(.bottom, 16)
                 }
-                .padding(.top, 2)
-                .padding(.bottom, 14)
             }
         }
     }
 
-    /// The icon, the words and what's at the end. The whole width takes the touch, and darkens.
+    /// The round icon, the words and what's at the end. The whole width takes the touch, and darkens.
     private func face<End: View>(_ row: InterestRow, @ViewBuilder end: () -> End) -> some View {
         HStack(spacing: Metric.iconGap) {
             Text(row.icon)
-                .font(.glyph(21))
+                .font(.glyph(19))
                 .frame(width: Metric.icon, height: Metric.icon)
+                .background(Hue.fill, in: Circle())
                 .accessibilityHidden(true)
             Text(row.label)
                 .font(.apple(16, weight: .semibold))
@@ -121,7 +148,9 @@ struct InterestRows<Heading: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: Metric.iconGap) { end() }
         }
-        .padding(.horizontal, gutter)
+        .padding(.leading, 12)
+        .padding(.trailing, 16)
+        .padding(.vertical, 4)
         .frame(minHeight: Metric.row)
         .contentShape(Rectangle())
     }
@@ -129,10 +158,11 @@ struct InterestRows<Heading: View>: View {
     private func pickRow(_ row: InterestRow, _ pick: InterestPick) -> some View {
         let on = pick.isOn(in: picked)
         return Button { Haptics.light(); toggle(pick) } label: {
-            face(row) { InterestPickDisc(on: on, side: Metric.disc) }
+            face(row) { InterestCheckCircle(on: on) }
         }
         .buttonStyle(.press(.row))
         .accessibilityLabel(row.label)
+        .accessibilityValue(on ? "Picked" : "Not picked")
         .accessibilityIdentifier("interest-chip")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -141,20 +171,21 @@ struct InterestRows<Heading: View>: View {
         let shown = open.contains(row.id)
         return Button { toggleOpen(row) } label: {
             face(row) {
-                if count > 0 && !shown {
+                if count > 0 {
                     Text("\(count)")
                         .font(.apple(13, weight: .semibold))
-                        .foregroundStyle(Color.white)
-                        .frame(width: Metric.disc, height: Metric.disc)
-                        .background(Hue.ink, in: Circle())
+                        .monospacedDigit()
+                        .foregroundStyle(Hue.inkSecondary)
+                        .contentTransition(.numericText(value: Double(count)))
                         .transition(.opacity)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.glyph(16, weight: .semibold))
-                    .foregroundStyle(Hue.ink)
+                    .font(.glyph(14, weight: .semibold))
+                    .foregroundStyle(Hue.onboardingChevron)
                     .rotationEffect(.degrees(shown ? 90 : 0))
-                    .frame(width: Metric.icon / 1.5)
+                    .frame(width: 16)
             }
+            .animation(.snappy, value: count)
         }
         .buttonStyle(.press(.row))
         .accessibilityLabel(row.label)
@@ -167,79 +198,47 @@ struct InterestRows<Heading: View>: View {
         return Town.schoolTypes.filter { !FollowSuggestions.tiles($0, in: schools).isEmpty }
     }
 
+    /// A kind of school: a grey chip, ink while its schools show (mock v8).
     private func typeChip(_ type: Town.SchoolType) -> some View {
         let shown = openType == type.id
         let count = FollowSuggestions.tiles(type, in: schools ?? []).filter { isFollowing($0.target) }.count
-        let full = count > 0 && !shown
         return Button {
             // Tries a failed read again, which the line under it says to.
             schoolsOpened()
             withAnimation(opening) { openType = shown ? nil : type.id }
         } label: {
-            HStack(spacing: 6) {
-                Text(type.label)
-                    .font(.apple(15, weight: .medium))
-                    .foregroundStyle(full ? Color.white : Hue.ink)
-                    .lineLimit(1)
-                    // So its touch area reaches 44 pt, as an interest chip's does.
-                    .frame(minHeight: 21)
-                if full {
-                    Text("\(count)")
-                        .font(.apple(15, weight: .bold))
-                        .foregroundStyle(Color.white)
-                }
-                Image(systemName: "chevron.down")
-                    .font(.glyph(12, weight: .semibold))
-                    .foregroundStyle(full ? Color.white : shown ? Hue.ink : Hue.inkSecondary)
-                    .rotationEffect(.degrees(shown ? 180 : 0))
-            }
+            InterestChipFace(label: type.label, on: shown, check: false)
         }
-        .buttonStyle(InterestChipStyle(on: full, opened: shown))
+        .buttonStyle(.press(.squish, haptic: true))
         .accessibilityLabel(type.label)
         .accessibilityValue(shown ? "Open" : count > 0 ? "Closed, \(count) followed" : "Closed")
     }
 
-    /// One kind's schools, as Follow 3's tiles, in a row that scrolls off both edges of the screen.
+    /// One kind's schools, as Follow 3's logos, in rows of 3 across the card.
     @ViewBuilder private func tiles(_ type: Town.SchoolType, shown: Bool) -> some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: Metric.tileGap, alignment: .top), count: 3)
         if let schools {
             if schools.isEmpty {
                 // The Town feed's words for a read that failed.
                 Text("Check your connection and try again.")
                     .font(.apple(15))
                     .foregroundStyle(Hue.inkSecondary)
-                    .padding(.horizontal, gutter)
+                    .padding(.leading, Metric.indent - 16)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: FollowGridMetric.columnGap) {
-                        let list = FollowSuggestions.tiles(type, in: schools)
-                        ForEach(Array(list.enumerated()), id: \.element.id) { index, school in
-                            FollowTile(suggestion: school, on: isFollowing(school.target), width: FollowMetric.listWidth) {
-                                toggleFollow(school.target)
-                            }
-                            .modifier(InterestRises(shown: shown, index: index))
+                LazyVGrid(columns: columns, alignment: .center, spacing: FollowGridMetric.rowGap) {
+                    let list = FollowSuggestions.tiles(type, in: schools)
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, school in
+                        FollowTile(suggestion: school, on: isFollowing(school.target), ring: Hue.surface) {
+                            toggleFollow(school.target)
                         }
+                        .modifier(InterestRises(shown: shown, index: index))
                     }
-                    .padding(.horizontal, gutter)
                 }
             }
         } else {
-            HStack(alignment: .top, spacing: FollowGridMetric.columnGap) {
-                ForEach(0..<3, id: \.self) { _ in
-                    VStack(spacing: 8) {
-                        SkeletonBlock(cornerRadius: FollowGridMetric.art / 2)
-                            .frame(width: FollowGridMetric.art, height: FollowGridMetric.art)
-                        SkeletonBlock(cornerRadius: 6)
-                            .frame(width: FollowMetric.listWidth * 0.7, height: 12)
-                            .frame(height: FollowGridMetric.name, alignment: .top)
-                        SkeletonBlock(cornerRadius: FollowMetric.rowHeight / 2)
-                            .frame(width: FollowMetric.listWidth, height: FollowMetric.rowHeight)
-                    }
-                    .frame(width: FollowMetric.listWidth)
-                    .shimmering()
-                    .accessibilityHidden(true)
-                }
+            LazyVGrid(columns: columns, alignment: .center, spacing: FollowGridMetric.rowGap) {
+                ForEach(0..<3, id: \.self) { _ in FollowTileSkeleton() }
             }
-            .padding(.horizontal, gutter)
         }
     }
 
@@ -303,95 +302,87 @@ private struct InterestRises: ViewModifier {
     }
 }
 
-/// The disc at the end of a row that picks at once: + on grey, or a white check on ink that pops
-/// to 106% as it turns.
-private struct InterestPickDisc: View {
+/// Luma's check circle at the end of a row that picks at once: an empty grey ring, filled ink with a
+/// white check once picked, popping .6 to 112% and back over 0.26 s as it fills (mock v8 `.ring`).
+private struct InterestCheckCircle: View {
     let on: Bool
-    let side: CGFloat
 
     @State private var pop: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: on ? "checkmark" : "plus")
-            .font(.glyph(13, weight: .bold))
-            .foregroundStyle(on ? Color.white : Hue.ink)
-            .frame(width: side, height: side)
-            .background(on ? Hue.ink : Hue.fill, in: Circle())
-            .scaleEffect(pop)
-            .onChange(of: on) { _, now in
-                guard now, !reduceMotion else { return }
-                withAnimation(.easeOut(duration: 0.1)) { pop = 1.06 } completion: {
-                    withAnimation(.easeOut(duration: 0.1)) { pop = 1 }
-                }
+        ZStack {
+            Circle().strokeBorder(on ? Hue.ink : Hue.onboardingRing, lineWidth: 1.5)
+            Circle().fill(Hue.ink).opacity(on ? 1 : 0)
+            Image(systemName: "checkmark")
+                .font(.glyph(12, weight: .bold))
+                .foregroundStyle(Color.white)
+                .opacity(on ? 1 : 0)
+        }
+        .frame(width: Metric.ring, height: Metric.ring)
+        .scaleEffect(pop)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+        .onChange(of: on) { _, now in
+            guard now, !reduceMotion else { return }
+            pop = 0.6
+            withAnimation(.easeOut(duration: 0.156)) { pop = 1.12 } completion: {
+                withAnimation(.easeOut(duration: 0.104)) { pop = 1 }
             }
+        }
     }
 }
 
-/// One chip: words with a + (or, picked, a white check on ink) on Duolingo's raised edge.
-/// Sinks 2 pt on press. Its touch area reaches 44 pt tall, into half of the 8 pt gaps around it.
+/// One chip inside an open row: grey, ink with a white check before the word once picked (mock v8
+/// `.chip`). Sinks under the finger; the check pops in. Its touch area reaches 44 pt tall.
 private struct InterestChip: View {
     let label: String
     let on: Bool
     let action: () -> Void
 
-    @State private var check: CGFloat = 1
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Text(on ? "\u{2713}" : "+")
-                    .font(.apple(17, weight: .semibold))
-                    .foregroundStyle(on ? Color.white : Hue.inkSecondary)
-                    .frame(width: 12)
-                    .scaleEffect(check)
-                Text(label)
-                    .font(.apple(15, weight: .medium))
-                    .foregroundStyle(on ? Color.white : Hue.ink)
-                    .lineLimit(1)
-            }
+            InterestChipFace(label: label, on: on, check: true)
         }
-        .buttonStyle(InterestChipStyle(on: on))
+        .buttonStyle(.press(.squish, haptic: true))
         .accessibilityLabel(label)
+        .accessibilityValue(on ? "Picked" : "Not picked")
         .accessibilityAddTraits(on ? .isSelected : [])
-        .onChange(of: on) { _, now in
-            guard now, !reduceMotion else { return }
-            check = 0.4
-            withAnimation(.easeOut(duration: 0.1)) { check = 1.06 } completion: {
-                withAnimation(.easeOut(duration: 0.1)) { check = 1 }
-            }
-        }
     }
 }
 
-/// The chips' raised edge, ink once on; the Birthday step's gender pills wear it too (onboarding 31).
-struct InterestChipStyle: ButtonStyle {
+/// A chip's face: 34 pt, grey or ink, the words 14 pt medium.
+private struct InterestChipFace: View {
+    let label: String
     let on: Bool
-    /// A kind of school whose schools are showing: the app's light fill, not white.
-    var opened = false
+    /// A check before the word once on: a pick has one, an open kind of school doesn't.
+    let check: Bool
+
+    @State private var pop: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed
-        return configuration.label
-            .padding(.horizontal, 13)
-            .padding(.top, 7 + 1.5)
-            .padding(.bottom, 6 + 3.5)
-            .background {
-                // The edge is the whole capsule; the face sits on it 1.5 pt in, 3.5 pt at the bottom.
-                ZStack {
-                    Capsule().fill(on ? Hue.nextEdge : Hue.edge)
-                    Capsule().fill(on ? Hue.ink : opened ? Hue.fill : Hue.surface)
-                        .padding(.horizontal, 1.5)
-                        .padding(.top, 1.5)
-                        .padding(.bottom, 3.5)
-                }
+    var body: some View {
+        HStack(spacing: 6) {
+            if check && on {
+                Text("\u{2713}")
+                    .font(.apple(13, weight: .bold))
+                    .scaleEffect(pop)
             }
-            .contentShape(Rectangle().inset(by: -3))
-            .scaleEffect(down && !reduceMotion ? 0.97 : 1)
-            .offset(y: down && !reduceMotion ? 2 : 0)
-            .animation(Press.push(down: down), value: down)
-            .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+            Text(label)
+                .font(.apple(14, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(on ? Color.white : Hue.ink)
+        .padding(.horizontal, 13)
+        .frame(minHeight: Metric.chip)
+        .background(on ? Hue.ink : Hue.fill, in: Capsule())
+        .contentShape(Rectangle().inset(by: -5))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+        .onChange(of: on) { _, now in
+            guard now, check, !reduceMotion else { return }
+            pop = 0.4
+            withAnimation(.easeOut(duration: 0.1)) { pop = 1.12 } completion: {
+                withAnimation(.easeOut(duration: 0.1)) { pop = 1 }
+            }
+        }
     }
 }

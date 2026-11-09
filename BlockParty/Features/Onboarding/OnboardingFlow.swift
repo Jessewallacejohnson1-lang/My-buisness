@@ -482,7 +482,13 @@ struct OnboardingFlow: View {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
                                      schoolsFirst: store.schoolsOpened, follows: store.follows,
-                                     toggle: { toggleFollow($0) }) { heading }
+                                     toggle: { toggleFollow($0) }) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        // Mock v8's line under Follow 3 (onboarding 36).
+                        OnboardingSubline("Picked from what you love. Their events show up first.")
+                    }
+                }
             } else if store.step == .interests {
                 // Interests' question scrolls away with its rows, as Follow 3's does (onboarding 28).
                 InterestRows(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
@@ -493,10 +499,7 @@ struct OnboardingFlow: View {
                              topInset: FollowGridMetric.headingTop - FollowGridMetric.scrollTop) {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
-                        Text("We'll show events, groups and places that match.")
-                            .font(.apple(15))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .padding(.top, 6)
+                        OnboardingSubline("We'll show events, groups and places that match.")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -544,6 +547,7 @@ struct OnboardingFlow: View {
     private var heading: some View {
         OnboardingHeading(symbol: store.account?.symbol ?? store.step.symbol,
                           question: store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question),
+                          cake: store.account == nil && store.step == .birthday,
                           focused: $questionFocused)
             .contentTransition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: firstHere)

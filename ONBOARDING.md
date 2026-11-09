@@ -32,7 +32,10 @@ Done included; Luma's pale grey canvas; a 52 pt grey icon circle above each ques
 at 24 pt semibold on a 30 pt line; a 4 pt ink progress line that glides to each step and stops; Luma's
 flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
-layout (ticket 25). Duolingo's chunky bar, glint and raised button are gone. Everything below this
+layout (ticket 25). Birthday's icon is Jesse's cake in a lilac circle; Interests is one white card of
+rows with check circles, its chips grey until picked; Follow 3's logos sit on white with a plus that
+turns to an ink check, no Follow pills; Under 13 is a quiet icon and a line (ticket 36). Duolingo's
+chunky bar, glint and raised button and chips are gone. Everything below this
 section still holds, except where the spec says otherwise: between steps only the question slides
 (Reduce Motion: a cross-fade), not a cross-fade of the whole step.
 

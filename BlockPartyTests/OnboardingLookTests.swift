@@ -22,6 +22,11 @@ final class OnboardingLookTests: XCTestCase {
         }
     }
 
+    /// Birthday's icon is Jesse's cake, not a symbol (onboarding 36): the asset has to be in the app.
+    func testBirthdayCakeIsInTheApp() {
+        XCTAssertNotNil(UIImage(named: OnboardingHeading.cakeImage))
+    }
+
     func testUnder13SymbolExists() {
         XCTAssertNotNil(UIImage(systemName: OnboardingTooYoung.symbol))
     }

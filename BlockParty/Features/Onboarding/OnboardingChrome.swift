@@ -3,8 +3,7 @@
 //  Block Party — the pieces every onboarding question screen shares, in Luma's look (BP app
 //  onboarding 34, mock v8): the pale grey canvas, the back chevron, the 4 pt progress line, the icon
 //  circle over the question, the one Next pill, the grey field box. `OnboardingFlow` owns where they
-//  sit; the steps draw none of them. `ContinueButton` is Edit Profile's interests' Done, kept from
-//  the deleted wizard.
+//  sit; the steps draw none of them. Edit Profile's interests take the same Next pill.
 //
 
 import SwiftUI
@@ -75,24 +74,51 @@ struct OnboardingProgressBar: View {
 
 /// What sits over every question, Luma's: a 52 pt grey circle holding a small grey SF Symbol where
 /// the wordmark used to sit, then the question 18 pt under it, 24 pt semibold on a 30 pt line.
+/// Birthday's alone is Jesse's cake, 36 pt tall in a lilac circle: the one coloured icon (onboarding 36).
 struct OnboardingHeading: View {
     let symbol: String
     let question: String
+    /// Draws Jesse's cake in place of the symbol.
+    var cake = false
     @AccessibilityFocusState.Binding var focused: Bool
 
     static let disc: CGFloat = 52
+    /// Jesse's drawing (BP app references/birthday-icon), as the Going chat's birthday ask shows it.
+    static let cakeImage = "BirthdayCake"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: symbol)
-                .font(.glyph(24, weight: .regular))
-                .foregroundStyle(Hue.onboardingIcon)
-                .frame(width: Self.disc, height: Self.disc)
-                .background(Hue.onboardingField, in: Circle())
-                .accessibilityHidden(true)
+            Group {
+                if cake {
+                    Image(decorative: Self.cakeImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 36)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.glyph(24, weight: .regular))
+                        .foregroundStyle(Hue.onboardingIcon)
+                }
+            }
+            .frame(width: Self.disc, height: Self.disc)
+            .background(cake ? Hue.birthdayDisc : Hue.onboardingField, in: Circle())
+            .accessibilityHidden(true)
             OnboardingQuestion(question)
                 .accessibilityFocused($focused)
         }
+    }
+}
+
+/// The grey line under a question (mock v8 `.sub`): 15 pt, 6 pt under it.
+struct OnboardingSubline: View {
+    let words: String
+    init(_ words: String) { self.words = words }
+    var body: some View {
+        Text(words)
+            .font(.apple(15))
+            .foregroundStyle(Hue.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 6)
     }
 }
 
@@ -263,27 +289,5 @@ struct OnboardingSearchField: View {
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
         .padding(.top, 16)
-    }
-}
-
-/// The full-width ink CTA: Edit Profile's interests' Done. It was the old wizard's pill,
-/// moved here when that flow was deleted on 2026-09-18.
-struct ContinueButton: View {
-    let title: String
-    var enabled: Bool = true
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.apple(17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(enabled ? Hue.ink : Hue.ink.opacity(0.4),
-                            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: enabled)
     }
 }
