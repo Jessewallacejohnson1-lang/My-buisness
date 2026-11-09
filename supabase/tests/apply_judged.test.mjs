@@ -143,6 +143,20 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   const longer = 'Senior night: the Storm honors its seniors before the game, then hosts Sartell in a Central Lakes match.';
   await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
   assert.equal(await about(), longer, 'a longer one replaces it');
+  // An About the describe step or the cleaning wrote (about_written_at; inside-cards 14) says only what it is and
+  // what to expect, so it is shorter than the listing's words: a re-read never writes over it.
+  await db.exec(`update public.club_events set description = 'The Storm honor their seniors.', about_written_at = now()`);
+  await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
+  assert.equal(await about(), 'The Storm honor their seniors.', 'a laid-out About stays against a longer re-read');
+  // The price lands from a judged item, and a re-read with none keeps it (inside-cards 14).
+  const price = async () => (await db.query('select price as p from public.club_events')).rows[0].p;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, price: '$5 at the door' })), [], [], []);
+  assert.equal(await price(), '$5 at the door');
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.equal(await price(), '$5 at the door', 'a re-read without a price keeps it');
+  await apply(placed('2026-10-21').map((g) => ({ ...g, price: '' })), [], [], []);
+  assert.equal(await price(), '$5 at the door', 'a blank price keeps it too');
+  await db.exec(`update public.club_events set about_written_at = null`);
 
   // A re-read with no place keeps the one it had (Sal's, 2026-10-25); a new place still moves it.
   const where = async () => (await db.query('select location as l from public.club_events')).rows[0].l;
@@ -197,4 +211,29 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   // The writer's list runs from the Town's yesterday on, and the game above has a fixed date: today it is.
   await db.exec(`update public.club_events set event_date = (now() at time zone 'America/Chicago')::date`);
   assert.ok('cancelled_at' in (await db.query('select public.listed_for_writer() as l')).rows[0].l[0]);
+});
+
+// An About our describe step or the cleaning wrote (about_written_at) says only what it is and what to expect, so
+// it is shorter on purpose: a re-read never writes over it. One the describe step only researched (described_at,
+// found nothing) is still the source's own, and a fuller listing fills it (inside-cards 14, review).
+test('a re-read fills an About only researched, and never one we wrote', async () => {
+  const db = await realDatabase();
+  const listing = (description) => [{ status: 'approved', title: 'Fall Craft Day', event_date: '2026-11-21',
+    start_time: '10 AM', end_at: null, all_day: false, location: 'Community Center', description,
+    source_name: 'City of St. Joseph', source_url: 'u', source_uid: 'rec1:1', category: 'learn_make',
+    shows_from: '2026-11-01' }];
+  const apply = (items) => db.query('select public.apply_judged($1, $2, $3, $4)',
+    [JSON.stringify(items), '[]', '[]', '[]']);
+  const about = async () => (await db.query('select description as d from public.club_events')).rows[0].d;
+  const fuller = 'Make a wreath and a pinecone feeder to take home; every supply is on the tables, kids welcome.';
+
+  await apply(listing('Crafts.'));
+  await db.exec(`update public.club_events set described_at = now()`);
+  await apply(listing(fuller));
+  assert.equal(await about(), fuller, 'researched, nothing found: the fuller listing fills the thin About');
+
+  await db.exec(`update public.club_events set description = 'Wreaths and feeders to take home.',
+    described_at = now(), about_written_at = now()`);
+  await apply(listing(`${fuller} Sign up on the City's registration site.`));
+  assert.equal(await about(), 'Wreaths and feeders to take home.', 'written by us: a longer re-read leaves it');
 });

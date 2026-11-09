@@ -9,6 +9,8 @@
 
 import CoreLocation
 import Foundation
+// Its `CLLocationCoordinate2D: Equatable`, which `EventSpot` and the coordinate's `Hashable` below lean on.
+import Turf
 
 /// One thing waiting for the admin's yes (`list_held`, BP app launch-ready 07): a neighbour's Event or post the
 /// instant check didn't pass on, or a found Event (ADR-021).
@@ -61,8 +63,8 @@ extension UpcomingEvent: Decodable {
 
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
-             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, what,
-             sourceUrl, game, friendsGoing, liveKind, recurrence
+             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price,
+             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
     }
 
     init(from decoder: Decoder) throws {
@@ -79,7 +81,7 @@ extension UpcomingEvent: Decodable {
                   cancelled: try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false,
                   placePicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .placePicture)?.value,
                   hostPicture: try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .hostPicture)?.value,
-                  description: try text(.description),
+                  description: try text(.description), price: try text(.price),
                   game: try c.decodeIfPresent(Game.Lenient.self, forKey: .game)?.value, what: try text(.what),
                   sourceURL: try text(.sourceUrl).flatMap(URL.init(string:)),
                   friendsGoing: (try c.decodeIfPresent([FriendRow].self, forKey: .friendsGoing) ?? []).map(\.feed),
@@ -88,6 +90,34 @@ extension UpcomingEvent: Decodable {
         // A card kept from before it carried the heart (inside-cards 16) says none.
         heartCount = try c.decodeIfPresent(Int.self, forKey: .heartCount) ?? 0
         hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
+        // Where it is (inside-cards 19): a card from before it said so has no spot, and its Map opens Apple Maps.
+        if let lat = try c.decodeIfPresent(Double.self, forKey: .lat), let lng = try c.decodeIfPresent(Double.self, forKey: .lng) {
+            spot = .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        } else if try c.decodeIfPresent(Bool.self, forKey: .noPlace) == true {
+            spot = .noPlace
+        }
+    }
+}
+
+/// A spot's hash, by its latitude and longitude, beside Turf's `==` (Mapbox's geometry library makes the coordinate
+/// Equatable): what lets the types holding one compare and hash themselves (`EventSpot`, a card's `spot`).
+nonisolated extension CLLocationCoordinate2D: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(latitude)
+        hasher.combine(longitude)
+    }
+}
+
+/// Where an Event is (its card's `lat`, `lng` and `no_place`, and `CommunityAPI.eventSpots` for the map): its spot
+/// on the map, or at no one place (Online, a bare town, several places), which has no Map button (inside-cards 19
+/// and 20).
+nonisolated enum EventSpot: Hashable {
+    case at(CLLocationCoordinate2D)
+    case noPlace
+
+    var coordinate: CLLocationCoordinate2D? {
+        if case .at(let spot) = self { return spot }
+        return nil
     }
 }
 
@@ -193,17 +223,23 @@ struct CommunityAPI {
     // MARK: - Events (the map)
 
     /// Where each of these Events really is (`club_events.lat,lng`, set by the morning job
-    /// from the source registry), by id. One with no spot is left out. Signed out, it reads
-    /// with the public key, as the Town feed does.
-    func eventSpots(_ ids: [String]) async throws -> [String: CLLocationCoordinate2D] {
+    /// from the source registry), by id, or that it happens at no one place (`no_place`: Online,
+    /// a bare town, several places; inside-cards 19 and 20). One with neither is left out. Signed
+    /// out, it reads with the public key, as the Town feed does.
+    func eventSpots(_ ids: [String]) async throws -> [String: EventSpot] {
         guard !ids.isEmpty else { return [:] }
-        struct Row: Decodable { let id: String; let lat: Double?; let lng: Double? }
+        #if DEBUG
+        // `-town-spots`: the sample Events' spots, no read (docs/debug-flags.md).
+        if LaunchFlags.has(.townSpots) { return TownFixtures.spots.filter { ids.contains($0.key) } }
+        #endif
+        struct Row: Decodable { let id: String; let lat: Double?; let lng: Double?; let noPlace: Bool? }
         let rows: [Row] = try Supabase.decode(await db.rest("club_events", [
-            ("select", "id,lat,lng"), ("lat", "not.is.null"), ("id", "in.(\(ids.joined(separator: ",")))"),
+            ("select", "id,lat,lng,no_place"), ("or", "(lat.not.is.null,no_place.is.true)"),
+            ("id", "in.(\(ids.joined(separator: ",")))"),
         ], anon: true))
-        return Dictionary(rows.compactMap { r in
-            guard let lat = r.lat, let lng = r.lng else { return nil }
-            return (r.id, CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        return Dictionary(rows.compactMap { r -> (String, EventSpot)? in
+            if let lat = r.lat, let lng = r.lng { return (r.id, .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))) }
+            return r.noPlace == true ? (r.id, .noPlace) : nil
         }, uniquingKeysWith: { a, _ in a })
     }
 
@@ -281,35 +317,39 @@ struct CommunityAPI {
     /// doesn't parse is dropped: it would have no moment to leave; so is news with no
     /// post to open, and an Event whose card doesn't decode.
     nonisolated static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
-        /// An Event row is its card plus the feed's own; news and posts carry their own columns.
-        struct Row: Decodable {
-            let id: String
-            /// News and posts only, as the place, words, photo and dates below: an Event's are its card's.
-            let title: String?
-            let location: String?
-            let imageUrl: String?
-            let sourceName: String?
-            let createdAt: String?
-            let leavesAt: String
-            let reason: String?
-            let reasonName: String?
-            let heartCount: Int?
-            let hearted: Bool?
-            let placePicture: PlacePicture.Lenient?
-            let description: String?
-            /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
-            let clubId: String?
-            let inClub: Bool?
-            /// "news" for town news, "post" for a neighbour's post, else an Event (town-feed 35), and the post
-            /// news came from.
-            let kind: String?
-            let sourceUrl: String?
-            /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29); a News's photo's
-            /// shape alone (town-feed 53).
-            let poster: LenientPoster?
-            /// The Event card (BP app codebase-health-2); nil on news and posts.
-            let card: UpcomingEvent.Lenient?
-        }
+        try Supabase.decode(data, as: [FeedRow].self).compactMap(\.line)
+    }
+
+    /// One of `get_town_feed`'s rows, and a story as Liked sends it. An Event row is its card plus the feed's own;
+    /// news and posts carry their own columns.
+    nonisolated struct FeedRow: Decodable {
+        let id: String
+        /// News and posts only, as the place, words, photo and dates below: an Event's are its card's.
+        let title: String?
+        let location: String?
+        let imageUrl: String?
+        let sourceName: String?
+        let createdAt: String?
+        let leavesAt: String
+        let reason: String?
+        let reasonName: String?
+        let heartCount: Int?
+        let hearted: Bool?
+        let placePicture: PlacePicture.Lenient?
+        let description: String?
+        /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
+        let clubId: String?
+        let inClub: Bool?
+        /// "news" for town news, "post" for a neighbour's post, else an Event (town-feed 35), and the post
+        /// news came from.
+        let kind: String?
+        let sourceUrl: String?
+        /// A post's neighbour, the friends they tagged and its photo's shape (town-feed 29); a News's photo's
+        /// shape alone (town-feed 53).
+        let poster: LenientPoster?
+        /// The Event card (BP app codebase-health-2); nil on news and posts.
+        let card: UpcomingEvent.Lenient?
+
         /// Who posted a post, or nil when it doesn't decode: that post is left out, never the feed.
         struct LenientPoster: Decodable {
             struct Poster: Decodable {
@@ -329,35 +369,39 @@ struct CommunityAPI {
                 aspect = (try? decoder.container(keyedBy: Keys.self)).flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
             }
         }
-        return try Supabase.decode(data, as: [Row].self).compactMap { row -> TownFeedLine? in
-            guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
-            if row.kind == "post" {
-                guard let poster = row.poster?.value, !poster.name.isEmpty, let words = row.title,
-                      let posted = DateHelpers.timestamp(row.createdAt) else { return nil }
-                return .post(TownPost(id: row.id, poster: .init(id: poster.id, name: poster.name),
+
+        /// The row as an Event, a story or a post: nil for one with no moment to leave, a story with no post to open,
+        /// a post with no poster, and an Event whose card doesn't decode.
+        var line: TownFeedLine? {
+            guard let leavesAt = DateHelpers.timestamp(leavesAt) else { return nil }
+            if kind == "post" {
+                guard let poster = poster?.value, !poster.name.isEmpty, let words = title,
+                      let posted = DateHelpers.timestamp(createdAt) else { return nil }
+                return .post(TownPost(id: id, poster: .init(id: poster.id, name: poster.name),
                                       posterPhoto: poster.photo.flatMap(URL.init(string:)), words: words,
-                                      photo: row.imageUrl.flatMap(URL.init(string:)), aspect: row.poster?.aspect,
-                                      place: row.location,
+                                      photo: imageUrl.flatMap(URL.init(string:)), aspect: self.poster?.aspect,
+                                      place: location,
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
                                       friendsOnly: poster.friendsOnly ?? false,
-                                      posted: posted, leavesAt: leavesAt, heartCount: row.heartCount ?? 0,
-                                      hearted: row.hearted ?? false, followed: row.reason == "follow"))
+                                      posted: posted, leavesAt: leavesAt, heartCount: heartCount ?? 0,
+                                      hearted: hearted ?? false, followed: reason == "follow"))
             }
-            if row.kind == "news" {
-                guard let post = row.sourceUrl.flatMap(URL.init(string:)), let title = row.title else { return nil }
-                let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return .news(TownNews(id: row.id, place: row.sourceName ?? "",
+            if kind == "news" {
+                guard let post = sourceUrl.flatMap(URL.init(string:)), let title else { return nil }
+                let words = description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .news(TownNews(id: id, place: sourceName ?? "",
                                       words: words.isEmpty ? title : words, post: post,
-                                      picture: row.placePicture?.value, leavesAt: leavesAt,
-                                      published: DateHelpers.timestamp(row.createdAt), title: title,
-                                      interest: row.reason == "interest" ? row.reasonName : nil,
-                                      photo: row.imageUrl.flatMap(URL.init(string:)), photoAspect: row.poster?.aspect))
+                                      picture: placePicture?.value, leavesAt: leavesAt,
+                                      published: DateHelpers.timestamp(createdAt), title: title,
+                                      interest: reason == "interest" ? reasonName : nil,
+                                      hearted: hearted ?? false, heartCount: heartCount ?? 0,
+                                      photo: imageUrl.flatMap(URL.init(string:)), photoAspect: poster?.aspect))
             }
-            guard let event = row.card?.value else { return nil }
+            guard let event = card?.value else { return nil }
             return .event(TownFeedRow(event: event, leavesAt: leavesAt,
-                                      reason: row.reason, reasonName: row.reasonName,
-                                      heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
-                                      groupID: row.clubId, inGroup: row.inClub ?? false))
+                                      reason: reason, reasonName: reasonName,
+                                      heartCount: heartCount ?? 0, hearted: hearted ?? false,
+                                      groupID: clubId, inGroup: inClub ?? false))
         }
     }
 
@@ -693,9 +737,24 @@ struct CommunityAPI {
 
     /// The Events the neighbour hearted from `from` on, a Town day as "yyyy-MM-dd", and any
     /// from before it still running: `get_my_likes`, You's Liked list (BP app inside-cards 16).
-    /// Each card says it's hearted and whether they're Going.
-    func getMyLikes(from: String) async throws -> [UpcomingEvent] {
-        try Self.myGoingRows(from: await db.rpc("get_my_likes", ["p_from": from]))
+    /// Each card says it's hearted and whether they're Going. Then the stories they hearted that the
+    /// Town feed still keeps, newest first (inside-cards 22).
+    func getMyLikes(from: String) async throws -> (events: [UpcomingEvent], news: [TownNews]) {
+        try Self.myLikesRows(from: await db.rpc("get_my_likes", ["p_from": from]))
+    }
+
+    /// `get_my_likes`' rows, read once: an Event's is its card, a story's is the Town feed's News row in `news`
+    /// (inside-cards 22), read as the feed reads it. A row that doesn't decode is left out, never the read.
+    static func myLikesRows(from data: Data) throws -> (events: [UpcomingEvent], news: [TownNews]) {
+        struct Story: Decodable {
+            let value: TownNews?
+            init(from decoder: Decoder) {
+                if case .news(let news)? = (try? FeedRow(from: decoder))?.line { value = news } else { value = nil }
+            }
+        }
+        struct Row: Decodable { let card: UpcomingEvent.Lenient?; let news: Story? }
+        let rows = try Supabase.decode(data, as: [Row].self)
+        return (rows.compactMap { $0.card?.value }, rows.compactMap { $0.news?.value })
     }
 
     /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,

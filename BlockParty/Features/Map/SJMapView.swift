@@ -12,6 +12,11 @@
 //  Business pins, chips, search, the help button, the town pill and the bottom sheet went
 //  with the reset; Search has the businesses.
 //
+//  An Event page's small map, or a held Town card's View on Map, opens it on one Event of any
+//  day with a spot (BP app inside-cards 19): it flies in from a little way out over that spot,
+//  the Event's bubble first and its card up, the card's Directions opening Apple Maps. Closed,
+//  or with that card tapped when its own page asked, it lands back where you were.
+//
 //  One static basemap (BasemapPalette, Uber's colours), Mapbox's wordmark hidden and its
 //  ⓘ attribution kept (Jesse's 2026-08-14 call), rotate and tilt 0–70°, 120 Hz.
 //
@@ -22,12 +27,10 @@ import UIKit
 // which hides the Mapbox wordmark (Jesse's 2026-08-14 call).
 @_spi(Restricted) import MapboxMaps
 
-private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
-
 struct SJMapView: View {
     /// Leaves the map; nil draws no close circle.
     var onClose: (() -> Void)?
-    /// View on Map from a held Town card (inside-cards 24): its bubble's card opens, on its page.
+    /// The Event an Event page or a held Town card asked for (inside-cards 19 and 24): its bubble's card opens.
     var request: EventMapOpener? = nil
 
     @EnvironmentObject private var auth: AuthStore
@@ -41,12 +44,24 @@ struct SJMapView: View {
     /// don't pile up (Jesse at Check-in 1).
     static let openZoom: Double = 14.6
 
-    @State private var viewport: Viewport = .camera(
-        center: SJMapView.debugCenter() ?? MapSpots.center,
-        zoom: SJMapView.debugZoom() ?? SJMapView.openZoom,
-        bearing: SJMapView.debugDouble(.mapBearing) ?? 0,
-        pitch: SJMapView.debugDouble(.mapPitch) ?? 0
-    )
+    @State private var viewport: Viewport
+    /// The Event whose own page asked for the map: a tap on its card closes the map back onto that page. State,
+    /// so it outlives the ask, which the map takes once.
+    @State private var cameFrom: String?
+
+    init(onClose: (() -> Void)?, request: EventMapOpener? = nil) {
+        self.onClose = onClose
+        self.request = request
+        let ask = request?.ask
+        _cameFrom = State(initialValue: ask?.fromPage == true ? ask?.event.id : nil)
+        // An Event asked for opens over its spot, a little way out, and flies in (`MapFocus.arrive`).
+        _viewport = State(initialValue: .camera(
+            center: ask?.spot ?? SJMapView.debugCenter() ?? MapSpots.center,
+            zoom: ask.map { _ in MapFocus.arriveFrom } ?? SJMapView.debugZoom() ?? SJMapView.openZoom,
+            bearing: SJMapView.debugDouble(.mapBearing) ?? 0,
+            pitch: SJMapView.debugDouble(.mapPitch) ?? 0
+        ))
+    }
     /// The bearing and pitch for the compass, the zoom for the bubbles: each observed only
     /// by what draws it, so a pinch or a twist never redraws the whole map.
     @State private var compass = CompassHeading()
@@ -57,6 +72,13 @@ struct SJMapView: View {
     @State private var focus = MapFocus()
     @State private var path: [FeedCardItem] = []
     @State private var mapSize: CGSize = .zero
+    /// What an Event page pushed on the map's own stack opens: back to the map, its card still up.
+    @State private var backToMap: EventMapOpener?
+    /// The map has drawn its first frame: a fly started before it, as the style loads, was lost (inside-cards 19).
+    @State private var drawn = false
+    /// The Event asked for, whose card opens as the camera flies in once its bubble is drawn: the shell's ask as the
+    /// map opens, or an Event page's on the map's own stack.
+    @State private var arriving: String?
 
     private var selected: TodayBubble? { shown.first { $0.id == focus.selectedID } }
 
@@ -67,7 +89,10 @@ struct SJMapView: View {
                 chrome
                 if let bubble = selected {
                     MapEventCard(events: bubble.events, page: $focus.page,
-                                 onOpen: { open($0) }, onClose: { select(nil) })
+                                 directions: { event in model.today.spots[event.id].flatMap { Directions.url(to: $0) } },
+                                 onOpen: { item in
+                                     if item.id == cameFrom { onClose?() } else { open(item) }
+                                 }, onClose: { select(nil) })
                         .id(bubble.id)
                         .padding(.horizontal, MapEventCard.sideInset)
                         .padding(.bottom, MapEventCard.bottomInset)
@@ -78,11 +103,26 @@ struct SJMapView: View {
                 }
             }
             .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
+            // Back from an Event page on the map's own stack that asked for it: the fly starts once the map shows
+            // again, since one asked while the page covered it was lost.
+            .onAppear { openEvent(in: shown) }
             .toolbar(.hidden, for: .navigationBar)
             .background { SwipeBack().frame(width: 0, height: 0) }
-            .navigationDestination(for: FeedCardItem.self) { EventPage(item: $0, goingChat: false) }
+            .navigationDestination(for: FeedCardItem.self) {
+                EventPage(item: $0, goingChat: false).environment(\.viewOnMap, backToMap)
+            }
         }
         .onAppear {
+            if backToMap == nil {
+                backToMap = EventMapOpener(show: { ask in
+                    arrive(ask)
+                    path.removeAll()
+                })
+            }
+            if let ask = request?.ask {
+                arrive(ask)
+                request?.ask = nil
+            }
             model.start(auth: auth, feed: townFeed, live: liveGames)
             Haptics.prepare()
         }
@@ -117,7 +157,7 @@ struct SJMapView: View {
                 return false
             }
         }
-        .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+        .mapStyle(MapStyle(uri: BasemapPalette.style))
         // Rotate and tilt pivot around the two fingers; a pinch doesn't drift into a turn.
         .gestureOptions(GestureOptions(rotateEnabled: true,
                                        simultaneousRotateAndPinchZoomEnabled: true,
@@ -141,7 +181,11 @@ struct SJMapView: View {
         }
         // A second recolour: `onStyleLoaded` alone sometimes lost the race and left the map
         // Mapbox's grey; `recolor` is idempotent.
-        .onMapLoaded { _ in BasemapPalette.recolor(proxy.map) }
+        .onMapLoaded { _ in
+            BasemapPalette.recolor(proxy.map)
+            drawn = true
+            openEvent(in: shown)
+        }
         .onCameraChanged {
             compass.update(cameraState: $0.cameraState)
             zoom.update(Double($0.cameraState.zoom))
@@ -162,7 +206,7 @@ struct SJMapView: View {
         let merged = map.map { map in
             // Closer than a bead and a half: their time tags would run into each other.
             TodayPlaces.merge(bubbles, at: bubbles.map { map.point(for: $0.coordinate) },
-                              within: zoom.bead * 1.5, now: now)
+                              within: zoom.bead * 1.5, now: now, first: model.today.asked?.id)
         } ?? bubbles
         // The Event on the open card, which it keeps however the bubbles merge or split.
         let onCard = selected.map { $0.events[min(max(focus.page, 0), $0.events.count - 1)].id }
@@ -209,7 +253,8 @@ struct SJMapView: View {
     }
 
     /// The one pill: a read failed with nothing to show (tap to try again, as the Town bar's
-    /// pill words it), or every one of today's events is over ("Nothing today" on a day with none).
+    /// pill words it), or every one of today's events is over ("Nothing today" on a day with none),
+    /// which hides while a card is up: it may be another day's (inside-cards 19).
     @ViewBuilder
     private var pill: some View {
         let _ = model.clockTick
@@ -224,7 +269,7 @@ struct SJMapView: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(FeedStateCopy.retryAction)
-        } else if townFeed.entries != nil, model.today.dayIsOver(now: TodayBubbleClock.now()) {
+        } else if townFeed.entries != nil, focus.selectedID == nil, model.today.dayIsOver(now: TodayBubbleClock.now()) {
             pillText(model.today.events.isEmpty ? "Nothing today" : "Nothing else today")
         }
     }
@@ -274,13 +319,19 @@ struct SJMapView: View {
         fly(withAnimation(cardSpring) { focus.home() })
     }
 
-    /// View on Map: once its bubble is drawn, its card opens on it, once.
+    /// An Event asked for: on the map whatever its day, its card opening as the camera flies in to it once the map is
+    /// on screen (`openEvent`).
+    private func arrive(_ ask: EventMapOpener.Ask) {
+        model.ask(ask.event, at: ask.spot)
+        arriving = ask.event.id
+    }
+
+    /// The Event asked for: once its bubble is drawn, its card opens on it as the camera flies in, once.
     private func openEvent(in bubbles: [TodayBubble]) {
-        guard let eventID = request?.eventID,
+        guard drawn, let eventID = arriving,
               let bubble = bubbles.first(where: { $0.events.contains { $0.id == eventID } }) else { return }
-        request?.eventID = nil
-        select(bubble)
-        if let page = bubble.events.firstIndex(where: { $0.id == eventID }) { focus.page = page }
+        arriving = nil
+        fly(withAnimation(cardSpring) { focus.arrive(bubble, on: eventID, mapWidth: mapSize.width) })
     }
 
     /// The compass's tap: face north and level, in place.

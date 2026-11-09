@@ -51,7 +51,9 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   interest     one id from Interests.all (BlockParty/Backend/Interests.swift), or null when none
                fits (a council meeting, a road closure); News matches neighbours by it (town-feed 35)
   category     news: "announcement" (default) | "road" | "school" | "campus" | "business"
-  blurb        one line
+  blurb        one line; an Event's says what it is and what to expect, never its date, time, place or price
+  price        events, optional: what it costs, as words ("Free", "$10 at the door"); the Event page's own line
+               (BP app inside-cards 14)
   game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
                "St. Cloud"]}, the host's team first, as neighbours say them (read_events.py, the league's
                games). CSB and SJU Athletics games need none: the writer reads them off the title.
@@ -842,7 +844,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
     row = {"status": None, "title": title, "event_date": day.isoformat(),
            "start_time": at and clock(at), "end_at": end and end.isoformat(), "all_day": at is None,
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
-           "description": clip(it.get("blurb"), 1000) or None,
+           "description": clip(it.get("blurb"), 1000) or None, "price": clip(it.get("price"), 60) or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "team_shorts": None,

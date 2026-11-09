@@ -5,9 +5,10 @@
 //  A Town card that says News, the short white card (BP app references/no-photo-cards): the place's
 //  logo on the left, else its first letter with its name starting the facts; the headline, "News · 2d"
 //  under it in plain words, and the facts beside them. Nothing under it: held, it opens a Town card's menu (`TownCardHold`,
-//  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. Never its place's cover
-//  (Jesse, 2026-11-04, BP app town-feed 40); its post's own photo, when the photo step kept one, puts it on the Town
-//  photo card (Jesse, 2026-11-08, town-feed 53). A tap opens the post in Instagram or Facebook when that app is on the phone,
+//  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. The heart in its bottom right
+//  corner, signed in only (inside-cards 22). Never its place's cover (Jesse, 2026-11-04, BP app town-feed 40); its post's
+//  own photo, when the photo step kept one, puts it on the Town photo card with that card's grey glass heart (Jesse,
+//  2026-11-08, town-feed 53). A tap opens the post in Instagram or Facebook when that app is on the phone,
 //  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
 //
 
@@ -15,15 +16,25 @@ import SwiftUI
 
 struct TownNewsCard: View {
     let news: TownNews
+    /// Its sides' room: the Town feed's, or none where the page already keeps it (Liked).
+    var inset: CGFloat = TownFeedMetric.contentInset
 
+    /// The headline keeps 26 pt clear on its right for the heart: 242 pt of a 402 pt phone's 268 (BP app
+    /// inside-cards SPEC.md, "The Town cards").
+    static let heartRoom: CGFloat = 26
+
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pressed = false
     @State private var link: SafariLink?
+    /// The card's size, so the heart on its corner sinks in with it.
+    @State private var size: CGSize = .zero
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: open) {
-                face
+                face(heart: actions.canAct)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
                     .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                     .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
                     .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
@@ -38,30 +49,46 @@ struct TownNewsCard: View {
                 .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the post")
+            // The heart in the card's bottom right corner, its own button over the post's, riding the corner
+            // in as the card sinks, as an Event card's does.
+            .overlay(alignment: .bottomTrailing) {
+                if actions.canAct {
+                    let scale = FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion)
+                    TownCardHeart(news: news, onWhite: news.photoSource == nil)
+                        .padding(TownCardHeart.inset)
+                        .offset(x: -size.width * (1 - scale) / 2, y: -size.height * (1 - scale) / 2)
+                        .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
+                }
+            }
             .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: share))
-            .padding(.horizontal, TownFeedMetric.contentInset)
+            .padding(.horizontal, inset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Only while it's on screen does a heart the server turns back shake here.
+        .onAppear { actions.cardOpened(news.id) }
+        .onDisappear { actions.cardClosed(news.id) }
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
 
-    /// Its post's own photo on the Town photo card (town-feed 53), else the white card.
+    /// Its post's own photo on the Town photo card (town-feed 53), else the white card. `heart`: one sits in its corner.
     @ViewBuilder
-    private var face: some View {
+    private func face(heart: Bool) -> some View {
         if let photo = news.photoSource {
-            NewsPhotoFace(news: news, photo: photo)
+            // The words keep clear of the heart as an Event photo card's do.
+            NewsPhotoFace(news: news, photo: photo, heartRoom: heart ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
                 // A new photo for this News starts over: not failed, its credit waiting for it.
                 .id(photo.url)
         } else {
-            whiteFace
+            whiteFace(room: heart ? Self.heartRoom : 0)
         }
     }
 
-    /// With no second line, its two lines go to the headline (BP app inside-cards 12). Shared as this, photo or
-    /// not: the share window draws at once, before any photo could load.
-    private var whiteFace: some View {
+    /// With no second line, its two lines go to the headline (BP app inside-cards 12). `room` is the heart's. Shared as
+    /// this, photo or not: the share window draws at once, before any photo could load.
+    private func whiteFace(room: CGFloat) -> some View {
         NoPhotoCard(logo: news.logo, name: news.place, when: news.when(),
-                    title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2)
+                    title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2,
+                    trailingRoom: room)
     }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
@@ -82,8 +109,8 @@ struct TownNewsCard: View {
             SharePayload(title: news.place,
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
-                // The card alone: the share window has none of the app's environment its hold reads.
-                whiteFace
+                // The card alone, no heart: the share window has none of the app's environment its hold reads.
+                whiteFace(room: 0)
                     .padding(.horizontal, TownFeedMetric.contentInset)
                     .frame(width: 320)
                     .padding(.vertical, 16)
@@ -95,11 +122,13 @@ struct TownNewsCard: View {
 
 /// A News with its post's own photo (town-feed 53): an Event photo card's face (`FeedEventCard`), the photo in its own
 /// shape known before it loads (square at accessibility sizes), its shade, the headline, "News · 2d" and its words over
-/// it, the place's mark with the photo's credit on its top right once the photo is on screen, no heart. A photo that
+/// it, the place's mark with the photo's credit on its top right once the photo is on screen; the heart is the card's. A photo that
 /// can't load keeps the frame, as ink, so the feed never jumps.
 private struct NewsPhotoFace: View {
     let news: TownNews
     let photo: FeedCardImageSource
+    /// The heart's room on the right of the words, none signed out.
+    let heartRoom: CGFloat
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -128,7 +157,7 @@ private struct NewsPhotoFace: View {
     }
 
     /// As an Event's over its photo: the headline, 4 pt under it when, then its words (2 lines; Jesse at town-feed 53's
-    /// Check-in 1). With no heart in the corner, they run to 16 pt from the right.
+    /// Check-in 1), clear of the heart in the bottom right corner.
     private var words: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(news.headline)
@@ -147,6 +176,7 @@ private struct NewsPhotoFace: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
+        .padding(.trailing, heartRoom)
         .feedCardPhotoTypeShadow()
     }
 

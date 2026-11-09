@@ -1,6 +1,6 @@
 // Fixed stories for get_my_going (supabase/migrations/*_my_going.sql), the You tab's read of
-// the caller's Going, and get_my_likes (*_heart_replaces_save.sql), You's Liked list, run in PGlite
-// like the Town feed's. Run: `npm install && npm test` in this folder.
+// the caller's Going, and get_my_likes (*_heart_replaces_save.sql), You's Liked list (its stories in
+// news_heart.test.mjs), run in PGlite like the Town feed's. Run: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase, people } from './fixture.mjs';
@@ -375,7 +375,7 @@ function isFullCard(card, id, day) {
 const bareCard = (card, id, day, going) => ({
   id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
   club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null,
+  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null, price: null, lat: null, lng: null, no_place: false,
   what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
 });
 
@@ -411,7 +411,33 @@ test('Liked sends the same full Event card, saying you hearted it (codebase-heal
   const [row] = await asTheAppReads('likes', day);
   isFullCard(row.card, id, day);
   assert.deepEqual([row.card.heart_count, row.card.hearted], [2, true], "every account's hearts, and yours");
-  assert.deepEqual(Object.keys(row), ['card'], 'the card alone: no Event column copied beside it (ticket 03)');
+  // The card alone: no Event column copied beside it (ticket 03); `news` is a hearted story's (inside-cards 22).
+  assert.deepEqual([Object.keys(row), row.news], [['card', 'news'], null]);
+});
+
+test("a priced Event's card carries its price as words, for the Event page's line (inside-cards 14)", async () => {
+  await reset();
+  const day = soon();
+  const id = await add("Christmas at Saint John's", day);
+  await db.query('update public.club_events set price = $2 where id = $1', [id, '$22, $20 seniors, $15 students']);
+  await going(ME, id);
+  const [row] = await asTheAppReads('going', day);
+  assert.equal(row.card.price, '$22, $20 seniors, $15 students', 'free text, as the source says it');
+});
+
+test("an Event's card says where it is, or that it is at no one place, for its Map (inside-cards 19 review)", async () => {
+  await reset();
+  const day = soon();
+  const park = await add('Music in Millstream Park', day);
+  const online = await add('City Council', day);
+  await db.query('update public.club_events set lat = 45.57007, lng = -94.32874 where id = $1', [park]);
+  await db.query('update public.club_events set no_place = true where id = $1', [online]);
+  await going(ME, park);
+  await going(ME, online);
+  const cards = Object.fromEntries((await asTheAppReads('going', day)).map((r) => [r.card.title, r.card]));
+  const where = (c) => [c.lat, c.lng, c.no_place];
+  assert.deepEqual(where(cards['Music in Millstream Park']), [45.57007, -94.32874, false]);
+  assert.deepEqual(where(cards['City Council']), [null, null, true], 'Online: no Map, known before any read');
 });
 
 test('Liked sends a bare Event card with empties, saying you are not Going (codebase-health-2 02)', async () => {
@@ -422,5 +448,5 @@ test('Liked sends a bare Event card with empties, saying you are not Going (code
   const [row] = await asTheAppReads('likes', day);
   assert.deepEqual(Object.keys(row.card).sort(), CARD_KEYS);
   assert.deepEqual(row.card, bareCard(row.card, id, day, false));
-  assert.deepEqual(Object.keys(row), ['card']);
+  assert.deepEqual([Object.keys(row), row.news], [['card', 'news'], null]);
 });

@@ -51,6 +51,15 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
         }
 
+        /// Each story's heart written (inside-cards 22).
+        var newsHearts: [Bool] = []
+
+        func newsHeart(_ newsID: String, _ hearted: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            newsHearts.append(hearted)
+            try answer()
+        }
+
         func member(_ groupID: String, _ member: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             memberships.append("\(groupID) \(member)")
@@ -80,7 +89,7 @@ final class RealLifeActionsTests: XCTestCase {
         RealLifeActions(signedIn: signedIn, needsAccount: true, realAccount: { !anonymous },
                         hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
-                        setGoing: server.write, setHeart: server.heart,
+                        setGoing: server.write, setHeart: server.heart, setNewsHeart: server.newsHeart,
                         setMember: server.member, setFollow: server.follow, readFollow: server.followCard)
     }
 
@@ -252,6 +261,32 @@ final class RealLifeActionsTests: XCTestCase {
                        "and the Town card's, with no pill")
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
+    }
+
+    /// An Event page's bar through taps (inside-cards 18): the day over its time while nobody's going, "You're going!"
+    /// the instant you Attend, counting you; the day again once you leave, then the count as others go. Once it has
+    /// ended, no "Can't go?" (event-card 07).
+    func testAnEventPagesBarCountsYouInAndOut() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let before = Town.midnight("2026-10-01")!
+        let item = card(going: 0)
+        actions.read([item])
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "Mon, Oct 12", second: "7 PM", canLeave: false, pill: .rsvp), "nobody going: the day")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.going(item).count, 1, "the count goes up by you")
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: Town.midnight("2026-10-13")!),
+                       RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
+                       "once it has ended there's nothing left to leave")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before)?.top, "Mon, Oct 12", "Can't go?: the day again")
+        try await Task.sleep(for: Self.hold * 3)
+        actions.read([card(going: 3)])
+        XCTAssertEqual(actions.rsvp(item, bar: true, look: true, at: before),
+                       RSVPWords(top: "3 going", second: nil, canLeave: false, pill: .rsvp), "others going: the count")
     }
 
     /// A read sets each Event's base. A choice the read agrees with is done; one it
@@ -769,6 +804,77 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(server.hearts, [])
     }
 
+    // MARK: A story's heart (inside-cards 22)
+
+    private func story(id: String = "n1", hearts: Int = 2, hearted: Bool = false) -> TownNews {
+        TownNews(id: id, place: "The Wandering Cow", words: "Four scoops for $5 on Fridays.",
+                 post: URL(string: "https://www.instagram.com/p/x/")!, leavesAt: .distantFuture, title: "Flight Friday",
+                 hearted: hearted, heartCount: hearts)
+    }
+
+    /// A story's heart shows at once, counting you, is written as a story's (never an Event's), and lands in
+    /// Liked at once; taking it back is written too.
+    func testAStorysHeartShowsAtOnceAndIsWrittenAsAStorys() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let news = story()
+        XCTAssertEqual(actions.heart(news), .init(isHearted: false, count: 2), "as the read sent it")
+
+        actions.toggleHeart(news)
+        XCTAssertEqual(actions.heart(news), .init(isHearted: true, count: 3))
+        XCTAssertEqual(Set(actions.likedNews.keys), ["n1"])
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.newsHearts, [true])
+        XCTAssertEqual(server.hearts, [], "no Event heart")
+
+        actions.toggleHeart(news)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertEqual(server.newsHearts, [true, false])
+        XCTAssertEqual(actions.heart(news), .init(isHearted: false, count: 2))
+    }
+
+    /// A refused heart on a story holds, turns back, and shakes its card once, only while the card is on screen.
+    func testAFailedStoryHeartTurnsBackAndShakesOnlyWhileItsCardIsOpen() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let news = story()
+
+        actions.toggleHeart(news)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertFalse(actions.heart(news).isHearted, "turned back")
+        XCTAssertEqual(actions.newsHeartFailureCount(news.id), 0, "card off screen: no shake, no buzz")
+
+        actions.cardOpened(news.id)
+        let tapped = ContinuousClock.now
+        actions.toggleHeart(news)
+        try await waitWhile(actions.heart(news).isHearted)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold, "turned back before it could be seen")
+        try await waitWhile(actions.newsHeartFailureCount(news.id) == 0)
+        XCTAssertEqual(actions.newsHeartFailureCount(news.id), 1, "one turn back, one shake")
+        XCTAssertEqual(actions.heartFailureCount(news.id), 0, "an Event's heart never shakes for it")
+        actions.cardClosed(news.id)
+    }
+
+    /// A story's heart that got no answer stays and is sent again; a read agreeing with it settles it, and the
+    /// next read is the truth.
+    func testAStorysHeartWithNoAnswerIsSentAgainAndAReadSettlesIt() async throws {
+        let server = Server()
+        server.offline = true
+        let actions = actions(server)
+        actions.toggleHeart(story())
+        try await Task.sleep(for: Self.retry * 4)
+        XCTAssertTrue(actions.heart(story()).isHearted, "no answer is no no")
+        server.offline = false
+        let tries = server.newsHearts.count
+        try await waitWhile(server.newsHearts.count == tries)
+        try await Task.sleep(for: Self.retry)
+        actions.read(news: [story(hearts: 3, hearted: true)])
+        XCTAssertEqual(actions.heart(story()), .init(isHearted: true, count: 3))
+        actions.read(news: [story(hearts: 2, hearted: false)])
+        XCTAssertEqual(actions.heart(story()), .init(isHearted: false, count: 2), "unhearted elsewhere: the read wins")
+    }
+
     // MARK: Being in a group (rsvp-and-groups 06)
 
     private static let groupID = "8d2c4b6a-1e3f-4a5b-9c7d-0e1f2a3b4c5d"
@@ -1216,6 +1322,36 @@ final class RSVPWordsTests: XCTestCase {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true),
                            want, name)
         }
+    }
+
+    /// An Event page's bar (inside-cards 18, Jesse: "show friends that are going on the left of bottem pill"): beside
+    /// the friends' faces the count alone, the count alone too when no friend is going, and with nobody going the day
+    /// over its time, so its left side is never empty. Going: "You're going!" over "Can't go?", as before.
+    func testAnEventPagesBarSaysTheCountElseTheDay() {
+        func look(_ isGoing: Bool, _ count: Int, _ friends: [String] = [], cancelled: Bool = false,
+                  day: String? = "Thu, Nov 19", time: String? = "6 – 8 PM") -> RSVPWords {
+            RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true, look: true,
+                           day: day, time: time)
+        }
+        func attend(_ top: String?, _ second: String? = nil) -> RSVPWords {
+            RSVPWords(top: top, second: second, canLeave: false, pill: .rsvp)
+        }
+        let going = RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite)
+        XCTAssertEqual(look(false, 0), attend("Thu, Nov 19", "6 – 8 PM"), "nobody going: the day over the time")
+        XCTAssertEqual(look(false, 0, time: nil), attend("Thu, Nov 19"), "no time: the day alone")
+        XCTAssertEqual(look(false, 0, day: nil, time: nil), attend(nil), "no day: Attend alone")
+        XCTAssertEqual(look(false, 1), attend("1 going"), "the first one going takes the day's place")
+        XCTAssertEqual(look(false, 2), attend("2 going"), "and the count goes up")
+        XCTAssertEqual(look(false, 41), attend("41 going"), "others going, no friends: the count")
+        XCTAssertEqual(look(false, 41, ["Sam", "Marlene"]), attend("41 going"), "friends: their faces say who, no names")
+        XCTAssertEqual(look(false, 0, ["Avery"]), attend("1 going"), "never fewer than the friends")
+        XCTAssertEqual(look(true, 1), going, "going, the only one")
+        XCTAssertEqual(look(true, 42, ["Sam"]), going, "going with friends")
+        XCTAssertEqual(look(false, 41, ["Sam"], cancelled: true),
+                       RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled), "called off: Canceled alone")
+        XCTAssertEqual(look(true, 42, cancelled: true),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled),
+                       "called off while going: can still leave")
     }
 
     /// A Town card has no Attend and no X, Going or not (Jesse, event-card 07): just who's going, with the

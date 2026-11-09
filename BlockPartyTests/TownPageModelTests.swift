@@ -168,6 +168,46 @@ final class TownPageModelTests: XCTestCase {
         XCTAssertEqual(rows.map(\.recurrence), ["Every 2nd Monday", nil, nil])
     }
 
+    /// A Town page's and a board's Event rows bring their Event card (BP app inside-cards 27): your heart and its
+    /// count. A read from before it, and a card that doesn't decode, leave the row its own few facts.
+    func testAPagesEventRowsBringTheirCard() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let card = #"{"id":"e1","title":"Winterwalk","event_date":"2026-12-04","start_time":"17:00","location":null,"#
+            + #""going_count":3,"going":false,"heart_count":12,"hearted":true,"created_at":"2026-11-01T00:00:00Z"}"#
+        let json = #"[{"id":"e1","title":"Winterwalk","date":"2026-12-04","time":"17:00","location":null,"card":"#
+            + card + "},"
+            + #"{"id":"e2","title":"Park Board","date":"2026-12-05","time":null,"location":null,"card":{"id":"e2"}},"#
+            + #"{"id":"e3","title":"Tree sale","date":"2026-12-06","time":null,"location":null}]"#
+        let rows = try decoder.decode([TownPageInfo.Event].self, from: Data(json.utf8))
+        XCTAssertEqual(rows.map(\.title), ["Winterwalk", "Park Board", "Tree sale"], "a bad card never costs its row")
+        XCTAssertEqual(rows.map { $0.card?.hearted }, [true, nil, nil])
+        XCTAssertEqual(rows[0].card?.heartCount, 12)
+    }
+
+    /// A row opens the Town feed's card when the feed has it, else the row's own card, so the Event page shows your
+    /// heart and its count on the first frame; with neither, the row's few facts, not hearted.
+    func testARowOpensTheFeedsCardElseItsOwn() {
+        let actions = actions(Server())
+        let mine = UpcomingEvent(id: "e1", title: "Winterwalk", eventDate: "2026-12-04", startTime: "17:00",
+                                 location: nil, goingCount: 0, createdAt: "", heartCount: 12, hearted: true)
+        let row = TownPageInfo.Event(id: "e1", title: "Winterwalk", date: "2026-12-04", time: "17:00", location: nil,
+                                     recurrence: "Every Friday", card: mine)
+        XCTAssertEqual(actions.heart(TownEventRow.item(row, feed: [])), .init(isHearted: true, count: 12))
+
+        var feeds = mine
+        feeds.heartCount = 40
+        feeds.hearted = false
+        XCTAssertEqual(actions.heart(TownEventRow.item(row, feed: [FeedCardItem(feeds)])),
+                       .init(isHearted: false, count: 40), "the Town feed's card first")
+
+        var light = row
+        light.card = nil
+        let item = TownEventRow.item(light, feed: [])
+        XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 0))
+        XCTAssertEqual(item.recurrence, "Every Friday", "the row's own facts")
+    }
+
     func testBoardInitials() {
         XCTAssertEqual(TownPageModel.initials("City Council"), "CC")
         XCTAssertEqual(TownPageModel.initials("Economic Development Authority"), "EDA")

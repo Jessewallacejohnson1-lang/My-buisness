@@ -38,6 +38,10 @@ struct FeedCardItem: Identifiable, Hashable {
     /// The event page's About text and its grey category line. nil hides the row;
     /// nothing fills in for a missing value.
     var description: String? = nil
+    /// What it costs, as words (`UpcomingEvent.price`): the Event page's price line, under the place. nil hides it.
+    var price: String? = nil
+    /// Where it is (`UpcomingEvent.spot`): what its page's Map and a held card's View on Map do (`EventMapRoute`).
+    var spot: EventSpot? = nil
     var category: EventCategory? = nil
     /// Why the Town feed shows this card, in words (`FeedCardMenu.line`). nil leaves the
     /// card without its ••• menu: only the Town feed's own cards have a reason.
@@ -146,12 +150,7 @@ struct FeedCardItem: Identifiable, Hashable {
     /// start reads as over: "Until 9 PM", "Until Sat", "Until Dec 14" (town-feed 41).
     func whenLine(at now: Date) -> FeedWhenLine? {
         guard isOpen(at: now), let when else { return whenLine }
-        let last = when.end.addingTimeInterval(-60)  // a run's end at midnight is the day before
-        let until = switch Town.days(from: now, to: last) {
-        case 0: Town.clock(when.end)
-        case 1..<7: Town.format(last, "EEE")
-        default: Town.format(last, "MMMd")
-        }
+        let until = when.until(now)
         return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
     }
 

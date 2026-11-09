@@ -29,6 +29,7 @@
 //  sheet at its reasons. A neighbour's post keeps its •••.
 //
 
+import CoreLocation
 import SwiftUI
 
 struct FeedCardMenu: View {
@@ -521,7 +522,8 @@ struct TownCardHold: ViewModifier {
         if let share {
             Button("Share", systemImage: "square.and.arrow.up", action: share)
         }
-        if let event, let viewOnMap, EventMapRoute.route(event, now: TodayBubbleClock.now(), spot: true) != nil {
+        // Nowhere to show it (Online, or no spot and no place line): no row.
+        if let event, let viewOnMap, EventMapRoute.route(event) != nil {
             Button("View on Map", systemImage: "map") { viewOnMap.open(event) }
         }
     }
@@ -533,35 +535,50 @@ struct TownCardHold: ViewModifier {
     }
 }
 
-/// View on Map from a held Town card: the shell's (`MainTabsView`), which can open the map. A class
-/// made once, as `HostOpener` is, so the cards that read it don't redraw each time the shell does.
+/// What opens Block Party's map on one Event: the shell's (`MainTabsView`), which raises the map over any page, or
+/// the map's own, for an Event page pushed on the map, which pops back to it. A class made once, as `HostOpener` is,
+/// so the cards and pages that read it don't redraw each time the shell does.
 final class EventMapOpener {
+    /// The Event the map opens on, at the spot its card gave. `fromPage`: its own Event page asked, so a tap on
+    /// its card closes the map back onto that page rather than opening it again (inside-cards 19).
+    struct Ask {
+        let event: FeedCardItem
+        let spot: CLLocationCoordinate2D
+        var fromPage = true
+    }
+
+    /// View on Map from a held Town card: our map or Apple Maps (`EventMapRoute`).
     let open: (FeedCardItem) -> Void
-    /// The Event View on Map asked for, until the map has opened its card on it. Kept here, not in the
-    /// shell's state: set there, the map opened with none (a live run, 2026-11-07).
-    var eventID: String?
-    init(_ open: @escaping (FeedCardItem) -> Void) { self.open = open }
+    /// The map, flying in to this Event's bubble with its card up: the shell raises it, the map's own stack pops
+    /// back to it.
+    let show: (Ask) -> Void
+    /// The shell's ask, until the map has taken it as it opens. Kept here, not in the shell's state: set there, the
+    /// map opened with none (a live run, 2026-11-07).
+    var ask: Ask?
+
+    init(open: @escaping (FeedCardItem) -> Void = { _ in }, show: @escaping (Ask) -> Void) {
+        self.open = open
+        self.show = show
+    }
 }
 
 extension EnvironmentValues {
     @Entry var viewOnMap: EventMapOpener? = nil
 }
 
-/// Where View on Map takes an Event (inside-cards 24): Block Party's map, on its bubble and card, when
-/// it's there today; else Apple Maps at its place, as the Event page's place does until our map shows
-/// every day and every Event has a spot (inside-cards 06, 19 and 20).
+/// Where an Event page's Map and a held card's View on Map take an Event (inside-cards 24, then 19), from its card
+/// alone, so a tap does the same whenever it comes: Block Party's map at its spot, whatever its day (the page's small
+/// map first); with no spot known, Apple Maps at its place line; nowhere at no one place (Online) or with neither,
+/// and then there's no button.
 enum EventMapRoute: Equatable {
-    case ourMap
+    case ourMap(CLLocationCoordinate2D)
     case appleMaps(URL)
 
-    /// Today's and not over: the map shows it once its spot is read.
-    static func today(_ event: FeedCardItem, now: Date) -> Bool {
-        event.eventDate == Town.day(now) && TodayBubbleRules.phase(event, now: now) != .ended
-    }
-
-    /// `spot`: the map has a spot for it. Nil, nowhere to show it, so the menu leaves the row out.
-    static func route(_ event: FeedCardItem, now: Date, spot: Bool) -> EventMapRoute? {
-        if spot && today(event, now: now) { return .ourMap }
-        return Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
+    static func route(_ event: FeedCardItem) -> EventMapRoute? {
+        switch event.spot {
+        case .at(let spot): .ourMap(spot)
+        case .noPlace: nil
+        case nil: Directions.url(forPlace: event.whereLine).map { .appleMaps($0) }
+        }
     }
 }

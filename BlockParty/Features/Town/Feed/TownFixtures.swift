@@ -14,6 +14,7 @@
 //
 
 #if DEBUG
+import CoreLocation
 import Foundation
 
 enum TownFixtures {
@@ -156,6 +157,8 @@ enum TownFixtures {
                                 leavesAt: now.addingTimeInterval(7 * 86_400),
                                 published: now.addingTimeInterval(-Double(i * 22 + 2) * 3600), title: s.1,
                                 interest: i == 1 ? "dining" : nil,
+                                // You hearted The Wandering Cow's (inside-cards 22): red on its card and in Liked.
+                                hearted: i == 1, heartCount: i == 1 ? 1 : 0,
                                 photo: i == 0 ? URL(string: logos + "news/news-866b1517a3.webp") : nil,
                                 photoAspect: i == 0 ? 720.0 / 960.0 : nil)
             return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
@@ -267,6 +270,8 @@ enum TownFixtures {
                 photo: true, hoursUntil: 24 * 27, going: 63,
                 category: .musicArts,
                 description: "An hour of Bach and a few newer pieces on the Abbey church organ. Open to everyone.",
+                // A price, so the Event page's price line shows on fixed data (inside-cards 14).
+                price: "Free, donations welcome",
                 now: now
             ),
             // No description and no category (none fits a council meeting), so the
@@ -304,6 +309,18 @@ enum TownFixtures {
         ]
     }
 
+    /// `-town-spots`: where the samples are on the map (inside-cards 19), off the places table: the park concert today,
+    /// the market in two days, the organ recital next week, the trail cleanup at Sauk Centre's trailhead 50 km out, the
+    /// choral concert that's over; the council meeting Online, at no one place; the pancake breakfast with no spot yet.
+    static let spots: [String: EventSpot] = [
+        "e1": .at(CLLocationCoordinate2D(latitude: 45.57007, longitude: -94.32874)),   // Millstream Park
+        "e2": .at(CLLocationCoordinate2D(latitude: 45.57133, longitude: -94.31736)),   // Resurrection Lutheran
+        "e3": .at(CLLocationCoordinate2D(latitude: 45.73690, longitude: -94.95190)),   // Lake Wobegon Trail, Sauk Centre
+        "e4": .at(CLLocationCoordinate2D(latitude: 45.58003, longitude: -94.39229)),   // Saint John's Abbey
+        "e5": .noPlace,
+        "e6": .at(CLLocationCoordinate2D(latitude: 45.56060, longitude: -94.31950)),   // Sacred Heart Chapel
+    ]
+
     // MARK: - Builders
 
     private static func posting(
@@ -334,7 +351,7 @@ enum TownFixtures {
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, going: Int,
-        category: EventCategory? = nil, description: String? = nil,
+        category: EventCategory? = nil, description: String? = nil, price: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
         friends: [(name: String, photo: String?)] = [], credit: String? = nil,
         logo: String? = nil,
@@ -358,7 +375,9 @@ enum TownFixtures {
             likeCount: 0,
             isLiked: false,
             isJoined: false,
-            description: description,
+            // `-town-no-about`: no sample has an About, for a short Event page (inside-cards 19's small map, review).
+            description: LaunchFlags.has(.townNoAbout) ? nil : description,
+            price: price,
             category: category
         )
         // Why each is in the feed, as `get_town_feed` would say it by default: the day.
@@ -380,6 +399,15 @@ enum TownFixtures {
             item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
             item.startTime = townClock("h:mm a", start)
+        }
+        // `-town-spots`: each sample on its own day with its place line, the organ recital next week and the council
+        // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`,
+        // on the card as the server's card carries them.
+        if LaunchFlags.has(.townSpots), item.eventDate == nil {
+            item.spot = spots[id]
+            item.location = id == "e5" ? "Online" : item.whereLine
+            item.startTime = item.shareTime
+            item.eventDate = townClock("yyyy-MM-dd", now.addingTimeInterval((id == "e4" ? 24 * 7 : hoursUntil) * 3600))
         }
         // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
         // its Join and the club's Group page in Search are one (rsvp-and-groups 07).

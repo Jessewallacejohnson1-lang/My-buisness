@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase, adminClaims } from './fixture.mjs';
+import { CARD_KEYS } from './event_card.mjs';
 
 const db = await realDatabase();
 const ADMIN = JSON.parse(await adminClaims(db));
@@ -154,6 +155,20 @@ test('becoming friends lifts the request; a friend can send a photo and an Event
   assert.equal(event.card.title, 'Bingo Night');
   assert.equal(photo.photo_path, `${ANA}/${id(1)}.jpg`);
   assert.equal(photo.photo_w, 800);
+});
+
+// Every door to the Event page carries its card (BP app inside-cards 27): an Event in a chat opens its page with the
+// whole card, your heart and its count included, whether or not the Town feed has it.
+test("an Event in a chat sends the whole Event card, with the reader's heart and its count", async () => {
+  await reset();
+  await friends(ANA, BEN);
+  const { chat_id: chat } = await sendTo(ANA, BEN, null, { event: EVENT });
+  for (const who of [BEN, CAL]) await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [EVENT, who]);
+  const [ben] = await messages(BEN, chat);
+  assert.deepEqual(Object.keys(ben.card).sort(), CARD_KEYS);
+  assert.deepEqual([ben.card.hearted, ben.card.heart_count], [true, 2]);
+  const [ana] = await messages(ANA, chat);
+  assert.deepEqual([ana.card.hearted, ana.card.heart_count], [false, 2], "the sender's own heart, not the reader's");
 });
 
 test('a photo must be in your own folder, and an Event must be live', async () => {

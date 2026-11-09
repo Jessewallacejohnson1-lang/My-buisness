@@ -94,7 +94,7 @@ final class AppSession {
                   friendsBook: FriendsBook(supabase: supabase), you: YouModel(supabase: supabase),
                   likes: YouModel.likes(supabase: supabase), eventOfTheDay: EventOfTheDay(supabase: supabase),
                   dayPicks: DailyDayPicks(supabase: supabase),
-                  followingNews: FollowingNews(supabase: supabase),
+                  followingNews: FollowingNews(supabase: supabase, actions: actions),
                   notices: Notices(supabase: supabase, keep: phone ?? .standard),
                   profile: profile,
                   hello: phone.map { HelloInbox(keep: $0) } ?? .shared,

@@ -6,6 +6,7 @@
 //  the Event page's Reference's (Fresha's venue page, `EventPage.Metric`).
 //
 
+import CoreLocation
 import SwiftUI
 
 /// Photos side by side, a page at a time. A photo shimmers until its bitmap is on screen
@@ -112,6 +113,12 @@ nonisolated enum Directions {
         var components = URLComponents(string: "http://maps.apple.com/")
         components?.queryItems = [URLQueryItem(name: "q", value: "\(location), \(Town.display)")]
         return components?.url
+    }
+
+    /// Directions to a spot Block Party has (the map card's Directions, inside-cards 19): by its coordinate, so
+    /// an away place isn't searched for in this town ("…, Ham Lake, St. Joseph, Minnesota").
+    static func url(to spot: CLLocationCoordinate2D) -> URL? {
+        URL(string: "http://maps.apple.com/?daddr=\(spot.latitude),\(spot.longitude)")
     }
 }
 

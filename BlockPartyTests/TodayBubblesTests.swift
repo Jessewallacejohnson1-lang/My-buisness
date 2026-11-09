@@ -98,6 +98,41 @@ final class TodayBubblesTests: XCTestCase {
         }
     }
 
+    // MARK: Another day's Event (inside-cards 19)
+
+    /// Sunday, Nov 8 2026 at 10 AM in the Town.
+    private let sunday = Town.midnight("2026-11-08")!.addingTimeInterval(10 * 3600)
+    private func on(_ day: String, _ start: String? = "7 PM", endAt: Date? = nil) -> FeedCardItem {
+        var card = ev(day, start, endAt: endAt)
+        card.eventDate = day
+        return card
+    }
+    /// An exhibition that opened Oct 28 and runs to 5 PM on Dec 15.
+    private var exhibition: FeedCardItem {
+        on("2026-10-28", "10 AM", endAt: Town.midnight("2026-12-15")!.addingTimeInterval(17 * 3600))
+    }
+
+    /// The tag under another day's bubble says the day, never a countdown ("168h 00m" for next week), or "Until"
+    /// its last day while one that began before today is still on; today's keep counting down.
+    func testAnotherDaysTagSaysItsDay() {
+        XCTAssertEqual(TodayBubbleRules.dayTag(on("2026-11-15"), now: sunday), "Sun, Nov 15", "next week")
+        XCTAssertEqual(TodayBubbleRules.dayTag(on("2026-11-09"), now: sunday), "Tomorrow")
+        XCTAssertEqual(TodayBubbleRules.dayTag(exhibition, now: sunday), "Until Dec 15", "runs for weeks")
+        XCTAssertEqual(TodayBubbleRules.dayTag(on("2026-11-01"), now: sunday), "Sun, Nov 1", "over, last week")
+        XCTAssertNil(TodayBubbleRules.dayTag(on("2026-11-08"), now: sunday), "today's counts down")
+    }
+
+    /// The map card's time line says another day's day, never "Today, 7 PM" for next week.
+    func testTheMapCardSaysAnotherDaysDay() {
+        let ten = { (day: String) in Town.midnight(day)!.addingTimeInterval(22 * 3600) }
+        XCTAssertEqual(MapEventCard.timeLine(on("2026-11-15", endAt: ten("2026-11-15")), now: sunday), "Sun, Nov 15, 7 – 10 PM")
+        XCTAssertEqual(MapEventCard.timeLine(on("2026-11-09"), now: sunday), "Tomorrow, 7 PM")
+        XCTAssertEqual(MapEventCard.timeLine(on("2026-11-20", nil), now: sunday), "Fri, Nov 20, all day")
+        XCTAssertEqual(MapEventCard.timeLine(exhibition, now: sunday), "Until Dec 15")
+        XCTAssertEqual(MapEventCard.timeLine(on("2026-11-08", endAt: ten("2026-11-08")), now: sunday), "Tonight, 7 – 10 PM",
+                       "today's as before")
+    }
+
     /// Jesse's sizes: 36 pt zoomed out, 46 at the opening zoom, 72 two steps in, held past either end.
     func testTheBeadGrowsWithTheZoomFrom36To72() {
         let open = SJMapView.openZoom

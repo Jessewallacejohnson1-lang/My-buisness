@@ -89,6 +89,9 @@ struct TownPageInfo: Decodable, Hashable {
         /// How its series repeats ("Every 2nd Monday"), for its Event page (BP app inside-cards 23); nil for a
         /// one-off, and on a read from before it.
         var recurrence: String? = nil
+        /// Its Event card (`private.event_cards`, BP app inside-cards 27): the Event page's heart and its count, and
+        /// the rest, from the first frame. nil on a read from before it, and for a card that doesn't decode.
+        var card: UpcomingEvent? = nil
     }
 
     struct Board: Decodable, Hashable, Identifiable {
@@ -104,6 +107,20 @@ struct TownPageInfo: Decodable, Hashable {
         }
 
         var target: FollowTarget { FollowTarget(type: .board, id: id) }
+    }
+}
+
+/// A row's card is read leniently: one that doesn't decode leaves the row its own few facts, never the read.
+extension TownPageInfo.Event {
+    private enum Keys: String, CodingKey { case id, title, date, time, location, recurrence, card }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        self.init(id: try c.decode(String.self, forKey: .id), title: try c.decode(String.self, forKey: .title),
+                  date: try c.decode(String.self, forKey: .date), time: try c.decodeIfPresent(String.self, forKey: .time),
+                  location: try c.decodeIfPresent(String.self, forKey: .location),
+                  recurrence: try c.decodeIfPresent(String.self, forKey: .recurrence),
+                  card: try c.decodeIfPresent(UpcomingEvent.Lenient.self, forKey: .card)?.value)
     }
 }
 
@@ -200,6 +217,15 @@ final class TownPageModel {
         let event = { (n: Int, title: String, ahead: Int, time: String) in
             TownPageInfo.Event(id: "sample-\(kind.name)-\(n)", title: title, date: day(ahead), time: time, location: nil)
         }
+        // Hearted, 12 hearts, by its card alone (inside-cards 27): the Town feed's samples haven't it, so its Event
+        // page shows the card's heart. The City Council board's meetings are the City's, so its meeting carries it too.
+        let hearted = { (row: TownPageInfo.Event) in
+            var row = row
+            row.card = UpcomingEvent(id: row.id, title: row.title, eventDate: row.date, startTime: row.time,
+                                     location: row.location, goingCount: 0, createdAt: "", heartCount: 12,
+                                     hearted: true, liveKind: false)
+            return row
+        }
         let board = { (n: Int, name: String, ahead: Int?) in
             TownPageInfo.Board(id: "sample-board-\(n)", name: name, following: false,
                                next: ahead.map { .init(date: day($0), time: "18:00") })
@@ -213,11 +239,11 @@ final class TownPageModel {
                                 boards: [])
         case .town:
             return TownPageInfo(id: "sample-town", name: kind.name, kind: "Town events", picture: nil, pictureKind: "town",
-                                events: [event(1, "Shop Small Crawl", 3, "10:00"), event(2, "Winterwalk", 8, "17:00")],
+                                events: [hearted(event(1, "Shop Small Crawl", 3, "10:00")), event(2, "Winterwalk", 8, "17:00")],
                                 boards: [])
         case .city:
             return TownPageInfo(id: "sample-city", name: kind.name, kind: "City government", picture: nil, pictureKind: nil,
-                                events: [event(1, "City Council Meeting", 1, "18:00"), event(2, "Park Board Meeting", 6, "18:00")],
+                                events: [hearted(event(1, "City Council Meeting", 1, "18:00")), event(2, "Park Board Meeting", 6, "18:00")],
                                 boards: [board(1, "City Council", 1), board(2, "Economic Development Authority", nil),
                                          board(3, "Park Board", 6), board(4, "Planning Commission", 13)])
         }
@@ -497,14 +523,15 @@ struct TownEventRow: View {
     var body: some View {
         // Opens its Event page, as a Town card does; the route Notifications uses, so an open from
         // here doesn't count toward the Town feed's popularity.
-        NavigationLink(value: NoticeEventRoute(item: item)) { row }
+        NavigationLink(value: NoticeEventRoute(item: Self.item(event, feed: feed?.cards ?? []))) { row }
             .buttonStyle(.press(.squish))
     }
 
-    /// The Town feed's own card when it has this Event (its photo, Going and the rest); else the
-    /// row's few facts.
-    private var item: FeedCardItem {
-        feed?.cards.first { $0.id == event.id }
+    /// The Town feed's own card when it has this Event (its photo, Going and the rest); else the row's Event
+    /// card, your heart and its count from any day (BP app inside-cards 27); else the row's few facts.
+    static func item(_ event: TownPageInfo.Event, feed: [FeedCardItem]) -> FeedCardItem {
+        feed.first { $0.id == event.id }
+            ?? event.card.map { FeedCardItem($0) }
             ?? FeedCardItem(UpcomingEvent(id: event.id, title: event.title, eventDate: event.date,
                                           startTime: event.time, location: event.location, goingCount: 0,
                                           createdAt: "", liveKind: false, recurrence: event.recurrence))

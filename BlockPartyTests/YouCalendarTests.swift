@@ -274,6 +274,99 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertTrue(rows.compactMap(YouCalendar.event(from:)).allSatisfy(\.item.isLiked))
     }
 
+    // MARK: Liked's stories (inside-cards 22)
+
+    /// `get_my_likes` sends an Event as its card and a story as the Town feed's News row, after the Events; each
+    /// lands on its own side, and a story's row reads as the feed's does.
+    func testTheLikedReadSendsStoriesBesideTheEvents() throws {
+        let json = """
+        [{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+         "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+         "end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":false,
+         "heart_count":2,"hearted":true},"news":null},
+         {"card":null,"news":{"id":"n1","title":"Flight Friday","image_url":null,"source_name":"The Wandering Cow",
+         "created_at":"2026-10-08T14:00:00+00:00","leaves_at":"2026-10-15T14:00:00+00:00","place_picture":null,
+         "description":"Four scoops for $5 on Fridays.","kind":"news","source_url":"https://www.instagram.com/p/x/",
+         "poster":null,"heart_count":2,"hearted":true}}]
+        """
+        let (events, news) = try CommunityAPI.myLikesRows(from: Data(json.utf8))
+        XCTAssertEqual(events.map(\.id), ["e1"])
+        XCTAssertEqual(news.map(\.id), ["n1"])
+        XCTAssertEqual([news[0].place, news[0].headline, news[0].words], ["The Wandering Cow", "Flight Friday",
+                                                                         "Four scoops for $5 on Fridays."])
+        XCTAssertEqual([news[0].hearted ? 1 : 0, news[0].heartCount], [1, 2])
+        XCTAssertEqual(news[0].leavesAt, ISO8601DateFormatter().date(from: "2026-10-15T14:00:00Z"))
+        XCTAssertEqual(try CommunityAPI.myLikesRows(from: Data("[]".utf8)).news, [])
+    }
+
+    /// One story that doesn't read (no `leaves_at`, a title that isn't words) is left out of Liked, never the read:
+    /// the Events and the other stories still come (inside-cards 22, review).
+    func testABadStoryLeavesLikedReadable() throws {
+        let story = { (id: String, extra: String) in """
+        {"card":null,"news":{"id":"\(id)","source_name":"The Wandering Cow","created_at":"2026-10-08T14:00:00+00:00",
+         "place_picture":null,"description":"Four scoops.","kind":"news","source_url":"https://www.instagram.com/p/\(id)/",
+         "poster":null,"heart_count":1,"hearted":true\(extra)}}
+        """ }
+        let json = "[" + [
+            ##"{"card":{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":null,"location":null,"##
+                + ##""image_url":null,"category":null,"club_name":null,"source_name":null,"end_at":null,"all_day":false,"##
+                + ##""created_at":"2026-10-01T12:00:00+00:00","going_count":0,"going":false},"news":null}"##,
+            story("good", ##","title":"Flight Friday","leaves_at":"2026-10-15T14:00:00+00:00""##),
+            story("no-leave", ##","title":"Flight Friday""##),
+            story("bad-title", ##","title":12,"leaves_at":"2026-10-15T14:00:00+00:00""##),
+        ].joined(separator: ",") + "]"
+        let (events, news) = try CommunityAPI.myLikesRows(from: Data(json.utf8))
+        XCTAssertEqual(events.map(\.id), ["e1"])
+        XCTAssertEqual(news.map(\.id), ["good"])
+    }
+
+    private func story(_ id: String, published: String, leaves: String, hearted: Bool = true) -> TownNews {
+        TownNews(id: id, place: "The Wandering Cow", words: id, post: URL(string: "https://www.instagram.com/p/\(id)/")!,
+                 leavesAt: town(leaves), published: town(published), title: id, hearted: hearted, heartCount: 1)
+    }
+
+    /// Liked's stories: the read's and this session's hearts, each once, newest first; one the Town feed has let
+    /// go, or unhearted since, leaves.
+    func testLikedStoriesStayUntilTheyLeaveTheFeed() {
+        let now = town("2026-10-14 12:00")
+        let read = [story("cow", published: "2026-10-13 09:00", leaves: "2026-10-20 09:00"),
+                    story("gone", published: "2026-10-07 09:00", leaves: "2026-10-14 09:00"),
+                    story("unhearted", published: "2026-10-13 10:00", leaves: "2026-10-20 10:00")]
+        let tapped = [story("peony", published: "2026-10-14 08:00", leaves: "2026-10-21 08:00"),
+                      story("cow", published: "2026-10-13 09:00", leaves: "2026-10-20 09:00")]
+        let list = YouCalendar.likedNews(read: read, tapped: tapped, isLiked: { $0.id != "unhearted" }, now: now)
+        XCTAssertEqual(list.map(\.id), ["peony", "cow"])
+        XCTAssertEqual(YouCalendar.likedNews(read: read, tapped: [], isLiked: { _ in true },
+                                             now: town("2026-10-20 09:30")).map(\.id), ["unhearted"],
+                       "the cow's story left with its feed time")
+    }
+
+    /// Through a real Real-life actions: a story hearted on its card shows in Liked at once and leaves when
+    /// unhearted; a read's story stays hearted as the read says; a new account starts with none.
+    func testRealLifeActionsDriveLikedStories() async throws {
+        let now = town("2026-10-14 12:00")
+        var written: [String] = []
+        let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
+                                      setGoing: { _, _ in }, setHeart: { id, _ in written.append("event \(id)") },
+                                      setNewsHeart: { id, on in written.append("news \(id) \(on)") })
+        let read = [story("cow", published: "2026-10-13 09:00", leaves: "2026-10-20 09:00")]
+        let peony = story("peony", published: "2026-10-14 08:00", leaves: "2026-10-21 08:00", hearted: false)
+        actions.read(news: read)
+        func shown() -> [String] {
+            YouCalendar.likedNews(read: read, tapped: Array(actions.likedNews.values),
+                                  isLiked: { actions.heart($0).isHearted }, now: now).map(\.id)
+        }
+        XCTAssertEqual(shown(), ["cow"])
+        actions.toggleHeart(peony)
+        XCTAssertEqual(shown(), ["peony", "cow"], "in Liked at once")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(written, ["news peony true"], "written as a story's, never an Event's")
+        actions.toggleHeart(read[0])
+        XCTAssertEqual(shown(), ["peony"])
+        actions.accountChanged(signedIn: true)
+        XCTAssertTrue(actions.likedNews.isEmpty)
+    }
+
     // MARK: Swiping the Agenda (ticket 12)
 
     /// The pages are the days with plans, past ones this week too, plus today and the day picked

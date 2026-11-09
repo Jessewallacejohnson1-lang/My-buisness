@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import MapboxMaps
 
 /// The page's sizes, on a 402 pt phone; the picture's scale with the width.
 enum EventLook {
@@ -77,6 +78,24 @@ enum EventLook {
     static let buttonGlyph: CGFloat = 22
     static let buttonWord: CGFloat = 16
     static let buttonGlyphGap: CGFloat = 4
+    /// The small map under Map (inside-cards 19), off the mock's CSS: 150 pt tall, 14 under the buttons, 20 pt corners,
+    /// a white hairline at 14% inside; the Event's photo 46 pt in a 2.5 pt white ring at its middle; a 30 pt white
+    /// expand button 10 pt in from the top right with a 15 pt glyph. Opening, the page scrolls so it ends 12 pt
+    /// above the bar. It grows and shrinks on a spring with no bounce, the mock's 0.36 s.
+    static let smallMap: CGFloat = 150
+    static let smallMapTop: CGFloat = 14
+    static let smallMapCorner: CGFloat = 20
+    static let smallMapPin: CGFloat = 46
+    static let smallMapRing: CGFloat = 2.5
+    static let smallMapGrow: CGFloat = 30
+    static let smallMapGrowInset: CGFloat = 10
+    static let smallMapGrowGlyph: CGFloat = 15
+    static let smallMapClear: CGFloat = 12
+    /// Mapbox's ⓘ credit on the still (their terms ask for one on every map; Jesse 2026-11-08): an 11 pt glyph in a
+    /// 28 pt tap square at the bottom right corner.
+    static let smallMapCreditGlyph: CGFloat = 11
+    static let smallMapCredit: CGFloat = 28
+    static let smallMapSpring: Animation = .spring(duration: 0.36, bounce: 0)
     /// Follow: a row 18 under the buttons, 12 pt tall at each end, the host's logo in a 40 pt white circle,
     /// Instagram's 70 x 32 Follow with 8 pt corners.
     static let hostTop: CGFloat = 18
@@ -92,6 +111,17 @@ enum EventLook {
     static let aboutHeading: CGFloat = 20
     static let aboutGap: CGFloat = 8
     static let aboutWords: CGFloat = 17
+    /// The Attend bar (inside-cards 18), off the approved mock's CSS: faces 14 pt in (words alone 24, today's), 8 pt
+    /// from the words; the words Inter Tight Bold 15 over BP Body 13; a 46 pt see-through send with a 20 pt glyph,
+    /// 6 pt from Attend, folding 60 pt right into Invite as it shrinks to 40% and fades.
+    static let barFacesInset: CGFloat = 14
+    static let barFacesGap: CGFloat = 8
+    static let barWords: CGFloat = 15
+    static let barTime: CGFloat = 13
+    static let send: CGFloat = 46
+    static let sendGlyph: CGFloat = 20
+    static let sendGap: CGFloat = 6
+    static let sendFold: CGFloat = 60
     /// Once the page scrolls, the top colour fades in under the clock: whole to 45% of 118 pt, gone at its end.
     static let topFade: CGFloat = 118
     static let topFadeSolid: CGFloat = 0.45
@@ -106,6 +136,9 @@ enum EventLook {
     /// Ink on the yellow: 7% and 10%, 68%, the lines' tint 78%, a glass circle 10%.
     static let fill: Double = 0.10
     static let fillLine: Double = 0.16
+    /// Map while its small map is open: white at 20%, ink at 14% on the yellow (the mock's).
+    static let fillLit: Double = 0.20
+    static let sunFillLit: Double = 0.14
     static let dim: Double = 0.66
     static let hairline: Double = 0.14
     static let glassFill: Double = 0.22
@@ -419,6 +452,8 @@ struct EventBigButton: View {
     let glyph: String
     let word: String
     var sun = false
+    /// Map while its small map is open: a brighter fill.
+    var lit = false
     let action: () -> Void
 
     var body: some View {
@@ -435,12 +470,138 @@ struct EventBigButton: View {
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity)
             .frame(height: EventLook.button)
-            .background(ink.opacity(sun ? EventLook.sunFill : EventLook.fill), in: Capsule())
+            .background(ink.opacity(lit ? (sun ? EventLook.sunFillLit : EventLook.fillLit) : sun ? EventLook.sunFill : EventLook.fill),
+                        in: Capsule())
+            .animation(Motion.smooth, value: lit)
             .overlay { Capsule().strokeBorder(ink.opacity(sun ? EventLook.sunFillLine : EventLook.fillLine), lineWidth: 0.5) }
             .contentShape(Capsule())
         }
         .buttonStyle(.press(.squish))
         .accessibilityLabel(word)
+    }
+}
+
+/// The small map under Map (inside-cards 19; Jesse, 2026-11-06: "when you click the map it opens up right below and if
+/// you click you can see it on the map"): a still of Block Party's map over the Event's spot, the Event's photo in a
+/// white ring at its middle (the mock's bubble) and a white expand button in its corner. A tap opens the full map.
+struct EventSmallMap: View {
+    let item: FeedCardItem
+    /// The still, once made (`SmallMapShot`); the map's ground until then.
+    let shot: UIImage?
+    let action: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: EventLook.smallMapCorner, style: .continuous)
+        Button(action: action) {
+            ZStack {
+                Hue.mapLand
+                if let shot {
+                    Image(uiImage: shot)
+                        .resizable()
+                        .scaledToFill()
+                        .transition(.opacity)
+                }
+                pin
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: EventLook.smallMap)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(.white.opacity(EventLook.hairline), lineWidth: 0.5) }
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.glyph(EventLook.smallMapGrowGlyph, weight: .semibold))
+                    .foregroundStyle(Hue.ink.onLightCanvas)
+                    .frame(width: EventLook.smallMapGrow, height: EventLook.smallMapGrow)
+                    .background(.white, in: Circle())
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)
+                    .padding(EventLook.smallMapGrowInset)
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.press(.squish))
+        .animation(Motion.smooth, value: shot != nil)
+        .accessibilityLabel("See it on the map")
+        .overlay(alignment: .bottomTrailing) { credit }
+    }
+
+    /// The map's credits, as the full map's ⓘ lists them.
+    private var credit: some View {
+        Menu {
+            Link("© Mapbox", destination: Self.mapbox)
+            Link("© OpenStreetMap", destination: Self.openStreetMap)
+            Link("Improve this map", destination: Self.improve)
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.glyph(EventLook.smallMapCreditGlyph))
+                .foregroundStyle(Hue.ink.onLightCanvas.opacity(0.55))
+                .frame(width: EventLook.smallMapCredit, height: EventLook.smallMapCredit)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Map credits")
+    }
+
+    private static let mapbox = URL(string: "https://www.mapbox.com/about/maps/")!
+    private static let openStreetMap = URL(string: "https://www.openstreetmap.org/copyright")!
+    private static let improve = URL(string: "https://apps.mapbox.com/feedback/")!
+
+    /// The Event's photo, else its place's, else its logo, as its bubble on the map; the yellow with none.
+    private var pin: some View {
+        let source = item.photos().first
+        return ZStack {
+            if let url = source?.url {
+                FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+            } else if let logo = source?.logo {
+                FeedCardPlaceLogo(logo: logo)
+            } else {
+                Hue.brandDisc
+            }
+        }
+        .frame(width: EventLook.smallMapPin, height: EventLook.smallMapPin)
+        .clipShape(Circle())
+        .background { Circle().fill(.white).padding(-EventLook.smallMapRing) }
+        .shadow(color: .black.opacity(0.3), radius: 7, x: 0, y: 6)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One still of Block Party's map for the small map (inside-cards 19): Mapbox's snapshotter on the map's own style and
+/// palette, at the map's opening zoom, so it reads as the map it opens. No wordmark (Jesse's 2026-08-14 call) and no
+/// attribution line on a 150 pt still: the full map it opens keeps its ⓘ.
+@MainActor
+final class SmallMapShot {
+    private let snapshotter: Snapshotter
+    private var waits: [AnyCancelable] = []
+    private var done: CheckedContinuation<UIImage?, Never>?
+
+    private init(size: CGSize, scale: CGFloat) {
+        snapshotter = Snapshotter(options: MapSnapshotOptions(size: size, pixelRatio: scale,
+                                                              showsLogo: false, showsAttribution: false))
+    }
+
+    /// The still, or nil when the style or the tiles couldn't load.
+    static func make(at spot: CLLocationCoordinate2D, size: CGSize, scale: CGFloat) async -> UIImage? {
+        guard size.width > 0 else { return nil }
+        let shot = SmallMapShot(size: size, scale: scale)
+        return await withCheckedContinuation { shot.start(at: spot, then: $0) }
+    }
+
+    /// Recoloured once its style is in, then drawn. Each wait holds this object until it's done.
+    private func start(at spot: CLLocationCoordinate2D, then done: CheckedContinuation<UIImage?, Never>) {
+        self.done = done
+        waits.append(snapshotter.onStyleLoaded.observeNext { [self] _ in
+            BasemapPalette.recolor(snapshotter)
+            snapshotter.start(overlayHandler: nil) { [self] in finish(try? $0.get()) }
+        })
+        // A style that never loads would leave the still waiting for good; a tile or a sprite missing still draws.
+        waits.append(snapshotter.onMapLoadingError.observe { [self] in if $0.type == .style { finish(nil) } })
+        snapshotter.setCamera(to: CameraOptions(center: spot, zoom: SJMapView.openZoom))
+        snapshotter.styleURI = BasemapPalette.style
+    }
+
+    private func finish(_ image: UIImage?) {
+        done?.resume(returning: image)
+        done = nil
+        waits.removeAll()
     }
 }
 
@@ -461,5 +622,109 @@ struct EventAbout: View {
         }
         .foregroundStyle(ink)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// An Event page's Attend bar (inside-cards 18; Jesse, 2026-11-06: "remove the share buttion but it on the bottem next
+/// to attend", "change attends button to more neatrual color your pick", "show friends that are going on the left of
+/// bottem pill and if you join it shows your profile too"). At the left the friends' faces and the count, the count
+/// alone with no friend going, and with nobody going the day over its time (`RSVPWords`, `look`). Your own face joins
+/// the row at the front on a spring the instant you Attend, and leaves the same way, a refused Attend's turn back too.
+/// At the right the send, then Attend in white; the send folds into Invite as the pill turns. Inside today's capsule
+/// (`EventPage.rsvpBar`); a game's page keeps `RSVPArea` (inside-cards 21).
+struct EventBar: View {
+    let item: FeedCardItem
+    let words: RSVPWords
+    var sun = false
+    /// The send's tap and Invite's: what the top share opened (`ShareCenter`).
+    let onShare: () -> Void
+
+    @Environment(RealLifeActions.self) private var actions
+    /// Your photo for your face; nil (a preview) or none is Instagram's blank.
+    @Environment(ProfileModel.self) private var profile: ProfileModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let ink: Color = sun ? Hue.onBrandDisc : .white
+        let dim: Color = sun ? Hue.onBrandDisc.opacity(EventLook.sunDim) : .white.opacity(EventLook.dim)
+        // Faces only beside words: called off and not going, the red Canceled alone.
+        let friends = words.top == nil ? [] : item.friendsGoing
+        let you = words.top != nil && actions.going(item).isGoing
+        let faces = you || !friends.isEmpty
+        HStack(spacing: 0) {
+            HStack(spacing: -FriendFaces.overlap) {
+                if you {
+                    Avatar(avatarUrl: profile?.avatarUrl, size: FriendFaces.side)
+                        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+                        .zIndex(1)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.3).combined(with: .opacity))
+                }
+                if !friends.isEmpty { FriendFaces(friends: friends) }
+            }
+            .accessibilityHidden(true)
+            .padding(.trailing, faces ? EventLook.barFacesGap : 0)
+
+            // "You're going!" and the day cross-fade in over what was there; a count rolls.
+            ZStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let top = words.top {
+                        Text(top)
+                            .font(.display(EventLook.barWords))
+                            .foregroundStyle(ink)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
+                    if let second = words.second {
+                        if words.canLeave {
+                            RSVPArea.leave(second, size: .card, hint: "Takes you off the going list", tint: dim) {
+                                actions.toggleGoing(item)
+                            }
+                        } else {
+                            Text(second)
+                                .font(.sans(EventLook.barTime))
+                                .foregroundStyle(dim)
+                        }
+                    }
+                }
+                .lineLimit(1)
+                .id(words.goingLine ? 0 : words.top?.hasSuffix(" going") == true ? 1 : 2)
+                .transition(.opacity.animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip)))
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: EventLook.barFacesGap)
+
+            AttendPill(item: item, words: words, size: .page, onInvite: onShare, white: true,
+                       send: EventSendButton(sun: sun, action: onShare))
+        }
+        .padding(.leading, faces ? EventLook.barFacesInset : EventPage.Metric.barWordsInset)
+        // Your face springs in and out, the friends and words making room with it (the mock's spring: a little past).
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.62),
+                   value: you)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.going(item).count)
+    }
+}
+
+/// The send beside Attend in an Event page's bar (inside-cards 18): a 46 pt see-through circle as the big buttons are,
+/// white at 10% with a line of light inside its top, the card's send in white; ink on the yellow page. It opens what
+/// Invite opens.
+struct EventSendButton: View {
+    var sun = false
+    let action: () -> Void
+
+    var body: some View {
+        let ink: Color = sun ? Hue.onBrandDisc : .white
+        Button(action: action) {
+            FeedActionGlyphView(glyph: .send, size: EventLook.sendGlyph)
+                .foregroundStyle(ink)
+                .frame(width: EventLook.send, height: EventLook.send)
+                .background {
+                    Circle().fill(ink.opacity(sun ? EventLook.sunFill : EventLook.fill)
+                        .shadow(.inner(color: ink.opacity(sun ? EventLook.sunFillLine : EventLook.fillLine), radius: 0, x: 0, y: 0.5)))
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel("Share")
     }
 }

@@ -8,7 +8,7 @@
 //  buttons (Map and the page it was found on), the host's row with Follow, and About in Apple's font. A
 //  flyer stays whole, a logo sits on a white disc, and no picture is the exact yellow with ink words. The
 //  sizes are `EventLook`'s, off Apple's screen and the approved mock. The Attend bar is Meetup's floating
-//  capsule (rsvp-and-groups 02) until ticket 18.
+//  capsule (rsvp-and-groups 02) holding friends' faces, the send and a white Attend (`EventBar`, ticket 18).
 //
 //  A game's page keeps its own look (ticket 21): its teams' colours (`GameMatchup`), the round white buttons
 //  and the facts as Meetup's rows (`Metric`, measured off Fresha's venue page; a business page in Search
@@ -20,7 +20,13 @@
 //  optional and simply absent when the data is: no description, no About; no
 //  place, no Map; no link, no Website; no picture, the yellow page.
 //
+//  Map (inside-cards 19): with a spot it opens a small map right below, pushing the page down, and a tap on that
+//  raises the full map over the page, flying in to the Event's bubble and card; closing lands back here as it was.
+//  With no spot known, Apple Maps at the place; at no one place (Online), no Map button. All from the card
+//  (`EventMapRoute`), so Map does the same whenever it's tapped, offline too.
+//
 
+import CoreLocation
 import EventKitUI
 import SwiftUI
 
@@ -67,6 +73,17 @@ struct EventPage: View {
     /// Where it lands after a restart, while its height is still growing to let it.
     @State private var landAt: CGFloat?
     @Environment(\.openURL) private var openURL
+    /// The small map is open under Map.
+    @State private var smallMap = false
+    /// The small map's still, made the first time it opens: a page whose Map is never tapped makes none.
+    @State private var mapShot: UIImage?
+    /// The small map's top, and the foot of what shows above the bar (the home bar with none), both in the page's
+    /// own coordinates: whether opening it scrolls it clear of the bar.
+    @State private var smallMapTop: CGFloat = 0
+    @State private var visibleBottom: CGFloat = 0
+    @Environment(\.displayScale) private var displayScale
+    /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
+    @Environment(\.viewOnMap) private var viewOnMap
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
     private let goingChat: Bool
@@ -180,6 +197,8 @@ struct EventPage: View {
                     lookWords
                 }
             }
+            // The page's own coordinates, which don't move as it scrolls: where the small map sits.
+            .coordinateSpace(.named(Self.page))
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > Metric.scrolledAfter } action: { _, now in
@@ -187,6 +206,9 @@ struct EventPage: View {
         }
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             LeftOff.pageY[item.id] = y
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.visibleRect.maxY - $0.contentInsets.bottom } action: { _, foot in
+            visibleBottom = foot
         }
         // The page's height comes in over a few layouts, and a jump past it stops at the top. As far
         // as it can each time, so a page that's shorter now ("Read more" closed) still lands low.
@@ -205,6 +227,13 @@ struct EventPage: View {
             landAt = nil
         }
         .scrollPosition($position)
+        // The small map's still, the first time it opens (until then its ground and the photo show), and again once
+        // the page's width is known or a try failed.
+        .task(id: smallMap ? width : nil) {
+            guard smallMap, mapShot == nil, case .ourMap(let at)? = EventMapRoute.route(item) else { return }
+            mapShot = await SmallMapShot.make(at: at, size: CGSize(width: width - 2 * EventLook.side, height: EventLook.smallMap),
+                                              scale: displayScale)
+        }
         // The picture runs up under the status bar, and the yellow page lays out from the screen's top too; a
         // game's page starts below it.
         .ignoresSafeArea(edges: game == nil ? .top : [])
@@ -277,7 +306,7 @@ struct EventPage: View {
         // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
         // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !reviewing, let words = actions.rsvp(current, bar: true) {
+            if !reviewing, let words = actions.rsvp(current, bar: true, look: game == nil) {
                 rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -491,12 +520,15 @@ struct EventPage: View {
                 .padding(.top, sun ? EventLook.sunTitleTop : EventLook.titleTop)
 
             let date = Self.dateLine(current)
-            if date != nil || place != nil {
+            let price = Self.priceText(item.price)
+            if date != nil || place != nil || price != nil {
                 VStack(spacing: EventLook.lineHeight - EventLook.lineNatural) {
                     if let date {
                         Text(date.oneLine).accessibilityLabel(date.spoken)
                     }
                     if let place { Text(place) }
+                    // The price when a source said it (inside-cards 14); nothing when unknown, never a placeholder.
+                    if let price { Text(price) }
                 }
                 .font(.apple(EventLook.line))
                 .multilineTextAlignment(.center)
@@ -506,19 +538,31 @@ struct EventPage: View {
                 .padding(.top, EventLook.linesTop)
             }
 
-            // Map opens Apple Maps at the place until the map opens in place (inside-cards 19); the page it
-            // was found on by its app's name, else Website. With no one place, Website takes the whole row.
-            let directions = place.flatMap { Directions.url(forPlace: $0) }
-            if directions != nil || link != nil {
+            // Map opens the small map below with a spot, else Apple Maps at the place (inside-cards 19); the page
+            // it was found on by its app's name, else Website. With no one place, Website takes the whole row.
+            let map = EventMapRoute.route(item)
+            if map != nil || link != nil {
                 HStack(spacing: EventLook.buttonGap) {
-                    if let directions {
-                        EventBigButton(glyph: "map", word: "Map", sun: sun) { openURL(directions) }
+                    if let map {
+                        EventBigButton(glyph: "map", word: "Map", sun: sun, lit: smallMap) { tapMap(map) }
+                            .accessibilityHint(mapHint(map))
                     }
                     if let link {
                         EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) { openURL(link.url) }
                     }
                 }
                 .padding(.top, EventLook.buttonsTop)
+            }
+
+            // The small map, right below the buttons, opening and closing in place.
+            if case .ourMap(let at)? = map {
+                EventSmallMap(item: item, shot: mapShot) { openFullMap(at) }
+                    .padding(.top, EventLook.smallMapTop)
+                    .frame(height: smallMap ? EventLook.smallMapTop + EventLook.smallMap : 0, alignment: .top)
+                    .clipped()
+                    .allowsHitTesting(smallMap)
+                    .accessibilityHidden(!smallMap)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.page)).minY } action: { smallMapTop = $0 }
             }
 
             // Who hosts it, with Instagram's Follow, in a plain row (follows 02; inside-cards 09).
@@ -547,6 +591,54 @@ struct EventPage: View {
                     .padding(.trailing, EventLook.sunHeartInset)
                     .padding(.top, EventLook.sunHeartTop)
             }
+        }
+    }
+
+    // MARK: The map (inside-cards 19)
+
+    /// The page's own coordinate space.
+    private static let page = "eventPage"
+
+    private func mapHint(_ map: EventMapRoute) -> String {
+        switch map {
+        case .appleMaps: "Opens in Maps"
+        case .ourMap: smallMap ? "Hides the map" : "Shows the map below"
+        }
+    }
+
+    /// Opens or closes the small map in place; opening below the bar, the page scrolls on the same spring so it ends
+    /// 12 pt above it, as the mock does. A short page drops a scroll asked while it grows, so once it has grown the
+    /// page finishes the way.
+    private func tapMap(_ map: EventMapRoute) {
+        guard case .ourMap = map else {
+            if case .appleMaps(let url) = map { openURL(url) }
+            return
+        }
+        let opening = !smallMap
+        let spring = reduceMotion ? nil : EventLook.smallMapSpring
+        withAnimation(spring, completionCriteria: .logicallyComplete) {
+            smallMap = opening
+            if opening { clearTheBar() }
+        } completion: {
+            if opening, smallMap { withAnimation(spring) { clearTheBar() } }
+        }
+    }
+
+    /// Scrolls the page so the open small map ends 12 pt above the bar, when it would end lower: in the page's own
+    /// coordinates, where the map's top and the bar's (`visibleBottom`) both are.
+    private func clearTheBar() {
+        let short = smallMapTop + EventLook.smallMapTop + EventLook.smallMap + EventLook.smallMapClear - visibleBottom
+        if short > 0.5 { position.scrollTo(y: (LeftOff.pageY[item.id] ?? 0) + short) }
+    }
+
+    /// The full map over the page, flying in to this Event's bubble and card; without a map to raise (the Review
+    /// queue), Apple Maps' directions to the spot.
+    private func openFullMap(_ at: CLLocationCoordinate2D) {
+        Haptics.light()
+        if let viewOnMap {
+            viewOnMap.show(.init(event: current, spot: at))
+        } else if let url = Directions.url(to: at) {
+            openURL(url)
         }
     }
 
@@ -753,14 +845,21 @@ struct EventPage: View {
 
     // MARK: The bar
 
-    /// Meetup's capsule floating over the page, with the card's RSVP words and pill
-    /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
-    /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
+    /// Meetup's capsule floating over the page: an Event's faces, send and white Attend (`EventBar`), a game's
+    /// RSVP words and its team's Attend as before (`RSVPArea`, inside-cards 21). The send and Invite open what
+    /// the top share did. Under it the page fades to its foot, so words never run hard into its edge or the
+    /// home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
-        RSVPArea(item: current, words: words, size: .page, yellow: game != nil, tint: game.flatMap { GameMatchup.attend($0) }) {
-            ShareCenter.shared.present(.event(item))
+        Group {
+            if game == nil {
+                EventBar(item: current, words: words, sun: sun) { ShareCenter.shared.present(.event(item)) }
+            } else {
+                RSVPArea(item: current, words: words, size: .page, yellow: true, tint: game.flatMap { GameMatchup.attend($0) }) {
+                    ShareCenter.shared.present(.event(item))
+                }
+                .padding(.leading, Metric.barWordsInset)
+            }
         }
-            .padding(.leading, Metric.barWordsInset)
             .padding(.trailing, Metric.barPillInset)
             // 57 pt at the default text size; larger text grows it rather than spilling out.
             .padding(.vertical, Metric.barPillInset)
@@ -816,6 +915,11 @@ struct EventPage: View {
         nonempty(description)
     }
 
+    /// The price line's words (inside-cards 14): what a source said it costs, else nothing.
+    static func priceText(_ price: String?) -> String? {
+        nonempty(price)
+    }
+
     /// The found page as the Business page draws a link: "Facebook", "Instagram", else the site's name.
     static func sourceLink(_ url: URL?) -> BusinessPage.LinkRow? {
         guard let url, let host = url.host()?.lowercased() else { return nil }
@@ -868,10 +972,21 @@ struct EventPage: View {
         }
     }
 
-    private static func dayAndHours(_ item: FeedCardItem, now: Date) -> FactLines? {
+    /// The Attend bar's day over its time while nobody's going (inside-cards 18): the date line's words without its
+    /// repeat, every day short so they fit beside Attend: "Thu, Nov 19" over "6 – 8 PM", "Mon, Nov 16" over
+    /// "until Wed, Nov 25".
+    static func barDay(_ item: FeedCardItem, now: Date = .now) -> FactLines? {
+        guard var lines = dayAndHours(item, now: now, short: true) else { return nil }
+        if let rest = lines.second, rest.hasPrefix("Until ") { lines.second = "until " + rest.dropFirst(6) }
+        return lines
+    }
+
+    /// `short`: "Thu, Nov 19" for "Thursday, November 19".
+    private static func dayAndHours(_ item: FeedCardItem, now: Date, short: Bool = false) -> FactLines? {
         guard let when = item.when else { return item.whenLine.map { FactLines(first: $0.text) } }
         let withYear = abs(Town.days(from: now, to: when.start)) > 183
-        let day = { (date: Date) in Town.format(date, withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd") }
+        let format = short ? (withYear ? "EEEMMMdyyyy" : "EEEMMMd") : withYear ? "EEEEMMMMdyyyy" : "EEEEMMMMd"
+        let day = { (date: Date) in Town.format(date, format) }
         // A game whose final is in shows its day alone, as its card (game-card 02).
         if item.game?.final != nil { return FactLines(first: day(when.start)) }
         guard when.timed else {

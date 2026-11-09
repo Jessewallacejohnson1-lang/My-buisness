@@ -6,6 +6,7 @@
 //  "You're going!", "Can't go?" under it to leave, a check on the pill's calendar, and then the
 //  pill becomes Invite; on the Event of the day poster it shrinks into a round X that leaves instead
 //  (attend-x). The Town card has no Attend (BP app event-card 07). Going itself is `RealLifeActions`'.
+//  Since inside-cards 18 the RSVP area is a game's Event page's bar; any other Event page draws `EventBar`.
 //
 
 import SwiftUI
@@ -37,11 +38,18 @@ nonisolated struct RSVPWords: Equatable {
     /// page's (Jesse, event-card 07). Canceled stays, with its photo the only sign it's called off.
     /// Called off, the pill says Canceled and "Can't go?" still leaves.
     /// `over`: a game whose final is in, "212 went" and no pill, whoever went (game-card 02).
+    /// `look`: an Event page's bar (inside-cards 18; a game's page keeps `bar`'s): the friends' faces say who, so the
+    /// count alone, and with nobody going the `day` over its `time`, so its left side is never empty.
     static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false,
-                     town: Bool = false, card: Bool = false, over: Bool = false) -> RSVPWords {
+                     town: Bool = false, card: Bool = false, over: Bool = false,
+                     look: Bool = false, day: String? = nil, time: String? = nil) -> RSVPWords {
         let onTown = town || card
         var words = unshortened(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: bar,
                                 town: onTown, over: over)
+        if look && words.pill == .rsvp {
+            words.second = nil
+            if words.top == nil { words.top = day; words.second = day == nil ? nil : time }
+        }
         // On Town the words share one line, so the friends' names go and the count stays (Jesse at
         // event-card 06's Check-in 1, 2026-10-21). "Can't go?" stays.
         if onTown && !words.canLeave { words.second = nil }
@@ -220,7 +228,8 @@ struct RSVPArea: View {
 
 /// Meetup's pill alone: Attend, its calendar's check for a moment after the tap, then Invite, or
 /// on the Event of the day poster a light grey round X that leaves (attend-x); a called-off Event's
-/// red Canceled. The RSVP area draws it at its right, the poster in its own row (event-card 03).
+/// red Canceled. The RSVP area draws it at its right, the poster in its own row (event-card 03), an
+/// Event page's bar white with its send (`EventBar`, inside-cards 18).
 struct AttendPill: View {
     let item: FeedCardItem
     /// The pill they name (`RSVPWords.pill`).
@@ -234,8 +243,13 @@ struct AttendPill: View {
     var yellow = false
     /// The yellow in our team's color (`MeetupPillStyle.tint`, game-card 12).
     var tint: UInt32?
+    /// An Event page's bar (inside-cards 18): Attend and Invite white, lit as Town's round X is, ink words.
+    var white = false
+    /// An Event page's bar: the send beside Attend, folding into Invite as the pill turns, back as you leave.
+    var send: EventSendButton?
 
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// `actions.failureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
@@ -245,7 +259,11 @@ struct AttendPill: View {
     var body: some View {
         let going = actions.going(item)
         let shown = words.shownPill(checking: checking)
-        HStack(spacing: Self.shareGap) {
+        HStack(spacing: send == nil ? Self.shareGap : EventLook.sendGap) {
+            if let send, shown == .rsvp {
+                send.transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity)
+                    .combined(with: .offset(x: EventLook.sendFold)))
+            }
             if shown == .canceled {
                 Button {} label: { face(.canceled) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
@@ -267,7 +285,9 @@ struct AttendPill: View {
                     // The X is the pill shrunk to a circle its own height, light grey with an ink X
                     // (Jesse at attend-x's Check-in 1, 2026-10-21).
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: x ? size.pillHeight : size.pillMinWidth,
-                                                 grey: x, yellow: yellow && !x, tint: tint, sidePadding: x ? 0 : 20))
+                                                 grey: x || white, yellow: yellow && !x, tint: tint, sidePadding: x ? 0 : 20))
+                    // The white is the light fill and ink on any page, as the poster's X (`Hue` is adaptive).
+                    .environment(\.colorScheme, white ? .light : colorScheme)
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
                     // The X reads "Going" with how to leave, not "Can't go, Going" (the review).
                     .accessibilityLabel(shown == .invite ? "Invite" : x ? "Going" : "Attend")

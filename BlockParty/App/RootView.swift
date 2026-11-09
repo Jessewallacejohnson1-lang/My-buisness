@@ -243,30 +243,14 @@ struct RootView: View {
 
 /// The authed shell: the five tabs and the sheets and covers they open.
 struct MainTabsView: View {
-    /// View on Map from a held Town card (inside-cards 24): today's Event with a spot opens our map on
-    /// its bubble; any other, Apple Maps at its place (`EventMapRoute`). Its spot is read for a second at
-    /// most, so a slow network still answers the tap; today's with no place either way, our map.
+    /// View on Map from a held Town card (inside-cards 24): any Event with a spot opens our map on its bubble and
+    /// card, whatever its day (inside-cards 19); one with no spot known, Apple Maps at its place (`EventMapRoute`),
+    /// both from its card, so the tap answers at once. With neither the menu has no row.
     private func viewOnMap(_ event: FeedCardItem) {
-        Task {
-            let now = TodayBubbleClock.now()
-            var spot = false
-            if EventMapRoute.today(event, now: now) {
-                let auth = auth
-                let reading = Task { try? await CommunityAPI(auth: auth).eventSpots([event.id]) }
-                let timeout = Task {
-                    try? await Task.sleep(for: HostOpener.readWait)
-                    reading.cancel()
-                }
-                spot = await reading.value?[event.id] != nil
-                timeout.cancel()
-            }
-            switch EventMapRoute.route(event, now: now, spot: spot) {
-            case .appleMaps(let url):
-                await UIApplication.shared.open(url)
-            case .ourMap, nil:
-                mapOpener?.eventID = event.id
-                showMap = true
-            }
+        switch EventMapRoute.route(event) {
+        case .ourMap(let spot): mapOpener?.show(.init(event: event, spot: spot, fromPage: false))
+        case .appleMaps(let url): UIApplication.shared.open(url)
+        case nil: break
         }
     }
 
@@ -393,8 +377,8 @@ struct MainTabsView: View {
     @State private var placeOpener = BusinessOpener()
     /// Made once, so the cards it reaches don't redraw each time the shell does.
     @State private var hostOpener: HostOpener?
-    /// The map, presented full-screen from the map disc in the Town bar rather than
-    /// living in the tab bar. Its own state belongs to `SJMapView`.
+    /// The map, presented full-screen from the map disc in the Town bar, an Event page's small map or a held
+    /// card's View on Map, rather than living in the tab bar. Its own state belongs to `SJMapView`.
     @State private var showMap = false
     /// Made once, as `hostOpener` is.
     @State private var mapOpener: EventMapOpener?
@@ -514,6 +498,17 @@ struct MainTabsView: View {
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
         .environment(\.viewOnMap, mapOpener)
+        // The map is a destination, not a tab: full screen, with its own close, and its card opens the Event page on
+        // the map's own stack (BP app references/map-reset). Out here, not on the stack's root, so it rises over a
+        // pushed Event page too (inside-cards 19), and closing it lands back on that page where it was.
+        .fullScreenCover(isPresented: $showMap, onDismiss: { mapOpener?.ask = nil }) {
+            SJMapView(onClose: { showMap = false }, request: mapOpener)
+                .environment(\.hostOpener, nil)
+                .environment(actions)
+                .environment(friendsBook)
+                .environment(townFeed)
+                .environment(session.liveGames)
+        }
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
         .onChange(of: code.id, initial: true) { openWaitingCode() }
@@ -533,7 +528,12 @@ struct MainTabsView: View {
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }
-            if mapOpener == nil { mapOpener = EventMapOpener(viewOnMap) }
+            if mapOpener == nil {
+                mapOpener = EventMapOpener(open: viewOnMap, show: { ask in
+                    mapOpener?.ask = ask
+                    showMap = true
+                })
+            }
         }
         // The day's first open says hello, then one thing about the town (hello-drop 01).
         .overlay(alignment: .top) {
@@ -786,16 +786,6 @@ struct MainTabsView: View {
             // The basemap did NOT get a dark palette, and deliberately: Mapbox renders
             // light-v11 cartography in both modes, so map INK is pinned to its light
             // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
-        }
-        // The map is a destination, not a tab: full screen, with its own close, and its card
-        // opens the Event page on the map's own stack (BP app references/map-reset).
-        .fullScreenCover(isPresented: $showMap, onDismiss: { mapOpener?.eventID = nil }) {
-            SJMapView(onClose: { showMap = false }, request: mapOpener)
-                .environment(\.hostOpener, nil)
-                .environment(actions)
-                .environment(friendsBook)
-                .environment(townFeed)
-                .environment(session.liveGames)
         }
         #if DEBUG
         .onAppear {

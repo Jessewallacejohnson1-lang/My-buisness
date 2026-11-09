@@ -31,9 +31,12 @@ struct TownFeedEntry: Identifiable {
         return nil
     }
 
-    var isNews: Bool {
-        if case .news = item { return true }
-        return false
+    var isNews: Bool { news != nil }
+
+    /// The story; nil for the rest.
+    var news: TownNews? {
+        if case .news(let news) = item { return news }
+        return nil
     }
 
     /// The neighbour's post; nil for the rest.

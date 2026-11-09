@@ -7,6 +7,7 @@
 //  `RealLifeActions`', tested in RealLifeActionsTests.
 //
 
+import CoreLocation
 import SwiftUI
 import UIKit
 import XCTest
@@ -276,6 +277,36 @@ final class EventPageTests: XCTestCase {
         XCTAssertNil(page.placeText(FeedCardItem(event(imageUrl: nil, location: "  "))))
     }
 
+    /// The price line (inside-cards 14): one line under the place when a source says what it costs, as words;
+    /// nothing when unknown, never a placeholder.
+    func testThePriceLineShowsOnlyWhenKnown() {
+        let page = EventPage.self
+        XCTAssertNil(page.priceText(nil))
+        XCTAssertNil(page.priceText(" \n"), "blank is unknown")
+        XCTAssertEqual(page.priceText(" Free\n"), "Free")
+        XCTAssertEqual(page.priceText("$22, $20 seniors, $15 students"), "$22, $20 seniors, $15 students")
+
+        var priced = event(imageUrl: nil)
+        priced.price = "$5 at the door"
+        XCTAssertEqual(FeedCardItem(priced).price, "$5 at the door", "the card carries it to the page")
+        XCTAssertNil(FeedCardItem(event(imageUrl: nil)).price)
+    }
+
+    /// The card sends the price (`private.event_cards`, inside-cards 14); a card from before the field says none.
+    func testTheCardCarriesThePrice() throws {
+        let card = """
+        {"id":"e1","title":"Christmas at Saint John's","event_date":"2026-12-04","start_time":"7:30 PM",
+         "location":"Abbey Church","image_url":null,"category":"music_arts","club_name":null,
+         "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,"created_at":"2026-10-01T12:00:00+00:00",
+         "going_count":0,"going":false,"heart_count":0,"hearted":false,"cancelled":false,"place_picture":null,
+         "host_picture":null,"description":"The colleges' holiday tradition.","price":"$22, $20 seniors, $15 students",
+         "what":"Concert","source_url":null,"game":null,"friends_going":[],"live_kind":true,"recurrence":null}
+        """
+        XCTAssertEqual(try Supabase.decode(Data(card.utf8), as: UpcomingEvent.self).price, "$22, $20 seniors, $15 students")
+        let before = card.replacingOccurrences(of: #""price":"$22, $20 seniors, $15 students","#, with: "")
+        XCTAssertNil(try Supabase.decode(Data(before.utf8), as: UpcomingEvent.self).price)
+    }
+
     /// The day row (event-page-formats 06): the day in full over its hours, the end only when the
     /// Event gives one; its year only past six months; days it runs over, and words we can't read.
     func testTheDayRowSaysTheDayInFullOverItsHours() {
@@ -364,6 +395,33 @@ final class EventPageTests: XCTestCase {
         item.eventDate = "2027-06-01"
         item.endAt = nil
         XCTAssertEqual(EventPage.dateLine(item, now: now)?.oneLine, "Tue, Jun 1, 2027", "the year past six months off")
+    }
+
+    /// The Attend bar's day over its time while nobody's going (inside-cards 18), as the approved mock's "Thu, Nov 19"
+    /// over "6 – 8 PM": the date line's words with no repeat (the line above says it), every day short to fit.
+    func testTheBarsDayIsOverItsTime() {
+        let now = Town.midnight("2026-11-01")!
+        let nov19 = Town.midnight("2026-11-19")!
+        var repeating = event(imageUrl: nil)
+        repeating.recurrence = "Every Thursday"
+        var item = FeedCardItem(repeating)
+        item.eventDate = "2026-11-19"
+        item.startTime = "6 PM"
+        item.endAt = nov19.addingTimeInterval(20 * 3600)
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "6 – 8 PM"), "no repeat")
+        item.endAt = nil
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "6 PM"), "no end: the start")
+        item.startTime = "after dark"
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "after dark"), "as written")
+        item.startTime = nil
+        item.allDay = true
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19"), "all day: the day alone")
+        item.endAt = Town.midnight("2026-11-26")
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Thu, Nov 19", second: "until Wed, Nov 25"),
+                       "over days: its last day short too")
+        item.eventDate = "2027-06-01"
+        item.endAt = nil
+        XCTAssertEqual(EventPage.barDay(item, now: now), .init(first: "Tue, Jun 1, 2027"), "the year past six months off")
     }
 
     /// The big button's word: Facebook and Instagram by name, anything else Website.

@@ -67,7 +67,13 @@ final class RealLifeActions {
     /// (`followPlace`, `followPerson`). Each keeps its own state, writes and shakes.
     private enum Kind: Codable {
         case going, heart, member, followPlace, followPerson, followTeam, followActivity, followPage, followBoard
+        /// A News story's heart (inside-cards 22), written to its own table.
+        case newsHeart
     }
+
+    /// DEBUG `-town-signed-out`: the screens as someone with no account sees them, with no heart and no Join,
+    /// whatever account the simulator kept (inside-cards 22). No real person gets past the Welcome without one.
+    private static var signedOutRun: Bool { LaunchFlags.has(.townSignedOut) }
 
     /// Every kind of follow.
     private static let followKinds: Set<Kind> = [.followPlace, .followPerson, .followTeam, .followActivity,
@@ -96,6 +102,8 @@ final class RealLifeActions {
     /// Every Event hearted or unhearted this session (a double tap too), whole, the same way for
     /// You's Liked list (inside-cards 16). Whether each is still hearted is `heart(_:)`.
     private(set) var likedTapped: [String: FeedCardItem] = [:]
+    /// Every story hearted or unhearted this session, the same way (inside-cards 22).
+    private(set) var likedNews: [String: TownNews] = [:]
     /// Each Place's or person's friends who follow it, as its last `follow_card` read gave them.
     private(set) var followFriends: [FollowTarget: (friends: [FollowCard.Friend], count: Int)] = [:]
     /// The neighbour's own choice, laid over `base` until a read agrees with it.
@@ -163,6 +171,7 @@ final class RealLifeActions {
     private let owner: () -> String?
     private let setGoing: (_ eventID: String, _ going: Bool) async throws -> Void
     private let setHeart: (_ eventID: String, _ hearted: Bool) async throws -> Void
+    private let setNewsHeart: (_ newsID: String, _ hearted: Bool) async throws -> Void
     private let setMember: (_ groupID: String, _ member: Bool) async throws -> Void
     private let setFollow: (_ target: FollowTarget, _ following: Bool) async throws -> Void
     private let readFollow: (_ target: FollowTarget) async throws -> FollowCard
@@ -175,12 +184,13 @@ final class RealLifeActions {
          owner: @escaping () -> String? = { nil },
          setGoing: @escaping (_ eventID: String, _ going: Bool) async throws -> Void,
          setHeart: @escaping (_ eventID: String, _ hearted: Bool) async throws -> Void,
+         setNewsHeart: @escaping (_ newsID: String, _ hearted: Bool) async throws -> Void = { _, _ in },
          setMember: @escaping (_ groupID: String, _ member: Bool) async throws -> Void = { _, _ in },
          setFollow: @escaping (_ target: FollowTarget, _ following: Bool) async throws -> Void = { _, _ in },
          readFollow: @escaping (_ target: FollowTarget) async throws -> FollowCard = { _ in
              throw URLError(.notConnectedToInternet)
          }) {
-        self.canAct = signedIn || !needsAccount
+        self.canAct = (signedIn || !needsAccount) && !Self.signedOutRun
         self.needsAccount = needsAccount
         self.realAccount = realAccount
         self.holdFor = hold
@@ -190,6 +200,7 @@ final class RealLifeActions {
         self.owner = owner
         self.setGoing = setGoing
         self.setHeart = setHeart
+        self.setNewsHeart = setNewsHeart
         self.setMember = setMember
         self.setFollow = setFollow
         self.readFollow = readFollow
@@ -211,6 +222,7 @@ final class RealLifeActions {
         let backend = LaunchFlags.backend
         let setGoing: (String, Bool) async throws -> Void
         let setHeart: (String, Bool) async throws -> Void
+        let setNewsHeart: (String, Bool) async throws -> Void
         let setMember: (String, Bool) async throws -> Void
         let setFollow: (FollowTarget, Bool) async throws -> Void
         let readFollow: (FollowTarget) async throws -> FollowCard
@@ -225,6 +237,12 @@ final class RealLifeActions {
                 guard UUID(uuidString: eventID) != nil else { return }
                 let api = SocialAPI(supabase)
                 if hearted { try await api.likeEvent(eventID) } else { try await api.unlikeEvent(eventID) }
+            }
+            setNewsHeart = { newsID, hearted in
+                // The sample stories ("n1") are hearted on this run only.
+                guard UUID(uuidString: newsID) != nil else { return }
+                let api = SocialAPI(supabase)
+                if hearted { try await api.likeNews(newsID) } else { try await api.unlikeNews(newsID) }
             }
             setMember = { groupID, member in
                 let api = CommunityAPI(supabase)
@@ -241,12 +259,14 @@ final class RealLifeActions {
             }
             setGoing = refuse
             setHeart = { _, _ in }
+            setNewsHeart = { _, _ in }
             setMember = refuse
             setFollow = { target, on in try await refuse(target.id, on) }
             readFollow = { Self.sampleFollowCard($0) }
         case .offline:
             setGoing = { _, _ in throw URLError(.notConnectedToInternet) }
             setHeart = { _, _ in throw URLError(.notConnectedToInternet) }
+            setNewsHeart = { _, _ in throw URLError(.notConnectedToInternet) }
             setMember = { _, _ in throw URLError(.notConnectedToInternet) }
             setFollow = { _, _ in throw URLError(.notConnectedToInternet) }
             readFollow = { _ in throw URLError(.notConnectedToInternet) }
@@ -260,7 +280,7 @@ final class RealLifeActions {
         self.init(signedIn: auth.isSignedIn, needsAccount: backend == .live,
                   realAccount: { auth.hasAccount }, hold: Self.hold, flip: .seconds(Self.flip),
                   keep: keeps ? .standard : nil, owner: { auth.userId },
-                  setGoing: setGoing, setHeart: setHeart, setMember: setMember,
+                  setGoing: setGoing, setHeart: setHeart, setNewsHeart: setNewsHeart, setMember: setMember,
                   setFollow: setFollow, readFollow: readFollow)
     }
 
@@ -305,6 +325,12 @@ final class RealLifeActions {
         return Heart(isHearted: tally.on, count: tally.count)
     }
 
+    /// A News story's Heart (inside-cards 22): the read's, else the story as it came, with your taps over it.
+    func heart(_ news: TownNews) -> Heart {
+        let tally = tally(Key(kind: .newsHeart, id: news.id), else: Tally(on: news.hearted, count: news.heartCount))
+        return Heart(isHearted: tally.on, count: tally.count)
+    }
+
     /// What the card's RSVP area says (`RSVPWords`): only for someone who may act, as Join
     /// never showed without an account.
     /// `bar`: the Event page's, in fewer words. `town`: the poster's, whose pill turns into the X that
@@ -312,13 +338,16 @@ final class RealLifeActions {
     /// A game whose final is in says who went and offers nothing to tap; with nobody, nothing.
     /// Once an Event has ended the bar's "Can't go?" goes: there's nothing left to leave, and leaving
     /// would take it off what you went to.
-    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false,
+    /// `look`: an Event page's bar, not a game's (inside-cards 18): the count alone, else its day over its time.
+    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false, card: Bool = false, look: Bool = false,
               at now: Date = .now) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
+        let day = look ? EventPage.barDay(item, now: now) : nil
         var words = RSVPWords.make(isGoing: going.isGoing, count: going.count,
                                    friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar,
-                                   town: town, card: card, over: item.game?.final != nil)
+                                   town: town, card: card, over: item.game?.final != nil,
+                                   look: look, day: day?.first, time: day?.second)
         if bar, words.canLeave, let end = item.when?.end, end <= now {
             words.second = nil
             words.canLeave = false
@@ -332,6 +361,10 @@ final class RealLifeActions {
 
     func heartFailureCount(_ eventID: String) -> Int {
         failures[Key(kind: .heart, id: eventID)] ?? 0
+    }
+
+    func newsHeartFailureCount(_ newsID: String) -> Int {
+        failures[Key(kind: .newsHeart, id: newsID)] ?? 0
     }
 
     /// Whether the neighbour is in the group, and how many are: the last groups read's (or the
@@ -383,6 +416,12 @@ final class RealLifeActions {
     /// A post's heart, shown at once, turned back the same way.
     func toggleHeart(_ post: TownPost) {
         toggle(Key(kind: .heart, id: post.id), from: heart(post).isHearted)
+    }
+
+    /// A story's heart (inside-cards 22), shown at once, turned back the same way, and in Liked at once.
+    func toggleHeart(_ news: TownNews) {
+        if canAct { likedNews[news.id] = news }
+        toggle(Key(kind: .newsHeart, id: news.id), from: heart(news).isHearted)
     }
 
     /// Join or leave a group, shown at once, turned back the same way as Join.
@@ -458,6 +497,17 @@ final class RealLifeActions {
         settle([.heart])
     }
 
+    /// A read's stories (the Town feed, Following, Liked; inside-cards 22): each one's hearts, settled as an
+    /// Event's. One still being sent shows in Liked too.
+    func read(news: [TownNews]) {
+        for story in news {
+            let key = Key(kind: .newsHeart, id: story.id)
+            base[key] = Tally(on: story.hearted, count: story.heartCount)
+            if canAct, writers[key] != nil { likedNews[story.id] = story }
+        }
+        settle([.newsHeart])
+    }
+
     /// A groups read (`get_groups`): each group's base membership, settled the same way.
     func read(_ groups: [TownGroup]) {
         for group in groups {
@@ -520,22 +570,22 @@ final class RealLifeActions {
         for kind in [Kind.going, .heart, .member] { close(Key(kind: kind, id: id)) }
     }
 
-    /// An Event's Town card is on screen. Only then does a failed Heart, RSVP or Join (its
-    /// group's, rsvp-and-groups 07) shake and buzz there.
+    /// An Event's Town card, or a story's (the ids never meet), is on screen. Only then does a failed
+    /// Heart, RSVP or Join (its group's, rsvp-and-groups 07) shake and buzz there.
     func cardOpened(_ eventID: String, group groupID: String? = nil) {
-        for kind in [Kind.heart, .going] { open[Key(kind: kind, id: eventID), default: 0] += 1 }
+        for kind in [Kind.heart, .going, .newsHeart] { open[Key(kind: kind, id: eventID), default: 0] += 1 }
         if let groupID { open[Key(kind: .member, id: groupID), default: 0] += 1 }
     }
 
     func cardClosed(_ eventID: String, group groupID: String? = nil) {
-        for kind in [Kind.heart, .going] { close(Key(kind: kind, id: eventID)) }
+        for kind in [Kind.heart, .going, .newsHeart] { close(Key(kind: kind, id: eventID)) }
         if let groupID { close(Key(kind: .member, id: groupID)) }
     }
 
     /// A new account (or none): the last one's choices are not this one's. Its base
     /// stays until the feed reads again for the new one.
     func accountChanged(signedIn: Bool) {
-        canAct = signedIn || !needsAccount
+        canAct = (signedIn || !needsAccount) && !Self.signedOutRun
         account &+= 1
         turnBacks.values.forEach { $0.cancel() }
         turnBacks = [:]
@@ -546,6 +596,7 @@ final class RealLifeActions {
         tappedOn = [:]
         goingTapped = [:]
         likedTapped = [:]
+        likedNews = [:]
         followFriends = [:]
         keptFor = signedIn ? owner() : nil
         restore()
@@ -583,7 +634,7 @@ final class RealLifeActions {
         switch kind {
         case .going: Tally(on: item.isJoined, count: item.goingCount)
         case .heart: Tally(on: item.isLiked, count: item.likeCount)
-        case .member, .followPlace, .followPerson, .followTeam, .followActivity, .followPage, .followBoard:
+        case .member, .followPlace, .followPerson, .followTeam, .followActivity, .followPage, .followBoard, .newsHeart:
             Tally(on: false, count: 0)
         }
     }
@@ -689,6 +740,7 @@ final class RealLifeActions {
                 switch key.kind {
                 case .going: try await setGoing(key.id, choice)
                 case .heart: try await setHeart(key.id, choice)
+                case .newsHeart: try await setNewsHeart(key.id, choice)
                 case .member: try await setMember(key.id, choice)
                 case .followPlace: try await setFollow(FollowTarget(type: .place, id: key.id), choice)
                 case .followPerson: try await setFollow(FollowTarget(type: .profile, id: key.id), choice)
@@ -744,7 +796,7 @@ final class RealLifeActions {
             // The shake and the buzz are silent to VoiceOver; this says it.
             let words = switch key.kind {
             case .going, .member: wasOn ? "Couldn't leave" : "Couldn't join"
-            case .heart: wasOn ? "Couldn't unlike" : "Couldn't like"
+            case .heart, .newsHeart: wasOn ? "Couldn't unlike" : "Couldn't like"
             case .followPlace, .followPerson, .followTeam, .followActivity, .followPage, .followBoard:
                 wasOn ? "Couldn't unfollow" : "Couldn't follow"
             }

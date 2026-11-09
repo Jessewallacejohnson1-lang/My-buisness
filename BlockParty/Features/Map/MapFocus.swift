@@ -25,10 +25,6 @@ struct MapFocus {
     nonisolated struct Camera: Equatable {
         var center: CLLocationCoordinate2D
         var zoom: Double
-
-        static func == (a: Camera, b: Camera) -> Bool {
-            a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude && a.zoom == b.zoom
-        }
     }
 
     /// One camera move: where it lands and how it gets there.
@@ -40,6 +36,8 @@ struct MapFocus {
             case home
             /// Ease out over 0.4 s: the compass's north and level.
             case level
+            /// Fly over 0.8 s: in to an Event its page asked for (inside-cards 19).
+            case arrive
         }
 
         var center: CLLocationCoordinate2D
@@ -50,12 +48,6 @@ struct MapFocus {
         /// How far the bubble is lifted above the card: the camera's bottom padding, 0 for none.
         var lift: CGFloat
         var glide: Glide
-
-        static func == (a: Move, b: Move) -> Bool {
-            a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude
-                && a.zoom == b.zoom && a.bearing == b.bearing && a.pitch == b.pitch
-                && a.lift == b.lift && a.glide == b.glide
-        }
     }
 
     /// The lifted bubble clears the top chrome by this much.
@@ -77,6 +69,20 @@ struct MapFocus {
         selectedID = nil
         page = 0
         return Move(center: camera.center, zoom: camera.zoom, bearing: nil, pitch: nil, lift: 0, glide: .settle)
+    }
+
+    /// Where the map opens for an Event its page asked for: over its spot, 1.6 steps out from the opening zoom
+    /// (the bubble's smallest, 36 pt), so it flies in a little way rather than 92 km from the Town to Ham Lake.
+    static let arriveFrom: Double = SJMapView.openZoom - 1.6
+
+    /// An Event its page or a held card asked for (inside-cards 19): its bubble's card opens on it, whoever's
+    /// friends go to the others there, and the camera flies in to the opening zoom, lifting the bubble above the
+    /// card. The zoom is the opening one, not the camera's: the map reports its zoom only once it has drawn.
+    mutating func arrive(_ bubble: TodayBubble, on eventID: String, mapWidth: CGFloat) -> Move {
+        selectedID = bubble.id
+        page = bubble.events.firstIndex { $0.id == eventID } ?? 0
+        return Move(center: bubble.coordinate, zoom: SJMapView.openZoom, bearing: nil, pitch: nil,
+                    lift: Self.lift(mapWidth: mapWidth), glide: .arrive)
     }
 
     /// Recenter: the card closes as part of the one fly home, never as a move of its own.
@@ -123,6 +129,7 @@ extension MapFocus.Move {
         case .settle: .easeOut(duration: 0.45)
         case .home:   .fly(duration: 0.8)
         case .level:  .easeOut(duration: 0.4)
+        case .arrive: .fly(duration: 0.8)
         }
     }
 }

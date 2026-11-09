@@ -149,6 +149,12 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The organizer's own words (`club_events.description`), the Event page's About: nil for
     /// an event without them (a game), and on rows read before the feeds sent them.
     var description: String? = nil
+    /// What it costs, as words a source said ("Free", "$22, $20 seniors, $15 students"; `club_events.price`, BP app
+    /// inside-cards 14): the Event page's price line. nil when no source says, and the page shows nothing then.
+    var price: String? = nil
+    /// Where it is (the card's `lat`, `lng` and `no_place`, BP app inside-cards 19): its spot, at no one place, or nil
+    /// when not known, on a row with no card or one read before the card said so. What its page's Map does.
+    var spot: EventSpot? = nil
     /// A game between two teams (BP app docs/plans/game-card, ticket 01): its Town card shows
     /// the teams instead of a photo. nil for any other event, and on rows read before the feed
     /// sent it.
@@ -277,6 +283,10 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var title: String? = nil
     /// The interest it shares with you, by id, for its ••• sheet's why line (news-menu); nil when none.
     var interest: String? = nil
+    /// Whether you hearted it, and every account's hearts, as the read sent them (inside-cards 22);
+    /// `RealLifeActions` lays your taps over them.
+    var hearted = false
+    var heartCount = 0
     /// Its post's own photo and that photo's shape, width over height (BP app town-feed 53): with one, the Town photo
     /// card; nil keeps the white card.
     var photo: URL? = nil
