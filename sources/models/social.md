@@ -34,7 +34,7 @@ carry on with the rest.
 
 **Read and judge, then Save.** Follow `sources/models/morning.md`'s **Read and judge** and
    **Save**: the cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`),
-   shorten long titles, ask the cheap model which News repeat what a place already has (`repeat.md`),
+   shorten long titles, ask a helper which News repeat what a place already has (`repeat.md`),
    and `morning.py save` writes them (on a social check it only writes).
    Each page is one post, and its first line says who posted it and when: read "tonight",
    "tomorrow" and "this Friday" from the day it was posted, not from today.

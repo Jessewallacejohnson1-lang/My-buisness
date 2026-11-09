@@ -17,8 +17,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   titles    list the event titles still over 40 characters once tidied (games aside), then the News titles
             past their card's 2 lines, in .runs/morning/titles.txt, for the routine's model to shorten into
             titles.json (.claude/skills/title-and-place; Jesse, 2026-10-21; BP app inside-cards 13); and lay out
-            the News the word rules leave beside what their places have, in repeats.txt, for one helper on the
-            cheap model (sources/models/repeat.md), whose answers save reads from repeats.jsonl (smooth-mornings 16)
+            the News the word rules leave beside what their places have, in repeats/batch-N.txt, for the routine's
+            helpers (sources/models/repeat.md), whose answers save reads from repeats.jsonl (smooth-mornings 16)
   save      once the judge is done: merge the feed items with the judge's items, give long titles their
             short ones (titles.json), write them (public.apply_judged over the service role key), put a post's
             new lasting week on its place (save_hours: the judge's `hours` items, social.md), then save
@@ -286,11 +286,11 @@ def read_items(path):
 
 
 def repeat_check_lines(result):
-    """What the cheap model's repeat check did (smooth-mornings 16): how many it read, each News it held back, and
+    """What the repeat check did (smooth-mornings 16): how many it read, each News it held back, and
     any it wasn't asked about because its answer never came, which went up."""
     asked, answered = result.get("repeat_check") or (0, 0)
-    held = [(i, d) for i, (what, d) in enumerate(result["outcomes"]) if what == "repeat" and "the cheap model" in d]
-    lines = [f"- Repeat check: {answered} of {asked} News read by the cheap model, {len(held)} held back"] if asked else []
+    held = [(i, d) for i, (what, d) in enumerate(result["outcomes"]) if what == "repeat" and "(the model says)" in d]
+    lines = [f"- Repeat check: {answered} of {asked} News read by the model, {len(held)} held back"] if asked else []
     lines += [f"- Held back as a repeat: {d}" for _, d in held]
     if result.get("ask"):
         lines.append(f"- Repeat check not answered for {len(result['ask'])} News: "
@@ -544,9 +544,9 @@ def long_titles(run):
 
 
 def repeat_questions(run):
-    """The News the word rules leave beside what their places have (write_judged.told), in repeats.txt for one helper
-    on the cheap model (sources/models/repeat.md), and what each number stands for in repeats-asked.json, for save
-    (BP app smooth-mornings 16). The judge's items as they stand after the titles step."""
+    """The News the word rules leave beside what their places have (write_judged.told), in repeats/batch-N.txt for
+    helpers (sources/models/repeat.md), and what each number stands for in repeats-asked.json, for
+    save (BP app smooth-mornings 16). The judge's items as they stand after the titles step."""
     out, db = run.folder, run.db
     items = news_items(out)
     asks = []
@@ -555,10 +555,15 @@ def repeat_questions(run):
                                    recent_news=write_judged.news_in_db(db=db),
                                    history=write_judged.history_in_db(items, run.today, db))
         asks = result["ask"]
-    (out / "repeats.txt").write_text(write_judged.repeat_questions(asks, run.today) if asks else "")
+    folder, size = out / "repeats", write_judged.REPEAT_BATCH
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir()
+    for b in range(0, len(asks), size):  # numbered through, so the helpers' lines share one file
+        (folder / f"batch-{b // size + 1}.txt").write_text(write_judged.repeat_questions(asks[b:b + size], run.today, b + 1))
     (out / "repeats-asked.json").write_text(json.dumps([[write_judged.repeat_key(n), c] for n, c in asks], default=str))
     (out / "repeats.jsonl").unlink(missing_ok=True)  # an answer is only ever to these questions
-    print(f"[morning] {len(asks)} News for the cheap model's repeat check" + (f" ({out / 'repeats.txt'})" if asks else ""))
+    print(f"[morning] {len(asks)} News for the repeat check"
+          + (f" in {-(-len(asks) // size)} batches ({folder})" if asks else ""))
 
 
 def news_items(out):
@@ -1294,14 +1299,14 @@ def selftest():
         unanswered = repeat_answers(folder)
         (folder / "repeats.jsonl").write_text('{"news": 1, "same_as": 1, "title": "Closing for the Season Soon"}\n')
         answered = repeat_answers(folder)
-    held = {"outcomes": [("repeat", "'Closing', the same story as 'Closing for the Season Soon' (the cheap model says)"),
+    held = {"outcomes": [("repeat", "'Closing', the same story as 'Closing for the Season Soon' (the model says)"),
                          ("repeat", "of 'x' (already in the app)"), ("news", "")],
             "ask": [({"title": "Bingo"}, [soon])], "repeat_check": (3, 2)}
     checks += [
         (none_yet == ({}, 0) and unanswered == ({}, 2), "no questions, or no answers: nothing held back"),
         (answered == ({"The North Table\nclosing": soon}, 2), "an answer names the row; an unanswered question is left out"),
-        (repeat_check_lines(held) == ["- Repeat check: 2 of 3 News read by the cheap model, 1 held back",
-                                      "- Held back as a repeat: 'Closing', the same story as 'Closing for the Season Soon' (the cheap model says)",
+        (repeat_check_lines(held) == ["- Repeat check: 2 of 3 News read by the model, 1 held back",
+                                      "- Held back as a repeat: 'Closing', the same story as 'Closing for the Season Soon' (the model says)",
                                       "- Repeat check not answered for 1 News: Bingo (they went up)"],
          "the report says what the repeat check did"),
         (repeat_check_lines({"outcomes": [], "ask": []}) == [], "no questions, no line"),

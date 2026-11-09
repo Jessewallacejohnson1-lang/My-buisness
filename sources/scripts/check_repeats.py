@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_repeats.py: does the cheap model, reading sources/models/repeat.md, hold back the News that repeat what their
+check_repeats.py: does the model, reading sources/models/repeat.md, hold back the News that repeat what their
 place already has, and let the rest go up? (BP app docs/plans/smooth-mornings, ticket 16; the bar is the ticket's.)
 
 The fixture is every News from Oct 14 to Nov 9 that had anything from its place in the two weeks before, each with
@@ -14,7 +14,11 @@ The check lays the questions out as the morning does (write_judged.repeat_questi
 them three times through Claude Code on Jesse's plan, as check_flags.py does. Bar: 9 of 10 repeats held back, and at
 most 1 in 50 of the others. It prints each run's score, every miss and every News wrongly held, and exits 1 below the bar.
 
-  python3 sources/scripts/check_repeats.py [--model haiku] [--runs 3] [--fixture FILE]
+Readings on 2026-11-09 (BP app smooth-mornings 16): Haiku straddled the bar, 89% to 97% held back and 1.4% to 2.4%
+wrongly held over four readings of three runs; Sonnet held back 69 of 72 and wrongly held 3 of 495, the same each run.
+The morning asks Sonnet.
+
+  python3 sources/scripts/check_repeats.py [--model sonnet] [--runs 3] [--fixture FILE]
   python3 sources/scripts/check_repeats.py --selftest
 """
 
@@ -26,11 +30,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_flags import ask
-from write_judged import REPEAT_MODEL, repeat_questions, same_story, told
+from write_judged import REPEAT_BATCH, REPEAT_MODEL, repeat_questions, same_story, told
 
 FIXTURE = Path.home() / "BP app/docs/plans/smooth-mornings/assets/16-repeat-check/fixture.json"
 CAUGHT, WRONG = 0.9, 1 / 50
-PER_MESSAGE = 15
+PER_MESSAGE = REPEAT_BATCH  # as the morning lays them out
 
 
 def messages(questions):
@@ -77,7 +81,7 @@ def selftest():
     parts = messages(qs[:3] * 10)
     caught, missed, wrong = score(qs, {"n1": qs[0]["candidates"][0], "n2": qs[1]["candidates"][0], "n3": None, "n4": qs[3]["candidates"][0]})
     checks = [
-        ([(d, len(x)) for d, x in parts] == [("2026-11-08", 10), ("2026-11-09", PER_MESSAGE), ("2026-11-09", 20 - PER_MESSAGE)],
+        ([(d, len(x)) for d, x in parts] == [("2026-11-08", 4), ("2026-11-08", 4), ("2026-11-08", 2)] + [("2026-11-09", 4)] * 5,
          "one message a day, cut at PER_MESSAGE"),
         ([q["news"]["id"] for q in caught] == ["n1"] and [q["news"]["id"] for q in missed] == ["n3"]
          and [q["news"]["id"] for q in wrong] == ["n2"], "caught, missed and wrongly held; a label-pass repeat is neither"),
@@ -93,7 +97,7 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model", default="haiku", help="the cheap model (default haiku)")
+    ap.add_argument("--model", default="sonnet", help="the model the morning asks (default sonnet)")
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--fixture", default=FIXTURE, help="the private fixture (default: the BP app repo's)")
     ap.add_argument("--selftest", action="store_true")

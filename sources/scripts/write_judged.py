@@ -95,7 +95,7 @@ THE RULES
     the other's, or two shared words at least and two thirds of the shorter title's; a plural or
     "pre-" is the same word; the place's own name, weekdays, free and new not counted) is a repeat
     and is not added (repeat_of). The title rule also reads the place's News taken out in the last 14 days, so
-    a take-out stands. What the word rules leave, the cheap model reads beside its place's News (whatever their
+    a take-out stands. What the word rules leave, a model (the routine's Sonnet) reads beside its place's News (whatever their
     status) and Events from the last 14 days (told, sources/models/repeat.md), and a News it calls the same story
     is a repeat too: another wording, an update to a story still showing, or an Event already there (BP app
     smooth-mornings 16; morning.py lays out the questions, check_repeats.py is its eval).
@@ -1135,7 +1135,7 @@ def joined(title, other):
     return title
 
 
-REPEAT_DAYS, REPEAT_AHEAD, REPEAT_MOST = 14, 30, 30
+REPEAT_DAYS, REPEAT_AHEAD, REPEAT_MOST, REPEAT_BATCH = 14, 30, 30, 4
 REPEAT_MODEL = Path(__file__).resolve().parents[1] / "models" / "repeat.md"
 
 
@@ -1160,7 +1160,7 @@ def event_days(row):
 def told(n, history, today):
     """What a new News's place already has that it may repeat (BP app smooth-mornings 16): its News of the last
     REPEAT_DAYS whatever their status, so a take-out stands, newest first; then its Events running from REPEAT_DAYS
-    ago to REPEAT_AHEAD days ahead, rejected ones too, nearest first. REPEAT_MOST at most, for one cheap call."""
+    ago to REPEAT_AHEAD days ahead, rejected ones too, nearest first. REPEAT_MOST at most."""
     news, events = [], []
     for old in history:
         if old is n or not same_host(old, n):
@@ -1198,10 +1198,11 @@ def story_line(row, today):
     return f"News {said} {day:%b} {day.day}: {row['title']}. {_short(row.get('blurb'))}".rstrip(". ") + "."
 
 
-def repeat_questions(asks, today):
-    """The cheap model's message (sources/models/repeat.md): each new News, numbered, over what its place has."""
+def repeat_questions(asks, today, start=1):
+    """The model's message (sources/models/repeat.md): each new News, numbered from `start`, over what its place
+    has. At most REPEAT_BATCH News a message: Haiku given 8 of them at once answered most null, matches on row 1 too."""
     out = [f"Today is {today:%A, %b} {today.day}, {today.year}.\n"]
-    for i, (n, candidates) in enumerate(asks, 1):
+    for i, (n, candidates) in enumerate(asks, start):
         out.append(f"## News {i}, posted by {n['source_name']}: {n['title']}. {_short(n.get('blurb'), 300)}".rstrip(". ") + ".")
         out += [f"  {j}. {story_line(c, today)}" for j, c in enumerate(candidates, 1)]
         out.append("")
@@ -1241,8 +1242,8 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     """Judged items + the events already listed -> what to write, and each item's outcome.
     `recent_news`: this week's News already in the app (news_in_db), so a repeat isn't added.
     `history`: the News (any status) and Events its News's places have from the last two weeks (history_in_db). The
-    title rule reads its News too, so a take-out stands; a News it leaves gets a question for the cheap model in
-    out["ask"], [(News, what its place has)], unless `asked` answers it: {repeat_key(News as read): the row it repeats,
+    title rule reads its News too, so a take-out stands; a News it leaves gets a question in
+    out["ask"], [(News, what its place has)], for a model (sources/models/repeat.md), unless `asked` answers it: {repeat_key(News as read): the row it repeats,
     or None} (BP app smooth-mornings 16). With no history, nothing is asked.
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
@@ -1287,11 +1288,11 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 also.setdefault(id(post), (post, []))[1].append(n["title"])
                 out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
                 continue
-            # The word rules leave it: the cheap model reads it beside what its place has (smooth-mornings 16).
+            # The word rules leave it: a model reads it beside what its place has (smooth-mornings 16).
             mine = {**n, "title": read}
             if history is not None and repeat_key(mine) in asked:
                 if same := asked[repeat_key(mine)]:
-                    out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the cheap model says)")
+                    out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the model says)")
                     continue
             elif history is not None and (candidates := told(mine, [*history, *news.values()], today)):
                 out["ask"].append((mine, candidates))
@@ -1776,6 +1777,8 @@ def t_a_repeat_is_asked_about():
     text = repeat_questions(asks, today)
     assert "## News 2, posted by The North Table: The North Table closes for the winter." in text, text
     assert "  1. News written Nov 6: Closing for the Season Soon. Open for now." in text, text
+    assert repeat_questions(asks[1:], today, 2).count("## News ") == 2 and "## News 2, posted by The North Table" in \
+        repeat_questions(asks[1:], today, 2), "a later batch numbers on"
     assert "  1. Event, Nov 9 to Nov 20: 12 Days of Giving. A new deal each day." in text, text
     assert "News goes up Nov 20: Closed" in repeat_questions([(asks[1][0], [dict(soon, title="Closed", published_at=
                                                                             "2026-11-20T00:00:00-06:00")])], today)
@@ -1787,7 +1790,7 @@ def t_a_repeat_is_asked_about():
     asked = {repeat_key(n): got.get(i) for i, (n, _) in enumerate(asks, 1)}
     r = plan(items, [], today, INTERESTS, recent_news=[soon], history=history, asked=asked)
     assert [outcome(r, i) for i in range(4)] == ["repeat", "repeat", "repeat", "news"] and not r["ask"], r["outcomes"]
-    assert "the same story as 'Closing for the Season Soon' (the cheap model says)" in r["outcomes"][1][1], r["outcomes"][1]
+    assert "the same story as 'Closing for the Season Soon' (the model says)" in r["outcomes"][1][1], r["outcomes"][1]
     assert not plan(items, [], today, INTERESTS)["ask"], "no history, nothing asked"
 
 
@@ -2909,8 +2912,8 @@ def main():
     ap.add_argument("--town", default=DEFAULT)
     ap.add_argument("--sql", help="write the live write as SQL to this file")
     ap.add_argument("--apply", action="store_true", help="write to the database (service role key in the environment)")
-    ap.add_argument("--ask", metavar="MODEL", help="ask MODEL (haiku) about News the word rules leave, through Claude Code "
-                                                   "on this Mac (sources/models/repeat.md); the morning job's helper asks it there")
+    ap.add_argument("--ask", metavar="MODEL", help="ask MODEL (sonnet) about News the word rules leave, through Claude Code "
+                                                   "on this Mac (sources/models/repeat.md); the morning job's helpers ask it there")
     ap.add_argument("--before", help="with --news db: only rows made before this time (ISO, with offset), to replay a morning")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
