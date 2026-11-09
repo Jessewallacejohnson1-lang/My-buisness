@@ -53,8 +53,10 @@ neighbour's feed, the way the post's best picture would on Instagram:
   Jesse took the four friends in the tees with their fists up over a sharp photo of one woman in the tee ("the
   other ones get attention of users more", 2026-11-08). A smaller picture is fine when it is the better moment.
 - Else the thing itself: the dish, the new product, the shop's new room.
-- Never a flyer, a graphic or a picture with words set on it, never a logo, and none of the "never" list above:
-  a News with no real photo stays a card with words, so pick none. Never mark a News's pick `"flyer": true`.
+- No real photo among them: its own flyer or graphic, marked `"flyer": true`, when its words are true of this News
+  (the sale's own flyer for the sale, the new menu's graphic for the new menu; Jesse, 2026-11-08: "never a flyer"
+  allow). Never one that is mostly small print, never a logo, and none of the rest of the "never" list above; with
+  none of these, pick none and the News stays a card with words.
 
 ## Answer
 

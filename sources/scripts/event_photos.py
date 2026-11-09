@@ -27,8 +27,8 @@ a meet or any sport has no photo of its own for now (place_photos.is_sport, the 
 sport's card shows the scene pool (event-photos 07).
 
 A News found in a Facebook or Instagram post gets the same look (BP app town-feed 53; Jesse, 2026-11-08: "yes" to News
-showing its post's own photo): its own post's pictures only, never its place's other posts, down to NEWS_MIN_WIDTH, and a
-real photo only, never a flyer. `keep` saves the pick as a place_photos row of kind 'news' tied to the News, and marks every
+showing its post's own photo): its own post's pictures only, never its place's other posts, down to NEWS_MIN_WIDTH, a
+real photo first, else its own flyer (Jesse, 2026-11-08: "never a flyer" allow). `keep` saves the pick as a place_photos row of kind 'news' tied to the News, and marks every
 News laid out as looked at (board_items.photo_checked_at).
 
 Before any of that, a photo a person kept for an Event's title at its place (a publish sheet Jesse said yes to, not this
@@ -374,12 +374,11 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
 def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
     of its own pictures, each group once. A flyer from another post of the place counts too, when its words still
-    hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05). A News takes a real photo only."""
+    hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05). A News takes its own post's flyer too
+    (Jesse, 2026-11-08)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
-            continue
-        if by[ln["event"]].get("news") and ln.get("flyer"):
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
         if c:
@@ -726,9 +725,9 @@ def selftest():
         said = json.loads((out / "photos" / "batch-1.txt").read_text().splitlines()[2])
         check(said["event"] == "n1" and said["news"] is True and said["host"] == "JoeTown" and "date" not in said,
               "the batch marks a News as one, with its words and no date")
-        check(plan([{"event": "n1", "pick": "c1", "flyer": True}], ng) == {}
+        check(plan([{"event": "n1", "pick": "c1", "flyer": True}], ng)["n1"][2] is True
               and list(plan([{"event": "n1", "pick": "c1", "shows": "Four friends in the new tees"}], ng)) == ["n1"],
-              "a News takes a real photo, never a flyer")
+              "a News takes a real photo, else its own flyer (Jesse, 2026-11-08: \"never a flyer\" allow)")
         (out / "photos" / "events.json").write_text(json.dumps(ng))
         (out / "event_photos.jsonl").write_text('{"event": "n1", "pick": "c1", "shows": "Four friends in the new tees"}\n')
         fake = place_photos.Unsent("https://db.example")

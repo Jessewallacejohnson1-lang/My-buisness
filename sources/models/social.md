@@ -95,8 +95,8 @@ carry on with the rest.
    the JSON lines only." Write their lines to `.runs/morning/event_photos.jsonl`, then run
    `python3 sources/scripts/event_photos.py keep`. Each new Event that isn't a game gets the real photo of
    it a helper picked from its post or its place's other posts, else its own flyer, or none (event-photos 09);
-   each new News from a post gets the real photo from its own post that draws the eye most, or none (BP app
-   town-feed 53).
+   each new News from a post gets the real photo from its own post that draws the eye most, else its post's own
+   flyer, or none (BP app town-feed 53).
 
 **Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
