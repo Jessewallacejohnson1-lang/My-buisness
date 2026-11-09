@@ -824,7 +824,7 @@ def thin(run, get=None):
 
 
 def plan_descriptions(lines, events):
-    """The helpers' lines as writes, the columns to save per Event (`description`, `price`): only Events they
+    """The helpers' lines as writes, the columns to save per Event (`description`, `price`, `ages`): only Events they
     were given, each once. An About that is text and longer than the one it has (a fuller About is never
     shortened), unless the line says it was cleaned (`cleaned`, or a `price` moved out of it: inside-cards 14),
     when a shorter About is the point; a price whenever given, one short line. CHECK lines are kept for the
@@ -845,6 +845,9 @@ def plan_descriptions(lines, events):
             write["description"] = write_judged.clip(about, ABOUT_MAX)
         if price:
             write["price"] = write_judged.clip(price, PRICE_MAX)
+        # Who it's for by age when a source says it, in the app's one shape (inside-cards 30).
+        if ages := write_judged.ages_of(words("ages")):
+            write["ages"] = ages
         if write:
             writes[ln["id"]] = write
     return writes, checks
@@ -1450,6 +1453,9 @@ def selftest():
     writes, _ = plan_descriptions([{"id": "b", "about": "Short.", "price": "Free"}, {"id": "a", "about": "", "cleaned": True}], given)
     checks.append((writes == {"b": {"description": "Short.", "price": "Free"}},
                    "a price makes a shorter About a cleaned one; an empty About is never written"))
+    # Who it's for by age, only as a source says it, in the app's one shape (inside-cards 30); "all ages" writes nothing.
+    writes, _ = plan_descriptions([{"id": "b", "about": "", "ages": "adults 21+ only"}, {"id": "a", "about": "", "ages": "all ages"}], given)
+    checks.append((writes == {"b": {"ages": "21+"}}, "an age a source says is written in the app's shape; all ages is not"))
     checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told() + credits_told()
     asked = []
 

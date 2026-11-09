@@ -44,6 +44,10 @@ that link, read this morning (empty when it couldn't be read).
   the source's words ("Free", "$22, $20 seniors, $15 students", "$10 suggested donation"), "Free" only
   when a source says so, empty when none does. An About laid out only because it names a cost needs no
   research: move the cost to `price` and answer with the About without it.
+- Who it's for by age goes in `ages` when a source says it, in the source's words ("adults 21+ only",
+  "ages 10 and up", "ages 6 to 14"); the app shows it like a LEGO box's "18+" (Jesse, 2026-11-08, BP app
+  inside-cards 30). Empty for "all ages", "family friendly" or a guess: a bar's bingo night is no 21+
+  unless a source says so.
 - Only what a source states, in your own calm words.
 - Keep the good facts in `about`. With nothing more found, answer with `about` as it is.
 - Say who hosts only when a source names them. A school calendar lists its teams' away meets too, so a
@@ -59,7 +63,8 @@ that link, read this morning (empty when it couldn't be read).
 
 One JSON line per Event, nothing else:
 
-{"id": "<id>", "about": "<the About>", "price": "<what it costs, or empty>", "check": "<empty, or what looks wrong>"}
+{"id": "<id>", "about": "<the About>", "price": "<what it costs, or empty>", "ages": "<who it's for by age, or empty>",
+ "check": "<empty, or what looks wrong>"}
 
 `check` is for anything a source contradicts in the Event itself (the date, time, place or
 title, a cancellation, a duplicate), and for a time the Event lacks that the words gave ("ends at 9

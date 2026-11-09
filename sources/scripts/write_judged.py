@@ -54,6 +54,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   blurb        one line; an Event's says what it is and what to expect, never its date, time, place or price
   price        events, optional: what it costs, as words ("Free", "$10 at the door"); the Event page's own line
                (BP app inside-cards 14)
+  ages         events, optional: who it's for by age, only when the page says it ("21+", "ages 10 and up",
+               "ages 6 to 14"); never for "all ages" or a guess. Shown like a LEGO box's "18+" (BP app inside-cards 30)
   game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
                "St. Cloud"]}, the host's team first, as neighbours say them (read_events.py, the league's
                games). CSB and SJU Athletics games need none: the writer reads them off the title.
@@ -434,6 +436,21 @@ def clip(text, n):
     never stops mid-word."""
     text = (text or "").strip()
     return text if len(text) <= n else text[:n - 1].rsplit(None, 1)[0] + "…"
+
+
+def ages_of(text):
+    """Who an Event is for by age, as the app shows it (BP app inside-cards 30, like a LEGO box's "18+"): "21+",
+    "Ages 6–14" or "Ages 12 and under", from the judge's or a helper's words. None for "all ages", a guess or words
+    it can't read, so a wrong age never shows (club_events.ages takes only these three shapes)."""
+    t = (text or "").lower().replace("–", "-").replace("—", "-")
+    if m := re.search(r"(\d{1,2})\s*(?:-|to)\s*(\d{1,2})", t):
+        lo, hi = int(m[1]), int(m[2])
+        return f"Ages {lo}–{hi}" if lo < hi < 99 else None
+    if m := re.search(r"(\d{1,2})\s*(?:\+|(?:and|&|or)\s*(?:up|over|older))", t):
+        return f"{int(m[1])}+"
+    if m := re.search(r"(\d{1,2})\s*(?:and|&|or)\s*(?:under|younger)", t):
+        return f"Ages {int(m[1])} and under"
+    return None
 
 
 def tidy_title(title, host="", event=True):
@@ -845,6 +862,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
            "start_time": at and clock(at), "end_at": end and end.isoformat(), "all_day": at is None,
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
            "description": clip(it.get("blurb"), 1000) or None, "price": clip(it.get("price"), 60) or None,
+           "ages": ages_of(it.get("ages")),
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "team_shorts": None,
@@ -1456,6 +1474,17 @@ def t_description_cut_at_a_word():
     assert len(got) <= 1000 and got.endswith("word…"), got[-20:]
     assert run([item(blurb="  Bring a chair.\n")])["events"][0]["row"]["description"] == "Bring a chair."
     assert run([item(blurb=None)])["events"][0]["row"]["description"] is None
+
+
+def t_ages_only_as_a_source_says():
+    # Who it's for by age (BP app inside-cards 30): the LEGO box's "21+", or a range; nothing for "all ages" or a guess.
+    said = {"21+": "21+", "adults 21+ only": "21+", "21 and over": "21+", "ages 10 and up": "10+", "18 & older": "18+",
+            "ages 6 to 14": "Ages 6–14", "6-14": "Ages 6–14", "Ages 6–14": "Ages 6–14", "12 and under": "Ages 12 and under",
+            "all ages": None, "family friendly": None, "": None, None: None, "6 to 99": None, "14-6": None}
+    for words, want in said.items():
+        assert ages_of(words) == want, (words, ages_of(words), want)
+    assert run([item(ages="adults 21+ only")])["events"][0]["row"]["ages"] == "21+"
+    assert run([item()])["events"][0]["row"]["ages"] is None
 
 
 def t_all_day_run_keeps_its_last_day():
@@ -2654,7 +2683,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

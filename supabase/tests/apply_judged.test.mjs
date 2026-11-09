@@ -156,6 +156,14 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal(await price(), '$5 at the door', 'a re-read without a price keeps it');
   await apply(placed('2026-10-21').map((g) => ({ ...g, price: '' })), [], [], []);
   assert.equal(await price(), '$5 at the door', 'a blank price keeps it too');
+  // Who it's for by age lands the same way, and only in the app's shapes (inside-cards 30).
+  const ages = async () => (await db.query('select ages as a from public.club_events')).rows[0].a;
+  await apply(placed('2026-10-21').map((g) => ({ ...g, ages: '21+' })), [], [], []);
+  assert.equal(await ages(), '21+');
+  await apply(placed('2026-10-21').map((g) => ({ ...g, ages: '' })), [], [], []);
+  assert.equal(await ages(), '21+', 'a re-read that says no age keeps it');
+  await assert.rejects(db.query(`update public.club_events set ages = 'all ages'`), /club_events_ages_shape/,
+    'words outside the shapes are refused, so the app shows the field as it is');
   await db.exec(`update public.club_events set about_written_at = null`);
 
   // A re-read with no place keeps the one it had (Sal's, 2026-10-25); a new place still moves it.

@@ -375,7 +375,7 @@ function isFullCard(card, id, day) {
 const bareCard = (card, id, day, going) => ({
   id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
   club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null, price: null, lat: null, lng: null, no_place: false,
+  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null, price: null, ages: null, lat: null, lng: null, no_place: false,
   what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
 });
 
@@ -423,6 +423,9 @@ test("a priced Event's card carries its price as words, for the Event page's lin
   await going(ME, id);
   const [row] = await asTheAppReads('going', day);
   assert.equal(row.card.price, '$22, $20 seniors, $15 students', 'free text, as the source says it');
+  await db.query('update public.club_events set ages = $2 where id = $1', [id, 'Ages 6–14']);
+  const [aged] = await asTheAppReads('going', day);
+  assert.equal(aged.card.ages, 'Ages 6–14', 'who it is for by age rides the same card (inside-cards 30)');
 });
 
 test("an Event's card says where it is, or that it is at no one place, for its Map (inside-cards 19 review)", async () => {
