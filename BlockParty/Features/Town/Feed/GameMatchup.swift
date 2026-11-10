@@ -1177,8 +1177,9 @@ struct LogoDisc: View {
     let initial: String
     let logoSide: CGFloat
     let letter: Font
-    /// A host's picture beside its name (Town cards, Town news): the logo's empty border trimmed,
-    /// and a round badge filling the whole circle (`LogoFit`, Jesse 2026-10-24).
+    /// A host's picture beside its name (Town cards, Town news): the logo's empty border trimmed, and
+    /// on a disc sized so its farthest ink touches a circle `logoSide` across, never past it: a round
+    /// badge fills it, a square sits inside (`LogoFit`, Jesse 2026-10-24, 2026-11-10).
     var fits = false
     /// On the white game card the logo, or its letter, stands bare (game-card 06).
     var disc = true
@@ -1196,12 +1197,13 @@ struct LogoDisc: View {
             if disc {
                 Circle().fill(.white)
             }
-            if let image, fit?.round == true {
+            if let image, let fit, disc {
+                let width = logoSide / 2 / max(fit.reach, 0.5)
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
-                    .scaledToFill()
-                    .clipShape(Circle())
+                    .scaledToFit()
+                    .frame(width: width, height: width * image.size.height / max(image.size.width, 1))
                     .transition(.opacity)
             } else if let image {
                 Image(uiImage: image)
@@ -1220,6 +1222,8 @@ struct LogoDisc: View {
                     .transition(.opacity)
             }
         }
+        // Nothing crosses the disc's edge, whatever the measure missed.
+        .clipShape(disc ? AnyShape(Circle()) : AnyShape(Rectangle()))
         .animation(Motion.smooth, value: image != nil)
         .task(id: logo) { if let logo { logos.prefetch([logo]) } }
     }

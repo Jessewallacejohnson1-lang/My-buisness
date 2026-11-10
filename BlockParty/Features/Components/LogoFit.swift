@@ -1,12 +1,16 @@
 import UIKit
 
-/// A logo as a small circle shows it: its own ink without the empty border its file carries, and
-/// whether that ink is a round badge (JoeTown's, Milk & Honey's), which then fills the whole circle
-/// instead of sitting small inside a white ring (Jesse, 2026-10-24: "make it fit the icon better").
-/// Worked out from the picture itself, so a new logo needs no marking.
+/// A logo as a small circle shows it: its own ink without the empty border its file carries, and how
+/// far that ink reaches from its middle, so the circle can size it to sit wholly inside (Jesse,
+/// 2026-11-10: The House's square logo broke out of its circle and Sal's lost its ends under the
+/// ring). A round badge reaches about half its width and fills the circle (Jesse, 2026-10-24: "make it
+/// fit the icon better"); a square or a wordmark reaches to its corners and sits smaller. Worked out
+/// from the picture itself, so a new logo needs no marking.
 struct LogoFit {
     let image: UIImage
-    let round: Bool
+    /// The farthest ink from the trimmed image's middle, over its width: 0.5 for a full round badge,
+    /// about 0.71 for a full square. A circle of diameter d shows the image `d / 2 / reach` wide.
+    let reach: CGFloat
 
     /// Side of the copy the ink is read from: enough to find the border, cheap enough for a feed.
     private static let sample = 96
@@ -25,7 +29,7 @@ struct LogoFit {
     init(_ image: UIImage) {
         guard let cg = image.cgImage, let ink = Self.ink(cg) else {
             self.image = image
-            round = false
+            reach = 0.71
             return
         }
         let n = Self.sample
@@ -36,7 +40,7 @@ struct LogoFit {
         } }
         guard maxX >= minX, maxY >= minY else {
             self.image = image
-            round = false
+            reach = 0.71
             return
         }
         let sx = CGFloat(cg.width) / CGFloat(n), sy = CGFloat(cg.height) / CGFloat(n)
@@ -45,23 +49,15 @@ struct LogoFit {
         let trimmed = cg.cropping(to: box).map { UIImage(cgImage: $0, scale: image.scale, orientation: image.imageOrientation) }
         self.image = trimmed ?? image
 
-        // Round: about as wide as tall, its corners empty and its middle full.
-        let w = maxX - minX + 1, h = maxY - minY + 1
-        let share = { (x0: Int, y0: Int, side: Int) -> Double in
-            var hit = 0
-            for y in y0..<(y0 + side) { for x in x0..<(x0 + side) where ink[y * n + x] { hit += 1 } }
-            return Double(hit) / Double(side * side)
-        }
-        let aspect = Double(w) / Double(h)
-        if aspect >= 0.88, aspect <= 1.12, min(w, h) >= 12 {
-            let k = max(1, min(w, h) * 12 / 100), c = max(1, min(w, h) * 30 / 100)
-            let corners = [(minX, minY), (maxX - k + 1, minY), (minX, maxY - k + 1), (maxX - k + 1, maxY - k + 1)]
-            let cornerInk = corners.map { share($0.0, $0.1, k) }.max() ?? 1
-            let middle = share(minX + w / 2 - c / 2, minY + h / 2 - c / 2, c)
-            round = cornerInk < 0.08 && middle > 0.35
-        } else {
-            round = false
-        }
+        // Each ink pixel's far corner from the box's middle, in the file's pixels: never under the truth.
+        let cx = CGFloat(minX + maxX + 1) / 2, cy = CGFloat(minY + maxY + 1) / 2
+        var far: CGFloat = 0
+        for y in minY...maxY { for x in minX...maxX where ink[y * n + x] {
+            let dx = max(abs(CGFloat(x) - cx), abs(CGFloat(x + 1) - cx)) * sx
+            let dy = max(abs(CGFloat(y) - cy), abs(CGFloat(y + 1) - cy)) * sy
+            far = max(far, (dx * dx + dy * dy).squareRoot())
+        } }
+        reach = far / (CGFloat(maxX - minX + 1) * sx)
     }
 
     /// Which pixels of a `sample`-square copy, drawn on white, are ink.

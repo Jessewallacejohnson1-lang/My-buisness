@@ -116,10 +116,10 @@ struct PlaceCard: View {
                     .padding(-PhotoCredit.edgeInset)
                     .animation(reduceMotion ? nil : Motion.smooth, value: credit)
                 if let logo = place.logo?.url {
-                    LogoDisc(logo: logo, initial: String(place.name.prefix(1)), logoSide: PhotoChip.height * 0.875,
+                    LogoDisc(logo: logo, initial: String(place.name.prefix(1)), logoSide: HostMarkDisc.logoSide,
                              letter: .sansSemibold(14), fits: true)
-                        .frame(width: PhotoChip.height, height: PhotoChip.height)
-                        .overlay(Circle().strokeBorder(Hue.surface, lineWidth: 1.5))
+                        .frame(width: HostMarkDisc.side, height: HostMarkDisc.side)
+                        .overlay(Circle().strokeBorder(Hue.surface, lineWidth: HostMarkDisc.ring))
                         .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
                 }
             }
