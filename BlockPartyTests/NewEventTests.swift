@@ -44,6 +44,38 @@ final class NewEventTests: XCTestCase {
         XCTAssertEqual(input.category, EventCategory.other.rawValue)
     }
 
+    // MARK: Several places (BP app town-feed 54)
+
+    func testOnePlaceSendsNoMorePlaces() {
+        var draft = NewEventDraft()
+        draft.place = "Millstream Park"
+        XCTAssertEqual(draft.input(id: "abc", imageURL: nil).morePlaces, [])
+    }
+
+    func testMorePlacesGoOutTrimmedInOrderEachOnceAndNeverTheFirstAgain() {
+        var draft = NewEventDraft()
+        draft.place = "Milk & Honey Ciders"
+        draft.morePlaces = [" Bad Habit Brewing ", "milk & honey ciders", "", "The Middy", "BAD HABIT BREWING"]
+        let input = draft.input(id: "abc", imageURL: nil)
+        XCTAssertEqual(input.location, "Milk & Honey Ciders")
+        XCTAssertEqual(input.morePlaces, ["Bad Habit Brewing", "The Middy"])
+    }
+
+    func testAtMostFivePlacesInAll() {
+        let more = NewEventDraft.extra(after: "A", ["B", "C", "D", "E", "F"])
+        XCTAssertEqual(more, ["B", "C", "D", "E"])
+    }
+
+    func testThePlusShowsOnceAPlaceIsPickedAndHidesAtFive() {
+        var draft = NewPostDraft()
+        XCTAssertFalse(draft.canAddPlace)
+        draft.place = "A"
+        XCTAssertTrue(draft.canAddPlace)
+        for name in ["B", "b", "C", "D", "E", "F"] { draft.addPlace(name) }
+        XCTAssertEqual(draft.morePlaces, ["B", "C", "D", "E"])
+        XCTAssertFalse(draft.canAddPlace)
+    }
+
     // MARK: Filter (BP app town-feed 52)
 
     func testFilterSendsNothingUntilSomethingIsPicked() {

@@ -494,7 +494,18 @@ struct CommunityAPI {
         if let v = input.imageUrl { b["image_url"] = v }
         if let v = input.forGender { b["for_gender"] = v }
         if let v = input.ages { b["ages"] = v }
+        if !input.morePlaces.isEmpty { b["more_places"] = input.morePlaces }
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
+    }
+
+    /// An Event's places after the first (BP app town-feed 54), for its page; none when it has one or the read fails.
+    /// The poster's own token when there is one, so their Event reads before it's approved.
+    func morePlaces(event id: String) async -> [String] {
+        struct Row: Decodable { let morePlaces: [String]? }
+        let rows: [Row]? = try? Supabase.decode(await db.rest("club_events", [
+            ("select", "more_places"), ("id", "eq.\(id)"),
+        ], anon: true))
+        return rows?.first?.morePlaces ?? []
     }
 
     /// A new Event's photo, in your own folder of `event-images` (BP app town-plus): where it can
