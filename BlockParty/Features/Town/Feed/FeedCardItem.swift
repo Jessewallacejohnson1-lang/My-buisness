@@ -70,6 +70,15 @@ struct FeedCardItem: Identifiable, Hashable {
     /// `image` is a flyer: the Event page and the Block Party tab's cards show it whole, over a blurred copy
     /// of itself (Jesse, 2026-11-05, BP app event-photos 16).
     var whole = false
+    /// The Event's flyer when `image` is its own photo: its page swipes from the photo to the whole flyer (Jesse,
+    /// 2026-11-10, BP app town-feed 59). nil otherwise.
+    var flyer: URL? = nil
+    /// The flyer's shape, width over height, when the database knows it.
+    var flyerAspect: Double? = nil
+    /// Who made the flyer, for its credit under it ("Sal's Bar and Grill").
+    var flyerCredit: String? = nil
+    /// Its flyer lists other things too: About says it is part of its host's lineup (town-feed 59).
+    var lineup = false
     /// The approved group putting it on, as the Town feed names it, and whether the read said
     /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
     var groupID: String? = nil

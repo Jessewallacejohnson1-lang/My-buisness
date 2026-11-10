@@ -506,6 +506,26 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(cards[0].isPhotoless, "a flyer is a photo of the Event: its Town card stays a photo card")
     }
 
+    /// One flyer with many Events (BP app town-feed 59): an Event with its own photo carries its flyer to swipe to,
+    /// and one whose flyer lists other things says it's part of a lineup. A flyer that doesn't decode is none.
+    func testAnOwnPhotoCarriesItsFlyerAndTheLineup() throws {
+        let row = { (id: String, extra: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-11-25T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Memorial Liver Feed","event_date":"2026-11-25","start_time":"5 PM",
+         "location":"Sal's Bar","image_url":null,"category":null,"club_name":"Sal's Bar & Grill","source_name":"Sal's",
+         "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,"going":false,
+         "place_picture":{"url":"https://x/parade.webp","kind":"photo","w":1536,"h":2048\(extra)}}}
+        """ }
+        let flyer = #","flyer":{"url":"https://x/month.webp","kind":"photo","w":1217,"h":1568,"whole":true},"lineup":true"#
+        let json = "[" + row("own", flyer) + "," + row("plain", "") + "," + row("bad", #","flyer":{"url":7},"lineup":true"#) + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+
+        XCTAssertEqual(cards.map(\.flyer), [URL(string: "https://x/month.webp"), nil, nil])
+        XCTAssertEqual(cards[0].flyerAspect ?? 0, 1217.0 / 1568.0, accuracy: 0.001)
+        XCTAssertEqual(cards.map(\.lineup), [true, false, true])
+        XCTAssertFalse(cards[0].whole, "its own photo is the picture, not the flyer")
+    }
+
     /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
     /// while its page keeps the cover, alone (BP app inside-cards 15), and `image` stays for every
     /// other screen. The Event's own photo still wins over the cover.
