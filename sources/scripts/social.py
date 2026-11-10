@@ -9,7 +9,7 @@ sources/models/social.md.
 
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
 check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
-schedules start them, the busy list at noon and 9pm Chicago (Jesse, 2026-11-09: was 6pm and 9pm) and every other page (plus Facebook
+schedules start them, the busy list at 9:30am and 7pm Chicago (Jesse, 2026-11-10: was noon and 9pm; 2026-11-09: was 6pm and 9pm) and every other page (plus Facebook
 Events tabs, a search of Facebook's events for the town and Facebook's own events page for the town: page_lists)
 on Thursdays at 3pm. The routines come half an hour or more later
 and read whatever Apify saved since the last check they finished, so one the plan's usage limit
@@ -92,8 +92,8 @@ NEAR_KM = 10  # a found event farther than this from the town, by its map positi
 PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\bgraduation party|\bcelebration of life|\bfuneral", re.I)
 # Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
 # reaches an hour past the last one, so a post that lands while a run starts is never lost.
-SCHEDULES = [("bp-busy-noon", "0 12 * * *", "busy", "16 hours"),
-             ("bp-busy-9pm", "0 21 * * *", "busy", "10 hours"),
+SCHEDULES = [("bp-busy-930am", "30 9 * * *", "busy", "16 hours"),
+             ("bp-busy-7pm", "0 19 * * *", "busy", "11 hours"),
              ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
 HEADS_UP = 0.75  # of the cap; private.apify_level says the same for the 8 AM email
 STORE = "bp-social-watch"
@@ -272,7 +272,7 @@ def canon(url):
 
 def monthly_try(now):
     """Whether the next Thursday 3 PM read after `now` (SCHEDULES' bp-weekly) falls in a month's first
-    week. By the clock, not the date: a 9:30 PM check that starts past midnight is still before it."""
+    week. By the clock, not the date: a 7:30 PM check that starts past midnight is still before it."""
     t = now.astimezone(LOCAL).replace(hour=15, minute=0, second=0, microsecond=0)
     t += timedelta(days=(3 - t.weekday()) % 7)
     return (t if t > now else t + timedelta(days=7)).day <= 7
@@ -700,10 +700,10 @@ def missed_checks(now=None):
     """Social checks that should have finished by this morning and didn't, for the morning report (BP app loopholes 09;
     Jesse, 2026-11-05: the Oct 22 refusal went unnoticed). A check's mark is the last Apify run it read, and the next
     check reads what a refused one left, so only the evening's last check counts: the busy mark should be past last
-    night's 9 PM run and, on a Friday, the weekly mark past Thursday's 3 PM run."""
+    night's 7 PM run and, on a Friday, the weekly mark past Thursday's 3 PM run."""
     now = (now or datetime.now(LOCAL)).astimezone(LOCAL)
     yesterday = (now - timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
-    due = [("busy", "last evening's check", yesterday.replace(hour=21))]
+    due = [("busy", "last evening's check", yesterday.replace(hour=19))]
     if now.weekday() == 4:
         due.append(("weekly", "Thursday's weekly check", yesterday.replace(hour=15)))
     out = []
@@ -750,15 +750,15 @@ def selftest():
         finally:
             globals()["last_read"] = real_last_read
     thu, fri = t(29, 6, 0), t(30, 6, 0)  # Oct 29, 2026 is a Thursday
-    check(missed(t(28, 21, 1), t(22, 15, 1), thu) == [], "the 9 PM run read by morning: nothing to say, and no weekly word on a Thursday")
+    check(missed(t(28, 21, 1), t(22, 15, 1), thu) == [], "the 7 PM run read by morning: nothing to say, and no weekly word on a Thursday")
     check(missed(t(28, 12, 1), t(22, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 12:01 PM)"],
-          "only the noon run read: last evening's last check didn't finish")
+          "only the morning run read: last evening's last check didn't finish")
     check(missed(t(29, 21, 1), t(29, 15, 1), fri) == [], "a Friday with both read")
     check(missed(t(29, 21, 1), t(22, 15, 1), fri) == ["Thursday's weekly check didn't finish (read up to Thu Oct 22 3:01 PM)"],
           "a Friday with Thursday's weekly unread")
     check(missed(None, t(29, 15, 1), fri) == ["last evening's check didn't finish (never read)"], "no mark at all")
     check(actor_input("facebook", ["u"], "4 hours")["onlyPostsNewerThan"] == "4 hours", "a task reads a window back from now")
-    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["16 hours", "10 hours"], "noon reads back past last night's 9pm, 9pm past noon")
+    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["16 hours", "11 hours"], "9:30am reads back past last night's 7pm, 7pm past 9:30am")
     check(task_name("weekly", "events") == "bp-weekly-events", "a task's name")
     by_url = {"https://www.facebook.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "https://www.facebook.com/krewe"}}
     rows = [{"inputUrl": "https://www.facebook.com/krewe/", "postId": "1", "url": "https://fb/p/1", "text": "Trivia tonight at 7!",
@@ -997,7 +997,7 @@ def set_aside_reads():
          "the weekly Events tabs read the busy and hidden Facebook pages, and every one in a month's first week; "
          "the town's events search and its events page are one task of their own"),
         (monthly == [1, 1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week, "
-                               "by the clock: a 9:30 PM check that starts past midnight still puts it on"),
+                               "by the clock: a 7:30 PM check that starts past midnight still puts it on"),
         (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],
                  "x")] * 3, {}, date(2026, 10, 28))[0] == {sals: {"misses": 3, "why": "nothing back", "aside": "2026-10-28"}},
          "a page Apify gives no row for three reads in a row is set aside too"),

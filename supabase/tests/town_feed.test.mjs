@@ -3494,7 +3494,7 @@ const set = async (id, fields) => {
 const NOW = '2026-10-08 12:00';
 const twoDays = '2026-10-10';
 
-test('a card you have seen sinks each open you saw it, down to a floor, and never leaves', async () => {
+test('a card you have seen sinks each open you saw it, with no floor (town-feed 55), and never leaves', async () => {
   await reset();
   const first = await add('First', twoDays, { start_time: '10 AM', source_name: 'A' });
   await add('Second', twoDays, { start_time: '11 AM', source_name: 'B' });
@@ -3511,7 +3511,7 @@ test('a card you have seen sinks each open you saw it, down to a floor, and neve
   await signIn(YOU);
   await db.exec(`set request.jwt.claims = '${JSON.stringify({ ...JSON.parse(ADMIN), sub: YOU })}'`);
   rows = await feed(NOW);
-  assert.equal(rows[1].score.seen, 0.3, '0.6 three times is under the floor');
+  assert.ok(Math.abs(rows[1].score.seen - 0.216) < 1e-9, '0.6 three times: no floor stops it at 0.3');
   assert.equal(rows.length, 2);
   await db.exec('reset request.jwt.claims');
 });

@@ -1,5 +1,5 @@
 {
- "about": "Real copies taken out of the Town feed, Oct 17 to Nov 3, 2026: each group is one thing as its copies were written, oldest first. write_judged.py's t_real_copies replays them morning by morning. Built from the live rows (BP app watch-every-place 15).",
+ "about": "Real copies taken out of the Town feed, Oct 17 to Nov 5, 2026: each group is one thing as its copies were written, oldest first. write_judged.py's t_real_copies replays them morning by morning. Built from the live rows (BP app watch-every-place 15). The last seven, from Nov 5, are two listings on one day, at one start and one place under two titles: the writer names each pair under \"Maybe the same\" and the morning's review takes the copy out (BP app watch-every-place 20).",
  "events": [
   {
    "name": "White Peony's Pink Friday at two times",
@@ -633,6 +633,223 @@
      "source_uid": "557-1795345200-1795352400@salsbarstjoe.com",
      "source_url": "https://salsbarstjoe.com/event/puzzle-mania/",
      "created_at": "2026-11-03 12:14:19.003606+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "The Bréagán opening reception under two titles",
+   "rows": [
+    {
+     "id": "59a314d3-73a7-4e73-a911-aa4ff613b76f",
+     "title": "\"Bréagán\" opening reception",
+     "event_date": "2026-11-12",
+     "start_time": "5 PM",
+     "all_day": false,
+     "location": "Alice R. Rogers and Target Gallery, SJU",
+     "source_name": "CSB SJU",
+     "source_uid": "board:e4c69820-5d9d-4c4c-9c0f-0f0377988e3d",
+     "source_url": "https://www.csbsju.edu/fine-arts/visual-arts/",
+     "created_at": "2026-10-14 16:11:54.068551+00",
+     "trust": "official"
+    },
+    {
+     "id": "1b757ea0-af76-4ac4-87d8-c9e8cfb2ebfd",
+     "title": "Gallery Reception for Bréagán",
+     "event_date": "2026-11-12",
+     "start_time": "5 PM",
+     "all_day": false,
+     "location": "Alice R. Rogers and Target Galleries, Collegeville",
+     "source_name": "CSB SJU Campus Events",
+     "source_uid": "4724044",
+     "source_url": "https://my.csbsju.edu/public/events/4724044",
+     "created_at": "2026-10-19 16:07:22.779948+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Clemens Library's Dolly Parton party under two titles",
+   "rows": [
+    {
+     "id": "94a323b7-f775-4e0d-9ff6-5280b6b53dee",
+     "title": "Dolly Parton Party",
+     "event_date": "2026-11-06",
+     "start_time": "1 PM",
+     "all_day": false,
+     "location": "Clemens Library",
+     "source_name": "CSB SJU Libraries",
+     "source_uid": "4842674",
+     "source_url": "https://my.csbsju.edu/public/events/4842674",
+     "created_at": "2026-10-27 11:16:28.137668+00",
+     "trust": "official"
+    },
+    {
+     "id": "b21bac14-7785-41f7-979b-1ea16b5ccf2e",
+     "title": "Celebrate Dolly Parton",
+     "event_date": "2026-11-06",
+     "start_time": "1 PM",
+     "all_day": false,
+     "location": "Clemens Library",
+     "source_name": "Clemens Library",
+     "source_uid": "page:2026-11-06T1300:celebrate-dolly-parton",
+     "source_url": "https://www.instagram.com/p/DfPeMlfGQg8/",
+     "created_at": "2026-11-05 22:08:52.391762+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "St. John's Prep blood drive from the Prep and Campus Events",
+   "rows": [
+    {
+     "id": "828dbf67-9a74-4efc-858b-d240935454b6",
+     "title": "Saint John's Prep Blood Drive",
+     "event_date": "2026-11-06",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "Saint John's Preparatory School, Collegeville",
+     "source_name": "CSB SJU Campus Events",
+     "source_uid": "4807478",
+     "source_url": "https://my.csbsju.edu/public/events/4807478",
+     "created_at": "2026-10-27 11:16:28.137668+00",
+     "trust": "official"
+    },
+    {
+     "id": "d1108851-591e-45c0-a8c6-8d75f878134d",
+     "title": "Red Cross Blood Drive",
+     "event_date": "2026-11-06",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "Saint John's Prep, Collegeville",
+     "source_name": "St. John's Prep",
+     "source_uid": "page:2026-11-06T0800:blood-cross-drive-red",
+     "source_url": "https://www.instagram.com/p/DfSkxx_GpfZ/",
+     "created_at": "2026-11-05 22:08:52.391762+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "The convent's Christmas craft sale Nov 6 from two hosts",
+   "rows": [
+    {
+     "id": "aeadcc72-785b-40b1-a7b0-24a384c4c1ff",
+     "title": "Christmas Craft Sale",
+     "event_date": "2026-11-06",
+     "start_time": "9 AM",
+     "all_day": false,
+     "location": "Saint Scholastica Convent, St. Cloud",
+     "source_name": "Saint Benedict's Monastery",
+     "source_uid": "4611423",
+     "source_url": "https://my.csbsju.edu/public/events/4611423",
+     "created_at": "2026-10-14 18:36:21.000948+00",
+     "trust": "official"
+    },
+    {
+     "id": "1595e0db-ead0-4b85-b12c-b7068fb95cd5",
+     "title": "Scholastica Convent Craft Sale",
+     "event_date": "2026-11-06",
+     "start_time": "9 AM",
+     "all_day": false,
+     "location": "Saint Scholastica Convent, St. Cloud",
+     "source_name": "Sisters of the Order of Saint Benedict",
+     "source_uid": "page:2026-11-06T0900:christmas-convent-craft-saint-sale-scholastica",
+     "source_url": "https://www.facebook.com/events/2336213920522472/",
+     "created_at": "2026-11-05 22:08:52.391762+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "The convent's Christmas craft sale Nov 7 from two hosts",
+   "rows": [
+    {
+     "id": "baed9e4f-962a-40bc-82ce-c09f4c6bbec7",
+     "title": "Christmas Craft Sale at the Convent",
+     "event_date": "2026-11-07",
+     "start_time": "9 AM",
+     "all_day": false,
+     "location": "Saint Scholastica Convent, St. Cloud",
+     "source_name": "Saint Benedict's Monastery",
+     "source_uid": "4611424",
+     "source_url": "https://my.csbsju.edu/public/events/4611424",
+     "created_at": "2026-10-14 18:36:21.000948+00",
+     "trust": "official"
+    },
+    {
+     "id": "cfabc1fa-feb3-4130-bbf1-15a75dd8d972",
+     "title": "Scholastica Convent Craft Sale",
+     "event_date": "2026-11-07",
+     "start_time": "9 AM",
+     "all_day": false,
+     "location": "Saint Scholastica Convent, St. Cloud",
+     "source_name": "Sisters of the Order of Saint Benedict",
+     "source_uid": "page:2026-11-07T0900:christmas-convent-craft-saint-sale-scholastica",
+     "source_url": "https://www.facebook.com/events/2336213920522472/",
+     "created_at": "2026-11-05 22:08:52.391762+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "White Peony's Christmas weekend under two names",
+   "rows": [
+    {
+     "id": "fe2fba56-1b6c-44c3-b8fb-58c30b0203e0",
+     "title": "Holiday Collection Weekend",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0800:collection-holiday-weekend",
+     "source_url": "https://www.instagram.com/p/DfNzwXhDzGm/",
+     "created_at": "2026-11-02 00:42:31.396177+00",
+     "trust": "official"
+    },
+    {
+     "id": "99ea01d6-d632-4bc3-9845-5c3c5ec4a9b3",
+     "title": "A Very Peony Christmas",
+     "event_date": "2026-11-07",
+     "start_time": "8 AM",
+     "all_day": false,
+     "location": "White Peony Boutique",
+     "source_name": "White Peony Boutique",
+     "source_uid": "page:2026-11-07T0800:christmas-peony-very",
+     "source_url": "https://www.instagram.com/p/DfbHLWnCfIw/",
+     "created_at": "2026-11-05 03:40:23.059827+00",
+     "trust": "official"
+    }
+   ]
+  },
+  {
+   "name": "Stone Road at The La Playette under two titles",
+   "rows": [
+    {
+     "id": "9129cbc9-d06a-4e25-8890-0165255a9a47",
+     "title": "Stone Road Live",
+     "event_date": "2026-11-07",
+     "start_time": "8:30 PM",
+     "all_day": false,
+     "location": "The La Playette",
+     "source_name": "Stone Road",
+     "source_uid": "page:2026-11-07T2030:live-road-stone",
+     "source_url": "https://www.facebook.com/events/1401297332070761/",
+     "created_at": "2026-11-03 23:44:51.119103+00",
+     "trust": "official"
+    },
+    {
+     "id": "c4de51b6-e69b-4fc6-80d4-9c4c9d0b8589",
+     "title": "Stone Road at The La Playette",
+     "event_date": "2026-11-07",
+     "start_time": "8:30 PM",
+     "all_day": false,
+     "location": "The La Playette",
+     "source_name": "Stone Road",
+     "source_uid": "page:2026-11-07T2030:la-playette-road-stone",
+     "source_url": "https://www.facebook.com/events/1401297332070761/",
+     "created_at": "2026-11-05 22:08:52.391762+00",
      "trust": "official"
     }
    ]

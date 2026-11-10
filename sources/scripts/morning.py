@@ -88,7 +88,7 @@ import apple_maps
 import team_logos
 import venue_spots
 from towns import TOWNS, DEFAULT, lookup
-from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, minutes_left, part_state, resume_part, aside_lines
+from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
 from db import DbError
 
@@ -1037,12 +1037,31 @@ def save(run, dry_run):
     kept = kept_report(run, dry_run)
     if kept.saved is not None and not dry_run:
         print("[morning] saved already this morning: nothing written again; finish prints its summary")
+    elif not dry_run and (bad := to_fix(run)):
+        sys.exit("[morning] save stopped, nothing written: fix these lines in .runs/morning/judged.jsonl, then run save "
+                 "again (a second save writes, skipping any still wrong):\n" + "\n".join(bad))
     else:
         kept.save(write(run, dry_run))
     if run.summary().get("run"):
         return  # a social check: social.py done finishes it
     untagged(run)
     thin(run)
+
+
+def to_fix(run):
+    """The judge's lines the writer can't use, each with why, the first time save sees them; empty after that.
+    A save writes once a morning, so a line written wrong was lost for good: the 9 PM check of 2026-11-09 left
+    `area` off its 9 News and wrote none of them. Asked once, the judge fixes them; a save run again writes."""
+    asked = run.part("fix-asked.json")
+    if asked.saved:
+        return []
+    bad = [f"- line {n}: {why}: {json.dumps(it, ensure_ascii=False)[:160]}"
+           for n, it in enumerate(read_items(run.folder / "judged.jsonl"), 1)
+           if not (isinstance(it, dict) and it.get("kind") == "hours")
+           and (why := write_judged.skip_reason(it, TOWNS[run.town])) and why.startswith("invalid")]
+    if bad:
+        asked.save(True)
+    return bad
 
 
 def kept_report(run, dry_run):
@@ -1096,35 +1115,18 @@ def finish(run, dry_run):
 
 
 def map_spots(run, dry_run):
-    """Each upcoming Event's spot: the registry's, else where Overture and OpenStreetMap agree (spots.fill,
-    find_spots.py; BP app inside-cards 20). Reading the two maps takes 2 to 5 minutes, so it gets what is left of
-    the part before its 9th minute (the cloud stops a command at 10), less a minute and a half for the writes, at
-    most 7. A part with under 4 left, or whose read ran out of time, hands it to the next part, once. Whatever
-    happens is kept as the step's lines, so a finish run again neither writes, reports nor fails twice."""
-    tag = "-dry-run" if dry_run else ""
-    done, waited = run.part(f"spots{tag}.json"), run.part(f"spots-waited{tag}.json")
+    """Each upcoming Event's spot from the registry, the hand files and addresses (spots.fill; BP app inside-cards 20).
+    The maps aren't read here: the cloud can't reach OpenStreetMap's file (Geofabrik resets the connection), and a
+    spot from the maps needs Overture and OpenStreetMap to agree, so every morning said "not read" (Jesse, 2026-11-10:
+    stop trying). spots.fill with no maps keeps the spots they found before. Its lines are kept, so a finish run
+    again neither writes, reports nor fails twice."""
+    done = run.part(f"spots{'-dry-run' if dry_run else ''}.json")
     if done.saved is not None:
         return done.saved
-    left = minutes_left(run.stop, 180)  # a part ends by its 9th minute
-    again = ["[morning] run again: the map spots wait for a part with time to read the maps"]
-    if left is not None and left < 4 and not waited.saved:
-        waited.save(True)
-        return again
     try:
-        maps, note = find_spots.read(run.folder / "spots", minutes=7 if left is None else max(min(left - 1.5, 7), 0.1)), []
-    except subprocess.TimeoutExpired:
-        if not waited.saved:
-            waited.save(True)
-            return again
-        maps, note = None, ["- Map spots: Overture and OpenStreetMap ran out of time, so the spots they found before "
-                            "stay as they were"]
-    except Exception as e:  # no network, no library, no memory: the spots they found before stay (spots.fill)
-        maps, note = None, [f"- Map spots: Overture and OpenStreetMap not read ({' '.join(str(e).split())[:200]}), "
-                            "so the spots they found before stay as they were"]
-    try:
-        lines = spots.fill(run.db, run.today, not dry_run, maps=maps) + note
+        lines = spots.fill(run.db, run.today, not dry_run, maps=None)
     except Exception as e:  # a refused write or a bad hand file: a line in the report, never a lost report
-        lines = [f"[morning] map spots failed: {' '.join(str(e).split())[:300]}"] + note
+        lines = [f"[morning] map spots failed: {' '.join(str(e).split())[:300]}"]
     done.save(lines)
     return lines
 
@@ -1211,54 +1213,25 @@ def credits_told():
     ]
 
 
-def map_spots_in_parts():
-    """The map spots step gives the maps what is left of the part, hands a short part's turn on once, keeps its
-    lines for a finish run again, and reports maps it couldn't read without emptying what they found (spots.fill
-    keeps those)."""
+def map_spots_without_maps():
+    """The map spots step fills from what the morning has, never reads the maps, and keeps its lines for a finish
+    run again."""
     import tempfile
     real = spots.fill, find_spots.read
-    fills, reads, checks = [], [], []
+    fills = []
 
-    def broken(folder, minutes):
-        raise OSError("download.geofabrik.de unreachable")
+    def never(folder, minutes):
+        raise AssertionError("the morning read the maps")
     try:
         spots.fill = lambda db, today, write, maps: fills.append(maps) or ["- Map spots: set 1"]
-        find_spots.read = lambda folder, minutes: reads.append(minutes) or "maps"
+        find_spots.read = never
         with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp)
-            short = lambda: Run(out, date(2026, 11, 7), FakeDb(), minutes=0.5)  # a part 5½ minutes in: 3½ left
-            checks.append((map_spots(short(), False)[0].startswith("[morning] run again") and not fills,
-                           "a part with under 4 minutes left hands the maps to the next part"))
-            first = map_spots(short(), False)
-            again = map_spots(Run(out, date(2026, 11, 7), FakeDb(), minutes=6), False)
-            checks.append((first == again == ["- Map spots: set 1"] and fills == ["maps"] and 1.9 < reads[0] < 2.1,
-                           f"once only, then the maps get what is left; a finish run again repeats the lines "
-                           f"without filling twice: {fills} {reads}"))
-        with tempfile.TemporaryDirectory() as tmp:
-            find_spots.read = broken
-            lines = map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=None), False)
-            checks.append((fills[-1] is None and "not read (download.geofabrik.de unreachable)" in lines[-1],
-                           f"maps that can't be read are a line, and the fill keeps what they found: {lines}"))
-        with tempfile.TemporaryDirectory() as tmp:
-            def slow(folder, minutes):
-                raise subprocess.TimeoutExpired("find_spots.py", minutes * 60)
-            find_spots.read = slow
-            part = lambda: map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
-            first, second, third = part(), part(), part()
-            checks.append((first[0].startswith("[morning] run again") and "ran out of time" in second[-1]
-                           and second == third, f"maps out of time get one more part, then are a line: {first} {second}"))
-        with tempfile.TemporaryDirectory() as tmp:
-            find_spots.read = lambda folder, minutes: "maps"
-            def refused(db, today, write, maps):
-                raise DbError("GET", "club_events?select=no_place", 400, "column club_events.no_place does not exist")
-            spots.fill = refused
-            part = lambda: map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
-            first, again = part(), part()
-            checks.append((first == again and first[0].startswith("[morning] map spots failed:") and "no_place does not exist" in first[0],
-                           f"a refused fill is one kept line, never a finish that runs again forever: {first}"))
+            first = map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
+            again = map_spots(Run(Path(tmp), date(2026, 11, 7), FakeDb(), minutes=6), False)
+        ok = first == again == ["- Map spots: set 1"] and fills == [None]
+        return [(ok, f"filled once with no maps, the lines kept for a run again: {first} {again} {fills}")]
     finally:
         spots.fill, find_spots.read = real
-    return checks
 
 
 def selftest():
@@ -1603,7 +1576,7 @@ def selftest():
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
-    checks += map_spots_in_parts()
+    checks += map_spots_without_maps()
     checks += steps_alone()
     checks += set_aside_across_days()
     checks += one_town()
@@ -2164,6 +2137,10 @@ def steps_alone():
 
             said(save, run(), True)
             dry = db.writes(), (out / "report.json").exists(), (out / "report-dry-run.json").exists()
+            with (out / "judged.jsonl").open("a") as f:  # the judge left `area` off a News (Nov 9's 9 PM check)
+                f.write(json.dumps(write_judged.item(kind="news", title="The North Table's last week", area=None)) + "\n")
+            stopped_save = said(save, run(), False)
+            stopped_left = len(db.writes("rpc/apply_judged")), db.rows["milk|https://m/events"]["last_hash"]
             db.answers["rpc/apply_judged"] = refuse
             refused = said(save, run(), False)
             refused_left = db.rows["milk|https://m/events"]["last_hash"], (out / "report.json").exists()
@@ -2210,6 +2187,10 @@ def steps_alone():
          f"titles alone lists the long title, then the long News under its own line, and writes nothing; run again "
          f"the same: {listed!r}, {titled_wrote}"),
         (dry == ([], False, True), f"save alone, dry: nothing written, and a real save still to come: {dry}"),
+        ("save stopped, nothing written" in stopped_save and "line 2: invalid: area must be" in stopped_save
+         and stopped_left == (0, "old"),
+         f"a judged line the writer can't use stops the first save with nothing written, naming it; the next save "
+         f"writes (below): {stopped_save[-300:]}, {stopped_left}"),
         (refused.rstrip().endswith("exit [morning] save refused: Supabase POST rpc/apply_judged failed 403: permission denied")
          and refused_left == ("old", False), f"a save refused is one line, moves no fingerprint and can be run again: {refused[-200:]}, {refused_left}"),
         (applied == 2 and moved == "new" and "saved already this morning" in second and "saved already" not in first and laid == [3, 3],
