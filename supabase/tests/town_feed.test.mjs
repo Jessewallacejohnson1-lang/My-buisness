@@ -3581,7 +3581,7 @@ test("a friend's Going since you saw it brings a card back, until you see it aga
   await db.query('delete from auth.users where id = $1', [friend]);
 });
 
-test('live: up to 3 on right now lead, your Going first, then most Going, then the draw, your town counting more', async () => {
+test('live: up to 3 on right now lead, your Going first, then the most yours, then most Going, then the draw (town-feed 56)', async () => {
   await reset();
   const LIVE = ['Concert', 'Game', 'Talk', 'Bingo'];
   const ids = {};
@@ -3595,7 +3595,7 @@ test('live: up to 3 on right now lead, your Going first, then most Going, then t
   await goes(ids.Concert, ME);
   await signIn(YOU);
   const rows = await titles('2026-10-08 18:30');
-  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Concert', 'Game'], 'yours, then most Going, then the draw: 3 ties 2 in your town, and the later start wins');
+  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Talk', 'Concert'], 'your Going, then your town, then most Going; the draw only after');
   await db.exec('reset role');
 });
 
@@ -3610,7 +3610,7 @@ test('live: a host you said Not interested to never leads', async () => {
   assert.equal((await titles('2026-10-08 18:30'))[0], 'Festival');
 });
 
-test('live: a card leaves the top after you have seen it on 2 opens', async () => {
+test('live: a card stays on top while it is on, however often you have seen it (town-feed 56)', async () => {
   await reset();
   const concert = await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
   await add('Festival', '2026-10-09', { start_time: '6 PM', source_name: 'B' });
@@ -3622,7 +3622,31 @@ test('live: a card leaves the top after you have seen it on 2 opens', async () =
   assert.equal((await titles('2026-10-08 18:45'))[0], 'Concert', 'seen on one open, still live');
   await viewed(concert, YOU, '2026-10-08 18:46');
   await signIn(YOU);
-  assert.equal((await titles('2026-10-08 19:00'))[0], 'Festival', 'seen on two, it leaves the top');
+  assert.equal((await titles('2026-10-08 19:00'))[0], 'Concert', 'seen on two, still on top');
+});
+
+test('live: only what runs under 12 hours leads (town-feed 56)', async () => {
+  await reset();
+  await add('All-day market', '2026-10-08', { start_time: '8 AM', end_at: '2026-10-08 21:00-05', source_name: 'A' });
+  await add('Concert', '2026-10-08', { start_time: '6 PM', end_at: '2026-10-08 21:00-05', source_name: 'B' });
+  await add('Later', '2026-10-10', { start_time: '6 PM', source_name: 'C' });
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${JSON.stringify({ ...JSON.parse(ADMIN), sub: YOU })}'`);
+  const rows = await feed('2026-10-08 18:30');
+  assert.deepEqual(rows.filter((r) => r.score.live).map((r) => r.title), ['Concert'], '13 hours is too long to lead');
+  await db.exec('reset role; reset request.jwt.claims');
+});
+
+test('live: an interest beats your town among those on now (town-feed 56)', async () => {
+  await reset();
+  const yoga = await add('Yoga', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
+  const talk = await add('Talk', '2026-10-08', { start_time: '6 PM', source_name: 'B' });
+  await set(talk, { lat: 45.56, lng: -94.32 });
+  await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                  where id = $1`, [yoga]);
+  await signIn(YOU, ['wellness']);
+  assert.deepEqual((await titles('2026-10-08 18:30')).slice(0, 2), ['Yoga', 'Talk']);
+  await db.exec('reset role');
 });
 
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
