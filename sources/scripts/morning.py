@@ -609,12 +609,24 @@ def short_titles(out):
             and 0 < len(v.strip()) < len(k)} if isinstance(got, dict) else {}
 
 
+def made_with(items, folder):
+    """Each item from an Instagram collab post carries the places it was made with (`collabs`, social.post_pages),
+    found by its link, the post's own (BP app town-feed 58)."""
+    path = folder / "pages.json"
+    pages = json.loads(path.read_text()) if path.exists() else []
+    by_url = {str(p.get("url") or "").rstrip("/").lower(): p["collabs"] for p in pages if p.get("collabs")}
+    for it in items:
+        if isinstance(it, dict) and by_url.get(str(it.get("source_url") or "").rstrip("/").lower()):
+            it["collabs"] = by_url[str(it["source_url"]).rstrip("/").lower()]
+    return items
+
+
 def write(run, dry_run):
     out, today, db = run.folder, run.today, run.db
     prep = run.summary()
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
     hours = [x for x in judged if isinstance(x, dict) and x.get("kind") == "hours"]
-    items = feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")]
+    items = made_with(feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")], out)
     existing = write_judged.listed_in_db(db)
     asked, questions = repeat_answers(out)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
@@ -1368,6 +1380,14 @@ def selftest():
                    and f"at=gt.{quote('2026-11-04T12:15:00+00:00')}&hours->from->>at=lt.{quote('2026-11-05T11:00:00+00:00')}" in since.asked[3],
                    "from the last report's save to before this morning's run, Chicago time"))
     import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "instagram-c1", "url": "https://www.instagram.com/p/C1/",
+                                                            "entry_id": "north-table", "collabs": ["milk-and-honey-ciders"]},
+                                                           {"file": "instagram-c2", "url": "https://www.instagram.com/p/C2/", "entry_id": "x"}]))
+        got = made_with([{"title": "Cider brunch", "source_url": "https://www.instagram.com/p/c1"},
+                         {"title": "Trivia", "source_url": "https://www.instagram.com/p/C2/"}, "unreadable line: x"], Path(tmp))
+        checks.append((got[0].get("collabs") == ["milk-and-honey-ciders"] and "collabs" not in got[1],
+                       "an Event from a collab post carries the places it was made with, by the post's link (town-feed 58)"))
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "facebook-1", "url": "https://www.facebook.com/x/posts/1",
                                                             "entry_id": "mh", "name": "Milk & Honey Ciders"},

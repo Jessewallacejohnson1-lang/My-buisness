@@ -886,7 +886,9 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "team_shorts": None,
            "occasion": None, "followers_only": it.get("followers_only") is True, "activity_team": it.get("activity_team"),
-           "activity_name": it.get("activity_name")}
+           "activity_name": it.get("activity_name"),
+           # The places it was made with (town-feed 58): social.collabs, never the host's own, 2 at most.
+           "collab_entry_ids": [c for c in it.get("collabs") or [] if isinstance(c, str) and c][:2]}
     game = game_of(it, title)
     if game:
         # A name from a schedule can make a team; the judge's stays a normal card until someone adds it.
@@ -1658,6 +1660,13 @@ def t_ages_only_as_a_source_says():
         assert ages_of(words) == want, (words, ages_of(words), want)
     assert run([item(ages="adults 21+ only")])["events"][0]["row"]["ages"] == "21+"
     assert run([item()])["events"][0]["row"]["ages"] is None
+
+
+def t_made_with_other_businesses():
+    # Two businesses, one Event (BP app town-feed 58): the places social.collabs found go on the row, 2 at most.
+    assert run([item(collabs=["milk-and-honey-ciders"])])["events"][0]["row"]["collab_entry_ids"] == ["milk-and-honey-ciders"]
+    assert run([item(collabs=["a", "", None, "b", "c"])])["events"][0]["row"]["collab_entry_ids"] == ["a", "b"]
+    assert run([item()])["events"][0]["row"]["collab_entry_ids"] == []
 
 
 def t_all_day_run_keeps_its_last_day():
@@ -2929,7 +2938,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

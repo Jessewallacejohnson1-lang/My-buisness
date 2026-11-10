@@ -520,6 +520,26 @@ def aside_lines(state, aside, back, lists):
             + [f"Back: {name(u)}: read again, back on its list" for u in back])
 
 
+def ig_page(user, by_url):
+    """The watched page of an Instagram account, by its exact handle (page_of's "inside" match would take
+    instagram.com/joetown for joetownsmash)."""
+    user = str(user or "").strip().lstrip("@").lower()
+    return user and (by_url.get(canon(f"https://www.instagram.com/{user}")) or by_url.get(canon(f"https://instagram.com/{user}")))
+
+
+def collabs(row, host, by_url):
+    """The registry places an Instagram collab post was made with besides its host (BP app town-feed 58): its
+    co-authors and its owner, each a watched page, never the host's own place; 2 at most (club_events'
+    collab_entry_ids). A plain @mention or a tagged account is no collab: they credit photographers and fans."""
+    users = [c.get("username") for c in row.get("coauthorProducers") or [] if isinstance(c, dict)] + [row.get("ownerUsername")]
+    out = []
+    for u in users:
+        p = ig_page(u, by_url)
+        if p and p.get("entry_id") and p["entry_id"] != host.get("entry_id") and p["entry_id"] not in out:
+            out.append(p["entry_id"])
+    return out[:2]
+
+
 def post_pages(kind, rows, by_url):
     """Apify's rows as pages: one post each, with who posted it, where and when. An empty row
     (a page with nothing new, hidden, gone) is no page; a hidden one is reported. A post whose
@@ -529,6 +549,8 @@ def post_pages(kind, rows, by_url):
     for r in rows:
         src = src_of(r)
         page = page_of(src, by_url)
+        if kind == "instagram":  # a collab post shows on each author's page: its owner hosts it, read from either
+            page = ig_page(r.get("ownerUsername"), by_url) or page
         who = page["name"] if page else f"A {TOWNS[TOWN]['display']} place"
         if r.get("error"):
             # "no_results" is a page's events tab listing none: each of Oct 29's 20 read fine as posts.
@@ -562,9 +584,10 @@ def post_pages(kind, rows, by_url):
             pid, url = r.get("postId") or r.get("id") or r.get("shortCode"), r.get("url")
         if not page or not pid:
             continue
+        made_with = collabs(r, page, by_url) if kind == "instagram" else []
         pages.append({"file": f"{kind}-{pid}", "url": url or page["url"], "entry_id": page["entry_id"],
                       "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
-                      **({"pictures": pics} if pics else {})})
+                      **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {})})
     return pages, hidden
 
 
@@ -792,6 +815,20 @@ def selftest():
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
+    nt = {"name": "The North Table", "entry_id": "north-table", "url": "https://www.instagram.com/thenorthtables"}
+    mh = {"name": "Milk & Honey Ciders", "entry_id": "milk-and-honey-ciders", "url": "https://www.instagram.com/milkandhoneyciders"}
+    jt = {"name": "Joetown", "entry_id": "joetown", "url": "https://www.instagram.com/joetown"}
+    watched = {canon(p["url"]): p for p in (nt, mh, jt)}
+    collab = {"id": "c1", "caption": "Cider brunch Sunday 10am", "ownerUsername": "thenorthtables",
+              "coauthorProducers": [{"username": "milkandhoneyciders"}, {"username": "joetownsmash"}],
+              "mentions": ["joetown"], "taggedUsers": [{"username": "joetown"}]}
+    got = [post_pages("instagram", [dict(collab, inputUrl=p["url"])], watched)[0][0] for p in (nt, mh)]
+    check(all(g["entry_id"] == "north-table" and g["collabs"] == ["milk-and-honey-ciders"] for g in got),
+          "a collab post read from either author's page is its owner's, made with the other; a co-author we don't watch, "
+          "a mention and a tag are no collab, and joetown is not joetownsmash")
+    got = post_pages("instagram", [dict(collab, inputUrl=mh["url"], ownerUsername="somefan")], watched)[0][0]
+    check(got["entry_id"] == "milk-and-honey-ciders" and "collabs" not in got,
+          "an owner we don't watch leaves the post with the page it was read from, made with nobody else")
     teaser = "Come out to the cocktail lounge tonight for plump, juicing brains 🧠"  # Obbink, 2026-10-25
     check(needs_pictures(teaser) and needs_pictures(""), "a short caption or none reads its pictures")
     check(needs_pictures("Our fall menu is here " * 8) and not needs_pictures("Trivia night is back " * 8 + "at 7 pm"),
