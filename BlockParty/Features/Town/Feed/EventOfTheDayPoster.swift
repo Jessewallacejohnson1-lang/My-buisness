@@ -268,9 +268,11 @@ struct EventOfTheDayPoster: View {
     @ViewBuilder
     private var when: some View {
         let on = item.isNow(at: now)
-        let text = item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text
+        // Within the hour before a real happening, "In 20 min" (happening-now 01), whatever its day.
+        let line = item.countdown(at: now)
+        let text = line?.text ?? (item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text)
         if on || text != nil {
-            CardTime(text: text ?? "", now: on, color: Hue.brandDisc)
+            CardTime(text: text ?? "", spoken: line?.spoken, now: on, color: Hue.brandDisc)
         }
     }
 

@@ -992,7 +992,7 @@ struct WhiteGameCard: View {
             return (Hue.live, line.isEmpty ? "Live" : "Live · \(line)")
         }
         if item.isNow(at: date) { return (Hue.now, "Now") }
-        return item.whenLine.map { (nil, $0.text) }
+        return item.whenLine(at: date).map { (nil, $0.text) }
     }
 
     /// The score where VS was: the loser's number and its dash faded once the final is in (a tie
@@ -1035,7 +1035,7 @@ struct WhiteGameCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .transition(.opacity)
-            } else if game.final == nil, game.live?.isLive(at: date) != true, let when = item.whenLine {
+            } else if game.final == nil, game.live?.isLive(at: date) != true, let when = item.whenLine(at: date) {
                 // Before a score, or under one gone quiet, the day and time, or Now, in every Town card's look
                 // (Jesse, 2026-11-07, BP app inside-cards 26). A moment comes only with a fresh score, so this
                 // needs no MomentLine.

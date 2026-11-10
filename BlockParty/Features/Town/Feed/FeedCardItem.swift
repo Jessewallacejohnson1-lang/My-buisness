@@ -150,10 +150,24 @@ struct FeedCardItem: Identifiable, Hashable {
 
     /// The when line at `now`. A place open rather than a happening on says how long it's open, or its
     /// start reads as over: "Until 9 PM", "Until Sat", "Until Dec 14" (town-feed 41).
+    /// A real happening within the hour before its start counts down by the minute, "In 45 min" to "In 1 min",
+    /// then its card says Now (BP app happening-now 01).
     func whenLine(at now: Date) -> FeedWhenLine? {
+        if let countdown = countdown(at: now) { return countdown }
         guard isOpen(at: now), let when else { return whenLine }
         let until = when.until(now)
         return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
+    }
+
+    /// "In 20 min" from 60 minutes before a real happening's known start until its start minute; nil
+    /// otherwise. One form all the way down: "In 60 min", never "In 1 hour". A real start only, never an
+    /// invented one (no fake urgency).
+    func countdown(at now: Date) -> FeedWhenLine? {
+        guard liveKind, !cancelled, game?.final == nil, let when, when.timed else { return nil }
+        let minutes = Int((when.start.timeIntervalSince(now) / 60).rounded(.up))
+        guard (1...60).contains(minutes) else { return nil }
+        return FeedWhenLine(text: "In \(minutes) min",
+                            spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
     }
 
     /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's

@@ -397,8 +397,10 @@ enum TownFixtures {
         item.cancelled = ["e1", "e5"].contains(id) && LaunchFlags.has(.townCancelled)
         // `-town-now`: the same two started an hour ago, so a photo card and a white card both say Now
         // under their titles (BP app inside-cards 26).
-        if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) {
-            let start = now.addingTimeInterval(-3600)
+        // `-town-soon`: the same two start 20 minutes from launch, so both count down, "In 20 min" (BP app
+        // happening-now 01).
+        if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) || LaunchFlags.has(.townSoon) {
+            let start = now.addingTimeInterval(LaunchFlags.has(.townNow) ? -3600 : 20 * 60)
             // Its place first: with a start time of its own the meta line no longer gives it.
             item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
