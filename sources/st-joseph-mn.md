@@ -8655,7 +8655,7 @@ sources:
     kind: website
     method: fetch
     trust: official
-  - url: https://ccsprek12.org/news
+  - url: https://ccsprek12.org/newsletters
     kind: website
     method: fetch
     trust: official
@@ -8663,7 +8663,7 @@ venue_at:
   "The Park Event Center": [45.55219, -94.22243]
   "park event center": [45.55219, -94.22243]
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.96). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-10-14: the old address, stjosephparish.org, now forwards to a parish in Seattle; the school's page is on Catholic Community Schools' site. Its events are at ccsprek12.org/events, shared by every Catholic Community School, so that page is not added here.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.96). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-10-14: the old address, stjosephparish.org, now forwards to a parish in Seattle; the school's page is on Catholic Community Schools' site. Its events are at ccsprek12.org/events, shared by every Catholic Community School. 2026-11-09: /news answered 404 since Nov 6 (the site's news is now /newsletters, "News from Our Schools", with St. Joseph's own items among the other schools'; /press-and-news is the same list), so the watched page is /newsletters.
 
 ## City of St. Joseph Dog Park
 ```yaml
