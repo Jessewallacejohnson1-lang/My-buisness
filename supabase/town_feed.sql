@@ -36,7 +36,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0.3,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveOpens":2,"newsEvery":5}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveOpens":2,"newsEvery":5}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -440,7 +440,7 @@ as $$
            case when exists (select 1 from hidden h where h.lowers and h.host <> '' and h.host = c.host)
                 then (w->>'notInterested')::float8 else 1 end as hidden_x,
            case when c.miles <= (w->>'townMiles')::float8 then (w->>'town')::float8 else 1 end as town_x,
-           -- Each open you've seen it, down to a floor (town-feed 41). On its own day a real happening counts
+           -- Each open you've seen it, with no floor (town-feed 41, 55). On its own day a real happening counts
            -- only that day's, and a friend's Going since you saw it brings it back: both until you see it again.
            greatest((w->>'seenFloor')::float8, power((w->>'seen')::float8,
              case when c.seen_times is null or c.friend_at > c.seen_at then 0
