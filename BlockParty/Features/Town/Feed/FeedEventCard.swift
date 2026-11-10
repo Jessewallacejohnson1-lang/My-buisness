@@ -330,7 +330,9 @@ struct FeedEventCard: View {
     private var flyerBand: some View {
         ZStack {
             if let url = displayImage.url {
+                // Clipped before the blur: filled into the band, the photo runs past it, up over the flyer.
                 FeedCardURLPhoto(url: url)
+                    .clipped()
                     .blur(radius: Self.bandBlur, opaque: true)
                     .grayscale(item.cancelled ? 1 : 0)
             }
