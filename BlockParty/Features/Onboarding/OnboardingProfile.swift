@@ -169,7 +169,7 @@ private extension View {
 }
 
 /// The 80 pt photo (mock v8 `.avatar`): empty, a plain colour circle (Luma's face is their own
-/// character); picked, the photo. The Liquid Glass camera badge sits on its bottom right. A tap opens Apple's
+/// character); picked, the photo. The Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A tap opens Apple's
 /// photo picker, or asks library or camera when the phone has one.
 struct OnboardingProfilePhoto: View {
     @Bindable var store: OnboardingStore
@@ -227,8 +227,8 @@ struct OnboardingProfilePhoto: View {
         .overlay(alignment: .bottomTrailing) {
             // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't
             // follow dark mode; over a dark photo the glass still takes the photo's tone.
-            Image(systemName: "camera.fill")
-                .font(.glyph(14, weight: .medium))
+            Image(systemName: "photo.badge.plus")
+                .font(.glyph(15, weight: .regular))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 30, height: 30)
                 .glassEffect(.regular.interactive(), in: Circle())
