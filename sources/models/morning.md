@@ -50,7 +50,9 @@ pictures, games aside, and each new News's own post pictures, on sheets in `.run
 town-feed 53). Then run `python3 sources/scripts/team_logos.py prepare`: it looks up a logo for each team whose games
 wait on one, on a sheet in `.runs/morning/logos/` (game-card 17). Then run `python3 sources/scripts/venue_spots.py prepare`: it
 takes the place lines of upcoming Events that have no spot, at most 8, into `.runs/morning/venues/batch.txt` (BP app
-inside-cards 20; `skipped` or no batch: nothing to do). Then start the helpers
+inside-cards 20; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/event_parts.py prepare`: it reads
+the pages of each Event running 12 hours or longer into `.runs/morning/parts/batch.txt` (BP app happening-now 03; `skipped`
+or no batch: nothing to do). Then start the helpers
 together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
@@ -69,6 +71,10 @@ together, at most 10 running at once:
   check"), each on its own and with the same words: "Read `sources/models/venue-spot.md` and follow it for
   `.runs/morning/venues/batch.txt`. Answer with the JSON lines only." The first's lines go to `.runs/morning/venues.jsonl`,
   the second's to `.runs/morning/venues-2.jsonl`. A spot goes live only where both agree: never answer for them yourself.
+- when `.runs/morning/parts/batch.txt` exists, two helpers on your own model, each on its own and with the same words:
+  "Read `sources/models/event-part.md` and follow it for `.runs/morning/parts/batch.txt`. Answer with the JSON lines
+  only." The first's lines go to `.runs/morning/parts.jsonl`, the second's to `.runs/morning/parts-2.jsonl`. A part goes
+  live only where both agree: never answer for them yourself.
 - Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked
   photos), then `python3 sources/scripts/morning.py today`, then read
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
@@ -98,8 +104,8 @@ dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py`, `event_photos.py` and `team_logos.py` (the registry's fetcher obeys robots
+- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`), and `event_photos.py keep` and `dig-keep`. SQL by
+- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep` and `event_parts.py keep`), and `event_photos.py keep` and `dig-keep`. SQL by
   hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
