@@ -378,8 +378,8 @@ final class FeedShortCountTests: XCTestCase {
     }
 }
 
-/// A host's logo in its small circle (`LogoFit`, Jesse 2026-10-24): a round badge fills the circle,
-/// anything else only loses its empty border.
+/// A host's logo in its small circle (`LogoFit`, Jesse 2026-10-24, 2026-11-10): a round badge fills the
+/// circle, a square or a wordmark sits wholly inside it.
 final class LogoFitTests: XCTestCase {
     /// A 200-pixel picture with `draw` inside a 40-pixel empty border.
     private func logo(transparent: Bool = false, _ draw: (CGContext, CGRect) -> Void) -> UIImage {
@@ -395,19 +395,27 @@ final class LogoFitTests: XCTestCase {
 
     func testARoundBadgeFillsTheCircleAndLosesItsBorder() {
         let fit = LogoFit(logo { $0.fillEllipse(in: $1) })
-        XCTAssertTrue(fit.round)
+        XCTAssertEqual(fit.reach, 0.5, accuracy: 0.03, "a badge's edge is its circle's")
         XCTAssertEqual(fit.image.size.width, 120, accuracy: 6)
     }
 
     func testATransparentRoundBadgeIsRoundToo() {
-        XCTAssertTrue(LogoFit(logo(transparent: true) { $0.fillEllipse(in: $1) }).round)
+        XCTAssertEqual(LogoFit(logo(transparent: true) { $0.fillEllipse(in: $1) }).reach, 0.5, accuracy: 0.03)
     }
 
-    func testASquareOrAWordmarkStaysInsideTheCircle() {
-        XCTAssertFalse(LogoFit(logo { $0.fill($1) }).round, "a square's corners are full")
+    /// The House's square logo broke out of its circle (Jesse, 2026-11-10): its corners reach half its
+    /// diagonal, so it is drawn small enough for them to stay inside.
+    func testASquaresCornersStayInsideTheCircle() {
+        let fit = LogoFit(logo { $0.fill($1) })
+        XCTAssertEqual(fit.reach, 0.5 * CGFloat(2).squareRoot(), accuracy: 0.02)
+    }
+
+    /// Sal's wide logo lost its ends under the ring: a wordmark reaches its corners too.
+    func testAWordmarkKeepsItsEnds() {
         let word = LogoFit(logo { ctx, _ in ctx.fill(CGRect(x: 20, y: 90, width: 160, height: 20)) })
-        XCTAssertFalse(word.round)
         XCTAssertEqual(word.image.size.width, 160, accuracy: 6)
         XCTAssertEqual(word.image.size.height, 20, accuracy: 6)
+        let corner = CGFloat(80 * 80 + 10 * 10).squareRoot() / 160
+        XCTAssertGreaterThanOrEqual(word.reach, corner)
     }
 }

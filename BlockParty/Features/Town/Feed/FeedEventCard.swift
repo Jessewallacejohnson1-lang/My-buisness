@@ -405,7 +405,8 @@ struct FeedEventCard: View {
                     // The host's mark rides above the photo in its own layer (`hostMark`).
                     .padding(.trailing, showsHostMark ? HostMarkDisc.side + HostMarkDisc.gap : 0)
             }
-            .frame(minHeight: PhotoChip.height)
+            // Level with the host's mark beside it.
+            .frame(minHeight: showsHostMark ? HostMarkDisc.side : PhotoChip.height)
             .padding(PhotoChip.inset)
             // VoiceOver reads the title and when first, then the credit.
             .accessibilitySortPriority(-1)
@@ -645,19 +646,21 @@ struct HostMarkDisc: View {
     var photo: URL? = nil
     let name: String
 
-    /// The photo chip's height, as when the day's chip sat level with it (the time moved under the title,
-    /// inside-cards 26). A mark, not text, so it does not scale.
-    static let side: CGFloat = PhotoChip.height
+    /// The photo chip's height and 15% more, room for a square logo inside the circle (Jesse,
+    /// 2026-11-10). A mark, not text, so it does not scale.
+    static let side: CGFloat = PhotoChip.height * 1.15
     /// Between the photo's credit and the mark beside it.
     static let gap: CGFloat = 8
     /// The white ring: Instagram's story ring, at its own 1.5 pt.
-    private static let ring: CGFloat = 1.5
+    static let ring: CGFloat = 1.5
+    /// The circle a logo's ink stays inside: within the ring.
+    static let logoSide: CGFloat = side - 2 * ring
 
     var body: some View {
         Group {
             if photo == nil, let picture, picture.kind == .logo {
                 LogoDisc(logo: picture.url, initial: name.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
-                         logoSide: Self.side * 0.875, letter: .sansSemibold(14), fits: true)
+                         logoSide: Self.logoSide, letter: .sansSemibold(14), fits: true)
                     .frame(width: Self.side, height: Self.side)
                     .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
             } else {
