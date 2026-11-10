@@ -283,7 +283,11 @@ struct FeedEventCard: View {
         return [credit]
     }
 
-    private var imageSection: some View {
+    /// A flyer shows whole and uncovered, as on its Event page: shrunk inside the card with rounded corners over its own
+    /// blur, under the host's mark and credit, the words under it (Jesse, 2026-11-10, BP app town-feed 57: "shrink the
+    /// flyers down so nothing is covering them"). One that fails to load is the ink card instead.
+    private var wholeFlyer: Bool { item.whole && item.game == nil && displayImage.isPhoto }
+    private var photoArea: some View {
         shaped(GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 imageContent
@@ -301,6 +305,77 @@ struct FeedEventCard: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         })
+    }
+
+    /// The title, when and small line, ranged left, clear of the heart in the bottom right corner.
+    private var copyRow: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            imageCopy
+            // Without this the HStack shrinks to its content and the overlay CENTRES
+            // it — a short headline ("Farmers Market") floated to the middle of the
+            // photograph. The copy is ranged left off the picture's bottom-left
+            // corner, always.
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        // Clear of the heart in the bottom right corner.
+        .padding(.trailing, actions.canAct ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
+        // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
+        .allowsHitTesting(false)
+    }
+
+    /// The flyer at its own shape, rounded, inside the card's sides and under its top row: nothing sits on it.
+    private var wholeArea: some View {
+        Color.clear
+            .aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
+            .overlay {
+                imageContent
+                    .aspectRatio(CGFloat(item.image.ownAspect), contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .grayscale(item.cancelled ? 1 : 0)
+            }
+            .padding(.top, Self.flyerTop)
+            .padding(.horizontal, Self.flyerSide)
+    }
+
+    /// Behind a whole flyer and its words: the flyer blurred to fill the card, darkening down to the words.
+    @ViewBuilder
+    private var flyerWash: some View {
+        ZStack {
+            Hue.ink
+            if let url = displayImage.url {
+                // Clipped before the blur, or the filled photo runs past the card.
+                FeedCardURLPhoto(url: url)
+                    .clipped()
+                    .blur(radius: Self.washBlur, opaque: true)
+                    .grayscale(item.cancelled ? 1 : 0)
+            }
+            LinearGradient(colors: [.black.opacity(Self.washTop), .black.opacity(Self.washBottom)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    /// The flyer starts under the host's mark and credit (10 pt in, 30 pt tall) and 8 pt more, and keeps 16 pt in from
+    /// the sides, the words' own inset. PICKED: the wash is the Event page's 30 pt blur, 20% dark at the top to 80% at
+    /// the words.
+    private static let flyerTop: CGFloat = PhotoChip.inset + HostMarkDisc.side + 8
+    private static let flyerSide: CGFloat = 16
+    private static let washBlur: CGFloat = 30
+    private static let washTop: Double = 0.2
+    private static let washBottom: Double = 0.8
+
+    private var imageSection: some View {
+        Group {
+            if wholeFlyer {
+                VStack(spacing: 0) {
+                    wholeArea
+                    copyRow
+                }
+                .background { flyerWash }
+            } else {
+                photoArea
+            }
+        }
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -336,22 +411,9 @@ struct FeedEventCard: View {
             .allowsHitTesting(false)
         }
         // The white game card sets its own sport and place (game-card 06).
+        // A whole flyer has them under it, in the stack.
         .overlay(alignment: .bottom) {
-            if item.game == nil {
-                HStack(alignment: .bottom, spacing: 0) {
-                    imageCopy
-                    // Without this the HStack shrinks to its content and the overlay CENTRES
-                    // it — a short headline ("Farmers Market") floated to the middle of the
-                    // photograph. The copy is ranged left off the picture's bottom-left
-                    // corner, always.
-                    Spacer(minLength: 0)
-                }
-                .padding(16)
-                // Clear of the heart in the bottom right corner.
-                .padding(.trailing, actions.canAct ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
-                // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
-                .allowsHitTesting(false)
-            }
+            if item.game == nil && !wholeFlyer { copyRow }
         }
         .contentShape(Rectangle())
         // The heart in the photo's corner is the double-tap's control to mirror, and

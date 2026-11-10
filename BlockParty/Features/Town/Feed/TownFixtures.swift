@@ -368,7 +368,7 @@ enum TownFixtures {
             metaLine: meta,
             // `-town-photo <url>`: the first card wears that photo, for a pale or busy one no sample has
             // (BP app inside-cards 26: the time under the title on Nov 6's pale gallery photo).
-            image: (id == "e1" ? Self.townPhoto : nil) ?? (photo ? Self.photoURL(id, credit: credit) : placeLogo ?? .fallback),
+            image: (id == "e1" ? Self.wholeFlyer ?? Self.townPhoto : nil) ?? (photo ? Self.photoURL(id, credit: credit) : placeLogo ?? .fallback),
             recurrence: nil,
             hostName: host,
             hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,
@@ -387,6 +387,7 @@ enum TownFixtures {
         let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
         item.why = FeedCardMenu.line(reason: day, name: reasonName)
         item.what = whats[id]
+        item.whole = id == "e1" && Self.wholeFlyer != nil
         item.friendsGoing = friends.map { friend in
             FeedFriend(name: friend.name,
                        photo: friend.photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") })
@@ -434,6 +435,13 @@ enum TownFixtures {
         "millstream-arts-festival", "centennial-park", "bad-habit-brewing",
         "rivers-bend-park",
     ]
+
+    /// `-whole-flyer <url>#<width over height>`: the first card wears that flyer whole (BP app town-feed 57), as
+    /// the Block Party tab's samples do; square with no shape after the #.
+    static var wholeFlyer: FeedCardImageSource? {
+        LaunchFlags.value(.wholeFlyer).flatMap { URL(string: $0) }
+            .map { .placePhoto($0, credit: nil, aspect: $0.fragment.flatMap(Double.init)) }
+    }
 
     /// `-town-photo <url>`'s photo, as the Event's own.
     static var townPhoto: FeedCardImageSource? {

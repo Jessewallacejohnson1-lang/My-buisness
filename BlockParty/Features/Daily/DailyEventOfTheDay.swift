@@ -113,11 +113,11 @@ struct DailyEvent: Identifiable {
         time.dateFormat = "h:mm a"
         // `-whole-flyer <url>`: every sample wears that flyer, so each frame can be shot with one no Event in the
         // Town feed shows today.
-        let flyer = LaunchFlags.value(.wholeFlyer).flatMap { URL(string: $0) }
+        let flyer = TownFixtures.wholeFlyer
         var item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
             // `-town-photo <url>` dresses them in that photo, not whole (BP app inside-cards 26).
-            image: flyer.map { .placePhoto($0, credit: nil) } ?? TownFixtures.townPhoto ?? url.map { .eventPhoto($0) } ?? .fallback,
+            image: flyer ?? TownFixtures.townPhoto ?? url.map { .eventPhoto($0) } ?? .fallback,
             recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isJoined: false,

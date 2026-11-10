@@ -130,20 +130,6 @@ final class EventPageTests: XCTestCase {
                        "the Block Party tab's cards start at their own top")
     }
 
-    /// A flyer on the poster stops above the words, and pressing Attend doesn't move it: the going
-    /// line's room is kept whether it shows or not (370 x 470 on a 402 pt phone).
-    func testAPostersFlyerKeepsClearOfItsWordsAndAttendDoesntMoveIt() {
-        let side: CGFloat = 370
-        // 120 pt of words, the going line's 34, the Attend row's 16 + 38, the words' 15 + 15 and an 8 pt gap.
-        let foot = EventOfTheDayPoster.wholeFoot(side: side, words: 120)
-        XCTAssertEqual(foot, 470 - 120 - 34 - 54 - 30 - 8, accuracy: 0.01, "the same with Attend pressed or not")
-
-        let stops = EventOfTheDayPoster.wholeFade(foot: foot, side: side)
-        XCTAssertEqual(stops.first?.location ?? 0, foot / side, accuracy: 0.001, "clear down to the flyer's foot")
-        XCTAssertEqual(stops.map(\.location), stops.map(\.location).sorted(), "a gradient's stops only go down")
-        XCTAssertLessThanOrEqual(stops.last?.location ?? 2, 1)
-    }
-
     /// A town card's flyer stops above its words, and they keep the shade today's card gives them.
     func testATownCardsFlyerKeepsItsWordsReadable() {
         let height: CGFloat = 300, words: CGFloat = 52

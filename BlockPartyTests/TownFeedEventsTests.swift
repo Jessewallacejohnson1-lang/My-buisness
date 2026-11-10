@@ -282,6 +282,19 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardImageSource.fallback.cardAspect, 1.5, accuracy: 0.0001, "ink keeps 3:2")
     }
 
+    /// A whole flyer runs full width at its own shape, at most 4:5 tall, never cut wide (BP app town-feed 57).
+    func testAWholeFlyerRunsFullWidthAtItsOwnShape() {
+        let photo = { (w: Int?, h: Int?) in
+            FeedCardImageSource(PlacePicture(url: URL(string: "https://x/p.webp")!, kind: .photo, width: w, height: h))
+        }
+        XCTAssertEqual(photo(780, 1000).flyerAspect, 0.8, accuracy: 0.0001, "taller than 4:5 shrinks to fit 4:5")
+        XCTAssertEqual(photo(1080, 1080).flyerAspect, 1, accuracy: 0.0001, "square")
+        XCTAssertEqual(photo(1500, 500).flyerAspect, 3, accuracy: 0.0001, "a 3:1 banner stays 3:1")
+        XCTAssertEqual(photo(nil, nil).flyerAspect, 1, accuracy: 0.0001, "no size: square")
+        XCTAssertEqual(photo(780, 1000).ownAspect, 0.78, accuracy: 0.0001, "drawn at its own shape inside that room")
+        XCTAssertEqual(photo(nil, nil).ownAspect, 1, accuracy: 0.0001, "no size: square")
+    }
+
     /// A card with no photo is the short white card (BP app references/no-photo-cards): its place's
     /// logo or nothing at all makes it one; a photo or a game never does.
     func testACardWithNoPhotoIsTheShortWhiteCard() throws {
