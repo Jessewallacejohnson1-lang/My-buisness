@@ -36,7 +36,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveOpens":2,"newsEvery":5}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -272,7 +272,10 @@ as $$
              -- A game whose final is in stays a day past its end (game-card 02); one still being played
              -- (a live score and no final) stays two more hours, so a long game keeps its card (game-card 03).
              + case when r.final_score is not null then interval '1 day'
-                    when r.live_score is not null then interval '2 hours' else interval '0' end as leaves_at
+                    when r.live_score is not null then interval '2 hours' else interval '0' end as leaves_at,
+           -- How long it runs, start to end, for what can lead as live (town-feed 56).
+           coalesce(r.end_at - (r.event_date + make_interval(mins => r.start_minutes)) at time zone town.zone,
+                    case when r.team_ids is not null then interval '3 hours' else interval '2 hours' end) as runs_for
     from real_events r, town
   ),
   labels as (
@@ -459,10 +462,11 @@ as $$
            -- Which pool it is in, for the Score line: yours or discovery; your own Going in neither.
            case when c.going then null
                 else c.friend_pts + c.follow_pts > 0 end as yours,
-           -- A real happening on right now, seen on fewer than 2 opens today (town-feed 41).
+           -- A real happening on right now that runs under 12 hours (town-feed 41, 56): it stays on top while it's on,
+           -- however often you've seen it.
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
              and c.final_score is null and c.hidden_x = 1
-             and coalesce(c.seen_today, 0) < (select (w->>'liveOpens')::int from weights) as live_ok,
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights)) as live_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
            case when c.followed is not null then 'follow'
@@ -550,11 +554,12 @@ as $$
     from (select p.*, p.mine or exists (select 1 from my_people mp where mp.id = p.submitted_by) as followed
           from posts p) p, weights, last_visit lv
   ),
-  -- Live first (town-feed 41): up to 3, what you're Going to, then most Going, then the draw, your town's
-  -- counting more, then the latest to start.
+  -- Live first (town-feed 41, 56): up to 3, what you're Going to, then the most yours (interests, friends Going,
+  -- following, gender, your town), then most Going, then the draw, then the latest to start.
   live_now as (
-    select t.id, row_number() over (order by t.going desc, t.going_n desc, coalesce(t.draw, 2) * t.town_x desc,
-                                             t.starts_at desc, t.id) as nth
+    select t.id, row_number() over (order by t.going desc,
+                                             (1 + t.friend_pts + t.follow_pts + t.interest_pts + t.gender_pts) * t.town_x desc,
+                                             t.going_n desc, coalesce(t.draw, 2) desc, t.starts_at desc, t.id) as nth
     from totals t
     where t.live_ok
   ),

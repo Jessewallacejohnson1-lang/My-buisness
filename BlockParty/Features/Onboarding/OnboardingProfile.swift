@@ -1,9 +1,9 @@
 //
 //  OnboardingProfile.swift
 //  Block Party — onboarding's Profile step (BP app onboarding 35), Luma's profile screen copied at
-//  mock v8's measured points ("4 · Profile"): the plain grey band fading into the canvas with the
-//  wordmark at its bottom right, the 80 pt photo with its camera badge, "Your Profile", and the Name
-//  and Bio boxes. It took the place of the Name and Photo steps. The answers live in
+//  mock v8's measured points ("4 · Profile"): the plain grey band fading into the canvas, the 80 pt
+//  photo with its glass camera badge, "Your Profile" and its line centred under it as Luma's, and the
+//  Name and Bio boxes. No wordmark (Jesse, 2026-11-10: it crowded the centred photo). It took the place of the Name and Photo steps. The answers live in
 //  `OnboardingStore`; `OnboardingFlow` owns the back arrow, the progress line and Save Profile.
 //
 
@@ -27,17 +27,23 @@ struct OnboardingProfile: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // The photo, the question and its line sit centred, as Luma's; the boxes stay full width.
                     OnboardingProfilePhoto(store: store)
+                        .frame(maxWidth: .infinity)
                     Text(OnboardingStep.profile.question)
                         .appleFont(20, weight: .semibold)
                         .foregroundStyle(Hue.ink)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityFocused($headingFocused)
                         .padding(.top, 19)
                     Text("Introduce yourself to others in your events.")
                         .font(.apple(15))
                         .foregroundStyle(Hue.inkSecondary)
+                        .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
                         .padding(.top, 11)
                     label("Name").padding(.top, 23)
                     nameBox.id(Field.name)
@@ -68,19 +74,12 @@ struct OnboardingProfile: View {
         withAnimation(Motion.sheet) { proxy.scrollTo(focus, anchor: .bottom) }
     }
 
-    /// Luma's grey band, plain (no stars, Jesse 2026-11-09), fading into the canvas over 200 pt, with
-    /// the BlockParty wordmark 24 pt tall at its bottom right.
+    /// Luma's grey band, plain (no stars, Jesse 2026-11-09), fading into the canvas over 200 pt.
     private var band: some View {
         LinearGradient(stops: [.init(color: Hue.profileBand, location: 0),
                                .init(color: Hue.onboardingCanvas, location: 200 / Self.band)],
                        startPoint: .top, endPoint: .bottom)
             .frame(height: Self.band)
-            .overlay(alignment: .bottomTrailing) {
-                BlockPartyWordmark(height: 24)
-                    .foregroundStyle(Hue.ink)
-                    .padding(.trailing, FollowGridMetric.gutter)
-                    .padding(.bottom, 28)
-            }
             .accessibilityHidden(true)
     }
 
@@ -170,7 +169,7 @@ private extension View {
 }
 
 /// The 80 pt photo (mock v8 `.avatar`): empty, a plain colour circle (Luma's face is their own
-/// character); picked, the photo. The white camera badge sits on its bottom right. A tap opens Apple's
+/// character); picked, the photo. The Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A tap opens Apple's
 /// photo picker, or asks library or camera when the phone has one.
 struct OnboardingProfilePhoto: View {
     @Bindable var store: OnboardingStore
@@ -226,12 +225,14 @@ struct OnboardingProfilePhoto: View {
         .frame(width: Self.side, height: Self.side)
         .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
         .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "camera.fill")
-                .font(.glyph(14, weight: .medium))
+            // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't
+            // follow dark mode; over a dark photo the glass still takes the photo's tone.
+            Image(systemName: "photo.badge.plus")
+                .font(.glyph(15, weight: .regular))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 30, height: 30)
-                .background(Hue.surface, in: Circle())
-                .shadow(color: Hue.ink.opacity(0.14), radius: 4, y: 2)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .environment(\.colorScheme, .light)
         }
         .contentShape(Circle())
     }
