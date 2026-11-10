@@ -404,7 +404,8 @@ struct FeedEventCard: View {
                     // The host's mark rides above the photo in its own layer (`hostMark`).
                     .padding(.trailing, showsHostMark ? HostMarkDisc.side + HostMarkDisc.gap : 0)
             }
-            .frame(minHeight: PhotoChip.height)
+            // Level with the host's mark beside it.
+            .frame(minHeight: showsHostMark ? HostMarkDisc.side : PhotoChip.height)
             .padding(PhotoChip.inset)
             // VoiceOver reads the title and when first, then the credit.
             .accessibilitySortPriority(-1)
