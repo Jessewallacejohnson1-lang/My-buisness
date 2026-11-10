@@ -171,11 +171,51 @@ struct FeedEventCard: View {
         !item.hostName.isEmpty && item.game == nil && !item.isPhotoless
     }
 
+    /// The mark's width and height: one disc, or the collab stack.
+    private var markWidth: CGFloat { item.collabs.isEmpty ? HostMarkDisc.side : HostStack.side }
+
     /// The host's picture at the date chip's height in a white ring, so a person's photo stands off
     /// the event's, lifted off it by the credit's shadow; its touch area grown to 44 pt without
     /// moving it. Read before the title, as the row it replaced was.
     @ViewBuilder
     private var hostMark: some View {
+        if let partner = item.collabs.first {
+            collabMark(partner)
+        } else {
+            soloMark
+        }
+    }
+
+    /// Two businesses, one Event (town-feed 58): Instagram's collab avatars, the host in front and the business it was
+    /// made with behind, at the one mark's spot. A tap opens Apple's menu naming each; a pick opens its page (Jesse,
+    /// 2026-11-10: "i agree" to the menu on the Check-in 1 page).
+    private func collabMark(_ partner: EventCollab) -> some View {
+        Menu {
+            Button(item.hostName, action: openHost)
+            ForEach(item.collabs, id: \.id) { collab in
+                Button(collab.name) { openCollab(collab) }
+            }
+        } label: {
+            HostStack(host: HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName),
+                      partner: HostMarkDisc(picture: partner.picture, name: partner.name))
+                .trackFrame(hostFrame)
+                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel(([item.hostName] + item.collabs.map(\.name)).formatted(.list(type: .and)))
+        .accessibilitySortPriority(1)
+    }
+
+    /// A business the Event was made with: its page, as the host's opens; one Search can't open opens the Event.
+    private func openCollab(_ collab: EventCollab) {
+        guard let opener = hostOpener else { return }
+        if opener.opens(collab.row) { opener.open(collab.row, hostFrame.rect) } else { opener.push(item) }
+    }
+
+    @ViewBuilder
+    private var soloMark: some View {
         let mark = HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName)
             .trackFrame(hostFrame)
             .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
@@ -334,7 +374,7 @@ struct FeedEventCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .grayscale(item.cancelled ? 1 : 0)
             }
-            .padding(.top, Self.flyerTop)
+            .padding(.top, Self.flyerTop + markWidth - HostMarkDisc.side)
             .padding(.horizontal, Self.flyerSide)
     }
 
@@ -402,7 +442,7 @@ struct FeedEventCard: View {
                     // Fades in with its photo, and across to the next one's on a swipe.
                     .animation(motionIsReduced ? nil : Motion.smooth, value: creditNames)
                     // The host's mark rides above the photo in its own layer (`hostMark`).
-                    .padding(.trailing, showsHostMark ? HostMarkDisc.side + HostMarkDisc.gap : 0)
+                    .padding(.trailing, showsHostMark ? markWidth + HostMarkDisc.gap : 0)
             }
             // Level with the host's mark beside it.
             .frame(minHeight: showsHostMark ? HostMarkDisc.side : PhotoChip.height)
@@ -666,6 +706,26 @@ struct HostMarkDisc: View {
             }
         }
         .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.ring))
+    }
+}
+
+/// Two businesses' marks as Instagram stacks a collab post's two authors (BP app town-feed 58, measured on
+/// `references/business-collab/ig-collab-post.jpg`: two 24 pt pictures 8 pt apart each way): the host in front at the
+/// bottom left, the business it was made with behind at the top right, each the one mark's size, so the step is a third
+/// of it. A third business shows only in the menu, as Instagram's "and 2 others".
+struct HostStack: View {
+    let host: HostMarkDisc
+    let partner: HostMarkDisc
+
+    static let step: CGFloat = HostMarkDisc.side / 3
+    static let side: CGFloat = HostMarkDisc.side + step
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            partner.offset(x: Self.step)
+            host.offset(y: Self.step)
+        }
+        .frame(width: Self.side, height: Self.side, alignment: .topLeading)
     }
 }
 

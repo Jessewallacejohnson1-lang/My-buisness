@@ -346,14 +346,8 @@ struct EventHostRow: View {
     var plain = false
     var sun = false
     @Environment(RealLifeActions.self) private var actions
-    @Environment(\.hostOpener) private var opener
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var host: FollowRow?
-    @State private var picture = FrameBox()
-    /// The last open, so a quick second tap doesn't push the page twice.
-    @State private var openedAt = Date.distantPast
-    /// The button under the card is down: the whole card squishes.
-    @State private var pressed = false
+    /// Its host, then each business it was made with (town-feed 58), all from one read so they show together.
+    @State private var hosts: [FollowRow] = []
 
     /// The approved mock's card (Meetup's): 16 pt inside, a 52 pt picture with 14 pt corners (a
     /// person's stays round, picked), 14 pt to the words.
@@ -366,34 +360,86 @@ struct EventHostRow: View {
         // Always something on screen, even before the read, so the read starts.
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 0)
-            if let host {
-                let opens = opener?.opens(host) == true
-                Group {
-                    if plain { row(host, opens: opens) } else { card(host, opens: opens) }
+            if !hosts.isEmpty {
+                VStack(alignment: .leading, spacing: plain ? 0 : Self.gap) {
+                    ForEach(Array(hosts.enumerated()), id: \.element.id) { n, host in
+                        EventHostLine(host: host, plain: plain, sun: sun, first: n == 0)
+                    }
                 }
-                // The link row's squish on the whole card.
-                .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
-                .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
-                .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
-                .animation(Motion.smooth, value: actions.follow(host.target).count)
                 .padding(.top, top)
                 .transition(.opacity)
             }
         }
-        .animation(Motion.smooth, value: host)
+        .animation(Motion.smooth, value: hosts)
         .task(id: item.id) {
-            guard let found = try? await Self.read(item) else { return }
-            host = found
-            await actions.refreshFollow(found.target)
+            guard let found = try? await Self.readAll(item), !found.isEmpty else { return }
+            hosts = found
+            for host in found { await actions.refreshFollow(host.target) }
         }
+    }
+
+    /// "Host", or a page's or board's own kind: "City government", "City of St. Joseph".
+    static func hostWord(_ host: FollowRow) -> String {
+        [.page, .board].contains(host.targetType) ? host.kind ?? "Host" : "Host"
+    }
+
+    /// Who hosts it, as a card's mark opens it.
+    static func read(_ item: FeedCardItem) async throws -> FollowRow? {
+        try await readAll(item).first
+    }
+
+    /// `event_host`: its host, then each business it was made with; under DEBUG `-town-samples` its Place, by the
+    /// card's own words, then the card's own collabs.
+    static func readAll(_ item: FeedCardItem) async throws -> [FollowRow] {
+        switch LaunchFlags.backend {
+        case .live: return try await CommunityAPI(auth: AuthStore.shared).eventHosts(item.id)
+        case .offline: throw URLError(.notConnectedToInternet)
+        case .samples:
+            guard let place = item.whereLine else { return [] }
+            return [FollowRow(targetType: .place, targetId: "sample-\(item.id)", name: item.collabs.isEmpty ? place : item.hostName,
+                              kind: "restaurant", picture: item.collabs.isEmpty ? nil : item.hostPicture?.url.absoluteString,
+                              pictureKind: item.collabs.isEmpty ? nil : item.hostPicture?.kind.rawValue)]
+                + item.collabs.map(\.row)
+        }
+    }
+}
+
+/// One host on an Event page: Meetup's grey card on a game's page, else the plain row. The row opens the host's page,
+/// squishing as the page's other rows do, Follow and all; Follow keeps its own tap. A host with no page: the row stays
+/// still. Each of an Event's hosts (town-feed 58) is its own row, so each squishes alone.
+private struct EventHostLine: View {
+    let host: FollowRow
+    var plain = false
+    var sun = false
+    /// The first row carries the hairline over the hosts; the rows after it sit under it with none.
+    var first = true
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.hostOpener) private var opener
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var picture = FrameBox()
+    /// The last open, so a quick second tap doesn't push the page twice.
+    @State private var openedAt = Date.distantPast
+    /// The button under the card is down: the whole card squishes.
+    @State private var pressed = false
+
+    var body: some View {
+        let opens = opener?.opens(host) == true
+        Group {
+            if plain { row(host, opens: opens) } else { card(host, opens: opens) }
+        }
+        // The link row's squish on the whole card.
+        .scaleEffect(FeedMotion.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
+        .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
+        .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
+        .animation(Motion.smooth, value: actions.follow(host.target).count)
     }
 
     /// Meetup's grey card, a game's page.
     private func card(_ host: FollowRow, opens: Bool) -> some View {
-        HStack(spacing: Self.gap) {
+        HStack(spacing: EventHostRow.gap) {
             Group {
-                FollowPicture(row: host, size: Self.picture,
-                              corner: host.targetType == .profile ? nil : Self.pictureCorner)
+                FollowPicture(row: host, size: EventHostRow.picture,
+                              corner: host.targetType == .profile ? nil : EventHostRow.pictureCorner)
                     .trackFrame(picture)
                 VStack(alignment: .leading, spacing: 2) {
                     // Two lines at 17 pt, so a long name ("Saint Benedict's Monastery")
@@ -404,7 +450,7 @@ struct EventHostRow: View {
                         .lineLimit(2)
                     // `host-line`: "Host · 128 followers"; a person shows no count. A City
                     // meeting's board: "City of St. Joseph · 41 followers" (follows 04).
-                    Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
+                    Text([EventHostRow.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
                         .compactMap { $0 }.joined(separator: " · "))
                         .font(.sans(15))
                         .foregroundStyle(Hue.inkSecondary)
@@ -420,7 +466,7 @@ struct EventHostRow: View {
             // A friend you follow reads Following; one you unfollowed can follow again here.
             FollowButton(target: host.target, name: host.name, size: .row)
         }
-        .padding(Self.inset)
+        .padding(EventHostRow.inset)
         .background {
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Hue.fill)
@@ -442,7 +488,7 @@ struct EventHostRow: View {
                         .font(.sansSemibold(EventLook.hostName))
                         .foregroundStyle(ink)
                         .lineLimit(2)
-                    Text([Self.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
+                    Text([EventHostRow.hostWord(host), FollowWords.count(actions.follow(host.target).count)]
                         .compactMap { $0 }.joined(separator: " · "))
                         .font(.sans(EventLook.hostKind))
                         .foregroundStyle(ink.opacity(sun ? EventLook.sunDim : EventLook.dim))
@@ -458,7 +504,7 @@ struct EventHostRow: View {
         }
         .padding(.vertical, EventLook.hostPad)
         .overlay(alignment: .top) {
-            ink.opacity(EventLook.hairline).frame(height: 1)
+            if first { ink.opacity(EventLook.hairline).frame(height: 1) }
         }
         .background { if opens { pressButton(host) } }
     }
@@ -499,23 +545,6 @@ struct EventHostRow: View {
         guard Date().timeIntervalSince(openedAt) > HostOpener.again else { return }
         openedAt = Date()
         opener?.open(host, picture.rect)
-    }
-
-    /// "Host", or a page's or board's own kind: "City government", "City of St. Joseph".
-    static func hostWord(_ host: FollowRow) -> String {
-        [.page, .board].contains(host.targetType) ? host.kind ?? "Host" : "Host"
-    }
-
-    /// `event_host`; under DEBUG `-town-samples` its Place, by the card's own words.
-    static func read(_ item: FeedCardItem) async throws -> FollowRow? {
-        switch LaunchFlags.backend {
-        case .live: return try await CommunityAPI(auth: AuthStore.shared).eventHost(item.id)
-        case .offline: throw URLError(.notConnectedToInternet)
-        case .samples:
-            guard let place = item.whereLine else { return nil }
-            return FollowRow(targetType: .place, targetId: "sample-\(item.id)", name: place, kind: "restaurant",
-                             picture: nil, pictureKind: nil)
-        }
     }
 }
 

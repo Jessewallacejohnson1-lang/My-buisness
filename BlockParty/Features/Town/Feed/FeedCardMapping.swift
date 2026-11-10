@@ -21,6 +21,7 @@ extension FeedCardItem {
             recurrence: event.recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             hostPicture: event.hostPicture,
+            collabs: event.collabs,
             goingCount: event.goingCount,
             goingAvatars: [],
             friendsGoing: event.friendsGoing,

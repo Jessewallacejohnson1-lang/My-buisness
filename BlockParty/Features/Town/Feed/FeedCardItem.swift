@@ -19,6 +19,9 @@ struct FeedCardItem: Identifiable, Hashable {
     var hostAvatar: URL? = nil
     /// A place host's picture (`UpcomingEvent.hostPicture`): its logo goes on a white disc.
     var hostPicture: PlacePicture? = nil
+    /// The businesses it was made with besides its host (`UpcomingEvent.collabs`, town-feed 58): their logos stack with
+    /// the host's on the photo, Instagram's collab avatars.
+    var collabs: [EventCollab] = []
     /// Going as the read gave it. What a card and its page show is
     /// `RealLifeActions.going`, which lays the neighbour's own taps over this.
     let goingCount: Int

@@ -146,6 +146,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// found on, else its photo (`private.host_picture`). nil for an unknown host, and on rows read
     /// before the feed sent it.
     var hostPicture: PlacePicture? = nil
+    /// The businesses it was made with besides its host, in order (`club_events.collab_entry_ids`, BP app town-feed 58):
+    /// an Instagram collab post's other authors. Empty for one host, and on a card read before it said so.
+    var collabs: [EventCollab] = []
     /// The organizer's own words (`club_events.description`), the Event page's About: nil for
     /// an event without them (a game), and on rows read before the feeds sent them.
     var description: String? = nil
@@ -601,6 +604,45 @@ struct PlaceName: Hashable, Sendable {
     let url: URL
     /// The logo, untinted, rather than lettering.
     let emblem: Bool
+}
+
+/// A business an Event was made with besides its host (the card's `collabs`, BP app town-feed 58): its place, name
+/// and picture, what its logo on the card shows and what a pick from the card's menu opens.
+nonisolated struct EventCollab: Decodable, Hashable, Sendable {
+    /// `places.id`, a Place's follow target.
+    let id: String
+    let entryId: String
+    let name: String
+    var picture: PlacePicture? = nil
+
+    private enum CodingKeys: String, CodingKey { case id, entryId, name, picture }
+
+    init(id: String, entryId: String, name: String, picture: PlacePicture? = nil) {
+        self.id = id
+        self.entryId = entryId
+        self.name = name
+        self.picture = picture
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        entryId = try c.decode(String.self, forKey: .entryId)
+        name = try c.decode(String.self, forKey: .name)
+        picture = try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .picture)?.value
+    }
+
+    /// Its page, as the Event page's host row and Search open a Place.
+    var row: FollowRow {
+        FollowRow(targetType: .place, targetId: id, name: name, kind: nil,
+                  picture: picture?.url.absoluteString, pictureKind: picture?.kind.rawValue)
+    }
+
+    /// One that doesn't decode is left out, never the card.
+    struct Lenient: Decodable {
+        let value: EventCollab?
+        init(from decoder: Decoder) { value = try? EventCollab(from: decoder) }
+    }
 }
 
 /// Something you follow, in Profile's Following list (`my_follows`), or an Event's host

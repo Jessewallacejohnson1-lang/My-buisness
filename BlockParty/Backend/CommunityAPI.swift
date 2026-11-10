@@ -63,7 +63,7 @@ extension UpcomingEvent: Decodable {
 
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
-             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price, ages,
+             createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, collabs, description, price, ages,
              what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
     }
 
@@ -90,6 +90,8 @@ extension UpcomingEvent: Decodable {
         // A card kept from before it carried the heart (inside-cards 16) says none.
         heartCount = try c.decodeIfPresent(Int.self, forKey: .heartCount) ?? 0
         hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
+        // The businesses it was made with (town-feed 58); a card from before it said so names none.
+        collabs = (try c.decodeIfPresent([EventCollab.Lenient].self, forKey: .collabs) ?? []).compactMap(\.value)
         // Where it is (inside-cards 19): a card from before it said so has no spot, and its Map opens Apple Maps.
         if let lat = try c.decodeIfPresent(Double.self, forKey: .lat), let lng = try c.decodeIfPresent(Double.self, forKey: .lng) {
             spot = .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))
@@ -734,9 +736,9 @@ struct CommunityAPI {
     }
 
     /// Who hosts an Event, for its page's host line: nil for a Group's Event or one at no known Place.
-    func eventHost(_ eventID: String) async throws -> FollowRow? {
-        let rows: [FollowRow] = try Supabase.decode(await db.rpc("event_host", ["p_event": eventID], anon: true))
-        return rows.first
+    /// Its host, then each business it was made with (town-feed 58).
+    func eventHosts(_ eventID: String) async throws -> [FollowRow] {
+        try Supabase.decode(await db.rpc("event_host", ["p_event": eventID], anon: true))
     }
 
     // MARK: - My Going (the You tab)

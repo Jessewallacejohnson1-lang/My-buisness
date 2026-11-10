@@ -48,6 +48,26 @@ final class EventCardTests: XCTestCase {
         XCTAssertTrue(event.hearted, "and yours", file: file, line: line)
     }
 
+    /// Two businesses, one Event (BP app town-feed 58): the card names the business it was made with, a broken one is
+    /// left out and never the card, a card from before names none, and a pick opens it as a Place's page.
+    func testACardNamesTheBusinessesItWasMadeWith() throws {
+        let made = card.replacingOccurrences(of: #""recurrence":"Every Thursday"}"#, with: #""recurrence":"Every Thursday","collabs":[{"id":"p2","entry_id":"milk-and-honey-ciders","name":"Milk & Honey Ciders","picture":{"url":"https://x/mh.webp","kind":"logo"}},{"name":"No id"}]}"#)
+        XCTAssertNotEqual(made, card)
+        let json = """
+        [{"id":"e1","leaves_at":"2026-11-06T04:00:00+00:00","kind":"event","card":\(made)},
+         {"id":"e2","leaves_at":"2026-11-06T04:00:00+00:00","kind":"event","card":\(card.replacingOccurrences(of: #""id":"e1""#, with: #""id":"e2""#))}]
+        """
+        let rows = try CommunityAPI.townFeedRows(from: Data(json.utf8))
+        XCTAssertEqual(rows.map(\.event.id), ["e1", "e2"])
+        let item = TownFeed.card(rows[0])
+        XCTAssertEqual(item.collabs.map(\.name), ["Milk & Honey Ciders"])
+        XCTAssertEqual(item.collabs.first?.picture?.url, URL(string: "https://x/mh.webp"))
+        XCTAssertEqual(item.collabs.first?.row.target, FollowTarget(type: .place, id: "p2"), "its page is a Place's")
+        XCTAssertEqual(TownFeed.card(rows[1]).collabs, [], "one host: no stack")
+        XCTAssertEqual(HostStack.side, HostMarkDisc.side * 4 / 3, accuracy: 0.001,
+                       "Instagram's step: a third of a mark each way (8 of 24 pt)")
+    }
+
     /// The Town feed's Event rows are their card; the feed's own extras (reason, hearts, leaving time) stay
     /// the row's, and the old `saved` column builds before inside-cards 16 read is passed over. An Event row with no card, or one that doesn't decode, is left out, never the feed; news and
     /// posts carry no card.

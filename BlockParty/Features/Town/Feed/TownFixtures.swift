@@ -413,6 +413,18 @@ enum TownFixtures {
             item.startTime = item.shareTime
             item.eventDate = townClock("yyyy-MM-dd", now.addingTimeInterval((id == "e4" ? 24 * 7 : hoursUntil) * 3600))
         }
+        // `-town-collab`: the first card is The House Food and Tap's, made with Milk & Honey Ciders (town-feed 58), both
+        // places' real ids and saved logos, so the card's two marks, its menu and the Event page's two hosts show.
+        if id == "e1" && LaunchFlags.has(.townCollab) {
+            item.hostName = "The House Food and Tap"
+            item.hostAvatar = nil
+            item.hostPicture = URL(string: Self.logos + "ChIJy9h63EtZtFIRYVJtkqYK2zQ/logo-8c6a222a.webp")
+                .map { PlacePicture(url: $0, kind: .logo) }
+            item.collabs = [EventCollab(id: "796f4577-dd1a-49f6-aac5-49d3f8632ecb", entryId: "milk-and-honey-ciders",
+                                        name: "Milk & Honey Ciders",
+                                        picture: URL(string: Self.logos + "stjoe-milk-honey-ciders/logo-5d9d05fa.webp")
+                                            .map { PlacePicture(url: $0, kind: .logo) })]
+        }
         // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
         // its Join and the club's Group page in Search are one (rsvp-and-groups 07).
         if id == "e1" && LaunchFlags.has(.townGroup) {

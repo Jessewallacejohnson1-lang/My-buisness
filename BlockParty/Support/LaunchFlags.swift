@@ -83,6 +83,7 @@ nonisolated enum LaunchFlags {
         case tilt = "-tilt"
         case townBasketball = "-town-basketball"
         case townCancelled = "-town-cancelled"
+        case townCollab = "-town-collab"
         case townGames = "-town-games"
         case townHockey = "-town-hockey"
         case townGroup = "-town-group"
