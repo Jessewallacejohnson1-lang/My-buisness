@@ -560,10 +560,12 @@ struct EventPage: View {
             HStack(spacing: 0) {
                 heroPicture(url: photo, picture: picture, isFlyer: false, aspect: 1)
                     .frame(width: width, height: height, alignment: .top)
+                    .accessibilityHidden(progress >= 0.5)
                     .id(0)
                 heroPicture(url: second, picture: .placePhoto(second, credit: nil), isFlyer: true, aspect: swipeAspect,
                             pale: flyerPale)
                     .frame(width: width, height: height, alignment: .top)
+                    .accessibilityHidden(progress < 0.5)
                     .id(1)
             }
             .scrollTargetLayout()
@@ -625,6 +627,18 @@ struct EventPage: View {
         let link = self.link
         let place = Self.placeText(item)
         return VStack(spacing: 0) {
+            // The flyer it swipes to has its credit there too, coming in with it (town-feed 59).
+            if let second = swipeFlyer, let credit = item.flyerCredit {
+                HStack {
+                    Spacer(minLength: 0)
+                    PhotoCredit(names: [credit], report: FeedCardImageSource.placePhoto(second, credit: credit)
+                                    .report(place: item.whereLine))
+                        .padding(.trailing, -PhotoCredit.edgeInset)
+                }
+                .frame(height: EventLook.creditLine * min(max(flyerSwipe, 0), 1))
+                .opacity(Double(min(max(flyerSwipe, 0), 1)))
+                .clipped()
+            }
             if flyer != nil, let credit = creditName, let picture = photos.first {
                 HStack {
                     Spacer(minLength: 0)
@@ -644,8 +658,8 @@ struct EventPage: View {
                 // Called off, VoiceOver says so with the title: the bar's red pill comes last.
                 .accessibilityValue(item.cancelled ? "Canceled" : "")
                 .padding(.top, sun ? EventLook.sunTitleTop : EventLook.titleTop)
-                // On the flyer it swipes to, the title sits where it does under a flyer alone (town-feed 59).
-                .padding(.top, swipeFlyer == nil ? 0 : EventLook.creditLine * min(max(flyerSwipe, 0), 1))
+                // Without the flyer's credit, the title still sits where it does under a flyer alone (town-feed 59).
+                .padding(.top, swipeFlyer == nil || item.flyerCredit != nil ? 0 : EventLook.creditLine * min(max(flyerSwipe, 0), 1))
 
             let date = Self.dateLine(current)
             let price = Self.priceLine(ages: item.ages, price: item.price)

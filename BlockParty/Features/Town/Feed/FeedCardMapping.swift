@@ -44,6 +44,7 @@ extension FeedCardItem {
             whole: event.placePicture?.whole == true && image == place,
             flyer: image == place ? event.placePicture?.flyer?.url : nil,
             flyerAspect: image == place ? event.placePicture?.flyer?.aspect : nil,
+            flyerCredit: image == place ? event.placePicture?.flyer?.creditLine : nil,
             lineup: event.placePicture?.lineup == true,
             game: event.game,
             what: Self.nonempty(event.what),

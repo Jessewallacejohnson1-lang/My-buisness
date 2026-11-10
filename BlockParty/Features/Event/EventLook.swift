@@ -642,7 +642,10 @@ struct EventPageDots: View {
                     .opacity(0.4 + 0.6 * max(0, 1 - abs(page - CGFloat(index))))
             }
         }
-        .shadow(color: .black.opacity(0.25), radius: 2)
+        // A dark pill behind them, as Instagram's counter has, so they read on a white flyer too.
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.3), in: Capsule())
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

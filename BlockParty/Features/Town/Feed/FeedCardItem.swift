@@ -72,6 +72,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var flyer: URL? = nil
     /// The flyer's shape, width over height, when the database knows it.
     var flyerAspect: Double? = nil
+    /// Who made the flyer, for its credit under it ("Sal's Bar and Grill").
+    var flyerCredit: String? = nil
     /// Its flyer lists other things too: About says it is part of its host's lineup (town-feed 59).
     var lineup = false
     /// The approved group putting it on, as the Town feed names it, and whether the read said

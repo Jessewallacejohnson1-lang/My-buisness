@@ -1330,6 +1330,8 @@ test("one flyer with many Events: each its own photo, its flyer a swipe away (to
   assert.equal(k.flyer, undefined, 'never the flyer twice');
   assert.equal(k.lineup, true, 'still part of the lineup');
   assert.equal((await pic(santa)).lineup, undefined, 'one series on its own flyer is no lineup');
+  await db.query("update public.club_events set status = 'rejected' where id = $1", [market]);
+  assert.equal((await pic(memorial)).lineup, undefined, "a hidden Event on the flyer makes no lineup");
   await assert.rejects(put(memorial, 'https://x/second.webp', 'event'), /place_photos_one_per_event/, 'one live photo per Event');
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
