@@ -3695,6 +3695,59 @@ test('starting soon: not 61 minutes out, not a meeting, not a host you said Not 
   assert.equal(await first(), 'Favourite', 'a Not interested host stays out');
 });
 
+// A part of a long Event (happening-now 04): the Fall exhibit runs all month; its 3 PM Artist talk makes its card
+// live. The Favourite has the points to lead otherwise.
+async function exhibitWithTalk({ ends = null, title = 'Artist talk', sameAs = false } = {}) {
+  await reset();
+  const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+  await set(fav, { draw: 3 });
+  await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                  where id = $1`, [fav]);
+  const exhibit = await add('Fall exhibit', '2026-10-01', { start_time: '10 AM', end_at: '2026-10-31 17:00-05', source_name: 'Gallery' });
+  await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
+                  values ($1, $2, '2026-10-08 15:00-05', $3, 'https://gallery.example/', 'Artist talk Thursday at 3 PM', $4)`,
+                 [exhibit, title, ends, sameAs ? fav : null]);
+  return exhibit;
+}
+const partFeed = async (at) => {
+  await signIn(YOU, ['wellness']);
+  const { rows } = await db.query(
+    `select f.card->>'title' as title, f.card->'part' as part
+     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago')) f where f.kind = 'event'`, [at]);
+  await db.exec('reset role');
+  return rows;
+};
+const lead = async (at) => (await partFeed(at))[0].title;
+
+test('a part: an exhibit with a 3 PM talk is live from 3 to 4 PM and leads, with the talk on its card (happening-now 04)', async () => {
+  await exhibitWithTalk();
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Fall exhibit', 'on now: it leads');
+  assert.deepEqual(rows[0].part, { title: 'Artist talk', starts_at: '2026-10-08T20:00:00+00:00', ends_at: '2026-10-08T21:00:00+00:00' },
+                   'no stated end: 1 hour');
+  assert.equal(rows.length, 2, 'one card for the Event, never a second for its part');
+  assert.equal(await lead('2026-10-08 15:59'), 'Fall exhibit');
+  assert.equal(await lead('2026-10-08 16:00'), 'Favourite', 'over at 4 PM');
+  assert.equal(await lead('2026-10-08 13:30'), 'Favourite', 'not live before it');
+  assert.equal(await lead('2026-10-08 14:40'), 'Fall exhibit', 'within the hour it takes a starting-soon spot');
+  assert.equal((await partFeed('2026-10-08 16:00'))[1].part, null, 'a part that is over leaves the card');
+});
+
+test('a part: a stated end of 3:30 leaves at 3:30 (happening-now 04)', async () => {
+  await exhibitWithTalk({ ends: '2026-10-08 15:30-05' });
+  assert.equal(await lead('2026-10-08 15:29'), 'Fall exhibit');
+  assert.equal(await lead('2026-10-08 15:30'), 'Favourite');
+});
+
+test('a part: not a real happening, or an Event of its own, never makes its Event live (happening-now 04)', async () => {
+  await exhibitWithTalk({ title: 'Holiday sale' });
+  assert.equal(await lead('2026-10-08 15:30'), 'Favourite', 'a sale is no happening (live_kind)');
+  await exhibitWithTalk({ sameAs: true });
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Favourite', 'its own card is the one');
+  assert.equal(rows.find((r) => r.title === 'Fall exhibit').part, null);
+});
+
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
   await reset();
   const kinds = [

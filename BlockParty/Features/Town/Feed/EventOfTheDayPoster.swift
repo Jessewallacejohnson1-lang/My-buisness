@@ -272,7 +272,7 @@ struct EventOfTheDayPoster: View {
         let line = item.countdown(at: now)
         let text = line?.text ?? (item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text)
         if on || text != nil {
-            CardTime(text: text ?? "", spoken: line?.spoken, now: on, color: Hue.brandDisc)
+            CardTime(text: text ?? "", spoken: line?.spoken, now: on, part: item.partOn(at: now)?.title, color: Hue.brandDisc)
         }
     }
 
@@ -313,7 +313,8 @@ struct EventOfTheDayPoster: View {
     /// What VoiceOver reads for the link, in the order the poster shows it: its name, when, what it is
     /// ("Lecture") and where, and who's going.
     private var spoken: String {
-        let when = item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken
+        let when = item.partOn(at: now).map { "Now, \($0.title)" }
+            ?? (item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken)
         return ["Event of the day", item.title, when, item.whatLine, item.whereLine,
                 actions.rsvp(item)?.top].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }

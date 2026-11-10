@@ -281,6 +281,28 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertEqual(called.whenLine(at: at(24, 18, 40)), called.whenLine, "called off")
     }
 
+    /// A long Event's part (BP app happening-now 04): while the artist talk is on, the exhibit's card is Now,
+    /// "Now · Artist talk"; within the hour before it, "Artist talk in 20 min". Its own line otherwise.
+    func testAPartOnNowOrSoonIsTheLongEventsTimeLine() {
+        var exhibit = card("2026-09-01", "10 AM", endAt: at(30, 17))
+        exhibit.liveKind = false
+        exhibit.part = EventPart(title: "Artist talk", start: at(24, 15), end: at(24, 16))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 14, 40)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 40)),
+                       FeedWhenLine(text: "Artist talk in 20 min", spoken: "Artist talk starts in 20 minutes"))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 59))?.spoken, "Artist talk starts in 1 minute")
+        XCTAssertTrue(exhibit.isNow(at: at(24, 15)), "on at its start")
+        XCTAssertEqual(exhibit.partOn(at: at(24, 15, 30))?.title, "Artist talk")
+        XCTAssertTrue(exhibit.isNow(at: at(24, 15, 59)))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 16)), "over at its end")
+        XCTAssertNil(exhibit.partOn(at: at(24, 16)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 16))?.text, "Until Wed", "the exhibit's own line again")
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 13, 59))?.text, "Until Wed", "61 minutes off")
+        exhibit.cancelled = true
+        XCTAssertFalse(exhibit.isNow(at: at(24, 15, 30)), "called off: no part is on")
+        XCTAssertNil(exhibit.countdown(at: at(24, 14, 40)))
+    }
+
     /// In the Town's time across midnight: 11:40 PM to a 12:15 AM start is 35 minutes.
     func testTheCountdownCrossesMidnight() {
         let late = card("2026-09-25", "12:15 AM")

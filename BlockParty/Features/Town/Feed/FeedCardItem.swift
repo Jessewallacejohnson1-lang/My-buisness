@@ -85,6 +85,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var found = false
     /// The page it was found on, opened from the link under the Event page's About.
     var sourceURL: URL? = nil
+    /// A long Event's part on now, else its next (`UpcomingEvent.part`, BP app happening-now 04).
+    var part: EventPart? = nil
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
@@ -133,8 +135,17 @@ struct FeedCardItem: Identifiable, Hashable {
     /// to Pacific still sees a 10 AM class turn Now at 10 in St. Joseph.
     func isNow(at now: Date = .now) -> Bool {
         // A game whose final is in is over, whatever its hours say (game-card 02).
-        guard !cancelled, game?.final == nil, liveKind else { return false }
+        guard !cancelled, game?.final == nil else { return false }
+        // A long Event's part on now makes it Now, the exhibit too: "Now · Artist talk" (happening-now 04).
+        if partOn(at: now) != nil { return true }
+        guard liveKind else { return false }
         return when?.isOn(now) ?? false
+    }
+
+    /// Its part on at `now`, from the part's start to its end (an hour when the host gave none); nil when called off.
+    func partOn(at now: Date) -> EventPart? {
+        guard !cancelled, let part, part.start <= now, now < part.end else { return nil }
+        return part
     }
 
     /// When it starts and ends. A game runs three hours, as the Town feed keeps it (Jesse at
@@ -162,12 +173,17 @@ struct FeedCardItem: Identifiable, Hashable {
     /// "In 20 min" from 60 minutes before a real happening's known start until its start minute; nil
     /// otherwise. One form all the way down: "In 60 min", never "In 1 hour". A real start only, never an
     /// invented one (no fake urgency).
+    /// A long Event's part counts down the same way, by its name: "Artist talk in 20 min" (happening-now 04).
     func countdown(at now: Date) -> FeedWhenLine? {
-        guard liveKind, !cancelled, game?.final == nil, let when, when.timed else { return nil }
-        let minutes = Int((when.start.timeIntervalSince(now) / 60).rounded(.up))
-        guard (1...60).contains(minutes) else { return nil }
-        return FeedWhenLine(text: "In \(minutes) min",
-                            spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
+        guard !cancelled, game?.final == nil else { return nil }
+        let minutesTo = { (start: Date) in Int((start.timeIntervalSince(now) / 60).rounded(.up)) }
+        if liveKind, let when, when.timed, case let minutes = minutesTo(when.start), (1...60).contains(minutes) {
+            return FeedWhenLine(text: "In \(minutes) min",
+                                spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
+        }
+        guard let part, case let minutes = minutesTo(part.start), (1...60).contains(minutes) else { return nil }
+        return FeedWhenLine(text: "\(part.title) in \(minutes) min",
+                            spoken: "\(part.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
     }
 
     /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's

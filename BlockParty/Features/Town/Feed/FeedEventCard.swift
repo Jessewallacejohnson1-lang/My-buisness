@@ -235,6 +235,7 @@ struct FeedEventCard: View {
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         when: line?.text, whenSpoken: line?.spoken, now: item.isNow(at: context.date),
+                        part: item.partOn(at: context.date)?.title,
                         title: item.title, factsTries: item.smallLines,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
         }
@@ -492,7 +493,8 @@ struct FeedEventCard: View {
                 TimelineView(.everyMinute) { context in
                     // Who it's for by age after the time, "Tonight · 7 PM · 21+" (inside-cards 30).
                     let line = item.cardWhen(at: context.date) ?? when
-                    CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date), color: .white)
+                    CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date),
+                             part: item.partOn(at: context.date)?.title, color: .white)
                 }
             }
 

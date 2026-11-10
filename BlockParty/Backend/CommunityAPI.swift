@@ -64,7 +64,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, description, price, ages,
-             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
+             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace, part
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +90,8 @@ extension UpcomingEvent: Decodable {
         // A card kept from before it carried the heart (inside-cards 16) says none.
         heartCount = try c.decodeIfPresent(Int.self, forKey: .heartCount) ?? 0
         hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
+        // A part that doesn't read is no part, never a lost Event (happening-now 04).
+        part = try? c.decodeIfPresent(EventPart.self, forKey: .part)
         // Where it is (inside-cards 19): a card from before it said so has no spot, and its Map opens Apple Maps.
         if let lat = try c.decodeIfPresent(Double.self, forKey: .lat), let lng = try c.decodeIfPresent(Double.self, forKey: .lng) {
             spot = .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))

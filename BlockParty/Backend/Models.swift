@@ -177,6 +177,33 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// How its series repeats ("Every Tuesday"; `private.series_repeats`), the Event page's day row from every
     /// door (BP app inside-cards 23). nil for a one-off, no clear pattern, a called-off week, and a row with no card.
     var recurrence: String? = nil
+    /// The part of a long Event on now, else its next: an artist talk at 3 PM (the Town feed's `card.part`, BP app
+    /// happening-now 04). nil for most Events, and from every read but the Town feed's.
+    var part: EventPart? = nil
+}
+
+/// A part of a long Event at a time its host wrote (`public.event_parts`, BP app happening-now 03): while it is on,
+/// the Event's card reads "Now · Artist talk". Its end is the host's, else an hour on (the feed sends it so).
+nonisolated struct EventPart: Decodable, Hashable, Sendable {
+    let title: String
+    let start: Date
+    let end: Date
+
+    init(title: String, start: Date, end: Date) {
+        self.title = title
+        self.start = start
+        self.end = end
+    }
+
+    private enum Keys: String, CodingKey { case title, startsAt, endsAt }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        guard let start = DateHelpers.timestamp(try c.decode(String.self, forKey: .startsAt)),
+              let end = DateHelpers.timestamp(try c.decode(String.self, forKey: .endsAt))
+        else { throw DecodingError.dataCorruptedError(forKey: .startsAt, in: c, debugDescription: "not a time") }
+        self.init(title: try c.decode(String.self, forKey: .title), start: start, end: end)
+    }
 }
 
 /// Where an event happens, as a picture (`public.place_picture`, BP app

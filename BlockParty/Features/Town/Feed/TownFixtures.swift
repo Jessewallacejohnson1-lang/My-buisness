@@ -406,6 +406,12 @@ enum TownFixtures {
             item.eventDate = townClock("yyyy-MM-dd", start)
             item.startTime = townClock("h:mm a", start)
         }
+        // `-town-part`: the same two hold an artist talk that began 10 minutes ago, so both read "Now · Artist talk"
+        // (BP app happening-now 04).
+        if ["e1", "e5"].contains(id), LaunchFlags.has(.townPart) {
+            item.liveKind = false
+            item.part = EventPart(title: "Artist talk", start: now.addingTimeInterval(-600), end: now.addingTimeInterval(3000))
+        }
         // `-town-spots`: each sample on its own day with its place line, the organ recital next week and the council
         // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`,
         // on the card as the server's card carries them.
