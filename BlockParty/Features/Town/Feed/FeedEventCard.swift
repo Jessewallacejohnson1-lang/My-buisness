@@ -61,6 +61,8 @@ struct FeedEventCard: View {
     @State private var hostFrame = FrameBox()
     /// The business it was made with's mark, behind the host's (town-feed 58): where its page flies out of.
     @State private var partnerFrame = FrameBox()
+    /// The collab menu's logos, by URL, drawn once each is in (town-feed 58; Jesse at Check-in 2: "add logos to names").
+    @State private var menuLogos: [URL: Image] = [:]
     @State private var hostTapped = Date.distantPast
     @State private var hostRead: Task<Void, Never>?
     @Environment(\.hostOpener) private var hostOpener
@@ -208,17 +210,41 @@ struct FeedEventCard: View {
 
     private func collabMenu(_ stack: some View) -> some View {
         Menu {
-            Button(item.hostName, action: openHost)
+            Button(action: openHost) { menuRow(item.hostName, logo: item.hostPicture) }
             ForEach(item.collabs, id: \.id) { collab in
-                Button(collab.name) { openCollab(collab) }
+                Button { openCollab(collab) } label: { menuRow(collab.name, logo: collab.picture) }
             }
         } label: {
             stack.contentShape(Rectangle())
         }
+        .task(id: item.collabs) { await loadMenuLogos() }
         .menuStyle(.button)
         .buttonStyle(.press(.squish))
         .accessibilityLabel(collabNames)
         .accessibilitySortPriority(1)
+    }
+
+    /// A name in the collab menu with its logo on white, as the mark draws it, once the logo is in; the name alone till then.
+    @ViewBuilder
+    private func menuRow(_ name: String, logo: PlacePicture?) -> some View {
+        if let url = logo?.url, let icon = menuLogos[url] {
+            Label { Text(name) } icon: { icon }
+        } else {
+            Text(name)
+        }
+    }
+
+    /// Each logo in the collab menu, read once (the marks already asked, so it's usually cached) and drawn round.
+    private func loadMenuLogos() async {
+        let urls = ([item.hostPicture] + item.collabs.map(\.picture)).compactMap { $0?.kind == .logo ? $0?.url : nil }
+        for url in urls where menuLogos[url] == nil {
+            guard let (data, _) = try? await URLSession.shared.data(from: url), let logo = UIImage(data: data) else { continue }
+            menuLogos[url] = TownBar.menuIcon {
+                Circle().fill(.white).overlay {
+                    Image(uiImage: logo).resizable().scaledToFit().padding(HostMarkDisc.ring * 2)
+                }
+            }
+        }
     }
 
     /// A business the Event was made with: its page, as the host's opens; one Search can't open opens the Event.

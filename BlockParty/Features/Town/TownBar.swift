@@ -484,7 +484,9 @@ struct TownBar: View {
             .background(Circle().fill(Hue.fill.onLightCanvas))
     }
 
-    @MainActor private static func menuIcon<Content: View>(@ViewBuilder _ content: () -> Content) -> Image {
+    /// A picture for Apple's menu, which takes an image, not a view: drawn once, round, at the menu's size (a Town
+    /// card's collab menu draws its businesses' logos with it, town-feed 58).
+    @MainActor static func menuIcon<Content: View>(@ViewBuilder _ content: () -> Content) -> Image {
         let side = TownBarMetric.menuIcon
         let renderer = ImageRenderer(content: content().frame(width: side, height: side).clipShape(Circle()))
         renderer.scale = 3
