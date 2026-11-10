@@ -4,7 +4,7 @@
 //  (BP app docs/plans/event-card, ticket 03; the approved Round 3 page, Jesse 2026-10-19).
 //
 //  The same pick Daily shows first (`EventOfTheDay`). Unlike a Town card it keeps one fixed
-//  shape, but for a flyer, which runs full width at its own shape with the poster grown under it
+//  shape, but for a flyer, shown whole and uncovered under the chip with the poster grown to fit
 //  (town-feed 57): the photo square on top fading into the poster's dark, a white "Event of the day"
 //  chip on it, then the title, when in BP yellow, and one small line, what it is and a short place
 //  ("Meat raffle · Sal's Bar and Grill"), in a photo card's look (Jesse, 2026-11-07, BP app
@@ -47,10 +47,10 @@ struct EventOfTheDayPoster: View {
         /// without it the white chip's edge measured 1.3 to 1 on Nov 6's photo (inside-cards 25).
         static let chipShadow: Double = 0.25
         static let chipShadowRadius: CGFloat = 4
-        /// A flyer runs full width on top, this far above the words, melting into the dark over its last 16 pt
-        /// (picked on the mock, BP app `references/town-whole-flyers/`).
+        /// A flyer keeps this far from the chip above it and the words below it, over its own blur, the Event
+        /// page's 30 pt (PICKED, BP app town-feed 57).
         static let flyerGap: CGFloat = 8
-        static let flyerFade: CGFloat = 16
+        static let washBlur: CGFloat = 30
     }
 
     @Environment(RealLifeActions.self) private var actions
@@ -111,7 +111,7 @@ struct EventOfTheDayPoster: View {
                 flyer
                 Color.clear.frame(height: copyHeight + Metric.flyerGap)
             }
-            .background(Hue.poster)
+            .background { flyerWash }
         } else {
             Hue.poster
                 .aspectRatio(Metric.aspect, contentMode: .fit)
@@ -163,22 +163,39 @@ struct EventOfTheDayPoster: View {
             .overlay { LinearGradient(stops: Metric.fade, startPoint: .top, endPoint: .bottom) }
     }
 
-    /// A flyer whole over its blurred copy, full width at its own shape (at most 4:5 tall), melting into the dark.
+    /// A flyer whole and uncovered, as on its Event page: at its own shape (at most 4:5 tall), rounded, inside the
+    /// poster's sides and under the "Event of the day" chip (Jesse, 2026-11-10, BP app town-feed 57).
     private var flyer: some View {
         Color.clear
             .aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
             .overlay {
                 if let url = picture.url {
                     FeedCardURLPhoto(url: url, onReady: { photoShown = true }, onFailure: { photoFailed = true },
-                                     loadingFill: Hue.poster, whole: 0)
+                                     loadingFill: Hue.poster)
+                        .aspectRatio(CGFloat(item.image.ownAspect), contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
             }
-            .clipped()
             .grayscale(item.cancelled ? 1 : 0)
-            .overlay(alignment: .bottom) {
-                LinearGradient(colors: [Hue.poster.opacity(0), Hue.poster], startPoint: .top, endPoint: .bottom)
-                    .frame(height: Metric.flyerFade)
+            .padding(.top, Metric.chipInset + PhotoChip.height + Metric.flyerGap)
+            .padding(.horizontal, Metric.copyInset)
+    }
+
+    /// Behind a flyer: itself blurred to fill the poster, melting into the poster's dark by the words.
+    @ViewBuilder
+    private var flyerWash: some View {
+        ZStack {
+            Hue.poster
+            if let url = picture.url {
+                // Clipped before the blur, or the filled photo runs past the poster.
+                FeedCardURLPhoto(url: url, loadingFill: Hue.poster)
+                    .clipped()
+                    .blur(radius: Metric.washBlur, opaque: true)
+                    .grayscale(item.cancelled ? 1 : 0)
             }
+            LinearGradient(colors: [Hue.poster.opacity(0.2), Hue.poster.opacity(0.85), Hue.poster],
+                           startPoint: .top, endPoint: .bottom)
+        }
     }
 
     // MARK: - The words and buttons over it

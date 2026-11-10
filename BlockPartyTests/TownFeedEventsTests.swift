@@ -291,6 +291,8 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(photo(1080, 1080).flyerAspect, 1, accuracy: 0.0001, "square")
         XCTAssertEqual(photo(1500, 500).flyerAspect, 3, accuracy: 0.0001, "a 3:1 banner stays 3:1")
         XCTAssertEqual(photo(nil, nil).flyerAspect, 1, accuracy: 0.0001, "no size: square")
+        XCTAssertEqual(photo(780, 1000).ownAspect, 0.78, accuracy: 0.0001, "drawn at its own shape inside that room")
+        XCTAssertEqual(photo(nil, nil).ownAspect, 1, accuracy: 0.0001, "no size: square")
     }
 
     /// A card with no photo is the short white card (BP app references/no-photo-cards): its place's

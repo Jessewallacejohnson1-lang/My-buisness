@@ -283,10 +283,10 @@ struct FeedEventCard: View {
         return [credit]
     }
 
-    /// A flyer runs whole and full width at its own shape, its words under it on its own blurred dark rather than
-    /// over it (Jesse picked B, 2026-11-10, BP app town-feed 57). One that fails to load is the ink card instead.
+    /// A flyer shows whole and uncovered, as on its Event page: shrunk inside the card with rounded corners over its own
+    /// blur, under the host's mark and credit, the words under it (Jesse, 2026-11-10, BP app town-feed 57: "shrink the
+    /// flyers down so nothing is covering them"). One that fails to load is the ink card instead.
     private var wholeFlyer: Bool { item.whole && item.game == nil && displayImage.isPhoto }
-
     private var photoArea: some View {
         shaped(GeometryReader { proxy in
             ZStack(alignment: .bottom) {
@@ -299,7 +299,7 @@ struct FeedEventCard: View {
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
 
-                if displayImage.isPhoto && !wholeFlyer {
+                if displayImage.isPhoto {
                     FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
@@ -324,39 +324,56 @@ struct FeedEventCard: View {
         .allowsHitTesting(false)
     }
 
-    /// Under a whole flyer: the flyer again, blurred and darkened, so the words sit on its own colours (the mock's
-    /// band), fading up over the flyer's foot.
-    @ViewBuilder
-    private var flyerBand: some View {
-        ZStack {
-            if let url = displayImage.url {
-                // Clipped before the blur: filled into the band, the photo runs past it, up over the flyer.
-                FeedCardURLPhoto(url: url)
-                    .clipped()
-                    .blur(radius: Self.bandBlur, opaque: true)
+    /// The flyer at its own shape, rounded, inside the card's sides and under its top row: nothing sits on it.
+    private var wholeArea: some View {
+        Color.clear
+            .aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
+            .overlay {
+                imageContent
+                    .aspectRatio(CGFloat(item.image.ownAspect), contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .grayscale(item.cancelled ? 1 : 0)
             }
-            Color.black.opacity(Self.bandDark)
-        }
-        .overlay(alignment: .top) {
-            LinearGradient(colors: [.black.opacity(0), .black.opacity(Self.bandDark)], startPoint: .top, endPoint: .bottom)
-                .frame(height: Self.bandFade)
-                .offset(y: -Self.bandFade)
+            .padding(.top, Self.flyerTop)
+            .padding(.horizontal, Self.flyerSide)
+    }
+
+    /// Behind a whole flyer and its words: the flyer blurred to fill the card, darkening down to the words.
+    @ViewBuilder
+    private var flyerWash: some View {
+        ZStack {
+            Hue.ink
+            if let url = displayImage.url {
+                // Clipped before the blur, or the filled photo runs past the card.
+                FeedCardURLPhoto(url: url)
+                    .clipped()
+                    .blur(radius: Self.washBlur, opaque: true)
+                    .grayscale(item.cancelled ? 1 : 0)
+            }
+            LinearGradient(colors: [.black.opacity(Self.washTop), .black.opacity(Self.washBottom)],
+                           startPoint: .top, endPoint: .bottom)
         }
     }
 
-    /// PICKED on the mock (BP app `references/town-whole-flyers/`): the band 80% dark over a 30 pt blur, the wash
-    /// behind a whole flyer's own, fading in over the flyer's last 16 pt.
-    private static let bandBlur: CGFloat = 30
-    private static let bandDark: Double = 0.8
-    private static let bandFade: CGFloat = 16
+    /// The flyer starts under the host's mark and credit (10 pt in, 30 pt tall) and 8 pt more, and keeps 16 pt in from
+    /// the sides, the words' own inset. PICKED: the wash is the Event page's 30 pt blur, 20% dark at the top to 80% at
+    /// the words.
+    private static let flyerTop: CGFloat = PhotoChip.inset + HostMarkDisc.side + 8
+    private static let flyerSide: CGFloat = 16
+    private static let washBlur: CGFloat = 30
+    private static let washTop: Double = 0.2
+    private static let washBottom: Double = 0.8
 
     private var imageSection: some View {
-        VStack(spacing: 0) {
-            photoArea
+        Group {
             if wholeFlyer {
-                copyRow
-                    .background { flyerBand }
+                VStack(spacing: 0) {
+                    wholeArea
+                    copyRow
+                }
+                .background { flyerWash }
+            } else {
+                photoArea
             }
         }
         .frame(maxWidth: .infinity)
@@ -415,9 +432,7 @@ struct FeedEventCard: View {
     /// heart sat on the right team's name.
     @ViewBuilder
     private func shaped(_ card: some View) -> some View {
-        if wholeFlyer {
-            card.aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
-        } else if dynamicTypeSize.isAccessibilitySize {
+        if dynamicTypeSize.isAccessibilitySize {
             card.aspectRatio(1, contentMode: .fit)
         } else if item.game != nil {
             card.frame(height: WhiteGameCard.Metric.height)
@@ -436,8 +451,7 @@ struct FeedEventCard: View {
             // on its page (Jesse, 2026-11-04, BP app town-feed 40). Waits on ink, and stays out of
             // VoiceOver here: the card reads as one link, and its page has the carousel.
             PhotoPager(urls: [url], page: .constant(0), shown: $shownPhotos,
-                       value: "", onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true,
-                       flyer: wholeFlyer ? url : nil, flyerClear: 0)
+                       value: "", onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true)
                 .accessibilityHidden(true)
         } else {
             Rectangle().fill(Hue.ink)
