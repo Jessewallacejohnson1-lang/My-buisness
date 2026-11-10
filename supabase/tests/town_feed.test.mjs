@@ -3649,6 +3649,52 @@ test('live: an interest beats your town among those on now (town-feed 56)', asyn
   await db.exec('reset role');
 });
 
+test('starting soon: after what is on now, what starts within the hour takes the top, soonest first (happening-now 02)', async () => {
+  await reset();
+  await add('On A', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
+  await add('On B', '2026-10-08', { start_time: '6 PM', source_name: 'B' });
+  await add('In 40', '2026-10-08', { start_time: '7:10 PM', source_name: 'C' });
+  await add('In 20', '2026-10-08', { start_time: '6:50 PM', source_name: 'D' });
+  const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+  await set(fav, { draw: 3 });
+  await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                  where id = $1`, [fav]);
+  await signIn(YOU, ['wellness']);
+  const rows = await titles('2026-10-08 18:30');
+  assert.deepEqual(rows.slice(0, 3).slice(0, 2).sort(), ['On A', 'On B']);
+  assert.equal(rows[2], 'In 20', 'the third spot: the soonest to start');
+  assert.equal(rows[3], 'Favourite', 'the top stays 3: In 40 waits on its points');
+  await db.exec('reset role');
+});
+
+test('starting soon: not 61 minutes out, not a meeting, not a host you said Not interested to (happening-now 02)', async () => {
+  const setup = async () => {
+    await reset();
+    const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+    await set(fav, { draw: 3 });
+    await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                    where id = $1`, [fav]);
+  };
+  const first = async () => { await signIn(YOU, ['wellness']); const t = (await titles('2026-10-08 18:30'))[0]; await db.exec('reset role'); return t; };
+  await setup();
+  await add('In 59', '2026-10-08', { start_time: '7:29 PM', source_name: 'A' });
+  assert.equal(await first(), 'In 59', 'within the hour beats the points');
+  await setup();
+  await add('In 61', '2026-10-08', { start_time: '7:31 PM', source_name: 'A' });
+  assert.equal(await first(), 'Favourite', '61 minutes out stays out');
+  await setup();
+  const council = await add('Council', '2026-10-08', { start_time: '6:40 PM', source_name: CITY });
+  await set(council, { what: 'Meeting', draw: 1 });
+  assert.equal(await first(), 'Favourite', 'a meeting in 10 minutes stays out');
+  await setup();
+  const other = await add('Other night', '2026-10-01', { start_time: '6 PM', source_name: 'A' });
+  await add('Concert', '2026-10-08', { start_time: '6:45 PM', source_name: 'A' });
+  await signIn(YOU, ['wellness']);
+  await db.query(`select public.set_not_interested($1)`, [other]);
+  await db.exec('reset role');
+  assert.equal(await first(), 'Favourite', 'a Not interested host stays out');
+});
+
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
   await reset();
   const kinds = [
