@@ -43,7 +43,9 @@ colors), then answer:
     must be plainly the nickname, not one near it: a wildcat is not a lion. Orange is not red, and purple is not blue. A nickname that names a color
     (Blue Devils, Crimson, Red Raiders) needs that color on the logo.
 - **unsure**, when it is not a school's team logo at all: a photograph, a building, a sponsor's or a conference's
-  or the state league's mark, or a picture too small to read.
+  or the state league's mark, or a picture too small to read. So is a town's, a city's or a school district's mark
+  ("Crookston Public Schools", "ISD 593", "City of", a town seal): a town can have several schools, and the logo
+  must be this one school's (Jesse, 2026-11-09).
 - **unsure**, too, when the line gives neither a `nickname` nor `colors` and nothing written on the logo names
   `logo_of` (its name, its town or its initials): there is nothing to check it against. So is a logo that is only a
   letter (with flames, a bolt or a swoosh around it) when the line gives no `colors`: many schools share a letter.
@@ -51,8 +53,7 @@ colors), then answer:
   plain shape or crest, with no mascot, letter or words on it, unless its colors are plainly the page's; a symbol of
   the `nickname` (a comet for KoMets) is its mascot, not a plain shape.
 - **yes**, in every other case: a team logo with nothing on it against `logo_of`. It need not name the school: most
-  school logos are only a mascot, a letter or a crest, and many copy a professional team's. A district's mark naming
-  the school's own town is the school's.
+  school logos are only a mascot, a letter or a crest, and many copy a professional team's.
 
 One JSON line per logo, nothing else:
 

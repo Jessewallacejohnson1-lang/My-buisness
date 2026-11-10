@@ -23,7 +23,7 @@ waiting is one saying why.
   python3 sources/scripts/team_logos.py --selftest
 """
 
-import argparse, hashlib, io, json, re, sys, tempfile, time, urllib.parse, urllib.request
+import argparse, hashlib, html as htmllib, io, json, re, sys, tempfile, time, urllib.parse, urllib.request
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
@@ -37,6 +37,8 @@ SIDE = 512     # the card draws 64 pt, 192 px on a 3x phone; 512 leaves room (ga
 TILE = 300     # a logo's square on the sheet
 LEAGUE = "https://www.mshsl.org"
 LEAGUE_LOGO = re.compile(r'src="(/sites/default/files/styles/[^/"]+/public/logos/[^"]+)"')
+BOUND = "https://www.gobound.com/mn/schools/"
+BOUND_BRAND = "/brand/"  # Bound's own picture, on a page for a school it doesn't have
 WIKI = "https://en.wikipedia.org/w/api.php"
 WIKI_GAP = 4   # Wikipedia answered 429 after five quick lookups (find_wiki.py, 2026-10-20)
 WIKI_LOGO = re.compile(r"logo|mascot|athletic|wordmark|emblem", re.I)
@@ -131,6 +133,32 @@ def from_league(team, get=run.fetch):
             if own or (first and names(p["title"], first, p["town"])):
                 return {**p, "page": LEAGUE + path, "source": "the state league", "coop": None if own else p["title"]}
     return None
+
+
+def ordered(text):
+    """A name's words in order, "Saint" as "St.", generic words out: "Alexandria Area High School" is [alexandria]."""
+    text = re.sub(r"\bh\.\s*s\.", "hs", re.sub(r"\bsaint\b", "st", str(text or "").lower()))
+    return [w for w in re.findall(r"[a-z0-9]+", text) if w not in GENERIC]
+
+
+def from_bound(school, read=lambda url: run.firecrawl(url, fmt="rawHtml")):
+    """The logo the school shows on Bound, the app its teams post on (Jesse, 2026-11-09: "can we source from the bound
+    app"), for a school the league's page has proved: a town can have several schools, so the logo must be that one
+    school's. Its page sits at the school's name run together ("Mankato East High School": mankatoeast) and is
+    titled "Bound | Mankato East Cougars High School Athletics and Activities": it counts only when that is the
+    league's school with the league's nickname, word for word. One Firecrawl credit (Bound refuses our own fetch);
+    None when Bound has no page for it."""
+    slug = "".join(ordered(school["title"]))
+    if not slug:
+        return None
+    page = read(BOUND + slug)
+    t = re.search(r"<title>(.*?)</title>", page, re.S)
+    og = (re.search(r'property="og:image"\s+content="([^"]+)"', page) or re.search(r'content="([^"]+)"\s+property="og:image"', page)
+          or re.search(r'og:image"\s+content="([^"]+)"', page))
+    title = re.sub(r"^\s*Bound\s*\|\s*|\s*Athletics and Activities\s*$", "", htmllib.unescape(t.group(1)) if t else "")
+    if not og or BOUND_BRAND in og.group(1) or ordered(title) != ordered(school["title"]) + ordered(school["nickname"]):
+        return None
+    return {"logo": htmllib.unescape(og.group(1)), "page": BOUND + slug}
 
 
 def wiki(params, opener=urllib.request.urlopen):
@@ -240,7 +268,7 @@ def sheet(teams, folder, name="sheet"):
 
 # --- The two steps --------------------------------------------------------------------------------------------------
 
-def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, grab=None):
+def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, bound=from_bound, grab=None):
     """Looks up today's teams, keeps each logo that passes check 1 (trimmed) and lays them out for the helper.
     Writes folder/found.json: the teams to check, and the ones not found with why."""
     from PIL import Image
@@ -256,7 +284,17 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, gra
     found, missed = [], []
     for t in teams:
         try:
-            p = league(t) or wikipedia(t)
+            p = league(t)
+            if p:  # the school's own logo on Bound first, the league's when Bound has none (Jesse, 2026-11-09)
+                try:
+                    b = bound(p)
+                except Exception as e:  # no credits, Bound down: the league's logo
+                    print(f"[logos] {p['title']} not read on Bound: {' '.join(str(e).split())[:120]}")
+                    b = None
+                if b:
+                    p = {**p, **b, "source": "Bound"}
+            else:
+                p = wikipedia(t)
         except Exception as e:  # a page that won't answer: tried again another morning
             missed.append({**t, "why": f"its page didn't answer ({' '.join(str(e).split())[:100]})"})
             continue
@@ -424,6 +462,22 @@ def selftest():
     ok(from_league({"name": "North Wright County"}, lambda u: (200, '<form id="views-exposed-form-schools-list"></form>')) is None,
        "no page: nothing")
 
+    league = {"title": "Mankato East High School", "nickname": "Cougars"}
+    seen = []
+
+    def bound_page(title, image):
+        return lambda url: seen.append(url) or (f'<title>Bound | {title}</title><meta property="og:image" content="{image}">')
+    b = from_bound(league, bound_page("Mankato East Cougars High School Athletics and Activities", "https://cdn/me-Logo.png?a=1&amp;b=2"))
+    ok(b == {"logo": "https://cdn/me-Logo.png?a=1&b=2", "page": "https://www.gobound.com/mn/schools/mankatoeast"}
+       and seen == ["https://www.gobound.com/mn/schools/mankatoeast"], "Bound: the league's school, its name run together")
+    ok(from_bound(league, bound_page("", "https://x/brand/ogimage.png")) is None, "Bound has no page for it: nothing")
+    ok(from_bound({"title": "St. Cloud High School", "nickname": "Crush"},
+                  bound_page("St. Cloud Christian Lions High School Athletics and Activities", "https://cdn/scc.png")) is None,
+       "another school of the same town on Bound is not this one")
+    ok(from_bound({"title": "Alexandria Area High School", "nickname": "Cardinals"},
+                  bound_page("Alexandria Cardinals High School Athletics and Activities", "https://cdn/a.png")),
+       "Area and High School are no part of the name")
+
     def ask(params):
         if params.get("list") == "search":
             return {"query": {"search": [{"title": "Shanley Catholic Schools"}, {"title": "Shanley High School"}]}}
@@ -461,6 +515,7 @@ def selftest():
                  "Long Prairie": dict(p, page="l", logo="https://x/lp.png")}
         found = prepare(folder / "logos", db, date(2026, 11, 10), league=lambda t: pages[t["name"]],
                         wikipedia=lambda t: w if t["name"] == "Shanley" else None,
+                        bound=lambda p: {"logo": "https://cdn/lp.png", "page": "https://bound/lp"} if p["page"] == "l" else None,
                         grab=lambda url, dest: red.save(dest))
         batch = (folder / "logos" / "batch.txt").read_text().splitlines()
         ok(not (folder / "logos-2.jsonl").exists(), "an earlier prepare's answers go: their keys were other teams'")
@@ -488,6 +543,9 @@ def selftest():
         ok(lines[0].startswith("- Logo live: Becker-Big Lake, Becker High School's, as its first school")
            and f"logo_refused = array_append(logo_refused, '{p['logo']}') where id = 'becker-big-lake';" in lines[0],
            "the report says whose logo it is and how to take it down for good")
+        ok(next(t for t in found if t["name"] == "Long Prairie")["source"] == "Bound"
+           and next(t for t in found if t["name"] == "Becker-Big Lake")["source"] == "the state league",
+           "Bound's logo when it has the school, the league's when not")
         ok("- Logo already there: Long Prairie has one now, so the one found was left out" in lines,
            "a team that got a logo another way since prepare keeps it, and the report doesn't call the found one live")
         ok("- Still waiting on a logo: Elk River-Zimmerman: Becker High School's page shows the logo taken down before" in lines,
