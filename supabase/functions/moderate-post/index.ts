@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       `Kind: ${e.kind}`,
       e.kind === 'post' ? `Words: ${e.title || '(none, just the photo)'}` : `Title: ${e.title}`,
       e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
-      e.location ? `Location: ${e.location}` : null,
+      e.location ? `Location: ${[e.location, ...(e.more_places ?? [])].join('; ')}` : null,
       e.description ? `Description: ${e.description}` : null,
     ].filter(Boolean).join('\n')
     const content: any[] = [{ type: 'text', text: facts }]
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
     const { data: e } = await admin.from('club_events')
-      .select('id, kind, title, event_date, start_time, location, description, image_url').eq('id', id).single()
+      .select('id, kind, title, event_date, start_time, location, more_places, description, image_url').eq('id', id).single()
     if (!e) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     const said = await verdict(e)
     if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
   if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
   if (!claimed) return json({ ok: true, reason: '' })
   const { data: e } = await admin.from('club_events')
-    .select('id, kind, title, location, description, image_url').eq('id', body.recheck).single()
+    .select('id, kind, title, location, more_places, description, image_url').eq('id', body.recheck).single()
   if (!e) return json({ ok: true, reason: '' })
   const said = await verdict(e)
   if (!said) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
