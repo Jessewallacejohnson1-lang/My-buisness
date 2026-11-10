@@ -327,6 +327,9 @@ as $$
       and (town.today >= coalesce(e.shows_from, e.event_date - 14)) <> p_later
       -- Not interested keeps out the item and every week of its series; Mute its host (ticket 21).
       and not exists (select 1 from muted m where m.host = e.host)
+      -- Nor one a business you muted made with its host (town-feed 58): a place's mute is its name.
+      and not exists (select 1 from muted m join public.places pl on pl.name = m.host
+                      where pl.entry_id = any(e.collab_entry_ids))
       and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
       -- Under 18 never sees what its place keeps to 18+ or 21+ (ticket 19).
       and (me.adult or not private.adults_only(e.place_entry_id, e.club_id, e.title || ' ' || coalesce(e.description, '')))
@@ -399,6 +402,9 @@ as $$
         select p.name, 1 from my_people p where p.id = s.submitted_by and s.club_id is null
         union all
         select pl.name, 2 from my_places pl where pl.entry_id = s.place_entry_id
+        union all
+        -- A business it was made with (town-feed 58): following either one lifts it, once.
+        select pl.name, 2 from my_places pl where pl.entry_id = any(s.collab_entry_ids)
         union all
         -- A page by the name its Events carry: the City, Joetown (town-feed 27).
         select pg.name, 3 from my_pages pg where pg.source = lower(s.source_name)

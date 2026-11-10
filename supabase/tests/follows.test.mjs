@@ -206,6 +206,26 @@ test("an Event's host: who posted it if they may be found, else its Place, never
   await db.exec('reset role');
 });
 
+// Two businesses, one Event (town-feed 58): its host, then each business it was made with, each followable; its card
+// names them with their pictures, in order.
+test("an Event made with another business names its host, then that business, and its card carries them", async () => {
+  await reset();
+  await db.query(`update public.club_events set collab_entry_ids = '{local-blend, gone}' where id = $1`, [AT_KREWE]);
+  assert.deepEqual((await as(ANA, 'select target_type, target_id, name, picture, friend from public.event_host($1)', [AT_KREWE])),
+    [{ target_type: 'place', target_id: KREWE, name: 'Krewe', picture: 'https://pic/krewe', friend: false },
+     { target_type: 'place', target_id: BLEND, name: 'The Local Blend', picture: 'https://pic/local-blend', friend: false }],
+    'a place no longer in the registry is left out');
+  const [{ card }] = await as(ANA, 'select card from private.event_cards($1)', [[AT_KREWE]]);
+  assert.deepEqual(card.collabs.map((c) => [c.entry_id, c.name, c.picture?.url]),
+                   [['local-blend', 'The Local Blend', 'https://pic/local-blend']]);
+  const [{ card: plain }] = await as(ANA, 'select card from private.event_cards($1)', [[BY_BEN]]);
+  assert.deepEqual(plain.collabs, [], 'made by one: none');
+  await db.exec('set role anon');
+  assert.deepEqual((await db.query('select name from public.event_host($1)', [AT_KREWE])).rows.map((r) => r.name),
+                   ['Krewe', 'The Local Blend'], 'signed out too');
+  await db.exec('reset role');
+});
+
 test("the Following list draws a person's photo only from their own folder of our avatars bucket", async () => {
   await reset();
   const own = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${BEN}/face.jpg`;

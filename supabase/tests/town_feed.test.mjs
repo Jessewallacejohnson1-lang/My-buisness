@@ -2694,6 +2694,31 @@ test('a Place you follow lifts its Events and says so', async () => {
   await noPlaces();
 });
 
+// Two businesses, one Event (town-feed 58): following the business it was made with lifts it as following its host
+// does, once, by that business's name; muting that business keeps it out.
+test('a business an Event was made with lifts it for its followers, once, and its mute keeps it out', async () => {
+  await reset();
+  const brunch = await add('Cider brunch', '2026-10-12', { start_time: '10 AM', source_name: 'The North Table' });
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await db.query(`update public.club_events set collab_entry_ids = '{white-peony}' where id = $1`, [brunch]);
+  await followPlace(ME);
+  await signIn(ME);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  const [top] = await lifted('2026-10-08 12:00');
+  assert.deepEqual([top.title, top.reason, top.reason_name, top.score.follow], ['Cider brunch', 'follow', PEONY, 3]);
+  await db.exec('reset request.jwt.claims; reset role');
+  await db.query('update public.club_events set place_entry_id = $2 where id = $1', [brunch, 'white-peony']);
+  await signIn(ME);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  assert.equal((await lifted('2026-10-08 12:00'))[0].score.follow, 3, 'host and partner followed: lifted once');
+  await db.exec('reset request.jwt.claims; reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, $2, $2)`, [ME, PEONY]);
+  await db.query('update public.club_events set place_entry_id = null where id = $1', [brunch]);
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], 'the business it was made with is muted');
+  await noPlaces();
+});
+
 test('a followed Place is still spaced out, and a host you have been into lifts it no more', async () => {
   await reset();
   const old = await atPlace('Summer sale', '2026-09-20');
@@ -3452,7 +3477,7 @@ test('the Town feed sends a bare Event card with empties, and none with news or 
     id, title: 'Porch jam', event_date: '2026-10-09', start_time: null, location: null, image_url: null, category: null,
     club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
     going_count: 0, going: false, heart_count: 0, hearted: false, cancelled: false, place_picture: null,
-    host_picture: null, description: null, price: null, ages: null, lat: null, lng: null, no_place: false,
+    host_picture: null, collabs: [], description: null, price: null, ages: null, lat: null, lng: null, no_place: false,
     what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
   });
   assert.ok(!Number.isNaN(Date.parse(card.created_at)));

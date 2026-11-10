@@ -375,7 +375,7 @@ function isFullCard(card, id, day) {
 const bareCard = (card, id, day, going) => ({
   id, title: 'Porch jam', event_date: day, start_time: null, location: null, image_url: null, category: null,
   club_name: null, source_name: null, end_at: null, all_day: false, created_at: card.created_at,
-  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, description: null, price: null, ages: null, lat: null, lng: null, no_place: false,
+  going_count: going ? 1 : 0, going, heart_count: going ? 0 : 1, hearted: !going, cancelled: false, place_picture: null, host_picture: null, collabs: [], description: null, price: null, ages: null, lat: null, lng: null, no_place: false,
   what: null, source_url: null, game: null, friends_going: [], live_kind: false, friends_going_at: null, recurrence: null,
 });
 
