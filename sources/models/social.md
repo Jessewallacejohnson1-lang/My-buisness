@@ -1,10 +1,10 @@
 # The social watch
 
 Places' public Facebook and Instagram posts become Events and News in the Town feed (registry
-ADR-020, amended 2026-10-22). Apify reads the pages on its own schedule (the busy list at noon and 9pm
+ADR-020, amended 2026-10-22). Apify reads the pages on its own schedule (the busy list at 9:30am and 7pm
 Chicago, every other page on Thursdays at 3pm) and saves what it finds; two routines follow
 this file in the cloud half an hour or more later, each in a fresh copy of this repository, and
-read what Apify saved: `busy` at 12:30pm and 9:30pm, `weekly` on Thursdays at 3:45pm. The
+read what Apify saved: `busy` at 10:30am and 7:30pm, `weekly` on Thursdays at 3:45pm. The
 routine's prompt names which. Scripts read Apify and write the
 database; the cheap model reads the posts and you judge what it flags, exactly as the morning job
 does. Work through the steps in order. A step that fails for one source is a line in the summary;
