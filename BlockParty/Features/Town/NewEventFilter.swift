@@ -64,7 +64,8 @@ nonisolated enum AgeEnd { case youngest, oldest }
 
 nonisolated enum NewEventFilterCopy {
     static let filter = "Filter"
-    static let add = "Add"
+    /// The Filter row before a pick: it can be skipped, where Place can't (Jesse, 2026-11-09).
+    static let optional = "Optional"
     static let clearAll = "Clear all"
     static let apply = "Apply"
     static let gender = "Gender"

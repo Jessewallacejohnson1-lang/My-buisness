@@ -766,7 +766,7 @@ struct NewPostSheet: View {
                 row(NewEventFilterCopy.filter, icon: { Image(systemName: "slider.horizontal.3").font(.glyph(NewPostMetric.symbol)) }) {
                     let summary = NewEventFilterCopy.summary(gender: model.eventModel.draft.gender, ages: model.eventModel.draft.ages)
                     HStack(spacing: 8) {
-                        Text(summary ?? NewEventFilterCopy.add)
+                        Text(summary ?? NewEventFilterCopy.optional)
                             .font(.sans(16))
                             .foregroundStyle(summary == nil ? Hue.inkSecondary : Hue.ink)
                             .lineLimit(1)
