@@ -234,10 +234,11 @@ struct EventPage: View {
         // The small map's still, the first time it opens (until then its ground and the photo show), and again once
         // the page's width is known or a try failed.
         .task(id: item.id) {
-            guard game == nil else { return }
             #if DEBUG
             if let names = LaunchFlags.value(.eventMorePlaces) { morePlaces = names.split(separator: "|").map(String.init); return }
             #endif
+            // Only a neighbour's own Event can have more (a found one or a game never does), and only a real id.
+            guard game == nil, !item.found, UUID(uuidString: item.id) != nil else { return }
             morePlaces = await CommunityAPI(auth: AuthStore.shared).morePlaces(event: item.id)
         }
         .task(id: smallMap ? width : nil) {

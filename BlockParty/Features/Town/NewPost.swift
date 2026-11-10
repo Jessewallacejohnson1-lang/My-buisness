@@ -41,7 +41,7 @@ nonisolated struct NewEventDraft: Equatable {
     var extraPlaces: [String] { Self.extra(after: location, morePlaces) }
 
     static func extra(after first: String, _ more: [String]) -> [String] {
-        var seen: Set<String> = [first.lowercased()]
+        var seen: Set<String> = [first.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
         var out: [String] = []
         for name in more {
             let name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(placeLimit))
@@ -608,6 +608,10 @@ struct NewPostSheet: View {
                 pick = nil
             }
         }
+        // A new first place that was one of the others takes that one's row away (the review).
+        .onChange(of: model.draft.place) { _, place in
+            model.draft.morePlaces = NewEventDraft.extra(after: place, model.draft.morePlaces)
+        }
         // A swipe down can't throw away what's typed or picked; the X asks first.
         .interactiveDismissDisabled(model.busy || model.edited)
         .task { if !me.loaded { await me.read() } }
@@ -825,7 +829,7 @@ struct NewPostSheet: View {
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
-            ForEach(model.draft.morePlaces, id: \.self) { name in
+            ForEach(model.draft.location == nil ? [] : model.draft.morePlaces, id: \.self) { name in
                 morePlace(name)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

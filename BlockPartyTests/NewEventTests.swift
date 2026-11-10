@@ -76,6 +76,10 @@ final class NewEventTests: XCTestCase {
         XCTAssertFalse(draft.canAddPlace)
     }
 
+    func testANewFirstPlaceThatWasAnotherTakesItsRowAway() {
+        XCTAssertEqual(NewEventDraft.extra(after: " Bad Habit Brewing", ["Bad Habit Brewing", "The Middy"]), ["The Middy"])
+    }
+
     // MARK: Filter (BP app town-feed 52)
 
     func testFilterSendsNothingUntilSomethingIsPicked() {
