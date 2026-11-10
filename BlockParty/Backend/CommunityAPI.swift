@@ -510,6 +510,20 @@ struct CommunityAPI {
         return rows?.first?.morePlaces ?? []
     }
 
+    /// A long Event's parts for its page's Schedule (`public.event_parts`, BP app happening-now 06), by start; one that
+    /// is an Event of its own (`same_as`) is skipped, and one with no end runs an hour. None when the read fails.
+    func parts(event id: String) async -> [EventPart] {
+        struct Row: Decodable { let title: String; let startsAt: String; let endsAt: String? }
+        let rows: [Row]? = try? Supabase.decode(await db.rest("event_parts", [
+            ("select", "title,starts_at,ends_at"), ("event_id", "eq.\(id)"), ("same_as", "is.null"), ("order", "starts_at"),
+        ], anon: true))
+        return (rows ?? []).compactMap { row in
+            guard let start = DateHelpers.timestamp(row.startsAt) else { return nil }
+            let end = row.endsAt.flatMap(DateHelpers.timestamp) ?? start.addingTimeInterval(3600)
+            return EventPart(title: row.title, start: start, end: end)
+        }
+    }
+
     /// A new Event's photo, in your own folder of `event-images` (BP app town-plus): where it can
     /// be read.
     func uploadEventPhoto(_ jpeg: Data, id: String) async throws -> URL {

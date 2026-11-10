@@ -177,10 +177,7 @@ struct FeedCardItem: Identifiable, Hashable {
     func countdown(at now: Date) -> FeedWhenLine? {
         guard !cancelled, game?.final == nil else { return nil }
         let minutesTo = { (start: Date) in Int((start.timeIntervalSince(now) / 60).rounded(.up)) }
-        if liveKind, let when, when.timed, case let minutes = minutesTo(when.start), (1...60).contains(minutes) {
-            return FeedWhenLine(text: "In \(minutes) min",
-                                spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
-        }
+        if liveKind, let when, when.timed, let soon = FeedWhenLine.countdown(to: when.start, at: now) { return soon }
         guard let part, case let minutes = minutesTo(part.start), (1...60).contains(minutes) else { return nil }
         return FeedWhenLine(text: "\(part.title) in \(minutes) min",
                             spoken: "\(part.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
@@ -219,6 +216,14 @@ struct FeedCardItem: Identifiable, Hashable {
 struct FeedWhenLine: Equatable {
     let text: String
     let spoken: String
+
+    /// "In 20 min" (spoken "Starts in 20 minutes") from 60 minutes before `start` until its start minute; nil
+    /// otherwise (happening-now 01). The Event page's Schedule says its next part's the same way (happening-now 06).
+    static func countdown(to start: Date, at now: Date) -> FeedWhenLine? {
+        let minutes = Int((start.timeIntervalSince(now) / 60).rounded(.up))
+        guard (1...60).contains(minutes) else { return nil }
+        return FeedWhenLine(text: "In \(minutes) min", spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
+    }
 
     init(text: String, spoken: String) {
         self.text = text

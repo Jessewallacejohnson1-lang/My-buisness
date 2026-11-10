@@ -81,6 +81,8 @@ struct EventPage: View {
     @State private var mapShot: UIImage?
     /// A neighbour's Event's places after the first (BP app town-feed 54), read as the page opens.
     @State private var morePlaces: [String] = []
+    /// A long Event's parts (BP app happening-now 06), read as the page opens: its Schedule under Map.
+    @State private var parts: [EventPart] = []
     /// The small map's top, and the foot of what shows above the bar (the home bar with none), both in the page's
     /// own coordinates: whether opening it scrolls it clear of the bar.
     @State private var smallMapTop: CGFloat = 0
@@ -240,6 +242,14 @@ struct EventPage: View {
             // Only a neighbour's own Event can have more (a found one or a game never does), and only a real id.
             guard game == nil, !item.found, UUID(uuidString: item.id) != nil else { return }
             morePlaces = await CommunityAPI(auth: AuthStore.shared).morePlaces(event: item.id)
+        }
+        .task(id: item.id) {
+            #if DEBUG
+            if LaunchFlags.has(.townPart) { parts = EventSchedule.samples(.now); return }
+            #endif
+            // A game never has parts; a sample's id isn't a real one.
+            guard game == nil, UUID(uuidString: item.id) != nil else { return }
+            parts = await CommunityAPI(auth: AuthStore.shared).parts(event: item.id)
         }
         .task(id: smallMap ? width : nil) {
             guard smallMap, mapShot == nil, case .ourMap(let at)? = EventMapRoute.route(item) else { return }
@@ -595,6 +605,10 @@ struct EventPage: View {
                     .accessibilityHidden(!smallMap)
                     .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.page)).minY } action: { smallMapTop = $0 }
             }
+
+            // A long Event's parts (happening-now 06): none, no section.
+            EventScheduleSection(parts: parts, ink: ink, tint: tint)
+                .animation(reduceMotion ? nil : Motion.smooth, value: parts)
 
             // Who hosts it, with Instagram's Follow, in a plain row (follows 02; inside-cards 09).
             EventHostRow(item: item, top: EventLook.hostTop, plain: true, sun: sun)
