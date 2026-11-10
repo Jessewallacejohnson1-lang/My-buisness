@@ -79,6 +79,8 @@ struct EventPage: View {
     @State private var smallMap = false
     /// The small map's still, made the first time it opens: a page whose Map is never tapped makes none.
     @State private var mapShot: UIImage?
+    /// A neighbour's Event's places after the first (BP app town-feed 54), read as the page opens.
+    @State private var morePlaces: [String] = []
     /// The small map's top, and the foot of what shows above the bar (the home bar with none), both in the page's
     /// own coordinates: whether opening it scrolls it clear of the bar.
     @State private var smallMapTop: CGFloat = 0
@@ -231,6 +233,14 @@ struct EventPage: View {
         .scrollPosition($position)
         // The small map's still, the first time it opens (until then its ground and the photo show), and again once
         // the page's width is known or a try failed.
+        .task(id: item.id) {
+            #if DEBUG
+            if let names = LaunchFlags.value(.eventMorePlaces) { morePlaces = names.split(separator: "|").map(String.init); return }
+            #endif
+            // Only a neighbour's own Event can have more (a found one or a game never does), and only a real id.
+            guard game == nil, !item.found, UUID(uuidString: item.id) != nil else { return }
+            morePlaces = await CommunityAPI(auth: AuthStore.shared).morePlaces(event: item.id)
+        }
         .task(id: smallMap ? width : nil) {
             guard smallMap, mapShot == nil, case .ourMap(let at)? = EventMapRoute.route(item) else { return }
             mapShot = await SmallMapShot.make(at: at, size: CGSize(width: width - 2 * EventLook.side, height: EventLook.smallMap),
@@ -538,7 +548,12 @@ struct EventPage: View {
                     if let date {
                         Text(date.oneLine).accessibilityLabel(date.spoken)
                     }
-                    if let place { Text(place) }
+                    // Each place on its own line, in the order its host picked them (town-feed 54, Uber's Route order).
+                    if let place {
+                        ForEach(Array(([place] + morePlaces).enumerated()), id: \.offset) { _, name in
+                            Text(name)
+                        }
+                    }
                     // The price when a source said it (inside-cards 14), led by who it's for by age like a LEGO
                     // box's "18+ | 10273 | 3231 pcs" (inside-cards 30); nothing when unknown, never a placeholder.
                     if !price.isEmpty {
@@ -549,6 +564,7 @@ struct EventPage: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(tint)
                 .animation(reduceMotion ? nil : Motion.smooth, value: pageColor)
+                .animation(reduceMotion ? nil : Motion.smooth, value: morePlaces)
                 .frame(maxWidth: .infinity)
                 .padding(.top, EventLook.linesTop)
             }

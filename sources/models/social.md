@@ -63,7 +63,9 @@ carry on with the rest.
    - An event stays an event. A sale with its own dates is an event.
    - Everything else is News: `category` `business` for a place's own offers (a special, a
      deal, a new product or menu item, a pre-order, a contest, a weekly night), `announcement`
-     for town news, `campus` for CSB and SJU. Give a standing weekly special one item, not one
+     for town news, `campus` for CSB and SJU. A sponsor's post about a school's team or athletes (The
+     House sharing CSB's player of the week) is the school's news: its `source_name` is that school's
+     athletics place, `CSB Athletic Activities` or `SJU Athletic Activities` (Jesse, 2026-11-10). Give a standing weekly special one item, not one
      per week, and fold many product posts from one place in one check into one item ("new fall
      arrivals").
    - A plain ad is not News: a post that only says come and buy this (a dish, a product, a menu, a

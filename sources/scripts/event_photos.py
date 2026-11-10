@@ -7,7 +7,8 @@ have a photo of event. dont worry about games for now"). A step of the morning j
 
   python3 sources/scripts/event_photos.py prepare          new Events not yet looked at: their pictures on sheets
   python3 sources/scripts/event_photos.py keep [--dry-run] the helpers' picks saved as each Event's photo
-  python3 sources/scripts/event_photos.py dig              the Events keep left bare, in batches for the finders
+  python3 sources/scripts/event_photos.py dig [--all]      the Events keep left bare, in batches for the finders
+                                                           (Sundays or --all: every upcoming Event still bare)
   python3 sources/scripts/event_photos.py dig-sheets       the pages the finders named, read; their pictures on sheets
   python3 sources/scripts/event_photos.py dig-posts        the still-bare titles' places' own posts, read through Apify
   python3 sources/scripts/event_photos.py dig-keep [--dry-run]  the picks saved; every Event the dig finished marked
@@ -57,6 +58,8 @@ from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
 LOOKBACK = timedelta(days=8)   # the weekly read is Thursday's: a Friday morning still finds its posts
 NEW = timedelta(days=3)        # an Event found longer ago than this was there before this step
+WEEKLY_DAY = 6                 # Sunday, Chicago time: the dig's weekly pass, before the week's Events (Jesse, 2026-11-10)
+WEEKLY_AHEAD = timedelta(days=28)  # the weekly pass reaches Events this close; hosts post nearer the day
 PLACE_MORE = 6                 # the same page's other photos offered beside a post's own pictures
 MIN_WIDTH = 1000               # as scenes.py: the card is width-bound and asks for 1200 px
 # A News's own picture: Jesse took JoeTown's 720 px group shot of its new merch over the post's sharp portrait
@@ -497,14 +500,21 @@ NOT_OURS = re.compile(r"gettyimages|shutterstock|istockphoto|alamy|apimages|apne
                       re.I)
 
 
-def bare(db, now, since=NEW):
+def bare(db, now, since=NEW, weekly=False):
     """The Events the photo step looked at within `since` and left with no live photo or flyer of their own, still to
-    come, not dug yet, that aren't a sport."""
+    come, not dug yet, that aren't a sport. Weekly: every such Event in the next WEEKLY_AHEAD, found whenever, not dug
+    within the week, so a photo its host posted after the first dig still reaches it (dig-deeper 24, the WinterWalk)."""
     today, start = now.astimezone(LOCAL).date(), (now - since).isoformat()
+    ahead = f"(event_date.gte.{today},end_at.gte.{today})"
+    if weekly:
+        dug = f"(photo_dug_at.is.null,photo_dug_at.lt.{(now - timedelta(days=7)).isoformat()})"
+        which = (f"&and={quote(f'(or{ahead},or{dug})')}&event_date=lt.{today + WEEKLY_AHEAD}"
+                 "&order=event_date")
+    else:
+        which = f"&photo_dug_at=is.null&photo_checked_at=gte.{quote(start)}&or={quote(ahead)}&order=created_at"
     rows = db.rest("GET", "club_events?select=id,title,event_date,location,description,category,sport,team_ids,"
                           "source_name,source_url,place_entry_id"
-                          f"&status=eq.approved&kind=eq.event&photo_dug_at=is.null&photo_checked_at=gte.{quote(start)}"
-                          f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
+                          f"&status=eq.approved&kind=eq.event{which}&limit=300")
     import place_photos
     rows = [r for r in rows if not place_photos.is_sport(r)]
     if not rows:
@@ -522,15 +532,18 @@ def sites_of(entry_ids):
                 if s.get("kind") == "website" and not registry.is_todo(s.get("url", ""))] for i in entry_ids}
 
 
-def dig(out, now=None, db=None, since=NEW, sites=None):
-    """The Events keep left bare, one block per title at its place, in batches for the finders."""
+def dig(out, now=None, db=None, since=NEW, sites=None, weekly=None):
+    """The Events keep left bare, one block per title at its place, in batches for the finders. On WEEKLY_DAY (or
+    weekly=True) it also reaches every upcoming Event still bare, however long ago it was found."""
     now = now or datetime.now(timezone.utc)
+    if weekly is None:
+        weekly = now.astimezone(LOCAL).weekday() == WEEKLY_DAY
     folder = out / "dig"
     if folder.exists():
         for f in folder.iterdir():
             f.unlink()
     folder.mkdir(parents=True, exist_ok=True)
-    groups = groups_of(bare(db or Supabase(), now, since), by=lambda e: e.get("place_entry_id") or e.get("source_name") or "")
+    groups = groups_of(bare(db or Supabase(), now, since, weekly), by=lambda e: e.get("place_entry_id") or e.get("source_name") or "")
     if sites is None:
         sites = sites_of({e["place_entry_id"] for g in groups for e in g["events"] if e.get("place_entry_id")})
     for i, g in enumerate(groups, 1):
@@ -544,8 +557,9 @@ def dig(out, now=None, db=None, since=NEW, sites=None):
                  for g in groups[i:i + PER_FIND] for e in [g["events"][0]]]
         (folder / f"find-{i // PER_FIND + 1}.txt").write_text("\n".join(lines) + "\n")
     n = sum(len(g["events"]) for g in groups)
-    print(f"[dig] {n} Events left bare ({len(groups)} titles) in {(len(groups) + PER_FIND - 1) // PER_FIND} batches for the "
-          f"finders ({folder})" if groups else "[dig] no Event left bare")
+    head = "[dig] weekly pass:" if weekly else "[dig]"
+    print(f"{head} {n} Events left bare ({len(groups)} titles) in {(len(groups) + PER_FIND - 1) // PER_FIND} batches for the "
+          f"finders ({folder})" if groups else f"{head} no Event left bare")
     return groups
 
 
@@ -1197,6 +1211,20 @@ def selftest():
           "bare: looked at lately, not dug, no live photo or flyer of its own, never a game")
     check(bare(type("Db", (), {"rest": lambda self, *a, **k: []})(), datetime(2026, 11, 7, tzinfo=timezone.utc)) == [],
           "no Event looked at: no photo read asked for")
+    fake = Bare("https://db.example")
+    sunday = datetime(2026, 11, 15, 12, tzinfo=timezone.utc)
+    left = bare(fake, sunday, weekly=True)
+    asked = fake.calls[0][1]
+    check([e["id"] for e in left] == ["b1", "b2", "b3", "b5", "b6"] and "photo_checked_at" not in asked
+          and quote("or(photo_dug_at.is.null,photo_dug_at.lt.2026-11-08T12:00:00+00:00)") in asked
+          and "event_date=lt.2026-12-13" in asked and "order=event_date" in asked,
+          "weekly: found whenever, not dug this week, the next four weeks, soonest first (the WinterWalk)")
+    with __import__("tempfile").TemporaryDirectory() as t:
+        quiet = type("Db", (), {"calls": [], "rest": lambda self, m, path, *a, **k: self.calls.append(path) or []})()
+        dig(Path(t), now=sunday, db=quiet, sites={})
+        dig(Path(t), now=sunday - timedelta(days=1), db=quiet, sites={})
+        check("photo_checked_at" not in quiet.calls[0] and "photo_checked_at" in quiet.calls[1],
+              "dig: Sunday is the weekly pass, Saturday the new Events only")
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
@@ -1450,6 +1478,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("step", nargs="?", choices=["prepare", "keep", "dig", "dig-sheets", "dig-posts", "dig-keep"])
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--all", action="store_true", help="dig: the weekly pass today, whatever the day")
     ap.add_argument("--town", default=DEFAULT, help="the town whose photo folder the photos go in")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
@@ -1462,7 +1491,7 @@ def main(argv=None):
     elif a.step == "keep":
         keep(out_dir(), a.dry_run)
     elif a.step == "dig":
-        dig(out_dir())
+        dig(out_dir(), weekly=True if a.all else None)
     elif a.step == "dig-sheets":
         dig_sheets(out_dir())
     elif a.step == "dig-posts":

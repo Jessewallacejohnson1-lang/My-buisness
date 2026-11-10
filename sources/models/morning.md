@@ -75,7 +75,9 @@ together, at most 10 running at once:
   Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
 **Dig.** The Events keep left with no photo look further (BP app dig-deeper 22). Run
-`python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Finish. Helpers on your own
+`python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Finish. On Sundays it is the weekly pass
+(dig-deeper 24): every Event of the next four weeks still bare, however long ago it was found, so it may hand out more
+batches than a weekday. Helpers on your own
 model, at most 10 running at once:
 - for each `.runs/morning/dig/find-N.txt`, one helper with: "Read the Find part of
   `sources/models/dig.md` and follow it for `.runs/morning/dig/find-N.txt`. Answer with the JSON lines
