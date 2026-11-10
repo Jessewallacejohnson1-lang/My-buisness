@@ -1037,12 +1037,31 @@ def save(run, dry_run):
     kept = kept_report(run, dry_run)
     if kept.saved is not None and not dry_run:
         print("[morning] saved already this morning: nothing written again; finish prints its summary")
+    elif not dry_run and (bad := to_fix(run)):
+        sys.exit("[morning] save stopped, nothing written: fix these lines in .runs/morning/judged.jsonl, then run save "
+                 "again (a second save writes, skipping any still wrong):\n" + "\n".join(bad))
     else:
         kept.save(write(run, dry_run))
     if run.summary().get("run"):
         return  # a social check: social.py done finishes it
     untagged(run)
     thin(run)
+
+
+def to_fix(run):
+    """The judge's lines the writer can't use, each with why, the first time save sees them; empty after that.
+    A save writes once a morning, so a line written wrong was lost for good: the 9 PM check of 2026-11-09 left
+    `area` off its 9 News and wrote none of them. Asked once, the judge fixes them; a save run again writes."""
+    asked = run.part("fix-asked.json")
+    if asked.saved:
+        return []
+    bad = [f"- line {n}: {why}: {json.dumps(it, ensure_ascii=False)[:160]}"
+           for n, it in enumerate(read_items(run.folder / "judged.jsonl"), 1)
+           if not (isinstance(it, dict) and it.get("kind") == "hours")
+           and (why := write_judged.skip_reason(it, TOWNS[run.town])) and why.startswith("invalid")]
+    if bad:
+        asked.save(True)
+    return bad
 
 
 def kept_report(run, dry_run):
@@ -2118,6 +2137,10 @@ def steps_alone():
 
             said(save, run(), True)
             dry = db.writes(), (out / "report.json").exists(), (out / "report-dry-run.json").exists()
+            with (out / "judged.jsonl").open("a") as f:  # the judge left `area` off a News (Nov 9's 9 PM check)
+                f.write(json.dumps(write_judged.item(kind="news", title="The North Table's last week", area=None)) + "\n")
+            stopped_save = said(save, run(), False)
+            stopped_left = len(db.writes("rpc/apply_judged")), db.rows["milk|https://m/events"]["last_hash"]
             db.answers["rpc/apply_judged"] = refuse
             refused = said(save, run(), False)
             refused_left = db.rows["milk|https://m/events"]["last_hash"], (out / "report.json").exists()
@@ -2164,6 +2187,10 @@ def steps_alone():
          f"titles alone lists the long title, then the long News under its own line, and writes nothing; run again "
          f"the same: {listed!r}, {titled_wrote}"),
         (dry == ([], False, True), f"save alone, dry: nothing written, and a real save still to come: {dry}"),
+        ("save stopped, nothing written" in stopped_save and "line 2: invalid: area must be" in stopped_save
+         and stopped_left == (0, "old"),
+         f"a judged line the writer can't use stops the first save with nothing written, naming it; the next save "
+         f"writes (below): {stopped_save[-300:]}, {stopped_left}"),
         (refused.rstrip().endswith("exit [morning] save refused: Supabase POST rpc/apply_judged failed 403: permission denied")
          and refused_left == ("old", False), f"a save refused is one line, moves no fingerprint and can be run again: {refused[-200:]}, {refused_left}"),
         (applied == 2 and moved == "new" and "saved already this morning" in second and "saved already" not in first and laid == [3, 3],

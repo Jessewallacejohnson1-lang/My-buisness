@@ -41,8 +41,9 @@ command's output and your answer.
   `.runs/morning/repeats.jsonl`. Save holds back each News they call a repeat.
 
 **Save.** Run `python3 sources/scripts/morning.py save`. It writes the items and lays out the
-helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save refused` line
-ends the morning: answer with it.
+helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save stopped` line
+names judged lines the writer can't use: fix each in `.runs/morning/judged.jsonl` and run save
+again. A `save refused` line ends the morning: answer with it.
 
 **Helpers.** First run `python3 sources/scripts/event_photos.py prepare`: it lays out each new Event's
 pictures, games aside, and each new News's own post pictures, on sheets in `.runs/morning/photos/` (event-photos 09,
