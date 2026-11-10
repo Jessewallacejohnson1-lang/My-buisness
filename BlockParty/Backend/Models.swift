@@ -670,6 +670,8 @@ struct NewEventInput {
     /// Filter's picks (BP app town-feed 52): `club_events.for_gender` ("female", "male") and `ages` ("18+").
     var forGender: String? = nil
     var ages: String? = nil
+    /// The places after the first (BP app town-feed 54): `club_events.more_places`.
+    var morePlaces: [String] = []
 }
 
 /// A neighbour's post as New post sends it (BP app town-feed 29).

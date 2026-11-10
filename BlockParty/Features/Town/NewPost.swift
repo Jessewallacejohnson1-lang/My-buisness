@@ -18,10 +18,14 @@ nonisolated struct NewEventDraft: Equatable {
     /// A name is a line on a card; a place, a line under it.
     static let nameLimit = 100
     static let placeLimit = 120
+    /// Places in all, the first one's included (BP app town-feed 54; Jesse: "yes" to 5).
+    static let placesLimit = 5
 
     var name = ""
     var when: Date
     var place = ""
+    /// The places after the first, in the order picked (BP app town-feed 54): `club_events.more_places`.
+    var morePlaces: [String] = []
     /// New post's words, as its description.
     var about = ""
     /// Filter (BP app town-feed 52): who it's for, by gender and age. Nothing picked is everyone.
@@ -33,6 +37,19 @@ nonisolated struct NewEventDraft: Equatable {
     var title: String { String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.nameLimit)) }
     var location: String { String(place.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.placeLimit)) }
     var ready: Bool { !title.isEmpty && !location.isEmpty }
+    /// The places after the first as they go out: trimmed, each once (the first place's name included), at most 4.
+    var extraPlaces: [String] { Self.extra(after: location, morePlaces) }
+
+    static func extra(after first: String, _ more: [String]) -> [String] {
+        var seen: Set<String> = [first.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+        var out: [String] = []
+        for name in more {
+            let name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(placeLimit))
+            guard !name.isEmpty, seen.insert(name.lowercased()).inserted else { continue }
+            out.append(name)
+        }
+        return Array(out.prefix(placesLimit - 1))
+    }
 
     /// Tonight at 7 in the town, or tomorrow at 7 once that's past. PICKED: when most
     /// neighbours' evenings start.
@@ -52,7 +69,7 @@ nonisolated struct NewEventDraft: Equatable {
         let about = about.trimmingCharacters(in: .whitespacesAndNewlines)
         return NewEventInput(id: id, title: title, eventDate: Town.day(when), startTime: Self.clock(when),
                              location: location, description: about.isEmpty ? nil : String(about.prefix(NewPostDraft.wordsLimit)),
-                             imageUrl: imageURL, forGender: gender?.rawValue, ages: ages.words)
+                             imageUrl: imageURL, forGender: gender?.rawValue, ages: ages.words, morePlaces: extraPlaces)
     }
 }
 
@@ -70,6 +87,7 @@ enum NewEventCopy {
     static let when = "Day and time"
     static let place = "Place"
     static let addPlace = "Add"
+    static let anotherPlace = "Add another place"
     static let offline = "Couldn't share. Check your connection and try again."
     static let live = "Your event is live"
     static let waiting = "Shared. It goes up once it's checked."
@@ -191,6 +209,20 @@ struct NewPostDraft: Equatable {
     var friendsOnly = false
     var tagged: [Neighbor] = []
     var place = ""
+    /// An Event's places after the first (BP app town-feed 54); a post keeps one place.
+    var morePlaces: [String] = []
+
+    /// The round + after Place: a first place is picked and there's room for another.
+    var canAddPlace: Bool {
+        location != nil && NewEventDraft.extra(after: location ?? "", morePlaces).count < NewEventDraft.placesLimit - 1
+    }
+
+    /// Another place picked after the + (the same Place list): a new name lands last, one already there doesn't.
+    mutating func addPlace(_ name: String) {
+        guard canAddPlace else { return }
+        let next = NewEventDraft.extra(after: location ?? "", morePlaces + [name])
+        morePlaces = next
+    }
 
     var text: String { String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.wordsLimit)) }
     var location: String? {
@@ -312,6 +344,7 @@ final class NewPostModel {
     /// Event on: town-plus's Share, with New post's words as its description.
     func shareEvent(api: CommunityAPI) async -> NewEventCheck? {
         eventModel.draft.place = draft.place
+        eventModel.draft.morePlaces = draft.morePlaces
         eventModel.draft.about = draft.words
         return await eventModel.share(api: api)
     }
@@ -499,7 +532,7 @@ struct NewPostSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    enum Step: Hashable { case tag, place, filter }
+    enum Step: Hashable { case tag, place, anotherPlace, filter }
     private enum Field: Hashable { case words, name }
 
     var body: some View {
@@ -528,6 +561,7 @@ struct NewPostSheet: View {
                 .padding(.bottom, NewPostMetric.side)
                 .animation(reduceMotion ? nil : Motion.smooth, value: model.event)
                 .animation(reduceMotion ? nil : Motion.smooth, value: model.photo)
+                .animation(reduceMotion ? nil : Motion.smooth, value: model.draft.morePlaces)
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) { bar }
@@ -550,6 +584,8 @@ struct NewPostSheet: View {
                 switch step {
                 case .tag: NewPostTag(tagged: $model.draft.tagged)
                 case .place: NewEventPlace(places: places, place: $model.draft.place)
+                // The +: the same list, its pick added after the others rather than replacing the first.
+                case .anotherPlace: NewEventPlace(places: places, place: Binding { "" } set: { model.draft.addPlace($0) })
                 case .filter: NewEventFilter(gender: Bindable(model.eventModel).draft.gender,
                                              ages: Bindable(model.eventModel).draft.ages)
                 }
@@ -572,6 +608,10 @@ struct NewPostSheet: View {
                 pick = nil
             }
         }
+        // A new first place that was one of the others takes that one's row away (the review).
+        .onChange(of: model.draft.place) { _, place in
+            model.draft.morePlaces = NewEventDraft.extra(after: place, model.draft.morePlaces)
+        }
         // A swipe down can't throw away what's typed or picked; the X asks first.
         .interactiveDismissDisabled(model.busy || model.edited)
         .task { if !me.loaded { await me.read() } }
@@ -585,6 +625,13 @@ struct NewPostSheet: View {
                 if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
                 // `-new-post-words <words>`: typed, as AXe can't type on BP Build.
                 if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+                // `-new-event-places "A|B|C"`: Event on with these places picked, the first as Place.
+                if let names = LaunchFlags.value(.newEventPlaces)?.split(separator: "|").map(String.init), let first = names.first {
+                    model.setEvent(true)
+                    model.eventModel.draft.name = "Stitch and Sip crawl"
+                    model.draft.place = first
+                    names.dropFirst().forEach { model.draft.addPlace($0) }
+                }
                 #endif
             }
             focus = .words
@@ -746,6 +793,7 @@ struct NewPostSheet: View {
                     // The town's clock, as Share sends it.
                     .environment(\.timeZone, Town.timeZone)
             }
+            let plus = model.draft.canAddPlace
             Button { focus = nil; path.append(.place) } label: {
                 row(NewEventCopy.place, icon: { MapPinGlyph(size: NewPostMetric.icon) }) {
                     HStack(spacing: 8) {
@@ -757,10 +805,34 @@ struct NewPostSheet: View {
                             .font(.glyph(15, weight: .semibold))
                             .foregroundStyle(Hue.control)
                     }
+                    // Room for the + beside the row, which is its own button (a tap on it never opens Place).
+                    .padding(.trailing, plus ? NewPostMetric.plus + NewPostMetric.plusGap : 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.squish))
+            .overlay(alignment: .trailing) {
+                if plus {
+                    // Uber's round + after the place (BP app references/event-several-places): another place.
+                    Button { focus = nil; path.append(.anotherPlace) } label: {
+                        Image(systemName: "plus")
+                            .font(.glyph(16, weight: .semibold))
+                            .foregroundStyle(Hue.ink)
+                            .frame(width: NewPostMetric.plus, height: NewPostMetric.plus)
+                            .background(Hue.fill, in: Circle())
+                            .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.press(.squish))
+                    .accessibilityLabel(NewEventCopy.anotherPlace)
+                    .padding(.trailing, NewPostMetric.side - (NewPostMetric.tap - NewPostMetric.plus) / 2)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
+            }
+            ForEach(model.draft.location == nil ? [] : model.draft.morePlaces, id: \.self) { name in
+                morePlace(name)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             // Filter (BP app town-feed 52): Badoo's Filter, one screen deeper, as Place is.
             Button { focus = nil; path.append(.filter) } label: {
                 row(NewEventFilterCopy.filter, icon: { Image(systemName: "slider.horizontal.3").font(.glyph(NewPostMetric.symbol)) }) {
@@ -779,6 +851,36 @@ struct NewPostSheet: View {
             }
             .buttonStyle(.press(.squish))
         }
+    }
+
+    /// A place after the first: its name under Place's, and a grey x that takes it out.
+    private func morePlace(_ name: String) -> some View {
+        HStack(spacing: 12) {
+            Text(name)
+                .font(.sans(16))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Button {
+                withAnimation(reduceMotion ? nil : Motion.smooth) { model.draft.morePlaces.removeAll { $0 == name } }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.glyph(10, weight: .heavy))
+                    .foregroundStyle(Hue.paper)
+                    .frame(width: NewPostMetric.remove, height: NewPostMetric.remove)
+                    .background(Hue.control, in: Circle())
+                    .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.press(.squish))
+            .accessibilityLabel("Remove \(name)")
+            // Its middle under the +'s.
+            .padding(.trailing, -(NewPostMetric.tap - NewPostMetric.plus) / 2)
+        }
+        .padding(.leading, NewPostMetric.side + NewPostMetric.icon + 12)
+        .padding(.trailing, NewPostMetric.side)
+        .frame(minHeight: NewPostMetric.morePlace)
+        .overlay(alignment: .bottom) { Rectangle().fill(Hue.hairline).frame(height: 0.5) }
     }
 
     private func row<Icon: View, Trailing: View>(_ label: String, @ViewBuilder icon: () -> Icon,
@@ -1064,6 +1166,11 @@ private nonisolated enum NewPostMetric {
     static let eventName: CGFloat = 26
     static let nameBottom: CGFloat = 8
     static let row: CGFloat = 54
+    /// Uber's round + (Plan your ride, about 30 pt at 1 pt = 1 px), 8 pt after the chevron; its x, 22.
+    static let plus: CGFloat = 30
+    static let plusGap: CGFloat = 8
+    static let remove: CGFloat = 22
+    static let morePlace: CGFloat = 48
     static let icon: CGFloat = 22
     static let symbol: CGFloat = 19
     static let bar: CGFloat = 54
