@@ -56,6 +56,9 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
                (BP app inside-cards 14)
   ages         events, optional: who it's for by age, only when the page says it ("21+", "ages 10 and up",
                "ages 6 to 14"); never for "all ages" or a guess. Shown like a LEGO box's "18+" (BP app inside-cards 30)
+  gender       events, optional: "women" or "men", only when the page says the Event is for them; never a game, a
+               kids' group, a shop's sale or a guess. Lifts it in that gender's Town feed, no words on the card (BP app
+               town-feed 52)
   game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
                "St. Cloud"]}, the host's team first, as neighbours say them (read_events.py, the league's
                games). CSB and SJU Athletics games need none: the writer reads them off the title.
@@ -440,6 +443,14 @@ def clip(text, n):
     never stops mid-word."""
     text = (text or "").strip()
     return text if len(text) <= n else text[:n - 1].rsplit(None, 1)[0] + "…"
+
+
+def gender_of(text):
+    """Who an Event is for by gender (BP app town-feed 52): "female" or "male", onboarding's answers, from the judge's
+    "women" or "men". None for anything else, so a guess never lifts an Event."""
+    t = (text or "").strip().lower()
+    return {"women": "female", "woman": "female", "female": "female",
+            "men": "male", "man": "male", "male": "male"}.get(t)
 
 
 def ages_of(text):
@@ -870,6 +881,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
            "description": clip(it.get("blurb"), 1000) or None, "price": clip(it.get("price"), 60) or None,
            "ages": ages_of(it.get("ages")),
+           "gender": gender_of(it.get("gender")),
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "team_shorts": None,
@@ -1619,6 +1631,15 @@ def t_description_cut_at_a_word():
     assert len(got) <= 1000 and got.endswith("word…"), got[-20:]
     assert run([item(blurb="  Bring a chair.\n")])["events"][0]["row"]["description"] == "Bring a chair."
     assert run([item(blurb=None)])["events"][0]["row"]["description"] is None
+
+
+def t_gender_only_as_a_page_says():
+    # Who it's for by gender (BP app town-feed 52): onboarding's two answers, nothing for anything else.
+    for words, want in {"women": "female", "Men": "male", "female": "female", "": None, None: None,
+                        "girls": None, "everyone": None, "women and men": None}.items():
+        assert gender_of(words) == want, (words, gender_of(words), want)
+    assert run([item(gender="women")])["events"][0]["row"]["gender"] == "female"
+    assert run([item()])["events"][0]["row"]["gender"] is None
 
 
 def t_ages_only_as_a_source_says():
@@ -2881,7 +2902,7 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_a_repeat_is_asked_about, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+TESTS = [t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

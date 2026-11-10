@@ -640,6 +640,9 @@ struct NewEventInput {
     var description: String?
     var imageUrl: String?
     var category: String = EventCategory.other.rawValue   // club_events.category text
+    /// Filter's picks (BP app town-feed 52): `club_events.for_gender` ("female", "male") and `ages` ("18+").
+    var forGender: String? = nil
+    var ages: String? = nil
 }
 
 /// A neighbour's post as New post sends it (BP app town-feed 29).

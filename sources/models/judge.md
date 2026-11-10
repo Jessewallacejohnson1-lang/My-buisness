@@ -57,7 +57,11 @@ Read these first:
      21+ only", "ages 10 and up", "ages 6 to 14"): the app shows it like a LEGO box's "18+" (Jesse,
      2026-11-08, BP app inside-cards 30). Left out for "all ages", "family friendly", grades, a price for some ("kids 12 and
      under free") or a guess: a bar's
-     bingo night is no 21+ unless its page says so. Only facts the page gives, never a guess or an ad's words; a page that gives only the
+     bingo night is no 21+ unless its page says so. Who it's for by gender goes in `gender`, "women" or
+     "men", only when the page says the Event is for them (a women's Bible study, a moms' night, a men's
+     league, the Knights of Columbus): it moves the Event up in their Town feed and says nothing on the
+     card (Jesse, 2026-11-09, BP app town-feed 52). Left out for a game ("Girls Soccer"), a kids' group
+     (Girl Scouts), a shop's sale, a word in passing ("Sister"), or a guess. Only facts the page gives, never a guess or an ad's words; a page that gives only the
      title and time gets one short line or none. News gets one line (Jesse, 2026-10-23). A News blurb
      says only what its title doesn't, in at most 75 characters. With nothing to add, leave the blurb out
      (Jesse, 2026-11-06, BP app inside-cards 12). When one post carries several offers, write one News
