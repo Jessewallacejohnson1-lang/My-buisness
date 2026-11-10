@@ -56,6 +56,12 @@ struct EventPage: View {
     @State private var pageColor: UInt32?
     /// A pale picture (mean brightness over 60%): its melt ends sooner.
     @State private var pale = false
+    /// The flyer's colour, when the page swipes from the Event's own photo to its flyer (town-feed 59).
+    @State private var flyerColor: UInt32?
+    /// How far the hero is swiped toward the flyer: 0 on the photo, 1 on the flyer.
+    @State private var flyerSwipe: CGFloat = 0
+    /// Which of the two the hero rests on.
+    @State private var heroPage: Int? = 0
     /// Two fingers have lifted the picture (`pinchToZoom`): the buttons over it step aside till it lands.
     @State private var heroLifted = false
     /// The page's width, for the picture's sizes, which scale with it. Width, never height: nothing the
@@ -361,7 +367,11 @@ struct EventPage: View {
     private var sun: Bool { game == nil && !hasHero }
 
     /// The page's colours from its picture's colour; none until the picture is here.
-    private var wash: EventLook.Wash? { pageColor.map { EventLook.wash($0) } }
+    private var wash: EventLook.Wash? {
+        pageColor.map { photo in
+            EventLook.wash(flyerColor.map { EventLook.blend(photo, $0, min(max(flyerSwipe, 0), 1)) } ?? photo)
+        }
+    }
 
     /// Reads the page's colour off a picture that's just landed: the most common colourful hue, or grey
     /// once it's called off, since its photo is black and white (`EventLook`, tested).
@@ -427,56 +437,15 @@ struct EventPage: View {
     /// The picture at the top: a photo melting into the page, a flyer whole over its melt, or a logo on its
     /// disc. Town's heart sits on it, and a photo's credit beside the heart; a flyer's credit goes under it,
     /// so it never covers the flyer's words. Pulling the page down past its top stretches it from its
-    /// bottom edge, as before (guessed, until Apple Invites' own motion is recorded).
+    /// bottom edge, as before (guessed, until Apple Invites' own motion is recorded). An Event with its own
+    /// photo and a flyer swipes from one to the other (`flyerPager`, town-feed 59).
     @ViewBuilder private var lookHero: some View {
         if let picture = photos.first, let url = picture.url {
-            let isFlyer = flyer == url
-            let height = isFlyer ? EventFlyerHero.height(aspect: flyerAspect, width: width) : photoHeight
-            let flyerSize = EventFlyerHero.size(aspect: flyerAspect, width: width)
-            Group {
-                if isFlyer {
-                    EventFlyerHero(url: url, aspect: flyerAspect, width: width, pale: pale, cancelled: item.cancelled,
-                                   ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
-                } else {
-                    EventMeltHero(url: url, height: height, pale: pale, cancelled: item.cancelled,
-                                  ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
-                }
+            if let second = swipeFlyer {
+                flyerPager(photo: url, picture: picture, flyer: second)
+            } else {
+                heroPicture(url: url, picture: picture, isFlyer: flyer == url, aspect: flyerAspect)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(picture.attribution.map { "Photo, by \($0)" } ?? "Photo")
-            .accessibilityIdentifier("event-page-picture")
-            // A shimmer until the bitmap lands, as the carousel had.
-            .overlay(alignment: .top) {
-                if !PhotoPager.isShown(url, in: shownPhotos) {
-                    SkeletonBlock(cornerRadius: 0).frame(height: height).shimmering().transition(.opacity)
-                }
-            }
-            .animation(Motion.smooth, value: shownPhotos)
-            .visualEffect { content, proxy in
-                let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
-                return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
-            }
-            // Two fingers lift it where it sits, its heart and credit too (BP app photo-zoom). The melt's
-            // ground is clear, so the whole picture takes the fingers.
-            .contentShape(Rectangle())
-            .pinchToZoom(slot: wash.map { Color(hex: $0.top) } ?? Hue.gameNight, lifted: $heroLifted)
-            // After the stretch, so they stay put, unscaled.
-            .overlay(alignment: .bottomTrailing) {
-                if !reviewing {
-                    TownCardHeart(item: item)
-                        .padding(.trailing, isFlyer ? (width - flyerSize.width) / 2 + EventLook.heartFlyerInset : EventLook.heartInset)
-                        .padding(.bottom, isFlyer ? EventLook.flyerBottom + EventLook.heartFlyerInset
-                                                  : EventLook.heartAboveFoot - TownCardHeart.side)
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                if !isFlyer, let credit = creditName {
-                    PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
-                        .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
-                        .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
-                }
-            }
-            .transition(.opacity)
         } else if let heroLogo {
             EventLogoHero(logo: heroLogo) { takeColor(from: $0) }
                 .visualEffect { content, proxy in
@@ -494,10 +463,126 @@ struct EventPage: View {
         }
     }
 
+    /// One picture as the hero shows it, a photo melting into the page or a flyer whole, with its heart and credit.
+    private func heroPicture(url: URL, picture: FeedCardImageSource, isFlyer: Bool, aspect: CGFloat) -> some View {
+        let height = isFlyer ? EventFlyerHero.height(aspect: aspect, width: width) : photoHeight
+        let flyerSize = EventFlyerHero.size(aspect: aspect, width: width)
+        return Group {
+            if isFlyer {
+                EventFlyerHero(url: url, aspect: aspect, width: width, pale: pale, cancelled: item.cancelled,
+                               ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
+            } else {
+                EventMeltHero(url: url, height: height, pale: pale, cancelled: item.cancelled,
+                              ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(picture.attribution.map { "Photo, by \($0)" } ?? "Photo")
+        .accessibilityIdentifier(isFlyer && swipeFlyer == url ? "event-page-flyer" : "event-page-picture")
+        // A shimmer until the bitmap lands, as the carousel had.
+        .overlay(alignment: .top) {
+            if !PhotoPager.isShown(url, in: shownPhotos) {
+                SkeletonBlock(cornerRadius: 0).frame(height: height).shimmering().transition(.opacity)
+            }
+        }
+        .animation(Motion.smooth, value: shownPhotos)
+        .visualEffect { content, proxy in
+            let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+            return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+        }
+        // Two fingers lift it where it sits, its heart and credit too (BP app photo-zoom). The melt's
+        // ground is clear, so the whole picture takes the fingers.
+        .contentShape(Rectangle())
+        .pinchToZoom(slot: wash.map { Color(hex: $0.top) } ?? Hue.gameNight, lifted: $heroLifted)
+        // After the stretch, so they stay put, unscaled.
+        .overlay(alignment: .bottomTrailing) {
+            if !reviewing {
+                TownCardHeart(item: item)
+                    .padding(.trailing, isFlyer ? (width - flyerSize.width) / 2 + EventLook.heartFlyerInset : EventLook.heartInset)
+                    .padding(.bottom, isFlyer ? EventLook.flyerBottom + EventLook.heartFlyerInset
+                                              : EventLook.heartAboveFoot - TownCardHeart.side)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if !isFlyer, let credit = picture.attribution, PhotoPager.isShown(url, in: shownPhotos) {
+                PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
+                    .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
+                    .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
+            }
+        }
+        .transition(.opacity)
+    }
+
+    // MARK: Its own photo, then its flyer (town-feed 59)
+
+    /// The flyer the page swipes to: the Event's own photo is on show and the flyer hasn't failed. With the photo gone,
+    /// or the flyer, the page shows one picture as before.
+    private var swipeFlyer: URL? {
+        guard flyer == nil, let url = item.flyer, !failedPhotos.contains(url),
+              let first = photos.first?.url, first == item.image.url else { return nil }
+        return url
+    }
+
+    /// The flyer's shape: as it decoded, else as the database sent it, else square.
+    private var swipeAspect: CGFloat {
+        if let url = item.flyer, let image = FeedCardImageLoader.shared.largest(for: url), image.height > 0 {
+            return CGFloat(image.width) / CGFloat(image.height)
+        }
+        return item.flyerAspect.map { CGFloat($0) } ?? 1
+    }
+
+    /// The photo and the flyer side by side, a page at a time, as Instagram's photo set (Jesse, 2026-11-10: "you could
+    /// swipe and then see the full list of things"). The frame grows from the photo's height to the flyer's as the
+    /// finger drags, so the flyer stays its full size, and the page's colour goes from one picture's to the other's
+    /// with it; both turn back if the finger does. Two dots level with the heart say which is on show.
+    private func flyerPager(photo: URL, picture: FeedCardImageSource, flyer second: URL) -> some View {
+        let tall = EventFlyerHero.height(aspect: swipeAspect, width: width)
+        let progress = min(max(flyerSwipe, 0), 1)
+        let height = photoHeight + (tall - photoHeight) * progress
+        // Each heart's middle, down from the frame's top.
+        let photoDot = photoHeight - EventLook.heartAboveFoot + TownCardHeart.side / 2
+        let flyerDot = tall - EventLook.flyerBottom - EventLook.heartFlyerInset - TownCardHeart.side / 2
+        return ScrollView(.horizontal) {
+            HStack(spacing: 0) {
+                heroPicture(url: photo, picture: picture, isFlyer: false, aspect: 1)
+                    .frame(width: width, height: height, alignment: .top)
+                    .id(0)
+                heroPicture(url: second, picture: .placePhoto(second, credit: nil), isFlyer: true, aspect: swipeAspect)
+                    .frame(width: width, height: height, alignment: .top)
+                    .id(1)
+            }
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $heroPage)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x / max($0.containerSize.width, 1) } action: { _, x in
+            flyerSwipe = x
+        }
+        .frame(height: height)
+        .overlay(alignment: .top) {
+            if !reviewing {
+                EventPageDots(count: 2, page: progress)
+                    .offset(y: photoDot + (flyerDot - photoDot) * progress - EventPageDots.side / 2)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(progress < 0.5 ? "Photo 1 of 2" : "Flyer, 2 of 2")
+        .accessibilityAdjustableAction { direction in
+            withAnimation(reduceMotion ? nil : Motion.smooth) { heroPage = direction == .increment ? 1 : 0 }
+        }
+    }
+
     /// The picture's bitmap is on screen: its credit can show, and the page takes its colour.
     private func shown(_ url: URL) {
         shownPhotos.insert(url)
-        if let image = FeedCardImageLoader.shared.largest(for: url) { takeColor(from: image) }
+        guard let image = FeedCardImageLoader.shared.largest(for: url) else { return }
+        // The flyer to swipe to keeps its own colour, which the page goes to as it comes in (town-feed 59).
+        if url == swipeFlyer {
+            flyerColor = item.cancelled ? EventLook.grey : EventLook.dominant(pixels: EventLook.pixels(of: image))
+        } else {
+            takeColor(from: image)
+        }
     }
 
     /// Whose photo is on screen, once it is: nil before, and for a photo with no credit.
@@ -607,7 +692,7 @@ struct EventPage: View {
                             route: { [current] in .going(current, isHost: $0) })
             }
 
-            if let about = Self.aboutText(item.description) {
+            if let about = Self.aboutText(item.description, lineup: item.lineup ? item.hostName : nil) {
                 EventAbout(text: about, sun: sun)
                     .padding(.top, EventLook.aboutTop)
             }
@@ -942,8 +1027,12 @@ struct EventPage: View {
         count >= 2 ? "\(page + 1)/\(count)" : nil
     }
 
-    static func aboutText(_ description: String?) -> String? {
-        nonempty(description)
+    /// About's words: its description, led by what it is part of when its flyer lists other things too ("Part of Sal's
+    /// Bar & Grill's lineup"; Jesse, 2026-11-10, BP app town-feed 59), the line alone without a description.
+    static func aboutText(_ description: String?, lineup host: String? = nil) -> String? {
+        let part = nonempty(host).map { "Part of \($0)\(($0.hasSuffix("s") ? "'" : "'s")) lineup" }
+        let words = [part, nonempty(description)].compactMap { $0 }
+        return words.isEmpty ? nil : words.joined(separator: "\n\n")
     }
 
     /// The price line's facts (inside-cards 30): who it's for by age first, as a LEGO box leads with "18+", then the

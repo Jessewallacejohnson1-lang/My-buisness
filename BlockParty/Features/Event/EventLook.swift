@@ -182,6 +182,16 @@ enum EventLook {
         }
     }
 
+    /// Two colours mixed, `t` of the way from `a` to `b`: the page's colour while the hero swipes from the
+    /// Event's own photo to its flyer (town-feed 59).
+    static func blend(_ a: UInt32, _ b: UInt32, _ t: CGFloat) -> UInt32 {
+        let t = min(max(t, 0), 1)
+        return [16, 8, 0].reduce(UInt32(0)) { mixed, shift in
+            let x = CGFloat((a >> shift) & 0xFF), y = CGFloat((b >> shift) & 0xFF)
+            return mixed | (UInt32((x + (y - x) * t).rounded()) << shift)
+        }
+    }
+
     static func wash(_ rgb: UInt32) -> Wash {
         var lightness = 0.30
         while lightness > 0.12, contrastWithWhite(tone(rgb, lightness)) < 5 { lightness -= 0.01 }
@@ -602,6 +612,30 @@ final class SmallMapShot {
         done?.resume(returning: image)
         done = nil
         waits.removeAll()
+    }
+}
+
+/// Instagram's dots under a photo set (town-feed 59), white on the hero: the one on show full, the rest at 40%,
+/// following the finger's `page` (0 the first, 1 the second).
+struct EventPageDots: View {
+    let count: Int
+    let page: CGFloat
+    /// Instagram's 6 pt dots, 4 pt apart (guessed from the Mobbin still, `references/one-flyer-many-events/`).
+    static let side: CGFloat = 6
+    static let gap: CGFloat = 4
+
+    var body: some View {
+        HStack(spacing: Self.gap) {
+            ForEach(0..<count, id: \.self) { index in
+                Circle()
+                    .fill(.white)
+                    .frame(width: Self.side, height: Self.side)
+                    .opacity(0.4 + 0.6 * max(0, 1 - abs(page - CGFloat(index))))
+            }
+        }
+        .shadow(color: .black.opacity(0.25), radius: 2)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

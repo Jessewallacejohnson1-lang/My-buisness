@@ -208,10 +208,27 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     /// This is a flyer or event graphic: its words matter, so it shows whole rather than cropped (BP app
     /// event-photos 16). nil on every other picture.
     var whole: Bool? = nil
+    /// The Event's flyer when this picture is something else, its own photo or a scene: its page swipes from this to
+    /// the flyer (BP app town-feed 59). nil on every other picture. Boxed: a picture can't hold a picture by value.
+    var flyerBox: Box? = nil
+    /// That flyer also lists an Event with another title: the Event is part of its host's lineup (town-feed 59).
+    var lineup: Bool? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case url, kind, credit, site, hue, cover, whole
-        case width = "w", height = "h", others = "more"
+        case url, kind, credit, site, hue, cover, whole, lineup
+        case width = "w", height = "h", others = "more", flyerBox = "flyer"
+    }
+
+    /// The flyer to swipe to, when it decodes.
+    var flyer: PlacePicture? { flyerBox?.value }
+
+    /// A picture inside a picture. One that doesn't decode is none.
+    final class Box: Decodable, Hashable, @unchecked Sendable {
+        let value: PlacePicture?
+        init(_ value: PlacePicture?) { self.value = value }
+        required init(from decoder: Decoder) { value = try? PlacePicture(from: decoder) }
+        static func == (a: Box, b: Box) -> Bool { a.value == b.value }
+        func hash(into hasher: inout Hasher) { hasher.combine(value) }
     }
 
     /// The place's other photos, in order, for a card to swipe to and its Event page to show.
