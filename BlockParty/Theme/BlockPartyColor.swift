@@ -238,8 +238,6 @@ nonisolated enum Hue {
     static let welcomeScrim  = Color(hex: 0x000000)
     /// The Done island's black (onboarding 24): the Dynamic Island's own, so the pill grows out of it unseen.
     static let island        = Color(hex: 0x000000)
-    /// Done's confetti, ink and two greys in equal shares, as mock v8 shows (Jesse, 2026-11-09): no yellow.
-    nonisolated static let doneConfettiHexes: [UInt32] = [0x111111, 0x8E8E93, 0xD1D1D6]
     /// A person's empty photo, Instagram's blank profile picture measured from its sign-up
     /// (BP app references/onboarding-name-photo): a blue-grey circle and a near-white figure.
     /// Onboarding's Profile draws the circle alone, flat (onboarding 35).
