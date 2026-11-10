@@ -258,6 +258,70 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertEqual(line?.spoken, (bash.whenLine(at: at(20, 12))?.spoken ?? "") + ", 21+")
     }
 
+    /// From 60 minutes before a real happening's start, the time line counts down by the minute, then the
+    /// card's Now takes over at the start minute (BP app happening-now 01).
+    func testTheHourBeforeARealHappeningCountsDown() {
+        let talk = card("2026-09-24", "7 PM")
+        XCTAssertEqual(talk.whenLine(at: at(24, 17, 59)), talk.whenLine, "61 minutes off: the day and time")
+        XCTAssertEqual(talk.whenLine(at: at(24, 18)), FeedWhenLine(text: "In 60 min", spoken: "Starts in 60 minutes"))
+        XCTAssertEqual(talk.whenLine(at: at(24, 18, 40))?.text, "In 20 min")
+        XCTAssertEqual(talk.whenLine(at: at(24, 18, 59)), FeedWhenLine(text: "In 1 min", spoken: "Starts in 1 minute"))
+        XCTAssertEqual(talk.whenLine(at: at(24, 18, 59).addingTimeInterval(30))?.text, "In 1 min", "mid-minute")
+        XCTAssertTrue(talk.isNow(at: at(24, 19)), "the start minute reads Now")
+        XCTAssertEqual(talk.whenLine(at: at(24, 19)), talk.whenLine)
+    }
+
+    func testOnlyARealHappeningWithAStartTimeCountsDown() {
+        var meeting = card("2026-09-24", "7 PM")
+        meeting.liveKind = false
+        XCTAssertEqual(meeting.whenLine(at: at(24, 18, 40)), meeting.whenLine, "a meeting or a sale")
+        let untimed = card("2026-09-25", nil)
+        XCTAssertEqual(untimed.whenLine(at: at(24, 23, 40)), untimed.whenLine, "no start time")
+        let called = card("2026-09-24", "7 PM", cancelled: true)
+        XCTAssertEqual(called.whenLine(at: at(24, 18, 40)), called.whenLine, "called off")
+    }
+
+    /// A long Event's part (BP app happening-now 04): while the artist talk is on, the exhibit's card is Now,
+    /// "Now · Artist talk"; within the hour before it, "Artist talk in 20 min". Its own line otherwise.
+    func testAPartOnNowOrSoonIsTheLongEventsTimeLine() {
+        var exhibit = card("2026-09-01", "10 AM", endAt: at(30, 17))
+        exhibit.liveKind = false
+        exhibit.part = EventPart(title: "Artist talk", start: at(24, 15), end: at(24, 16))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 14, 40)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 40)),
+                       FeedWhenLine(text: "Artist talk in 20 min", spoken: "Artist talk starts in 20 minutes"))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 59))?.spoken, "Artist talk starts in 1 minute")
+        XCTAssertTrue(exhibit.isNow(at: at(24, 15)), "on at its start")
+        XCTAssertEqual(exhibit.partOn(at: at(24, 15, 30))?.title, "Artist talk")
+        XCTAssertTrue(exhibit.isNow(at: at(24, 15, 59)))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 16)), "over at its end")
+        XCTAssertNil(exhibit.partOn(at: at(24, 16)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 16))?.text, "Until Wed", "the exhibit's own line again")
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 13, 59))?.text, "Until Wed", "61 minutes off")
+        exhibit.cancelled = true
+        XCTAssertFalse(exhibit.isNow(at: at(24, 15, 30)), "called off: no part is on")
+        XCTAssertNil(exhibit.countdown(at: at(24, 14, 40)))
+    }
+
+    /// A part that isn't a real happening, or runs 12 hours or longer, is no "Now" and no countdown on the card
+    /// (happening-now review): the server marks it, the card reads the mark.
+    func testAPartThatIsNotLiveNeverMakesTheCardNow() {
+        var exhibit = card("2026-09-01", "10 AM", endAt: at(30, 17))
+        exhibit.liveKind = false
+        exhibit.part = EventPart(title: "Holiday sale", start: at(24, 15), end: at(24, 16), live: false)
+        XCTAssertNil(exhibit.partOn(at: at(24, 15, 30)))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 15, 30)))
+        XCTAssertNil(exhibit.countdown(at: at(24, 14, 40)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 40))?.text, "Until Wed")
+    }
+
+    /// In the Town's time across midnight: 11:40 PM to a 12:15 AM start is 35 minutes.
+    func testTheCountdownCrossesMidnight() {
+        let late = card("2026-09-25", "12:15 AM")
+        XCTAssertEqual(late.whenLine(at: at(24, 23, 40))?.text, "In 35 min")
+        XCTAssertEqual(late.cardWhen(at: at(24, 23, 40))?.text, "In 35 min")
+    }
+
     /// A place open rather than a happening on says how long, or its start reads as over.
     func testAPlaceBeingOpenSaysUntilWhen() {
         var gallery = card("2026-09-24", "2 PM", endAt: at(24, 20))

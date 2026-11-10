@@ -16,6 +16,8 @@ struct CardTime: View {
     var spoken: String? = nil
     /// On right now: "Now" behind the green dot, in place of `text`.
     var now = false
+    /// A long Event's part on now: "Now · Artist talk" in place of "Now" (BP app happening-now 04).
+    var part: String? = nil
     let color: Color
     /// Lines at the default text sizes, one more at accessibility sizes: the game card's day over its time is 2.
     var lines = 1
@@ -28,7 +30,8 @@ struct CardTime: View {
         // sees `now` change, so it would cut.
         ZStack(alignment: .leading) {
             if now {
-                words("Now", spoken: "Happening now", dot: Hue.now).transition(.opacity)
+                words(part.map { "Now · \($0)" } ?? "Now", spoken: part.map { "Now, \($0)" } ?? "Happening now", dot: Hue.now)
+                    .transition(.opacity)
             } else {
                 words(text, spoken: spoken ?? text, dot: nil).transition(.opacity)
             }

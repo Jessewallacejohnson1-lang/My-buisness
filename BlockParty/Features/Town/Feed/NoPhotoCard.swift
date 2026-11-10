@@ -24,6 +24,8 @@ struct NoPhotoCard: View {
     var whenSpoken: String? = nil
     /// On right now: "Now" behind Apple's green dot in its place (event-card 04).
     var now = false
+    /// A long Event's part on now: "Now · Artist talk" (happening-now 04).
+    var part: String? = nil
     let title: String
     var titleLines = 2
     var facts: String? = nil
@@ -64,7 +66,7 @@ struct NoPhotoCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 // In the small line's grey, read after the title as on a photo card.
                 if now || !(when ?? "").isEmpty {
-                    CardTime(text: when ?? "", spoken: whenSpoken, now: now, color: Hue.inkSecondary.onLightCanvas, lines: 2)
+                    CardTime(text: when ?? "", spoken: whenSpoken, now: now, part: part, color: Hue.inkSecondary.onLightCanvas, lines: 2)
                         .padding(.top, Metric.lineGap)
                 }
                 if !factsTries.isEmpty {

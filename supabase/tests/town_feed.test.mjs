@@ -3683,6 +3683,143 @@ test('live: an interest beats your town among those on now (town-feed 56)', asyn
   await db.exec('reset role');
 });
 
+test('starting soon: after what is on now, what starts within the hour takes the top, soonest first (happening-now 02)', async () => {
+  await reset();
+  await add('On A', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
+  await add('On B', '2026-10-08', { start_time: '6 PM', source_name: 'B' });
+  await add('In 40', '2026-10-08', { start_time: '7:10 PM', source_name: 'C' });
+  await add('In 20', '2026-10-08', { start_time: '6:50 PM', source_name: 'D' });
+  const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+  await set(fav, { draw: 3 });
+  await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                  where id = $1`, [fav]);
+  await signIn(YOU, ['wellness']);
+  const rows = await titles('2026-10-08 18:30');
+  assert.deepEqual(rows.slice(0, 3).slice(0, 2).sort(), ['On A', 'On B']);
+  assert.equal(rows[2], 'In 20', 'the third spot: the soonest to start');
+  assert.equal(rows[3], 'Favourite', 'the top stays 3: In 40 waits on its points');
+  await db.exec('reset role');
+});
+
+test('starting soon: not 61 minutes out, not a meeting, not a host you said Not interested to (happening-now 02)', async () => {
+  const setup = async () => {
+    await reset();
+    const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+    await set(fav, { draw: 3 });
+    await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                    where id = $1`, [fav]);
+  };
+  const first = async () => { await signIn(YOU, ['wellness']); const t = (await titles('2026-10-08 18:30'))[0]; await db.exec('reset role'); return t; };
+  await setup();
+  await add('In 59', '2026-10-08', { start_time: '7:29 PM', source_name: 'A' });
+  assert.equal(await first(), 'In 59', 'within the hour beats the points');
+  await setup();
+  await add('In 61', '2026-10-08', { start_time: '7:31 PM', source_name: 'A' });
+  assert.equal(await first(), 'Favourite', '61 minutes out stays out');
+  await setup();
+  const council = await add('Council', '2026-10-08', { start_time: '6:40 PM', source_name: CITY });
+  await set(council, { what: 'Meeting', draw: 1 });
+  assert.equal(await first(), 'Favourite', 'a meeting in 10 minutes stays out');
+  await setup();
+  const other = await add('Other night', '2026-10-01', { start_time: '6 PM', source_name: 'A' });
+  await add('Concert', '2026-10-08', { start_time: '6:45 PM', source_name: 'A' });
+  await signIn(YOU, ['wellness']);
+  await db.query(`select public.set_not_interested($1)`, [other]);
+  await db.exec('reset role');
+  assert.equal(await first(), 'Favourite', 'a Not interested host stays out');
+});
+
+// A part of a long Event (happening-now 04): the Fall exhibit runs all month; its 3 PM Artist talk makes its card
+// live. The Favourite has the points to lead otherwise.
+async function exhibitWithTalk({ ends = null, title = 'Artist talk', sameAs = false } = {}) {
+  await reset();
+  const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
+  await set(fav, { draw: 3 });
+  await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
+                  where id = $1`, [fav]);
+  const exhibit = await add('Fall exhibit', '2026-10-01', { start_time: '10 AM', end_at: '2026-10-31 17:00-05', source_name: 'Gallery' });
+  await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
+                  values ($1, $2, '2026-10-08 15:00-05', $3, 'https://gallery.example/', 'Artist talk Thursday at 3 PM', $4)`,
+                 [exhibit, title, ends, sameAs ? fav : null]);
+  return exhibit;
+}
+const partFeed = async (at) => {
+  await signIn(YOU, ['wellness']);
+  const { rows } = await db.query(
+    `select f.card->>'title' as title, f.card->'part' as part
+     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago')) f where f.kind = 'event'`, [at]);
+  await db.exec('reset role');
+  return rows;
+};
+const lead = async (at) => (await partFeed(at))[0].title;
+
+test('a part: an exhibit with a 3 PM talk is live from 3 to 4 PM and leads, with the talk on its card (happening-now 04)', async () => {
+  await exhibitWithTalk();
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Fall exhibit', 'on now: it leads');
+  assert.deepEqual(rows[0].part, { title: 'Artist talk', starts_at: '2026-10-08T20:00:00+00:00', ends_at: '2026-10-08T21:00:00+00:00', live: true },
+                   'no stated end: 1 hour');
+  assert.equal(rows.length, 2, 'one card for the Event, never a second for its part');
+  assert.equal(await lead('2026-10-08 15:59'), 'Fall exhibit');
+  assert.equal(await lead('2026-10-08 16:00'), 'Favourite', 'over at 4 PM');
+  assert.equal(await lead('2026-10-08 13:30'), 'Favourite', 'not live before it');
+  assert.equal(await lead('2026-10-08 14:40'), 'Fall exhibit', 'within the hour it takes a starting-soon spot');
+  assert.equal((await partFeed('2026-10-08 16:00'))[1].part, null, 'a part that is over leaves the card');
+});
+
+test('a part: a stated end of 3:30 leaves at 3:30 (happening-now 04)', async () => {
+  await exhibitWithTalk({ ends: '2026-10-08 15:30-05' });
+  assert.equal(await lead('2026-10-08 15:29'), 'Fall exhibit');
+  assert.equal(await lead('2026-10-08 15:30'), 'Favourite');
+});
+
+test('a part: not a real happening, or an Event of its own, never makes its Event live (happening-now 04)', async () => {
+  await exhibitWithTalk({ title: 'Holiday sale' });
+  assert.equal(await lead('2026-10-08 15:30'), 'Favourite', 'a sale is no happening (live_kind)');
+  await exhibitWithTalk({ sameAs: true });
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Favourite', 'its own card is the one');
+  assert.equal(rows.find((r) => r.title === 'Fall exhibit').part, null);
+});
+
+test('a part: one running 12 hours or longer never reaches the card, nor makes it live (happening-now review)', async () => {
+  await exhibitWithTalk({ ends: '2026-10-09 03:00-05' });
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Favourite');
+  assert.equal(rows.find((r) => r.title === 'Fall exhibit').part, null, 'no "Now · Artist talk" for a 12-hour part');
+});
+
+// An Event's parts as its page reads them (get_event_parts, happening-now review): finished on the server, by start.
+test('an Event page reads its finished parts: by start, an hour when no end, its own Event left out, live marked', async () => {
+  const exhibit = await exhibitWithTalk();
+  const fav = (await db.query(`select id from public.club_events where title = 'Favourite'`)).rows[0].id;
+  await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
+                  values ($1, 'Holiday sale', '2026-10-08 10:00-05', null, 'x', 'Holiday sale 10 AM', null),
+                         ($1, 'Overnight vigil', '2026-10-09 18:00-05', '2026-10-10 08:00-05', 'x', 'Vigil 6 PM to 8 AM', null),
+                         ($1, 'Dance night', '2026-10-09 20:00-05', null, 'x', 'Dance night 8 PM', $2)`, [exhibit, fav]);
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    const { rows } = await db.query(`select title, starts_at, ends_at, live from public.get_event_parts($1)`, [exhibit]);
+    assert.deepEqual(rows.map((r) => [r.title, r.live]), [['Holiday sale', false], ['Artist talk', true], ['Overnight vigil', false]],
+      'by start; a sale is no happening, 14 hours is too long; the part that is an Event of its own is left out');
+    assert.equal(rows[1].ends_at.getTime() - rows[1].starts_at.getTime(), 3600e3, 'no stated end: 1 hour');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
+test('an Event the caller may not read shows none of its parts, nor does the raw table (happening-now review)', async () => {
+  const exhibit = await exhibitWithTalk();
+  await db.query(`update public.club_events set status = 'pending' where id = $1`, [exhibit]);
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    assert.deepEqual((await db.query(`select * from public.get_event_parts($1)`, [exhibit])).rows, []);
+    assert.deepEqual((await db.query(`select title from public.event_parts`)).rows, [], 'a pending Event\'s parts stay hidden');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
   await reset();
   const kinds = [

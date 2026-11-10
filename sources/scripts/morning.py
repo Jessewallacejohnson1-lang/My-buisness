@@ -87,6 +87,7 @@ import find_spots
 import apple_maps
 import team_logos
 import venue_spots
+import event_parts
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1086,6 +1087,7 @@ def finish(run, dry_run):
                        ("standouts", lambda: standouts(run, dry_run)),
                        ("team logos", lambda: team_logos.keep(run, dry_run)),
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
+                       ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),

@@ -194,6 +194,38 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   }
 });
 
+// The finish's parts step (event_parts.keep, BP app happening-now 03): a long Event's parts, its new ones written before
+// its old ones go (a failed write never empties it), and the app reads them only through get_event_parts.
+test("parts of a long Event: written, then the old ones taken away, by the job; read by the app", async () => {
+  const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, all_day, end_at,
+    location, source_name, source_uid) values ('approved', 'Drawings Exhibition', $1, true, now() + interval '30 days',
+    'Gorecki Gallery', 'CSB', 'x1') returning id`, [day(0)]);
+  const part = { event_id: id, title: 'Artist talk', starts_at: new Date(Date.now() + 86400e3).toISOString(), ends_at: null,
+    source_url: 'https://csbsju.edu/show', source_line: 'Artist talk Thursday at 3 PM', same_as: null };
+  await asJob('parts: the step is on', 'select event_id from public.event_parts limit 1');
+  // Two mornings: the same talk again, then a reception beside it; each morning's stamp is its own.
+  const mornings = [[part], [part, { ...part, title: 'Reception' }]];
+  for (const [n, rows] of mornings.entries()) {
+    const stamp = new Date(Date.now() + n * 1000).toISOString();
+    await asJob('parts: write', `insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as, found_at)
+      select event_id, title, starts_at, ends_at, source_url, source_line, same_as, found_at
+      from jsonb_populate_recordset(null::public.event_parts, $1)
+      on conflict (event_id, starts_at, title) do update set ends_at = excluded.ends_at, source_url = excluded.source_url,
+        source_line = excluded.source_line, same_as = excluded.same_as, found_at = excluded.found_at`,
+      [JSON.stringify(rows.map((r) => ({ ...r, found_at: stamp })))]);
+    await asJob('parts: take away the old', 'delete from public.event_parts where event_id = $1 and found_at < $2', [id, stamp]);
+  }
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    assert.deepEqual((await db.query('select title from public.get_event_parts($1)', [id])).rows,
+      [{ title: 'Artist talk' }, { title: 'Reception' }], 'the app reads both parts, once each');
+    await assert.rejects(db.query(`insert into public.event_parts (event_id, title, starts_at, source_url, source_line)
+      values ($1, 'Mine', now(), 'x', 'x')`, [id]), /permission denied|row-level security/, 'the app writes none');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
 // The finish's team logos step (team_logos.keep, BP app game-card 17): a team's logo, saved once, and the team
 // takes it, which shows its waiting games (private.team_logo_changed, run as the job).
 test("team logos: a new team's logo and colors", async () => {

@@ -254,6 +254,30 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(card.isLiked)
     }
 
+    /// The Event card sends its part as `card.part` (happening-now 04); a card without one has none.
+    func testTheCardBringsItsPart() throws {
+        let json = """
+        [{"id":"e1","recurrence":null,"leaves_at":"2026-10-31T22:00:00+00:00","card":{"id":"e1","title":"Fall exhibit",
+         "event_date":"2026-10-01","start_time":"10 AM","created_at":"2026-09-01T17:00:00+00:00","going_count":0,
+         "part":{"title":"Artist talk","starts_at":"2026-10-08T20:00:00+00:00","ends_at":"2026-10-08T21:00:00+00:00","live":true}}}]
+        """
+        let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
+        XCTAssertEqual(card.part, EventPart(title: "Artist talk", start: DateHelpers.timestamp("2026-10-08T20:00:00Z")!,
+                                            end: DateHelpers.timestamp("2026-10-08T21:00:00Z")!, live: true))
+    }
+
+    /// The Event page's parts come finished from `get_event_parts` (happening-now review): its end and live flag as sent.
+    func testAnEventsPartsReadAsTheServerSendsThem() throws {
+        let json = """
+        [{"title":"Holiday sale","starts_at":"2026-10-08T15:00:00+00:00","ends_at":"2026-10-08T16:00:00+00:00","live":false},
+         {"title":"Artist talk","starts_at":"2026-10-08T20:00:00+00:00","ends_at":"2026-10-08T21:00:00+00:00","live":true}]
+        """
+        let parts = try CommunityAPI.parts(from: Data(json.utf8))
+        XCTAssertEqual(parts.map(\.title), ["Holiday sale", "Artist talk"])
+        XCTAssertEqual(parts.map(\.live), [false, true])
+        XCTAssertEqual(parts[1].end, DateHelpers.timestamp("2026-10-08T21:00:00Z"))
+    }
+
     /// A place photo's size reaches its card, which takes the photo's shape inside Instagram's
     /// limits (BP app event-card 01): 4:5 at its tallest, 1.91:1 at its widest, 3:2 without a size.
     func testAPlacePhotosSizeShapesItsCard() throws {

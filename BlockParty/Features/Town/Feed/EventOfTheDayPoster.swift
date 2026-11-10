@@ -268,9 +268,13 @@ struct EventOfTheDayPoster: View {
     @ViewBuilder
     private var when: some View {
         let on = item.isNow(at: now)
-        let text = item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text
+        // The countdown within the hour before a real happening (happening-now 01) or "Until 9 PM" while a place is
+        // open, whatever its day: the line at `now` when it isn't the plain one. Else Daily's short day.
+        let line = item.whenLine(at: now)
+        let moment = line == item.whenLine ? nil : line
+        let text = moment?.text ?? event.dayLine(now: now) ?? item.whenLine?.text
         if on || text != nil {
-            CardTime(text: text ?? "", now: on, color: Hue.brandDisc)
+            CardTime(text: text ?? "", spoken: moment?.spoken, now: on, part: item.partOn(at: now)?.title, color: Hue.brandDisc)
         }
     }
 
@@ -311,7 +315,8 @@ struct EventOfTheDayPoster: View {
     /// What VoiceOver reads for the link, in the order the poster shows it: its name, when, what it is
     /// ("Lecture") and where, and who's going.
     private var spoken: String {
-        let when = item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken
+        let when = item.partOn(at: now).map { "Now, \($0.title)" }
+            ?? (item.isNow(at: now) ? "Happening now" : item.whenLine(at: now)?.spoken)
         return ["Event of the day", item.title, when, item.whatLine, item.whereLine,
                 actions.rsvp(item)?.top].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
