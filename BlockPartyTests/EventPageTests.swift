@@ -259,7 +259,7 @@ final class EventPageTests: XCTestCase {
                        "the line alone without a description")
         XCTAssertEqual(page.aboutText(nil, lineup: "St. Johns"), "Part of St. Johns' lineup")
         XCTAssertEqual(page.aboutText("Trivia.", lineup: " "), "Trivia.", "no host, no line")
-        XCTAssertEqual(EventLook.blend(0x000000, 0xFF8040, 0.5), 0x802010, "the page's colour halfway through the swipe")
+        XCTAssertEqual(EventLook.blend(0x000000, 0xFF8040, 0.5), 0x804020, "the page's colour halfway through the swipe")
         XCTAssertEqual(EventLook.blend(0x102030, 0xFFFFFF, 0), 0x102030)
         XCTAssertEqual(EventLook.blend(0x102030, 0xFFFFFF, 2), 0xFFFFFF, "a rubber-band past the flyer stays its colour")
 
