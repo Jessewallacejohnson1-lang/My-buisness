@@ -225,8 +225,8 @@ struct OnboardingProfilePhoto: View {
         .frame(width: Self.side, height: Self.side)
         .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
         .overlay(alignment: .bottomTrailing) {
-            // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10), pinned light so the glyph stays
-            // ink over a dark photo (taste.md: glass went dark over dark photos).
+            // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't
+            // follow dark mode; over a dark photo the glass still takes the photo's tone.
             Image(systemName: "camera.fill")
                 .font(.glyph(14, weight: .medium))
                 .foregroundStyle(Hue.ink)
