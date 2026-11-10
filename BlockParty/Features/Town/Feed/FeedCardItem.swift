@@ -88,6 +88,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var found = false
     /// The page it was found on, opened from the link under the Event page's About.
     var sourceURL: URL? = nil
+    /// A long Event's part on now, else its next (`UpcomingEvent.part`, BP app happening-now 04).
+    var part: EventPart? = nil
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
@@ -136,8 +138,17 @@ struct FeedCardItem: Identifiable, Hashable {
     /// to Pacific still sees a 10 AM class turn Now at 10 in St. Joseph.
     func isNow(at now: Date = .now) -> Bool {
         // A game whose final is in is over, whatever its hours say (game-card 02).
-        guard !cancelled, game?.final == nil, liveKind else { return false }
+        guard !cancelled, game?.final == nil else { return false }
+        // A long Event's part on now makes it Now, the exhibit too: "Now · Artist talk" (happening-now 04).
+        if partOn(at: now) != nil { return true }
+        guard liveKind else { return false }
         return when?.isOn(now) ?? false
+    }
+
+    /// Its live part on at `now`, from the part's start to its end (an hour when the host gave none); nil when called off.
+    func partOn(at now: Date) -> EventPart? {
+        guard !cancelled, let part, part.live, part.start <= now, now < part.end else { return nil }
+        return part
     }
 
     /// When it starts and ends. A game runs three hours, as the Town feed keeps it (Jesse at
@@ -153,10 +164,24 @@ struct FeedCardItem: Identifiable, Hashable {
 
     /// The when line at `now`. A place open rather than a happening on says how long it's open, or its
     /// start reads as over: "Until 9 PM", "Until Sat", "Until Dec 14" (town-feed 41).
+    /// A real happening within the hour before its start counts down by the minute, "In 45 min" to "In 1 min",
+    /// then its card says Now (BP app happening-now 01).
     func whenLine(at now: Date) -> FeedWhenLine? {
+        if let countdown = countdown(at: now) { return countdown }
         guard isOpen(at: now), let when else { return whenLine }
         let until = when.until(now)
         return FeedWhenLine(text: "Until \(until)", spoken: "Open until \(until)")
+    }
+
+    /// "In 20 min" from 60 minutes before a real happening's known start until its start minute; nil
+    /// otherwise. One form all the way down: "In 60 min", never "In 1 hour". A real start only, never an
+    /// invented one (no fake urgency).
+    /// A long Event's part counts down the same way, by its name: "Artist talk in 20 min" (happening-now 04).
+    func countdown(at now: Date) -> FeedWhenLine? {
+        guard !cancelled, game?.final == nil else { return nil }
+        if liveKind, let when, when.timed, let soon = FeedWhenLine.countdown(to: when.start, at: now) { return soon }
+        guard let part, part.live else { return nil }
+        return FeedWhenLine.countdown(to: part.start, at: now, named: part.title)
     }
 
     /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's
@@ -192,6 +217,17 @@ struct FeedCardItem: Identifiable, Hashable {
 struct FeedWhenLine: Equatable {
     let text: String
     let spoken: String
+
+    /// "In 20 min" (spoken "Starts in 20 minutes") from 60 minutes before `start` until its start minute; nil
+    /// otherwise (happening-now 01). With a part's name, "Artist talk in 20 min" (happening-now 04). The Event page's
+    /// Schedule says its next part's the same way (happening-now 06).
+    static func countdown(to start: Date, at now: Date, named name: String? = nil) -> FeedWhenLine? {
+        let minutes = Int((start.timeIntervalSince(now) / 60).rounded(.up))
+        guard (1...60).contains(minutes) else { return nil }
+        let unit = "minute\(minutes == 1 ? "" : "s")"
+        guard let name else { return FeedWhenLine(text: "In \(minutes) min", spoken: "Starts in \(minutes) \(unit)") }
+        return FeedWhenLine(text: "\(name) in \(minutes) min", spoken: "\(name) starts in \(minutes) \(unit)")
+    }
 
     init(text: String, spoken: String) {
         self.text = text

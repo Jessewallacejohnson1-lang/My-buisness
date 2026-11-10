@@ -59,6 +59,8 @@ struct FeedEventCard: View {
     /// Where the host's picture is, for a Place's page to fly out of, and a tap already reading who
     /// the host is (follows 08).
     @State private var hostFrame = FrameBox()
+    /// The business it was made with's mark, behind the host's (town-feed 58): where its page flies out of.
+    @State private var partnerFrame = FrameBox()
     @State private var hostTapped = Date.distantPast
     @State private var hostRead: Task<Void, Never>?
     @Environment(\.hostOpener) private var hostOpener
@@ -189,29 +191,40 @@ struct FeedEventCard: View {
     /// Two businesses, one Event (town-feed 58): Instagram's collab avatars, the host in front and the business it was
     /// made with behind, at the one mark's spot. A tap opens Apple's menu naming each; a pick opens its page (Jesse,
     /// 2026-11-10: "i agree" to the menu on the Check-in 1 page).
+    @ViewBuilder
     private func collabMark(_ partner: EventCollab) -> some View {
+        let stack = HostStack(host: HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName),
+                              partner: HostMarkDisc(picture: partner.picture, name: partner.name),
+                              hostFrame: hostFrame, partnerFrame: partnerFrame)
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+        if hostOpener == nil {
+            stack.accessibilityLabel(collabNames).accessibilitySortPriority(1)
+        } else {
+            collabMenu(stack)
+        }
+    }
+
+    private var collabNames: String { ([item.hostName] + item.collabs.map(\.name)).formatted(.list(type: .and)) }
+
+    private func collabMenu(_ stack: some View) -> some View {
         Menu {
             Button(item.hostName, action: openHost)
             ForEach(item.collabs, id: \.id) { collab in
                 Button(collab.name) { openCollab(collab) }
             }
         } label: {
-            HostStack(host: HostMarkDisc(picture: item.hostPicture, photo: item.hostAvatar, name: item.hostName),
-                      partner: HostMarkDisc(picture: partner.picture, name: partner.name))
-                .trackFrame(hostFrame)
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
-                .contentShape(Rectangle())
+            stack.contentShape(Rectangle())
         }
         .menuStyle(.button)
         .buttonStyle(.press(.squish))
-        .accessibilityLabel(([item.hostName] + item.collabs.map(\.name)).formatted(.list(type: .and)))
+        .accessibilityLabel(collabNames)
         .accessibilitySortPriority(1)
     }
 
     /// A business the Event was made with: its page, as the host's opens; one Search can't open opens the Event.
     private func openCollab(_ collab: EventCollab) {
         guard let opener = hostOpener else { return }
-        if opener.opens(collab.row) { opener.open(collab.row, hostFrame.rect) } else { opener.push(item) }
+        if opener.opens(collab.row) { opener.open(collab.row, partnerFrame.rect) } else { opener.push(item) }
     }
 
     @ViewBuilder
@@ -275,6 +288,7 @@ struct FeedEventCard: View {
             NoPhotoCard(logo: whiteCardLogo, photo: item.hostAvatar,
                         name: item.hostName.isEmpty ? item.title : item.hostName,
                         when: line?.text, whenSpoken: line?.spoken, now: item.isNow(at: context.date),
+                        part: item.partOn(at: context.date)?.title,
                         title: item.title, factsTries: item.smallLines,
                         trailingRoom: actions.canAct ? Self.whiteHeartRoom : 0, drawsMark: !marksHost)
         }
@@ -533,7 +547,8 @@ struct FeedEventCard: View {
                 TimelineView(.everyMinute) { context in
                     // Who it's for by age after the time, "Tonight · 7 PM · 21+" (inside-cards 30).
                     let line = item.cardWhen(at: context.date) ?? when
-                    CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date), color: .white)
+                    CardTime(text: line.text, spoken: line.spoken, now: item.isNow(at: context.date),
+                             part: item.partOn(at: context.date)?.title, color: .white)
                 }
             }
 
@@ -716,14 +731,17 @@ struct HostMarkDisc: View {
 struct HostStack: View {
     let host: HostMarkDisc
     let partner: HostMarkDisc
+    /// Where each mark is on screen, so a pick's page flies out of its own mark.
+    var hostFrame = FrameBox()
+    var partnerFrame = FrameBox()
 
     static let step: CGFloat = HostMarkDisc.side / 3
     static let side: CGFloat = HostMarkDisc.side + step
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            partner.offset(x: Self.step)
-            host.offset(y: Self.step)
+            partner.trackFrame(partnerFrame).offset(x: Self.step)
+            host.trackFrame(hostFrame).offset(y: Self.step)
         }
         .frame(width: Self.side, height: Self.side, alignment: .topLeading)
     }

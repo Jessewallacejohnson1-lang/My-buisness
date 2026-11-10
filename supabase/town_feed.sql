@@ -381,7 +381,9 @@ as $$
            coalesce(s.school_followed, fw.name) as followed,
            -- How much it is for the caller's gender, 0 to 1 (town-feed 52): its host's or page's mark, else its
            -- Going crowd against the town's mix. No answer, nothing.
-           coalesce(gl.lean, 0) as gender_lean
+           coalesce(gl.lean, 0) as gender_lean,
+           -- The part of a long Event on now, else its next (happening-now 04): an artist talk at 3 PM.
+           prt.title as part_title, prt.starts_at as part_start, prt.ends_at as part_end
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
     -- The game's team you've tapped on the most other days, its host team first on a tie (town-feed 39).
@@ -422,6 +424,14 @@ as $$
     left join labels lb on lb.series = s.series
     left join my_seen sn on sn.series = lower(btrim(s.title)) || '|' || s.host
     left join lateral (select pl.lat, pl.lon from public.places pl where pl.entry_id = s.place_entry_id limit 1) pt on true
+    -- Read as the Event page reads them (get_event_parts): only a live part, a real happening by its title under 12
+    -- hours (town-feed 41); one that is an Event of its own (same_as) has its own card; no stated end, 1 hour.
+    left join lateral (
+      select p.title, p.starts_at, p.ends_at
+      from public.get_event_parts(s.id) p
+      where p.live and p.ends_at > p_now
+      order by p.starts_at, p.title
+      limit 1) prt on true
   ),
   scored as (
     select c.*,
@@ -472,7 +482,20 @@ as $$
            -- however often you've seen it.
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
              and c.final_score is null and c.hidden_x = 1
-             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights)) as live_ok,
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights))
+           -- Or a part of it is on (happening-now 04): the Event's card is live while its artist talk is.
+           or coalesce(p_only is null and not p_later and c.part_start <= p_now and p_now < c.part_end
+                       and c.final_score is null and c.hidden_x = 1
+                       and c.part_end - c.part_start < make_interval(hours => (select (w->>'liveHours')::int from weights)),
+                       false) as live_ok,
+           -- The same, starting within the hour (happening-now 02): it takes the top after what's on now.
+           p_only is null and not p_later and c.live_kind and p_now < c.starts_at and c.starts_at <= p_now + interval '1 hour'
+             and c.final_score is null and c.hidden_x = 1
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights))
+           or coalesce(p_only is null and not p_later and p_now < c.part_start and c.part_start <= p_now + interval '1 hour'
+                       and c.final_score is null and c.hidden_x = 1
+                       and c.part_end - c.part_start < make_interval(hours => (select (w->>'liveHours')::int from weights)),
+                       false) as soon_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
            case when c.followed is not null then 'follow'
@@ -561,13 +584,15 @@ as $$
           from posts p) p, weights, last_visit lv
   ),
   -- Live first (town-feed 41, 56): up to 3, what you're Going to, then the most yours (interests, friends Going,
-  -- following, gender, your town), then most Going, then the draw, then the latest to start.
+  -- following, gender, your town), then most Going, then the draw, then the latest to start. Then what starts
+  -- within the hour, soonest first, then the same (happening-now 02).
   live_now as (
-    select t.id, row_number() over (order by t.going desc,
+    select t.id, row_number() over (order by t.live_ok desc, case when not t.live_ok then case when p_now < t.part_start then t.part_start else t.starts_at end end,
+                                             t.going desc,
                                              (1 + t.friend_pts + t.follow_pts + t.interest_pts + t.gender_pts) * t.town_x desc,
                                              t.going_n desc, coalesce(t.draw, 2) desc, t.starts_at desc, t.id) as nth
     from totals t
-    where t.live_ok
+    where t.live_ok or t.soon_ok
   ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
@@ -661,8 +686,11 @@ as $$
            and exists (select 1 from public.club_members m where m.club_id = c.id and m.user_id = auth.uid()), false),
          'event'::text, null::text,
          null::jsonb,
-         -- The Event card (codebase-health-2 02): its game, host picture, friends Going, link and the rest.
-         e.card,
+         -- The Event card (codebase-health-2 02): its game, host picture, friends Going, link and the rest. With a part
+         -- on now or still to come, that part (happening-now 04), for its time line: "Now · Artist talk".
+         case when e.part_title is null then e.card
+              else e.card || jsonb_build_object('part', jsonb_build_object(
+                'title', e.part_title, 'starts_at', e.part_start, 'ends_at', e.part_end, 'live', true)) end,
          p.spot
   from totals e
   join spots p on p.id = e.id

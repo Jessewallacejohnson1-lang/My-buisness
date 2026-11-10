@@ -397,12 +397,20 @@ enum TownFixtures {
         item.cancelled = ["e1", "e5"].contains(id) && LaunchFlags.has(.townCancelled)
         // `-town-now`: the same two started an hour ago, so a photo card and a white card both say Now
         // under their titles (BP app inside-cards 26).
-        if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) {
-            let start = now.addingTimeInterval(-3600)
+        // `-town-soon`: the same two start 20 minutes from launch, so both count down, "In 20 min" (BP app
+        // happening-now 01).
+        if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) || LaunchFlags.has(.townSoon) {
+            let start = now.addingTimeInterval(LaunchFlags.has(.townNow) ? -3600 : 20 * 60)
             // Its place first: with a start time of its own the meta line no longer gives it.
             item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
             item.startTime = townClock("h:mm a", start)
+        }
+        // `-town-part`: the same two hold an artist talk that began 10 minutes ago, so both read "Now · Artist talk"
+        // (BP app happening-now 04).
+        if ["e1", "e5"].contains(id), LaunchFlags.has(.townPart) {
+            item.liveKind = false
+            item.part = EventPart(title: "Artist talk", start: now.addingTimeInterval(-600), end: now.addingTimeInterval(3000))
         }
         // `-town-spots`: each sample on its own day with its place line, the organ recital next week and the council
         // meeting Online, so the map and the Event page's small map show them (inside-cards 19). Their spots: `spots`,
@@ -420,8 +428,7 @@ enum TownFixtures {
             item.hostAvatar = nil
             item.hostPicture = URL(string: Self.logos + "ChIJy9h63EtZtFIRYVJtkqYK2zQ/logo-8c6a222a.webp")
                 .map { PlacePicture(url: $0, kind: .logo) }
-            item.collabs = [EventCollab(id: "796f4577-dd1a-49f6-aac5-49d3f8632ecb", entryId: "milk-and-honey-ciders",
-                                        name: "Milk & Honey Ciders",
+            item.collabs = [EventCollab(id: "796f4577-dd1a-49f6-aac5-49d3f8632ecb", name: "Milk & Honey Ciders",
                                         picture: URL(string: Self.logos + "stjoe-milk-honey-ciders/logo-5d9d05fa.webp")
                                             .map { PlacePicture(url: $0, kind: .logo) })]
         }

@@ -396,9 +396,10 @@ struct EventHostRow: View {
         case .offline: throw URLError(.notConnectedToInternet)
         case .samples:
             guard let place = item.whereLine else { return [] }
-            return [FollowRow(targetType: .place, targetId: "sample-\(item.id)", name: item.collabs.isEmpty ? place : item.hostName,
-                              kind: "restaurant", picture: item.collabs.isEmpty ? nil : item.hostPicture?.url.absoluteString,
-                              pictureKind: item.collabs.isEmpty ? nil : item.hostPicture?.kind.rawValue)]
+            // `-town-collab`'s host is a business with its logo; every other sample's is its place, unpictured.
+            let logo = item.collabs.isEmpty ? nil : item.hostPicture
+            return [FollowRow(targetType: .place, targetId: "sample-\(item.id)", name: logo == nil ? place : item.hostName,
+                              kind: "restaurant", picture: logo?.url.absoluteString, pictureKind: logo?.kind.rawValue)]
                 + item.collabs.map(\.row)
         }
     }

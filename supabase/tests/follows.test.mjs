@@ -218,6 +218,11 @@ test("an Event made with another business names its host, then that business, an
   const [{ card }] = await as(ANA, 'select card from private.event_cards($1)', [[AT_KREWE]]);
   assert.deepEqual(card.collabs.map((c) => [c.entry_id, c.name, c.picture?.url]),
                    [['local-blend', 'The Local Blend', 'https://pic/local-blend']]);
+  await db.query(`update public.club_events set collab_entry_ids = '{krewe, local-blend}', source_name = 'Krewe' where id = $1`, [AT_KREWE]);
+  assert.deepEqual((await as(ANA, 'select name from public.event_host($1)', [AT_KREWE])).map((r) => r.name),
+                   ['Krewe', 'The Local Blend'], 'a list naming its host again: the host once');
+  const [{ card: again }] = await as(ANA, 'select card from private.event_cards($1)', [[AT_KREWE]]);
+  assert.deepEqual(again.collabs.map((c) => c.name), ['The Local Blend'], 'and never on its card');
   const [{ card: plain }] = await as(ANA, 'select card from private.event_cards($1)', [[BY_BEN]]);
   assert.deepEqual(plain.collabs, [], 'made by one: none');
   await db.exec('set role anon');

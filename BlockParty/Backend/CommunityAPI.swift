@@ -64,7 +64,7 @@ extension UpcomingEvent: Decodable {
     private enum CardKeys: String, CodingKey {
         case id, title, eventDate, startTime, location, imageUrl, category, clubName, sourceName, endAt, allDay,
              createdAt, goingCount, going, heartCount, hearted, cancelled, placePicture, hostPicture, collabs, description, price, ages,
-             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace
+             what, sourceUrl, game, friendsGoing, liveKind, recurrence, lat, lng, noPlace, part
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +92,8 @@ extension UpcomingEvent: Decodable {
         hearted = try c.decodeIfPresent(Bool.self, forKey: .hearted) ?? false
         // The businesses it was made with (town-feed 58); a card from before it said so names none.
         collabs = (try c.decodeIfPresent([EventCollab.Lenient].self, forKey: .collabs) ?? []).compactMap(\.value)
+        // A part that doesn't read is no part, never a lost Event (happening-now 04).
+        part = try? c.decodeIfPresent(EventPart.self, forKey: .part)
         // Where it is (inside-cards 19): a card from before it said so has no spot, and its Map opens Apple Maps.
         if let lat = try c.decodeIfPresent(Double.self, forKey: .lat), let lng = try c.decodeIfPresent(Double.self, forKey: .lng) {
             spot = .at(CLLocationCoordinate2D(latitude: lat, longitude: lng))
@@ -508,6 +510,16 @@ struct CommunityAPI {
             ("select", "more_places"), ("id", "eq.\(id)"),
         ], anon: true))
         return rows?.first?.morePlaces ?? []
+    }
+
+    /// A long Event's parts for its page's Schedule (BP app happening-now 06), finished by the server
+    /// (`get_event_parts`): by start, each with its end and whether it is live. None when the read fails.
+    func parts(event id: String) async -> [EventPart] {
+        (try? Self.parts(from: await db.rpc("get_event_parts", ["p_event": id], anon: true))) ?? []
+    }
+
+    static func parts(from data: Data) throws -> [EventPart] {
+        try Supabase.decode(data)
     }
 
     /// A new Event's photo, in your own folder of `event-images` (BP app town-plus): where it can

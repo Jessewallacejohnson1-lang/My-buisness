@@ -106,6 +106,15 @@ enum EventLook {
     static let hostKind: CGFloat = 15
     static let followWidth: CGFloat = 70
     static let followCorner: CGFloat = 8
+    /// The Schedule (happening-now 06), off mock A's CSS: 26 under the buttons, its heading as About's, 6 to the rows;
+    /// rows 48 tall, the time in a 96 pt column (the mock's 78 wrapped "Tue 3:50 PM"), 12 to the name; a part ended today
+    /// at 40%. Its words' sizes are at the call (BP Body, `Font.sans`): 15, 16, "See all" 15.
+    static let scheduleTop: CGFloat = 26
+    static let scheduleHeadingGap: CGFloat = 6
+    static let scheduleRow: CGFloat = 48
+    static let scheduleTime: CGFloat = 96
+    static let scheduleGap: CGFloat = 12
+    static let schedulePast: Double = 0.4
     /// About: 18 under the row, Inter Tight Bold 20, 8 to its words at 17 on 22.
     static let aboutTop: CGFloat = 18
     static let aboutHeading: CGFloat = 20

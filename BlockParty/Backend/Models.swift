@@ -180,6 +180,37 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// How its series repeats ("Every Tuesday"; `private.series_repeats`), the Event page's day row from every
     /// door (BP app inside-cards 23). nil for a one-off, no clear pattern, a called-off week, and a row with no card.
     var recurrence: String? = nil
+    /// The part of a long Event on now, else its next: an artist talk at 3 PM (the Town feed's `card.part`, BP app
+    /// happening-now 04). nil for most Events, and from every read but the Town feed's.
+    var part: EventPart? = nil
+}
+
+/// A part of a long Event at a time its host wrote (`public.event_parts`, BP app happening-now 03), finished by the
+/// server (`get_event_parts`): its end the host's, else an hour on. `live`: a real happening under 12 hours, the only
+/// kind that reads "Now · Artist talk" or counts down.
+nonisolated struct EventPart: Decodable, Hashable, Sendable {
+    let title: String
+    let start: Date
+    let end: Date
+    let live: Bool
+
+    init(title: String, start: Date, end: Date, live: Bool = true) {
+        self.title = title
+        self.start = start
+        self.end = end
+        self.live = live
+    }
+
+    private enum Keys: String, CodingKey { case title, startsAt, endsAt, live }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        guard let start = DateHelpers.timestamp(try c.decode(String.self, forKey: .startsAt)),
+              let end = DateHelpers.timestamp(try c.decode(String.self, forKey: .endsAt))
+        else { throw DecodingError.dataCorruptedError(forKey: .startsAt, in: c, debugDescription: "not a time") }
+        self.init(title: try c.decode(String.self, forKey: .title), start: start, end: end,
+                  live: try c.decode(Bool.self, forKey: .live))
+    }
 }
 
 /// Where an event happens, as a picture (`public.place_picture`, BP app
@@ -611,15 +642,13 @@ struct PlaceName: Hashable, Sendable {
 nonisolated struct EventCollab: Decodable, Hashable, Sendable {
     /// `places.id`, a Place's follow target.
     let id: String
-    let entryId: String
     let name: String
     var picture: PlacePicture? = nil
 
-    private enum CodingKeys: String, CodingKey { case id, entryId, name, picture }
+    private enum CodingKeys: String, CodingKey { case id, name, picture }
 
-    init(id: String, entryId: String, name: String, picture: PlacePicture? = nil) {
+    init(id: String, name: String, picture: PlacePicture? = nil) {
         self.id = id
-        self.entryId = entryId
         self.name = name
         self.picture = picture
     }
@@ -627,7 +656,6 @@ nonisolated struct EventCollab: Decodable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        entryId = try c.decode(String.self, forKey: .entryId)
         name = try c.decode(String.self, forKey: .name)
         picture = try c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .picture)?.value
     }

@@ -48,7 +48,8 @@ extension FeedCardItem {
             liveKind: event.liveKind,
             createdAt: DateHelpers.timestamp(event.createdAt),
             found: Self.nonempty(event.sourceName) != nil,
-            sourceURL: event.sourceURL
+            sourceURL: event.sourceURL,
+            part: event.part
         )
     }
 

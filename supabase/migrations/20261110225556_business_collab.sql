@@ -9,12 +9,15 @@
 --    a re-read that names none keeps them.
 -- 3. private.event_cards (20261109035346_age_mark.sql's, copied whole) sends `collabs`: each place's entry id, name
 --    and picture, in order. Every door to a card reads it.
--- 4. public.event_host (20261027143913_city_pages.sql's) gives its host, then each place it was made with, with Follow.
+-- 4. public.event_host (20261027143913_city_pages.sql's) gives its host, then each place it was made with, with Follow,
+--    each once.
+--
+-- A re-read that names no partners keeps the list it had (step 2), so a wrong one comes off only by hand.
 -- 5. The Town feed (supabase/town_feed.sql, copied whole below): following one of those places lifts it as following
 --    its host does, once; muting one keeps it out.
 --
 -- Roll back: re-run 20261109202239_gender_lift.sql's apply_judged, 20261109035346_age_mark.sql's event_cards,
--- 20261027143913_city_pages.sql's event_host and 20261110150920_live_stays_on_top.sql's Town feed, then
+-- 20261027143913_city_pages.sql's event_host and 20261110221114_a_part_makes_its_event_live.sql's Town feed, then
 -- `alter table public.club_events drop column collab_entry_ids`.
 
 -- 1.
@@ -246,7 +249,9 @@ as $$
            'collabs', (select coalesce(jsonb_agg(jsonb_build_object('id', pl.id, 'entry_id', pl.entry_id, 'name', pl.name,
                                                                     'picture', public.place_picture(pl.entry_id)) order by k.n), '[]'::jsonb)
                        from unnest(e.collab_entry_ids) with ordinality k(entry, n)
-                       join public.places pl on pl.entry_id = k.entry),
+                       join public.places pl on pl.entry_id = k.entry
+                       -- Never its host again, whoever set the list: the stack would show one logo twice.
+                       where pl.name is distinct from e.source_name),
            'description', e.description,
            -- What it costs, as words (inside-cards 14): the Event page's price line, absent when unknown.
            'price', e.price,
@@ -294,7 +299,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select x.target_type, x.target_id, x.name, x.kind, x.picture, x.picture_kind, x.friend
+  -- Each target once, the host's row first: a list that names its host again adds no second row.
+  select y.target_type, y.target_id, y.name, y.kind, y.picture, y.picture_kind, y.friend
+  from (
+  select distinct on (x.target_id) x.*
   from (
     select h.target_type, h.target_id, h.name, h.kind, h.picture, h.picture_kind,
            h.target_type = 'profile' and auth.uid() is not null
@@ -332,7 +340,9 @@ as $$
     cross join lateral (select public.place_picture(pl.entry_id) as pic) pp
     where e.id = p_event and e.club_id is null and e.status = 'approved'
   ) x
-  order by x.ord
+  order by x.target_id, x.ord
+  ) y
+  order by y.ord
 $$;
 
 -- 5. The Town feed, supabase/town_feed.sql as committed with this file.
@@ -719,7 +729,9 @@ as $$
            coalesce(s.school_followed, fw.name) as followed,
            -- How much it is for the caller's gender, 0 to 1 (town-feed 52): its host's or page's mark, else its
            -- Going crowd against the town's mix. No answer, nothing.
-           coalesce(gl.lean, 0) as gender_lean
+           coalesce(gl.lean, 0) as gender_lean,
+           -- The part of a long Event on now, else its next (happening-now 04): an artist talk at 3 PM.
+           prt.title as part_title, prt.starts_at as part_start, prt.ends_at as part_end
     from shown s
     left join taps tp on tp.host = coalesce(s.club_id::text, s.source_name)
     -- The game's team you've tapped on the most other days, its host team first on a tie (town-feed 39).
@@ -760,6 +772,14 @@ as $$
     left join labels lb on lb.series = s.series
     left join my_seen sn on sn.series = lower(btrim(s.title)) || '|' || s.host
     left join lateral (select pl.lat, pl.lon from public.places pl where pl.entry_id = s.place_entry_id limit 1) pt on true
+    -- Read as the Event page reads them (get_event_parts): only a live part, a real happening by its title under 12
+    -- hours (town-feed 41); one that is an Event of its own (same_as) has its own card; no stated end, 1 hour.
+    left join lateral (
+      select p.title, p.starts_at, p.ends_at
+      from public.get_event_parts(s.id) p
+      where p.live and p.ends_at > p_now
+      order by p.starts_at, p.title
+      limit 1) prt on true
   ),
   scored as (
     select c.*,
@@ -810,7 +830,20 @@ as $$
            -- however often you've seen it.
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
              and c.final_score is null and c.hidden_x = 1
-             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights)) as live_ok,
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights))
+           -- Or a part of it is on (happening-now 04): the Event's card is live while its artist talk is.
+           or coalesce(p_only is null and not p_later and c.part_start <= p_now and p_now < c.part_end
+                       and c.final_score is null and c.hidden_x = 1
+                       and c.part_end - c.part_start < make_interval(hours => (select (w->>'liveHours')::int from weights)),
+                       false) as live_ok,
+           -- The same, starting within the hour (happening-now 02): it takes the top after what's on now.
+           p_only is null and not p_later and c.live_kind and p_now < c.starts_at and c.starts_at <= p_now + interval '1 hour'
+             and c.final_score is null and c.hidden_x = 1
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights))
+           or coalesce(p_only is null and not p_later and p_now < c.part_start and c.part_start <= p_now + interval '1 hour'
+                       and c.final_score is null and c.hidden_x = 1
+                       and c.part_end - c.part_start < make_interval(hours => (select (w->>'liveHours')::int from weights)),
+                       false) as soon_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
            case when c.followed is not null then 'follow'
@@ -899,13 +932,15 @@ as $$
           from posts p) p, weights, last_visit lv
   ),
   -- Live first (town-feed 41, 56): up to 3, what you're Going to, then the most yours (interests, friends Going,
-  -- following, gender, your town), then most Going, then the draw, then the latest to start.
+  -- following, gender, your town), then most Going, then the draw, then the latest to start. Then what starts
+  -- within the hour, soonest first, then the same (happening-now 02).
   live_now as (
-    select t.id, row_number() over (order by t.going desc,
+    select t.id, row_number() over (order by t.live_ok desc, case when not t.live_ok then case when p_now < t.part_start then t.part_start else t.starts_at end end,
+                                             t.going desc,
                                              (1 + t.friend_pts + t.follow_pts + t.interest_pts + t.gender_pts) * t.town_x desc,
                                              t.going_n desc, coalesce(t.draw, 2) desc, t.starts_at desc, t.id) as nth
     from totals t
-    where t.live_ok
+    where t.live_ok or t.soon_ok
   ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
@@ -999,8 +1034,11 @@ as $$
            and exists (select 1 from public.club_members m where m.club_id = c.id and m.user_id = auth.uid()), false),
          'event'::text, null::text,
          null::jsonb,
-         -- The Event card (codebase-health-2 02): its game, host picture, friends Going, link and the rest.
-         e.card,
+         -- The Event card (codebase-health-2 02): its game, host picture, friends Going, link and the rest. With a part
+         -- on now or still to come, that part (happening-now 04), for its time line: "Now · Artist talk".
+         case when e.part_title is null then e.card
+              else e.card || jsonb_build_object('part', jsonb_build_object(
+                'title', e.part_title, 'starts_at', e.part_start, 'ends_at', e.part_end, 'live', true)) end,
          p.spot
   from totals e
   join spots p on p.id = e.id
