@@ -194,6 +194,32 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   }
 });
 
+// The finish's parts step (event_parts.keep, BP app happening-now 03): a long Event's parts, replaced each morning they're
+// read, and the app only reads them.
+test("parts of a long Event: replaced by the job, read by the app", async () => {
+  const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, all_day, end_at,
+    location, source_name, source_uid) values ('approved', 'Drawings Exhibition', $1, true, now() + interval '30 days',
+    'Gorecki Gallery', 'CSB', 'x1') returning id`, [day(0)]);
+  const part = { event_id: id, title: 'Artist talk', starts_at: new Date(Date.now() + 86400e3).toISOString(), ends_at: null,
+    source_url: 'https://csbsju.edu/show', source_line: 'Artist talk Thursday at 3 PM', same_as: null };
+  await asJob('parts: the step is on', 'select event_id from public.event_parts limit 1');
+  for (const title of ['Artist talk', 'Artist talk']) {
+    await asJob('parts: clear the Event', 'delete from public.event_parts where event_id = $1', [id]);
+    await asJob('parts: write', `insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
+      select event_id, title, starts_at, ends_at, source_url, source_line, same_as
+      from jsonb_populate_recordset(null::public.event_parts, $1)`, [JSON.stringify([{ ...part, title }])]);
+  }
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    assert.deepEqual((await db.query('select title from public.event_parts')).rows, [{ title: 'Artist talk' }],
+      'the app reads one part, the morning run again replaced it');
+    await assert.rejects(db.query(`insert into public.event_parts (event_id, title, starts_at, source_url, source_line)
+      values ($1, 'Mine', now(), 'x', 'x')`, [id]), /permission denied|row-level security/, 'the app writes none');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
 // The finish's team logos step (team_logos.keep, BP app game-card 17): a team's logo, saved once, and the team
 // takes it, which shows its waiting games (private.team_logo_changed, run as the job).
 test("team logos: a new team's logo and colors", async () => {

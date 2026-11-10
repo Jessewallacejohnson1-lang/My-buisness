@@ -467,6 +467,10 @@ as $$
            p_only is null and not p_later and c.live_kind and c.starts_at <= p_now and p_now < c.leaves_at
              and c.final_score is null and c.hidden_x = 1
              and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights)) as live_ok,
+           -- The same, starting within the hour (happening-now 02): it takes the top after what's on now.
+           p_only is null and not p_later and c.live_kind and p_now < c.starts_at and c.starts_at <= p_now + interval '1 hour'
+             and c.final_score is null and c.hidden_x = 1
+             and c.runs_for < make_interval(hours => (select (w->>'liveHours')::int from weights)) as soon_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
            -- Going, a host you've been into, New, an interest.
            case when c.followed is not null then 'follow'
@@ -555,13 +559,15 @@ as $$
           from posts p) p, weights, last_visit lv
   ),
   -- Live first (town-feed 41, 56): up to 3, what you're Going to, then the most yours (interests, friends Going,
-  -- following, gender, your town), then most Going, then the draw, then the latest to start.
+  -- following, gender, your town), then most Going, then the draw, then the latest to start. Then what starts
+  -- within the hour, soonest first, then the same (happening-now 02).
   live_now as (
-    select t.id, row_number() over (order by t.going desc,
+    select t.id, row_number() over (order by t.live_ok desc, case when not t.live_ok then t.starts_at end,
+                                             t.going desc,
                                              (1 + t.friend_pts + t.follow_pts + t.interest_pts + t.gender_pts) * t.town_x desc,
                                              t.going_n desc, coalesce(t.draw, 2) desc, t.starts_at desc, t.id) as nth
     from totals t
-    where t.live_ok
+    where t.live_ok or t.soon_ok
   ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
