@@ -283,7 +283,11 @@ struct FeedEventCard: View {
         return [credit]
     }
 
-    private var imageSection: some View {
+    /// A flyer runs whole and full width at its own shape, its words under it on its own blurred dark rather than
+    /// over it (Jesse picked B, 2026-11-10, BP app town-feed 57). The flyer's shape decides it, failed or not.
+    private var wholeFlyer: Bool { item.whole && item.game == nil }
+
+    private var photoArea: some View {
         shaped(GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 imageContent
@@ -295,12 +299,64 @@ struct FeedEventCard: View {
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
 
-                if displayImage.isPhoto {
+                if displayImage.isPhoto && !wholeFlyer {
                     FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         })
+    }
+
+    /// The title, when and small line, ranged left, clear of the heart in the bottom right corner.
+    private var copyRow: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            imageCopy
+            // Without this the HStack shrinks to its content and the overlay CENTRES
+            // it — a short headline ("Farmers Market") floated to the middle of the
+            // photograph. The copy is ranged left off the picture's bottom-left
+            // corner, always.
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        // Clear of the heart in the bottom right corner.
+        .padding(.trailing, actions.canAct ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
+        // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
+        .allowsHitTesting(false)
+    }
+
+    /// Under a whole flyer: the flyer again, blurred and darkened, so the words sit on its own colours (the mock's
+    /// band), fading up over the flyer's foot.
+    @ViewBuilder
+    private var flyerBand: some View {
+        ZStack {
+            if let url = displayImage.url {
+                FeedCardURLPhoto(url: url)
+                    .blur(radius: Self.bandBlur, opaque: true)
+                    .grayscale(item.cancelled ? 1 : 0)
+            }
+            Color.black.opacity(Self.bandDark)
+        }
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(Self.bandDark)], startPoint: .top, endPoint: .bottom)
+                .frame(height: Self.bandFade)
+                .offset(y: -Self.bandFade)
+        }
+    }
+
+    /// PICKED on the mock (BP app `references/town-whole-flyers/`): the band 80% dark over a 30 pt blur, the wash
+    /// behind a whole flyer's own, fading in over the flyer's last 16 pt.
+    private static let bandBlur: CGFloat = 30
+    private static let bandDark: Double = 0.8
+    private static let bandFade: CGFloat = 16
+
+    private var imageSection: some View {
+        VStack(spacing: 0) {
+            photoArea
+            if wholeFlyer {
+                copyRow
+                    .background { flyerBand }
+            }
+        }
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -336,22 +392,9 @@ struct FeedEventCard: View {
             .allowsHitTesting(false)
         }
         // The white game card sets its own sport and place (game-card 06).
+        // A whole flyer has them under it, in the stack.
         .overlay(alignment: .bottom) {
-            if item.game == nil {
-                HStack(alignment: .bottom, spacing: 0) {
-                    imageCopy
-                    // Without this the HStack shrinks to its content and the overlay CENTRES
-                    // it — a short headline ("Farmers Market") floated to the middle of the
-                    // photograph. The copy is ranged left off the picture's bottom-left
-                    // corner, always.
-                    Spacer(minLength: 0)
-                }
-                .padding(16)
-                // Clear of the heart in the bottom right corner.
-                .padding(.trailing, actions.canAct ? TownCardHeart.side + TownCardHeart.inset - 8 : 0)
-                // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
-                .allowsHitTesting(false)
-            }
+            if item.game == nil && !wholeFlyer { copyRow }
         }
         .contentShape(Rectangle())
         // The heart in the photo's corner is the double-tap's control to mirror, and
@@ -370,7 +413,9 @@ struct FeedEventCard: View {
     /// heart sat on the right team's name.
     @ViewBuilder
     private func shaped(_ card: some View) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if wholeFlyer {
+            card.aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
+        } else if dynamicTypeSize.isAccessibilitySize {
             card.aspectRatio(1, contentMode: .fit)
         } else if item.game != nil {
             card.frame(height: WhiteGameCard.Metric.height)
@@ -389,7 +434,8 @@ struct FeedEventCard: View {
             // on its page (Jesse, 2026-11-04, BP app town-feed 40). Waits on ink, and stays out of
             // VoiceOver here: the card reads as one link, and its page has the carousel.
             PhotoPager(urls: [url], page: .constant(0), shown: $shownPhotos,
-                       value: "", onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true)
+                       value: "", onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true,
+                       flyer: wholeFlyer ? url : nil, flyerClear: 0)
                 .accessibilityHidden(true)
         } else {
             Rectangle().fill(Hue.ink)

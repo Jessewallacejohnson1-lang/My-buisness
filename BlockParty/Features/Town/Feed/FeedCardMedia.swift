@@ -461,6 +461,14 @@ extension FeedCardImageSource {
         return min(max(aspect, 4.0 / 5.0), 1.91)
     }
 
+    /// A whole flyer's room on a Town card or the poster, width over height: its own shape, full width, at most
+    /// 4:5 tall and never cut wide, so a 3:1 banner runs full width and short (Jesse picked B, 2026-11-10, BP app
+    /// town-feed 57); square for one of unknown size.
+    var flyerAspect: Double {
+        guard case .placePhoto(_, _, let aspect?) = self, aspect.isFinite, aspect > 0 else { return 1 }
+        return max(aspect, 4.0 / 5.0)
+    }
+
     /// A place's logo as Search draws it, on its backdrop with ink words over it.
     var logo: SearchLogo? {
         guard case .placeLogo(let picture) = self else { return nil }

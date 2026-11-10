@@ -4,7 +4,8 @@
 //  (BP app docs/plans/event-card, ticket 03; the approved Round 3 page, Jesse 2026-10-19).
 //
 //  The same pick Daily shows first (`EventOfTheDay`). Unlike a Town card it keeps one fixed
-//  shape: the photo square on top fading into the poster's dark, a white "Event of the day"
+//  shape, but for a flyer, which runs full width at its own shape with the poster grown under it
+//  (town-feed 57): the photo square on top fading into the poster's dark, a white "Event of the day"
 //  chip on it, then the title, when in BP yellow, and one small line, what it is and a short place
 //  ("Meat raffle · Sal's Bar and Grill"), in a photo card's look (Jesse, 2026-11-07, BP app
 //  inside-cards 26), the going line, and Attend with the heart inside the card,
@@ -46,26 +47,10 @@ struct EventOfTheDayPoster: View {
         /// without it the white chip's edge measured 1.3 to 1 on Nov 6's photo (inside-cards 25).
         static let chipShadow: Double = 0.25
         static let chipShadowRadius: CGFloat = 4
-        /// A flyer stops this far above the words, and the dark is whole this far under its foot (picked on
-        /// the mock, BP app `references/whole-flyer-frames/`).
+        /// A flyer runs full width on top, this far above the words, melting into the dark over its last 16 pt
+        /// (picked on the mock, BP app `references/town-whole-flyers/`).
         static let flyerGap: CGFloat = 8
-        static let flyerFade: CGFloat = 48
-    }
-
-    /// Where a flyer's room ends, from the poster's top: above `words` (what it is, title, when, place) and
-    /// the going line's room and the Attend row under them, whether the line shows or not, so pressing
-    /// Attend never moves the flyer (BP app event-photos 16).
-    static func wholeFoot(side: CGFloat, words: CGFloat) -> CGFloat {
-        let under = Metric.goingTop + Metric.goingHeight + Metric.rowTop + RSVPArea.Size.card.pillHeight
-        return side / Metric.aspect - words - under - 2 * Metric.copyInset - Metric.flyerGap
-    }
-
-    /// The square's dark over a flyer: none down to its foot, then as the poster's fade, full by the words.
-    static func wholeFade(foot: CGFloat, side: CGFloat) -> [Gradient.Stop] {
-        let at = { (points: CGFloat) in min(max(points / max(side, 1), 0), 1) }
-        return [.init(color: Hue.poster.opacity(0), location: at(foot)),
-                .init(color: Hue.poster.opacity(0.82), location: at(foot + Metric.flyerFade / 2)),
-                .init(color: Hue.poster, location: at(foot + Metric.flyerFade))]
+        static let flyerFade: CGFloat = 16
     }
 
     @Environment(RealLifeActions.self) private var actions
@@ -80,13 +65,11 @@ struct EventOfTheDayPoster: View {
     @State private var photoShown = false
     /// The photo couldn't load: the poster's dark shows alone.
     @State private var photoFailed = false
-    /// The words' height and the poster's width, for where a flyer's room ends.
-    @State private var wordsHeight: CGFloat = 0
-    @State private var side: CGFloat = 0
+    /// The words and buttons' height: under a whole flyer the poster grows by it, so pressing Attend grows it
+    /// downward and never moves the flyer.
+    @State private var copyHeight: CGFloat = 0
 
     private var item: FeedCardItem { event.item }
-
-    private var flyerFoot: CGFloat { Self.wholeFoot(side: side, words: wordsHeight) }
 
     /// The event's own photo, else its place's, credited, else its place's logo, as the Town card
     /// shows them. One photo: the poster doesn't swipe.
@@ -106,7 +89,6 @@ struct EventOfTheDayPoster: View {
             .modifier(TownCardHold(id: item.id, hostName: item.hostName, why: item.why,
                                    share: { ShareCenter.shared.present(.event(item)) },
                                    report: item.why == nil ? nil : $menuPresented, event: item))
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { side = $0 }
             .scaleEffect(lifted ? 1 : FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(lifted ? 1 : FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(Press.animation(down: linkPressed, reduceMotion: reduceMotion), value: linkPressed)
@@ -119,11 +101,26 @@ struct EventOfTheDayPoster: View {
 
     // MARK: - The link: photo, fade, chip
 
+    @ViewBuilder
+    private var shape: some View {
+        if item.whole {
+            // A flyer full width at its own shape, the words under it: the poster grows to fit (Jesse picked B,
+            // 2026-11-10, BP app town-feed 57).
+            VStack(spacing: 0) {
+                flyer
+                Color.clear.frame(height: copyHeight + Metric.flyerGap)
+            }
+            .background(Hue.poster)
+        } else {
+            Hue.poster
+                .aspectRatio(Metric.aspect, contentMode: .fit)
+                .overlay(alignment: .top) { photo }
+        }
+    }
+
     private var face: some View {
-        Hue.poster
-            .aspectRatio(Metric.aspect, contentMode: .fit)
+        shape
             .frame(maxWidth: .infinity)
-            .overlay(alignment: .top) { photo }
             .overlay(alignment: .top) {
                 HStack(spacing: 8) {
                     PhotoChip(text: "Event of the day")
@@ -155,16 +152,33 @@ struct EventOfTheDayPoster: View {
             .overlay {
                 if let url = picture.url {
                     FeedCardURLPhoto(url: url, onReady: { photoShown = true }, onFailure: { photoFailed = true },
-                                     loadingFill: Hue.poster, whole: item.whole ? max(side - flyerFoot, 0) : nil)
+                                     loadingFill: Hue.poster)
                 } else if let logo = picture.logo {
                     FeedCardPlaceLogo(logo: logo, topClear: Metric.chipInset + PhotoChip.height)
                 }
             }
             .clipped()
             .grayscale(item.cancelled ? 1 : 0)
+            .overlay { LinearGradient(stops: Metric.fade, startPoint: .top, endPoint: .bottom) }
+    }
+
+    /// A flyer whole over its blurred copy, full width at its own shape (at most 4:5 tall), melting into the dark.
+    private var flyer: some View {
+        Color.clear
+            .aspectRatio(CGFloat(item.image.flyerAspect), contentMode: .fit)
             .overlay {
-                LinearGradient(stops: item.whole ? Self.wholeFade(foot: flyerFoot, side: side) : Metric.fade,
-                               startPoint: .top, endPoint: .bottom)
+                if let url = picture.url {
+                    FeedCardURLPhoto(url: url, onReady: { photoShown = true }, onFailure: { photoFailed = true },
+                                     loadingFill: Hue.poster, whole: 0)
+                } else if let logo = picture.logo {
+                    FeedCardPlaceLogo(logo: logo, topClear: Metric.chipInset + PhotoChip.height)
+                }
+            }
+            .clipped()
+            .grayscale(item.cancelled ? 1 : 0)
+            .overlay(alignment: .bottom) {
+                LinearGradient(colors: [Hue.poster.opacity(0), Hue.poster], startPoint: .top, endPoint: .bottom)
+                    .frame(height: Metric.flyerFade)
             }
     }
 
@@ -194,7 +208,6 @@ struct EventOfTheDayPoster: View {
             .foregroundStyle(.white)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
 
             if let words, words.top != nil {
                 goingLine(words)
@@ -223,6 +236,10 @@ struct EventOfTheDayPoster: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Metric.copyInset)
+        // The first read lands as it is; a going line coming or going grows the poster with the words' turn.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            if copyHeight == 0 { copyHeight = height } else { withAnimation(.easeInOut(duration: flip)) { copyHeight = height } }
+        }
         .animation(.easeInOut(duration: flip), value: actions.going(item).isGoing)
     }
 

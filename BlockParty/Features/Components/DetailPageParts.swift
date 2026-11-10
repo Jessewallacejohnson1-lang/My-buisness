@@ -30,6 +30,9 @@ struct PhotoPager: View {
     var flyer: URL? = nil
     /// What a tall flyer on that page starts under.
     var flyerTop: CGFloat = 0
+    /// What the flyer keeps clear at its page's foot: the Event page's sheet; none on a Town card, whose words
+    /// sit under its photo (town-feed 57).
+    var flyerClear: CGFloat = EventPage.Metric.heroUnderlap
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -61,7 +64,7 @@ struct PhotoPager: View {
     private func photo(_ url: URL) -> some View {
         let isShown = Self.isShown(url, in: shown)
         return FeedCardURLPhoto(url: url, onReady: { shown.insert(url) }, onFailure: { onFailure(url) },
-                                whole: url == flyer ? EventPage.Metric.heroUnderlap : nil, wholeTop: flyerTop)
+                                whole: url == flyer ? flyerClear : nil, wholeTop: flyerTop)
             .frame(maxHeight: .infinity)
             .clipped()
             .overlay {
