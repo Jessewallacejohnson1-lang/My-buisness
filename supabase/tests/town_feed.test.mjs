@@ -1300,6 +1300,40 @@ test("an Event's own flyer shows after the scene of what it is, before its place
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test("one flyer with many Events: each its own photo, its flyer a swipe away (town-feed 59)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height, subjects, seasons) values
+      ('bar', 'https://x/bar.webp', 'https://bar.example/', 0, 'photo', 'live', 1600, 1067, '{}', '{}');`);
+  const add = async (title) => (await db.query(
+    `insert into public.club_events (status, title, event_date, category, source_name, place_entry_id, created_at)
+     values ('approved', $1, '2026-10-09', 'dining', 'Bar', 'bar', '2026-09-01 12:00-05') returning id`, [title])).rows[0].id;
+  const put = (event, url, kind) => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, credit, width, height)
+     values ('bar', $2, 'https://www.instagram.com/p/1/', $3, 'live', $1, 'Bar', 1217, 1568)`, [event, url, kind]);
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+  const memorial = await add('Memorial Liver Feed');
+  const market = await add("Crafter's Market");
+  const santa = await add('Santa Visits');
+  const santa2 = await add('Santa Visits');
+  for (const e of [memorial, market]) await put(e, 'https://x/month.webp', 'flyer');
+  for (const e of [santa, santa2]) await put(e, 'https://x/santa.webp', 'flyer');
+  await put(memorial, 'https://x/parade.webp', 'event');
+
+  const m = await pic(memorial);
+  assert.equal(m.url, 'https://x/parade.webp', 'its own photo first, beside its flyer');
+  assert.deepEqual([m.flyer.url, m.flyer.whole, m.flyer.w, m.flyer.credit], ['https://x/month.webp', true, 1217, 'Bar'],
+                   'the flyer comes along, whole, to swipe to');
+  assert.equal(m.lineup, true, 'the flyer lists another Event: part of a lineup');
+  const k = await pic(market);
+  assert.equal(k.url, 'https://x/month.webp', 'no own photo: the flyer, as before');
+  assert.equal(k.flyer, undefined, 'never the flyer twice');
+  assert.equal(k.lineup, true, 'still part of the lineup');
+  assert.equal((await pic(santa)).lineup, undefined, 'one series on its own flyer is no lineup');
+  await assert.rejects(put(memorial, 'https://x/second.webp', 'event'), /place_photos_one_per_event/, 'one live photo per Event');
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
 test('a Christmas photo shows on a holiday event from November 1, on any from December 1 to January 6 (event-photos 07)', async () => {
   await reset();
   await db.exec(`delete from public.place_photos;
