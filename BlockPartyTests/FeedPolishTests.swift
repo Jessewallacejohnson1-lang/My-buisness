@@ -343,8 +343,7 @@ final class LogoFitTests: XCTestCase {
     /// diagonal, so it is drawn small enough for them to stay inside.
     func testASquaresCornersStayInsideTheCircle() {
         let fit = LogoFit(logo { $0.fill($1) })
-        XCTAssertGreaterThanOrEqual(fit.reach, 0.5 * CGFloat(2).squareRoot())
-        XCTAssertLessThan(fit.reach, 0.75)
+        XCTAssertEqual(fit.reach, 0.5 * CGFloat(2).squareRoot(), accuracy: 0.02)
     }
 
     /// Sal's wide logo lost its ends under the ring: a wordmark reaches its corners too.
