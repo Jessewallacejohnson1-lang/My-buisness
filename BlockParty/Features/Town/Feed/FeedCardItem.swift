@@ -142,9 +142,9 @@ struct FeedCardItem: Identifiable, Hashable {
         return when?.isOn(now) ?? false
     }
 
-    /// Its part on at `now`, from the part's start to its end (an hour when the host gave none); nil when called off.
+    /// Its live part on at `now`, from the part's start to its end (an hour when the host gave none); nil when called off.
     func partOn(at now: Date) -> EventPart? {
-        guard !cancelled, let part, part.start <= now, now < part.end else { return nil }
+        guard !cancelled, let part, part.live, part.start <= now, now < part.end else { return nil }
         return part
     }
 
@@ -176,11 +176,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// A long Event's part counts down the same way, by its name: "Artist talk in 20 min" (happening-now 04).
     func countdown(at now: Date) -> FeedWhenLine? {
         guard !cancelled, game?.final == nil else { return nil }
-        let minutesTo = { (start: Date) in Int((start.timeIntervalSince(now) / 60).rounded(.up)) }
         if liveKind, let when, when.timed, let soon = FeedWhenLine.countdown(to: when.start, at: now) { return soon }
-        guard let part, case let minutes = minutesTo(part.start), (1...60).contains(minutes) else { return nil }
-        return FeedWhenLine(text: "\(part.title) in \(minutes) min",
-                            spoken: "\(part.title) starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
+        guard let part, part.live else { return nil }
+        return FeedWhenLine.countdown(to: part.start, at: now, named: part.title)
     }
 
     /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's
@@ -218,11 +216,14 @@ struct FeedWhenLine: Equatable {
     let spoken: String
 
     /// "In 20 min" (spoken "Starts in 20 minutes") from 60 minutes before `start` until its start minute; nil
-    /// otherwise (happening-now 01). The Event page's Schedule says its next part's the same way (happening-now 06).
-    static func countdown(to start: Date, at now: Date) -> FeedWhenLine? {
+    /// otherwise (happening-now 01). With a part's name, "Artist talk in 20 min" (happening-now 04). The Event page's
+    /// Schedule says its next part's the same way (happening-now 06).
+    static func countdown(to start: Date, at now: Date, named name: String? = nil) -> FeedWhenLine? {
         let minutes = Int((start.timeIntervalSince(now) / 60).rounded(.up))
         guard (1...60).contains(minutes) else { return nil }
-        return FeedWhenLine(text: "In \(minutes) min", spoken: "Starts in \(minutes) minute\(minutes == 1 ? "" : "s")")
+        let unit = "minute\(minutes == 1 ? "" : "s")"
+        guard let name else { return FeedWhenLine(text: "In \(minutes) min", spoken: "Starts in \(minutes) \(unit)") }
+        return FeedWhenLine(text: "\(name) in \(minutes) min", spoken: "\(name) starts in \(minutes) \(unit)")
     }
 
     init(text: String, spoken: String) {

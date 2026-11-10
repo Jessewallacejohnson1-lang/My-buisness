@@ -32,4 +32,5 @@ One JSON line per part, nothing else. No parts for an Event: no line for it.
 
 - `title`: short, the host's words, 30 characters at most ("Artist talk", "Opening reception", "Keynote: Dr. Lee").
 - `start`, `end`: "3 PM", "6:30 PM". `end` only when the page states it, else "".
-- `quote` is copied exactly from the page and must hold the start time as the page prints it: it is checked.
+- `quote` is copied exactly from the page and must hold the start time and the day (its date, or its weekday) as the
+  page prints them: both are checked. A weekday alone counts only when the Event's days hold it once.

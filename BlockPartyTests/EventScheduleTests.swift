@@ -13,9 +13,10 @@ final class EventScheduleTests: XCTestCase {
         Town.gregorian.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
     }
 
-    private func part(_ title: String, _ day: Int, _ hour: Int, _ minute: Int = 0, hours: Double = 1) -> EventPart {
+    private func part(_ title: String, _ day: Int, _ hour: Int, _ minute: Int = 0, hours: Double = 1,
+                      live: Bool = true) -> EventPart {
         let start = at(day, hour, minute)
-        return EventPart(title: title, start: start, end: start.addingTimeInterval(hours * 3600))
+        return EventPart(title: title, start: start, end: start.addingTimeInterval(hours * 3600), live: live)
     }
 
     /// Sent in any order, read by start.
@@ -59,6 +60,34 @@ final class EventScheduleTests: XCTestCase {
         XCTAssertNil(EventSchedule.rows(Array(parts.dropFirst()), at: at(10, 17, 59)).compactMap(\.mark).first, "61 minutes off")
         XCTAssertEqual(EventSchedule.rows(parts, at: at(10, 18, 59)).map(\.mark)[1],
                        .soon(FeedWhenLine(text: "In 1 min", spoken: "Starts in 1 minute")))
+    }
+
+    /// A part fades when it ended today, wherever it started; one that ended yesterday drops off.
+    func testAPartFadesByTheDayItEnded() {
+        let parts = [part("Vigil", 9, 22, hours: 3), part("Lantern walk", 9, 20, hours: 2), part("Brunch", 10, 10)]
+        let rows = EventSchedule.rows(parts, at: at(10, 15))
+        XCTAssertEqual(rows.map(\.part.title), ["Vigil", "Brunch"], "the walk ended yesterday at 10 PM")
+        XCTAssertEqual(rows.map(\.past), [true, true])
+    }
+
+    /// Only a live part (the server's mark: a real happening under 12 hours) says "Now" or counts down.
+    func testOnlyALivePartSaysNowOrCountsDown() {
+        let parts = [part("Holiday sale", 10, 14, hours: 2, live: false), part("Open studio", 10, 15, 20, live: false)]
+        XCTAssertEqual(EventSchedule.rows(parts, at: at(10, 15)).map(\.mark), [nil, nil])
+    }
+
+    /// The first 4 shown: the part on and the next ones; ended parts fill only the places left, the latest ended
+    /// first, above them in time order.
+    func testTheVisibleFourLeadWithWhatIsOnAndNext() {
+        let ended = [part("Breakfast", 10, 8), part("Opening", 10, 9), part("Tour", 10, 11)]
+        let ahead = [part("Talk", 10, 14, hours: 2), part("Panel", 10, 16), part("Film", 10, 19), part("Dance", 10, 21),
+                     part("Brunch", 11, 10)]
+        XCTAssertEqual(EventSchedule.visible(EventSchedule.rows(ended + ahead, at: at(10, 15))).map(\.part.title),
+                       ["Talk", "Panel", "Film", "Dance"])
+        XCTAssertEqual(EventSchedule.visible(EventSchedule.rows(ended + ahead.prefix(2), at: at(10, 15))).map(\.part.title),
+                       ["Opening", "Tour", "Talk", "Panel"])
+        XCTAssertEqual(EventSchedule.visible(EventSchedule.rows(ended, at: at(10, 15))).map(\.part.title),
+                       ["Breakfast", "Opening", "Tour"])
     }
 
     /// The time column: the short day and the Town's clock, spoken in full.

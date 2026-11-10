@@ -268,11 +268,13 @@ struct EventOfTheDayPoster: View {
     @ViewBuilder
     private var when: some View {
         let on = item.isNow(at: now)
-        // Within the hour before a real happening, "In 20 min" (happening-now 01), whatever its day.
-        let line = item.countdown(at: now)
-        let text = line?.text ?? (item.isOpen(at: now) ? item.whenLine(at: now)?.text : event.dayLine(now: now) ?? item.whenLine?.text)
+        // The countdown within the hour before a real happening (happening-now 01) or "Until 9 PM" while a place is
+        // open, whatever its day: the line at `now` when it isn't the plain one. Else Daily's short day.
+        let line = item.whenLine(at: now)
+        let moment = line == item.whenLine ? nil : line
+        let text = moment?.text ?? event.dayLine(now: now) ?? item.whenLine?.text
         if on || text != nil {
-            CardTime(text: text ?? "", spoken: line?.spoken, now: on, part: item.partOn(at: now)?.title, color: Hue.brandDisc)
+            CardTime(text: text ?? "", spoken: moment?.spoken, now: on, part: item.partOn(at: now)?.title, color: Hue.brandDisc)
         }
     }
 

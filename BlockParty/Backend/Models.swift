@@ -182,27 +182,31 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     var part: EventPart? = nil
 }
 
-/// A part of a long Event at a time its host wrote (`public.event_parts`, BP app happening-now 03): while it is on,
-/// the Event's card reads "Now · Artist talk". Its end is the host's, else an hour on (the feed sends it so).
+/// A part of a long Event at a time its host wrote (`public.event_parts`, BP app happening-now 03), finished by the
+/// server (`get_event_parts`): its end the host's, else an hour on. `live`: a real happening under 12 hours, the only
+/// kind that reads "Now · Artist talk" or counts down.
 nonisolated struct EventPart: Decodable, Hashable, Sendable {
     let title: String
     let start: Date
     let end: Date
+    let live: Bool
 
-    init(title: String, start: Date, end: Date) {
+    init(title: String, start: Date, end: Date, live: Bool = true) {
         self.title = title
         self.start = start
         self.end = end
+        self.live = live
     }
 
-    private enum Keys: String, CodingKey { case title, startsAt, endsAt }
+    private enum Keys: String, CodingKey { case title, startsAt, endsAt, live }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         guard let start = DateHelpers.timestamp(try c.decode(String.self, forKey: .startsAt)),
               let end = DateHelpers.timestamp(try c.decode(String.self, forKey: .endsAt))
         else { throw DecodingError.dataCorruptedError(forKey: .startsAt, in: c, debugDescription: "not a time") }
-        self.init(title: try c.decode(String.self, forKey: .title), start: start, end: end)
+        self.init(title: try c.decode(String.self, forKey: .title), start: start, end: end,
+                  live: try c.decode(Bool.self, forKey: .live))
     }
 }
 

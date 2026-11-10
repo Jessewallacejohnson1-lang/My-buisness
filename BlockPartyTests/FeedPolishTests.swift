@@ -303,6 +303,18 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertNil(exhibit.countdown(at: at(24, 14, 40)))
     }
 
+    /// A part that isn't a real happening, or runs 12 hours or longer, is no "Now" and no countdown on the card
+    /// (happening-now review): the server marks it, the card reads the mark.
+    func testAPartThatIsNotLiveNeverMakesTheCardNow() {
+        var exhibit = card("2026-09-01", "10 AM", endAt: at(30, 17))
+        exhibit.liveKind = false
+        exhibit.part = EventPart(title: "Holiday sale", start: at(24, 15), end: at(24, 16), live: false)
+        XCTAssertNil(exhibit.partOn(at: at(24, 15, 30)))
+        XCTAssertFalse(exhibit.isNow(at: at(24, 15, 30)))
+        XCTAssertNil(exhibit.countdown(at: at(24, 14, 40)))
+        XCTAssertEqual(exhibit.whenLine(at: at(24, 14, 40))?.text, "Until Wed")
+    }
+
     /// In the Town's time across midnight: 11:40 PM to a 12:15 AM start is 35 minutes.
     func testTheCountdownCrossesMidnight() {
         let late = card("2026-09-25", "12:15 AM")

@@ -3723,7 +3723,7 @@ test('a part: an exhibit with a 3 PM talk is live from 3 to 4 PM and leads, with
   await exhibitWithTalk();
   const rows = await partFeed('2026-10-08 15:30');
   assert.equal(rows[0].title, 'Fall exhibit', 'on now: it leads');
-  assert.deepEqual(rows[0].part, { title: 'Artist talk', starts_at: '2026-10-08T20:00:00+00:00', ends_at: '2026-10-08T21:00:00+00:00' },
+  assert.deepEqual(rows[0].part, { title: 'Artist talk', starts_at: '2026-10-08T20:00:00+00:00', ends_at: '2026-10-08T21:00:00+00:00', live: true },
                    'no stated end: 1 hour');
   assert.equal(rows.length, 2, 'one card for the Event, never a second for its part');
   assert.equal(await lead('2026-10-08 15:59'), 'Fall exhibit');
@@ -3746,6 +3746,44 @@ test('a part: not a real happening, or an Event of its own, never makes its Even
   const rows = await partFeed('2026-10-08 15:30');
   assert.equal(rows[0].title, 'Favourite', 'its own card is the one');
   assert.equal(rows.find((r) => r.title === 'Fall exhibit').part, null);
+});
+
+test('a part: one running 12 hours or longer never reaches the card, nor makes it live (happening-now review)', async () => {
+  await exhibitWithTalk({ ends: '2026-10-09 03:00-05' });
+  const rows = await partFeed('2026-10-08 15:30');
+  assert.equal(rows[0].title, 'Favourite');
+  assert.equal(rows.find((r) => r.title === 'Fall exhibit').part, null, 'no "Now · Artist talk" for a 12-hour part');
+});
+
+// An Event's parts as its page reads them (get_event_parts, happening-now review): finished on the server, by start.
+test('an Event page reads its finished parts: by start, an hour when no end, its own Event left out, live marked', async () => {
+  const exhibit = await exhibitWithTalk();
+  const fav = (await db.query(`select id from public.club_events where title = 'Favourite'`)).rows[0].id;
+  await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
+                  values ($1, 'Holiday sale', '2026-10-08 10:00-05', null, 'x', 'Holiday sale 10 AM', null),
+                         ($1, 'Overnight vigil', '2026-10-09 18:00-05', '2026-10-10 08:00-05', 'x', 'Vigil 6 PM to 8 AM', null),
+                         ($1, 'Dance night', '2026-10-09 20:00-05', null, 'x', 'Dance night 8 PM', $2)`, [exhibit, fav]);
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    const { rows } = await db.query(`select title, starts_at, ends_at, live from public.get_event_parts($1)`, [exhibit]);
+    assert.deepEqual(rows.map((r) => [r.title, r.live]), [['Holiday sale', false], ['Artist talk', true], ['Overnight vigil', false]],
+      'by start; a sale is no happening, 14 hours is too long; the part that is an Event of its own is left out');
+    assert.equal(rows[1].ends_at.getTime() - rows[1].starts_at.getTime(), 3600e3, 'no stated end: 1 hour');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
+test('an Event the caller may not read shows none of its parts, nor does the raw table (happening-now review)', async () => {
+  const exhibit = await exhibitWithTalk();
+  await db.query(`update public.club_events set status = 'pending' where id = $1`, [exhibit]);
+  await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
+  try {
+    assert.deepEqual((await db.query(`select * from public.get_event_parts($1)`, [exhibit])).rows, []);
+    assert.deepEqual((await db.query(`select title from public.event_parts`)).rows, [], 'a pending Event\'s parts stay hidden');
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
 });
 
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {

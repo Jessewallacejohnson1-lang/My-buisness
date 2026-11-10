@@ -13,8 +13,10 @@ each on its own.
 `keep`, a step of `morning.py finish`, writes a part only where both helpers found it on the same day at the same start,
 each quoting the host's words with that time, inside the Event's days. Never a guess (Jesse, 2026-11-09: two separate
 agent checks agreeing may write live). A part on the day, start and place of an Event already listed points at it
-(`same_as`) rather than making a double (Jesse, 2026-11-05). Each Event read has its parts replaced; one a helper gave no
-answers for is left as it was. A part with no end runs 1 hour: the readers apply it.
+(`same_as`) rather than making a double (Jesse, 2026-11-05). The part's day must be the host's too: the quote names its
+date, or a weekday the Event's days hold once, or the Event has one day only. Each Event read has its new parts
+written, then its old ones taken away; one only a helper named parts for is left as it was. A part with no end runs 1
+hour: get_event_parts applies it.
 
   python3 sources/scripts/event_parts.py prepare
   python3 sources/scripts/event_parts.py keep --dry-run
@@ -26,7 +28,7 @@ import json
 import re
 import sys
 import urllib.parse
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -53,15 +55,45 @@ def times_in(text):
     return out
 
 
-def stated(answer):
-    """(day, start, end or None) of one helper's part when its quote states the start; else None."""
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+DATE = re.compile(r"\b(" + "|".join(MONTHS) + r")[a-z]*\.?\s+(\d{1,2})(?!\d)|\b(\d{1,2})/(\d{1,2})\b", re.I)
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def days_in(text):
+    """Every (month, day) the words state: "Nov. 12", "November 12", "11/12"."""
+    out = set()
+    for mon, d, m2, d2 in DATE.findall(text or ""):
+        month, day = (MONTHS.index(mon.lower()[:3]) + 1, int(d)) if mon else (int(m2), int(d2))
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            out.add((month, day))
+    return out
+
+
+def day_pinned(day, quote, event):
+    """Whether the host's words give the part's day, never a guess: they name its date; or a weekday the Event's days
+    hold only once; or the Event has one day only and the words name no other. A date for another day is no part."""
+    dates = days_in(quote)
+    if dates:
+        return (day.month, day.day) in dates
+    first, last = event["starts"].date(), (event["ends"] - timedelta(microseconds=1)).date()
+    if first == last:
+        return not re.search(r"\b(" + "|".join(WEEKDAYS) + r")\b", quote or "", re.I) \
+            or re.search(rf"\b{WEEKDAYS[day.weekday()]}\b", quote, re.I) is not None
+    named = re.search(rf"\b{WEEKDAYS[day.weekday()]}\b", quote or "", re.I)
+    return bool(named) and sum((first + timedelta(i)).weekday() == day.weekday()
+                               for i in range((last - first).days + 1)) == 1
+
+
+def stated(answer, event):
+    """(day, start, end or None) of one helper's part when its quote states the start and gives the day; else None."""
     try:
         day = date.fromisoformat(str(answer.get("day"))[:10])
     except ValueError:
         return None
     start, end = parse_clock(answer.get("start")), parse_clock(answer.get("end") or "")
     said = times_in(answer.get("quote"))
-    if not start or start not in said:
+    if not start or start not in said or not day_pinned(day, answer.get("quote"), event):
         return None
     return day, start, end if end in said and end > start else None
 
@@ -82,17 +114,17 @@ def same_as(event, starts, existing):
 
 def judge(event, a, b, existing=()):
     """(parts to write, report lines) for one long Event from its two helpers' answers. A part is kept only where both
-    helpers found it on the same day at the same start, each quoting the host's words with that time."""
+    helpers found it on the same day at the same start, each quoting the host's words with that time and that day."""
     seen = {}
     for x in b:
-        got = stated(x)
+        got = stated(x, event)
         if got:
             seen.setdefault(got[:2], (x, got))
     kept, left = [], []
     for x in a:
-        got = stated(x)
+        got = stated(x, event)
         if not got:
-            left.append(f"no stated time in {x.get('quote')!r}")
+            left.append(f"no stated time and day in {x.get('quote')!r}")
             continue
         if got[:2] not in seen:
             left.append(f"only one helper found {x.get('title')!r} on {got[0]} at {x.get('start')}")
@@ -230,9 +262,11 @@ def answers_in(text):
 
 
 def take_down(part):
-    """The migration line that takes a wrong part down. ponytail: the next morning may write it again from the same
-    words; a part that keeps coming back wrong needs its page's words fixed or a judge rule."""
-    return f"delete from public.event_parts where event_id = '{part['event_id']}' and starts_at = '{part['starts_at']}';"
+    """The migration line that takes a wrong part down: a migration takes no bound values, so each is quoted as a SQL
+    literal and cast to its column's type."""
+    q = lambda v: "'" + str(v).replace("'", "''") + "'"
+    return (f"delete from public.event_parts where event_id = {q(part['event_id'])}::uuid"
+            f" and starts_at = {q(part['starts_at'])}::timestamptz and title = {q(part['title'])};")
 
 
 def keep(run_, dry_run=False):
@@ -264,11 +298,19 @@ def kept_lines(run_, dry_run):
         listed = run_.db.rest("GET", f"club_events?select=id,event_date,start_time,location,place_entry_id&status=eq.approved"
                                      f"&event_date=gte.{e['starts'].date()}&event_date=lte.{e['ends'].date()}"
                                      f"&id=neq.{e['id']}") or []
-        kept, why = judge(e, readings[0].get(key, []), readings[1].get(key, []), listed)
+        a, b = readings[0].get(key, []), readings[1].get(key, [])
+        if bool(a) != bool(b):  # one names parts, the other none: no agreement either way
+            left.append(f"- No change: {e['title']}: one helper named parts, the other none; its parts left as they were")
+            continue
+        kept, why = judge(e, a, b, listed)
         if not dry_run:
-            run_.db.rest("DELETE", f"event_parts?event_id=eq.{urllib.parse.quote(e['id'])}", prefer="return=minimal")
+            # The new parts first, then the old ones away: a write that fails leaves the Event its old parts.
+            stamp = datetime.now(timezone.utc).isoformat()
             if kept:
-                run_.db.rest("POST", "event_parts", kept, prefer="return=minimal")
+                run_.db.rest("POST", "event_parts?on_conflict=event_id,starts_at,title",
+                             [{**p, "found_at": stamp} for p in kept], prefer="resolution=merge-duplicates,return=minimal")
+            run_.db.rest("DELETE", f"event_parts?event_id=eq.{urllib.parse.quote(e['id'])}"
+                                   f"&found_at=lt.{urllib.parse.quote(stamp)}", prefer="return=minimal")
         for p in kept:
             put.append(f"- Part: {e['title']}: {p['title']}, {p['starts_at'][:16].replace('T', ' ')}"
                        + (f" (the listed Event {p['same_as']})" if p["same_as"] else "")
@@ -281,7 +323,6 @@ def kept_lines(run_, dry_run):
 
 
 def selftest():
-    pass
     checks = []
     ok = lambda good, why: checks.append((bool(good), why))
 
@@ -302,12 +343,29 @@ def selftest():
     ok(kept == [] and "no stated time" in left[0], f"'afternoon activities' with no time is no part: {left}")
     ok(times_in("Reception 5-7 p.m.") == {time(17), time(19)} and times_in("at noon") == {time(12)}
        and times_in("Room 101, 2026") == set(), "times the host wrote, and none from numbers that aren't times")
-    ranged = part("Reception", "2026-11-12", "5 PM", "Closing reception 5-7 p.m. Thursday", end="7 PM")
+    ranged = part("Reception", "2026-11-12", "5 PM", "Closing reception 5-7 p.m. Thursday, Nov. 12", end="7 PM")
     ok(judge(show, [ranged], [ranged])[0][0]["ends_at"] == "2026-11-12T19:00:00-06:00", "the host's end wins")
     ok(judge(show, [ranged], [dict(ranged, end="")])[0][0]["ends_at"] is None, "an end the helpers don't agree on is none")
     ok(judge(show, [talk], [])[0] == [] and judge(show, [], [talk])[0] == [], "a part only one helper found is no part")
     late = part("Artist talk", "2026-12-20", "3 PM", "Artist talk Dec. 20 at 3 PM")
     ok(judge(show, [late], [late])[0] == [], "a part outside the Event's days is no part of it")
+
+    # The part's day is the host's too: its words name the date, or a weekday the Event's days hold once, or the Event
+    # has one day only. Never a guess.
+    weekly = part("Artist talk", "2026-11-12", "3 PM", "Artist talk Thursday at 3 PM")
+    ok(judge(show, [weekly], [weekly])[0] == [], "a weekday a 7-week show holds seven times doesn't pin the day")
+    week = dict(show, starts=datetime(2026, 11, 9), ends=datetime(2026, 11, 16))
+    ok(len(judge(week, [weekly], [weekly])[0]) == 1, "a weekday the Event's days hold once pins it")
+    undated = part("Artist talk", "2026-11-12", "3 PM", "Artist talk at 3 PM")
+    ok(judge(week, [undated], [undated])[0] == [], "no day in the host's words over several days: no part")
+    market = dict(show, starts=datetime(2026, 11, 12, 8), ends=datetime(2026, 11, 13))
+    ok(len(judge(market, [undated], [undated])[0]) == 1, "an Event of one day pins its parts' day")
+    other = part("Artist talk", "2026-11-12", "3 PM", "Artist talk Friday, Nov. 13 at 3 PM")
+    ok(judge(week, [other], [other])[0] == [], "the host's words naming another day: no part")
+    ok(len(judge(show, [dict(talk, quote="Artist talk 11/12 at 3 PM")], [talk])[0]) == 1, "a date as 11/12 names the day")
+    ok(take_down({"event_id": "e1", "starts_at": "2026-11-12T15:00:00-06:00", "title": "Rob's talk"})
+       == "delete from public.event_parts where event_id = 'e1'::uuid and starts_at = '2026-11-12T15:00:00-06:00'::timestamptz"
+          " and title = 'Rob''s talk';", "the take-down line quotes its values")
 
     gallery_talk = {"id": "e9", "title": "Emily Sheehan: Artist Talk", "event_date": "2026-11-12", "start_time": "3 PM",
                     "location": "Gorecki Gallery, CSB", "place_entry_id": "arts-benedicta-center"}
@@ -365,9 +423,10 @@ def selftest():
         r2 = Run(folder, today, FakeDb(answers=answers))
         lines = keep(r2)
         w = r2.db.writes("event_parts")
-        ok([m for m, p, b in w] == ["DELETE", "POST", "DELETE"] and "event_id=eq.e1" in w[0][1]
-           and w[1][2][0]["same_as"] == "e9" and "event_id=eq.e3" in w[2][1],
-           f"each Event read gets its parts replaced, a found one pointing at the listed Event: {w}")
+        ok([m for m, p, b in w] == ["POST", "DELETE", "DELETE"] and w[0][2][0]["same_as"] == "e9"
+           and "event_id=eq.e1" in w[1][1] and "found_at=lt." in w[1][1] and "event_id=eq.e3" in w[2][1],
+           f"each Event read gets its new parts written, then its old ones taken away (a failed write never empties "
+           f"it), a found one pointing at the listed Event: {w}")
         ok(lines[0] == "- Parts of long Events: 1" and any("Take it down" in l for l in lines), f"the report: {lines}")
         ok(keep(Run(folder, today, FakeDb(answers=answers))) == lines, "a finish run again neither writes nor reports twice")
 
@@ -378,6 +437,17 @@ def selftest():
         (folder / "parts.jsonl").write_text(json.dumps(dict(talk, event="p1")) + "\n")
         r.db.calls.clear()
         ok(not keep(r) or not r.db.writes(), "a helper with no answers at all: nothing is replaced, tried tomorrow")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        r = Run(folder, today, FakeDb(answers=answers))
+        prepare(folder / "parts", r.db, today, read)
+        (folder / "parts.jsonl").write_text(json.dumps(dict(talk, event="p1")) + "\n")
+        (folder / "parts-2.jsonl").write_text(json.dumps(dict(talk, event="p2", title="Keynote")) + "\n")
+        r.db.calls.clear()
+        lines = keep(r)
+        ok(not r.db.writes("event_parts") and any("left as they were" in l for l in lines),
+           f"one helper names parts and the other none: that Event's parts are left as they were: {r.db.writes()} {lines}")
 
     def broken(method, path, body):
         raise DbError("GET", path, 404, '{"message":"relation public.event_parts does not exist"}')

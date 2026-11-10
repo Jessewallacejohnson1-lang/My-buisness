@@ -418,15 +418,12 @@ as $$
     left join labels lb on lb.series = s.series
     left join my_seen sn on sn.series = lower(btrim(s.title)) || '|' || s.host
     left join lateral (select pl.lat, pl.lon from public.places pl where pl.entry_id = s.place_entry_id limit 1) pt on true
-    -- Only a real happening, by the same rule as the Event's own Now (town-feed 41), read from the part's title; one
-    -- that is an Event of its own (same_as) has its own card. No stated end: 1 hour (happening-now 03).
+    -- Read as the Event page reads them (get_event_parts): only a live part, a real happening by its title under 12
+    -- hours (town-feed 41); one that is an Event of its own (same_as) has its own card; no stated end, 1 hour.
     left join lateral (
       select p.title, p.starts_at, p.ends_at
-      from (select ep.title, ep.starts_at, coalesce(ep.ends_at, ep.starts_at + interval '1 hour') as ends_at
-            from public.event_parts ep
-            where ep.event_id = s.id and ep.same_as is null) p
-      where p.ends_at > p_now
-        and private.is_live_kind(null, p.title, null, false, 'part', (p.starts_at at time zone town.zone)::date, p.ends_at)
+      from public.get_event_parts(s.id) p
+      where p.live and p.ends_at > p_now
       order by p.starts_at, p.title
       limit 1) prt on true
   ),
@@ -687,7 +684,7 @@ as $$
          -- on now or still to come, that part (happening-now 04), for its time line: "Now · Artist talk".
          case when e.part_title is null then e.card
               else e.card || jsonb_build_object('part', jsonb_build_object(
-                'title', e.part_title, 'starts_at', e.part_start, 'ends_at', e.part_end)) end,
+                'title', e.part_title, 'starts_at', e.part_start, 'ends_at', e.part_end, 'live', true)) end,
          p.spot
   from totals e
   join spots p on p.id = e.id
