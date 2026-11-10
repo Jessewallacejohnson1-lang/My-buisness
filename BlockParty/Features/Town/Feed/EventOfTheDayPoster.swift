@@ -81,7 +81,8 @@ struct EventOfTheDayPoster: View {
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
-            .overlay(alignment: .bottom) { copy }
+            // Over a flyer, the words wait for their first measure, so they never land on its foot for a frame.
+            .overlay(alignment: .bottom) { copy.opacity(item.whole && copyHeight == 0 ? 0 : 1) }
             // Two fingers lift the poster, its words too, where it sits (BP app photo-zoom).
             .pinchToZoom(corner: Radius.poster, slot: Hue.paper, lifted: $lifted)
             // Held: Apple's menu with the poster lifted as itself, words and buttons included
@@ -103,7 +104,7 @@ struct EventOfTheDayPoster: View {
 
     @ViewBuilder
     private var shape: some View {
-        if item.whole {
+        if item.whole && !photoFailed {
             // A flyer full width at its own shape, the words under it: the poster grows to fit (Jesse picked B,
             // 2026-11-10, BP app town-feed 57).
             VStack(spacing: 0) {
@@ -170,8 +171,6 @@ struct EventOfTheDayPoster: View {
                 if let url = picture.url {
                     FeedCardURLPhoto(url: url, onReady: { photoShown = true }, onFailure: { photoFailed = true },
                                      loadingFill: Hue.poster, whole: 0)
-                } else if let logo = picture.logo {
-                    FeedCardPlaceLogo(logo: logo, topClear: Metric.chipInset + PhotoChip.height)
                 }
             }
             .clipped()

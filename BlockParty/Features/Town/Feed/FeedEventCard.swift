@@ -284,8 +284,8 @@ struct FeedEventCard: View {
     }
 
     /// A flyer runs whole and full width at its own shape, its words under it on its own blurred dark rather than
-    /// over it (Jesse picked B, 2026-11-10, BP app town-feed 57). The flyer's shape decides it, failed or not.
-    private var wholeFlyer: Bool { item.whole && item.game == nil }
+    /// over it (Jesse picked B, 2026-11-10, BP app town-feed 57). One that fails to load is the ink card instead.
+    private var wholeFlyer: Bool { item.whole && item.game == nil && displayImage.isPhoto }
 
     private var photoArea: some View {
         shaped(GeometryReader { proxy in
