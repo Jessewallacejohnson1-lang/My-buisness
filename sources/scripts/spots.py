@@ -116,7 +116,7 @@ def fill(db, today, write, entries=None, maps=None, hand=None):
     found = {}  # place line -> the maps' answer: a line repeats on a team's whole season
     rows, page = [], 1000  # PostgREST answers at most 1,000 rows a read
     while True:
-        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id,lat,lng,no_place"
+        got = db.rest("GET", "club_events?select=id,title,event_date,location,place_entry_id,lat,lng,no_place,spot_looked_at"
                              f"&event_date=gte.{today}&status=eq.approved&order=event_date,id"
                              f"&limit={page}&offset={len(rows)}") or []
         rows += got
@@ -130,6 +130,8 @@ def fill(db, today, write, entries=None, maps=None, hand=None):
             if r["location"] not in found:
                 found[r["location"]] = maps.find(r["location"])
             at, why = found[r["location"]]
+        if at is None and r.get("spot_looked_at") and r.get("lat") is not None:
+            continue  # placed by its street address (venue_spots.py): the registry and the maps needn't give it, and don't empty it
         if at is None and maps is None and (r.get("no_place") or r.get("lat") is not None
                                             and (r["lat"], r["lng"]) not in given):
             continue  # the maps placed it (or found it a town) on an earlier morning: kept until they're read again
@@ -244,6 +246,11 @@ def selftest():
     checks.append(([i for i, _ in db.patched] == ["e1", "e4", "e6", "e8"],
                    f"maps not read: their old spot (e7) and town (e9) stay, none is found (e5), and a registry "
                    f"spot whose line changed is emptied (e8): {db.patched}"))
+    # A spot placed by street address (spot_looked_at set, venue_spots.py) stays when the maps ARE read and don't agree.
+    db = FakeDb(rows + [dict(row("e10", "Found by address", "Brand New Arena", "sju", 46.1, -94.2), spot_looked_at="2026-11-10T11:00:00+00:00")])
+    fill(db, date(2026, 10, 30), True, entries, FakeMaps(), hand)
+    checks.append(("e10" not in [i for i, _ in db.patched],
+                   f"a spot placed by street address is kept when the maps are read and don't agree: {db.patched}"))
     try:
         real = hand_spots(registry.find_root(Path(__file__).parent))
         checks.append((bool(real) and all(v == NOWHERE or len(v) == 2 for v in real.values()),

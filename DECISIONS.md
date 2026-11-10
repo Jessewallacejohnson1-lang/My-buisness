@@ -906,6 +906,18 @@ refresh, retry, a new account) still sends its own. The read runs in its own tas
 cancels it. `TownFeed.joinFor` is 10 s, the agent's pick: a read older than that may be dying (the phone slept
 mid-read), so a refresh asks again.
 
+## Decided 2026-11-09 — a pinch lifts a photo where it sits (BP app photo-zoom)
+
+`pinchToZoom` (`PhotoPinch.swift`) is a second deliberate exception to "never attach a pan-competing gesture
+to a scrollable feed cell", beside `FeedTouchDownTracker` and `PhotoDoubleTap`: a UIKit
+`UIPinchGestureRecognizer` on the Town card's face, the Event of the day poster, a post's photo and the
+Event page's picture. It never competes with the scroll: it needs two fingers, and its delegate recognizes
+simultaneously with every recognizer. While it holds, the scroll views under the fingers have
+`isScrollEnabled` off, so two fingers zoom rather than scroll, and back on the moment they lift. The lift is
+Instagram's: a window snapshot of the photo's spot over a black dim in the window, so it rides over the tab
+bar and top bar; the spot shows its ground (`slot`) till it lands. Its numbers (`PinchMath`) are guessed
+until Jesse's recording of Instagram's pinch is measured.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

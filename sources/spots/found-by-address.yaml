@@ -85,3 +85,9 @@
 "Victoria Ice Arena": [44.86326, -93.64662]  # 8475 Kochia Ln, Victoria, MN, 55386 (venue): https://www.victoriamn.gov/community/recreation_center/indoor_ice_arena.php
 "Waconia City Ice Arena": [44.83753, -93.80853]  # 1250 Oak Ave, Waconia, MN, 55387 (venue): https://www.waconiaicearena.com/
 "Willmar, Civic Center Cardinal Arena": [45.14674, -95.00744]  # 2707 Arena Dr, Willmar, MN, 56201 (venue): https://willmarmn.gov/civic_center/
+
+# Pierz Healy High School's gyms, one campus. The Census doesn't know 112 Kamnic St (it knows 66 and 80 Kamnic Lane, 170 m
+# off), so these are Overture's pin for Pierz School District #484 at 112 Kamnic St, hand-pinned (Jesse, 2026-11-09).
+"Pierz High School Middle School Gym": [45.97933, -94.09624]  # Overture: Pierz School District #484, 112 Kamnic St, Pierz
+"Pierz High School MAC GYM": [45.97933, -94.09624]  # the same campus
+"Pierz High School PAC GYM": [45.97933, -94.09624]  # the same campus
