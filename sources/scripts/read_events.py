@@ -651,9 +651,10 @@ NOT_GAMES = re.compile(r"^(music|robotics|speech|visual arts|one act play|debate
 ONE_GENDER = {"Volleyball", "Gymnastics", "Softball"}
 SPORT_WORDS = {"Cross Country Running": "Cross Country", "Swimming and Diving": "Swim",
                "Nordic Ski Racing": "Nordic Skiing", "Track and Field": "Track"}
-# A row naming an event rather than an opponent: a meet, a tournament, an invitational.
+# A row naming an event rather than an opponent: a meet, a tournament, an invitational. "CLC" is the Central Lakes
+# Conference: "CLC Dance Team" is its dance meet, no team (BP app game-card 19).
 NAMED = re.compile(r"\b(meet|tournament|tourney|invite|invitational|championships?|classic|jamboree|scrimmage|"
-                   r"relays|section|conference|true team|tri|triangular|quadrangular|individuals|race|festival|"
+                   r"relays|section|conference|clc|true team|tri|triangular|quadrangular|individuals|race|festival|"
                    r"showcase|show|competition|state)\b", re.I)
 PLAYOFF = re.compile(r"\b(section|state|true team|championships?|playoffs?)\b", re.I)
 # The league lists varsity games; a row naming only a lower level, or a practice, is left out.
@@ -1571,6 +1572,21 @@ def t_league_dance_show():
     got = games(show, LEAGUE_DAY)[0]
     assert [(i["title"], i["source_name"]) for i in got] == [("Crush Dance Show", "Apollo High School")], got
 
+
+def t_league_conference_meet():
+    """"CLC Dance Team" is the Central Lakes Conference's dance meet, not a team: on 2026-11-06 the league's Dec 4
+    meet at Tech was five games against it, and the writer made it a team (BP app game-card 19)."""
+    sports = {126: ("Dance Team", "Dance Team", "2026-11-01", "2027-02-28")}
+    rows = [{"event_date": "12/04/2026", "event_time": "7:00 PM", "mshsl_activity_id": 126, "school_name": team,
+             "opponent": "CLC Dance Team", "location": "St. Cloud Tech High School"}
+            for team in ("St. Cloud Tech", "St. Cloud Apollo", "Sartell", "ROCORI", "Sauk Rapids-Rice")]
+    day = date(2026, 11, 10)
+    listings = [l for n, r in enumerate(rows) for l in league_listings(
+        [r], sports, {"_name": f"School {n}"}, {"url": f"{LEAGUE}/group/{n}/full-schedule"}, day)]
+    got = games(listings, day)[0]
+    assert [(i["title"], i["source_name"], "game" in i) for i in got] == [
+        ("CLC Dance Team", "Tech High School", False)], got
+
 def t_league_undecided_opponent():
     """"St. Cloud Apollo OR Little Falls" is a bracket not played out yet: the game waits, and makes
     no team (Jesse, 2026-10-26)."""
@@ -2024,7 +2040,7 @@ def t_games_complete():
 
 
 TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
-         t_league_tournament_and_moves, t_league_dance_show, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
+         t_league_tournament_and_moves, t_league_dance_show, t_league_conference_meet, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file]
 
 

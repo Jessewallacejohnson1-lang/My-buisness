@@ -1350,7 +1350,13 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             # source) the same event a little reworded or retimed. It keeps its uid.
             # A read that gives no time says nothing of a timed Event's time or end: a Mention only (Jesse, 2026-11-06).
             # A listing with its own id speaks for itself when it drops its time, and a run over days changes the Event.
-            mine = [(i, ev) for i, ev in g["items"] if ev["row"]["source_name"] == old["source_name"]
+            # The row's own id from another source is the same listing too (an id is one row: club_events_source_uid_key):
+            # Bound lists a meet under one id on every school in it, and read_events.one_each keeps the venue school's
+            # copy, so a meet moved to Tech's pool came only from Tech and Apollo's row kept its old pool, time and no
+            # teams (BP app game-card 19).
+            mine = [(i, ev) for i, ev in g["items"] if (ev["row"]["source_name"] == old["source_name"]
+                                                         or real_uid(old.get("source_uid"))
+                                                         and ev["row"]["source_uid"] == old["source_uid"])
                     and not (g["facts"]["at"] and ev["facts"]["at"] is None and not ev["row"]["end_at"]
                              and not real_uid(ev["row"]["source_uid"]))]
             uid = old.get("source_uid")
@@ -2846,6 +2852,27 @@ def t_one_host_listed_twice():
     assert len(run([dict(one, **hidden), dict(two, **hidden)])["events"]) == 2, "a school's meets look alike and aren't"
 
 
+def t_moved_meet_from_another_school():
+    """Apollo's JV swim meet with Willmar, listed in October at Apollo's pool at 6 PM, moved to Tech's pool, and Bound
+    lists it under one id on every school in it. read_events.one_each keeps the venue school's copy, Tech's: the row
+    takes its pool, start and teams (BP app game-card 19; three of Apollo's meets kept their old pool and no teams).
+    Another school's copy under its own id stays a Mention."""
+    old = listed(title="Boys Swim vs Willmar · JV", event_date="2026-11-12", start_time="6 PM",
+                 location="St. Cloud Apollo High School Pool", source_name="Apollo High School",
+                 source_uid="bound:h0", followers_only=True)
+    tech = item(title="Boys Swim vs Willmar · JV", start="2026-11-12T17:00:00-06:00", end=None,
+                place="St. Cloud Tech High School B107 - Pool", town="St. Cloud", area="game",
+                source_name="Tech High School", source_url="https://gobound.com/direct/comps/h0/show",
+                source_uid="bound:h0", interest="watch_sports", size="everyday", followers_only=True,
+                game={"sport": "Boys Swim · JV", "teams": ["St. Cloud-ROCORI", "Willmar"]})
+    g = run([tech], [old])["events"]
+    assert len(g) == 1 and g[0]["id"] == old["id"], g
+    assert (g[0]["row"]["location"], g[0]["row"]["start_time"], g[0]["row"]["team_names"]) == (
+        "St. Cloud Tech High School B107, Pool", "5 PM", ["St. Cloud-ROCORI", "Willmar"]), g[0]["row"]
+    own = run([dict(tech, source_uid="bound:h9")], [dict(old, start_time="5 PM")])["events"]
+    assert len(own) == 1 and own[0]["row"] is None, "another id from another school is a Mention"
+
+
 COPIES = Path(__file__).resolve().parents[1] / "evals" / "copies" / "copies.json"
 
 
@@ -2909,7 +2936,8 @@ TESTS = [t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day,
-         t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice]
+         t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice,
+         t_moved_meet_from_another_school]
 
 
 def selftest():
