@@ -364,9 +364,29 @@ def title_clock(title, start, end):
     return start + shift, end and end + shift
 
 
+SHOW_SITTING = timedelta(hours=4)  # open this long a day, on two or more days a week: a show (an exhibit), not a performance
+
+
+def show_runs(rows):
+    """The repeating listings that are one show open for days (Reflection: Selected Works, Mon to Sat 10 to 9,
+    Oct 28 to Dec 14): by title, the last day it is open. The calendar lists each day under its own id, so
+    without this each day was a new Event and the morning picked it again (BP app town-feed 62). A play on
+    three nights sits under four hours and stays a card a night."""
+    last = {}
+    for r in rows:
+        rule, start, end = r.get("recurrence_rule") or "", r.get("start_date"), r.get("end_date")
+        days = re.search(r"BYDAY=([A-Z,]+)", rule)
+        if r.get("all_day") or not (days and "," in days[1] and start and end):
+            continue
+        if utc_local(end) - utc_local(start) >= SHOW_SITTING:
+            day = utc_local(start).date().isoformat()
+            last[r["title"].strip()] = max(last.get(r["title"].strip(), day), day)
+    return last
+
+
 def pathify_items(rows, entry, src, today):
     site = urlparse(src["url"])
-    out, series = [], set()
+    out, series, shows = [], set(), show_runs(rows)
     for r in sorted(rows, key=lambda r: r["start_date"]):
         cal = (r.get("calendar") or {}).get("name") or ""
         title, place = r["title"].strip(), re.sub(r",\s*USA$", "", (r.get("location") or "").strip())
@@ -389,6 +409,8 @@ def pathify_items(rows, entry, src, today):
         else:
             at, until = title_clock(title, utc_local(r["start_date"]), r.get("end_date") and utc_local(r["end_date"]))
             start, end = at.isoformat(), until and until.isoformat()
+            if title in shows and shows[title] > start[:10]:
+                end = shows[title]  # open to its last day: one Event the whole run
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
         news = bool(NEWS.search(title))
@@ -405,7 +427,8 @@ def pathify_items(rows, entry, src, today):
                           # event-details; Jesse, 2026-10-29); the id stays the calendar's.
                           source_url=(r.get("ticket_url") or "").strip()
                           or f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
-                          source_uid=str(r["id"])))
+                          # A show keeps one id for its whole run, so each morning's read is the same Event.
+                          source_uid=f"run:{title}" if title in shows else str(r["id"])))
     return out
 
 
@@ -1363,6 +1386,18 @@ def t_pathify():
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
     assert "&field=description&" in url and "&field=ticket_url&" in url, url
+    show = lambda i, day, hours, rule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA": {
+        "id": i, "title": "Reflection: Selected Works", "location": "Benedicta Arts Center", "calendar": {"name": "Campus Events"},
+        "start_date": f"{day}T16:00:00Z", "end_date": (datetime.fromisoformat(f"{day}T16:00:00+00:00") + timedelta(hours=hours)).isoformat(),
+        "all_day": False, "recurrence_rule": rule}
+    shown = pathify_items([show(10, "2026-11-11", 11), show(11, "2026-11-12", 11), show(12, "2026-12-14", 11)],
+                          {"_name": "x"}, src, date(2026, 11, 11))
+    assert [(i["start"][:10], i["end"], i["source_uid"]) for i in shown] == [
+        ("2026-11-11", "2026-12-14", "run:Reflection: Selected Works")], "a show open for days is one Event to its last day"
+    play = pathify_items([dict(show(20, "2026-11-12", 2.5, "FREQ=WEEKLY;BYDAY=TH,FR,SA"), title="The Crucible"),
+                          dict(show(21, "2026-11-13", 2.5, "FREQ=WEEKLY;BYDAY=TH,FR,SA"), title="The Crucible")],
+                         {"_name": "x"}, src, date(2026, 11, 11))
+    assert [i["source_uid"] for i in play] == ["20"], "a play's nights stay one card a night, at its next"
     retreat, talk = pathify_items([
         {"id": 4155871, "title": "Grounding Our Emotions", "location": "104 Chapel Lane, Saint Joseph, MN, USA",
          "calendar": {"name": "St. Benedict's Monastery"}, "start_date": "2026-11-03T15:00:00Z", "all_day": False,

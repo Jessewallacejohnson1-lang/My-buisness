@@ -251,3 +251,21 @@ test('a re-read fills an About only researched, and never one we wrote', async (
   await apply(listing(`${fuller} Sign up on the City's registration site.`));
   assert.equal(await about(), 'Wreaths and feeders to take home.', 'written by us: a longer re-read leaves it');
 });
+
+test('a show open for days keeps its first day, while a dated Event moves with its source (town-feed 62)', async () => {
+  const db = await realDatabase();
+  const show = (uid, day) => [{ status: 'approved', title: 'Reflection: Selected Works', event_date: day,
+    start_time: '10 AM', end_at: '2026-12-16T06:00:00Z', all_day: false, location: 'Benedicta Arts Center',
+    description: null, source_name: 'CSB SJU Campus Events', source_url: 'u', source_uid: uid,
+    category: 'art_theater', shows_from: day }];
+  const apply = async (events) => db.query('select public.apply_judged($1, $2, $3, $4)',
+    [JSON.stringify(events), '[]', '[]', '[]']);
+  const day = async (uid) => (await db.query(
+    'select event_date::text as d from public.club_events where source_uid = $1', [uid])).rows[0].d;
+  await apply(show('run:Reflection: Selected Works', '2026-10-28'));
+  await apply(show('run:Reflection: Selected Works', '2026-11-12'));
+  assert.equal(await day('run:Reflection: Selected Works'), '2026-10-28', 'the next morning reads it from its next day');
+  await apply(show('4758905', '2026-11-11'));
+  await apply(show('4758905', '2026-11-12'));
+  assert.equal(await day('4758905'), '2026-11-12', 'a dated Event its source moves, moves');
+});
