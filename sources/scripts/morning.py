@@ -97,6 +97,7 @@ SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
 TAG_MAX = 5  # interests an Event carries at most (onboarding 21)
 STANDOUTS = 9
+SHOW_GAP = 3  # days back a same-titled Event marks a show running day after day (a gallery shut Sunday still counts)
 THIN = 120        # characters: an About under this says less than a sentence
 DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
 DESCRIBE_BATCH = 10
@@ -977,6 +978,14 @@ def todays_events(db, today, tags=None, abouts=None):
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
     if not rows:
         return []
+    # A show listed again each day it runs (a gallery exhibit) is a standout on its first day only, never
+    # day after day (Jesse, 2026-11-11: "Reflection: Selected Works" was Event of the day three times).
+    since = date.fromisoformat(str(today)) - timedelta(days=SHOW_GAP)
+    earlier = db.rest("GET", "club_events?select=title&status=eq.approved&kind=eq.event"
+                             f"&event_date=gte.{since}&event_date=lt.{today}") or []
+    rows = first_day_only(rows, [e["title"] for e in earlier])
+    if not rows:
+        return []
     for r in rows:
         t = (tags or {}).get(r["id"]) or {}
         r.update(t, **({"interests_tagged_at": str(today)} if "interests" in t else {}))
@@ -985,6 +994,13 @@ def todays_events(db, today, tags=None, abouts=None):
     count = lambda table: [x["event_id"] for x in db.rest("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
     going, hearts = count("event_rsvps"), count("event_likes")
     return [event_line(r, going.count(r["id"]), hearts.count(r["id"])) for r in rows]
+
+
+def first_day_only(rows, earlier_titles):
+    """Today's Events less any whose title also ran in the last SHOW_GAP days: a show repeating day after
+    day. A weekly one (trivia every Tuesday) is seven days apart, so it stays."""
+    seen = {" ".join(t.lower().split()) for t in earlier_titles if t}
+    return [r for r in rows if " ".join((r.get("title") or "").lower().split()) not in seen]
 
 
 def event_line(row, going, hearts):
@@ -1517,6 +1533,9 @@ def selftest():
     checks.append(([(r["event_id"], r["rank"], r["why"]) for r in rows] == [("g", 1, "Rivals, under the lights"), ("b", 2, "Bingo")]
                    and rows[0]["town"] == "st-joseph-mn" and rows[0]["day"] == "2026-10-20",
                    "standouts keep given Events once each with a reason, ranked in the model's order"))
+    shows = first_day_only([{"id": "r", "title": "Reflection:  Selected Works"}, {"id": "v", "title": "Veterans Day lunch"}],
+                           ["reflection: selected works", None])
+    checks.append(([r["id"] for r in shows] == ["v"], "a show listed again day after day is never a standout after its first day"))
     many = [{"id": str(i)} for i in range(12)]
     checks.append((len(plan_standouts([{"id": str(i), "why": "x"} for i in range(12)], many, "2026-10-20")) == STANDOUTS,
                    "nine standouts at most"))
@@ -2145,7 +2164,7 @@ def steps_alone():
             out = Path(tmp) / "morning"
             out.mkdir()
             db = FakeDb({"milk|https://m/events": {"last_hash": "old", "last_checked_at": "2026-10-19"}},
-                        {"club_events?select=team_ids": lambda *a: [], "club_events?select=": lambda *a: [dict(r) for r in rows],
+                        {"club_events?select=team_ids": lambda *a: [], "club_events?select=title&": lambda *a: [], "club_events?select=": lambda *a: [dict(r) for r in rows],
                          "rpc/apply_judged": added, "rpc/event_picture": {}})
             run = lambda minutes=None: Run(out, day, db, minutes=minutes)
             run().prepared({"today": str(day), "fetched": 2, "changed": 1, "to_read": 1, "failed": [], "readers": []})
@@ -2470,7 +2489,7 @@ def whole_morning():
             elif path.startswith("morning_reports?on_conflict=day"):
                 self.reports[body["day"]] = body["report"]
             elif path.startswith("club_events"):
-                return [dict(e) for e in self.events if "status=eq.waiting_logo" not in path and
+                return [dict(e) for e in self.events if "status=eq.waiting_logo" not in path and "event_date=lt." not in path and
                         ("event_date=eq.2026-11-03" not in path or e["event_date"] == "2026-11-03")
                         and ("described_at=is.null" not in path or not e["described_at"])
                         and ("interests_tagged_at.is.null" not in path or not (e["interests_tagged_at"] and e["what"]))]
