@@ -21,8 +21,12 @@ struct TownView: View {
 
     /// A place as Search holds it, by `places.id`: the feed's places to try (town-feed 23).
     var places: (String) -> SearchItem?
+    /// Goes up by one each time the Town tab is tapped while on Town: scrolled down, the feed
+    /// goes to its top; at the top, it reads again as a pull does (BP app town-feed 61).
+    var tappedAgain = 0
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
@@ -53,8 +57,10 @@ struct TownView: View {
         onOpenPage: @escaping (TownPageKind) -> Void = { _ in },
         townFeed: TownFeed,
         eventOfTheDay: EventOfTheDay,
-        places: @escaping (String) -> SearchItem? = { _ in nil }
+        places: @escaping (String) -> SearchItem? = { _ in nil },
+        tappedAgain: Int = 0
     ) {
+        self.tappedAgain = tappedAgain
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
         self.onCreate = onCreate
@@ -299,6 +305,14 @@ struct TownView: View {
         }
         .refreshable {
             await townFeed.pulled()
+        }
+        // The Town tab tapped again, as Instagram's Home: to the top, then a read.
+        .onChange(of: tappedAgain) {
+            if townFeed.atTop {
+                Task { await townFeed.pulled() }
+            } else {
+                withAnimation(reduceMotion ? nil : Motion.smooth) { feedPosition.scrollTo(edge: .top) }
+            }
         }
         .tint(.clear)
         .background(Hue.paper)

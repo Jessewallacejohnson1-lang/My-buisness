@@ -370,6 +370,8 @@ struct MainTabsView: View {
     @State private var calendarSync = CalendarSync()
     /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
     @State private var path = NavigationPath()
+    /// Counts taps on the Town tab while on Town (`TownView.tappedAgain`).
+    @State private var townTappedAgain = 0
     /// The Event page back on top after a restart: it's the same open, so it isn't counted again.
     @State private var reopened: String?
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
@@ -696,7 +698,8 @@ struct MainTabsView: View {
                                 onOpenPage: { path.append($0) },
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay,
-                                places: searchModel.place
+                                places: searchModel.place,
+                                tappedAgain: townTappedAgain
                             )
                         // Daily shows paper while its first read is out, then its page: the week
                         // on top, and under it the picked day, or the named, reserved slot on a
@@ -821,9 +824,16 @@ struct MainTabsView: View {
     #endif
 
     /// A tab-bar tap. The haptic lives here (not the button) so it fires once per
-    /// real change — re-tapping the current tab is a no-op.
+    /// real change. Town tapped again goes to its top, then reads again, as Instagram's
+    /// Home does (BP app town-feed 61); the other tabs' second tap is a no-op.
     private func select(_ newTab: Tab) {
-        guard newTab != tab else { return }
+        guard newTab != tab else {
+            if newTab == .town {
+                Haptics.selection()
+                townTappedAgain += 1
+            }
+            return
+        }
         Haptics.selection()
         switchTab(to: newTab)
     }
