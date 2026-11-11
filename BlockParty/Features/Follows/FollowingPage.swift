@@ -318,6 +318,8 @@ struct HostOpener {
     /// Pushes onto the shell's stack: a Group, a game's school, or the Event's own page, where a
     /// card's host goes when it has no page of its own.
     let push: (any Hashable) -> Void
+    /// Search with these words typed, from a post's #tag (BP app town-feed 60).
+    var search: (String) -> Void = { _ in }
 }
 
 extension HostOpener {

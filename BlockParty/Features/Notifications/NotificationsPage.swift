@@ -34,6 +34,11 @@ struct NoticeEventRoute: Hashable {
     let item: FeedCardItem
 }
 
+/// A post opened from the bell's page (town-feed 60): its card alone on a page of its own.
+struct PostRoute: Hashable {
+    let post: TownPost
+}
+
 struct NotificationsPage: View {
     @Environment(Notices.self) private var notices
     /// For an Event from something you follow: its card, while the feed has it (hello-drop 07).
@@ -56,8 +61,9 @@ struct NotificationsPage: View {
                     let now = Date()
                     let items = inbox.recent(now: now)
                     // Nothing read yet and nothing kept on the phone: the rows' own shape, shimmering.
-                    if notices.list == nil && !notices.failed && items.isEmpty { LoadingNotices() }
-                    ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items), now: now), id: \.title) { section in
+                    if notices.list == nil && !notices.failed && items.isEmpty && notices.named.isEmpty { LoadingNotices() }
+                    ForEach(Notices.sections(BellRow.merged(notices.list ?? [], items, named: notices.named), now: now),
+                            id: \.title) { section in
                         Text(section.title)
                             .font(.display(16))
                             .foregroundStyle(Hue.ink)
@@ -68,6 +74,7 @@ struct NotificationsPage: View {
                         ForEach(section.rows) { row in
                             switch row {
                             case .change(let notice): NoticeRow(notice: notice, now: now)
+                            case .named(let named): NamedRow(named: named, now: now)
                             case .item(let item):
                                 HelloItemRow(item: item, now: now, card: {
                                     guard case .added(let added) = item.what else { return nil }
@@ -92,7 +99,7 @@ struct NotificationsPage: View {
         // Nothing yet: Apple's empty page, in the middle of the screen, once the read has answered;
         // never over what the phone kept.
         .overlay {
-            if !inbox.recent(now: Date()).isEmpty {
+            if !inbox.recent(now: Date()).isEmpty || !notices.named.isEmpty {
                 // The rows say it.
             } else if notices.list?.isEmpty == true {
                 ContentUnavailableView("No notifications yet", systemImage: "bell",
@@ -138,6 +145,54 @@ private struct NoticeRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.row))
+    }
+}
+
+/// "**Marlene Ostendorf** mentioned you in a post. 5m" with the post's photo as Instagram's thumbnail (town-feed 60),
+/// opening the post.
+private struct NamedRow: View {
+    let named: NamedNotice
+    let now: Date
+
+    var body: some View {
+        NavigationLink(value: PostRoute(post: named.post)) {
+            HStack(spacing: NoticeMetric.gap) {
+                Avatar(named.post.posterPhoto, size: NoticeMetric.face, outlined: true)
+                Text("\(Text(named.post.poster.name).font(.sansSemibold(15))) \(named.words) \(Text(PostingCard.relativeLabel(for: named.post.posted, now: now)).foregroundStyle(Hue.inkSecondary))")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.ink)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let photo = named.post.photo {
+                    FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                        .frame(width: NoticeMetric.face, height: NoticeMetric.face)
+                        .clipShape(RoundedRectangle(cornerRadius: NoticeMetric.thumbRadius, style: .continuous))
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.vertical, NoticeMetric.rowPad)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press(.row))
+    }
+}
+
+/// A post on its own page, opened from the bell (town-feed 60): its card under a small "Post" bar, as Instagram opens
+/// a post from its notifications.
+struct PostPage: View {
+    let post: TownPost
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Hue.paper.ignoresSafeArea()
+            ScrollView {
+                FeedPostCard(post: post)
+                    .padding(.top, PageMetric.bar + 8)
+            }
+            FriendsTitleBar(title: "Post", titleUnder: true).accessibilitySortPriority(1)
+        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

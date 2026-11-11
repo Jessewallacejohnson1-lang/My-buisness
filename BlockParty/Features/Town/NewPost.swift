@@ -208,6 +208,8 @@ struct NewPostDraft: Equatable {
     var words = ""
     var friendsOnly = false
     var tagged: [Neighbor] = []
+    /// The friends and places picked from the `@` row, in the order picked (town-feed 60).
+    var atNames: [AtName] = []
     var place = ""
     /// An Event's places after the first (BP app town-feed 54); a post keeps one place.
     var morePlaces: [String] = []
@@ -233,6 +235,19 @@ struct NewPostDraft: Equatable {
     /// Words or a photo: Post lights up.
     func ready(photo: Bool) -> Bool { photo || !text.isEmpty }
 
+    /// A pick from the `@` row (town-feed 60): "@Name " in place of what was typed from the `@`, and the name kept
+    /// once. Returns where the cursor goes, just after it.
+    mutating func pick(_ name: AtName, replacing range: Range<String.Index>) -> String.Index {
+        let typed = name.typed + " "
+        let start = words.distance(from: words.startIndex, to: range.lowerBound)
+        words.replaceSubrange(range, with: typed)
+        if !atNames.contains(where: { $0.kind == name.kind && $0.id == name.id }) { atNames.append(name) }
+        return words.index(words.startIndex, offsetBy: min(start + typed.count, words.count))
+    }
+
+    /// The picked names still in the words, as Post sends them.
+    var keptNames: [AtName] { atNames.filter { text.contains($0.typed) } }
+
     /// 24 pt while short with no photo, 17 once longer or with one (round 2).
     func big(photo: Bool) -> Bool { !photo && words.count <= Self.bigUntil }
 
@@ -241,7 +256,7 @@ struct NewPostDraft: Equatable {
 
     func input(id: String, imageURL: String?, aspect: Double?) -> NewPostInput {
         NewPostInput(id: id, words: text, imageURL: imageURL, aspect: imageURL == nil ? nil : aspect, place: location,
-                     friendsOnly: friendsOnly, tagged: tagged.map(\.userId))
+                     friendsOnly: friendsOnly, tagged: tagged.map(\.userId), atNames: keptNames)
     }
 
     /// A photo's shape inside Instagram's limits: 4:5 tall to 1.91:1 wide.
@@ -529,6 +544,9 @@ struct NewPostSheet: View {
     @State private var path: [Step] = []
     @State private var discarding = false
     @FocusState private var focus: Field?
+    /// Where the cursor is in the words: the `@` row reads what's typed before it (town-feed 60).
+    @State private var selection: TextSelection?
+    @Environment(FriendsBook.self) private var book
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -564,7 +582,16 @@ struct NewPostSheet: View {
                 .animation(reduceMotion ? nil : Motion.smooth, value: model.draft.morePlaces)
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom, spacing: 0) { bar }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    if let typing, !named(typing.query).isEmpty {
+                        AtRow(candidates: named(typing.query)) { pickName($0, replacing: typing.range) }
+                            .transition(.opacity)
+                    }
+                    bar
+                }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: typing?.query)
+            }
             .background(Hue.paper)
             .navigationTitle(NewPostCopy.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -615,6 +642,8 @@ struct NewPostSheet: View {
         // A swipe down can't throw away what's typed or picked; the X asks first.
         .interactiveDismissDisabled(model.busy || model.edited)
         .task { if !me.loaded { await me.read() } }
+        // Your friends for the `@` row.
+        .task { if !book.loaded { await book.refresh() } }
         .onAppear {
             if let back = PostOutbox.shared.back {
                 model.restore(back)
@@ -623,8 +652,12 @@ struct NewPostSheet: View {
                 #if DEBUG
                 // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
                 if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
-                // `-new-post-words <words>`: typed, as AXe can't type on BP Build.
-                if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+                // `-new-post-words <words>`: typed, as AXe can't type on BP Build, the cursor at their end, so
+                // words ending "@b" show the `@` row.
+                if let words = LaunchFlags.value(.newPostWords) {
+                    model.draft.words = words
+                    selection = TextSelection(insertionPoint: model.draft.words.endIndex)
+                }
                 // `-new-event-places "A|B|C"`: Event on with these places picked, the first as Place.
                 if let names = LaunchFlags.value(.newEventPlaces)?.split(separator: "|").map(String.init), let first = names.first {
                     model.setEvent(true)
@@ -759,7 +792,8 @@ struct NewPostSheet: View {
 
     private var words: some View {
         let big = !model.event && model.draft.big(photo: model.photo != nil)
-        return TextField(model.event ? NewPostCopy.about : NewPostCopy.placeholder, text: $model.draft.words, axis: .vertical)
+        return TextField(model.event ? NewPostCopy.about : NewPostCopy.placeholder, text: $model.draft.words,
+                         selection: $selection, axis: .vertical)
             .font(.sans(big ? NewPostMetric.bigWords : NewPostMetric.words))
             .foregroundStyle(Hue.ink)
             .focused($focus, equals: .words)
@@ -768,6 +802,25 @@ struct NewPostSheet: View {
                 // An edit clears why it wasn't posted; the words coming back with it don't.
                 if !was.isEmpty { model.problem = nil }
             }
+    }
+
+    // MARK: @ names (town-feed 60)
+
+    /// The `@` typed before the cursor in a post's words; never with Event on (an Event's About takes none).
+    private var typing: (range: Range<String.Index>, query: String)? {
+        guard !model.event, focus == .words, case .selection(let range)? = selection?.indices, range.isEmpty else { return nil }
+        return AtTyping.typed(model.draft.words, cursor: range.upperBound)
+    }
+
+    /// Your friends, then the places with a page, matching what's typed.
+    private func named(_ query: String) -> [AtCandidate] {
+        AtTyping.matches(query, friends: AtCandidate.friends(book.friends), places: AtCandidate.places(places))
+    }
+
+    private func pickName(_ candidate: AtCandidate, replacing range: Range<String.Index>) {
+        Haptics.light()
+        let cursor = model.draft.pick(candidate.name, replacing: range)
+        selection = TextSelection(insertionPoint: cursor)
     }
 
     /// Event on: its name, day and time and Place, town-plus's rows.

@@ -130,6 +130,11 @@ nonisolated enum Hue {
     /// The dot on the Friends tab's paper plane for an unread message, the mock's red (BP app five-tabs 05).
     static let unread        = heart
 
+    /// An `@` name or `#` tag in a post's words: Instagram's link blue, the darkest of its caption's
+    /// #tag and @names (BP app references/at-names-and-hashtags/SPEC.md; Jesse at town-feed 60's
+    /// Check-in 1, 2026-11-11, picked it over ink in bold). Words only, never a fill.
+    static let link          = Color(hex: 0x1B5775)
+
     /// **The brand yellow.** The logo's field colour, sampled from the master
     /// (`docs/brand/source-logo-1254.png`): the modal pixel across the field, not an
     /// eyeballed approximation. This is the app's ONE accent (Jesse, 2026-09-18) and

@@ -113,13 +113,18 @@ enum TownFixtures {
     }
 
     /// Two invented neighbours' posts (town-feed 29): a photo with words, and words alone, tagged. The Block
-    /// Party tab's Following samples take them too (daily-tab 23).
-    static func postSamples(now: Date) -> [TownFeedEntry] {
+    /// Party tab's Following samples take them too (daily-tab 23). Marlene's names Sam and Bad Habit Brewing (its
+    /// real place id) with `@` and tags #JoeTownNights (town-feed 60).
+    static func postSamples(now: Date, posted: TimeInterval = 2 * 3600) -> [TownFeedEntry] {
         let photo = Bundle.main.url(forResource: "downtown", withExtension: "jpg")
         let posts = [
             TownPost(id: "sample-post-1", poster: .init(id: "sample:Marlene Ostendorf", name: "Marlene Ostendorf"),
-                     posterPhoto: avatarURL("p1"), words: "Downtown was packed tonight. Thanks to everyone who came out!",
-                     photo: photo, aspect: 4.0 / 3.0, posted: now.addingTimeInterval(-2 * 3600),
+                     posterPhoto: avatarURL("p1"),
+                     words: "Downtown was packed tonight with @Sam Rivera. Thanks @Bad Habit Brewing for the pints! #JoeTownNights",
+                     photo: photo, aspect: 4.0 / 3.0,
+                     atNames: [AtName(kind: .user, id: "sample:Sam Rivera", name: "Sam Rivera"),
+                               AtName(kind: .place, id: "3f3c5259-67f9-491e-9af5-5c4b21a80b58", name: "Bad Habit Brewing")],
+                     posted: now.addingTimeInterval(-posted),
                      leavesAt: now.addingTimeInterval(5 * 86_400), heartCount: 12),
             TownPost(id: "sample-post-2", poster: .init(id: "sample:Sam Rivera", name: "Sam Rivera"),
                      words: "Anyone up for sledding after school? The big hill by the river is packed down and fast after last night. Bring a sled, a thermos and dry socks. We will be there from 3:30 until it gets dark, and the porch on Minnesota Street is open for hot chocolate after. Kids of all ages welcome, parents too. Text me if you need a ride.",

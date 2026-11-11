@@ -105,14 +105,30 @@ nonisolated struct Notice: Identifiable, Hashable {
     }
 }
 
-/// One row on the bell's page: an Event that changed, or something the hello pill said (hello-drop 05).
+/// A post that names you with `@` or tags you (BP app town-feed 60): "**Marlene Ostendorf** mentioned you in a post."
+/// It opens the post. Read from the server on every visit, so a post deleted since is gone from the bell too.
+nonisolated struct NamedNotice: Identifiable, Hashable {
+    let post: TownPost
+    /// Tagged with Tag friends, not named with `@`.
+    let tagged: Bool
+
+    var id: String { "named:\(post.id)" }
+
+    /// Instagram's words.
+    var words: String { tagged ? "tagged you in a post." : "mentioned you in a post." }
+}
+
+/// One row on the bell's page: an Event that changed, a post that names you, or something the hello pill said
+/// (hello-drop 05).
 enum BellRow: Identifiable {
     case change(Notice)
+    case named(NamedNotice)
     case item(HelloItem)
 
     var id: String {
         switch self {
         case .change(let notice): "change:\(notice.id)"
+        case .named(let named): named.id
         case .item(let item): item.id
         }
     }
@@ -120,13 +136,14 @@ enum BellRow: Identifiable {
     var at: Date {
         switch self {
         case .change(let notice): notice.changedAt
+        case .named(let named): named.post.posted
         case .item(let item): item.at
         }
     }
 
-    /// Both, newest first.
-    static func merged(_ changes: [Notice], _ items: [HelloItem]) -> [BellRow] {
-        (changes.map(BellRow.change) + items.map(BellRow.item)).sorted { $0.at > $1.at }
+    /// All of them, newest first.
+    static func merged(_ changes: [Notice], _ items: [HelloItem], named: [NamedNotice] = []) -> [BellRow] {
+        (changes.map(BellRow.change) + named.map(BellRow.named) + items.map(BellRow.item)).sorted { $0.at > $1.at }
     }
 }
 
@@ -134,18 +151,23 @@ enum BellRow: Identifiable {
 final class Notices {
     /// What the page lists, newest change first; nil until the first read answers.
     private(set) var list: [Notice]?
+    /// The posts that name or tag you, newest first (town-feed 60); empty until their read answers.
+    private(set) var named: [NamedNotice] = []
     /// The last read failed with nothing read before it: the page says so.
     private(set) var failed = false
     /// Seen on this phone, by `Notice.id`.
     private var seen: Set<String>
 
     private let read: () async throws -> [Notice]
+    private let readNamed: () async throws -> [NamedNotice]
     private let keep: UserDefaults
     /// Ticket 12's told Events, so one already told there is seen here.
     static let seenKey = "bp.cancelled.told"
 
-    init(read: @escaping () async throws -> [Notice], keep: UserDefaults = .standard) {
+    init(read: @escaping () async throws -> [Notice], named: @escaping () async throws -> [NamedNotice] = { [] },
+         keep: UserDefaults = .standard) {
         self.read = read
+        self.readNamed = named
         self.keep = keep
         seen = Set(keep.stringArray(forKey: Self.seenKey) ?? [])
     }
@@ -155,37 +177,44 @@ final class Notices {
     convenience init(supabase: Supabase, keep: UserDefaults = .standard) {
         #if DEBUG
         if LaunchFlags.has(.noticeSamples) {
-            self.init(read: { Notices.samples(now: Date()) }, keep: UserDefaults(suiteName: "NoticeSamples") ?? .standard)
+            self.init(read: { Notices.samples(now: Date()) }, named: { Notices.namedSamples(now: Date()) },
+                      keep: UserDefaults(suiteName: "NoticeSamples") ?? .standard)
             return
         }
         #endif
-        self.init(read: { try await CommunityAPI(supabase).getMyChanges() }, keep: keep)
+        self.init(read: { try await CommunityAPI(supabase).getMyChanges() },
+                  named: { try await CommunityAPI(supabase).getMyMentions() }, keep: keep)
     }
 
     /// The bell's dot: something on the page you haven't opened it to.
-    var dot: Bool { list?.contains { !seen.contains($0.id) } ?? false }
+    var dot: Bool {
+        (list?.contains { !seen.contains($0.id) } ?? false) || named.contains { !seen.contains($0.id) }
+    }
 
-    /// Reads again. A failed read keeps what it had and waits for the next.
+    /// Reads again, changes and names together. A failed read keeps what it had and waits for the next.
     func refresh(now: Date = Date()) async {
-        guard let fresh = try? await read() else {
-            failed = list == nil
-            return
-        }
-        failed = false
+        async let changes = try? read()
+        async let names = try? readNamed()
+        let (fresh, freshNames) = await (changes, names)
         // Animated, so the bell's dot grows in rather than pops.
-        withAnimation(.snappy) { list = Self.showing(fresh, now: now) }
+        withAnimation(.snappy) {
+            if let freshNames { named = freshNames }
+            if let fresh { list = Self.showing(fresh, now: now) }
+        }
+        failed = fresh == nil && list == nil
     }
 
     /// The page drew them: the dot goes.
     func opened() {
-        guard let list else { return }
-        seen.formUnion(list.map(\.id))
+        guard list != nil || !named.isEmpty else { return }
+        seen.formUnion((list ?? []).map(\.id) + named.map(\.id))
         keep.set(Array(seen).sorted(), forKey: Self.seenKey)
     }
 
     /// Signed out or another account: nothing until its own read.
     func reset() {
         list = nil
+        named = []
         failed = false
     }
 
@@ -210,6 +239,12 @@ final class Notices {
     }
 
     #if DEBUG
+    /// INVENTED: Marlene's sample post naming you with `@`, 5 minutes old (town-feed 60's mock).
+    static func namedSamples(now: Date) -> [NamedNotice] {
+        guard case .post(let post)? = TownFixtures.postSamples(now: now, posted: 5 * 60).first?.item else { return [] }
+        return [NamedNotice(post: post, tagged: false)]
+    }
+
     /// INVENTED: the mock's changes (BP app references/moved-alert), with Kennedy's and Apollo's real
     /// logos from Block Party's Storage and a bundled photo. Every game, time and word is made up.
     static func samples(now: Date) -> [Notice] {
