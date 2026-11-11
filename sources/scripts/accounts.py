@@ -48,7 +48,8 @@ NOT_THE_PLACE = {"squarespace", "wix", "weebly", "godaddy", "shopify", "wordpres
                  "bookedonvagaro", "mindbody", "mindbodyonline", "square", "linktree", "yelp", "google",
                  "facebook", "instagram", "meta", "hashtag", "acehardware", "kwiktrip", "statefarm",
                  "edwardjones", "installedbuildingproducts",
-                 "fmcsa", "dot_fmcsa"}  # Iman Carrier's site links the federal trucking agency (2026-11-11)
+                 "fmcsa", "dot_fmcsa",  # Iman Carrier's site links the federal trucking agency (2026-11-11)
+                 "minnesotadnr"}  # the statewide DNR, not the St. Wendel Tamarack Bog it runs (2026-11-11)
 STOP = {"the", "and", "llc", "inc", "saint", "joseph", "company", "minnesota", "central", "center", "services"}
 
 

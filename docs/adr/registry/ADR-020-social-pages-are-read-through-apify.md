@@ -112,7 +112,8 @@ that the monthly cap or Facebook stopped is read up by the next. 23 pages that p
 Nov 5 read moved to the busy list (5 of them had hit the 20-post limit, so posts were lost). 11 pages that only
 advertise (house listings, cars for sale, national chains' pages) are marked `skip`: never read, but kept on the
 list so the monthly accounts check doesn't offer them again. Iman Carrier's two pages were the federal FMCSA's,
-not the place's, and left the list. A weekly page with no new post 4 reads in a row is read in the first week of
+not the place's, and left the list; so did the St. Wendel Tamarack Bog's Instagram, the statewide Minnesota DNR
+account (its statewide tips showed as the bog's News; Jesse, "i agree"). A weekly page with no new post 4 reads in a row is read in the first week of
 each month until it posts.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
