@@ -1316,17 +1316,20 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
         else:
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
-            g = by_uid.get(key) or min((g for g in groups if (joins(g, ev["facts"])
+            # A show open for days (read_events.show_runs) is known by its run id alone: its Event started
+            # weeks ago, outside the listed days, and a day's old copy must not take it (town-feed 62).
+            run = key[1].startswith("run:")
+            g = by_uid.get(key) or (None if run else min((g for g in groups if (joins(g, ev["facts"])
                                                               or one_facebook_event(g, ev["row"], ev["facts"]))
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
-                                                      g["facts"]["at"] is None), default=None)
+                                                      g["facts"]["at"] is None), default=None))
             if g is None:
                 # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
                     same_place(g["facts"]["place"], ev["facts"]["place"])
                     or same_title(g["facts"]["title"], ev["facts"]["title"])
-                    or two_hosts(g["facts"], ev["facts"]) == "maybe") and not own_ids_differ(g, *key, ev["facts"])]
+                    or two_hosts(g["facts"], ev["facts"]) == "maybe") and not own_ids_differ(g, *key, ev["facts"]) and not run]
                 for o in near:
                     other = o["old"]["title"] if o["old"] else o["items"][0][1]["row"]["title"]
                     out["notes"].append(f"kept apart: {ev['row']['title']!r} and {other!r} on "
@@ -1685,6 +1688,17 @@ def t_city_meeting_end_and_place():
     assert row["end_at"] is None and row["location"] == "City Hall", row
     assert run([dict(meeting, title="Park Board Meeting")])["events"][0]["row"]["location"] is None
     assert run([item(place="")])["events"][0]["row"]["location"] is None, "only the city's own meetings"
+
+
+def t_show_joins_only_its_run():
+    copy = listed(title="Reflection: Selected Works", event_date="2026-10-24", start_time="4 PM", status="rejected",
+                  review_reason="other", location="Milk & Honey Ciders, 11738 County Road 51",
+                  source_name="Milk & Honey Ciders", source_uid="4758905")
+    show = item(title="Reflection: Selected Works", end="2026-12-15", source_uid="run:Reflection: Selected Works")
+    r = run([show], [copy])
+    assert [g["row"]["source_uid"] for g in r["events"]] == ["run:Reflection: Selected Works"], \
+        "a show's read is its run, never a day's old copy (town-feed 62)"
+    assert not any("kept apart" in n for n in r["notes"]), r["notes"]
 
 
 def item(**kw):
@@ -2944,7 +2958,7 @@ TESTS = [t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day,
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day, t_show_joins_only_its_run,
          t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice,
          t_moved_meet_from_another_school]
 

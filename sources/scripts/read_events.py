@@ -409,7 +409,7 @@ def pathify_items(rows, entry, src, today):
         else:
             at, until = title_clock(title, utc_local(r["start_date"]), r.get("end_date") and utc_local(r["end_date"]))
             start, end = at.isoformat(), until and until.isoformat()
-            if title in shows and shows[title] > start[:10]:
+            if title in shows and r.get("recurrence_rule") and shows[title] > start[:10]:
                 end = shows[title]  # open to its last day: one Event the whole run
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
@@ -428,7 +428,7 @@ def pathify_items(rows, entry, src, today):
                           source_url=(r.get("ticket_url") or "").strip()
                           or f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           # A show keeps one id for its whole run, so each morning's read is the same Event.
-                          source_uid=f"run:{title}" if title in shows else str(r["id"])))
+                          source_uid=f"run:{title}" if title in shows and r.get("recurrence_rule") else str(r["id"])))
     return out
 
 
@@ -1390,10 +1390,11 @@ def t_pathify():
         "id": i, "title": "Reflection: Selected Works", "location": "Benedicta Arts Center", "calendar": {"name": "Campus Events"},
         "start_date": f"{day}T16:00:00Z", "end_date": (datetime.fromisoformat(f"{day}T16:00:00+00:00") + timedelta(hours=hours)).isoformat(),
         "all_day": False, "recurrence_rule": rule}
-    shown = pathify_items([show(10, "2026-11-11", 11), show(11, "2026-11-12", 11), show(12, "2026-12-14", 11)],
-                          {"_name": "x"}, src, date(2026, 11, 11))
+    shown = pathify_items([show(10, "2026-11-11", 11), show(11, "2026-11-12", 11), show(12, "2026-12-14", 11),
+                           dict(show(13, "2026-11-20", 2), recurrence_rule=None)], {"_name": "x"}, src, date(2026, 11, 11))
     assert [(i["start"][:10], i["end"], i["source_uid"]) for i in shown] == [
-        ("2026-11-11", "2026-12-14", "run:Reflection: Selected Works")], "a show open for days is one Event to its last day"
+        ("2026-11-11", "2026-12-14", "run:Reflection: Selected Works"), ("2026-11-20", "2026-11-20T12:00:00-06:00", "13")], \
+        "a show open for days is one Event to its last day; a one-off of its name is its own"
     play = pathify_items([dict(show(20, "2026-11-12", 2.5, "FREQ=WEEKLY;BYDAY=TH,FR,SA"), title="The Crucible"),
                           dict(show(21, "2026-11-13", 2.5, "FREQ=WEEKLY;BYDAY=TH,FR,SA"), title="The Crucible")],
                          {"_name": "x"}, src, date(2026, 11, 11))

@@ -265,6 +265,11 @@ test('a show open for days keeps its first day, while a dated Event moves with i
   await apply(show('run:Reflection: Selected Works', '2026-10-28'));
   await apply(show('run:Reflection: Selected Works', '2026-11-12'));
   assert.equal(await day('run:Reflection: Selected Works'), '2026-10-28', 'the next morning reads it from its next day');
+  await db.exec(`update public.club_events set status = 'rejected', review_reason = 'other'
+                 where source_uid = 'run:Reflection: Selected Works'`);
+  await apply(show('run:Reflection: Selected Works', '2026-11-13'));
+  assert.equal((await db.query(`select status from public.club_events where source_uid = 'run:Reflection: Selected Works'`))
+    .rows[0].status, 'rejected', 'a show taken out stays out on the next read');
   await apply(show('4758905', '2026-11-11'));
   await apply(show('4758905', '2026-11-12'));
   assert.equal(await day('4758905'), '2026-11-12', 'a dated Event its source moves, moves');

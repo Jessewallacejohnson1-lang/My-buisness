@@ -4,7 +4,8 @@
 --
 -- 1. public.apply_judged (20261110225556_business_collab.sql's, copied whole): a show's re-read (source_uid 'run:<title>',
 --    read_events.show_runs) keeps the first day it had. The calendar lists only days still to come, so each morning
---    reads the run as starting that day; without this the Event's start would walk forward a day each morning.
+--    reads the run as starting that day; without this the Event's start would walk forward a day each morning, a
+--    show taken out would go back to Review each morning, and its show-from day would be written again.
 -- 2. The two shows on now fold into their first day's Event: it takes the run's id and last day, the Going, the hearts
 --    and the photo; each later day's copy comes out (rejected, as a morning take-out does).
 --
@@ -83,8 +84,9 @@ begin
       activity_name = coalesce(excluded.activity_name, club_events.activity_name),
       -- On its source's list again: not called off.
       cancelled_at = null,
-      shows_from = case when club_events.event_date is distinct from excluded.event_date
+      shows_from = case when (club_events.event_date is distinct from excluded.event_date and excluded.source_uid not like 'run:%')
           or club_events.shows_from is null then excluded.shows_from else club_events.shows_from end,
+      -- (A show's re-read always reads a later first day; that is no move, town-feed 62.)
       -- An admin's approve or decline stands; only a found event the writer left pending is
       -- published by its source. A decline for a misread goes back to Review when the source
       -- changes it (the same rule as read_events.py had).
@@ -93,7 +95,8 @@ begin
         when club_events.status = 'rejected'
           and club_events.review_reason is distinct from 'not_event' and club_events.review_reason is not null
           and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)
-              is distinct from (excluded.title, excluded.event_date, excluded.start_time, excluded.all_day, excluded.location)
+              is distinct from (excluded.title, case when excluded.source_uid like 'run:%' then club_events.event_date
+                  else excluded.event_date end, excluded.start_time, excluded.all_day, excluded.location)
         then 'pending' else club_events.status end
     returning 1
   )
