@@ -47,7 +47,8 @@ CRON = "0 5 1 * *"
 NOT_THE_PLACE = {"squarespace", "wix", "weebly", "godaddy", "shopify", "wordpress", "vagaro", "vagaropro",
                  "bookedonvagaro", "mindbody", "mindbodyonline", "square", "linktree", "yelp", "google",
                  "facebook", "instagram", "meta", "hashtag", "acehardware", "kwiktrip", "statefarm",
-                 "edwardjones", "installedbuildingproducts"}
+                 "edwardjones", "installedbuildingproducts",
+                 "fmcsa", "dot_fmcsa"}  # Iman Carrier's site links the federal trucking agency (2026-11-11)
 STOP = {"the", "and", "llc", "inc", "saint", "joseph", "company", "minnesota", "central", "center", "services"}
 
 
@@ -367,7 +368,7 @@ def tagged(town=DEFAULT, days=31):
     since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
     rows = []
     for name, task in by_name("/actor-tasks").items():
-        if name in ("bp-busy-instagram", "bp-weekly-instagram"):
+        if name.startswith(("bp-busy-", "bp-weekly-")) and name.endswith("-instagram"):  # bp-weekly-<day>-instagram
             for r in api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=100")["data"]["items"]:
                 if r["status"] == "SUCCEEDED" and (r.get("startedAt") or "")[:19] >= since:
                     rows += items(r["defaultDatasetId"])

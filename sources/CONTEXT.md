@@ -151,8 +151,9 @@ town files.
 **Set aside**:
 A watched page skipped for failing three mornings in a row and tried weekly until it reads
 again. Its entry stays watched. A social page Apify says is not available, or returns nothing
-for, three reads in a row is set aside from its paid list the same way, and tried with the
-Thursday read.
+for, three reads in a row is set aside from its paid list the same way, and tried with its day's
+weekly read; a weekly page with no new post four reads in a row is read only in the first week of
+each month, until it posts.
 _Avoid_: parked, dead, retired
 
 **Sync**:

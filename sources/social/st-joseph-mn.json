@@ -4,154 +4,176 @@
   "name": "Bo-Diddley's",
   "kind": "facebook",
   "url": "https://www.facebook.com/BoDiddleysDeli",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "city-of-st-joseph",
   "name": "City of St. Joseph",
   "kind": "facebook",
   "url": "https://www.facebook.com/CityofStJosephMN",
-  "busy": true
+  "busy": true,
+  "day": "thu"
  },
  {
   "entry_id": "csb",
   "name": "College of Saint Benedict",
   "kind": "facebook",
   "url": "https://www.facebook.com/csbsju",
-  "busy": true
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "csb",
   "name": "College of Saint Benedict",
   "kind": "instagram",
   "url": "https://www.instagram.com/csbsju",
-  "busy": true
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "collegeville-orchards",
   "name": "Collegeville Orchards",
   "kind": "facebook",
   "url": "https://www.facebook.com/160693853956974",
-  "busy": true
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "flour-and-flower",
   "name": "Flour & Flower Bakery",
   "kind": "facebook",
   "url": "https://www.facebook.com/flourandflowerbakery",
-  "busy": true
+  "busy": true,
+  "day": "thu"
  },
  {
   "entry_id": "flour-and-flower",
   "name": "Flour & Flower Bakery",
   "kind": "instagram",
   "url": "https://www.instagram.com/flourandflowerbakery",
-  "busy": true
+  "busy": true,
+  "day": "thu"
  },
  {
   "entry_id": "garys-pizza",
   "name": "Gary's Pizza",
   "kind": "facebook",
   "url": "https://www.facebook.com/GarysPizzaMN",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "joetown",
   "name": "JoeTown",
   "kind": "facebook",
   "url": "https://www.facebook.com/JoetownMNcvb",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "kays-kitchen",
   "name": "Kay's Kitchen",
   "kind": "facebook",
   "url": "https://www.facebook.com/114515908607728",
-  "busy": true
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "krewe",
   "name": "Krewe",
   "kind": "facebook",
   "url": "https://www.facebook.com/210140619913002",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "krewe",
   "name": "Krewe",
   "kind": "instagram",
   "url": "https://www.instagram.com/krewerestaurant",
-  "busy": true
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "milk-and-honey-ciders",
   "name": "Milk & Honey Ciders",
   "kind": "facebook",
   "url": "https://www.facebook.com/MilkandHoneyCiders",
-  "busy": true
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "milk-and-honey-ciders",
   "name": "Milk & Honey Ciders",
   "kind": "instagram",
   "url": "https://www.instagram.com/milkandhoneyciders",
-  "busy": true
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "market-minnesota-street",
   "name": "Minnesota Street Market",
   "kind": "facebook",
   "url": "https://www.facebook.com/mnstreetmarket",
-  "busy": true
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "market-minnesota-street",
   "name": "Minnesota Street Market",
   "kind": "instagram",
   "url": "https://www.instagram.com/mnstreetmarket",
-  "busy": true
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "neighbors-route-75",
   "name": "Neighbors Route 75",
   "kind": "facebook",
   "url": "https://www.facebook.com/NeighborsRoute75",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "distillery-obbink",
   "name": "Obbink Distillery",
   "kind": "instagram",
   "url": "https://www.instagram.com/obbinkdistilling",
-  "busy": true
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "resurrection-lutheran-church",
   "name": "Resurrection Lutheran Church",
   "kind": "facebook",
   "url": "https://www.facebook.com/RLCStJoe",
-  "busy": true
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "resurrection-lutheran-church",
   "name": "Resurrection Lutheran Church",
   "kind": "instagram",
   "url": "https://www.instagram.com/rlcstjoemn",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "church-life-of-river",
   "name": "River of Life Church",
   "kind": "facebook",
   "url": "https://www.facebook.com/riveroflifechurchmn",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "department-fire-joseph-st",
   "name": "Saint Joseph Fire Department",
   "kind": "facebook",
   "url": "https://www.facebook.com/271301023797058",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "bar-grill-sals",
@@ -159,245 +181,280 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/732251640162088",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "thu"
  },
  {
   "entry_id": "st-joseph-farmers-market",
   "name": "St. Joseph Farmers' Market",
   "kind": "facebook",
   "url": "https://www.facebook.com/294317540881",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "mary-meadow-sunny",
   "name": "Sunny Mary Meadow",
   "kind": "facebook",
   "url": "https://www.facebook.com/sunnymarymeadow",
-  "busy": true
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "mary-meadow-sunny",
   "name": "Sunny Mary Meadow",
   "kind": "instagram",
   "url": "https://www.instagram.com/sunnymarymeadow",
-  "busy": true
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "food-house-tap",
   "name": "The House Food & Tap",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61564165713172",
-  "busy": true
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "food-house-tap",
   "name": "The House Food & Tap",
   "kind": "instagram",
   "url": "https://www.instagram.com/thehousefoodandtap",
-  "busy": true
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "local-blend",
   "name": "The Local Blend",
   "kind": "facebook",
   "url": "https://www.facebook.com/thelocalblend",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "local-blend",
   "name": "The Local Blend",
   "kind": "instagram",
   "url": "https://www.instagram.com/local_blend",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "north-table",
   "name": "The North Table",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61582164415845",
-  "busy": true
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "north-table",
   "name": "The North Table",
   "kind": "instagram",
   "url": "https://www.instagram.com/thenorthtables",
-  "busy": true
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "cow-wandering",
   "name": "The Wandering Cow",
   "kind": "facebook",
   "url": "https://www.facebook.com/Wanderingcowicecream",
-  "busy": true
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "cow-wandering",
   "name": "The Wandering Cow",
   "kind": "instagram",
   "url": "https://www.instagram.com/thewanderingcowicecream",
-  "busy": true
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "center-garden-thomsens",
   "name": "Thomsen’s Garden Center",
   "kind": "facebook",
   "url": "https://www.facebook.com/242293447495",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "boutique-peony-white",
   "name": "White Peony Boutique",
   "kind": "instagram",
   "url": "https://www.instagram.com/white_peony_boutique",
-  "busy": true
+  "busy": true,
+  "day": "thu"
  },
  {
   "entry_id": "24-north-lofts-on-college-avenue",
   "name": "24 North: Lofts on College Avenue",
   "kind": "facebook",
   "url": "https://www.facebook.com/GCREmn",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "adam-mcarthur-agency",
   "name": "Adam McArthur Agency LLC",
   "kind": "instagram",
   "url": "https://www.instagram.com/amfam",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "adara-home-health",
   "name": "Adara Home Health",
   "kind": "facebook",
   "url": "https://www.facebook.com/HomeCareMinnesota",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "alderink-custom-landscaping",
   "name": "Alderink Custom Landscaping",
   "kind": "facebook",
   "url": "https://www.facebook.com/AlderinkCustomLandscaping",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "all-occasion-floral-gifts",
   "name": "All Occasion Floral and Gifts",
   "kind": "facebook",
   "url": "https://www.facebook.com/saukrapidsflorist",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "amcon-block-precast",
   "name": "Amcon Block & Precast",
   "kind": "facebook",
   "url": "https://www.facebook.com/TCCMaterialsMasonry",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "amcon-block-precast",
   "name": "Amcon Block & Precast",
   "kind": "instagram",
   "url": "https://www.instagram.com/tcc_materials_masonry",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "328-american-legion-post",
   "name": "American Legion Post 328",
   "kind": "facebook",
   "url": "https://www.facebook.com/people/American-Legion-Post-328-St-JosephMN/61579377179822",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "amplified-electric",
   "name": "Amplified Electric",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=100066883640760",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "amy-farm-hedtke-state",
   "name": "Amy Hedtke State Farm",
   "kind": "facebook",
   "url": "https://www.facebook.com/110803641475064",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "amy-farm-hedtke-state",
   "name": "Amy Hedtke State Farm",
   "kind": "instagram",
   "url": "https://www.instagram.com/centralmnagent",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "anfinson-thompson-pa",
   "name": "Anfinson Thompson & Company, Pa",
   "kind": "facebook",
   "url": "https://www.facebook.com/anfinsonthompson",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "angels-touch-massage",
   "name": "Angel's Touch Massage",
   "kind": "facebook",
   "url": "https://www.facebook.com/AngelsTouchMassageMN",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "angela-larcom-counseling",
   "name": "Angela Larcom Counseling",
   "kind": "facebook",
   "url": "https://www.facebook.com/AngelaLarcomCounseling",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "armor-animal-health",
   "name": "Armor Animal Health",
   "kind": "facebook",
   "url": "https://www.facebook.com/ArmorAnimalHealth",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "armor-animal-health",
   "name": "Armor Animal Health",
   "kind": "instagram",
   "url": "https://www.instagram.com/armoranimalhealth",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "artisan-renovation-design",
   "name": "Artisan Renovation & Design",
   "kind": "facebook",
   "url": "https://www.facebook.com/ArtisanRenovationandDesign",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "artisan-renovation-design",
   "name": "Artisan Renovation & Design",
   "kind": "instagram",
   "url": "https://www.instagram.com/artisanrenovationanddesign",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "audio-video-extremes",
   "name": "Audio Video Extremes",
   "kind": "facebook",
   "url": "https://www.facebook.com/audiovideoextremes",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "audio-video-extremes",
   "name": "Audio Video Extremes",
   "kind": "instagram",
   "url": "https://www.instagram.com/avxtremes",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "auto-body-2000",
   "name": "Auto Body 2000",
   "kind": "facebook",
   "url": "https://www.facebook.com/Autobody-2000-Inc-AB2K-122739671111703",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "bad-habit-brewing",
@@ -405,224 +462,256 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/badhabitbeer",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "tue"
  },
  {
   "entry_id": "baldwin-supply-st-cloud",
   "name": "Baldwin Supply Company - St Cloud",
   "kind": "facebook",
   "url": "https://www.facebook.com/pages/Baldwin-Supply-Company/142498955774790",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "baldwin-supply-st-cloud",
   "name": "Baldwin Supply Company - St Cloud",
   "kind": "instagram",
   "url": "https://www.instagram.com/baldwinsupply",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "bdh-service-performance",
   "name": "BDH Service & Performance Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/BDHserviceinc",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "bee-line-auto-sport",
   "name": "Bee Line Auto & Sport",
   "kind": "facebook",
   "url": "https://www.facebook.com/BeeLineAutoandSport",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "bee-line-auto-sport",
   "name": "Bee Line Auto & Sport",
   "kind": "instagram",
   "url": "https://www.instagram.com/beelineautoandsport",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "better-design-enterprises",
   "name": "Better Design Enterprises LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/latchblocker",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "bloom-styling-events",
   "name": "Bloom Styling & Events",
   "kind": "facebook",
   "url": "https://www.facebook.com/bloomstylingevents",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: pictures of private parties"
  },
  {
   "entry_id": "bloom-styling-events",
   "name": "Bloom Styling & Events",
   "kind": "instagram",
   "url": "https://www.instagram.com/bloomstylingevents",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: pictures of private parties"
  },
  {
   "entry_id": "blush-salon",
   "name": "Blush Salon",
   "kind": "facebook",
   "url": "https://www.facebook.com/blushsalonminnesota",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "blush-salon",
   "name": "Blush Salon",
   "kind": "instagram",
   "url": "https://www.instagram.com/blushsalonmn",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "boulder-ridge-apartments",
   "name": "Boulder Ridge Apartments",
   "kind": "facebook",
   "url": "https://www.facebook.com/boulderridgestjoe",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "brenny-transportation",
   "name": "Brenny Transportation",
   "kind": "facebook",
   "url": "https://www.facebook.com/BrennyTransportation",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "brenny-transportation",
   "name": "Brenny Transportation",
   "kind": "instagram",
   "url": "https://www.instagram.com/brennychampions",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "bruno-press",
   "name": "Bruno Press",
   "kind": "facebook",
   "url": "https://www.facebook.com/BrunoPress",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "bruno-press",
   "name": "Bruno Press",
   "kind": "instagram",
   "url": "https://www.instagram.com/brunopress",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "brush-roll-painting-deck-refinishing",
   "name": "Brush & Roll Painting & Deck Refinishing",
   "kind": "facebook",
   "url": "https://www.facebook.com/st.joepainter",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "bsn-sports",
   "name": "BSN SPORTS",
   "kind": "facebook",
   "url": "https://www.facebook.com/BSNSPORTS",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: the national chain's page"
  },
  {
   "entry_id": "bsn-sports",
   "name": "BSN SPORTS",
   "kind": "instagram",
   "url": "https://www.instagram.com/bsnsports",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: the national chain's page"
  },
  {
   "entry_id": "builders-millwork",
   "name": "Builders Millwork Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/BuildersMillworkInc",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "builders-millwork",
   "name": "Builders Millwork Inc.",
   "kind": "instagram",
   "url": "https://www.instagram.com/buildersmillworkinc",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "capital-storage-rental-of-st-joseph",
   "name": "Capital Storage Rental of St Joseph",
   "kind": "facebook",
   "url": "https://www.facebook.com/capitalstorage",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "caribou-coffee",
   "name": "Caribou Coffee",
   "kind": "facebook",
   "url": "https://www.facebook.com/cariboucoffee",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "caribou-coffee",
   "name": "Caribou Coffee",
   "kind": "instagram",
   "url": "https://www.instagram.com/cariboucoffee",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "central-minnesota-detailing",
   "name": "Central Minnesota Detailing",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61580024969402",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "central-minnesota-detailing",
   "name": "Central Minnesota Detailing",
   "kind": "instagram",
   "url": "https://www.instagram.com/centralminnesotadetailing",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "central-mn-realty",
   "name": "Central MN Realty",
   "kind": "facebook",
   "url": "https://www.facebook.com/Centralmnrealty",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: house listings"
  },
  {
   "entry_id": "central-mn-realty",
   "name": "Central MN Realty",
   "kind": "instagram",
   "url": "https://www.instagram.com/centralmnrealty",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: house listings"
  },
  {
   "entry_id": "china-one",
   "name": "China One",
   "kind": "facebook",
   "url": "https://www.facebook.com/173319986034614",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "cms-autobody",
   "name": "CMS Autobody",
   "kind": "facebook",
   "url": "https://www.facebook.com/people/CMS-Autobody/100063737391804",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "cms-autobody",
   "name": "CMS Autobody",
   "kind": "instagram",
   "url": "https://www.instagram.com/cms.autobody",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "coborns",
   "name": "Coborn's",
   "kind": "facebook",
   "url": "https://www.facebook.com/CobornsGrocery",
-  "busy": false
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "coborns",
@@ -630,420 +719,480 @@
   "kind": "instagram",
   "url": "https://www.instagram.com/cobornsgrocery",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "wed"
  },
  {
   "entry_id": "collegeville-orchards",
   "name": "Collegeville Orchards",
   "kind": "facebook",
   "url": "https://www.facebook.com/pages/Collegeville-Orchards/160693853956974",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "complete-coverage-rental",
   "name": "Complete Coverage Rental LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/Completecoveragerental",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "complete-coverage-rental",
   "name": "Complete Coverage Rental LLC",
   "kind": "instagram",
   "url": "https://www.instagram.com/completecoveragerental",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "computer-repair-unlimited",
   "name": "Computer Repair Unlimited",
   "kind": "facebook",
   "url": "https://www.facebook.com/ComputerRepairUnlimited",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "consumer-directions",
   "name": "Consumer Directions",
   "kind": "facebook",
   "url": "https://www.facebook.com/Consumer-Directions-Inc-157940307698877",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "consumer-directions",
   "name": "Consumer Directions",
   "kind": "instagram",
   "url": "https://www.instagram.com/consumerdirections",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "crafted-skin-clinic",
   "name": "Crafted Skin Clinic",
   "kind": "facebook",
   "url": "https://www.facebook.com/craftedskinclinic",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "crafted-skin-clinic",
   "name": "Crafted Skin Clinic",
   "kind": "instagram",
   "url": "https://www.instagram.com/craftedskinclinicmn",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "curtis-marketing-group",
   "name": "Curtis Marketing Group",
   "kind": "facebook",
   "url": "https://www.facebook.com/CurtisGroup",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "cutters-lawn-service",
   "name": "Cutters Lawn Service",
   "kind": "facebook",
   "url": "https://www.facebook.com/CuttersLawnService",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "daisy-day",
   "name": "Daisy A Day",
   "kind": "facebook",
   "url": "https://www.facebook.com/152558244786604",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "daniel-funeral-home",
   "name": "Daniel Funeral Home",
   "kind": "facebook",
   "url": "https://www.facebook.com/danielfuneralhome",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "darling-dog-care",
   "name": "Darling Dog Care",
   "kind": "instagram",
   "url": "https://www.instagram.com/darlingdogcare_st.joesph_mn",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "dovetail-design-remodeling",
   "name": "Dovetail Design & Remodeling",
   "kind": "facebook",
   "url": "https://www.facebook.com/DovetailDesignRemodel",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "dovetail-design-remodeling",
   "name": "Dovetail Design & Remodeling",
   "kind": "instagram",
   "url": "https://www.instagram.com/dovetaildesignremodel",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "dpf-alternatives-st-joseph-mn",
   "name": "DPF Alternatives St Joseph MN",
   "kind": "facebook",
   "url": "https://www.facebook.com/dpfalternatives",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "edward-jones",
   "name": "Edward Jones",
   "kind": "facebook",
   "url": "https://www.facebook.com/Edward-Jones-Financial-Advisor-Beau-Hanowski",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "emerald-companies",
   "name": "Emerald Companies",
   "kind": "facebook",
   "url": "https://www.facebook.com/emeraldcompanies",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "emerald-companies",
   "name": "Emerald Companies",
   "kind": "instagram",
   "url": "https://www.instagram.com/emeraldcompanies",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "emptypagestudios",
   "name": "EmptyPageStudios",
   "kind": "facebook",
   "url": "https://www.facebook.com/emptypagestudios",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "emptypagestudios",
   "name": "EmptyPageStudios",
   "kind": "instagram",
   "url": "https://www.instagram.com/emptypagestudios",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "executive-express",
   "name": "Executive Express",
   "kind": "facebook",
   "url": "https://www.facebook.com/ExecutiveExpressShuttle",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "fabral",
   "name": "Fabral",
   "kind": "facebook",
   "url": "https://www.facebook.com/fabral",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "fine-line-entertainment",
   "name": "Fine Line Entertainment",
   "kind": "facebook",
   "url": "https://www.facebook.com/Fine-Line-Entertainment-173780779087",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "finken-companies",
   "name": "Finken Companies",
   "kind": "facebook",
   "url": "https://www.facebook.com/FinkenCompanies",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "finken-companies",
   "name": "Finken Companies",
   "kind": "instagram",
   "url": "https://www.instagram.com/finken_companies",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "five-star-transport-solutions",
   "name": "Five Star Transport Solutions",
   "kind": "facebook",
   "url": "https://www.facebook.com/FiveStarLogistics",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "ceiling-floor-to",
   "name": "Floor to Ceiling",
   "kind": "facebook",
   "url": "https://www.facebook.com/FloorToCeilingStJoseph",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "arts-floral",
   "name": "Floral Arts Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/floralarts1968",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "full-circle-photo-booth",
   "name": "Full Circle - Photo Booth",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61587982262847",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "full-circle-photo-booth",
   "name": "Full Circle - Photo Booth",
   "kind": "instagram",
   "url": "https://www.instagram.com/fullcircle360mn",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "full-circle-water",
   "name": "Full Circle Water",
   "kind": "facebook",
   "url": "https://www.facebook.com/FullCircleWater",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "geris-country-kennels",
   "name": "Geri's Country Kennels",
   "kind": "facebook",
   "url": "https://www.facebook.com/GerisCountryKennels",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "golden-hill-doodles",
   "name": "Golden Hill Doodles",
   "kind": "facebook",
   "url": "https://www.facebook.com/Goldenhilldoodles",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "golden-hour-tanning",
   "name": "Golden Hour Tanning",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61568532076427",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "golden-hour-tanning",
   "name": "Golden Hour Tanning",
   "kind": "instagram",
   "url": "https://www.instagram.com/goldenhour_stjoetanning",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "golden-rule-real-estate",
   "name": "Golden Rule Real Estate",
   "kind": "facebook",
   "url": "https://www.facebook.com/Golden-Rule-Real-Estate-Services-2017537831797600",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "grandview-buildings",
   "name": "Grandview Buildings",
   "kind": "facebook",
   "url": "https://www.facebook.com/grandviewbuildings",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "grandview-buildings",
   "name": "Grandview Buildings",
   "kind": "instagram",
   "url": "https://www.instagram.com/grandviewbldgs",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "granite-city-gymnastics",
   "name": "Granite City Gymnastics",
   "kind": "facebook",
   "url": "https://www.facebook.com/GraniteCityGymnastics",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "granite-city-motor-car",
   "name": "Granite City Motor Car",
   "kind": "facebook",
   "url": "https://www.facebook.com/granitecitymotorcar",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: cars for sale"
  },
  {
   "entry_id": "granite-city-motor-car",
   "name": "Granite City Motor Car",
   "kind": "instagram",
   "url": "https://www.instagram.com/granitecitymotorcar",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: cars for sale"
  },
  {
   "entry_id": "granite-services",
   "name": "Granite Services Llc",
   "kind": "facebook",
   "url": "https://www.facebook.com/GraniteServicesMN",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "grey-face-rescue-retirement",
   "name": "Grey Face Rescue & Retirement",
   "kind": "facebook",
   "url": "https://www.facebook.com/greyfacerescue",
-  "busy": false
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "grey-face-rescue-retirement",
   "name": "Grey Face Rescue & Retirement",
   "kind": "instagram",
   "url": "https://www.instagram.com/greyfacerescue",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "groundsman",
   "name": "Groundsman LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/GroundsmanLLC",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "groundsman",
   "name": "Groundsman LLC",
   "kind": "instagram",
   "url": "https://www.instagram.com/groundsman_llc",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "gutter-shutter-of-st-cloud",
   "name": "Gutter Shutter of St. Cloud",
   "kind": "facebook",
   "url": "https://www.facebook.com/guttershutterofstcloud",
-  "busy": false
+  "busy": false,
+  "skip": "only ads"
  },
  {
   "entry_id": "gutter-shutter-of-st-cloud",
   "name": "Gutter Shutter of St. Cloud",
   "kind": "instagram",
   "url": "https://www.instagram.com/guttershutterofstcloud",
-  "busy": false
+  "busy": false,
+  "skip": "only ads"
  },
  {
   "entry_id": "hair-by-hanna",
   "name": "Hair by Hanna",
   "kind": "facebook",
   "url": "https://www.facebook.com/107111335620017",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "hansen-woodworks",
   "name": "Hansen & Company Woodworks",
   "kind": "facebook",
   "url": "https://www.facebook.com/HCoWoodworks",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "hansen-woodworks",
   "name": "Hansen & Company Woodworks",
   "kind": "instagram",
   "url": "https://www.instagram.com/hcowoodworks",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "heartland-door-sales",
   "name": "Heartland Door Sales Inc",
   "kind": "facebook",
   "url": "https://www.facebook.com/heartlanddoorsales",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "heim-kins-rescued-treasures",
   "name": "Heim-kins Rescued Treasures",
   "kind": "facebook",
   "url": "https://www.facebook.com/445632982261414",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "heirborn-kennels",
   "name": "Heirborn Kennels",
   "kind": "facebook",
   "url": "https://www.facebook.com/HeirbornFCR",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "her-hair-studio",
   "name": "Her Hair Studio",
   "kind": "facebook",
   "url": "https://www.facebook.com/herhairstudiomn",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "her-hair-studio",
   "name": "Her Hair Studio",
   "kind": "instagram",
   "url": "https://www.instagram.com/herhairstudiomn",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "holistic-flower-farm",
   "name": "Holistic Flower Farm",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61557378525198",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "holistic-flower-farm",
   "name": "Holistic Flower Farm",
   "kind": "instagram",
   "url": "https://www.instagram.com/holistic_flower_farm",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "hometown-title",
@@ -1051,126 +1200,128 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/HomeTownTitleLlc",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "sat"
  },
  {
   "entry_id": "hudson",
   "name": "Hudson & Co",
   "kind": "facebook",
   "url": "https://www.facebook.com/102371688780870",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "illuminet",
   "name": "illuminet, LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/Illuminet-LLC-105463598391437",
-  "busy": false
- },
- {
-  "entry_id": "iman-carrier",
-  "name": "Iman Carrier, Inc.",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/FMCSA",
-  "busy": false
- },
- {
-  "entry_id": "iman-carrier",
-  "name": "Iman Carrier, Inc.",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/dot_fmcsa",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "interstate-bearing-systems",
   "name": "Interstate Bearing Systems",
   "kind": "facebook",
   "url": "https://www.facebook.com/Interstate-BearingSystems-103209091656555",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "jupiter-moon",
   "name": "Jupiter Moon Ice Cream",
   "kind": "facebook",
   "url": "https://www.facebook.com/JupiterMoonIceCream",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "jupiter-moon",
   "name": "Jupiter Moon Ice Cream",
   "kind": "instagram",
   "url": "https://www.instagram.com/jupitermoonicecream",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "kennedy-community-school",
   "name": "Kennedy Community School",
   "kind": "facebook",
   "url": "https://www.facebook.com/isd742.org",
-  "busy": false
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "kennedy-community-school",
   "name": "Kennedy Community School",
   "kind": "instagram",
   "url": "https://www.instagram.com/schooldistrict742",
-  "busy": false
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "bank-kensington",
   "name": "Kensington Bank",
   "kind": "facebook",
   "url": "https://www.facebook.com/KensingtonBank",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "bank-kensington",
   "name": "Kensington Bank",
   "kind": "instagram",
   "url": "https://www.instagram.com/kensington_bank",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "klein-builders",
   "name": "Klein Builders",
   "kind": "facebook",
   "url": "https://www.facebook.com/kleinbuilders",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "knife-river",
   "name": "Knife River",
   "kind": "facebook",
   "url": "https://www.facebook.com/KnifeRiverCorporation",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "knife-river",
   "name": "Knife River",
   "kind": "instagram",
   "url": "https://www.instagram.com/lifeatknife",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "kpower-yoga",
   "name": "KPower Yoga",
   "kind": "facebook",
   "url": "https://www.facebook.com/kpoweryoga",
-  "busy": false
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "kpower-yoga",
   "name": "KPower Yoga",
   "kind": "instagram",
   "url": "https://www.instagram.com/kpoweryogamn",
-  "busy": false
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "lacey-eidem-art",
   "name": "Lacey Eidem Art",
   "kind": "facebook",
   "url": "https://www.facebook.com/laceyeidemart",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "ace-hardware-lees",
@@ -1178,21 +1329,24 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/lees-ace-hardware-329223720614166",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "mon"
  },
  {
   "entry_id": "academy-little-saints",
   "name": "Little Saints Academy",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=100064008549158",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "lookin-good-tint",
   "name": "Lookin Good Tint",
   "kind": "facebook",
   "url": "https://www.facebook.com/Lookin-Good-Tint-LLC-472251269491530",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "financial-magnifi",
@@ -1200,91 +1354,104 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/mymagnifi",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "tue"
  },
  {
   "entry_id": "financial-magnifi",
   "name": "Magnifi Financial",
   "kind": "instagram",
   "url": "https://www.instagram.com/mymagnifi",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "mathew-hall-components",
   "name": "Mathew Hall Components",
   "kind": "facebook",
   "url": "https://www.facebook.com/SimonsonLumber",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "michelich-granite-sunburst-memorials",
   "name": "Michelich Granite (Sunburst Memorials)",
   "kind": "facebook",
   "url": "https://www.facebook.com/SunburstMichelichGranite",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "midwest-deer-trees-nursery-orchard",
   "name": "Midwest Deer Trees Nursery and Orchard LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=100077511841629",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "milbert-johnson-cotton-family-dentistry",
   "name": "Milbert, Johnson & Cotton Family Dentistry",
   "kind": "facebook",
   "url": "https://www.facebook.com/milbertjohnsoncotton",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "millstream-communications",
   "name": "Millstream Communications",
   "kind": "facebook",
   "url": "https://www.facebook.com/BNNorthtown",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "millstream-communications",
   "name": "Millstream Communications",
   "kind": "instagram",
   "url": "https://www.instagram.com/bnnorthtown",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "minnesota-public-radio",
   "name": "Minnesota Public Radio",
   "kind": "facebook",
   "url": "https://www.facebook.com/MinnesotaPublicRadio",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "minnesota-public-radio",
   "name": "Minnesota Public Radio",
   "kind": "instagram",
   "url": "https://www.instagram.com/minnesotapublicradio",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "minnwebb",
   "name": "MinnWebb",
   "kind": "instagram",
   "url": "https://www.instagram.com/minnwebb",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "mission-nutrition",
   "name": "Mission Nutrition",
   "kind": "facebook",
   "url": "https://www.facebook.com/MissionNutritionStJoe",
-  "busy": false
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "auto-oreilly-parts",
   "name": "O'Reilly Auto Parts",
   "kind": "instagram",
   "url": "https://www.instagram.com/oreillyautoparts",
-  "busy": false
+  "busy": false,
+  "skip": "only ads: the national chain's page"
  },
  {
   "entry_id": "distillery-obbink",
@@ -1292,378 +1459,432 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/obbinkdistillinglabs",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "wed"
  },
  {
   "entry_id": "ocean-tobacco",
   "name": "Ocean Tobacco",
   "kind": "facebook",
   "url": "https://www.facebook.com/oceantobacco",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "opies-gold",
   "name": "Opie's Gold",
   "kind": "facebook",
   "url": "https://www.facebook.com/opiesgoldheatnair",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "party-bus",
   "name": "Party Bus",
   "kind": "facebook",
   "url": "https://www.facebook.com/The-Party-Bus-208428160780",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "insurance-pierce",
   "name": "Pierce Insurance",
   "kind": "facebook",
   "url": "https://www.facebook.com/PierceInsurance",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "insurance-pierce",
   "name": "Pierce Insurance",
   "kind": "instagram",
   "url": "https://www.instagram.com/pierce_insurance",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "powerhouse-outdoor-equipment",
   "name": "Powerhouse Outdoor Equipment",
   "kind": "facebook",
   "url": "https://www.facebook.com/pages/Powerhouse-Outdoor-Equipment/133545816696986",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "prairie-supply",
   "name": "Prairie Supply, Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/prairiesupplyinc",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "prairie-supply",
   "name": "Prairie Supply, Inc.",
   "kind": "instagram",
   "url": "https://www.instagram.com/prairiesupplyinc",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "prairiescapes",
   "name": "PrairieScapes",
   "kind": "facebook",
   "url": "https://www.facebook.com/steveprairiescapes",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "precise-heating-c-plumbing-refrigeration",
   "name": "Precise Heating, A/C, Plumbing & Refrigeration",
   "kind": "facebook",
   "url": "https://www.facebook.com/precisemn",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "precision-motorsports",
   "name": "Precision Motorsports",
   "kind": "facebook",
   "url": "https://www.facebook.com/PrecisionMotorsportsMN",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "premier-stone-design",
   "name": "Premier Stone Design",
   "kind": "facebook",
   "url": "https://www.facebook.com/PremierStoneDesignMN",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "premier-stone-design",
   "name": "Premier Stone Design",
   "kind": "instagram",
   "url": "https://www.instagram.com/psdgranite",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "pro-tech-forklift-service",
   "name": "Pro-Tech Forklift Service Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/Pro-Tech-Forklift-Service-Inc-1447677872151945",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "reliable-rolloff",
   "name": "Reliable Rolloff",
   "kind": "facebook",
   "url": "https://www.facebook.com/tomkraemerinc",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "renner-roofing",
   "name": "Renner Roofing Inc.",
   "kind": "facebook",
   "url": "https://www.facebook.com/RennerRoofingInc",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "rivers-bend-cottage-homes",
   "name": "Rivers Bend Cottage Homes",
   "kind": "facebook",
   "url": "https://www.facebook.com/RiversBendCottageHomes",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "rivers-bend-cottage-homes",
   "name": "Rivers Bend Cottage Homes",
   "kind": "instagram",
   "url": "https://www.instagram.com/athomeapts",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "roadway-sport-n-trailer",
   "name": "Roadway Sport-N-Trailer",
   "kind": "facebook",
   "url": "https://www.facebook.com/Roadway-Sport-N-Trailer-164067050287270",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "rockhouse-productions",
   "name": "Rockhouse Productions",
   "kind": "facebook",
   "url": "https://www.facebook.com/rockhousepro",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "rosenberger-cleaning-services",
   "name": "Rosenberger Cleaning Services LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/RosenbergerCS",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "ross-nesbit-agencies",
   "name": "Ross Nesbit Agencies",
   "kind": "facebook",
   "url": "https://www.facebook.com/NesbitInsurance",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "ross-nesbit-agencies",
   "name": "Ross Nesbit Agencies",
   "kind": "instagram",
   "url": "https://www.instagram.com/nesbit_agencies",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "rustic-river-gear",
   "name": "Rustic River Gear",
   "kind": "facebook",
   "url": "https://www.facebook.com/RustiRiverGear",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "rustic-river-gear",
   "name": "Rustic River Gear",
   "kind": "instagram",
   "url": "https://www.instagram.com/rusticrivermn",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "department-fire-joseph-st",
   "name": "Saint Joseph Fire Department",
   "kind": "facebook",
   "url": "https://www.facebook.com/pages/category/Fire-Station/St-Joseph-MN-Fire-and-Rescue-271301023797058",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "joseph-market-meat-st",
   "name": "Saint Joseph Meat Market",
   "kind": "facebook",
   "url": "https://www.facebook.com/St.JosephMeatMarket",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "joseph-office-post-st",
   "name": "Saint Joseph Post Office",
   "kind": "instagram",
   "url": "https://www.instagram.com/uspostalservice",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "scenic-specialties-landscape-professiona",
   "name": "Scenic Specialties Landscape Professionals",
   "kind": "facebook",
   "url": "https://www.facebook.com/scenicspecialties",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "scenic-specialties-landscape-professiona",
   "name": "Scenic Specialties Landscape Professionals",
   "kind": "instagram",
   "url": "https://www.instagram.com/scenicspecialties",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "schwegels-landscaping-tree-service",
   "name": "Schwegel's Landscaping & Tree Service",
   "kind": "facebook",
   "url": "https://www.facebook.com/WordPresscom",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "semi-legal-service",
   "name": "Semi Legal Service",
   "kind": "facebook",
   "url": "https://www.facebook.com/Semi-Legal-Service-LLC-1672896279646173",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "sentry-bank",
   "name": "Sentry Bank",
   "kind": "facebook",
   "url": "https://www.facebook.com/SentryBank",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "shamrock-leathers",
   "name": "Shamrock Leathers",
   "kind": "facebook",
   "url": "https://www.facebook.com/Shamrock-Leathers-192148743709",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "sojourn-counseling-group",
   "name": "Sojourn Counseling Group",
   "kind": "instagram",
   "url": "https://www.instagram.com/sojourncounselinggroup",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "solar-nails-of-st-joseph",
   "name": "Solar Nails of St Joseph",
   "kind": "facebook",
   "url": "https://www.facebook.com/solarnailsMN",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "sound-connection",
   "name": "Sound Connection",
   "kind": "facebook",
   "url": "https://www.facebook.com/soundconnectionmn",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "sound-connection",
   "name": "Sound Connection",
   "kind": "instagram",
   "url": "https://www.instagram.com/soundconnectioninc",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "spectrum-supply",
   "name": "Spectrum Supply Co",
   "kind": "facebook",
   "url": "https://www.facebook.com/DacotahPaperCo",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "health-joseph-st-wellness",
   "name": "St. Joseph Health & Wellness",
   "kind": "facebook",
   "url": "https://www.facebook.com/St.JosephHealthandWellness",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "clinic-joseph-st-vet",
   "name": "St. Joseph Vet Clinic",
   "kind": "facebook",
   "url": "https://www.facebook.com/Cold-Spring-StJoe-Paynesville-Vet-Clinic",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "st-wendel-tamarack-bog-scientific-natura",
   "name": "St. Wendel Tamarack Bog Scientific & Natural Area",
   "kind": "instagram",
   "url": "https://www.instagram.com/minnesotadnr",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "association-electric-stearns",
   "name": "Stearns Electric Association",
   "kind": "facebook",
   "url": "https://www.facebook.com/stearnselectric",
-  "busy": false
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "association-electric-stearns",
   "name": "Stearns Electric Association",
   "kind": "instagram",
   "url": "https://www.instagram.com/stearnselectricmn",
-  "busy": false
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "strack-construction",
   "name": "Strack Construction Co Inc",
   "kind": "facebook",
   "url": "https://www.facebook.com/strackconstruction",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "styledbykyliep",
   "name": "Styledbykyliep",
   "kind": "instagram",
   "url": "https://www.instagram.com/styledbykyliep",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "johns-taco",
   "name": "Taco John's",
   "kind": "facebook",
   "url": "https://www.facebook.com/tacojohns",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "johns-taco",
   "name": "Taco John's",
   "kind": "instagram",
   "url": "https://www.instagram.com/tacojohns",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "tastefully-simple-independent-consultant",
   "name": "Tastefully Simple Independent Consultant Lori Tiffany",
   "kind": "facebook",
   "url": "https://www.facebook.com/pages/Tastefully-Simple-Inc/78129924748",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "tastefully-simple-independent-consultant",
   "name": "Tastefully Simple Independent Consultant Lori Tiffany",
   "kind": "instagram",
   "url": "https://www.instagram.com/tastefullysimpleinc",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "tcc-materials",
   "name": "TCC Materials",
   "kind": "facebook",
   "url": "https://www.facebook.com/TCCMaterialsHardscapePrecast",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "tcc-materials",
   "name": "TCC Materials",
   "kind": "instagram",
   "url": "https://www.instagram.com/tccmaterials_hardscapesprecast",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "bed-breakfast-estates",
   "name": "The Estates Bed & Breakfast",
   "kind": "facebook",
   "url": "https://www.facebook.com/1848461808763836",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "la-playette",
@@ -1671,7 +1892,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/109778229080761",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "mon"
  },
  {
   "entry_id": "middy",
@@ -1679,154 +1901,176 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/263856670367820",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "sun"
  },
  {
   "entry_id": "whole-you-wellness-collective",
   "name": "The Whole You Wellness Collective",
   "kind": "facebook",
   "url": "https://www.facebook.com/thewholeyouwellnesscollective",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "whole-you-wellness-collective",
   "name": "The Whole You Wellness Collective",
   "kind": "instagram",
   "url": "https://www.instagram.com/thewholeyouwellnesscollective",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "center-garden-thomsens",
   "name": "Thomsen’s Garden Center",
   "kind": "facebook",
   "url": "https://www.facebook.com/Thomsens-Greenhouse-and-Garden-Center-242293447495",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "mid-state-tire-tiremaxx-wholesale",
   "name": "Tiremaxx/Mid-State Wholesale Tire",
   "kind": "facebook",
   "url": "https://www.facebook.com/TiremaxxServiceCenters",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "tmt-integrity-flooring",
   "name": "TMT Integrity Flooring, LLC",
   "kind": "facebook",
   "url": "https://www.facebook.com/TMT-Integrity-Flooring-LLC-153759377299",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "bus-service-trobecs",
   "name": "Trobec’s Bus Service",
   "kind": "facebook",
   "url": "https://www.facebook.com/TrobecsBus",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "bus-service-trobecs",
   "name": "Trobec’s Bus Service",
   "kind": "instagram",
   "url": "https://www.instagram.com/trobecsbusservice",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "truck-accessories-direct",
   "name": "Truck Accessories Direct",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=100089818405338",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "truck-accessories-direct",
   "name": "Truck Accessories Direct",
   "kind": "instagram",
   "url": "https://www.instagram.com/truckaccessoriesdirect",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "true-freedom-physical-therapy",
   "name": "True Freedom Physical Therapy",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=100074248209303",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "true-freedom-physical-therapy",
   "name": "True Freedom Physical Therapy",
   "kind": "instagram",
   "url": "https://www.instagram.com/truefreedomphysicaltherapy",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "two-bits-mens-grooming-salon",
   "name": "Two Bits Mens Grooming Salon",
   "kind": "facebook",
   "url": "https://www.facebook.com/twobitsgrooming",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "two-bits-mens-grooming-salon",
   "name": "Two Bits Mens Grooming Salon",
   "kind": "instagram",
   "url": "https://www.instagram.com/twobitsgrooming",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "unwind",
   "name": "Unwind",
   "kind": "facebook",
   "url": "https://www.facebook.com/unwindMN",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "unwind",
   "name": "Unwind",
   "kind": "instagram",
   "url": "https://www.instagram.com/unwindmn",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "hair-salon-styles-uptown",
   "name": "Uptown Styles Hair Salon",
   "kind": "facebook",
   "url": "https://www.facebook.com/St.Joeuptownstyles",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "viking-log-furniture",
   "name": "Viking Log Furniture",
   "kind": "facebook",
   "url": "https://www.facebook.com/vikinglogfurniture",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "w-gohman-construction",
   "name": "W Gohman Construction Co",
   "kind": "facebook",
   "url": "https://www.facebook.com/wgohman",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "we-haul-for-you",
   "name": "We Haul For You",
   "kind": "facebook",
   "url": "https://www.facebook.com/wehaulforyou",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "well",
   "name": "Well & Company",
   "kind": "facebook",
   "url": "https://www.facebook.com/WELL-Company-PLLC-102532464726161",
-  "busy": false
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "well",
   "name": "Well & Company",
   "kind": "instagram",
   "url": "https://www.instagram.com/wellandcompany_themedspa",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "boutique-peony-white",
@@ -1834,279 +2078,319 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/whitepeonyboutique",
   "busy": false,
-  "hidden": true
+  "hidden": true,
+  "day": "thu"
  },
  {
   "entry_id": "wildwood-ranch-maple-syrup",
   "name": "Wildwood Ranch Maple Syrup",
   "kind": "facebook",
   "url": "https://www.facebook.com/wildwoodranchmaplesyrup",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "country-manor-of-woodcrest",
   "name": "Woodcrest of Country Manor",
   "kind": "facebook",
   "url": "https://www.facebook.com/countrymanorcampus",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "country-manor-of-woodcrest",
   "name": "Woodcrest of Country Manor",
   "kind": "instagram",
   "url": "https://www.instagram.com/countrymanorcampus",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "home-r-w",
   "name": "W|R Home Company",
   "kind": "facebook",
   "url": "https://www.facebook.com/wrhomecompany",
-  "busy": false
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "home-r-w",
   "name": "W|R Home Company",
   "kind": "instagram",
   "url": "https://www.instagram.com/wrhomecompany",
-  "busy": false
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "yamry-construction",
   "name": "Yamry Construction",
   "kind": "facebook",
   "url": "https://www.facebook.com/yamryconstruction",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "st-johns-prep",
   "name": "St. John's Prep",
   "kind": "facebook",
   "url": "https://www.facebook.com/SaintJohnsPrepMN",
-  "busy": false
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "st-johns-prep",
   "name": "St. John's Prep",
   "kind": "instagram",
   "url": "https://www.instagram.com/saintjohnsprep",
-  "busy": false
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "activities-athletic-csb",
   "name": "CSB Athletic Activities",
   "kind": "facebook",
   "url": "https://www.facebook.com/CSBAthletics",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "activities-athletic-csb",
   "name": "CSB Athletic Activities",
   "kind": "instagram",
   "url": "https://www.instagram.com/csb_athletics",
-  "busy": false
+  "busy": true,
+  "day": "sun"
  },
  {
   "entry_id": "activities-athletic-sju",
   "name": "SJU Athletic Activities",
   "kind": "facebook",
   "url": "https://www.facebook.com/SJUJohnnies",
-  "busy": false
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "activities-athletic-sju",
   "name": "SJU Athletic Activities",
   "kind": "instagram",
   "url": "https://www.instagram.com/johnnieathletics",
-  "busy": false
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "clemens-library",
   "name": "Clemens Library",
   "kind": "instagram",
   "url": "https://www.instagram.com/csbsjulibraries",
-  "busy": false
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "st-joseph-catholic-school",
   "name": "St. Joseph Catholic School",
   "kind": "facebook",
   "url": "https://www.facebook.com/ccsstcloud",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "st-joseph-catholic-school",
   "name": "St. Joseph Catholic School",
   "kind": "instagram",
   "url": "https://www.instagram.com/catholicschools_mn",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "cathedral-high-school",
   "name": "Cathedral High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/cathedralhighschoolsc",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "sartell-high-school",
   "name": "Sartell High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/isd748",
-  "busy": false
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "sartell-high-school",
   "name": "Sartell High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/sartelltheatre",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "rocori-high-school",
   "name": "ROCORI High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/rocoridistrict",
-  "busy": false
+  "busy": true,
+  "day": "sat"
  },
  {
   "entry_id": "rocori-high-school",
   "name": "ROCORI High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/rocorihighschoolmusical",
-  "busy": false
+  "busy": false,
+  "day": "sat"
  },
  {
   "entry_id": "sauk-rapids-rice-high-school",
   "name": "Sauk Rapids-Rice High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/srrschoolsisd47",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "apollo-high-school",
   "name": "Apollo High School",
   "kind": "instagram",
   "url": "https://www.instagram.com/mnapollohoops",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "saint-johns-abbey",
   "name": "Saint John's Abbey",
   "kind": "facebook",
   "url": "https://www.facebook.com/saintjohnsabbey",
-  "busy": false
+  "busy": true,
+  "day": "wed"
  },
  {
   "entry_id": "saint-johns-abbey",
   "name": "Saint John's Abbey",
   "kind": "instagram",
   "url": "https://www.instagram.com/saintjohnsabbey",
-  "busy": false
+  "busy": false,
+  "day": "wed"
  },
  {
   "entry_id": "chem-dry-of-st-cloud",
   "name": "Chem-Dry of St. Cloud",
   "kind": "facebook",
   "url": "https://www.facebook.com/ChemDryofStCloud",
-  "busy": false
+  "busy": false,
+  "day": "tue"
  },
  {
   "entry_id": "ami-auction",
   "name": "Ami Auction",
   "kind": "facebook",
   "url": "https://www.facebook.com/profile.php?id=61565190705851",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "benedict-of-of-order-sisters-st",
   "name": "Sisters of the Order of Saint Benedict",
   "kind": "facebook",
   "url": "https://www.facebook.com/stbensisters",
-  "busy": false
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "benedict-of-of-order-sisters-st",
   "name": "Sisters of the Order of Saint Benedict",
   "kind": "instagram",
   "url": "https://www.instagram.com/stbensisters",
-  "busy": false
+  "busy": true,
+  "day": "fri"
  },
  {
   "entry_id": "episcopal-house-of-prayer",
   "name": "Episcopal House of Prayer",
   "kind": "facebook",
   "url": "https://www.facebook.com/ehouseofprayer",
-  "busy": false
+  "busy": false,
+  "day": "sun"
  },
  {
   "entry_id": "st-joseph-township-hall",
   "name": "St. Joseph Township Hall",
   "kind": "facebook",
   "url": "https://www.facebook.com/St-Joseph-Charter-Township-561229234269016",
-  "busy": false
+  "busy": false,
+  "day": "mon"
  },
  {
   "entry_id": "hemker-park-zoo",
   "name": "Hemker Park & Zoo",
   "kind": "facebook",
   "url": "https://www.facebook.com/HemkerZoo",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "hemker-park-zoo",
   "name": "Hemker Park & Zoo",
   "kind": "instagram",
   "url": "https://www.instagram.com/hemkerzoo",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "solar-nails-of-st-joseph",
   "name": "Solar Nails of St Joseph",
   "kind": "instagram",
   "url": "https://www.instagram.com/solarnailsmn",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  },
  {
   "entry_id": "bad-habit-brewing",
   "name": "Bad Habit Brewing",
   "kind": "instagram",
   "url": "https://www.instagram.com/badhabitbrewing",
-  "busy": true
+  "busy": true,
+  "day": "tue"
  },
  {
   "entry_id": "la-playette",
   "name": "The La Playette",
   "kind": "instagram",
   "url": "https://www.instagram.com/thelaplayette",
-  "busy": true
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "joetown",
   "name": "JoeTown",
   "kind": "instagram",
   "url": "https://www.instagram.com/joetownmn",
-  "busy": true
+  "busy": true,
+  "day": "mon"
  },
  {
   "entry_id": "bar-grill-sals",
   "name": "Sal's Bar and Grill",
   "kind": "instagram",
   "url": "https://www.instagram.com/salsbarandgrill",
-  "busy": true
+  "busy": true,
+  "day": "thu"
  },
  {
   "entry_id": "church-jospehs-st",
   "name": "Church of Saint Joseph",
   "kind": "facebook",
   "url": "https://www.facebook.com/ChurchSJStJoseph",
-  "busy": false
+  "busy": false,
+  "day": "fri"
  },
  {
   "entry_id": "st-john-baptist-parish",
   "name": "St John the Baptist Parish",
   "kind": "facebook",
   "url": "https://www.facebook.com/sjtbparish",
-  "busy": false
+  "busy": false,
+  "day": "thu"
  }
 ]

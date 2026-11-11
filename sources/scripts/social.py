@@ -8,15 +8,21 @@ writes Events and News (morning.md's Read and judge, and Save). The routine's st
 sources/models/social.md.
 
 Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
-check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
-schedules start them, the busy list at 9:30am and 7pm Chicago (Jesse, 2026-11-10: was noon and 9pm; 2026-11-09: was 6pm and 9pm) and every other page (plus Facebook
-Events tabs, a search of Facebook's events for the town and Facebook's own events page for the town: page_lists)
-on Thursdays at 3pm. The routines come half an hour or more later
+check never waits on the Claude plan: saved tasks hold each list's pages, and schedules start them.
+The busy list (`bp-busy-<kind>`) is read at 9:30am and 7pm Chicago (Jesse, 2026-11-10: was noon and
+9pm; 2026-11-09: was 6pm and 9pm). Every other page is read once a week, a seventh of them each day at
+3pm (`bp-weekly-<day>-<kind>`, with their Facebook Events tabs, a search of Facebook's events for the
+town and Facebook's own events page for the town: page_lists). A page's day is its `day` in the list,
+set so each day reads a mix of kinds (Jesse, 2026-11-11: "divide the type of events up so a reading
+can get a variety"; until then every page was read on Thursdays, one big drop a week). Each read
+reaches back to an hour before its task's last good read (since), so a run that the monthly cap or
+Facebook stopped is read up by the next. The routines come half an hour or more later
 and read whatever Apify saved since the last check they finished, so one the plan's usage limit
 skipped (the 9pm one on 2026-10-22) is read by the next.
 
-  setup           makes or updates the tasks and schedules from sources/social/<town>.json; run it
-                  after the list changes (prepare also refreshes the tasks' pages)
+  setup           makes or updates the tasks and schedules from sources/social/<town>.json, and
+                  deletes the busy and weekly ones the list no longer has; run it after the list
+                  changes (prepare also refreshes the tasks' pages and how far back they read)
   prepare busy    the busy list's Apify runs that finished since the last busy check
   prepare weekly  the weekly runs that finished since the last weekly check. Either works in parts
                   of about 6 minutes, as morning.py prepare does: run it again while it prints
@@ -40,9 +46,10 @@ tokens of looking at them, which prepare prints as one `[social] pictures` line.
 A page Apify says is "not available", or returns nothing at all for, on three reads in a row is set
 aside (BP app smooth-mornings 04); "no new posts" is a good read, and a run that missed more than
 half its pages (Facebook blocking Apify, a run stopped at its cap) counts against none. The next sync
-takes it off its paid list and the Thursday read tries it, a busy page every week and a weekly page
-in the first week of each month; a good read puts it back. It is named once when set aside and once
-when back.
+takes it off its paid list and its day's weekly read tries it, a busy page every week and a weekly page
+in the first week of each month; a good read puts it back. A weekly page that posts nothing new
+QUIET_AFTER reads in a row is set aside the same way and read in the first week of each month, until
+it posts again (Jesse, 2026-11-11). Each page is named once when set aside and once when back.
 
 The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
 `read-busy` and `read-weekly`), so it survives each routine's throwaway copy; so do the set-aside
@@ -61,7 +68,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import argparse, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -78,23 +85,27 @@ import composio
 TOWN = DEFAULT  # the town whose page list is read: --town sets it
 API = "https://api.apify.com/v2"
 POSTS = 20  # most posts read per page per check; a busy page posts a few a day at most
-ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
-    ("busy", "facebook"): ("apify~facebook-posts-scraper", 0.40),
-    ("busy", "instagram"): ("apify~instagram-post-scraper", 0.20),
-    ("weekly", "facebook"): ("apify~facebook-posts-scraper", 2.50),
-    ("weekly", "instagram"): ("apify~instagram-post-scraper", 1.00),  # 0.75 stopped Nov 5 at 617 of 636 pages
-    ("weekly", "events"): ("apify~facebook-events-scraper", 3.00),
+ACTORS = {  # (actor, spending cap in USD per run) for each kind of read; a weekly cap is one day's share
+    # Apify bills each page read, a post or none: Facebook half a cent, Instagram a fifth (Nov 2026).
+    ("busy", "facebook"): ("apify~facebook-posts-scraper", 0.60),
+    ("busy", "instagram"): ("apify~instagram-post-scraper", 0.30),
+    ("weekly", "facebook"): ("apify~facebook-posts-scraper", 1.50),  # the whole list was $2.41 on Thursday, Nov 5
+    ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.60),  # the whole list was $0.75 on Nov 5
+    ("weekly", "events"): ("apify~facebook-events-scraper", 1.50),
     ("weekly", "search"): ("apify~facebook-events-scraper", 1.60),  # three pages (two searches and the town's events page), up to SEARCH_EVENTS each at a cent
 }
 SEARCH_EVENTS = 50  # most events each search page reads (maxEvents is per start URL); Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
 # A family's own day found by the search never reaches a model (a child's first birthday, 2026-11-03)
 PRIVATE_DAY = re.compile(r"\bbirthday|\bbaby shower|\bbridal shower|\bwedding|\bgraduation party|\bcelebration of life|\bfuneral", re.I)
-# Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
-# reaches an hour past the last one, so a post that lands while a run starts is never lost.
-SCHEDULES = [("bp-busy-930am", "30 9 * * *", "busy", "16 hours"),
-             ("bp-busy-7pm", "0 19 * * *", "busy", "11 hours"),
-             ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
+DAYS = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")  # cron's order: 0 is Sunday
+WEEKLY_AT = 15  # o'clock, Chicago: each day's share of the weekly list
+# Apify's clock, Chicago time: (schedule, cron, run). A busy schedule starts the busy tasks, a day's
+# weekly one that day's tasks.
+SCHEDULES = ([("bp-busy-930am", "30 9 * * *", "busy"), ("bp-busy-7pm", "0 19 * * *", "busy")]
+             + [(f"bp-weekly-{d}", f"0 {WEEKLY_AT} * * {i}", "weekly") for i, d in enumerate(DAYS)])
+OVERLAP = timedelta(hours=1)  # a read reaches this far before its task's last good read, so a post that lands while a run starts is never lost
+QUIET_AFTER = 4  # weekly reads in a row with no new post before a weekly page is read once a month (Jesse, 2026-11-11)
 HEADS_UP = 0.75  # of the cap; private.apify_level says the same for the 8 AM email
 STORE = "bp-social-watch"
 LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
@@ -115,8 +126,14 @@ UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
 CHEAP_PER_M, JUDGE_PER_M = 0.60, 8.0
 
 
-def task_name(run, kind):
-    return f"bp-{run}-{kind}"
+def task_name(run, kind, day=None):
+    return f"bp-{run}-{day}-{kind}" if day else f"bp-{run}-{kind}"
+
+
+def day_of(page):
+    """The day of the week a page's weekly read falls on: its `day` in the list (set 2026-11-11 so each day
+    reads a mix of kinds), else one its address picks, so it never moves."""
+    return page.get("day") or DAYS[int(hashlib.md5(canon(page["url"]).encode()).hexdigest(), 16) % len(DAYS)]
 
 
 def all_pages(root):
@@ -124,8 +141,10 @@ def all_pages(root):
 
 
 def pages_for(run, root):
-    """The pages a run reads: busy or not, and never one Facebook hides from logged-out readers."""
-    return [p for p in all_pages(root) if p["busy"] == (run == "busy") and not p.get("hidden")]
+    """The pages a run reads: busy or not, and never one Facebook hides from logged-out readers, nor one with
+    `skip` (why): a page that only advertises stays on the list, so the monthly accounts check doesn't offer it
+    again and its place keeps the link, but is never read (Jesse, 2026-11-11)."""
+    return [p for p in all_pages(root) if p["busy"] == (run == "busy") and not p.get("hidden") and not p.get("skip")]
 
 
 def events_tab(url):
@@ -167,7 +186,7 @@ def far_away(loc):
 
 
 def actor_input(kind, urls, window):
-    """A task's input: the pages, and how far back to read ("16 hours"); a schedule overrides the window."""
+    """A task's input: the pages, and how far back to read (a UTC time, "2026-11-11T14:30:00", or "16 hours")."""
     if kind == "facebook":
         return {"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     if kind == "instagram":
@@ -270,76 +289,129 @@ def canon(url):
     return url.rstrip("/").lower()
 
 
-def monthly_try(now):
-    """Whether the next Thursday 3 PM read after `now` (SCHEDULES' bp-weekly) falls in a month's first
-    week. By the clock, not the date: a 7:30 PM check that starts past midnight is still before it."""
-    t = now.astimezone(LOCAL).replace(hour=15, minute=0, second=0, microsecond=0)
-    t += timedelta(days=(3 - t.weekday()) % 7)
-    return (t if t > now else t + timedelta(days=7)).day <= 7
+def next_read(now, day):
+    """When `day`'s next weekly read (WEEKLY_AT o'clock) after `now` starts."""
+    t = now.astimezone(LOCAL).replace(hour=WEEKLY_AT, minute=0, second=0, microsecond=0)
+    t += timedelta(days=(DAYS.index(day) - 1 - t.weekday()) % 7)  # Python counts Monday 0, cron Sunday 0
+    return t if t > now else t + timedelta(days=7)
+
+
+def monthly_try(now, day):
+    """Whether `day`'s next weekly read after `now` falls in a month's first week. By the clock, not the
+    date: a 7:30 PM check that starts past midnight is still before it."""
+    return next_read(now, day).day <= 7
 
 
 def page_lists(root, missed=None, now=None):
-    """{(run, kind): pages} for every task: each list's own pages; the weekly Events tabs of the busy
+    """{(run, kind): pages} for every list: each list's own pages; the weekly Events tabs of the busy
     list's Facebook pages and the hidden ones (their posts are hidden, their events are not: Stone Road
     at La Playette, 2026-11-03), and every Facebook page's in the first week of each month (Apify bills
     a cent for each tab read, empty or not); and the town's events search. A page set aside (`missed`)
-    leaves its list for the Thursday read: a busy page every week, a weekly page in the first week of
-    each month."""
+    leaves its list for its day's weekly read: a busy page every week, a weekly page in the first week of
+    each month. sync_tasks gives each weekly page its day's task."""
     category = {e["id"]: e.get("category") for e in load(root)[0]}
     aside = {u for u, m in (missed or {}).items() if m.get("aside")}
+    month = lambda p: bool(now) and monthly_try(now, day_of(p))
     out = {}
     for run in ("busy", "weekly"):
         for p in pages_for(run, root):
             p["category"] = category.get(p["entry_id"])
             if canon(p["url"]) not in aside:
                 out.setdefault((run, p["kind"]), []).append(p)
-            elif run == "busy" or (now and monthly_try(now)):
+            elif run == "busy" or month(p):
                 out.setdefault(("weekly", p["kind"]), []).append(p)
-    month = bool(now) and monthly_try(now)
     out[("weekly", "events")] = [dict(p, category=category.get(p["entry_id"])) for p in all_pages(root)
-                                 if p["kind"] == "facebook" and (p["busy"] or p.get("hidden") or month)]
+                                 if p["kind"] == "facebook" and not p.get("skip") and (p["busy"] or p.get("hidden") or month(p))]
     if search_pages():
         out[("weekly", "search")] = search_pages()
-    # ponytail: a list left empty keeps its task's last pages; give the task no pages if one ever empties
     return {k: v for k, v in out.items() if k in ACTORS}
 
 
+def last_good(task):
+    """When a task's last run that succeeded started, or None."""
+    got = api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=1&status=SUCCEEDED")["data"]["items"]
+    return datetime.fromisoformat(got[0]["startedAt"].replace("Z", "+00:00")) if got else None
+
+
+def days_began():
+    """When the weekly list's days began (setup's store record `days-began`): a day's task that has never
+    read reaches back to it, so the first read of each day picks up where the Thursday read left off."""
+    rec = api("GET", f"/key-value-stores/{_store_id()}/records/days-began")
+    return datetime.fromisoformat(rec["at"]) if rec and rec.get("at") else None
+
+
+def since(task, began, now):
+    """How far back a posts task reads, as a UTC time: OVERLAP before its last good read, so a run that the
+    monthly cap, a usage limit or Facebook stopped is read up by the next (POSTS a page at most). A task
+    that has never read reaches back to `began`, else a week."""
+    at = (task and last_good(task)) or began or now - timedelta(days=7)
+    return (at - OVERLAP).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def sync_tasks(root, missed=None, now=None):
-    """Each task's pages as the list now has them, set-aside pages moved (page_lists); makes a task
-    that is missing."""
-    tasks, ids = by_name("/actor-tasks"), {}
+    """Each task's pages as the lists now have them (page_lists), each weekly page in its day's task
+    (`bp-weekly-<day>-<kind>`), and how far back each posts task reads (since); makes a task that is
+    missing. Returns {task name: id} of the tasks with pages."""
+    now = now or datetime.now(timezone.utc)
+    tasks, ids, began = by_name("/actor-tasks"), {}, days_began()
     for (run, kind), pages in page_lists(root, missed, now).items():
         actor, cap = ACTORS[(run, kind)]
-        body = {"input": actor_input(kind, [p["url"] for p in pages], next(w for _, _, r, w in SCHEDULES if r == run)),
-                "options": {"timeoutSecs": 600, "maxTotalChargeUsd": cap}}
-        name = task_name(run, kind)
-        if name in tasks:
-            api("PUT", f"/actor-tasks/{tasks[name]['id']}", body)
-            ids[name] = tasks[name]["id"]
-        else:
-            ids[name] = api("POST", "/actor-tasks", {"actId": actor, "name": name, **body})["data"]["id"]
+        shares = {None: pages} if run == "busy" else {}
+        for p in ([] if run == "busy" else pages):
+            shares.setdefault(day_of(p), []).append(p)
+        for day, share in shares.items():
+            name = task_name(run, kind, day)
+            window = since(tasks.get(name), began, now) if kind in ("facebook", "instagram") else None
+            body = {"input": actor_input(kind, [p["url"] for p in share], window),
+                    "options": {"timeoutSecs": 600, "maxTotalChargeUsd": cap}}
+            if name in tasks:
+                api("PUT", f"/actor-tasks/{tasks[name]['id']}", body)
+                ids[name] = tasks[name]["id"]
+            else:
+                ids[name] = api("POST", "/actor-tasks", {"actId": actor, "name": name, **body})["data"]["id"]
+    # ponytail: a day's task left with no pages keeps its last ones until setup deletes it
     return ids
 
 
 def setup():
-    root = find_root()
-    ids = sync_tasks(root, read_missed(), datetime.now(LOCAL))
-    have = by_name("/schedules")
-    for name, cron, run, window in SCHEDULES:
-        actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid,
-                    **({} if n.endswith(("-events", "-search")) else {"input": {"onlyPostsNewerThan": window}})}  # merged over the task's own input
-                   for n, tid in ids.items() if n.startswith(f"bp-{run}-")]
+    """The tasks and schedules as the list has them. The first setup with the weekly days starts them where
+    the last weekly check left off (days_began); a busy or weekly task or schedule the list no longer has is
+    deleted, never one whose runs no check has read yet."""
+    root, now = find_root(), datetime.now(timezone.utc)
+    if not days_began():
+        began = last_read("weekly") or now
+        api("PUT", f"/key-value-stores/{_store_id()}/records/days-began", {"at": began.isoformat()})
+        print(f"[social] the weekly days begin where the last weekly check left off: {began.astimezone(LOCAL):%a %b %-d %-I:%M %p}")
+    ids = sync_tasks(root, read_missed(), now)
+    have, made = by_name("/schedules"), set()
+    for name, cron, run in SCHEDULES:
+        prefix = "bp-busy-" if run == "busy" else name + "-"
+        actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid} for n, tid in ids.items() if n.startswith(prefix)]
+        if not actions:
+            continue
         body = {"name": name, "cronExpression": cron, "timezone": "America/Chicago", "isEnabled": True,
                 "isExclusive": True, "actions": actions}
         if name in have:
             api("PUT", f"/schedules/{have[name]['id']}", body)
         else:
             api("POST", "/schedules", body)
-        print(f"[social] schedule {name}: {cron} Chicago, {len(actions)} tasks, reading {window} back")
-    now = datetime.now(timezone.utc).isoformat()
+        made.add(name)
+        print(f"[social] schedule {name}: {cron} Chicago, {len(actions)} tasks")
+    for name, s in have.items():  # a schedule the days replaced (the Thursday read's `bp-weekly`) first, then its tasks
+        if re.match(r"bp-(busy|weekly)", name) and name not in made:
+            api("DELETE", f"/schedules/{s['id']}")
+            print(f"[social] schedule {name}: deleted")
+    for name, t in by_name("/actor-tasks").items():
+        if re.match(r"bp-(busy|weekly)-", name) and name not in ids:
+            ran, mark = (t.get("stats") or {}).get("lastRunStartedAt"), last_read(name.split("-")[1])
+            if ran and (not mark or datetime.fromisoformat(ran.replace("Z", "+00:00")) > mark):
+                print(f"[social] task {name}: kept, its last run is not read yet; run setup again after the next check")
+                continue
+            api("DELETE", f"/actor-tasks/{t['id']}")
+            print(f"[social] task {name}: deleted")
     for run in ("busy", "weekly"):
         if not last_read(run):  # the first setup: start from now, never from runs made before it
-            mark_read(run, now)
+            mark_read(run, now.isoformat())
 
 
 def runs_since(run, mark, now, give_up, stop=None):
@@ -355,7 +427,7 @@ def runs_since(run, mark, now, give_up, stop=None):
                 started = datetime.fromisoformat(r["startedAt"].replace("Z", "+00:00"))
                 if r["status"] in DONE and r.get("finishedAt"):
                     if datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00")) > floor:
-                        out.setdefault(name.split("-", 2)[2], []).append(r)
+                        out.setdefault(name.rsplit("-", 1)[1], []).append(r)  # bp-busy-facebook, bp-weekly-mon-facebook
                 elif now - started < timedelta(minutes=90):
                     waiting.append(name)
         if not waiting or time.time() > give_up or late(stop):
@@ -474,27 +546,44 @@ def run_pages(run_id):
     return [canon(u) for u in urls if isinstance(u, str)]
 
 
-def tally(reads, missed, today):
+def tally(reads, missed, today, weekly=()):
     """Each page the posts runs read, oldest run first: read when a row of it is a post or says it
     posted nothing new (`no_items`: most busy pages, most reads); missed when Apify says it is not
     available, or gives no row for it at all (Sal's, every read in October). run.failing decides: ASIDE_AFTER
     misses in a row set a page aside; a good read brings it back. A run that missed more than half its pages (Facebook
-    blocking Apify, a run stopped at its cap) counts against none. `reads`: (finished, pages, rows,
-    what) per run. Returns the new state, the pages set aside and back, and a line per run not counted."""
+    blocking Apify, a run stopped at its cap) counts against none. A page of the `weekly` list (canon addresses)
+    that read fine with nothing new QUIET_AFTER reads in a row is set aside as quiet: read in the first week of
+    each month, and back with its first new post (Jesse, 2026-11-11). `reads`: (finished, pages, rows, what) per
+    run. Returns the new state, the pages set aside and back, and a line per run not counted."""
     state, aside, back, uncounted = {u: dict(m) for u, m in missed.items()}, [], [], []
     for _, pages, rows, what in sorted(reads, key=lambda x: x[0]):
-        found, why, given = set(), {}, {p: p for p in pages}
+        found, posted, why, given = set(), set(), {}, {p: p for p in pages}
         for r in rows:
             u = page_of(src_of(r), given)
             if u and r.get("error") and r["error"] != "no_items":
                 why[u] = r["error"]
             elif u:
                 found.add(u)
+                if not r.get("error"):
+                    posted.add(u)
         counted = (len(pages) - len(found & set(pages))) * 2 <= len(pages)
         if not counted:
             uncounted.append(f"{what}: {len(pages) - len(found & set(pages))} of {len(pages)} pages not read, not counted")
         for u in pages:
             m = state.get(u, {})
+            if u in weekly and u in found and u not in posted:  # read fine, nothing new
+                quiet = m.get("quiet", 0) + 1
+                if m.get("aside") and m.get("quiet"):  # quiet already: stays aside until it posts
+                    state[u] = dict(m, quiet=quiet)
+                    continue
+                if m.get("aside"):  # set aside for misses, and read again
+                    back.append(u)
+                if quiet >= QUIET_AFTER:
+                    state[u] = {"quiet": quiet, "why": "no new posts", "aside": str(today)}
+                    aside.append(u)
+                else:
+                    state[u] = {"quiet": quiet}
+                continue
             misses, happened = failing(m.get("misses", 0), m.get("aside"), u in found, counted)
             if happened in ("clear", "back"):
                 back += [u] if happened == "back" else []
@@ -512,11 +601,14 @@ def aside_lines(state, aside, back, lists):
     """The answer's words: each page the check it is set aside and the check it is back."""
     named = {canon(p["url"]): p for pages in lists.values() for p in pages}
     name = lambda u: f"{named[u]['name']}'s {named[u]['kind'].title()} {u}" if u in named else u
-    retry = lambda u: ("the Thursday read" if named.get(u, {}).get("busy")
-                       else "the Thursday read in the first week of each month")
-    return ([f"Set aside: {name(u)}: {state[u]['why'].replace('_', ' ')} {ASIDE_AFTER} reads in a row; off its paid list, "
-             f"tried with {retry(u)}"
-             for u in aside]
+    weekday = lambda u: dict(zip(DAYS, ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+                                        "Saturday")))[day_of(named[u])] if u in named else "its day"
+    retry = lambda u: (f"every {weekday(u)}" if named.get(u, {}).get("busy")
+                       else f"on the first {weekday(u)} of each month")
+    said = lambda u: (f"no new posts {state[u]['quiet']} weekly reads in a row; off its weekly list, read {retry(u)}"
+                      if state[u].get("quiet") else
+                      f"{state[u]['why'].replace('_', ' ')} {ASIDE_AFTER} reads in a row; off its paid list, tried {retry(u)}")
+    return ([f"Set aside: {name(u)}: {said(u)}" for u in aside]
             + [f"Back: {name(u)}: read again, back on its list" for u in back])
 
 
@@ -612,7 +704,9 @@ def prepare(run, now):
             sync_tasks(root, saved["missed"], now)  # the next run reads the list as it is now
         except Exception as e:
             saved["failed"].append(f"task pages not refreshed: {e}")
-        saved["listed"] = sum(len(v) for (r, _), v in page_lists(root, saved["missed"], now).items() if r == check)
+        day = DAYS[(now.astimezone(LOCAL).weekday() + 1) % 7]  # a weekly check reads its day's share
+        saved["listed"] = sum(1 for (r, _), v in page_lists(root, saved["missed"], now).items() if r == check
+                              for p in v if check == "busy" or day_of(p) == day)
         try:
             mark = last_read(check)
         except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
@@ -654,7 +748,8 @@ def prepare(run, now):
             if p["file"] not in seen:
                 seen.add(p["file"]), unique.append(p)
         if saved.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
-            missed, aside, back, uncounted = tally(reads, saved["missed"], today)
+            weekly = {canon(p["url"]) for (r, _), ps in lists.items() if r == "weekly" for p in ps if not p.get("busy")}
+            missed, aside, back, uncounted = tally(reads, saved["missed"], today, weekly)
             saved.update(missed=missed, aside=aside_lines(missed, aside, back, lists))
             failed += uncounted
         saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
@@ -722,13 +817,12 @@ def finish(run):
 def missed_checks(now=None):
     """Social checks that should have finished by this morning and didn't, for the morning report (BP app loopholes 09;
     Jesse, 2026-11-05: the Oct 22 refusal went unnoticed). A check's mark is the last Apify run it read, and the next
-    check reads what a refused one left, so only the evening's last check counts: the busy mark should be past last
-    night's 7 PM run and, on a Friday, the weekly mark past Thursday's 3 PM run."""
+    check reads what a refused one left, so only the day's last check of each list counts: the busy mark should be past
+    last night's 7 PM run, the weekly mark past yesterday's 3 PM run."""
     now = (now or datetime.now(LOCAL)).astimezone(LOCAL)
     yesterday = (now - timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
-    due = [("busy", "last evening's check", yesterday.replace(hour=19))]
-    if now.weekday() == 4:
-        due.append(("weekly", "Thursday's weekly check", yesterday.replace(hour=15)))
+    due = [("busy", "last evening's check", yesterday.replace(hour=19)),
+           ("weekly", "yesterday afternoon's check", yesterday.replace(hour=WEEKLY_AT))]
     out = []
     for run, name, by in due:
         mark = last_read(run)
@@ -773,16 +867,39 @@ def selftest():
         finally:
             globals()["last_read"] = real_last_read
     thu, fri = t(29, 6, 0), t(30, 6, 0)  # Oct 29, 2026 is a Thursday
-    check(missed(t(28, 21, 1), t(22, 15, 1), thu) == [], "the 7 PM run read by morning: nothing to say, and no weekly word on a Thursday")
-    check(missed(t(28, 12, 1), t(22, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 12:01 PM)"],
+    check(missed(t(28, 21, 1), t(28, 15, 1), thu) == [], "both lists' last runs read by morning: nothing to say")
+    check(missed(t(28, 12, 1), t(28, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 12:01 PM)"],
           "only the morning run read: last evening's last check didn't finish")
-    check(missed(t(29, 21, 1), t(29, 15, 1), fri) == [], "a Friday with both read")
-    check(missed(t(29, 21, 1), t(22, 15, 1), fri) == ["Thursday's weekly check didn't finish (read up to Thu Oct 22 3:01 PM)"],
-          "a Friday with Thursday's weekly unread")
+    check(missed(t(29, 21, 1), t(28, 15, 1), fri) == ["yesterday afternoon's check didn't finish (read up to Wed Oct 28 3:01 PM)"],
+          "the weekly list is read every afternoon now: Thursday's day unread is said on Friday")
     check(missed(None, t(29, 15, 1), fri) == ["last evening's check didn't finish (never read)"], "no mark at all")
-    check(actor_input("facebook", ["u"], "4 hours")["onlyPostsNewerThan"] == "4 hours", "a task reads a window back from now")
-    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["16 hours", "11 hours"], "9:30am reads back past last night's 7pm, 7pm past 9:30am")
-    check(task_name("weekly", "events") == "bp-weekly-events", "a task's name")
+    check(actor_input("facebook", ["u"], "2026-11-11T14:30:00")["onlyPostsNewerThan"] == "2026-11-11T14:30:00",
+          "a task reads back to a time")
+    check([s for s in SCHEDULES if s[2] == "busy"] == [("bp-busy-930am", "30 9 * * *", "busy"), ("bp-busy-7pm", "0 19 * * *", "busy")]
+          and [(n, c) for n, c, r in SCHEDULES if r == "weekly"] == [(f"bp-weekly-{d}", f"0 15 * * {i}") for i, d in enumerate(DAYS)]
+          and DAYS[0] == "sun", "the busy list at 9:30am and 7pm; the weekly list a day at a time at 3pm, cron's Sunday first")
+    check(task_name("weekly", "events", "mon") == "bp-weekly-mon-events" and task_name("busy", "facebook") == "bp-busy-facebook",
+          "a task's name")
+    wed = datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)  # a Wednesday evening
+    check(next_read(wed, "thu") == datetime(2026, 11, 5, 15, tzinfo=LOCAL) and next_read(wed, "wed") == datetime(2026, 11, 11, 15, tzinfo=LOCAL)
+          and next_read(wed, "sun") == datetime(2026, 11, 8, 15, tzinfo=LOCAL)
+          and next_read(datetime(2026, 11, 5, 15, tzinfo=LOCAL), "thu") == datetime(2026, 11, 12, 15, tzinfo=LOCAL),
+          "a day's next read: later this week, or next week once its 3pm has come")
+    check(monthly_try(wed, "thu") and monthly_try(wed, "sat") and not monthly_try(wed, "wed") and not monthly_try(wed, "mon"),
+          "a day's monthly try: its next read falls on the month's first seven days")
+    page = {"url": "https://www.facebook.com/krewe"}
+    check(day_of(dict(page, day="tue")) == "tue" and day_of(page) in DAYS and day_of(page) == day_of({"url": "https://www.facebook.com/Krewe/"}),
+          "a page's day is its own, else one its address picks, the same every time")
+    real_good = globals()["last_good"]
+    try:
+        globals()["last_good"] = lambda task: task.get("good")
+        began, now = datetime(2026, 11, 5, 21, 3, tzinfo=timezone.utc), datetime(2026, 11, 11, 16, tzinfo=timezone.utc)
+        reads = [since({"good": datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc)}, began, now), since({"good": None}, began, now),
+                 since(None, began, now), since(None, None, now)]
+    finally:
+        globals()["last_good"] = real_good
+    check(reads == ["2026-11-10T14:00:00", "2026-11-05T20:03:00", "2026-11-05T20:03:00", "2026-11-04T15:00:00"],
+          f"a read reaches an hour before its task's last good read; one that never read, back to when the days began, else a week: {reads}")
     by_url = {"https://www.facebook.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "https://www.facebook.com/krewe"}}
     rows = [{"inputUrl": "https://www.facebook.com/krewe/", "postId": "1", "url": "https://fb/p/1", "text": "Trivia tonight at 7!",
              "time": "2026-10-22T23:05:00.000Z"},
@@ -884,6 +1001,10 @@ def selftest():
         check(cond, what)
     for cond, what in done_alone():
         check(cond, what)
+    for cond, what in quiet_pages():
+        check(cond, what)
+    for cond, what in setup_alone():
+        check(cond, what)
     print(f"social.py selftest: {ok} passed, 0 failed")
 
 
@@ -934,19 +1055,22 @@ def done_alone():
 
 def set_aside_reads():
     """Six checks against a fake Apify, offline, each prepare and done as the routine runs them: Sal's,
-    on the busy list, comes back not available three busy reads in a row, then Thursday's weekly read
-    finds a post. Krewe and Bo (busy) post nothing new on the busy reads; Hall (weekly) posts. Apify's
-    schedules are played by hand:
+    on the busy list, comes back not available three busy reads in a row, then its day's weekly read
+    (Thursday) finds a post. Krewe and Bo (busy) post nothing new on the busy reads; Hall (weekly, on
+    Thursdays) posts; JT is weekly on Mondays. Apify's schedules are played by hand:
     each run reads its task's pages as they were when it started (smooth-mornings 04)."""
     import contextlib, write_judged
     g = globals()
-    sals, krewe, bo, hall = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "bodiddleys", "hallcomponents"))
+    sals, krewe, bo, hall, jt = (f"https://www.facebook.com/{n}" for n in ("salsbar", "krewe", "bodiddleys", "hallcomponents", "jt"))
     pages = [{"entry_id": "la", "name": "La Playette", "kind": "facebook", "url": "https://www.facebook.com/la", "busy": False,
-              "hidden": True},
-             {"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True},
-             {"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": krewe, "busy": True},
-             {"entry_id": "bo", "name": "Bo", "kind": "facebook", "url": bo, "busy": True},
-             {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": hall, "busy": False}]
+              "hidden": True, "day": "thu"},
+             {"entry_id": "sals", "name": "Sal's Bar and Grill", "kind": "facebook", "url": sals, "busy": True, "day": "thu"},
+             {"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": krewe, "busy": True, "day": "thu"},
+             {"entry_id": "bo", "name": "Bo", "kind": "facebook", "url": bo, "busy": True, "day": "thu"},
+             {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": hall, "busy": False, "day": "thu"},
+             {"entry_id": "jt", "name": "JT", "kind": "facebook", "url": jt, "busy": False, "day": "mon"},
+             {"entry_id": "ad", "name": "Ad", "kind": "facebook", "url": "https://www.facebook.com/ad", "busy": False,
+              "day": "thu", "skip": "only ads"}]
     tasks, runs, store, data = {}, {}, {"read-busy": {"finished_at": "2026-10-26T00:00:00+00:00"},
                                         "read-weekly": {"finished_at": "2026-10-26T00:00:00+00:00"}}, {}
 
@@ -956,6 +1080,8 @@ def set_aside_reads():
             return {"data": {"items": [{"name": n, "id": n} for n in tasks]}}
         if path.endswith("/runs?desc=true&limit=30"):
             return {"data": {"items": runs.get(bits[2], [])[::-1]}}
+        if path.endswith("&status=SUCCEEDED"):  # last_good
+            return {"data": {"items": [r for r in runs.get(bits[2], []) if r["status"] == "SUCCEEDED"][-1:]}}
         if bits[1] == "actor-tasks":
             tasks[body.get("name") or bits[2]] = json.loads(json.dumps(body["input"]))
             return {"data": {"id": body.get("name") or bits[2]}}
@@ -999,14 +1125,15 @@ def set_aside_reads():
                 ran("bp-busy-facebook", f"2026-10-{day}T{hour:02d}:05:00+00:00", quiet=[krewe, bo])
                 said.append(check("busy", f"2026-10-{day}T{hour:02d}:30:00+00:00"))
                 inputs[i] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
-            ran("bp-weekly-facebook", "2026-10-29T20:05:00+00:00", [hall, sals])  # Thursday 3 PM
+            ran("bp-weekly-thu-facebook", "2026-10-29T20:05:00+00:00", [hall, sals])  # Thursday 3 PM
             said.append(check("weekly", "2026-10-29T20:45:00+00:00"))
             ran("bp-busy-facebook", "2026-10-29T23:05:00+00:00", [krewe], [bo])
             said.append(check("busy", "2026-10-29T23:30:00+00:00"))
             inputs["after"] = {t: [u["url"] for u in x.get("startUrls", [])] for t, x in tasks.items()}
             on_lists = sorted(t for t, given in inputs["after"].items() if sals in given)
-            wk = lambda *when: page_lists(root, {canon(hall): {"aside": "2026-10-22"}},
-                                          datetime(2026, 11, *when, tzinfo=LOCAL)).get(("weekly", "facebook"), [])
+            wk = lambda *when: [p for p in page_lists(root, {canon(hall): {"aside": "2026-10-22"}},
+                                                      datetime(2026, 11, *when, tzinfo=LOCAL)).get(("weekly", "facebook"), [])
+                                if p["entry_id"] == "hall"]
             monthly = [len(wk(4, 21, 30)), len(wk(5, 0, 5)), len(wk(5, 15, 45))]
             ev = lambda *when: sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 11, *when, tzinfo=LOCAL))[("weekly", "events")])
             events_lists = [ev(4, 21, 30), ev(10, 21, 30)]
@@ -1016,30 +1143,136 @@ def set_aside_reads():
     named = [i for i, lines in enumerate(said) if any("salsbar" in ln or "Sal's" in ln for ln in lines)]
     sal_lines = [[ln for ln in lines if "salsbar" in ln or "Sal's" in ln] for lines in said]
     counts = [next(ln.split(", ")[1] for ln in lines if ln.startswith("[social] busy:")) for lines in said[:4]]
+    weekly_count = next(ln.split(", ")[1] for ln in said[4] if ln.startswith("[social] weekly:"))
     twenty_four = [f"https://www.facebook.com/p{i}" for i in range(24)]
     blocked = tally([(f"2026-10-2{i}", twenty_four, [], f"facebook run {i}") for i in range(3)], {}, date(2026, 10, 28))
     return [
-        (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-facebook"]
+        (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-thu-facebook"]
          and sals in inputs[2]["bp-busy-facebook"] and on_lists == ["bp-busy-facebook"]
          and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs) and counts == ["3 pages"] * 3 + ["2 pages"],
-         "a social page not available three reads in a row leaves its paid list at the next sync, for the "
-         "Thursday read, and goes back on its list when that read finds it; one with no new posts stays; "
+         "a social page not available three reads in a row leaves its paid list at the next sync, for its "
+         "day's weekly read, and goes back on its list when that read finds it; one with no new posts stays; "
          "the pages count leaves set-aside pages out"),
+        (inputs["after"]["bp-weekly-thu-facebook"] == [hall] and inputs["after"]["bp-weekly-mon-facebook"] == [jt]
+         and weekly_count == "7 pages" and inputs["after"]["bp-weekly-mon-events"] == [events_tab(jt)]
+         and not any("facebook.com/ad" in u for given in inputs["after"].values() for u in given),
+         "each weekly page is in its own day's task; Thursday's check counts Thursday's pages (Hall's and Sal's posts, "
+         "five Events tabs); JT's Events tab is on Monday's task in the week its Monday is the month's first; a page "
+         "that only advertises is in none"),
         (named == [2, 4] and sal_lines[2] == [f"[social] Set aside: Sal's Bar and Grill's Facebook {sals}: not available 3 "
-                                         "reads in a row; off its paid list, tried with the Thursday read"]
+                                         "reads in a row; off its paid list, tried every Thursday"]
          and sal_lines[4] == [f"[social] Back: Sal's Bar and Grill's Facebook {sals}: read again, back on its list"],
          "a social page is named the check it is set aside and the check it is back, and no other"),
         (events_lists == [["bo", "hall", "krewe", "la", "sals"], ["bo", "krewe", "la", "sals"]]
-         and inputs["after"]["bp-weekly-search"] == [p["url"] for p in search_pages()],
-         "the weekly Events tabs read the busy and hidden Facebook pages, and every one in a month's first week; "
-         "the town's events search and its events page are one task of their own"),
-        (monthly == [1, 1, 0], "a weekly page set aside is tried with the Thursday read in a month's first week, "
+         and sorted(u for t, given in inputs["after"].items() if t.endswith("-search") for u in given)
+         == sorted(p["url"] for p in search_pages()),
+         "the weekly Events tabs read the busy and hidden Facebook pages, and every one when its day falls in a "
+         "month's first week (Hall's Thursday, not JT's Monday); the town's events searches have tasks of their own"),
+        (monthly == [1, 1, 0], "a weekly page set aside is tried with its day's read in a month's first week, "
                                "by the clock: a 7:30 PM check that starts past midnight still puts it on"),
         (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],
                  "x")] * 3, {}, date(2026, 10, 28))[0] == {sals: {"misses": 3, "why": "nothing back", "aside": "2026-10-28"}},
          "a page Apify gives no row for three reads in a row is set aside too"),
         (blocked[0] == {} and blocked[3] == [f"facebook run {i}: 24 of 24 pages not read, not counted" for i in range(3)],
          "a run that reads few of its pages (Facebook blocking Apify, a cap) counts against none, in one line"),
+    ]
+
+
+def quiet_pages():
+    """tally's quiet rule offline: a weekly page with no new post four reads in a row is read once a month until
+    it posts; a busy page never is; a page set aside for misses that reads again comes back, counting from one."""
+    qa, busy = "https://www.facebook.com/quiet", "https://www.facebook.com/busy"
+    none = lambda u: {"inputUrl": u, "error": "no_items"}
+    reads = [(f"2026-11-0{i}", [qa, busy], [none(qa), none(busy)], f"run {i}") for i in range(1, 6)]
+    day = date(2026, 11, 4)
+    three, four, five = (tally(reads[:n], {}, day, {qa}) for n in (3, 4, 5))
+    posted = tally([("2026-11-09", [qa], [{"inputUrl": qa, "postId": "1", "text": "Open late tonight"}], "r")], four[0], day, {qa})
+    missed = {qa: {"misses": 3, "why": "not_available", "aside": "2026-11-01"}}
+    again = tally([("2026-11-09", [qa], [none(qa)], "r")], missed, day, {qa})
+    lists = {("weekly", "facebook"): [{"url": qa, "name": "Quiet", "kind": "facebook", "busy": False, "day": "tue"}],
+             ("busy", "facebook"): [{"url": busy, "name": "Busy", "kind": "facebook", "busy": True, "day": "fri"}]}
+    lines = aside_lines({**four[0], busy: {"misses": 3, "why": "not_available", "aside": "2026-11-04"}}, [qa, busy], [], lists)
+    return [
+        (three[0] == {qa: {"quiet": 3}} and four[0] == {qa: {"quiet": 4, "why": "no new posts", "aside": "2026-11-04"}}
+         and four[1] == [qa] and five[0][qa]["quiet"] == 5 and five[1] == [qa] and busy not in five[0],
+         "a weekly page with nothing new four reads in a row is set aside once, and stays; a busy page never is"),
+        (posted[0] == {} and posted[2] == [qa], "a quiet page's first new post brings it back"),
+        (again[0] == {qa: {"quiet": 1}} and again[2] == [qa], "a page set aside for misses that reads again is back, quiet from one"),
+        (lines == [f"Set aside: Quiet's Facebook {qa}: no new posts 4 weekly reads in a row; off its weekly list, read on the "
+                   "first Tuesday of each month",
+                   f"Set aside: Busy's Facebook {busy}: not available 3 reads in a row; off its paid list, tried every Friday"],
+         f"the words for a quiet page and for a busy one: {lines}"),
+    ]
+
+
+def setup_alone():
+    """setup against a fake Apify, offline, the day the weekly list's days begin: a task per day and kind, a schedule
+    per day starting only that day's tasks, every read reaching back to the last weekly check; the Thursday read's
+    schedule and its read task deleted, a task whose run no check has read kept, and nothing that isn't the watch's
+    touched."""
+    import contextlib
+    g = globals()
+    pages = [{"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": "https://www.facebook.com/krewe", "busy": True, "day": "fri"},
+             {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": "https://www.facebook.com/hall", "busy": False, "day": "tue"},
+             {"entry_id": "hall", "name": "Hall", "kind": "instagram", "url": "https://www.instagram.com/hall", "busy": False, "day": "tue"},
+             {"entry_id": "jt", "name": "JT", "kind": "facebook", "url": "https://www.facebook.com/jt", "busy": False, "day": "sat"}]
+    task = lambda n, ran=None: {"name": n, "id": n, "stats": {"lastRunStartedAt": ran}}
+    tasks = {n: task(n, r) for n, r in [("bp-busy-facebook", "2026-11-11T15:30:00Z"), ("bp-weekly-facebook", "2026-11-05T21:00:00Z"),
+                                        ("bp-weekly-search", "2026-11-06T15:00:00Z"), ("bp-dig-facebook", None), ("bp-monthly-places", None)]}
+    inputs, schedules, deleted = {}, {n: {"name": n, "id": n} for n in ("bp-busy-930am", "bp-busy-7pm", "bp-weekly", "bp-monthly-places")}, []
+    store = {"read-busy": {"finished_at": "2026-11-11T15:40:00+00:00"}, "read-weekly": {"finished_at": "2026-11-05T21:03:00+00:00"}}
+
+    def apify(method, path, body=None):
+        bits = path.split("?")[0].split("/")
+        if method == "DELETE":
+            deleted.append(path)
+            return (tasks if bits[1] == "actor-tasks" else schedules).pop(bits[2])
+        if path.startswith("/actor-tasks?"):
+            return {"data": {"items": list(tasks.values())}}
+        if path.startswith("/schedules?"):
+            return {"data": {"items": list(schedules.values())}}
+        if path.endswith("&status=SUCCEEDED"):
+            ran = tasks[bits[2]]["stats"]["lastRunStartedAt"]
+            return {"data": {"items": [{"startedAt": ran}] if ran else []}}
+        if bits[1] == "actor-tasks":
+            name = body.get("name") or bits[2]
+            tasks.setdefault(name, task(name))
+            inputs[name] = body["input"]
+            return {"data": {"id": name}}
+        if bits[1] == "schedules":
+            schedules[body["name"]] = dict(body, id=body["name"])
+            return {"data": {"id": body["name"]}}
+        if path.startswith("/key-value-stores?"):
+            return {"data": {"id": "s"}}
+        return store.update({bits[-1]: body}) if method == "PUT" else store.get(bits[-1])
+    saved = {k: g[k] for k in ("api", "find_root", "load", "read_missed", "search_pages")}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sources" / "social").mkdir(parents=True)
+            (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(pages))
+            g.update(api=apify, find_root=lambda *a: root, load=lambda root: ([], []), read_missed=dict, search_pages=list)
+            with contextlib.redirect_stdout(io.StringIO()):
+                setup()
+    finally:
+        g.update(saved)
+    weekly = {n: [a["actorTaskId"] for a in s["actions"]] for n, s in schedules.items() if n.startswith("bp-weekly-")}
+    return [
+        (weekly == {"bp-weekly-tue": ["bp-weekly-tue-facebook", "bp-weekly-tue-instagram"], "bp-weekly-sat": ["bp-weekly-sat-facebook"],
+                    "bp-weekly-fri": ["bp-weekly-fri-events"]}
+         and [a["actorTaskId"] for a in schedules["bp-busy-930am"]["actions"]] == ["bp-busy-facebook"]
+         and schedules["bp-weekly-tue"]["cronExpression"] == "0 15 * * 2"
+         and not any("input" in a for s in schedules.values() for a in s.get("actions", [])),
+         f"a schedule per day starts only that day's tasks (Krewe's Events tab on its Friday), and none overrides how far back: {weekly}"),
+        (inputs["bp-weekly-tue-facebook"]["onlyPostsNewerThan"] == "2026-11-05T20:03:00"
+         and inputs["bp-weekly-sat-facebook"]["onlyPostsNewerThan"] == "2026-11-05T20:03:00"
+         and inputs["bp-busy-facebook"]["onlyPostsNewerThan"] == "2026-11-11T14:30:00"
+         and store["days-began"] == {"at": "2026-11-05T21:03:00+00:00"},
+         "each day's first read reaches back to the last weekly check; the busy list to its own last read"),
+        (sorted(deleted) == ["/actor-tasks/bp-weekly-facebook", "/schedules/bp-weekly"]
+         and {"bp-weekly-search", "bp-dig-facebook", "bp-monthly-places"} <= set(tasks) and "bp-monthly-places" in schedules,
+         f"the Thursday read's schedule and read task are deleted; one with a run no check has read is kept; the dig's "
+         f"and the accounts' are never touched: {deleted}"),
     ]
 
 

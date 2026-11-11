@@ -1,10 +1,11 @@
 # The social watch
 
 Places' public Facebook and Instagram posts become Events and News in the Town feed (registry
-ADR-020, amended 2026-10-22). Apify reads the pages on its own schedule (the busy list at 9:30am and 7pm
-Chicago, every other page on Thursdays at 3pm) and saves what it finds; two routines follow
+ADR-020, amended 2026-10-22 and 2026-11-11). Apify reads the pages on its own schedule (the busy list at 9:30am
+and 7pm Chicago; every other page once a week, a seventh of them each day at 3pm, each day a mix of kinds) and
+saves what it finds; two routines follow
 this file in the cloud half an hour or more later, each in a fresh copy of this repository, and
-read what Apify saved: `busy` at 10:30am and 7:30pm, `weekly` on Thursdays at 3:45pm. The
+read what Apify saved: `busy` at 10:30am and 7:30pm, `weekly` every day at 3:45pm. The
 routine's prompt names which. Scripts read Apify and write the
 database; the cheap model reads the posts and you judge what it flags, exactly as the morning job
 does. Work through the steps in order. A step that fails for one source is a line in the summary;
@@ -110,7 +111,8 @@ carry on with the rest.
    reading pictures added to the cost), every `[social] FAILED` line
    from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. A
    page Apify says is not available, or returns nothing for, three reads in a row sets itself aside
-   and is named once in the summary; fixing its address or hiding it in
+   and is named once in the summary, as is a weekly page with no new post four reads in a row (read
+   once a month from then on); fixing its address or hiding it in
    `sources/social/st-joseph-mn.json` is the registry job's, with Jesse's yes.
 
 ## Rules

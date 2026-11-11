@@ -56,7 +56,7 @@ from db import DbError  # noqa: E402
 from morning import read_items  # noqa: E402
 from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
-LOOKBACK = timedelta(days=8)   # the weekly read is Thursday's: a Friday morning still finds its posts
+LOOKBACK = timedelta(days=8)   # a page on the weekly list is read once a week: the next morning still finds its posts
 NEW = timedelta(days=3)        # an Event found longer ago than this was there before this step
 WEEKLY_DAY = 6                 # Sunday, Chicago time: the dig's weekly pass, before the week's Events (Jesse, 2026-11-10)
 WEEKLY_AHEAD = timedelta(days=28)  # the weekly pass reaches Events this close; hosts post nearer the day

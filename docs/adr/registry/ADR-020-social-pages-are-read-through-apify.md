@@ -101,6 +101,19 @@ list: the test's 20 events overlapped the words search on one, and 8 were in-tow
 (a church craft fair, a history talk at Bad Habit, a band at Obbink, two bus tours, a giveaway). Up to 50
 events a week from each page, a cent each. Facebook's location filter on a search URL gives a logged-out
 reader nothing, so the explore page is the way.
+**Amended 2026-11-11 (Jesse, "i agree with all", plus "divide the type of events up so a reading can get a
+variety"):** every other page is read once a week, a seventh of them each day at 3pm, not all on Thursday:
+the Thursday read brought about 700 posts into the app at once. Each page's day (`day` in the page list) was
+set so every day reads a mix of kinds (food, shops, services, health, schools, churches, town pages), and its
+Events tab is read on the same day. The weekly routine runs every day at 3:45pm. Apify bills each page read,
+a post or none (Facebook half a cent, Instagram a fifth), not each run, so seven small runs cost what one big
+one did. Every read now reaches back to an hour before its task's last good read, not a fixed window, so a run
+that the monthly cap or Facebook stopped is read up by the next. 23 pages that posted 7 or more times in the
+Nov 5 read moved to the busy list (5 of them had hit the 20-post limit, so posts were lost). 11 pages that only
+advertise (house listings, cars for sale, national chains' pages) are marked `skip`: never read, but kept on the
+list so the monthly accounts check doesn't offer them again. Iman Carrier's two pages were the federal FMCSA's,
+not the place's, and left the list. A weekly page with no new post 4 reads in a row is read in the first week of
+each month until it posts.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
