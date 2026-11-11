@@ -21,6 +21,11 @@ final class AtNamesTests: XCTestCase {
         XCTAssertNil(typed("@sam\nhi"), "a new line")
         XCTAssertNil(typed("@" + String(repeating: "a", count: 31)))
         XCTAssertNil(typed("no at here"))
+        let dale = AtName(kind: .user, id: "u1", name: "Dale Brunner")
+        XCTAssertNil(AtTyping.typed("Hi @Dale Brunner and", cursor: "Hi @Dale Brunner and".endIndex, picked: [dale]),
+                     "a picked name closes the row")
+        XCTAssertEqual(AtTyping.typed("Hi @Dale Br", cursor: "Hi @Dale Br".endIndex, picked: [dale])?.query, "Dale Br",
+                       "part of it is still being typed")
         let words = "Hi @sa and more"
         let cursor = words.index(words.startIndex, offsetBy: 6)
         let hit = AtTyping.typed(words, cursor: cursor)

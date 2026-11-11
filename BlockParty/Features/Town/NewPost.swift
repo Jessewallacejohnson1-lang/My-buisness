@@ -586,11 +586,12 @@ struct NewPostSheet: View {
                 VStack(spacing: 0) {
                     if let typing, !named(typing.query).isEmpty {
                         AtRow(candidates: named(typing.query)) { pickName($0, replacing: typing.range) }
-                            .transition(.opacity)
+                            // Only the row fades: an animation over the whole change moved the cursor back a
+                            // letter while typing (AtNamesUITests, 2026-11-11).
+                            .transition(.opacity.animation(reduceMotion ? nil : .easeOut(duration: 0.15)))
                     }
                     bar
                 }
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: typing?.query)
             }
             .background(Hue.paper)
             .navigationTitle(NewPostCopy.title)
@@ -656,7 +657,11 @@ struct NewPostSheet: View {
                 // words ending "@b" show the `@` row.
                 if let words = LaunchFlags.value(.newPostWords) {
                     model.draft.words = words
-                    selection = TextSelection(insertionPoint: model.draft.words.endIndex)
+                    // Once the field holds them and has the focus: a cursor set before lands at its start.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        selection = TextSelection(insertionPoint: model.draft.words.endIndex)
+                    }
                 }
                 // `-new-event-places "A|B|C"`: Event on with these places picked, the first as Place.
                 if let names = LaunchFlags.value(.newEventPlaces)?.split(separator: "|").map(String.init), let first = names.first {
@@ -797,6 +802,7 @@ struct NewPostSheet: View {
             .font(.sans(big ? NewPostMetric.bigWords : NewPostMetric.words))
             .foregroundStyle(Hue.ink)
             .focused($focus, equals: .words)
+            .accessibilityIdentifier("new-post-words")
             .onChange(of: model.draft.words) { was, words in
                 if words.count > NewPostDraft.wordsLimit { model.draft.words = String(words.prefix(NewPostDraft.wordsLimit)) }
                 // An edit clears why it wasn't posted; the words coming back with it don't.
@@ -809,7 +815,7 @@ struct NewPostSheet: View {
     /// The `@` typed before the cursor in a post's words; never with Event on (an Event's About takes none).
     private var typing: (range: Range<String.Index>, query: String)? {
         guard !model.event, focus == .words, case .selection(let range)? = selection?.indices, range.isEmpty else { return nil }
-        return AtTyping.typed(model.draft.words, cursor: range.upperBound)
+        return AtTyping.typed(model.draft.words, cursor: range.upperBound, picked: model.draft.atNames)
     }
 
     /// Your friends, then the places with a page, matching what's typed.

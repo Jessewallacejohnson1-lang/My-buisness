@@ -46,14 +46,16 @@ nonisolated enum AtTyping {
     static let most = 20
 
     /// The `@` before the cursor and what's typed after it, spaces included ("@bad h"). nil with no `@`, one right
-    /// after a letter (an email), a space right after it, a line break or more than 30 letters between.
-    static func typed(_ words: String, cursor: String.Index) -> (range: Range<String.Index>, query: String)? {
+    /// after a letter (an email), a space right after it, a line break, more than 30 letters between, or a name
+    /// already picked there (the row closes on a pick, and words typed after the name don't open it again).
+    static func typed(_ words: String, cursor: String.Index, picked: [AtName] = []) -> (range: Range<String.Index>, query: String)? {
         guard cursor <= words.endIndex else { return nil }
         let before = words[..<cursor]
         guard let at = before.lastIndex(of: "@") else { return nil }
         let query = before[words.index(after: at)...]
         guard query.count <= longest, !query.contains(where: \.isNewline), query.first?.isWhitespace != true else { return nil }
         if at > words.startIndex, !words[words.index(before: at)].isWhitespace { return nil }
+        if picked.contains(where: { query.hasPrefix($0.name) }) { return nil }
         return (at..<cursor, String(query))
     }
 
@@ -217,6 +219,9 @@ struct AtRow: View {
         switch picture {
         case .person(let url):
             Avatar(avatarUrl: url, size: Metric.picture)
+        case .place(let item) where item.logo == nil:
+            // No logo yet: its letter disc fills the circle, as a friend's photo does.
+            LetterDisc(initial: item.initial, side: Metric.picture)
         case .place(let item):
             Circle().fill(.white)
                 .overlay { PlaceMark(item: item, side: Metric.logo) }
