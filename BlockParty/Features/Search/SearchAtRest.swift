@@ -1,10 +1,10 @@
 //
 //  SearchAtRest.swift
 //  Block Party — Search with nothing typed under All (BP app five-tabs 04): a row named for the part
-//  of the day ("This morning", "Tonight") of today's Events and the places open now, New in
-//  St. Joseph (the week's new Events, each with a New tag), then Around town, Instagram's Explore
-//  grid of what's around town, dealt again each visit. Everything comes from real things: the Town
-//  feed's Events and the places Search already reads.
+//  of the day ("This morning", "Tonight") of today's Events and the places open now, the Schools'
+//  crests (school-search 01), New in St. Joseph (the week's new Events, each with a New tag), then
+//  Around town, Instagram's Explore grid of what's around town, dealt again each visit. Everything
+//  comes from real things: the Town feed's Events, and the places and schools Search already reads.
 //
 //  Reference: the five-tabs mock's round 2, "Search, 9 AM" and "Search, 6 PM" (Jesse: "okay",
 //  2026-11-01, https://claude.ai/artifact/29BVrCrrQ3WeWhS3egMozR), and Instagram's Explore
@@ -35,6 +35,7 @@ struct SearchAtRest: View {
             VStack(alignment: .leading, spacing: 0) {
                 let happening = model.happening(at: now)
                 row(SearchModel.dayPart(now).title, happening, loading: loading)
+                schools
                 let fresh = model.fresh(at: now, without: happening)
                 let allFresh = model.fresh(at: now, without: happening, all: true)
                 // The › only when its page holds more than the row.
@@ -56,6 +57,21 @@ struct SearchAtRest: View {
             ShelfTitle(title: title, shelf: more.map { SearchShelf(kind: .event, title: title, items: $0) },
                        chevron: more != nil)
             Shelf(kind: .event, items: items, new: new)
+        }
+    }
+
+    /// The Schools row: each school's crest bare as a business logo, Kennedy first, on the first screen
+    /// (the mock Jesse picked, look A). No › yet: its page comes with school-search 04.
+    @ViewBuilder
+    private var schools: some View {
+        let crests = model.row(.school)
+        if model.isLoading(.school) || !crests.isEmpty {
+            ShelfTitle(title: SearchPage.sectionTitle(.school), shelf: nil, chevron: false)
+            if model.isLoading(.school) {
+                ShelfSkeleton(kind: .school)
+            } else {
+                Shelf(kind: .school, items: crests)
+            }
         }
     }
 

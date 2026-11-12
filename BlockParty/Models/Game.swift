@@ -508,4 +508,16 @@ extension Game.Team {
         id = row.targetId
         local = true
     }
+
+    /// A local school as Search reads it, for its page (school-search 01): the page reads the rest.
+    init(school: LocalSchool) {
+        name = school.schoolName ?? school.name
+        short = school.shortName ?? school.name
+        logo = school.logoUrl.flatMap(URL.init(string:))
+        rgb = nil
+        id = school.uuid
+        local = true
+        colors = (school.colors ?? []).compactMap(Self.rgb(hex:))
+        nickname = school.nickname
+    }
 }

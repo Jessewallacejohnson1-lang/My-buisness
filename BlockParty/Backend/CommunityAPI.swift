@@ -609,6 +609,25 @@ struct CommunityAPI {
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
+    /// The Town's own schools with their names, crests and colours, and every activity they list in each school's
+    /// order: Search's Schools row and what typing finds there (school-search 01). Read with the public key.
+    func schoolsAndActivities() async throws -> (schools: [LocalSchool], activities: [SchoolActivity]) {
+        async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors"),
+                                              ("local", "eq.true")], anon: true)
+        // ponytail: Supabase answers at most 1,000 rows (489 activities on 2026-11-11); page through past that.
+        async let activities = db.rest("team_activities", [("select", "id,team_id,name"), ("order", "sort,id")], anon: true)
+        return (try Supabase.decode(await schools), try Supabase.decode(await activities))
+    }
+
+    /// The activities you follow, by id: your own `town_follows` rows, which no one else can read. The stars on
+    /// Search's typed activities (school-search 01). No account throws.
+    func followedActivities() async throws -> [String] {
+        struct Row: Decodable { let targetId: String }
+        let rows: [Row] = try Supabase.decode(await db.rest("town_follows", [("select", "target_id"),
+                                                                             ("target_type", "eq.activity")]))
+        return rows.map(\.targetId)
+    }
+
     // MARK: - Neighbours (BP app docs/plans/friends)
 
     /// One neighbour by id, as search answers them: `get_neighbor`. nil for nobody you can find.

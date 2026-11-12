@@ -13,11 +13,12 @@
 import SwiftUI
 import UIKit
 
-/// One thing Search can show: a neighbour, a business, a food place, an event, a club
-/// or a park.
+/// One thing Search can show: a neighbour, a school or one of its activities, a business, a food
+/// place, an event, a club or a park.
 struct SearchItem: Identifiable, Hashable {
+    /// Typed results come in this order under All: Schools first, as the mock's typed results (school-search 01).
     enum Kind: CaseIterable {
-        case person, business, restaurant, coffee, event, club, park
+        case person, school, business, restaurant, coffee, event, club, park
     }
 
     /// Where its photo comes from.
@@ -66,6 +67,10 @@ struct SearchItem: Identifiable, Hashable {
     var nameArt: PlaceName? = nil
     /// An Event's Town card: it opens the Event page (five-tabs 04).
     var card: FeedCardItem? = nil
+    /// A school, or one of its activities, opens the school's page (`TeamPage`, school-search 01).
+    var team: Game.Team? = nil
+    /// An activity's star follows it, as the school page's does (school-search 01); nil for anything else.
+    var activity: FollowTarget? = nil
 
     /// A business or food place opens onto its own page of photos; the logo flies there (Jesse,
     /// 2026-10-04: restaurants and coffee open like logos). One with no logo yet flies its letter disc
@@ -204,6 +209,9 @@ final class SearchModel {
     /// The Town feed's Events still to come, soonest first, and whether the feed has been read.
     private(set) var events: [SearchItem] = []
     private(set) var eventsLoaded = false
+    /// The Town's schools in the row's order, then their activities (school-search 01), and whether they have been read.
+    private(set) var schools: [SearchItem] = []
+    private(set) var schoolsLoaded = false
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -231,27 +239,30 @@ final class SearchModel {
         recentIDs = defaults.stringArray(forKey: Self.recentsKey) ?? Self.sampleRecents
     }
 
-    var items: [SearchItem] { places + groups + events + fixed }
+    var items: [SearchItem] { places + groups + events + schools + fixed }
 
     /// Reads the Town's places and the photos saved of them, together, so a card's photo never
-    /// lands after its logo, and the Town's groups beside them; tries again while the tab is open
+    /// lands after its logo, and the Town's groups and schools beside them; tries again while the tab is open
     /// (2 s, 4 s, … 30 s apart) until all are in: offline, the rows wait as skeletons rather than
     /// vanish, and places read without their photos show their logos until a retry brings the photos.
     func load() async {
         var wait = 2.0
-        while !(placesLoaded && photosLoaded && groupsLoaded) && !Task.isCancelled {
+        while !(placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded) && !Task.isCancelled {
             let needPlaces = !placesLoaded, needPhotos = !photosLoaded, needGroups = !groupsLoaded
+            let needSchools = !schoolsLoaded
             async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
             async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
             async let readGroups = needGroups ? try? await api.getGroups() : nil
             async let readNames = needPlaces ? try? await api.getPlaceNames() : nil
+            async let readSchools = needSchools ? try? await api.schoolsAndActivities() : nil
             let (newPlaces, newPhotos, newGroups) = await (readPlaces, readPhotos, readGroups)
+            if let newSchools = await readSchools { show(schools: newSchools.schools, activities: newSchools.activities) }
             if let newNames = await readNames { names = newNames }
             if let newPlaces { pois = newPlaces }
             if let newPhotos { savedPhotos = newPhotos }
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
             if let newGroups { show(newGroups) }
-            if placesLoaded && photosLoaded && groupsLoaded { return }
+            if placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)
         }
@@ -282,6 +293,21 @@ final class SearchModel {
         eventsLoaded = true
     }
 
+    /// The Town's schools (`teams.local`) and the activities each lists: the row's crests in `Town.searchSchools`'
+    /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
+    func show(schools: [LocalSchool], activities: [SchoolActivity]) {
+        self.schools = Self.schools(schools, activities: activities)
+        schoolsLoaded = true
+        POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
+    }
+
+    /// Which activities you follow, so a typed activity's star says so (school-search 01): each account's own,
+    /// read on each visit to Search. A failed read, or no account, leaves the stars as they were.
+    func readStars() async {
+        guard let ids = try? await api.followedActivities() else { return }
+        actions?.read(following: ids.map { FollowTarget(type: .activity, id: $0) })
+    }
+
     /// The groups again for a new account, so whether you're in is this one's. The shelf keeps
     /// the last read meanwhile, and keeps it if this one fails.
     func readGroupsAgain() async {
@@ -291,15 +317,15 @@ final class SearchModel {
     // MARK: Rows
 
     /// One kind's row, in order. Businesses show only with a logo: the row is logos, each
-    /// shown once.
+    /// shown once. Schools show their crests, not their activities.
     func row(_ kind: SearchItem.Kind) -> [SearchItem] {
-        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall != false) })
+        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall != false) && $0.activity == nil })
     }
 
     /// Whether a kind's row is still waiting on Supabase.
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
         (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
-            || (!eventsLoaded && kind == .event)
+            || (!eventsLoaded && kind == .event) || (!schoolsLoaded && kind == .school)
     }
 
     /// The pills worth showing: All, and every filter with something behind it.
@@ -314,16 +340,22 @@ final class SearchModel {
 
     /// Results for typed words, section by section in the mockup's order, best match
     /// first. Matching is the app's own reference-aware search: prefixes, word starts,
-    /// small typos.
+    /// small typos. A school's activity is found by its own name, never its school's, and sits after
+    /// the schools named, at its school's place in the row (school-search 01): Kennedy's first.
     func results(for words: String, in chip: SearchChip) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
         let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
         return chip.resultKinds.compactMap { kind in
             let hits = items.filter { $0.kind == kind }
                 .compactMap { item in
-                    TownSearch.score(q, name: item.name, extra: [item.sub ?? ""], aliases: item.keywords).map { (item, $0) }
+                    TownSearch.score(q, name: item.name, extra: item.activity == nil ? [item.sub ?? ""] : [],
+                                     aliases: item.keywords).map { (item, $0) }
                 }
-                .sorted { $0.1 > $1.1 }
+                .sorted { a, b in
+                    let (x, y) = (a.0.activity != nil, b.0.activity != nil)
+                    if x || y { return x != y ? y : a.0.rank < b.0.rank }
+                    return a.1 > b.1
+                }
                 .map(\.0)
             return hits.isEmpty ? nil : (kind, hits)
         }
@@ -446,6 +478,26 @@ final class SearchModel {
                        keywords: ["group"] + [group.kind, group.location].compactMap { $0 },
                        townGroup: group)
         })
+    }
+
+    /// The schools `Town.searchSchools` names, in its order, each opening its page; then every activity they list,
+    /// ranked after them by its school's place and the school's own order, found by its own name only.
+    static func schools(_ schools: [LocalSchool], activities: [SchoolActivity]) -> [SearchItem] {
+        let shown = Town.searchSchools.compactMap { id in schools.first { $0.id == id } }
+        let rows = shown.enumerated().map { i, school in
+            SearchItem(id: "s:\(school.uuid)", kind: .school, name: school.schoolName ?? school.name, sub: school.nickname,
+                       logo: school.crest,
+                       keywords: [school.shortName, school.nickname].compactMap { $0 } + (school.aliases ?? []),
+                       rank: i, team: Game.Team(school: school))
+        }
+        let byID = Dictionary(zip(shown.map(\.id), rows), uniquingKeysWith: { a, _ in a })
+        let found = activities.enumerated().compactMap { order, activity -> SearchItem? in
+            guard let school = byID[activity.teamId], let team = school.team else { return nil }
+            return SearchItem(id: "a:\(activity.id)", kind: .school, name: activity.name, sub: team.short, logo: school.logo,
+                              rank: rows.count + school.rank * activities.count + order, team: team,
+                              activity: FollowTarget(type: .activity, id: activity.id))
+        }
+        return rows + found
     }
 
     /// Fixed lists keep the order they are written in.
