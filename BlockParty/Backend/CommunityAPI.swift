@@ -611,12 +611,14 @@ struct CommunityAPI {
 
     /// The Town's own schools with their names, crests and colours, and every activity they list in each school's
     /// order: Search's Schools row and what typing finds there (school-search 01). Read with the public key.
-    func schoolsAndActivities() async throws -> (schools: [LocalSchool], activities: [SchoolActivity]) {
+    /// `page`: the rows asked for at a time, Supabase's most (1,000) unless a test asks for fewer.
+    func schoolsAndActivities(page: Int = Supabase.pageMax) async throws -> (schools: [LocalSchool], activities: [SchoolActivity]) {
         async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors"),
                                               ("local", "eq.true")], anon: true)
-        // ponytail: Supabase answers at most 1,000 rows (489 activities on 2026-11-11); page through past that.
-        async let activities = db.rest("team_activities", [("select", "id,team_id,name"), ("order", "sort,id")], anon: true)
-        return (try Supabase.decode(await schools), try Supabase.decode(await activities))
+        // 489 activities on 2026-11-11, read a page at a time so the 1,001st isn't lost.
+        async let activities: [SchoolActivity] = db.restAll("team_activities", [("select", "id,team_id,name"),
+                                                                                ("order", "sort,id")], page: page, anon: true)
+        return (try Supabase.decode(await schools), try await activities)
     }
 
     /// The activities you follow, by id: your own `town_follows` rows, which no one else can read. The stars on

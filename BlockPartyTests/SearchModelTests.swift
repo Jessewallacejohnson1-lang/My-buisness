@@ -389,11 +389,13 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(schools("eagles").map(\.name), ["Apollo High School"])
         XCTAssertEqual(schools("sju").map(\.name), ["Saint John's University"])
         let volleyball = schools("volleyball")
-        XCTAssertEqual(volleyball.map(\.name), ["Girls Volleyball 7-8", "Boys Volleyball 7-8", "Volleyball (girls)"],
-                       "Kennedy's first though Apollo's name matches closer; a team off the row has none")
-        XCTAssertEqual(volleyball.map(\.sub), ["Kennedy", "Kennedy", "Apollo"], "its school's name under it")
-        XCTAssertEqual(volleyball[0].team?.id, "u-kennedy", "a tap opens the school's page")
-        XCTAssertEqual(volleyball[0].activity, FollowTarget(type: .activity, id: "k1"), "its star follows the activity")
+        XCTAssertEqual(volleyball.map(\.name), ["Volleyball (girls)", "Girls Volleyball 7-8", "Boys Volleyball 7-8"],
+                       "the closest match first, then the row's order, Kennedy's first; a team off the row has none")
+        XCTAssertEqual(volleyball.map(\.sub), ["Apollo", "Kennedy", "Kennedy"], "its school's name under it")
+        XCTAssertEqual(volleyball[1].team?.id, "u-kennedy", "a tap opens the school's page")
+        XCTAssertEqual(volleyball[1].activity, FollowTarget(type: .activity, id: "k1"), "its star follows the activity")
+        XCTAssertEqual(schools("girls volleyball").map(\.name), ["Girls Volleyball 7-8", "Volleyball (girls)"],
+                       "every word matched, the closer first")
         XCTAssertNil(schools("kennedy")[0].activity, "a school has no star: its page has Follow")
         XCTAssertEqual(schools("apollo band").map(\.name), [], "an activity is found by its own name")
         XCTAssertEqual(model.results(for: "volleyball", in: .all).first?.kind, .school, "Schools lead under All")
@@ -414,11 +416,11 @@ final class SearchModelTests: XCTestCase {
                              school("saint-benedict", "Saint Ben's", "College of Saint Benedict"),
                              school("sartell", "Sartell"), school("cathedral", "Cathedral"), school("apollo", "Apollo")],
                    activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
-        XCTAssertEqual(model.sports.map { $0.team?.short }, ["Saint Ben's", "Saint John's", "Apollo", "Cathedral", "ROCORI",
+        XCTAssertEqual(model.schoolDiscs.map { $0.team?.short }, ["Saint Ben's", "Saint John's", "Apollo", "Cathedral", "ROCORI",
                                                              "Sartell", "Sauk Rapids-Rice", "Tech", "Kennedy"])
-        XCTAssertEqual(model.sports.last?.team?.id, "u-kennedy", "a disc opens its school's page")
-        XCTAssertEqual(model.sports.last?.name, "Kennedy Community School", "its full name for VoiceOver and recents")
-        XCTAssertTrue(model.sports.allSatisfy { $0.activity == nil }, "no activity on the grid")
+        XCTAssertEqual(model.schoolDiscs.last?.team?.id, "u-kennedy", "a disc opens its school's page")
+        XCTAssertEqual(model.schoolDiscs.last?.name, "Kennedy Community School", "its full name for VoiceOver and recents")
+        XCTAssertTrue(model.schoolDiscs.allSatisfy { $0.activity == nil }, "no activity on the grid")
         XCTAssertTrue(model.chips.contains(.sports))
     }
 
@@ -433,20 +435,52 @@ final class SearchModelTests: XCTestCase {
                                 SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
         let sports = { (words: String) in model.results(for: words, in: .sports) }
         XCTAssertEqual(sports("volleyball").map(\.kind), [.school], "one list, no headings")
-        XCTAssertEqual(sports("volleyball").first?.items.map(\.name), ["Girls Volleyball 7-8", "Volleyball (girls)"])
-        XCTAssertEqual(sports("volleyball").first?.items.first?.activity, FollowTarget(type: .activity, id: "k1"),
+        XCTAssertEqual(sports("volleyball").first?.items.map(\.name), ["Volleyball (girls)", "Girls Volleyball 7-8"])
+        XCTAssertEqual(sports("volleyball").first?.items.last?.activity, FollowTarget(type: .activity, id: "k1"),
                        "its star follows the activity")
         XCTAssertEqual(sports("eagles").first?.items.map(\.name), ["Apollo High School"], "not the Eagles Nest")
         XCTAssertEqual(model.results(for: "eagles", in: .all).map(\.kind), [.school, .business])
     }
 
     /// A starred activity fills in the school page's star colour, unless that one is too light for Search's paper.
-    func testResultStarTakesTheSchoolsColour() {
-        XCTAssertEqual(ResultStar.fill([0x1B2859, 0x1C532F, 0xCDCECF]), 0x1C532F, "Kennedy's green, as the mock")
-        XCTAssertEqual(ResultStar.fill([0xFEE291, 0x01447E]), 0x01447E, "Cathedral's gold would vanish on paper")
-        XCTAssertEqual(ResultStar.fill([0x135432, 0xFDCD30, 0xA8AFB0]), 0x135432, "so would Sauk Rapids-Rice's")
-        XCTAssertEqual(ResultStar.fill([0x1A4EA2]), 0x1A4EA2, "Sartell has one colour")
-        XCTAssertNil(ResultStar.fill([]), "none read yet: ink")
+    func testSearchStarTakesTheSchoolsColour() {
+        XCTAssertEqual(ActivityStar.onPaper([0x1B2859, 0x1C532F, 0xCDCECF]), 0x1C532F, "Kennedy's green, as the mock")
+        XCTAssertEqual(ActivityStar.onPaper([0xFEE291, 0x01447E]), 0x01447E, "Cathedral's gold would vanish on paper")
+        XCTAssertEqual(ActivityStar.onPaper([0x135432, 0xFDCD30, 0xA8AFB0]), 0x135432, "so would Sauk Rapids-Rice's")
+        XCTAssertEqual(ActivityStar.onPaper([0x1A4EA2]), 0x1A4EA2, "Sartell has one colour")
+        XCTAssertNil(ActivityStar.onPaper([]), "none read yet: ink")
+    }
+
+    /// On Sports a tap on the empty field shows only the schools and activities opened before: no business, no
+    /// words typed for something else. Every other pill shows them all.
+    func testSportsRecentsAreSchoolsAndActivities() {
+        defaults.set([String](), forKey: SearchModel.recentsKey)
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-krewe", "Krewe", .business, "store", logo: logo())])
+        model.show(schools: [school("kennedy", "Kennedy", "Kennedy Community School")],
+                   activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
+        for id in ["p:stjoe-krewe", "q:pumpkin", "a:k1", SearchItem.schoolID("u-kennedy")] { model.remember(id) }
+        XCTAssertEqual(model.recents(in: .sports).map(\.id), ["s:u-kennedy", "a:k1"])
+        XCTAssertEqual(model.recents(in: .all).map(\.id), ["s:u-kennedy", "a:k1", "q:pumpkin", "p:stjoe-krewe"])
+    }
+
+    /// The schools' read pages through every activity: Supabase answers at most 1,000 rows a request, and the Town's
+    /// schools list 489 already.
+    func testTheSchoolsReadPagesThroughEveryActivity() async throws {
+        var offsets: [String] = []
+        let send = Supabase.Send { @MainActor request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let offset = Int(query.first { $0.name == "offset" }?.value ?? "") ?? 0
+            let rows = request.url!.lastPathComponent == "team_activities"
+                ? (0..<5).dropFirst(offset).prefix(2).map { #"{"id": "a\#($0)", "team_id": "kennedy", "name": "A\#($0)"}"# }
+                : []
+            if request.url!.lastPathComponent == "team_activities" { offsets.append("\(offset)") }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("[\(rows.joined(separator: ","))]".utf8), response)
+        }
+        let read = try await CommunityAPI(auth: FakeTokenProvider(), send: send).schoolsAndActivities(page: 2)
+        XCTAssertEqual(read.activities.map(\.id), ["a0", "a1", "a2", "a3", "a4"])
+        XCTAssertEqual(offsets, ["0", "2", "4"], "a short page is the last")
     }
 
     // MARK: Search at rest and its Events (five-tabs 04)

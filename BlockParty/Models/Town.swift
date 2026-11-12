@@ -45,13 +45,15 @@ nonisolated enum Town {
         let label: String
         let schools: [(key: String, name: String)]
         var isCollege = false
+        var isHighSchool = false
     }
 
     static let schoolTypes = [
         SchoolType(id: "high", label: "High school",
                    schools: [("st-johns-prep", "St. John's Prep"), ("apollo", "Apollo"), ("tech", "Tech"),
                              ("cathedral", "Cathedral"), ("sartell", "Sartell"), ("rocori", "ROCORI"),
-                             ("sauk-rapids-rice", "Sauk Rapids-Rice")]),
+                             ("sauk-rapids-rice", "Sauk Rapids-Rice")],
+                   isHighSchool: true),
         SchoolType(id: "middle", label: "Middle school",
                    schools: [("kennedy", "Kennedy"), ("st-joseph-catholic", "St. Joseph Catholic"),
                              ("cathedral", "Cathedral"), ("sartell", "Sartell"),

@@ -113,10 +113,10 @@ Business has no slot.
   activity opens the school's page (`TeamPage`), and an activity's star follows it with the
   school page's rules, its state read from your own `town_follows` on each visit. **Sports** (BP app
   school-search 04) is Apple Sports' Browse page on the app's dark colours: the page takes
-  `.environment(\.colorScheme, .dark)` under "BlockParty. Sports", the field and pills turn to glass,
-  and the schools' logos sit in discs three to a row, colleges, then high schools, then Kennedy
-  (`SearchModel.sports`); a disc opens the school's page and typing finds what All finds of the
-  schools. Into or out of Sports the page turns at once, with no animation (`SearchPage.pick`).
+  `.environment(\.colorScheme, .dark)` under "BlockParty. Sports", the field and pills turn to glass and
+  scroll away with the grid, and the schools' logos sit in discs three to a row, colleges, then high schools, then Kennedy
+  (`SearchModel.schoolDiscs`, `SportsGrid`); a disc opens the school's page, typing finds what All finds of the
+  schools, and the empty field's Recent holds only schools and activities. Into or out of Sports the page turns at once, with no animation (`SearchPage.pick`).
 - **Chat** (`Features/Chat/`, `Backend/ChatAPI.swift`, BP app five-tabs 05): the paper plane at the top
   right of Friends opens Messages, then a chat: text, a photo or an Event, one friend or a group of friends.
   Who is in what is `private.chats` and `private.chat_members`; every write is a function

@@ -72,6 +72,9 @@ struct SearchItem: Identifiable, Hashable {
     /// An activity's star follows it, as the school page's does (school-search 01); nil for anything else.
     var activity: FollowTarget? = nil
 
+    /// A school's id by its team's uuid: its crest on the row and its disc on Sports are one recent.
+    static func schoolID(_ uuid: String) -> String { "s:\(uuid)" }
+
     /// A business or food place opens onto its own page of photos; the logo flies there (Jesse,
     /// 2026-10-04: restaurants and coffee open like logos). One with no logo yet flies its letter disc
     /// instead (Jesse, 2026-11-08, BP app place-pages: the directory is complete, logos follow).
@@ -215,7 +218,7 @@ final class SearchModel {
     private(set) var schools: [SearchItem] = []
     private(set) var schoolsLoaded = false
     /// The same schools as the Sports chip's discs show them, colleges first (school-search 04).
-    private(set) var sports: [SearchItem] = []
+    private(set) var schoolDiscs: [SearchItem] = []
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -301,7 +304,7 @@ final class SearchModel {
     /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
     func show(schools: [LocalSchool], activities: [SchoolActivity]) {
         self.schools = Self.schools(schools, activities: activities)
-        sports = Self.sports(schools, rows: self.schools)
+        schoolDiscs = Self.schoolDiscs(schools, rows: self.schools)
         schoolsLoaded = true
         POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
     }
@@ -346,7 +349,8 @@ final class SearchModel {
     /// Results for typed words, section by section in the mockup's order, best match
     /// first. Matching is the app's own reference-aware search: prefixes, word starts,
     /// small typos. A school's activity is found by its own name, never its school's, and sits after
-    /// the schools named, at its school's place in the row (school-search 01): Kennedy's first.
+    /// the schools named (school-search 01), the closest match first, then its school's place in the row:
+    /// Kennedy's first.
     func results(for words: String, in chip: SearchChip) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
         let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
@@ -358,7 +362,8 @@ final class SearchModel {
                 }
                 .sorted { a, b in
                     let (x, y) = (a.0.activity != nil, b.0.activity != nil)
-                    if x || y { return x != y ? y : a.0.rank < b.0.rank }
+                    if x != y { return y }
+                    if x && a.1 == b.1 { return a.0.rank < b.0.rank }
                     return a.1 > b.1
                 }
                 .map(\.0)
@@ -367,6 +372,15 @@ final class SearchModel {
     }
 
     // MARK: Recents
+
+    /// The recents a tap on the empty field shows under a pill: on Sports only the schools and activities opened
+    /// there or under All (the run's review), on every other pill all of them.
+    func recents(in chip: SearchChip) -> [SearchRecent] {
+        guard chip == .sports else { return recents }
+        return recents.filter {
+            if case .item(let item) = $0 { item.kind == .school } else { false }
+        }
+    }
 
     var recents: [SearchRecent] {
         let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -490,7 +504,7 @@ final class SearchModel {
     static func schools(_ schools: [LocalSchool], activities: [SchoolActivity]) -> [SearchItem] {
         let shown = Town.searchSchools.compactMap { id in schools.first { $0.id == id } }
         let rows = shown.enumerated().map { i, school in
-            SearchItem(id: "s:\(school.uuid)", kind: .school, name: school.schoolName ?? school.name, sub: school.nickname,
+            SearchItem(id: SearchItem.schoolID(school.uuid), kind: .school, name: school.schoolName ?? school.name, sub: school.nickname,
                        logo: school.crest,
                        keywords: [school.shortName, school.nickname].compactMap { $0 } + (school.aliases ?? []),
                        rank: i, team: Game.Team(school: school))
@@ -498,8 +512,11 @@ final class SearchModel {
         let byID = Dictionary(zip(shown.map(\.id), rows), uniquingKeysWith: { a, _ in a })
         let found = activities.enumerated().compactMap { order, activity -> SearchItem? in
             guard let school = byID[activity.teamId], let team = school.team else { return nil }
+            // After every school; then by its school's place on the row, each school taking a block as long as the
+            // whole list; then by the school's own order within that block.
+            let afterSchools = rows.count, schoolBlock = school.rank * activities.count
             return SearchItem(id: "a:\(activity.id)", kind: .school, name: activity.name, sub: team.short, logo: school.logo,
-                              rank: rows.count + school.rank * activities.count + order, team: team,
+                              rank: afterSchools + schoolBlock + order, team: team,
                               activity: FollowTarget(type: .activity, id: activity.id))
         }
         return rows + found
@@ -508,19 +525,25 @@ final class SearchModel {
     /// The Sports chip's discs (school-search 04, Jesse 2026-11-11: "college first then highschools"): the Schools
     /// row's schools, the colleges, then the high schools, then the rest (Kennedy, K-8), each A to Z by the short
     /// name under its disc. Each is its school's row, so it opens the school's page and remembers as one.
-    static func sports(_ schools: [LocalSchool], rows: [SearchItem]) -> [SearchItem] {
-        let types = Town.schoolTypes
-        func level(_ id: String) -> Int {
-            if types.contains(where: { $0.isCollege && $0.schools.contains { $0.key == id } }) { return 0 }
-            return types.contains(where: { $0.id == "high" && $0.schools.contains { $0.key == id } }) ? 1 : 2
+    static func schoolDiscs(_ schools: [LocalSchool], rows: [SearchItem]) -> [SearchItem] {
+        func level(_ school: LocalSchool) -> DiscLevel {
+            let types = Town.schoolTypes.filter { $0.schools.contains { $0.key == school.id } }
+            return types.contains(where: \.isCollege) ? .college : types.contains(where: \.isHighSchool) ? .highSchool : .other
         }
         func short(_ school: LocalSchool) -> String { school.shortName ?? school.name }
         return schools
             .sorted { a, b in
-                level(a.id) != level(b.id) ? level(a.id) < level(b.id)
+                level(a) != level(b) ? level(a) < level(b)
                     : short(a).localizedStandardCompare(short(b)) == .orderedAscending
             }
-            .compactMap { school in rows.first { $0.id == "s:\(school.uuid)" } }
+            .compactMap { school in rows.first { $0.id == SearchItem.schoolID(school.uuid) } }
+    }
+
+    /// The Sports chip's levels, in the order their discs come.
+    enum DiscLevel: Int, Comparable {
+        case college, highSchool, other
+
+        static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
     }
 
     /// Fixed lists keep the order they are written in.

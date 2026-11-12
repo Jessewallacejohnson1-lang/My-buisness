@@ -71,11 +71,17 @@ struct SearchAtRest: View {
             ShelfTitle(title: SearchPage.sectionTitle(.school), shelf: nil) {
                 SearchPage.pick(.sports, in: model, reduceMotion: reduceMotion)
             }
-            if model.isLoading(.school) {
-                ShelfSkeleton(kind: .school)
-            } else {
-                Shelf(kind: .school, items: crests)
+            Group {
+                if model.isLoading(.school) {
+                    ShelfSkeleton(kind: .school)
+                        .transition(.opacity)
+                } else {
+                    Shelf(kind: .school, items: crests)
+                        .transition(.opacity)
+                }
             }
+            // The shimmering crests cross-fade into the schools (design.md, Loading).
+            .animation(Motion.smooth, value: model.isLoading(.school))
         }
     }
 

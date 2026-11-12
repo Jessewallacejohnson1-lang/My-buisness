@@ -12,26 +12,12 @@
 
 import SwiftUI
 
-struct TeamPage: View {
-    let team: Game.Team
-
-    @Environment(\.dismiss) private var dismiss
-    @Environment(RealLifeActions.self) private var actions
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var profile: TeamProfile?
-    @State private var failed = false
-    @State private var events: [SchoolEvent]?
-    @State private var eventsFailed = false
-    @State private var query = ""
-    @State private var opened: TeamProfile.Activity?
-    @State private var fold = SchoolFoldBox()
-    @Namespace private var rows
-
-    // The picked mock's sizes, which it read off Apple Sports' league page (references/school-search/mobbin/
-    // page/p5.jpg, 3x), from the safe area's top: the bar's 44 pt glass circles 16 pt in, a 28 pt logo
-    // centred 73 pt down, the name's middle 108 pt down, the first card 128 pt down, 11 pt in from the
-    // screen's sides; 52 pt rows 16 pt in, 12 pt between cards. (Re-measured, Apple's own card sits 10 pt
-    // in and its name is 15 pt; the mock's numbers stand until Jesse says otherwise.)
+/// A school's page's sizes: the picked mock's, which it read off Apple Sports' league page
+/// (references/school-search/mobbin/page/p5.jpg, 3x), from the safe area's top: the bar's 44 pt glass circles 16 pt
+/// in, a 28 pt logo centred 73 pt down, the name's middle 108 pt down, the first card 128 pt down, 11 pt in from the
+/// screen's sides; 52 pt rows 16 pt in, 12 pt between cards. (Re-measured, Apple's own card sits 10 pt in and its
+/// name is 15 pt; the mock's numbers stand until Jesse says otherwise.)
+nonisolated enum SchoolMetric {
     static let side: CGFloat = 11
     static let bar: CGFloat = 44
     static let barSide: CGFloat = 16
@@ -47,6 +33,27 @@ struct TeamPage: View {
     static let icon: CGFloat = 24
     /// The bar's folded title stays clear of Back and of Following (16 + 111 pt).
     static let titleInset: CGFloat = 128
+    /// A card's top and foot inside its corners, and the segments' inset from its sides.
+    static let cardPad: CGFloat = 6
+    static let segmentInset: CGFloat = 9
+    static let hairline: CGFloat = 0.5
+}
+
+struct TeamPage: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(RealLifeActions.self) private var actions
+    @State private var model: TeamPageModel
+    @State private var query = ""
+    @State private var opened: TeamProfile.Activity?
+    @State private var fold = SchoolFoldBox()
+    @Namespace private var rows
+
+    init(team: Game.Team) {
+        _model = State(initialValue: TeamPageModel(team: team))
+    }
+
+    private var team: Game.Team { model.team }
+    private var profile: TeamProfile? { model.profile }
 
     var body: some View {
         let colors = schoolColors
@@ -54,38 +61,35 @@ struct TeamPage: View {
             VStack(spacing: 0) {
                 SchoolTop(fold: fold, logo: profile?.logo.flatMap(URL.init(string:)) ?? team.logo,
                           initial: team.initial, name: title)
-                SchoolEventsCard(events: events, failed: eventsFailed)
-                search
-                    .padding(.top, Self.gap)
-                if let profile {
-                    lists(profile.activities)
-                } else if !failed {
-                    // Rows in the list's own shape while it loads, as Apple Sports' list draws them.
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(0..<6, id: \.self) { _ in
-                            HStack(spacing: 12) {
-                                SkeletonCircle(diameter: Self.star)
-                                SkeletonCircle(diameter: Self.icon)
-                                SkeletonLine(widthFraction: 0.6, height: 16)
-                            }
-                            .frame(height: Self.rowHeight)
-                        }
-                    }
-                    .padding(.horizontal, Self.rowPad)
-                    .opacity(0.25)
-                    .shimmering()
-                    .accessibilityHidden(true)
-                    .schoolCard()
-                    .padding(.top, Self.gap)
-                } else {
-                    Text("Check your connection and try again.")
+                if model.failed {
+                    // The page couldn't be read: one message, where the events would be.
+                    Text(SchoolEvents.tryAgain)
                         .font(.sans(15))
                         .foregroundStyle(Hue.nameOnDark.opacity(0.6))
-                        .padding(.top, 24)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, SchoolMetric.rowPad)
+                        .padding(.vertical, 24)
+                        .schoolCard()
+                        .transition(.opacity)
+                } else {
+                    SchoolEventsCard(events: model.events, failed: model.eventsFailed)
+                    search
+                        .padding(.top, SchoolMetric.gap)
+                    if let profile {
+                        lists(profile.activities)
+                            .transition(.opacity)
+                    } else {
+                        skeleton
+                            .transition(.opacity)
+                    }
                 }
             }
-            .padding(.horizontal, Self.side)
-            .padding(.top, Self.bar)
+            // Each read's skeleton cross-fades into what came (design.md, Loading).
+            .animation(Motion.smooth, value: profile == nil)
+            .animation(Motion.smooth, value: model.failed)
+            .padding(.horizontal, SchoolMetric.side)
+            .padding(.top, SchoolMetric.bar)
             .padding(.bottom, 40)
             .background(alignment: .top) { fade(colors) }
         }
@@ -97,18 +101,38 @@ struct TeamPage: View {
         .scrollDismissesKeyboard(.interactively)
         // Its own task: SwiftUI cancelled the refresh's task as the page it refreshed changed under it,
         // and the events' reads with it (measured: every one ended "cancelled" 0.4 s in).
-        .refreshable { await Task { await load() }.value }
+        .refreshable { await Task { await model.load(actions) }.value }
         .background(colors.deep.ignoresSafeArea())
         .overlay(alignment: .top) { bar(colors) }
         // Light words on the school's colour.
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $opened) { ActivityEvents(activity: $0) }
-        .task { await load() }
+        .sheet(item: $opened) { ActivityEvents(activity: $0, api: model.api) }
+        .task { await model.load(actions) }
         // The clock goes white over the school's colour, as iOS inks it over any dark page (Jesse,
         // 2026-10-25: this page only). The Town feed's hold on a black clock (`holdsClock`) is let go
         // here; the feed takes it back when it shows again.
         .onAppear { AppearanceStore.shared.holdsClock = false }
+    }
+
+    /// Rows in the list's own shape while it loads, as Apple Sports' list draws them.
+    private var skeleton: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(0..<6, id: \.self) { _ in
+                HStack(spacing: 12) {
+                    SkeletonCircle(diameter: SchoolMetric.star)
+                    SkeletonCircle(diameter: SchoolMetric.icon)
+                    SkeletonLine(widthFraction: 0.6, height: 16)
+                }
+                .frame(height: SchoolMetric.rowHeight)
+            }
+        }
+        .padding(.horizontal, SchoolMetric.rowPad)
+        .opacity(0.25)
+        .shimmering()
+        .accessibilityHidden(true)
+        .schoolCard()
+        .padding(.top, SchoolMetric.gap)
     }
 
     private var title: String { profile?.name ?? team.name }
@@ -135,7 +159,7 @@ struct TeamPage: View {
                     Image(systemName: "chevron.left")
                         .font(.glyph(20, weight: .semibold))
                         .foregroundStyle(Hue.nameOnDark)
-                        .frame(width: Self.bar, height: Self.bar)
+                        .frame(width: SchoolMetric.bar, height: SchoolMetric.bar)
                         .glassEffect(.regular.tint(colors.glass).interactive(), in: Circle())
                 }
                 .buttonStyle(.plain)
@@ -145,9 +169,9 @@ struct TeamPage: View {
                     SchoolFollow(target: FollowTarget(type: .team, id: id), name: title, tint: colors.glass)
                 }
             }
-            .padding(.horizontal, Self.barSide)
+            .padding(.horizontal, SchoolMetric.barSide)
         }
-        .frame(height: Self.bar)
+        .frame(height: SchoolMetric.bar)
         .background { SchoolBarGround(fold: fold, color: colors.deep).ignoresSafeArea(edges: .top) }
     }
 
@@ -175,7 +199,7 @@ struct TeamPage: View {
             }
         }
         .padding(.horizontal, 14)
-        .frame(height: Self.bar)
+        .frame(height: SchoolMetric.bar)
         .glassEffect(.regular, in: Capsule())
     }
 
@@ -184,56 +208,56 @@ struct TeamPage: View {
         let shown = query.isEmpty ? all : all.filter { $0.name.localizedCaseInsensitiveContains(query) }
         let mine = shown.filter { actions.follow(target($0)).isFollowing }
         let rest = shown.filter { !actions.follow(target($0)).isFollowing }
-        if !mine.isEmpty {
+        VStack(spacing: 0) {
             card("Following", mine)
-                .padding(.top, Self.gap)
-                .transition(.opacity)
-        }
-        if !rest.isEmpty {
             card("Activities", rest)
-                .padding(.top, Self.gap)
-                .transition(.opacity)
-        }
-        if shown.isEmpty {
-            Text(all.isEmpty ? "No activities yet" : "No activities match")
-                .font(.sans(15))
-                .foregroundStyle(Hue.nameOnDark.opacity(0.55))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .schoolCard()
-                .padding(.top, Self.gap)
+            if shown.isEmpty {
+                Text(all.isEmpty ? "No activities yet" : "No activities match")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.nameOnDark.opacity(0.55))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .schoolCard()
+                    .padding(.top, SchoolMetric.gap)
+            }
         }
     }
 
+    /// A card of rows under its heading. Both cards stay on the page, an empty one folded to nothing, so a starred
+    /// row slides from one to the other as it slid under the headings before there were cards (origin/main): the
+    /// row stays whole as it travels, each heading fades in or out where it sits and moves with its own rows, and
+    /// a card's ground grows or folds with them.
     private func card(_ heading: String, _ activities: [TeamProfile.Activity]) -> some View {
-        VStack(spacing: 0) {
-            Text(heading)
-                .font(.displaySemi(15))
-                .foregroundStyle(Hue.nameOnDark.opacity(0.7))
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
+        let empty = activities.isEmpty
+        return VStack(spacing: 0) {
+            if !empty {
+                Text(heading)
+                    .font(.displaySemi(15))
+                    .foregroundStyle(Hue.nameOnDark.opacity(0.7))
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                    .accessibilityAddTraits(.isHeader)
+                    .transition(.opacity)
+            }
             ForEach(Array(activities.enumerated()), id: \.element.id) { index, activity in
                 row(activity, first: index == 0)
             }
         }
-        .padding(.vertical, 6)
-        .schoolCard()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, empty ? 0 : SchoolMetric.cardPad)
+        .schoolCard(shown: !empty)
+        .padding(.top, empty ? 0 : SchoolMetric.gap)
     }
 
     private func row(_ activity: TeamProfile.Activity, first: Bool) -> some View {
         HStack(spacing: 12) {
-            ActivityStar(target: target(activity), name: activity.name, fill: schoolColors.star) {
-                withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.select) {
-                    actions.toggleFollow(target(activity))
-                }
-            }
+            ActivityStar(target: target(activity), name: activity.name, look: .disc(schoolColors.star), slides: true)
             Button { opened = activity } label: {
                 HStack(spacing: 12) {
                     Image(systemName: Self.symbol(activity))
                         .font(.glyph(17, weight: .regular))
                         .foregroundStyle(Hue.nameOnDark)
-                        .frame(width: Self.icon, height: Self.icon)
+                        .frame(width: SchoolMetric.icon, height: SchoolMetric.icon)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(activity.name)
@@ -253,7 +277,7 @@ struct TeamPage: View {
                             .accessibilityHidden(true)
                     }
                 }
-                .frame(minHeight: Self.rowHeight)
+                .frame(minHeight: SchoolMetric.rowHeight)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.squish))
@@ -261,9 +285,9 @@ struct TeamPage: View {
             .accessibilityElement(children: .combine)
             .accessibilityHint(activity.next == nil ? "" : "Shows what's coming up")
         }
-        .padding(.horizontal, Self.rowPad)
+        .padding(.horizontal, SchoolMetric.rowPad)
         .overlay(alignment: .top) {
-            if !first { Rectangle().fill(Hue.nameOnDark.opacity(0.12)).frame(height: 0.5) }
+            if !first { SchoolRule() }
         }
         .matchedGeometryEffect(id: activity.id, in: rows)
     }
@@ -285,13 +309,7 @@ struct TeamPage: View {
     /// The school's first colour fading to a deep shade of it, and its second for a starred star; a school
     /// with no colours yet is ink.
     private var schoolColors: SchoolColors {
-        var hexes = profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors
-        // A light first colour (Cathedral's gold) fades to olive, so its darkest colour leads instead and
-        // the light one fills the star (Jesse, 2026-10-25).
-        if let first = hexes.first, Self.light(first), let darkest = hexes.min(by: { Self.luma($0) < Self.luma($1) }),
-           !Self.light(darkest) {
-            hexes = [darkest, first]
-        }
+        let hexes = Self.darkFirst(profile?.colors?.compactMap(Game.Team.rgb(hex:)) ?? team.colors)
         let top = hexes.first.map { Color(hex: $0) } ?? Hue.poster
         let star = hexes.dropFirst().first.map { Color(hex: $0) } ?? Hue.nameOnDark
         // The mock's top (#2A3C7A) and glass tint (#465FB4) are Kennedy's #1B2859 brightened about 1.45 and
@@ -300,6 +318,14 @@ struct TeamPage: View {
         let glass = hexes.first.map { Color(hex: Self.brighter($0, by: 2)) } ?? Hue.nameOnDark
         return SchoolColors(lit: lit, top: top, deep: top.mix(with: Hue.nameShadow, by: 0.62), star: star,
                             glass: glass.opacity(0.6))
+    }
+
+    /// A school's colours with a dark one leading: a light first colour (Cathedral's gold) fades to olive, so its
+    /// darkest colour leads instead and the light one comes second, filling the star (Jesse, 2026-10-25).
+    static func darkFirst(_ hexes: [UInt32]) -> [UInt32] {
+        guard let first = hexes.first, light(first), let darkest = hexes.min(by: { luma($0) < luma($1) }),
+              !light(darkest) else { return hexes }
+        return [darkest, first]
     }
 
     /// A 0xRRGGBB colour with each channel multiplied by `factor`, up to full.
@@ -347,9 +373,12 @@ struct TeamPage: View {
 
     /// "2026-10-31" as "Sat, Oct 31".
     static func day(_ date: String) -> String? {
-        guard let day = DateHelpers.townDay(date) else { return nil }
-        return dayFormatter.string(from: day)
+        guard let townDay = DateHelpers.townDay(date) else { return nil }
+        return day(townDay)
     }
+
+    /// A Town day as "Sat, Oct 31".
+    static func day(_ date: Date) -> String { dayFormatter.string(from: date) }
 
     /// Display only (text on screen), built once: "Sat, Oct 31" on the Town's clock.
     private static let dayFormatter: DateFormatter = {
@@ -359,41 +388,6 @@ struct TeamPage: View {
         f.dateFormat = "EEE, MMM d"
         return f
     }()
-
-    private func load() async {
-        guard let id = team.id else { return }
-        do {
-            profile = try await CommunityAPI(auth: AuthStore.shared).teamPage(id)
-            if let profile { actions.read(activities: profile.activities) }
-            failed = profile == nil
-        } catch {
-            failed = profile == nil
-        }
-        if let profile { await loadEvents(profile.activities) } else { eventsFailed = failed }
-    }
-
-    /// Every activity's coming events, read together: only those with a next event have any. A read that
-    /// fails leaves its activity out; all of them failing keeps what the card showed, or says so.
-    private func loadEvents(_ activities: [TeamProfile.Activity]) async {
-        let reads = activities.filter { $0.next != nil }.map { (id: $0.id, symbol: Self.symbol($0)) }
-        var lists: [[SchoolEvent]] = []
-        await withTaskGroup(of: [SchoolEvent]?.self) { group in
-            for read in reads {
-                group.addTask { @MainActor in
-                    guard let found = try? await CommunityAPI(auth: AuthStore.shared).activityEvents(read.id) else { return nil }
-                    return found.map { SchoolEvent(id: $0.id, title: $0.title, date: $0.date, time: $0.time,
-                                                   location: $0.location, symbol: read.symbol) }
-                }
-            }
-            for await list in group { if let list { lists.append(list) } }
-        }
-        if lists.isEmpty && !reads.isEmpty {
-            eventsFailed = events == nil
-        } else {
-            events = SchoolEvents.merged(lists)
-            eventsFailed = false
-        }
-    }
 }
 
 /// The school's small logo over its name, folding toward its foot and fading as the page scrolls under the
@@ -407,17 +401,17 @@ private struct SchoolTop: View {
     var body: some View {
         let progress = fold.progress
         VStack(spacing: 9) {
-            LogoDisc(logo: logo, initial: initial, logoSide: TeamPage.logo, letter: .sansSemibold(15), fits: true, disc: false)
-                .frame(width: TeamPage.logo, height: TeamPage.logo)
+            LogoDisc(logo: logo, initial: initial, logoSide: SchoolMetric.logo, letter: .sansSemibold(15), fits: true, disc: false)
+                .frame(width: SchoolMetric.logo, height: SchoolMetric.logo)
             Text(name)
                 .font(.displaySemi(17))
                 .foregroundStyle(Hue.nameOnDark)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .padding(.top, TeamPage.logoTop)
+        .padding(.top, SchoolMetric.logoTop)
         .frame(maxWidth: .infinity)
-        .frame(height: TeamPage.top, alignment: .top)
+        .frame(height: SchoolMetric.top, alignment: .top)
         .scaleEffect(SchoolFold.topScale(progress), anchor: .bottom)
         .opacity(1 - progress)
         .accessibilityElement(children: .combine)
@@ -436,7 +430,7 @@ private struct SchoolBarTitle: View {
             .font(.displaySemi(17))
             .foregroundStyle(Hue.nameOnDark)
             .lineLimit(1)
-            .padding(.horizontal, TeamPage.titleInset)
+            .padding(.horizontal, SchoolMetric.titleInset)
             .opacity(shown)
             .offset(y: 8 * (1 - shown))
             .accessibilityHidden(true)
@@ -478,8 +472,8 @@ private struct SchoolFollow: View {
             Text(following ? "Following" : "Follow")
                 .font(.displaySemi(16))
                 .foregroundStyle(following ? Hue.onBrandDisc : Hue.nameOnDark)
-                .padding(.horizontal, 18)
-                .frame(height: TeamPage.bar)
+                .padding(.horizontal, FollowMetric.glassPad)
+                .frame(height: SchoolMetric.bar)
                 .glassEffect((following ? Glass.regular.tint(Hue.nameOnDark) : .regular.tint(tint)).interactive(),
                              in: Capsule())
         }
@@ -493,12 +487,21 @@ private struct SchoolFollow: View {
     }
 }
 
-/// An activity's star: Apple Sports' circle, filled in the school's second colour once you follow it.
-private struct ActivityStar: View {
+/// An activity's star, on its school's page and in Search's typed results (school-search 01): one tap follows or
+/// unfollows the activity, a refused one turns back with the shake, and with no account it does nothing.
+struct ActivityStar: View {
+    enum Look {
+        /// Apple Sports' circle on the school's page, filled in this colour once you follow it.
+        case disc(Color)
+        /// Bare on Search's page as the mock drew it, this colour once you follow it.
+        case bare(Color)
+    }
+
     let target: FollowTarget
     let name: String
-    let fill: Color
-    let toggle: () -> Void
+    let look: Look
+    /// On the school's page the tap slides the row into Following.
+    var slides = false
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -509,29 +512,62 @@ private struct ActivityStar: View {
         let failures = actions.followFailureCount(target)
         Button {
             tappedAt = failures
-            toggle()
+            withAnimation(slides ? (reduceMotion ? .easeInOut(duration: 0.15) : Motion.select) : nil) {
+                actions.toggleFollow(target)
+            }
         } label: {
-            Image(systemName: following ? "star.fill" : "star")
-                .font(.glyph(13, weight: .semibold))
-                .foregroundStyle(following ? Hue.onBrandDisc : Hue.nameOnDark)
-                .frame(width: TeamPage.star, height: TeamPage.star)
-                .background(Circle().fill(following ? fill : Hue.nameOnDark.opacity(0.16)))
-                .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+            glyph(following)
+                .frame(width: PageMetric.tapMin, height: box.height)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))
-        .padding(.horizontal, -(PageMetric.tapMin - TeamPage.star) / 2)
+        .padding(.horizontal, -(PageMetric.tapMin - box.width) / 2)
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel("Follow \(name)")
         .accessibilityAddTraits(following ? .isSelected : [])
         .onAppear { actions.followOpened(target) }
         .onDisappear { actions.followClosed(target) }
     }
+
+    /// The star's room in its row, and the tap's height.
+    private var box: CGSize {
+        switch look {
+        case .disc: CGSize(width: SchoolMetric.star, height: PageMetric.tapMin)
+        case .bare: CGSize(width: SearchMetric.star, height: SearchMetric.row)
+        }
+    }
+
+    @ViewBuilder
+    private func glyph(_ following: Bool) -> some View {
+        let symbol = following ? "star.fill" : "star"
+        switch look {
+        case .disc(let fill):
+            Image(systemName: symbol)
+                .font(.glyph(13, weight: .semibold))
+                .foregroundStyle(following ? Hue.onBrandDisc : Hue.nameOnDark)
+                .frame(width: SchoolMetric.star, height: SchoolMetric.star)
+                .background(Circle().fill(following ? fill : Hue.nameOnDark.opacity(0.16)))
+        case .bare(let fill):
+            Image(systemName: symbol)
+                .font(.glyph(SearchMetric.starGlyph, weight: .regular))
+                .foregroundStyle(following ? fill : Hue.searchFaint)
+                // Swapped at once: an animated swap cross-fades through a grey blob (swift-traps).
+                .transaction { $0.animation = nil }
+        }
+    }
+
+    /// The bare star's colour on Search's paper: the school page's star colour (`TeamPage.darkFirst`'s second),
+    /// unless that is too light for paper too, then its leading dark colour; nil with none, for ink.
+    static func onPaper(_ colors: [UInt32]) -> UInt32? {
+        let hexes = TeamPage.darkFirst(colors)
+        return [hexes.dropFirst().first, hexes.first].compactMap { $0 }.first { !TeamPage.light($0) }
+    }
 }
 
 /// An activity's coming events, from its row's arrow: a plain list.
 private struct ActivityEvents: View {
     let activity: TeamProfile.Activity
+    let api: CommunityAPI
 
     @State private var events: [TeamProfile.ActivityEvent]?
     @State private var failed = false
@@ -569,7 +605,7 @@ private struct ActivityEvents: View {
         }
         .presentationDetents([.medium, .large])
         .task {
-            do { events = try await CommunityAPI(auth: AuthStore.shared).activityEvents(activity.id) } catch { failed = true }
+            do { events = try await api.activityEvents(activity.id) } catch { failed = true }
         }
     }
 }

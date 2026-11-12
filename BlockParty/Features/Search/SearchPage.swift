@@ -85,43 +85,6 @@ nonisolated enum SearchMetric {
     static let starGlyph: CGFloat = 18
     static let chevronGlyph: CGFloat = 11
 
-    // The Sports chip (school-search 04): "BlockParty. Sports" where Apple Sports has its logo and "Sports", on the
-    // app's dark colours. The mock Jesse picked (`references/school-search/sports-bp-mock-2.html`, version 8),
-    // measured at 3x beside Apple Sports (`mobbin/1.jpg`), from a 59 pt safe area: the wordmark 35 pt tall and
-    // "Sports" 34 pt, 9 pt apart on one baseline 26 pt down; the field 54-97, the chips 109-143, the first disc 167.
-    static let sportsWordmark: CGFloat = 35.2
-    static let sportsWord: CGFloat = 34
-    static let sportsWordGap: CGFloat = 9
-    /// The title's room above the field, and how far its words sit up off that room's foot (tuned on the build so
-    /// the baseline lands 26 pt down).
-    static let sportsTitle: CGFloat = 37
-    static let sportsTitleLift: CGFloat = 2.3
-    static let sportsFieldTop: CGFloat = 17
-    static let sportsFieldHeight: CGFloat = 43
-    static let sportsFieldIconLead: CGFloat = 14
-    static let sportsFieldIconGap: CGFloat = 8
-    /// Apple's field and chips sit 8 pt in; the words over them keep the page's 16.
-    static let sportsSide: CGFloat = 8
-    static let sportsChipsTop: CGFloat = 9
-    /// Every chip's glass is ink at 5%, the field's at 7%.
-    static let sportsChipGlass: Double = 0.05
-    static let sportsFieldGlass: Double = 0.07
-    /// The warm-grey fade from the top, to paper by 440 pt, through its middle shade at 240 pt.
-    static let sportsFade: CGFloat = 440
-    static let sportsFadeMid: CGFloat = 240
-    /// Apple's discs (`mobbin/1.jpg`): 80 pt, three to a row 154 pt apart (a 132 pt cell and 22 under it), the logo
-    /// in a 45 pt box, the name 8 pt under the disc. The first sits 24 pt under the chips.
-    static let discTop: CGFloat = 24
-    static let disc: CGFloat = 80
-    static let discLogo: CGFloat = 45
-    static let discCell: CGFloat = 132
-    static let discRowGap: CGFloat = 22
-    static let discNameGap: CGFloat = 8
-    static let discSkeletonName: CGFloat = 12
-    /// Everything above the Sports chip's content, from the safe area's top.
-    static let sportsHeadHeight: CGFloat = sportsTitle + sportsFieldTop + sportsFieldHeight + sportsChipsTop
-        + chipsHeight + headBottom
-
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
@@ -195,6 +158,8 @@ struct SearchPage: View {
     @State private var opener = BusinessOpener()
     /// Each page follows the tilt on its own: a pushed row's page has its own.
     @State private var tilt = PhoneTilt()
+    /// How far the Sports grid's scroll has carried the header (`CarriedHeader`).
+    @State private var travel = BarTravel()
     @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -221,12 +186,14 @@ struct SearchPage: View {
     /// (school-search 04): the mock Jesse picked.
     private var sports: Bool { model.chip == .sports }
 
+    private var head: SearchHead { sports ? .sports : .plain }
+
     var body: some View {
         ZStack(alignment: .top) {
             Group {
                 // Covered by an open business, the logos stop following the tilt.
                 content.environment(opener.isOpen ? nil : tilt)
-                header
+                CarriedHeader(travel: travel) { header }
             }
             .environment(\.colorScheme, sports ? .dark : scheme)
             BusinessPage()
@@ -276,30 +243,33 @@ struct SearchPage: View {
         // The field's and chips' glass blend only with each other, never across the 8 pt between chips.
         GlassEffectContainer(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                if sports { SportsTitle() }
+                if head.titled { SportsTitle() }
                 fieldRow
-                    .padding(.top, sports ? SearchMetric.sportsFieldTop : SearchMetric.fieldTop)
+                    .padding(.top, head.fieldTop)
                 chips
-                    .padding(.top, sports ? SearchMetric.sportsChipsTop : SearchMetric.chipsTop)
+                    .padding(.top, head.chipsTop)
             }
         }
         .padding(.bottom, SearchMetric.headBottom)
         // The page's own ground behind it, opaque down to its foot and fading over the rows under it
-        // (Instagram's top edge): drawn from the screen's top, so on Sports it is the same slice of the fade.
+        // (Instagram's top edge): drawn from the screen's top, so on Sports it is the same slice of the fade. None
+        // while the Sports grid carries the header: nothing ever passes under it.
         .background(alignment: .top) {
-            ground
-                .mask {
-                    VStack(spacing: 0) {
-                        Color.black
-                        LinearGradient(colors: [.black.opacity(SearchMetric.softEdgeHaze), .clear],
-                                       startPoint: .top, endPoint: .bottom)
-                            .frame(height: SearchMetric.softEdge)
+            if mode != .sports {
+                ground
+                    .mask {
+                        VStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black.opacity(SearchMetric.softEdgeHaze), .clear],
+                                           startPoint: .top, endPoint: .bottom)
+                                .frame(height: SearchMetric.softEdge)
+                        }
                     }
-                }
-                .padding(.bottom, -SearchMetric.softEdge)
-                .ignoresSafeArea(edges: .top)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+                    .padding(.bottom, -SearchMetric.softEdge)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 
@@ -329,27 +299,24 @@ struct SearchPage: View {
                 .allowsHitTesting(model.searching)
                 .accessibilityHidden(!model.searching)
         }
-        .padding(.horizontal, sports ? SearchMetric.sportsSide : SearchMetric.side)
-        .frame(height: sports ? SearchMetric.sportsFieldHeight : SearchMetric.fieldHeight)
+        .padding(.horizontal, head.side)
+        .frame(height: head.fieldHeight)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1), value: model.searching)
     }
 
     private var field: some View {
-        // On Sports: Apple Sports' field, a capsule of glass, its prompt and magnifier in the dark ramp's grey.
-        let faint = sports ? Hue.inkSecondary : Hue.searchFaint
-        let prompt = sports ? "Schools and teams" : "Search"
-        let shape = RoundedRectangle(cornerRadius: sports ? SearchMetric.sportsFieldHeight / 2 : Radius.searchField,
-                                     style: .continuous)
+        let head = head
+        let shape = RoundedRectangle(cornerRadius: head.fieldRadius, style: .continuous)
         return HStack(spacing: 0) {
             Image(systemName: "magnifyingglass")
-                .font(.glyph(sports ? 17 : 15, weight: .medium))
-                .foregroundStyle(faint)
+                .font(.glyph(head.fieldGlyph, weight: .medium))
+                .foregroundStyle(head.faint)
                 .frame(width: SearchMetric.fieldIcon, height: SearchMetric.fieldIcon)
-                .padding(.leading, sports ? SearchMetric.sportsFieldIconLead : SearchMetric.fieldIconLead)
-                .padding(.trailing, sports ? SearchMetric.sportsFieldIconGap : SearchMetric.fieldIconGap)
+                .padding(.leading, head.fieldIconLead)
+                .padding(.trailing, head.fieldIconGap)
                 .accessibilityHidden(true)
-            TextField(prompt, text: $model.words, prompt: Text(prompt).foregroundStyle(faint))
-                .font(.sans(sports ? 17 : 16))
+            TextField(head.prompt, text: $model.words, prompt: Text(head.prompt).foregroundStyle(head.faint))
+                .font(.sans(head.fieldWords))
                 .foregroundStyle(Hue.ink)
                 .focused($fieldFocused)
                 .submitLabel(.search)
@@ -372,9 +339,9 @@ struct SearchPage: View {
                 .accessibilityLabel("Clear")
             }
         }
-        .frame(height: sports ? SearchMetric.sportsFieldHeight : SearchMetric.fieldHeight)
-        .background(sports ? Color.clear : Hue.searchField, in: shape)
-        .glassEffect(sports ? Glass.regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)) : .identity, in: shape)
+        .frame(height: head.fieldHeight)
+        .background(head.fieldFill, in: shape)
+        .glassEffect(head.fieldGlass, in: shape)
     }
 
     private var chips: some View {
@@ -385,7 +352,7 @@ struct SearchPage: View {
                         chipButton(c).id(c)
                     }
                 }
-                .padding(.horizontal, sports ? SearchMetric.sportsSide : SearchMetric.side)
+                .padding(.horizontal, head.side)
                 .frame(height: SearchMetric.chipsHeight)
             }
             .onChange(of: model.chip) { _, c in
@@ -401,7 +368,7 @@ struct SearchPage: View {
             Text(c.title)
                 .font(.sansSemibold(14))
                 // Selected: ink with the page's paper in it, as every selected state (on Sports, the dark ramp's).
-                .foregroundStyle(on ? (sports ? Hue.paper : Hue.surface) : Hue.ink)
+                .foregroundStyle(on ? head.chipWordsOn : Hue.ink)
                 .padding(.horizontal, SearchMetric.chipPad)
                 .frame(height: SearchMetric.chipHeight)
                 .background {
@@ -412,8 +379,7 @@ struct SearchPage: View {
                     }
                 }
                 // On Sports every chip is glass, ink at 5%, the selected one under its ink.
-                .glassEffect(sports ? Glass.regular.tint(Hue.ink.opacity(SearchMetric.sportsChipGlass)) : .identity,
-                             in: Capsule())
+                .glassEffect(head.chipGlass, in: Capsule())
                 .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - PageMetric.tapMin) / 2))
         }
         .buttonStyle(.press(.squish))
@@ -430,15 +396,22 @@ struct SearchPage: View {
                     modeBody
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, sports ? SearchMetric.sportsHeadHeight : SearchMetric.headHeight)
+                .padding(.top, head.height)
                 .padding(.bottom, SearchMetric.tabBarClearance)
             }
             .scrollDismissesKeyboard(.immediately)
+            // The Sports grid carries the header with it; every other view keeps it pinned.
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                travel.points = mode == .sports ? y : 0
+            }
             .id(mode)
             .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: SearchMetric.enterRise)),
                                     removal: .identity))
         }
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 1), value: mode)
+        .onChange(of: mode) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 1)) { travel.points = 0 }
+        }
     }
 
     @ViewBuilder private var modeBody: some View {
@@ -457,7 +430,7 @@ struct SearchPage: View {
                 shelf(kind, group, items.filter { ($0.group ?? title) == group })
             }
         case .recents:
-            let recents = model.recents
+            let recents = model.recents(in: model.chip)
             if !recents.isEmpty {
                 SectionTitle(text: "Recent")
                 ForEach(recents) { recent in
@@ -639,14 +612,14 @@ struct Shelf: View {
         .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         // A logo swings in from above its tile (`LogoPop`): the row mustn't cut its top off.
-        .scrollClipDisabled(Self.logos(kind))
+        .scrollClipDisabled(Self.showsLogos(kind))
     }
 
     /// A row of bare logos, the Businesses row's size and gap, rather than photo cards: a school's crests too.
-    static func logos(_ kind: SearchItem.Kind) -> Bool { kind == .business || kind == .school }
+    static func showsLogos(_ kind: SearchItem.Kind) -> Bool { kind == .business || kind == .school }
 
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {
-        logos(kind) ? SearchMetric.logoGap : SearchMetric.cardGap
+        showsLogos(kind) ? SearchMetric.logoGap : SearchMetric.cardGap
     }
 }
 
@@ -657,7 +630,7 @@ struct ShelfSkeleton: View {
     var body: some View {
         HStack(alignment: .top, spacing: Shelf.gap(kind)) {
             ForEach(0..<6, id: \.self) { _ in
-                if Shelf.logos(kind) {
+                if Shelf.showsLogos(kind) {
                     SkeletonBlock(cornerRadius: Radius.logoTile)
                         .frame(width: SearchMetric.logoOnRow, height: SearchMetric.logoOnRow)
                 } else {
@@ -744,107 +717,6 @@ struct LetterDisc: View {
         LogoDisc(logo: nil, initial: initial, logoSide: side, letter: .sansSemibold((side * 0.42).rounded()),
                  disc: false, blank: Hue.fill)
             .frame(width: side, height: side)
-    }
-}
-
-/// "BlockParty. Sports" where Apple Sports has its logo and "Sports" (school-search 04): the app's wordmark and the
-/// word in Inter Tight on one baseline, both in ink. No yellow on the screen.
-private struct SportsTitle: View {
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: SearchMetric.sportsWordGap) {
-            BlockPartyWordmark(height: SearchMetric.sportsWordmark)
-                // The artwork's baseline, measured on `Wordmark.png`: the B's foot, 171 of its 216 rows down.
-                .alignmentGuide(.firstTextBaseline) { $0.height * 171 / 216 }
-            Text("Sports")
-                .font(.display(SearchMetric.sportsWord))
-        }
-        .foregroundStyle(Hue.ink)
-        .padding(.horizontal, SearchMetric.side)
-        .padding(.bottom, SearchMetric.sportsTitleLift)
-        .frame(height: SearchMetric.sportsTitle, alignment: .bottomLeading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Block Party Sports")
-        .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// The Sports chip's ground: a warm grey at the top of the screen fading to the dark paper by 440 pt, the mock's
-/// "darker fade" (Jesse, 2026-11-11), drawn from the screen's top wherever it shows.
-private struct SportsFade: View {
-    var body: some View {
-        LinearGradient(stops: [.init(color: Hue.sportsFadeTop, location: 0),
-                               .init(color: Hue.sportsFadeMid, location: SearchMetric.sportsFadeMid / SearchMetric.sportsFade),
-                               .init(color: Hue.paper, location: 1)],
-                       startPoint: .top, endPoint: .bottom)
-            .frame(height: SearchMetric.sportsFade)
-            // No smaller than offered, and no taller: a header's slice of it stays the header's height.
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
-            .background(Hue.paper)
-            .clipped()
-    }
-}
-
-/// The Sports chip (school-search 04): every school's logo in Apple Sports' disc, three to a row, its short name
-/// under it, colleges first; a disc opens the school's page. Shimmering discs while the schools are read.
-private struct SportsGrid: View {
-    @Environment(SearchModel.self) private var model
-
-    var body: some View {
-        Group {
-            if model.isLoading(.school) {
-                grid {
-                    ForEach(0..<9, id: \.self) { _ in
-                        VStack(spacing: SearchMetric.discNameGap) {
-                            SkeletonCircle(diameter: SearchMetric.disc)
-                            SkeletonLine(height: SearchMetric.discSkeletonName)
-                                .frame(width: SearchMetric.disc * 0.8)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: SearchMetric.discCell, alignment: .top)
-                    }
-                }
-                .shimmering()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Loading")
-            } else {
-                grid { ForEach(model.sports) { SchoolDisc(item: $0) } }
-            }
-        }
-        // 24 pt from the chips' foot to the first disc.
-        .padding(.top, SearchMetric.discTop - (SearchMetric.chipsHeight - SearchMetric.chipHeight) / 2
-                 - SearchMetric.headBottom)
-    }
-
-    private func grid(@ViewBuilder _ cells: () -> some View) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3), spacing: SearchMetric.discRowGap) {
-            cells()
-        }
-        .padding(.horizontal, SearchMetric.sportsSide)
-    }
-}
-
-/// One school on the Sports chip: its logo fitted in Apple's 45 pt box on an 80 pt disc of the fill, its short
-/// name under it in the secondary ink.
-private struct SchoolDisc: View {
-    let item: SearchItem
-
-    var body: some View {
-        OpenButton(item: item, press: .squish, tap: {}) {
-            VStack(spacing: SearchMetric.discNameGap) {
-                LogoDisc(logo: item.logo?.url, initial: item.initial, logoSide: SearchMetric.discLogo,
-                         letter: .sansSemibold(20), disc: false)
-                    .frame(width: SearchMetric.discLogo, height: SearchMetric.discLogo)
-                    .frame(width: SearchMetric.disc, height: SearchMetric.disc)
-                    .background(Hue.fill, in: Circle())
-                Text(item.team?.short ?? item.name)
-                    .font(.sansSemibold(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, minHeight: SearchMetric.discCell, alignment: .top)
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel(item.name)
     }
 }
 
@@ -1028,14 +900,18 @@ struct ItemRow: View {
     var removable = false
     @Environment(SearchModel.self) private var model
     @Environment(BusinessOpener.self) private var opener
+    @Environment(\.colorScheme) private var scheme
     @State private var avatarFrame = FrameBox()
+
+    /// An activity's star, on a result: a recent has its X instead (the run's review).
+    private var star: FollowTarget? { removable ? nil : item.activity }
 
     var body: some View {
         ZStack(alignment: .trailing) {
             OpenButton(item: item, press: .row, tap: tap) {
                 HStack(spacing: SearchMetric.rowGap) {
                     // The star's room: it lies over the row, so a tap on it never opens the page.
-                    if item.activity != nil { Color.clear.frame(width: SearchMetric.star) }
+                    if star != nil { Color.clear.frame(width: SearchMetric.star) }
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
                         .trackFrame(avatarFrame)
@@ -1052,7 +928,7 @@ struct ItemRow: View {
                         }
                     }
                     Spacer(minLength: removable ? SearchMetric.removeSide : 0)
-                    if item.activity != nil && !removable {
+                    if star != nil {
                         Image(systemName: "chevron.right")
                             .font(.glyph(SearchMetric.chevronGlyph, weight: .semibold))
                             .foregroundStyle(Hue.searchClear)
@@ -1066,12 +942,18 @@ struct ItemRow: View {
             if removable { RemoveButton(name: item.name) { forget() } }
         }
         .overlay(alignment: .leading) {
-            if let target = item.activity {
-                ResultStar(target: target, name: [item.name, item.sub].compactMap { $0 }.joined(separator: ", "),
-                           colors: item.team?.colors ?? [])
+            if let star {
+                ActivityStar(target: star, name: [item.name, item.sub].compactMap { $0 }.joined(separator: ", "),
+                             look: .bare(starred))
                     .padding(.leading, SearchMetric.side)
             }
         }
+    }
+
+    /// A followed star's colour: the school's, as on its page; on the Sports chip's dark page a school's dark colour
+    /// would vanish, so ink there, as the school page's white star.
+    private var starred: Color {
+        scheme == .dark ? Hue.ink : ActivityStar.onPaper(item.team?.colors ?? []).map { Color(hex: $0) } ?? Hue.ink
     }
 
     @ViewBuilder private var avatar: some View {
@@ -1107,58 +989,6 @@ struct ItemRow: View {
 
     private func forget() {
         withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(item.id) }
-    }
-}
-
-/// A typed activity's star (school-search 01): the school page's star (`TeamPage`) bare on Search's paper, as
-/// the mock drew it. One tap follows or unfollows the activity, a refused one turns back with the shake, and
-/// with no account it does nothing.
-struct ResultStar: View {
-    let target: FollowTarget
-    let name: String
-    /// Its school's colours, as 0xRRGGBB.
-    let colors: [UInt32]
-
-    @Environment(RealLifeActions.self) private var actions
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
-    @State private var tappedAt = 0
-
-    var body: some View {
-        let following = actions.follow(target).isFollowing
-        let failures = actions.followFailureCount(target)
-        // On the Sports chip's dark page a school's dark colour would vanish: ink, as the school page's white star.
-        let on = scheme == .dark ? Hue.ink : Self.fill(colors).map { Color(hex: $0) } ?? Hue.ink
-        Button {
-            tappedAt = failures
-            actions.toggleFollow(target)
-        } label: {
-            Image(systemName: following ? "star.fill" : "star")
-                .font(.glyph(SearchMetric.starGlyph, weight: .regular))
-                .foregroundStyle(following ? on : Hue.searchFaint)
-                // Swapped at once: an animated swap cross-fades through a grey blob (swift-traps).
-                .transaction { $0.animation = nil }
-                .frame(width: PageMetric.tapMin, height: SearchMetric.row)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.squish))
-        .padding(.horizontal, -(PageMetric.tapMin - SearchMetric.star) / 2)
-        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-        .accessibilityLabel("Follow \(name)")
-        .accessibilityAddTraits(following ? .isSelected : [])
-        .onAppear { actions.followOpened(target) }
-        .onDisappear { actions.followClosed(target) }
-    }
-
-    /// The school page's star colour (its second, or its first when its first is too light for white words),
-    /// unless that is too light for Search's paper too: then its leading dark colour. nil with none: ink.
-    static func fill(_ colors: [UInt32]) -> UInt32? {
-        var hexes = colors
-        if let first = hexes.first, TeamPage.light(first),
-           let darkest = hexes.min(by: { TeamPage.luma($0) < TeamPage.luma($1) }), !TeamPage.light(darkest) {
-            hexes = [darkest, first]
-        }
-        return [hexes.dropFirst().first, hexes.first].compactMap { $0 }.first { !TeamPage.light($0) }
     }
 }
 

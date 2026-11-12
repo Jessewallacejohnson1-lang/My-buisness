@@ -147,6 +147,21 @@ struct Supabase {
         return try await perform(request, type: "application/json", anon: anon)
     }
 
+    /// The most rows Supabase answers in one request.
+    nonisolated static let pageMax = 1000
+
+    /// Every row a read finds, `page` at a time (`limit` and `offset`): one request answers at most
+    /// `pageMax`. The query needs an order that never changes, or a page can repeat or skip a row.
+    func restAll<T: Decodable>(_ path: String, _ query: Query, page: Int = pageMax, anon: Bool = false) async throws -> [T] {
+        var rows: [T] = []
+        while true {
+            let batch: [T] = try Self.decode(await rest(path, query + [("limit", "\(page)"), ("offset", "\(rows.count)")],
+                                                       anon: anon))
+            rows += batch
+            if batch.count < page { return rows }
+        }
+    }
+
     /// A database function (`rpc/<function>`) given `args`.
     @discardableResult
     func rpc(_ function: String, _ args: [String: Any] = [:], anon: Bool = false) async throws -> Data {

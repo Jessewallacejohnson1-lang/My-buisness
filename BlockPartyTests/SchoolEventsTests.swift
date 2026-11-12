@@ -12,7 +12,7 @@ final class SchoolEventsTests: XCTestCase {
     private let now = Town.gregorian.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 15))!
 
     private func event(_ id: String, _ date: String, _ time: String? = "4 PM") -> SchoolEvent {
-        SchoolEvent(id: id, title: "Event \(id)", date: date, time: time, location: nil, symbol: "basketball")
+        SchoolEvent(id: id, title: "Event \(id)", day: Town.midnight(date)!, time: time, location: nil, symbol: "basketball")
     }
 
     func testTheCardOpensOnTodayWhenTodayHasAnEvent() {
@@ -30,13 +30,17 @@ final class SchoolEventsTests: XCTestCase {
         let knowledgeBowl = [event("meet", "2026-11-12", "9 AM"), event("shared", "2026-11-16", "4:15 PM"),
                              event("banquet", "2026-11-12", nil)]
         XCTAssertEqual(SchoolEvents.merged([basketball, knowledgeBowl]).map(\.id), ["meet", "game", "banquet", "shared"])
+        let sameTime = [event("bowl", "2026-11-12", "4 PM")]
+        XCTAssertEqual(SchoolEvents.merged([basketball, sameTime]).map(\.id), ["game", "bowl", "shared"])
+        XCTAssertEqual(SchoolEvents.merged([sameTime, basketball]).map(\.id), ["bowl", "game", "shared"],
+                       "two at one time keep the activities' order")
     }
 
     func testEachSegmentShowsItsOwnDaysUnderTheirDate() {
         let events = [event("last", "2026-11-10"), event("now", "2026-11-11"), event("a", "2026-11-12"),
                       event("b", "2026-11-12", "5 PM"), event("c", "2026-11-16")]
         func shown(_ day: SchoolDay) -> [String] {
-            SchoolEvents.days(events, on: day, now: now).map { "\($0.date): " + $0.events.map(\.id).joined(separator: ",") }
+            SchoolEvents.days(events, on: day, now: now).map { "\(Town.day($0.day)): " + $0.events.map(\.id).joined(separator: ",") }
         }
         XCTAssertEqual(shown(.yesterday), ["2026-11-10: last"])
         XCTAssertEqual(shown(.today), ["2026-11-11: now"])
@@ -64,9 +68,28 @@ final class SchoolEventsTests: XCTestCase {
         XCTAssertEqual(TeamPage.brighter(0xA0A0A0, by: 2), 0xFFFFFF, "no channel past full")
     }
 
-    func testUpcomingShowsTheNextFiveAsTheMockDoes() {
+    /// Upcoming shows every coming event the reads found: no ticket asks for a cap (the run's review).
+    func testUpcomingShowsEveryComingEvent() {
         let events = (12...18).map { event("d\($0)", "2026-11-\($0)") }
         let shown = SchoolEvents.days(events, on: .upcoming, now: now).flatMap(\.events).map(\.id)
-        XCTAssertEqual(shown, ["d12", "d13", "d14", "d15", "d16"])
+        XCTAssertEqual(shown, ["d12", "d13", "d14", "d15", "d16", "d17", "d18"])
+    }
+
+    /// The card's days turn at the Town's midnight, whatever the phone's zone: tomorrow's game is Upcoming at
+    /// 11:59 PM and Today a minute past midnight, so a card left open overnight moves it.
+    func testTheDaysTurnAtTheTownsMidnight() {
+        let game = [event("game", "2026-11-12")]
+        let beforeMidnight = Town.gregorian.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 23, minute: 59))!
+        let afterMidnight = beforeMidnight.addingTimeInterval(120)
+        XCTAssertEqual(SchoolEvents.days(game, on: .upcoming, now: beforeMidnight).count, 1)
+        XCTAssertEqual(SchoolEvents.days(game, on: .today, now: afterMidnight).count, 1)
+        XCTAssertEqual(SchoolEvents.opening(game, now: afterMidnight), .today)
+    }
+
+    /// A title keeps its words but not the middle-school tag the mock leaves off: the school's page is its level.
+    func testATitleDropsTheMiddleSchoolTag() {
+        XCTAssertEqual(SchoolEvents.title("Girls Basketball vs Stride Academy · MS"), "Girls Basketball vs Stride Academy")
+        XCTAssertEqual(SchoolEvents.title("Apollo Volleyball vs Brainerd · JV"), "Apollo Volleyball vs Brainerd · JV")
+        XCTAssertEqual(SchoolEvents.title("MS Art Night"), "MS Art Night")
     }
 }

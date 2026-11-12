@@ -527,7 +527,7 @@ struct LocalSchool: Decodable, Equatable {
 }
 
 /// One activity a local school lists (`team_activities`): what typing in Search finds (school-search 01).
-struct SchoolActivity: Decodable, Equatable {
+nonisolated struct SchoolActivity: Decodable, Equatable {
     let id: String
     /// Its school's `teams.id`.
     let teamId: String

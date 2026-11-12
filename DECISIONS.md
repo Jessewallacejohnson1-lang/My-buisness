@@ -925,9 +925,12 @@ the search field are Liquid Glass (`glassEffect`, the bar's tinted with the scho
 at 60%); the events, Following and Activities cards are not glass but a black 42% fill with a hairline
 (`schoolCard()`, `Radius.schoolCard` 30, the mock's): a star slides its row between cards, and glass draws at
 its end size and place, so a glass card jumped while its rows slid. The events card reads each activity's
-`activity_events` (only those with a next event) and merges them, since `team_page` sends only 5 games; it
-shows the next 5 under Upcoming (the agent's pick, the mock's count). Yesterday stays empty until a read
-returns past days: both reads start today. `EventWhen.minutes` is `nonisolated` so the merge can sort by it.
+`activity_events` (only those with a next event) and merges them in the activities' own order, so an event two
+share takes the first one's icon, since `team_page` sends only 5 games; Upcoming shows every coming event (the
+run's review: no ticket asks for a cap). The reads are `TeamPageModel`'s, through the injected client; a refresh
+reads the events of the activities on screen beside `team_page` (about 3 s), not after it, and a page that
+can't be read says so once. Yesterday stays empty until a read returns past days: both reads start today.
+`EventWhen.minutes` is `nonisolated` so the merge can sort by it.
 
 ## Decided 2026-11-11 — Search's Sports pill: dark at once, the tab bar left light (BP app school-search 04)
 

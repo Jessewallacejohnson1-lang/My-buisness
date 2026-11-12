@@ -25,6 +25,8 @@ enum FollowMetric {
     /// Beside Add friend on a person's page.
     static let besideWidth: CGFloat = 96
     static let pagePad: CGFloat = 16
+    /// A school page's Follow, a word in a glass capsule in its bar (the mock, BP app school-search 05).
+    static let glassPad: CGFloat = 18
     static let rowPad: CGFloat = 14
     /// The faces to their words on the follow line.
     static let facesGap: CGFloat = 8

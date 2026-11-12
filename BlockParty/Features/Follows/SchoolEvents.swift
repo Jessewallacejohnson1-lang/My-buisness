@@ -11,8 +11,8 @@ import SwiftUI
 nonisolated struct SchoolEvent: Hashable, Identifiable, Sendable {
     let id: String
     let title: String
-    /// Its Town day, "2026-11-12".
-    let date: String
+    /// Its Town day, at the Town's midnight.
+    let day: Date
     let time: String?
     let location: String?
     let symbol: String
@@ -41,42 +41,50 @@ nonisolated enum SchoolDay: CaseIterable, Hashable, Sendable {
 }
 
 nonisolated enum SchoolEvents {
-    /// Every activity's events as one list: an event two activities share once, soonest first, one
-    /// with no time it can read last on its day.
+    /// What the page says when a read failed: true offline and for a server too slow to answer (signed out,
+    /// `team_page` runs at the 3 s limit), and what to do about it.
+    static let tryAgain = "Couldn't load right now. Pull down to try again."
+
+    /// Every activity's events as one list, the lists in the activities' own order: an event two activities
+    /// share once, with the first one's icon; soonest first, one with no time it can read last on its day, two at
+    /// one time in the activities' order.
     static func merged(_ lists: [[SchoolEvent]]) -> [SchoolEvent] {
         var seen = Set<String>()
         let all = lists.joined().filter { seen.insert($0.id).inserted }
-        return all.sorted { a, b in
-            if a.date != b.date { return a.date < b.date }
-            return (EventWhen.minutes(a.time) ?? .max) < (EventWhen.minutes(b.time) ?? .max)
+        // Two at the same time keep the activities' order: Swift's sort promises no order for ties.
+        return all.enumerated().sorted { a, b in
+            let at = { (e: SchoolEvent) in (e.day, EventWhen.minutes(e.time) ?? .max) }
+            return at(a.element) != at(b.element) ? at(a.element) < at(b.element) : a.offset < b.offset
+        }
+        .map(\.element)
+    }
+
+    /// A title as the card says it: the middle-school tag dropped, as the mock does, since a school's own page
+    /// says its level. Every other level's tag stays.
+    static func title(_ title: String) -> String {
+        title.hasSuffix(" · MS") ? String(title.dropLast(5)) : title
+    }
+
+    /// The segment an event is in, by Town days from `now`; nil for one before yesterday.
+    static func segment(_ event: SchoolEvent, now: Date) -> SchoolDay? {
+        switch Town.days(from: now, to: event.day) {
+        case -1: .yesterday
+        case 0: .today
+        case 1...: .upcoming
+        default: nil
         }
     }
 
     /// The segment the card opens on: Today, or Upcoming when today has none.
     static func opening(_ events: [SchoolEvent], now: Date) -> SchoolDay {
-        let today = Town.day(now)
-        return events.contains { $0.date == today } ? .today : .upcoming
+        events.contains { segment($0, now: now) == .today } ? .today : .upcoming
     }
 
-    /// How many Upcoming shows: the mock's five, so search and the activities stay near the top. Every
-    /// event is still on its activity's row.
-    static let upcomingShown = 5
-
     /// What a segment shows, a heading's day with its events, in the order given.
-    static func days(_ events: [SchoolEvent], on segment: SchoolDay, now: Date) -> [(date: String, events: [SchoolEvent])] {
-        let today = Town.day(now)
-        let yesterday = Town.day(Town.gregorian.date(byAdding: .day, value: -1, to: now) ?? now)
-        var shown = events.filter {
-            switch segment {
-            case .yesterday: $0.date == yesterday
-            case .today: $0.date == today
-            case .upcoming: $0.date > today
-            }
-        }
-        if segment == .upcoming { shown = Array(shown.prefix(upcomingShown)) }
-        var days: [(date: String, events: [SchoolEvent])] = []
-        for event in shown {
-            if days.last?.date == event.date { days[days.count - 1].events.append(event) } else { days.append((event.date, [event])) }
+    static func days(_ events: [SchoolEvent], on segment: SchoolDay, now: Date) -> [(day: Date, events: [SchoolEvent])] {
+        var days: [(day: Date, events: [SchoolEvent])] = []
+        for event in events where self.segment(event, now: now) == segment {
+            if days.last?.day == event.day { days[days.count - 1].events.append(event) } else { days.append((event.day, [event])) }
         }
         return days
     }
@@ -112,26 +120,40 @@ struct SchoolEventsCard: View {
     @State private var picked: SchoolDay?
 
     var body: some View {
-        let now = Date()
-        let segment = picked ?? SchoolEvents.opening(events ?? [], now: now)
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(SchoolDay.allCases, id: \.self) { day in
-                    Button { picked = day } label: {
-                        Text(day.word)
-                            .font(.displaySemi(17))
-                            .foregroundStyle(Hue.nameOnDark.opacity(day == segment ? 1 : 0.5))
-                            .frame(maxWidth: .infinity, minHeight: TeamPage.rowHeight)
-                            .contentShape(Rectangle())
+        // Each minute, so a card left open past midnight moves its days along.
+        TimelineView(.everyMinute) { context in
+            let now = context.date
+            let segment = picked ?? SchoolEvents.opening(events ?? [], now: now)
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    ForEach(SchoolDay.allCases, id: \.self) { day in
+                        Button { picked = day } label: {
+                            Text(day.word)
+                                .font(.displaySemi(17))
+                                .foregroundStyle(Hue.nameOnDark.opacity(day == segment ? 1 : 0.5))
+                                .frame(maxWidth: .infinity, minHeight: SchoolMetric.rowHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.press(.squish))
+                        .accessibilityAddTraits(day == segment ? .isSelected : [])
                     }
-                    .buttonStyle(.press(.squish))
-                    .accessibilityAddTraits(day == segment ? .isSelected : [])
                 }
+                .overlay(alignment: .bottom) { SchoolRule() }
+                .padding(.horizontal, SchoolMetric.segmentInset)
+                content(segment, now: now)
             }
-            .overlay(alignment: .bottom) { hairline }
-            .padding(.horizontal, 9)
-            if let events {
-                let days = SchoolEvents.days(events, on: segment, now: now)
+        }
+        .padding(.vertical, SchoolMetric.cardPad)
+        .schoolCard()
+        // The skeleton cross-fades into what was read (design.md, Loading).
+        .animation(Motion.smooth, value: events == nil && !failed)
+    }
+
+    @ViewBuilder
+    private func content(_ segment: SchoolDay, now: Date) -> some View {
+        if let events {
+            let days = SchoolEvents.days(events, on: segment, now: now)
+            VStack(spacing: 0) {
                 if days.isEmpty {
                     Text(segment.empty)
                         .font(.displaySemi(20))
@@ -139,46 +161,45 @@ struct SchoolEventsCard: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 34)
                 }
-                ForEach(days, id: \.date) { day in
-                    Text(TeamPage.day(day.date) ?? day.date)
+                ForEach(days, id: \.day) { day in
+                    Text(TeamPage.day(day.day))
                         .font(.sansSemibold(13))
                         .foregroundStyle(Hue.nameOnDark.opacity(0.55))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, TeamPage.rowPad)
+                        .padding(.horizontal, SchoolMetric.rowPad)
                         .padding(.top, 12)
                         .padding(.bottom, 2)
                         .accessibilityAddTraits(.isHeader)
                     ForEach(day.events) { row($0) }
                 }
-            } else if failed {
-                Text("Check your connection and try again.")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.nameOnDark.opacity(0.6))
-                    .padding(.vertical, 24)
-            } else {
-                // Rows in the card's own shape while they load.
-                VStack(alignment: .leading, spacing: 16) {
-                    SkeletonLine(widthFraction: 0.3, height: 12)
-                    ForEach(0..<3, id: \.self) { _ in
-                        HStack(spacing: 12) {
-                            SkeletonCircle(diameter: TeamPage.icon)
-                            SkeletonLine(widthFraction: 0.65, height: 16)
-                        }
+            }
+            .transition(.opacity)
+        } else if failed {
+            Text(SchoolEvents.tryAgain)
+                .font(.sans(15))
+                .foregroundStyle(Hue.nameOnDark.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, SchoolMetric.rowPad)
+                .padding(.vertical, 24)
+                .transition(.opacity)
+        } else {
+            // Rows in the card's own shape while they load.
+            VStack(alignment: .leading, spacing: 16) {
+                SkeletonLine(widthFraction: 0.3, height: 12)
+                ForEach(0..<3, id: \.self) { _ in
+                    HStack(spacing: 12) {
+                        SkeletonCircle(diameter: SchoolMetric.icon)
+                        SkeletonLine(widthFraction: 0.65, height: 16)
                     }
                 }
-                .padding(.horizontal, TeamPage.rowPad)
-                .padding(.vertical, 16)
-                .opacity(0.25)
-                .shimmering()
-                .accessibilityHidden(true)
             }
+            .padding(.horizontal, SchoolMetric.rowPad)
+            .padding(.vertical, 16)
+            .opacity(0.25)
+            .shimmering()
+            .accessibilityHidden(true)
+            .transition(.opacity)
         }
-        .padding(.vertical, 6)
-        .schoolCard()
-    }
-
-    private var hairline: some View {
-        Rectangle().fill(Hue.nameOnDark.opacity(0.12)).frame(height: 0.5)
     }
 
     private func row(_ event: SchoolEvent) -> some View {
@@ -186,7 +207,7 @@ struct SchoolEventsCard: View {
             Image(systemName: event.symbol)
                 .font(.glyph(17, weight: .regular))
                 .foregroundStyle(Hue.nameOnDark)
-                .frame(width: TeamPage.icon)
+                .frame(width: SchoolMetric.icon)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.title)
@@ -208,18 +229,26 @@ struct SchoolEventsCard: View {
                     .fixedSize()
             }
         }
-        .padding(.horizontal, TeamPage.rowPad)
+        .padding(.horizontal, SchoolMetric.rowPad)
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
     }
 }
 
+/// The school page's one hairline: between the segments and the days, and between an activity's rows (the mock's
+/// 0.5 pt of light at 12%).
+struct SchoolRule: View {
+    var body: some View {
+        Rectangle().fill(Hue.nameOnDark.opacity(0.12)).frame(height: SchoolMetric.hairline)
+    }
+}
+
 extension View {
     /// A card on a school's page: Apple Sports' dark see-through card with 30 pt corners over the
-    /// school's colour, a hairline of light round its edge (the mock's).
-    func schoolCard() -> some View {
-        background(Hue.nameShadow.opacity(0.42), in: RoundedRectangle(cornerRadius: Radius.schoolCard, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.schoolCard, style: .continuous)
-                .strokeBorder(Hue.nameOnDark.opacity(0.1), lineWidth: 0.5))
+    /// school's colour, a hairline of light round its edge (the mock's). Not `shown`, its ground fades away.
+    func schoolCard(shown: Bool = true) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.schoolCard, style: .continuous)
+        return background(Hue.nameShadow.opacity(shown ? 0.42 : 0), in: shape)
+            .overlay(shape.strokeBorder(Hue.nameOnDark.opacity(shown ? 0.1 : 0), lineWidth: SchoolMetric.hairline))
     }
 }
