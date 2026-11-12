@@ -929,6 +929,16 @@ its end size and place, so a glass card jumped while its rows slid. The events c
 shows the next 5 under Upcoming (the agent's pick, the mock's count). Yesterday stays empty until a read
 returns past days: both reads start today. `EventWhen.minutes` is `nonisolated` so the merge can sort by it.
 
+## Decided 2026-11-11 — Search's Sports pill: dark at once, the tab bar left light (BP app school-search 04)
+
+The Sports pill turns Search to the app's dark ramp with `.environment(\.colorScheme, .dark)` on the page (as
+`TeamPage`), not `.preferredColorScheme`, so the tab bar and the rest of the window keep theirs. Into or out of
+Sports the change is one frame (`SearchPage.pick`, a transaction with `disablesAnimations`): a spring cross-faded
+two grounds into a visible band, held the old pill's rows on screen in dark colours (Search's content leaves with
+`.identity`), and the field's glass drew where it lands rather than where it moved. The tab bar keeps its light
+glass on its white underlay over the dark page (the agent's pick; the mock draws it dark, but the bar's glass is
+pinned light on every screen, `docs/rules/architecture.md`).
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

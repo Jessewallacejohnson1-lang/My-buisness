@@ -287,6 +287,10 @@ nonisolated enum Hue {
     static let searchClear   = Color(hex: 0xA3A3A8)
     /// An unselected filter pill's outline.
     static let searchChipEdge = Color(light: 0xDCDCD8, dark: 0x3A3A35)
+    /// The Sports chip's warm-grey fade (school-search 04): this at the top of the screen, through the middle
+    /// shade, to the dark ramp's `paper` (Jesse, 2026-11-11: "i prefer the darker fade", "use more of bps taste").
+    static let sportsFadeTop = Color(hex: 0x292823)
+    static let sportsFadeMid = Color(hex: 0x1A1A17)
     /// The warm brown of the floor under a logo: the backdrop darkens toward it at the
     /// bottom (5% to 10%), so the logo stands on something.
     static let searchFloor   = Color(hex: 0x46321E)

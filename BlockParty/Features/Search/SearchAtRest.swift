@@ -26,6 +26,7 @@ struct SearchAtRest: View {
     /// Around town's shuffle, kept by the page for the visit.
     let seed: UInt64
     @Environment(SearchModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Each minute, so "This morning" turns into "This afternoon" and an Event that started says Now.
@@ -61,12 +62,15 @@ struct SearchAtRest: View {
     }
 
     /// The Schools row: each school's crest bare as a business logo, Kennedy first, on the first screen
-    /// (the mock Jesse picked, look A). No › yet: its page comes with school-search 04.
+    /// (the mock Jesse picked, look A). "Schools ›" opens the Sports chip, the one page of every school
+    /// (Jesse, 2026-11-11, school-search 04).
     @ViewBuilder
     private var schools: some View {
         let crests = model.row(.school)
         if model.isLoading(.school) || !crests.isEmpty {
-            ShelfTitle(title: SearchPage.sectionTitle(.school), shelf: nil, chevron: false)
+            ShelfTitle(title: SearchPage.sectionTitle(.school), shelf: nil) {
+                SearchPage.pick(.sports, in: model, reduceMotion: reduceMotion)
+            }
             if model.isLoading(.school) {
                 ShelfSkeleton(kind: .school)
             } else {

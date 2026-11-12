@@ -145,15 +145,16 @@ struct SearchLogo: Hashable {
     var shadow: Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
 }
 
-/// The filter pills: places, businesses and events (BP app five-tabs 04). Groups and people moved to
-/// the Friends tab; typing still finds them under All.
+/// The filter pills: places, businesses, the schools' sports and events (BP app five-tabs 04, school-search 04).
+/// Groups and people moved to the Friends tab; typing still finds them under All.
 enum SearchChip: CaseIterable, Hashable {
-    case all, businesses, events, parks
+    case all, businesses, sports, events, parks
 
     var title: String {
         switch self {
         case .all: "All"
         case .businesses: "Businesses"
+        case .sports: "Sports"
         case .events: "Events"
         case .parks: "Parks"
         }
@@ -163,6 +164,7 @@ enum SearchChip: CaseIterable, Hashable {
         switch self {
         case .all: nil
         case .businesses: .business
+        case .sports: .school
         case .events: .event
         case .parks: .park
         }
@@ -212,6 +214,8 @@ final class SearchModel {
     /// The Town's schools in the row's order, then their activities (school-search 01), and whether they have been read.
     private(set) var schools: [SearchItem] = []
     private(set) var schoolsLoaded = false
+    /// The same schools as the Sports chip's discs show them, colleges first (school-search 04).
+    private(set) var sports: [SearchItem] = []
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -297,6 +301,7 @@ final class SearchModel {
     /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
     func show(schools: [LocalSchool], activities: [SchoolActivity]) {
         self.schools = Self.schools(schools, activities: activities)
+        sports = Self.sports(schools, rows: self.schools)
         schoolsLoaded = true
         POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
     }
@@ -498,6 +503,24 @@ final class SearchModel {
                               activity: FollowTarget(type: .activity, id: activity.id))
         }
         return rows + found
+    }
+
+    /// The Sports chip's discs (school-search 04, Jesse 2026-11-11: "college first then highschools"): the Schools
+    /// row's schools, the colleges, then the high schools, then the rest (Kennedy, K-8), each A to Z by the short
+    /// name under its disc. Each is its school's row, so it opens the school's page and remembers as one.
+    static func sports(_ schools: [LocalSchool], rows: [SearchItem]) -> [SearchItem] {
+        let types = Town.schoolTypes
+        func level(_ id: String) -> Int {
+            if types.contains(where: { $0.isCollege && $0.schools.contains { $0.key == id } }) { return 0 }
+            return types.contains(where: { $0.id == "high" && $0.schools.contains { $0.key == id } }) ? 1 : 2
+        }
+        func short(_ school: LocalSchool) -> String { school.shortName ?? school.name }
+        return schools
+            .sorted { a, b in
+                level(a.id) != level(b.id) ? level(a.id) < level(b.id)
+                    : short(a).localizedStandardCompare(short(b)) == .orderedAscending
+            }
+            .compactMap { school in rows.first { $0.id == "s:\(school.uuid)" } }
     }
 
     /// Fixed lists keep the order they are written in.

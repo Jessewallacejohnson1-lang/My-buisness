@@ -25,7 +25,7 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   - `-chat-draft <text>`: a chat opens with those words in its composer, ready for its arrow, since AXe can't type on the simulator (BP app five-tabs 05). `-new-event-photo <file>` also makes a chat's photo button send that bundled photo, since AXe can't reach Apple's picker.
   - `-search-words <text>` (with `-open-tab search`) opens with those words typed (the results).
   - `-search-focus` opens on the recents as after a tap on the field.
-  - `-search-chip <all|businesses|events|parks>` opens on that filter (`businesses` is the logo wall).
+  - `-search-chip <all|businesses|sports|events|parks>` opens on that filter (`businesses` is the logo wall, `sports` the schools' discs on the dark page, school-search 04).
   - `-open-tab daily` (or `blockparty`) opens the Block Party tab as the App Store build shows it: today's real Event of the day (`get_event_of_the_day`, from the morning job's standouts; daily-tab 14) and no Spotlight, Suggestions or Following, which have no read yet, or the placeholder when there's nothing today.
   - `-daily-samples` shows the sample Spotlight, Event of the day, Suggestions and Following instead, for design work.
   - `-whole-flyer <url>` (with `-daily-samples`) dresses every sample in that flyer, shown whole on the Block Party tab's cards and the Event page they open (BP app event-photos 16), for a flyer no Event in the Town feed shows today.

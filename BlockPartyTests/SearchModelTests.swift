@@ -400,6 +400,46 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.results(for: "volleyball", in: .businesses).isEmpty)
     }
 
+    // MARK: Sports (BP app school-search 04)
+
+    /// The Sports chip's discs: every school on the Schools row, the colleges first, then the high schools A to Z,
+    /// then Kennedy (K-8) last, whatever order the read comes in; the co-op team stays out. A disc is its school
+    /// with no activity, opening the school's page.
+    func testSportsListsCollegesThenHighSchoolsThenKennedy() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        XCTAssertTrue(model.chips.contains(.sports), "its chip shows while the schools are read")
+        model.show(schools: [school("kennedy", "Kennedy", "Kennedy Community School"), school("tech", "Tech"),
+                             school("saint-johns", "Saint John's"), school("sauk-rapids-rice", "Sauk Rapids-Rice"),
+                             school("apollo-cathedral", "Apollo-Cathedral"), school("rocori", "ROCORI"),
+                             school("saint-benedict", "Saint Ben's", "College of Saint Benedict"),
+                             school("sartell", "Sartell"), school("cathedral", "Cathedral"), school("apollo", "Apollo")],
+                   activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
+        XCTAssertEqual(model.sports.map { $0.team?.short }, ["Saint Ben's", "Saint John's", "Apollo", "Cathedral", "ROCORI",
+                                                             "Sartell", "Sauk Rapids-Rice", "Tech", "Kennedy"])
+        XCTAssertEqual(model.sports.last?.team?.id, "u-kennedy", "a disc opens its school's page")
+        XCTAssertEqual(model.sports.last?.name, "Kennedy Community School", "its full name for VoiceOver and recents")
+        XCTAssertTrue(model.sports.allSatisfy { $0.activity == nil }, "no activity on the grid")
+        XCTAssertTrue(model.chips.contains(.sports))
+    }
+
+    /// Typing on the Sports chip finds what All finds of the schools, by the same match (school-search 01), and
+    /// nothing else: a business named alike stays under All.
+    func testSearchInsideSportsFindsSchoolsAndActivities() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-eagles-nest", "Eagles Nest", .business, "store", logo: logo())])
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School", nickname: "Eagles"),
+                             school("kennedy", "Kennedy", "Kennedy Community School", nickname: "Colts")],
+                   activities: [SchoolActivity(id: "a1", teamId: "apollo", name: "Volleyball (girls)"),
+                                SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
+        let sports = { (words: String) in model.results(for: words, in: .sports) }
+        XCTAssertEqual(sports("volleyball").map(\.kind), [.school], "one list, no headings")
+        XCTAssertEqual(sports("volleyball").first?.items.map(\.name), ["Girls Volleyball 7-8", "Volleyball (girls)"])
+        XCTAssertEqual(sports("volleyball").first?.items.first?.activity, FollowTarget(type: .activity, id: "k1"),
+                       "its star follows the activity")
+        XCTAssertEqual(sports("eagles").first?.items.map(\.name), ["Apollo High School"], "not the Eagles Nest")
+        XCTAssertEqual(model.results(for: "eagles", in: .all).map(\.kind), [.school, .business])
+    }
+
     /// A starred activity fills in the school page's star colour, unless that one is too light for Search's paper.
     func testResultStarTakesTheSchoolsColour() {
         XCTAssertEqual(ResultStar.fill([0x1B2859, 0x1C532F, 0xCDCECF]), 0x1C532F, "Kennedy's green, as the mock")
@@ -429,9 +469,10 @@ final class SearchModelTests: XCTestCase {
     private static let game = try? JSONDecoder().decode(
         Game.Lenient.self, from: Data(#"{"sport":"Soccer","teams":[{"name":"CSB"},{"name":"Hamline"}]}"#.utf8)).value
 
-    /// The pills are All, Businesses, Events and Parks: Groups and people left for Friends.
-    func testFourPills() {
-        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Businesses", "Events", "Parks"])
+    /// The pills are All, Businesses, Sports, Events and Parks: Groups and people left for Friends, Sports beside
+    /// Businesses as the mock draws it (school-search 04).
+    func testFivePills() {
+        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Businesses", "Sports", "Events", "Parks"])
     }
 
     /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come

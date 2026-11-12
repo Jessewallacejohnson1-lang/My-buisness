@@ -93,10 +93,10 @@ Instagram's is), and **You** mounts `ProfileView`, your own Profile (BP app five
 Business has no slot.
 
 - **Search** (`Features/Search/`, 2026-10-02) is Jesse's Search mockup v7 and its Figma
-  frames: a field and filter pills (All, Businesses, Events, Parks: BP app five-tabs 04). With
+  frames: a field and filter pills (All, Businesses, Sports, Events, Parks: BP app five-tabs 04). With
   nothing typed under All it shows `SearchAtRest`: a row for the part of the day (today's Events
   and the places open now), the Schools' crests (Kennedy first, `Town.searchSchools`; BP app
-  school-search 01), New in St. Joseph (the week's new Events) and Around town, Instagram's
+  school-search 01; "Schools ›" opens the Sports pill), New in St. Joseph (the week's new Events) and Around town, Instagram's
   Explore grid dealt again each visit. Its Events are the Town feed's cards (`TownFeed.cards`,
   read there when Search opens first), its places Supabase `places`. Its model lives in
   `AppSession` so the places aren't fetched again on every visit. A row's title pushes
@@ -111,7 +111,12 @@ Business has no slot.
   listed after the places and never saved to Recent. It finds the schools too, by name, and their
   activities (`team_activities`) by the activity's own name, first under All: a school or an
   activity opens the school's page (`TeamPage`), and an activity's star follows it with the
-  school page's rules, its state read from your own `town_follows` on each visit.
+  school page's rules, its state read from your own `town_follows` on each visit. **Sports** (BP app
+  school-search 04) is Apple Sports' Browse page on the app's dark colours: the page takes
+  `.environment(\.colorScheme, .dark)` under "BlockParty. Sports", the field and pills turn to glass,
+  and the schools' logos sit in discs three to a row, colleges, then high schools, then Kennedy
+  (`SearchModel.sports`); a disc opens the school's page and typing finds what All finds of the
+  schools. Into or out of Sports the page turns at once, with no animation (`SearchPage.pick`).
 - **Chat** (`Features/Chat/`, `Backend/ChatAPI.swift`, BP app five-tabs 05): the paper plane at the top
   right of Friends opens Messages, then a chat: text, a photo or an Event, one friend or a group of friends.
   Who is in what is `private.chats` and `private.chat_members`; every write is a function
