@@ -189,6 +189,7 @@ struct AtRow: View {
                     Button { pick(candidate) } label: { cell(candidate) }
                         .buttonStyle(.press(.squish))
                         .accessibilityLabel(candidate.name.name)
+                        .accessibilityValue(candidate.name.kind == .place ? "Place" : "Friend")
                 }
             }
             .padding(.horizontal, 16)

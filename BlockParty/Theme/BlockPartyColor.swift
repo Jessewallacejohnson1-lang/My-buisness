@@ -132,8 +132,9 @@ nonisolated enum Hue {
 
     /// An `@` name or `#` tag in a post's words: Instagram's link blue, the darkest of its caption's
     /// #tag and @names (BP app references/at-names-and-hashtags/SPEC.md; Jesse at town-feed 60's
-    /// Check-in 1, 2026-11-11, picked it over ink in bold). Words only, never a fill.
-    static let link          = Color(hex: 0x1B5775)
+    /// Check-in 1, 2026-11-11, picked it over ink in bold). Words only, never a fill. Dark GUESSED, a light
+    /// blue that reads on dark paper, till the dark-mode pass measures Instagram's (docs/SHIP-CHECKLIST.md).
+    static let link          = Color(light: 0x1B5775, dark: 0x8FB8DE)
 
     /// **The brand yellow.** The logo's field colour, sampled from the master
     /// (`docs/brand/source-logo-1254.png`): the modal pixel across the field, not an

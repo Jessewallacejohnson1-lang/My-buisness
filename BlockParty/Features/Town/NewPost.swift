@@ -584,8 +584,8 @@ struct NewPostSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 0) {
-                    if let typing, !named(typing.query).isEmpty {
-                        AtRow(candidates: named(typing.query)) { pickName($0, replacing: typing.range) }
+                    if let typing, case let found = named(typing.query), !found.isEmpty {
+                        AtRow(candidates: found) { pickName($0, replacing: typing.range) }
                             // Only the row fades: an animation over the whole change moved the cursor back a
                             // letter while typing (AtNamesUITests, 2026-11-11).
                             .transition(.opacity.animation(reduceMotion ? nil : .easeOut(duration: 0.15)))

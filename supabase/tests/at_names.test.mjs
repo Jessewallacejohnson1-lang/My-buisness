@@ -55,6 +55,16 @@ test('the check keeps a friend\'s and an open place\'s name, in the order picked
                    'Search\'s shown name is inside the place\'s own; the id comes back as the row\'s');
 });
 
+test('a place\'s name as Search shows it keeps its link though a word was dropped from its middle', async () => {
+  const CLINIC = '00000000-0000-0000-0000-00000000aa03';
+  await db.query(`insert into public.places (id, name, lat, lon, family, entry_id) values
+    ($1, 'CentraCare - St. Joseph Clinic', 45.56, -94.32, 'business', 'centracare')`, [CLINIC]);
+  const id = await posted(ME, 'Flu shots at @CentraCare Clinic and @CentraCare Mayo',
+    [place(CLINIC, 'CentraCare Clinic'), place(CLINIC, 'CentraCare Mayo')]);
+  assert.equal(await claim(id, ME), true);
+  assert.deepEqual(await kept(id), [place(CLINIC, 'CentraCare Clinic')], 'a word the place\'s name hasn\'t is no name of its');
+});
+
 test('a stranger, a borrowed name, a name not in the words and a closed place are dropped; the post still goes', async () => {
   const id = await posted(ME, 'Hi @Ana Nguyen @Mayor @Bello Cucina and nobody else',
     [user(YOU, 'Ana Nguyen'), user(PAL, 'Mayor'), user(PAL2, 'Dale Brunner'), place(SHUT, 'Bello Cucina'),

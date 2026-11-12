@@ -188,6 +188,7 @@ struct FeedPostCard: View {
     }
 
     /// A friend's page, a place's page flying out of the words as from a card's logo, or Search with the tag's word.
+    /// No haptic: opening a page isn't a commit (taste.md, haptics).
     private func open(_ target: PostWords.Target) {
         guard let opener else { return }
         switch target {
@@ -195,11 +196,10 @@ struct FeedPostCard: View {
             let row = FollowRow(targetType: name.kind == .place ? .place : .profile, targetId: name.id, name: name.name,
                                 kind: nil, picture: nil, pictureKind: nil)
             guard opener.opens(row) else { return }
-            Haptics.light()
+            // From the words' middle: a link's own spot isn't known to the tap.
             let box = wordsFrame.rect
-            opener.open(row, CGRect(x: box.minX, y: box.minY, width: 44, height: 44))
+            opener.open(row, CGRect(x: box.midX - 22, y: box.midY - 22, width: 44, height: 44))
         case .tag(let word):
-            Haptics.light()
             opener.search(word)
         }
     }
