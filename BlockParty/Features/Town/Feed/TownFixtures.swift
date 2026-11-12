@@ -127,7 +127,7 @@ enum TownFixtures {
                      posted: now.addingTimeInterval(-posted),
                      leavesAt: now.addingTimeInterval(5 * 86_400), heartCount: 12),
             TownPost(id: "sample-post-2", poster: .init(id: "sample:Sam Rivera", name: "Sam Rivera"),
-                     words: "Anyone up for sledding after school? The big hill by the river is packed down and fast after last night. Bring a sled, a thermos and dry socks. We will be there from 3:30 until it gets dark, and the porch on Minnesota Street is open for hot chocolate after. Kids of all ages welcome, parents too. Text me if you need a ride.",
+                     words: "Anyone up for #sledding after school? The big hill by the river is packed down and fast after last night. Bring a sled, a thermos and dry socks. We will be there from 3:30 until it gets dark, and the porch on Minnesota Street is open for hot chocolate after. Kids of all ages welcome, parents too. Text me if you need a ride.",
                      place: "Millstream Park",
                      tagged: [.init(id: "sample:Ana Nguyen", name: "Ana Nguyen")], friendsOnly: true,
                      posted: now.addingTimeInterval(-40 * 60), leavesAt: now.addingTimeInterval(6 * 86_400)),
