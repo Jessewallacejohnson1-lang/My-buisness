@@ -918,6 +918,17 @@ Instagram's: a window snapshot of the photo's spot over a black dim in the windo
 bar and top bar; the spot shows its ground (`slot`) till it lands. Its numbers (`PinchMath`) are guessed
 until Jesse's recording of Instagram's pinch is measured.
 
+## Decided 2026-11-11 — a school's page: glass in the bar, see-through cards (BP app school-search 05)
+
+`TeamPage` is Apple Sports' league page in the school's colour (mock version 2). The bar's Back and Follow and
+the search field are Liquid Glass (`glassEffect`, the bar's tinted with the school's colour brightened 2 times
+at 60%); the events, Following and Activities cards are not glass but a black 42% fill with a hairline
+(`schoolCard()`, `Radius.schoolCard` 30, the mock's): a star slides its row between cards, and glass draws at
+its end size and place, so a glass card jumped while its rows slid. The events card reads each activity's
+`activity_events` (only those with a next event) and merges them, since `team_page` sends only 5 games; it
+shows the next 5 under Upcoming (the agent's pick, the mock's count). Yesterday stays empty until a read
+returns past days: both reads start today. `EventWhen.minutes` is `nonisolated` so the merge can sort by it.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

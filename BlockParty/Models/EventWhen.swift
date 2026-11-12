@@ -71,7 +71,7 @@ extension EventWhen {
     /// then a 24-hour one, only with two hour digits or past 12 ("19:00", "07:30", not a
     /// bare "7:00", which could be either); then "noon" or "midnight". A word before any
     /// digit wins over all of them.
-    static func minutes(_ raw: String?) -> Int? {
+    nonisolated static func minutes(_ raw: String?) -> Int? {
         guard let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !text.isEmpty
         else { return nil }
         // A word ahead of any digit starts it: "noon-2pm" is noon, "midnight to 2 AM" midnight.
