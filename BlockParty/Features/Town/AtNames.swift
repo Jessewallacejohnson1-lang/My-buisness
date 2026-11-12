@@ -172,7 +172,8 @@ struct AtRow: View {
     private enum Metric {
         static let picture: CGFloat = 56
         static let gap: CGFloat = 26
-        static let nameTop: CGFloat = 8.5
+        /// Instagram's name sits 8.5 pt under its picture, ink to ink; SF 12's line starts 2.5 pt above its capitals.
+        static let nameTop: CGFloat = 6
         /// A name may run 11 pt past its picture each side before it's cut, as Instagram's "bear.2123374".
         static let nameWidth: CGFloat = 78
         /// GUESSED: Instagram's row sits on a dark story, so its top can't be read.
