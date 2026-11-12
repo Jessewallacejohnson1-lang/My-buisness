@@ -343,6 +343,72 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.results(for: "   ", in: .all).isEmpty)
     }
 
+    // MARK: Schools (BP app school-search 01)
+
+    private func school(_ id: String, _ short: String, _ full: String? = nil, nickname: String? = nil,
+                        aliases: [String]? = nil) -> LocalSchool {
+        LocalSchool(id: id, uuid: "u-\(id)", name: short, schoolName: full, logoUrl: "https://x/\(id).webp",
+                    shortName: short, nickname: nickname, aliases: aliases)
+    }
+
+    /// The Schools row: the Town's own Kennedy first, then the mock's order whatever the read's, and the
+    /// co-op team left out. Each crest opens its school's page, not a business page.
+    func testSchoolsRowLeadsWithKennedy() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        XCTAssertTrue(model.isLoading(.school), "a skeleton row until they're read")
+        model.show(schools: [school("saint-johns", "Saint John's"), school("apollo-cathedral", "Apollo-Cathedral"),
+                             school("tech", "Tech"), school("apollo", "Apollo"),
+                             school("kennedy", "Kennedy", "Kennedy Community School", nickname: "Colts")],
+                   activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
+        XCTAssertFalse(model.isLoading(.school))
+        let row = model.row(.school)
+        XCTAssertEqual(row.map(\.name), ["Kennedy Community School", "Apollo", "Tech", "Saint John's"],
+                       "no activity on the row")
+        XCTAssertEqual(row[0].team?.id, "u-kennedy", "it opens Kennedy's page")
+        XCTAssertEqual(row[0].team?.short, "Kennedy")
+        XCTAssertEqual(row[0].team?.nickname, "Colts")
+        XCTAssertEqual(row[0].logo?.url.absoluteString, "https://x/kennedy.webp", "its crest, bare as a business logo")
+        XCTAssertFalse(row[0].opens, "not the business page")
+    }
+
+    /// Typing finds a school by its name, its teams' nickname or another name, and by its activities' names:
+    /// the schools named first, then each activity under its school's place in the row, Kennedy's first, in the
+    /// school's own order. An activity opens its school's page and its star follows that activity.
+    func testTypedSchoolsAndActivities() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School", nickname: "Eagles"),
+                             school("kennedy", "Kennedy", "Kennedy Community School", nickname: "Colts"),
+                             school("saint-johns", "Saint John's", "Saint John's University", aliases: ["SJU"])],
+                   activities: [SchoolActivity(id: "a1", teamId: "apollo", name: "Volleyball (girls)"),
+                                SchoolActivity(id: "a2", teamId: "apollo", name: "Band"),
+                                SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8"),
+                                SchoolActivity(id: "k2", teamId: "kennedy", name: "Boys Volleyball 7-8"),
+                                SchoolActivity(id: "x1", teamId: "apollo-cathedral", name: "Volleyball")])
+        let schools = { (words: String) in model.results(for: words, in: .all).first { $0.kind == .school }?.items ?? [] }
+        XCTAssertEqual(schools("kennedy").map(\.name), ["Kennedy Community School"], "its name, not every activity it has")
+        XCTAssertEqual(schools("eagles").map(\.name), ["Apollo High School"])
+        XCTAssertEqual(schools("sju").map(\.name), ["Saint John's University"])
+        let volleyball = schools("volleyball")
+        XCTAssertEqual(volleyball.map(\.name), ["Girls Volleyball 7-8", "Boys Volleyball 7-8", "Volleyball (girls)"],
+                       "Kennedy's first though Apollo's name matches closer; a team off the row has none")
+        XCTAssertEqual(volleyball.map(\.sub), ["Kennedy", "Kennedy", "Apollo"], "its school's name under it")
+        XCTAssertEqual(volleyball[0].team?.id, "u-kennedy", "a tap opens the school's page")
+        XCTAssertEqual(volleyball[0].activity, FollowTarget(type: .activity, id: "k1"), "its star follows the activity")
+        XCTAssertNil(schools("kennedy")[0].activity, "a school has no star: its page has Follow")
+        XCTAssertEqual(schools("apollo band").map(\.name), [], "an activity is found by its own name")
+        XCTAssertEqual(model.results(for: "volleyball", in: .all).first?.kind, .school, "Schools lead under All")
+        XCTAssertTrue(model.results(for: "volleyball", in: .businesses).isEmpty)
+    }
+
+    /// A starred activity fills in the school page's star colour, unless that one is too light for Search's paper.
+    func testResultStarTakesTheSchoolsColour() {
+        XCTAssertEqual(ResultStar.fill([0x1B2859, 0x1C532F, 0xCDCECF]), 0x1C532F, "Kennedy's green, as the mock")
+        XCTAssertEqual(ResultStar.fill([0xFEE291, 0x01447E]), 0x01447E, "Cathedral's gold would vanish on paper")
+        XCTAssertEqual(ResultStar.fill([0x135432, 0xFDCD30, 0xA8AFB0]), 0x135432, "so would Sauk Rapids-Rice's")
+        XCTAssertEqual(ResultStar.fill([0x1A4EA2]), 0x1A4EA2, "Sartell has one colour")
+        XCTAssertNil(ResultStar.fill([]), "none read yet: ink")
+    }
+
     // MARK: Search at rest and its Events (five-tabs 04)
 
     private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {

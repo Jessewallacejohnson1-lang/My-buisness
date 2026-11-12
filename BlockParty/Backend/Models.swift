@@ -513,6 +513,25 @@ struct LocalSchool: Decodable, Equatable {
     /// "Sartell High School", where `name` is the team's "Sartell".
     let schoolName: String?
     let logoUrl: String?
+    /// What Search reads besides (school-search 01): the name as neighbours say it ("Saint Ben's"), what they call
+    /// its teams ("Bennies"), its other names ("CSB") and its colours. Onboarding's read leaves them out.
+    var shortName: String? = nil
+    var nickname: String? = nil
+    var aliases: [String]? = nil
+    var colors: [String]? = nil
+
+    /// Its crest bare on the page, as a business logo, its shadow a near-neutral shade: schools carry no logo hue.
+    var crest: SearchLogo? {
+        logoUrl.flatMap(URL.init(string:)).map { SearchLogo(placeId: "team-\(uuid)", row: .init(url: $0, hue: 0, chroma: false)) }
+    }
+}
+
+/// One activity a local school lists (`team_activities`): what typing in Search finds (school-search 01).
+struct SchoolActivity: Decodable, Equatable {
+    let id: String
+    /// Its school's `teams.id`.
+    let teamId: String
+    let name: String
 }
 
 /// One of the Town's pages (`town_pages`): the Town's own, its City's, a campus calendar's.

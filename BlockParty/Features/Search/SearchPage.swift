@@ -79,6 +79,11 @@ nonisolated enum SearchMetric {
     static let sectionTop: CGFloat = 14
     static let sectionBottom: CGFloat = 6
     static let noneTop: CGFloat = 90
+    /// A typed activity's star before its school's crest, and its › (school-search 01): the mock's 26 pt box,
+    /// its 19 pt star and its 6 by 10 pt ›, measured.
+    static let star: CGFloat = 26
+    static let starGlyph: CGFloat = 18
+    static let chevronGlyph: CGFloat = 11
 
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
@@ -211,6 +216,8 @@ struct SearchPage: View {
         .onChange(of: model.words, initial: true) { searchPeople() }
         .onChange(of: model.chip) { searchPeople() }
         .onChange(of: auth.accountKey) { searchPeople() }
+        // Which activities this account follows, for the stars on typed activities (school-search 01).
+        .task(id: auth.accountKey) { await model.readStars() }
         .onChange(of: cards, initial: true) { model.show(events: cards) }
         // People rows carry the friend button; a failed tap shakes only while Search is open.
         .onAppear { book.screenOpened() }
@@ -415,6 +422,7 @@ struct SearchPage: View {
     static func sectionTitle(_ kind: SearchItem.Kind) -> String {
         switch kind {
         case .person: "People"
+        case .school: "Schools"
         case .business: "Businesses"
         case .restaurant: "Restaurants"
         case .coffee: "Coffee"
@@ -525,6 +533,8 @@ struct Shelf: View {
                     switch kind {
                     case .business:
                         RowLogo(item: item)
+                    case .school:
+                        RowCrest(item: item)
                     default:
                         PhotoCard(item: item, new: new)
                     }
@@ -535,14 +545,14 @@ struct Shelf: View {
         .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         // A logo swings in from above its tile (`LogoPop`): the row mustn't cut its top off.
-        .scrollClipDisabled(kind == .business)
+        .scrollClipDisabled(Self.logos(kind))
     }
 
+    /// A row of bare logos, the Businesses row's size and gap, rather than photo cards: a school's crests too.
+    static func logos(_ kind: SearchItem.Kind) -> Bool { kind == .business || kind == .school }
+
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {
-        switch kind {
-        case .business: SearchMetric.logoGap
-        default: SearchMetric.cardGap
-        }
+        logos(kind) ? SearchMetric.logoGap : SearchMetric.cardGap
     }
 }
 
@@ -553,7 +563,7 @@ struct ShelfSkeleton: View {
     var body: some View {
         HStack(alignment: .top, spacing: Shelf.gap(kind)) {
             ForEach(0..<6, id: \.self) { _ in
-                if kind == .business {
+                if Shelf.logos(kind) {
                     SkeletonBlock(cornerRadius: Radius.logoTile)
                         .frame(width: SearchMetric.logoOnRow, height: SearchMetric.logoOnRow)
                 } else {
@@ -595,6 +605,20 @@ private struct RowLogo: View {
                 .trackFrame(frame)
         }
         .buttonStyle(.press(.squish))
+        .accessibilityLabel(item.name)
+    }
+}
+
+/// A school's crest on the Schools row (school-search 01): bare, the Businesses row's size and shadow, pushing
+/// the school's page as Search pushes a group's.
+private struct RowCrest: View {
+    let item: SearchItem
+
+    var body: some View {
+        OpenButton(item: item, press: .squish, tap: {}) {
+            PlaceMark(item: item, side: SearchMetric.logoOnRow)
+                .contentShape(Rectangle())
+        }
         .accessibilityLabel(item.name)
     }
 }
@@ -772,8 +796,9 @@ private struct SectionTitle: View {
     }
 }
 
-/// What a card, row or tile does when tapped: a group's pushes its Group page and an Event's its
-/// Event page, each remembered as a recent; anything else runs `tap`, which remembers it itself.
+/// What a card, row or tile does when tapped: a group's pushes its Group page, an Event's its Event
+/// page and a school's or its activity's the school's page, each remembered as a recent; anything else
+/// runs `tap`, which remembers it itself.
 struct OpenButton<Label: View>: View {
     let item: SearchItem
     let press: Press
@@ -790,6 +815,10 @@ struct OpenButton<Label: View>: View {
             NavigationLink(value: card, label: label)
                 .buttonStyle(.press(press))
                 .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else if let team = item.team {
+            NavigationLink(value: team, label: label)
+                .buttonStyle(.press(press))
+                .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
         } else {
             Button(action: tap, label: label)
                 .buttonStyle(.press(press))
@@ -797,7 +826,8 @@ struct OpenButton<Label: View>: View {
     }
 }
 
-/// A result, a recent, or a neighbour: picture, name, and what it is.
+/// A result, a recent, or a neighbour: picture, name, and what it is. A school's activity has its
+/// star before them and a › after (the mock, school-search 01).
 struct ItemRow: View {
     let item: SearchItem
     var removable = false
@@ -809,6 +839,8 @@ struct ItemRow: View {
         ZStack(alignment: .trailing) {
             OpenButton(item: item, press: .row, tap: tap) {
                 HStack(spacing: SearchMetric.rowGap) {
+                    // The star's room: it lies over the row, so a tap on it never opens the page.
+                    if item.activity != nil { Color.clear.frame(width: SearchMetric.star) }
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
                         .trackFrame(avatarFrame)
@@ -825,12 +857,25 @@ struct ItemRow: View {
                         }
                     }
                     Spacer(minLength: removable ? SearchMetric.removeSide : 0)
+                    if item.activity != nil && !removable {
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(SearchMetric.chevronGlyph, weight: .semibold))
+                            .foregroundStyle(Hue.searchClear)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .padding(.horizontal, SearchMetric.side)
                 .frame(height: SearchMetric.row)
                 .contentShape(Rectangle())
             }
             if removable { RemoveButton(name: item.name) { forget() } }
+        }
+        .overlay(alignment: .leading) {
+            if let target = item.activity {
+                ResultStar(target: target, name: [item.name, item.sub].compactMap { $0 }.joined(separator: ", "),
+                           colors: item.team?.colors ?? [])
+                    .padding(.leading, SearchMetric.side)
+            }
         }
     }
 
@@ -867,6 +912,55 @@ struct ItemRow: View {
 
     private func forget() {
         withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(item.id) }
+    }
+}
+
+/// A typed activity's star (school-search 01): the school page's star (`TeamPage`) bare on Search's paper, as
+/// the mock drew it. One tap follows or unfollows the activity, a refused one turns back with the shake, and
+/// with no account it does nothing.
+struct ResultStar: View {
+    let target: FollowTarget
+    let name: String
+    /// Its school's colours, as 0xRRGGBB.
+    let colors: [UInt32]
+
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tappedAt = 0
+
+    var body: some View {
+        let following = actions.follow(target).isFollowing
+        let failures = actions.followFailureCount(target)
+        Button {
+            tappedAt = failures
+            actions.toggleFollow(target)
+        } label: {
+            Image(systemName: following ? "star.fill" : "star")
+                .font(.glyph(SearchMetric.starGlyph, weight: .regular))
+                .foregroundStyle(following ? Self.fill(colors).map { Color(hex: $0) } ?? Hue.ink : Hue.searchFaint)
+                // Swapped at once: an animated swap cross-fades through a grey blob (swift-traps).
+                .transaction { $0.animation = nil }
+                .frame(width: PageMetric.tapMin, height: SearchMetric.row)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press(.squish))
+        .padding(.horizontal, -(PageMetric.tapMin - SearchMetric.star) / 2)
+        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
+        .accessibilityLabel("Follow \(name)")
+        .accessibilityAddTraits(following ? .isSelected : [])
+        .onAppear { actions.followOpened(target) }
+        .onDisappear { actions.followClosed(target) }
+    }
+
+    /// The school page's star colour (its second, or its first when its first is too light for white words),
+    /// unless that is too light for Search's paper too: then its leading dark colour. nil with none: ink.
+    static func fill(_ colors: [UInt32]) -> UInt32? {
+        var hexes = colors
+        if let first = hexes.first, TeamPage.light(first),
+           let darkest = hexes.min(by: { TeamPage.luma($0) < TeamPage.luma($1) }), !TeamPage.light(darkest) {
+            hexes = [darkest, first]
+        }
+        return [hexes.dropFirst().first, hexes.first].compactMap { $0 }.first { !TeamPage.light($0) }
     }
 }
 

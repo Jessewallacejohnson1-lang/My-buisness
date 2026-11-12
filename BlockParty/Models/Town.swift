@@ -62,6 +62,11 @@ nonisolated enum Town {
                    isCollege: true),
     ]
 
+    /// Search's Schools row by team id: the Town's own school first, then the mock Jesse picked (2026-11-11, BP app
+    /// school-search 01). A local team not named here stays off it: the Apollo-Cathedral co-op is a team, not a school.
+    static let searchSchools = ["kennedy", "apollo", "cathedral", "rocori", "sartell", "sauk-rapids-rice", "tech",
+                                "saint-benedict", "saint-johns"]
+
     /// The trails Search lists, with the bundled photo of each.
     static let trails = [("Lake Wobegon Trail", "wobegon-trail"),
                          ("Saint John's Abbey Arboretum", "sju-arboretum-trail"),

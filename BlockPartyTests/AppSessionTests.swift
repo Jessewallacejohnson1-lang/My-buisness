@@ -213,7 +213,8 @@ final class AppSessionTests: XCTestCase {
         session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
-        let jobs = ["places", "place_photos", "place_names", "get_groups", "friends_dot", "get_my_changes"]
+        let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "friends_dot",
+                    "get_my_changes"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")

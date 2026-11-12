@@ -110,9 +110,7 @@ enum FollowSuggestions {
         let fromSchools = schools.map { school in
             let crest = school.logoUrl.flatMap(URL.init(string:))
             return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: school.schoolName ?? school.name,
-                                         key: school.id, kind: "School",
-                                         // A crest's shadow in a near-neutral shade: schools carry no logo hue.
-                                         logo: crest.map { SearchLogo(placeId: "team-\(school.uuid)", row: .init(url: $0, hue: 0, chroma: false)) },
+                                         key: school.id, kind: "School", logo: school.crest,
                                          picture: crest, categories: ["school"]),
                         [], byTeam[school.id] ?? [])
         }
