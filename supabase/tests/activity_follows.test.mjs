@@ -128,3 +128,26 @@ test("Search's next day for each activity of the schools asked, signed out too",
   const none = await as(null, `select public.activities_next(array['cathedral']) n`);
   assert.deepEqual(none[0].n, []);
 });
+
+test("a co-op's game is on each member school's page, once, and in Search's next day (school-search 08)", async () => {
+  await db.exec('delete from public.club_events');
+  // As Apollo's Bound feed writes them: the co-op and its opponent, Apollo the host; a meet under Apollo alone.
+  await db.query(`insert into public.club_events (status, title, sport, team_ids, activity_team, event_date, start_time) values
+    ('approved', 'St. Cloud Girls Hockey vs Fergus Falls', 'Hockey, Girls', array['st-cloud', 'fergus-falls'], 'apollo', $1, '7 PM'),
+    ('approved', 'Rogers Holiday Matness', 'Wrestling', null, 'apollo', $2, '9 AM')`, [soon(4), soon(5)]);
+  const tech = (await db.query(`select uuid from public.teams where id = 'tech'`)).rows[0].uuid;
+  const [techPage] = await as(null, `select public.team_page($1) p`, [tech]);
+  const next = (p, name) => p.p.activities.find((a) => a.name === name).next?.title;
+  assert.equal(next(techPage, 'Girls Hockey'), 'St. Cloud Girls Hockey vs Fergus Falls', "Tech plays on St. Cloud's team");
+  assert.equal(next(techPage, 'Wrestling'), undefined, "a meet Apollo's feed lists under Apollo alone is Apollo's");
+  assert.deepEqual(techPage.p.events.map((e) => e.title), ['St. Cloud Girls Hockey vs Fergus Falls']);
+
+  const [apolloPage] = await as(null, `select public.team_page($1) p`, [apollo]);
+  assert.equal(next(apolloPage, 'Girls Hockey'), 'St. Cloud Girls Hockey vs Fergus Falls');
+  assert.equal(next(apolloPage, 'Wrestling'), 'Rogers Holiday Matness', 'its own meets stay');
+  assert.deepEqual(apolloPage.p.events.map((e) => e.title), ['St. Cloud Girls Hockey vs Fergus Falls', 'Rogers Holiday Matness'],
+                   'a game naming the school and its co-op is listed once');
+
+  const [{ n }] = await as(null, `select public.activities_next(array['tech']) n`);
+  assert.deepEqual(n, [{ id: await id('tech', 'Girls Hockey'), date: soon(4), time: '7 PM' }]);
+});

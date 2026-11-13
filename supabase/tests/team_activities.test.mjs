@@ -49,7 +49,10 @@ test("a school's own calendar names its activity's games, whatever team plays th
      where public.activity_has_event(a, e) order by 1, 2`);
   await db.exec('reset role');
   assert.deepEqual(rows, [{ team_id: 'apollo', name: 'Boys Swim & Dive' },
-                          { team_id: 'kennedy', name: 'Boys Swimming 7-12' }]);
+                          { team_id: 'cathedral', name: 'Boys Swim & Dive' },
+                          { team_id: 'kennedy', name: 'Boys Swimming 7-12' },
+                          { team_id: 'rocori', name: 'Swimming & Diving - Boys' },
+                          { team_id: 'tech', name: 'Boys Swim & Dive' }], 'the St. Cloud-ROCORI co-op is all five (school-search 08)');
 });
 
 test("a game's words for a sport meet the school's: Dance Team is Dance, Rugby is SJU Rugby", async () => {
@@ -81,11 +84,13 @@ async function activitiesFor(fields) {
   return rows.map((r) => r.x);
 }
 
-test("Bound's Nordic Ski Racing is the schools' Nordic Skiing, by gender (school-search 02)", async () => {
+test("Bound's Nordic Ski Racing is the schools' Nordic Skiing, by gender, Apollo's for its co-op (school-search 02, 08)", async () => {
   assert.deepEqual(await activitiesFor({ activity_team: 'apollo', activity_name: 'Nordic Ski Racing, Boys' }),
-                   ['apollo: Boys Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing']);
+                   ['apollo: Boys Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing', 'rocori: Nordic Ski Racing - Boys',
+                    'tech: Boys Nordic Skiing']);
   assert.deepEqual(await activitiesFor({ activity_team: 'apollo', activity_name: 'Girls Nordic Ski' }),
-                   ['apollo: Girls Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing']);
+                   ['apollo: Girls Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing', 'rocori: Nordic Ski Racing - Girls',
+                    'tech: Girls Nordic Skiing']);
   assert.deepEqual(await activitiesFor({ activity_team: 'sauk-rapids-rice', activity_name: 'Nordic Ski Racing, Boys' }),
                    ['sauk-rapids-rice: Nordic Skiing (boys)']);
 });
@@ -103,7 +108,9 @@ test("Kennedy's own calendar lands on its activity, a joint concert on each it n
 
 test("Kennedy's Adapted Floor Hockey takes St. Cloud's games from Apollo's feed, as Apollo's own does (school-search 02, 07)", async () => {
   assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', team_ids: ['maple-grove', 'st-cloud'], activity_team: 'apollo' }),
-                   ['apollo: Adapted Hockey (Adapted Floor Hockey)', 'kennedy: Boys/Girls Adapted Floor Hockey']);
+                   ['apollo: Adapted Hockey (Adapted Floor Hockey)', 'kennedy: Boys/Girls Adapted Floor Hockey',
+                    'sartell: Adapted Floor Hockey', 'sauk-rapids-rice: Adapted Sports: Floor Hockey', 'tech: Adapted Hockey'],
+                   'St. Cloud Area Crush is Apollo, Tech, Sartell and Sauk Rapids-Rice (school-search 08)');
 });
 
 test("Adapted Floor Hockey is each school's adapted hockey, whatever it calls it (school-search 07)", async () => {
@@ -135,6 +142,32 @@ test("an activity's bracket list names what it covers, unless the school has tha
   assert.deepEqual(await activitiesFor({ activity_team: 'cathedral', activity_name: 'Art Club' }), ['cathedral: Art Club']);
   assert.deepEqual(await activitiesFor({ activity_team: 'sartell', activity_name: 'Orchestra' }), ['sartell: Orchestra']);
   assert.deepEqual(await activitiesFor({ sport: 'Musical', team_ids: ['sauk-rapids-rice'] }), [], 'a game never reads a bracket');
+});
+
+test("a co-op's game lands on every member school's activity, and the school's own games stay (school-search 08)", async () => {
+  // As Apollo's Bound feed writes St. Cloud's girls hockey: the co-op, the opponent, the host.
+  assert.deepEqual(await activitiesFor({ sport: 'Hockey, Girls', team_ids: ['st-cloud', 'fergus-falls', 'apollo'] }),
+                   ['apollo: Girls Hockey', 'cathedral: Girls Hockey', 'tech: Girls Hockey']);
+  assert.deepEqual(await activitiesFor({ sport: 'Boys Hockey · JV', team_ids: ['st-cloud', 'roseau'] }),
+                   ['apollo: Boys Hockey', 'tech: Boys Hockey'], "Cathedral's boys hockey is its own team");
+  assert.deepEqual(await activitiesFor({ sport: 'Gymnastics, Girls', team_ids: ['willmar', 'st-cloud-srr'] }),
+                   ['apollo: Girls Gymnastics', 'cathedral: Gymnastics', 'sauk-rapids-rice: Gymnastics', 'tech: Girls Gymnastics']);
+  assert.deepEqual(await activitiesFor({ sport: 'Girls Hockey', team_ids: ['thief-river-falls', 'sartell-sauk-rapids'] }),
+                   ['sartell: Hockey - Girls', 'sauk-rapids-rice: Hockey - Girls']);
+  assert.deepEqual(await activitiesFor({ sport: 'Boys Hockey', team_ids: ['river-lakes', 'windom'] }), ['rocori: Hockey - Boys']);
+  // A tournament Apollo's feed lists under Apollo alone stays Apollo's, as before.
+  assert.deepEqual(await activitiesFor({ sport: 'Wrestling', team_ids: ['apollo'] }), ['apollo: Wrestling', 'kennedy: Wrestling 7-12']);
+  // An ungendered co-op meet is each member's Wrestling, never its Girls Wrestling.
+  assert.deepEqual(await activitiesFor({ sport: 'Wrestling', team_ids: ['st-cloud', 'alexandria'] }),
+                   ['apollo: Wrestling', 'cathedral: Wrestling', 'kennedy: Wrestling 7-12', 'tech: Wrestling']);
+  assert.deepEqual(await activitiesFor({ sport: 'Girls Wrestling', team_ids: ['st-cloud', 'alexandria'] }),
+                   ['apollo: Wrestling', 'apollo: Girls Wrestling', 'cathedral: Wrestling', 'cathedral: Girls Wrestling',
+                    'kennedy: Wrestling 7-12', 'tech: Wrestling'], 'girls wrestle on the same co-op');
+});
+
+test("Sartell's Nordic co-op takes Cathedral's meets (school-search 08; Apollo's for Tech and ROCORI above)", async () => {
+  assert.deepEqual(await activitiesFor({ activity_team: 'cathedral', activity_name: 'Nordic Ski Racing, Boys' }),
+                   ['cathedral: Boys Nordic Skiing', 'sartell: Nordic Ski (boys)']);
 });
 
 test('a sport the school lists no activity for, or a game it is not in, belongs to none', async () => {
