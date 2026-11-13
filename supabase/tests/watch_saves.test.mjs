@@ -238,6 +238,33 @@ test("team logos: a new team's logo and colors", async () => {
   await asJob('team logos: the ones taken down before', 'select id, name, logo_refused from public.teams where logo_url is null');
 });
 
+// BP app town-feed 65: the social watch keeps a News post's own words, once, and the app reads them on a published
+// News only.
+test("a News post's own words: written once by the job, read by the app", async () => {
+  const url = 'https://www.facebook.com/flourandflowerbakery/posts/pfbid0';
+  const { rows: [{ id }] } = await db.query(`insert into public.board_items (title, blurb, category, source_name,
+    source_url, tier, status, published_at) values ('New Fall Pastries and Pies', 'Maple danish, pear scone.', 'business',
+    'Flour & Flower Bakery', $1, 1, 'published', now()) returning id`, [url]);
+  const write = (words) => asJob('save_words', `update public.board_items set post_words = $2
+    where source_url = $1 and post_words is null returning id`, [url, words]);
+  assert.equal((await write('PASTRIES\n-Cinnamon Morning Bun\n-Hope Butter Croissant')).length, 1);
+  assert.equal((await write('a second read')).length, 0, 'a News keeps the words it first had');
+  await assert.rejects(db.query(`update public.board_items set post_words = $2 where id = $1`, [id, 'x'.repeat(10001)]),
+                       /board_items_post_words_length/);
+  await db.exec('set role anon');
+  try {
+    assert.deepEqual((await db.query('select post_words from public.board_items where id = $1', [id])).rows,
+                     [{ post_words: 'PASTRIES\n-Cinnamon Morning Bun\n-Hope Butter Croissant' }]);
+    await db.exec('reset role');
+    await db.query(`update public.board_items set status = 'archived' where id = $1`, [id]);
+    await db.exec('set role anon');
+    assert.deepEqual((await db.query('select post_words from public.board_items where id = $1', [id])).rows, [],
+                     'a News taken out keeps its words from the app');
+  } finally {
+    await db.exec('reset role');
+  }
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
 test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
   const refused = async (what, sql) => {
