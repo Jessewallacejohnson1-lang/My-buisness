@@ -108,10 +108,11 @@ enum EventCalendar {
         return abs(a - b) <= 1
     }
 
-    /// "Friday, November 13, 3 Events"; "Today, …" for today.
-    static func spoken(_ date: Date, events: Int, today: Bool) -> String {
-        let count = events == 0 ? "nothing on" : events == 1 ? "1 Event" : "\(events) Events"
-        return (today ? "Today, " : "") + "\(Town.format(date, "EEEEMMMMd")), \(count)"
+    /// "Friday, November 13, 3 Events"; "Today, …" for today. No count before the read is in (nil).
+    static func spoken(_ date: Date, events: Int?, today: Bool) -> String {
+        let name = (today ? "Today, " : "") + Town.format(date, "EEEEMMMMd")
+        guard let events else { return name }
+        return name + ", " + (events == 0 ? "nothing on" : events == 1 ? "1 Event" : "\(events) Events")
     }
 }
 
@@ -144,7 +145,8 @@ struct EventCalendarView: View {
                             jump: reduceMotion ? nil : Motion.smooth) { page in
                     // Only this month and the two beside it ask for their photos: a year of them at once kept
                     // the month on screen waiting behind the other eleven.
-                    grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today, day: day)
+                    grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today, day: day,
+                         loaded: events != nil)
                         .padding(.horizontal, CalendarMetric.gridInset)
                 }
                 .padding(.top, CalendarMetric.gridTop)
@@ -153,7 +155,7 @@ struct EventCalendarView: View {
             }
         }
         // On every visit and a new account; the list on screen stays meanwhile.
-        .task(id: auth.accountKey) { await model.loadCalendar(account: auth.accountKey.joined(separator: "/")) }
+        .task(id: auth.accountKey) { await model.loadCalendar() }
     }
 
     // MARK: The month
@@ -237,7 +239,7 @@ struct EventCalendarView: View {
         .accessibilityHidden(true)
     }
 
-    private func grid(_ month: Date, byDay: [Date: [DailyEvent]], today: Date, day: Date) -> some View {
+    private func grid(_ month: Date, byDay: [Date: [DailyEvent]], today: Date, day: Date, loaded: Bool) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: YouMetric.rowGap) {
             ForEach(Array(EventCalendar.grid(month).enumerated()), id: \.offset) { _, date in
                 if let date {
@@ -247,7 +249,7 @@ struct EventCalendarView: View {
                                isPicked: date == day, ring: ring, disc: true)
                     }
                     .buttonStyle(.press(.squish))
-                    .accessibilityLabel(EventCalendar.spoken(date, events: events.count, today: date == today))
+                    .accessibilityLabel(EventCalendar.spoken(date, events: loaded ? events.count : nil, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
                 } else {
                     Color.clear.frame(height: YouMetric.day).accessibilityHidden(true)
@@ -339,7 +341,7 @@ struct EventCalendarView: View {
                 }
             }
         } else if model.calendarFailed {
-            FeedRetryButton { Task { await model.loadCalendar(force: true) } }
+            FeedRetryButton { Task { await model.loadCalendar() } }
                 .padding(.vertical, YouMetric.emptyLine)
         } else {
             VStack(spacing: 0) {

@@ -5,7 +5,9 @@
 -- row, and an Event shows months before its show-from day.
 --
 -- The rest is the Town feed's own reach for the caller (supabase/town_feed.sql, `real_events` and `shown`):
--- College, City meetings, Not interested, Mute, 18+ and middle school. Change one there, change it here.
+-- College, City meetings, Not interested, Mute, 18+ and middle school. Change one there, change it here. One
+-- difference on purpose: middle school sports and Knowledge Bowl reach only those who picked Middle school or are
+-- Going or Hearted it, not a school's followers or a friend's Going, since the calendar is public Events only.
 create function public.get_town_calendar(p_now timestamptz default now())
 returns table (card jsonb)
 language sql

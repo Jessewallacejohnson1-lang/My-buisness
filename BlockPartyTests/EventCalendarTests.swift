@@ -103,6 +103,7 @@ final class EventCalendarTests: XCTestCase {
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-13"), events: 3, today: true), "Today, Friday, November 13, 3 Events")
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-14"), events: 1, today: false), "Saturday, November 14, 1 Event")
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-15"), events: 0, today: false), "Sunday, November 15, nothing on")
+        XCTAssertEqual(EventCalendar.spoken(day("2026-11-15"), events: nil, today: false), "Sunday, November 15")
     }
 
     /// The pill sits right after All, opens on Events when typed into, and the calendar's read decodes as cards.

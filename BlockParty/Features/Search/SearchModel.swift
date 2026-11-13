@@ -250,9 +250,6 @@ final class SearchModel {
     /// and whether the last read failed. Kept across tab switches, as the rest is.
     private(set) var calendar: [DailyEvent]?
     private(set) var calendarFailed = false
-    @ObservationIgnored private var calendarReadAt: Date?
-    /// The account the calendar was read for: hearts and Not interested are each account's own.
-    @ObservationIgnored private var calendarAccount: String?
     @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
@@ -287,11 +284,10 @@ final class SearchModel {
     /// lands after its logo, and the Town's groups and schools beside them; tries again while the tab is open
     /// (2 s, 4 s, … 30 s apart) until all are in: offline, the rows wait as skeletons rather than
     /// vanish, and places read without their photos show their logos until a retry brings the photos.
-    /// Reads the Event calendar when its pill opens: once an hour, or now when `force`d (a retry, a new account).
-    /// The list on screen stays through a read and a failed one. Under DEBUG `-town-samples` it is You's invented
-    /// Events, and `-town-offline` fails.
-    func loadCalendar(account: String? = nil, force: Bool = false, now: Date = Date()) async {
-        if !force, account == calendarAccount, let at = calendarReadAt, now.timeIntervalSince(at) < 3600 { return }
+    /// Reads the Event calendar on every visit to its pill and each new account, so a Not interested or Mute from
+    /// the Town feed shows on the next visit. The list on screen stays through a read and a failed one. Under DEBUG
+    /// `-town-samples` it is You's invented Events, and `-town-offline` fails.
+    func loadCalendar() async {
         latestCalendar += 1
         let mine = latestCalendar
         if calendar == nil { calendarFailed = false }
@@ -300,8 +296,6 @@ final class SearchModel {
             guard mine == latestCalendar else { return }
             calendar = EventCalendar.ordered(rows.compactMap(YouCalendar.event(from:)))
             calendarFailed = false
-            calendarReadAt = now
-            calendarAccount = account
         } catch {
             // Leaving the pill mid-read cancels it; that says nothing about the network.
             guard mine == latestCalendar, !Task.isCancelled, !(error is CancellationError) else { return }

@@ -269,6 +269,9 @@ struct YouDay: View {
             if !events.isEmpty {
                 if let photo {
                     FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                } else if disc {
+                    // White on the Event calendar's grey fade, as an empty day, its number in ink (the run's review).
+                    Circle().fill(Hue.surface).overlay { Circle().strokeBorder(Hue.hairline, lineWidth: 0.5) }
                 } else {
                     Hue.fill
                 }
