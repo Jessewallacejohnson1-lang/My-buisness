@@ -422,6 +422,54 @@ Library. Left out: 174 Academic Calendar, 169 Admission, 168 Alum, 195 Benedicti
 `/api/v2/events/unauthenticated/calendars/`. Home games only; the reader drops away games,
 rec-center classes and halftime shows, and shows a repeating event once, at its next date.
 
+## CSB SJU Music
+```yaml
+id: csbsju-music
+aka: ["CSB SJU Music Department"]
+status: proposed
+tier: watched
+category: college
+added_by: agent:claude
+sources:
+  - url: https://www.csbsju.edu/music/events-new/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The music department's season page, plain
+HTML with no feed, so the models read it; www.csbsju.edu's robots.txt disallows nothing. Its
+concerts are not a calendar of their own on the campus portal (12 public calendars, none for
+music), so they can't be added to `csbsju-events`' url. Measured 2026-11-13: 8 performances in
+the next 90 days, 6 already arrive through `csbsju-events` (Campus Events); new: the Guitar
+Ensemble & Studio Concert, Dec 11. The page dates "Faculty Recital: Gyehyun Jung" Dec 8; the
+portal, Nov 19.
+
+## The Central Minnesota Catholic events
+```yaml
+id: central-minnesota-catholic-events
+aka: ["The Central Minnesota Catholic"]
+status: proposed
+tier: watched
+category: diocese
+added_by: agent:claude
+sources:
+  - url: https://thecentralminnesotacatholic.org/events/?ical=1
+    kind: ical
+    method: fetch
+    trust: squishy
+```
+Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The Diocese of St. Cloud's paper lists parish
+events across the diocese (The Events Calendar on WordPress). robots.txt disallows only
+`/events/map/` and `/wp-admin/`, Crawl-delay 10. The feed holds the next 30 events (about three
+weeks); the site's REST API (`/wp-json/tribe/events/v1/events`) held 51 in the next 90 days, 42
+within 20 miles of St. Joseph. **Needs a town filter before it is watched:** the ical reader
+keeps every event, so Little Falls and Sobieski would reach the feed. Filter on the event's
+`GEO` within 20 miles (as `mshsl` and `cars511` do), else on a nearby town in `LOCATION` (St.
+Cloud's Toys for Tots days have no GEO), and drop "Virtual". Not on the title's "— Town": "Our
+Sacred Universe Story — Little Falls" is at the Franciscan Welcoming House in St. Cloud. The host
+would read "The Central Minnesota Catholic"; the description names the real one ("Knights of
+Columbus hosts breakfast ... St. Joseph Church").
+
 ## Minnesota 511
 ```yaml
 id: mn-511
@@ -596,6 +644,30 @@ venue_at:
   "st. cloud tech high school": [45.51045, -94.21169]
 ```
 Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+
+## Tech High School calendar
+```yaml
+id: tech-high-school-calendar
+status: proposed
+tier: watched
+category: nearby-school
+added_by: agent:claude
+sources:
+  - url: https://tech.isd742.org/calendar
+    kind: website
+    method: fetch
+    trust: official
+    reader: finalsite-calendar
+    own_calendar: Tech Calendar
+```
+Notes: Proposed 2026-11-13 (BP app dig-deeper 26). Tech's own school calendar, on District 742's
+Finalsite like Kennedy's: robots.txt allows `/calendar`, disallows `/fs/` (its iCal and RSS),
+Crawl-delay 5. Measured 2026-11-13, next 90 days: 18 items, 4 new to Block Party (Tech Choir
+Concert Nov 23, Snowball Dance Dec 5, Tech Winter Week and Tech Band Concert Dec 7). Bound already
+gives its plays (Mamma Mia); the school board and No School days are District 742's, which
+Kennedy's calendar already gives. On Jesse's yes this page moves into `tech-high-school`'s sources,
+as Kennedy's is, so its events carry the school's name and land on its activity rows; this entry
+then retires.
 
 ## Cathedral High School
 ```yaml
