@@ -14,7 +14,8 @@ The Sunday step (`sunday`, from morning.py finish): each school whose registry e
 once through the polite fetcher (run.fetch: robots.txt, Crawl-delay). A club's time that differs from the stored one
 replaces it, and a club whose block no longer gives one goes back to none ("No events yet" on its row), each a line in
 the morning report; an unchanged week says so. A page that won't read, or names none of the school's clubs, changes
-nothing; a club the page no longer names keeps its time, with a line.
+nothing, and so does one that no longer names most of the school's clubs with a time at once (a new page, not
+moved clubs); otherwise a club the page no longer names goes back to none too.
 
 The reader knows one layout, Sartell's (a club's name, "Advisor -", then its words). A page it can't place clubs on
 gets a line when it says when something meets anywhere.
@@ -141,12 +142,14 @@ def sunday(db, entries, today, write=True, get=fetch):
             if any(r["meets"] for r in clubs):
                 lines.append(f"[meets] {school}'s page names none of its {len(clubs)} clubs: their times are kept")
             continue
+        timed = [r for r in clubs if r["meets"]]
+        gone = [r for r in timed if r["name"] not in found]
+        if len(gone) > 1 and 2 * len(gone) > len(timed):  # as apple_maps' MAX_AT_ONCE: the page changed, not the clubs
+            lines.append(f"[meets] {school}'s page no longer names {len(gone)} of its {len(timed)} clubs with a time: "
+                         "none changed, check the page by hand")
+            continue
         for r in clubs:
             new, old = found.get(r["name"]), r["meets"]
-            if r["name"] not in found:
-                if old:
-                    lines.append(f"[meets] {school}'s page no longer names {r['name']}: its time, {words(old)}, is kept")
-                continue
             if new == (old or None):
                 continue
             if write:
@@ -158,7 +161,8 @@ def sunday(db, entries, today, write=True, get=fetch):
             changed += 1
             lines.append(f"[meets] {school}'s {r['name']}: "
                          + (f"{words(new)}, was {words(old) or 'no time'}" if new else
-                            f"no time on its page now, was {words(old)}: back to No events yet"))
+                            f"{'no time on its page now' if r['name'] in found else 'no longer on its page'}, was "
+                            f"{words(old)}: back to No events yet"))
     n = len(schools)
     head = f"[meets] {n} schools' club pages: " if n != 1 else "[meets] 1 school's club page: "
     verb = "changed" if write else "would change"
@@ -267,18 +271,29 @@ def selftest():
                        "[meets] Sartell High School's Chess Club: Mondays · 3 PM, was no time",
                        "[meets] Sartell High School's Letters of Love: no time on its page now, was 2nd Friday of each "
                        "month: back to No events yet",
-                       "[meets] Sartell High School's page no longer names Prom: its time, Wednesdays · 8 AM, is kept",
-                       "[meets] changed 3 clubs' meeting times"]
+                       "[meets] Sartell High School's Prom: no longer on its page, was Wednesdays · 8 AM: back to No "
+                       "events yet",
+                       "[meets] changed 4 clubs' meeting times"]
           and said[0].startswith("[meets] 4 schools' club pages: Sartell High School 12 of 19 clubs"),
-          f"a changed copy: each change a line, a dropped time back to none, a club no longer named kept: {said}")
+          f"a changed copy: each change a line, a dropped time or a club no longer named back to none: {said}")
     check(sorted((p, b) for _, p, b in db.writes()) == sorted([
         (f"team_activities?id=eq.{by['Bible Study']}", {"meets": [{"days": ["thu"], "time": "07:30"}]}),
         (f"team_activities?id=eq.{by['Chess Club']}", {"meets": [{"days": ["mon"], "time": "15:00"}]}),
-        (f"team_activities?id=eq.{by['Letters of Love']}", {"meets": None})]),
+        (f"team_activities?id=eq.{by['Letters of Love']}", {"meets": None}),
+        (f"team_activities?id=eq.{by['Prom']}", {"meets": None})]),
           f"each change written to its club's row, nothing else: {db.writes()}")
     db = FakeDb(answers={"team_activities": rows})
     dry = sunday(db, entries, sunday_, write=False, get=pages(changed))
-    check(not db.writes() and dry[-1] == "[meets] would change 3 clubs' meeting times", f"a dry run writes nothing: {dry}")
+    check(not db.writes() and dry[-1] == "[meets] would change 4 clubs' meeting times", f"a dry run writes nothing: {dry}")
+
+    # Most of a school's clubs with a time gone from its page at once is the page, not the clubs: nothing changes.
+    one_left = saved[:saved.index("<h2>", saved.index("BIBLE STUDY"))]
+    db = FakeDb(answers={"team_activities": rows})
+    said = sunday(db, entries[:1], sunday_, get=pages(one_left.replace("every Friday at 8:00am", "every Thursday at 7:30am")))
+    check(said[1:] == ["[meets] Sartell High School's page no longer names 12 of its 13 clubs with a time: none changed, "
+                       "check the page by hand",
+                       "[meets] no meeting time changed"] and not db.writes(),
+          f"most clubs with a time gone at once changes nothing, Bible Study's move included: {said}")
 
     # A page that won't read, or names none of the school's clubs, changes nothing: its stored times stay.
     db = FakeDb(answers={"team_activities": rows})
