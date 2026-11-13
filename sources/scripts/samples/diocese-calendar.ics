@@ -1,0 +1,447 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//The Central Minnesota Catholic - ECPv6.18.3.1//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:The Central Minnesota Catholic
+X-ORIGINAL-URL:https://thecentralminnesotacatholic.org
+X-WR-CALDESC:Events for The Central Minnesota Catholic
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-Robots-Tag:noindex
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:America/Chicago
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+DTSTART:20250309T080000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+DTSTART:20251102T070000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+DTSTART:20260308T080000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+DTSTART:20261101T070000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+DTSTART:20270314T080000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+DTSTART:20271107T070000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261109T080000
+DTEND;TZID=America/Chicago:20261115T170000
+DTSTAMP:20260810T215052Z
+CREATED:20260810T170846Z
+LAST-MODIFIED:20260810T215052Z
+UID:10009107-1794211200-1794762000@thecentralminnesotacatholic.org
+SUMMARY:Box of Joy Collection Week
+DESCRIPTION:Box Of Joy Gifts!\n **October 5th through November 15th**\nBox
+  Of Joy is a Cross Catholic outreach\, whose mission it is to shop for an
+ d send Christmas gifts to children in the most impoverished countries of 
+ the world such as Honduras\, Guatemala\, Nicaragua\, and Peru.\nJoin us f
+ or this fun and heartwarming mission!\nGift boxes and shopping suggestion
+ s will be available in parishes throughout the diocese beginning October 
+ 5th. Packed gift boxes are due back for our Box Of Joy Collection Week \,
+  November 9 through the 15th. \nParishes currently participating in this 
+ year’s box of joy program are as follows:\nSaint Anthony – St. Cloud\nSai
+ nt Charles – Herman\nSaint Columbkille – Avon\nSt. Mary’s – Upsala\nSaint
+  Margaret – Paynesville\nSaint Michael – Buckman\nSaint Joseph – Pierz\nS
+ acred Heart – Sauk Rapids\nAnnunciation – Mayhew Lake\nSaint Francis Xavi
+ er – Sartell\nSaint Stephen – Saint Stephen\n\nSaint Joseph’s church in P
+ ierz Minnesota serves as our diocese drop center! For more information co
+ ntact Sara Stumpf at 320-555-0100 (parish office) or 320-555-0100.
+URL:https://thecentralminnesotacatholic.org/event/box-of-joy-collection-week/
+LOCATION:MN
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261113T090000
+DTEND;TZID=America/Chicago:20261113T160000
+DTSTAMP:20261109T233518Z
+CREATED:20261109T233518Z
+LAST-MODIFIED:20261109T233518Z
+UID:10009264-1794560400-1794585600@thecentralminnesotacatholic.org
+SUMMARY:Toys for Tots Collection — St. Cloud\, Catholic Charities
+DESCRIPTION:Emergency Services is accepting toy donations Monday through F
+ riday during regular business hours at the loading area of 157 Roosevelt 
+ Road\, Suite 100\, St. Cloud\, Door D (back of building). Please do not l
+ eave donations outside our doors\, as they must be collected by Catholic 
+ Charities staff. \nFor more information about drop-off locations\, donati
+ ons and volunteering\, visit the St. Cloud Area Toys for Tots webpage at 
+ st-cloud-mn.toysfortots.org. \nOnline registration for the U.S. Marine Co
+ rps Reserve Toys for Tots Campaign is now open and will remain available 
+ through December 5\, 2025\, at 11:45 pm. For details on registration\, di
+ stribution dates\, donating\, or volunteering with the St. Cloud Area Toy
+ s for Tots program\, visit ccstcloud.org/toysfortots \nAbout the Marine C
+ orps Reserve Toys for Tots Program\nToys for Tots\, a 77-year national ch
+ aritable program run by the U.S. Marine Corps Reserve\, provides happines
+ s and hope to less fortunate children during each Christmas holiday seaso
+ n. The toys\, books and other gifts collected and distributed by Marines 
+ and volunteers offer these children recognition\, confidence and a positi
+ ve memory for a lifetime. We believe it is such experiences that help dis
+ advantaged children become responsible citizens and caring members of the
+ ir community. For more information\, visit toysfortots.org. \nAbout Catho
+ lic Charities Emergency Services\nCatholic Charities Emergency Services\,
+  a program of Catholic Charities of the Diocese of St. Cloud\, works to p
+ rovide food\, basic everyday essentials and financial assistance to those
+  in need in our community. \nAbout Catholic Charities of the Diocese of S
+ t. Cloud\nThe mission of Catholic Charities is to empower our neighbors a
+ nd create impact in housing\, food\, and mental health that is seen and f
+ elt for generations. Catholic Charities is an equal opportunity employer.
+  Learn more at ccstcloud.org.
+URL:https://thecentralminnesotacatholic.org/event/toys-for-tots-collection-st-cloud-catholic-charities/2026-11-13/
+LOCATION:Catholic Charities – Emergency Services\, 157 Roosevelt Rd Ste 100\, St Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261116T090000
+DTEND;TZID=America/Chicago:20261116T160000
+DTSTAMP:20261109T233518Z
+CREATED:20261109T233518Z
+LAST-MODIFIED:20261109T233518Z
+UID:10009265-1794819600-1794844800@thecentralminnesotacatholic.org
+SUMMARY:Toys for Tots Collection — St. Cloud\, Catholic Charities
+DESCRIPTION:Emergency Services is accepting toy donations Monday through F
+ riday during regular business hours at the loading area of 157 Roosevelt 
+ Road\, Suite 100\, St. Cloud\, Door D (back of building). Please do not l
+ eave donations outside our doors\, as they must be collected by Catholic 
+ Charities staff. \nFor more information about drop-off locations\, donati
+ ons and volunteering\, visit the St. Cloud Area Toys for Tots webpage at 
+ st-cloud-mn.toysfortots.org. \nOnline registration for the U.S. Marine Co
+ rps Reserve Toys for Tots Campaign is now open and will remain available 
+ through December 5\, 2025\, at 11:45 pm. For details on registration\, di
+ stribution dates\, donating\, or volunteering with the St. Cloud Area Toy
+ s for Tots program\, visit ccstcloud.org/toysfortots \nAbout the Marine C
+ orps Reserve Toys for Tots Program\nToys for Tots\, a 77-year national ch
+ aritable program run by the U.S. Marine Corps Reserve\, provides happines
+ s and hope to less fortunate children during each Christmas holiday seaso
+ n. The toys\, books and other gifts collected and distributed by Marines 
+ and volunteers offer these children recognition\, confidence and a positi
+ ve memory for a lifetime. We believe it is such experiences that help dis
+ advantaged children become responsible citizens and caring members of the
+ ir community. For more information\, visit toysfortots.org. \nAbout Catho
+ lic Charities Emergency Services\nCatholic Charities Emergency Services\,
+  a program of Catholic Charities of the Diocese of St. Cloud\, works to p
+ rovide food\, basic everyday essentials and financial assistance to those
+  in need in our community. \nAbout Catholic Charities of the Diocese of S
+ t. Cloud\nThe mission of Catholic Charities is to empower our neighbors a
+ nd create impact in housing\, food\, and mental health that is seen and f
+ elt for generations. Catholic Charities is an equal opportunity employer.
+  Learn more at ccstcloud.org.
+URL:https://thecentralminnesotacatholic.org/event/toys-for-tots-collection-st-cloud-catholic-charities/2026-11-16/
+LOCATION:Catholic Charities – Emergency Services\, 157 Roosevelt Rd Ste 100\, St Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261117T090000
+DTEND;TZID=America/Chicago:20261117T160000
+DTSTAMP:20261109T233518Z
+CREATED:20261109T233518Z
+LAST-MODIFIED:20261109T233518Z
+UID:10009266-1794906000-1794931200@thecentralminnesotacatholic.org
+SUMMARY:Toys for Tots Collection — St. Cloud\, Catholic Charities
+DESCRIPTION:Emergency Services is accepting toy donations Monday through F
+ riday during regular business hours at the loading area of 157 Roosevelt 
+ Road\, Suite 100\, St. Cloud\, Door D (back of building). Please do not l
+ eave donations outside our doors\, as they must be collected by Catholic 
+ Charities staff. \nFor more information about drop-off locations\, donati
+ ons and volunteering\, visit the St. Cloud Area Toys for Tots webpage at 
+ st-cloud-mn.toysfortots.org. \nOnline registration for the U.S. Marine Co
+ rps Reserve Toys for Tots Campaign is now open and will remain available 
+ through December 5\, 2025\, at 11:45 pm. For details on registration\, di
+ stribution dates\, donating\, or volunteering with the St. Cloud Area Toy
+ s for Tots program\, visit ccstcloud.org/toysfortots \nAbout the Marine C
+ orps Reserve Toys for Tots Program\nToys for Tots\, a 77-year national ch
+ aritable program run by the U.S. Marine Corps Reserve\, provides happines
+ s and hope to less fortunate children during each Christmas holiday seaso
+ n. The toys\, books and other gifts collected and distributed by Marines 
+ and volunteers offer these children recognition\, confidence and a positi
+ ve memory for a lifetime. We believe it is such experiences that help dis
+ advantaged children become responsible citizens and caring members of the
+ ir community. For more information\, visit toysfortots.org. \nAbout Catho
+ lic Charities Emergency Services\nCatholic Charities Emergency Services\,
+  a program of Catholic Charities of the Diocese of St. Cloud\, works to p
+ rovide food\, basic everyday essentials and financial assistance to those
+  in need in our community. \nAbout Catholic Charities of the Diocese of S
+ t. Cloud\nThe mission of Catholic Charities is to empower our neighbors a
+ nd create impact in housing\, food\, and mental health that is seen and f
+ elt for generations. Catholic Charities is an equal opportunity employer.
+  Learn more at ccstcloud.org.
+URL:https://thecentralminnesotacatholic.org/event/toys-for-tots-collection-st-cloud-catholic-charities/2026-11-17/
+LOCATION:Catholic Charities – Emergency Services\, 157 Roosevelt Rd Ste 100\, St Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261117T173000
+DTEND;TZID=America/Chicago:20261117T190000
+DTSTAMP:20260810T164834Z
+CREATED:20260810T164554Z
+LAST-MODIFIED:20260810T164834Z
+UID:10009091-1794936600-1794942000@thecentralminnesotacatholic.org
+SUMMARY:Our Sacred Universe Story — Little Falls\, Franciscan Center
+DESCRIPTION:Little Falls\, MN – The Franciscan Sisters of Little Falls inv
+ ite the community to join a new monthly series\, Our Sacred Universe Stor
+ y\, beginning this January. This series is inspired by AM-U-NDO*\, a mini
+ stry committed to exploring and integrating the ever-expanding love of ou
+ r Universe story—a journey that unites modern scientific understanding wi
+ th the sacredness of life. \nEach session will feature a thought-provokin
+ g DVD presentation from renowned voices such as eco-theologian Thomas Ber
+ ryand cosmologist Brian Swimme\, followed by a group reflection on insigh
+ ts and questions. \nSchedule:\nThird Tuesday of each month\nAugust 18 | S
+ eptember 15 | October 20 | November 17 | December 15 \nTime: 5:30–7:00 PM
+ \nLocation: St. Francis Campus\, Room 144 \nNo RSVP is required. The even
+ t is free of charge\, and donations are gratefully accepted. \nEvent Cont
+ ent Inquiries:\nSister Shirley – FSLF Motherhouse\nTricia McMahon – 408.5
+ 07.7187 | contact@example.org \nEvent Logistics:\nKari Lamb – 320.632.068
+ 0 | contact@example.org \n* AM-U-NDO (pronounced “awm-u-endo”) is the col
+ laborative ministry of Sister Shirley Mueller and Tricia J. McMahon\, ded
+ icated to exploring and integrating the ever-expanding Love of our Univer
+ se story.
+URL:https://thecentralminnesotacatholic.org/event/our-sacred-universe-story-little-falls-franciscan-center/2026-11-17/
+LOCATION:Franciscan Welcoming House\, 1600 11th Ave. S.\, St. Cloud\, MN\, 56301\, United States
+CATEGORIES:Parish Events
+GEO:45.5426263;-94.1635397
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=Franciscan Welcoming House 1600 11th Ave. S. St. Cloud MN 56301 United States;X-APPLE-RADIUS=500;X-TITLE=1600 11th Ave. S.:geo:-94.1635397,45.5426263
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261122T083000
+DTEND;TZID=America/Chicago:20261122T110000
+DTSTAMP:20260904T200251Z
+CREATED:20260904T195853Z
+LAST-MODIFIED:20260904T200251Z
+UID:10009179-1795336200-1795345200@thecentralminnesotacatholic.org
+SUMMARY:Holy Spirit Bouja — St. Cloud\, Holy Spirit Church
+DESCRIPTION:Holy Spirit’s Bouja Fundraiser events\, fall dates. Sept 13\, 
+ 27 & Oct 11\, 25 & Nov 1\, 22 & Dec 6.\nPrepurchase Bouja tickets at the 
+ Church office M-F 8:30 am-12:30 pm\, at the Boot Shack on Roosevelt Road 
+ or at the Bouja Shack on the Saturdays of Bouja weekends. For more inform
+ ation\, contact Nathan Schmitt at 320-555-0100
+URL:https://thecentralminnesotacatholic.org/event/holy-spirit-bouja-st-cloud-holy-spirit-church/2026-11-22/
+LOCATION:Bouja Shack – St. Elizabeth Ann Seton School\, 1615 11th Ave S\, St. Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261122T083000
+DTEND;TZID=America/Chicago:20261122T120000
+DTSTAMP:20261109T182550Z
+CREATED:20261109T182550Z
+LAST-MODIFIED:20261109T182550Z
+UID:10009258-1795336200-1795348800@thecentralminnesotacatholic.org
+SUMMARY:Breakfast — Luxemburg\, St. Wendelin
+DESCRIPTION:St. Anne’s Christian Women of Luxemburg (St. Wendelin’s Parish
+ ) will be hosting their annual fundraiser breakfast on Sunday\, November 
+ 22\, 2026 at Mary Hall from 8:30 am to Noon.  The menu for this breakfast
+  includes:  All You Care to Eat Pep’s Pork Sausage\, Ham\, Pancakes with 
+ Toppings\, Scrambled Eggs\, Fresh Fruit\, Toast\, Rolls\, Juice\, Milk an
+ d Coffee.  A Craft Sale\, Bake Sale and Raffle will also take place.  The
+  price for the breakfast is:  Adults – $11.00\, Children (ages 5-10) – $5
+ .00 and Children (under 5) – Free.  Sunday’s Mass at St. Wendelin’s is ce
+ lebrated at 10:00 am.  We hope you will allow us to cook breakfast for yo
+ u while you kick back and relax.  We would love to see you!
+URL:https://thecentralminnesotacatholic.org/event/breakfast-luxemburg-st-wendelin/
+LOCATION:St. Wendelin Parish – Luxemburg\, 22714 State Highway 15\, St. Cloud\, MN\, 56301\, United States
+CATEGORIES:Parish Events
+GEO:45.4515323;-94.2463623
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=St. Wendelin Parish – Luxemburg 22714 State Highway 15 St. Cloud MN 56301 United States;X-APPLE-RADIUS=500;X-TITLE=22714 State Highway 15:geo:-94.2463623,45.4515323
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261124T173000
+DTEND;TZID=America/Chicago:20261124T173000
+DTSTAMP:20260922T153728Z
+CREATED:20260922T153728Z
+LAST-MODIFIED:20260922T153728Z
+UID:10009205-1795541400-1795541400@thecentralminnesotacatholic.org
+SUMMARY:Taizé Prayer — Little Falls\, Gathering Space
+DESCRIPTION:Join the Franciscan Sisters of Little Falls for Taizé Prayer o
+ n Tuesday\, November 24\, 5:30 p.m. in the Gathering Space on the campus 
+ of the Franciscan Sisters. Enter at the Main Entrance\, Door F. All are w
+ elcome! \nTaizé is a reflective and meditative prayer experience featurin
+ g simple\, repetitively sung chants\, Scripture readings\, prayers\, and 
+ contemplative silence. Taizé services\, loved across the globe\, are calm
+ ing\, centering\, and worshipful; a perfect way to end a busy day. No exp
+ erience with meditation\, or a singing voice\, needed! All are welcome. T
+ he service lasts about 45 minutes and no RSVP is needed. \nFuture Taizé P
+ rayer services will be held December 15\, 2026; and January 26\, February
+  23\, March 30\, April 27\, and May 25\, 2027. For more information\, cal
+ l 320.632.0680 or email contact@example.org.
+URL:https://thecentralminnesotacatholic.org/event/taize-prayer-little-falls-gathering-space-3/
+LOCATION:St. Francis Convent – Little Falls\, 116 8th Ave SE\, Little Falls\, MN\, 56345\, United States
+CATEGORIES:Parish Events
+GEO:45.9658516;-94.3627766
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=St. Francis Convent – Little Falls 116 8th Ave SE Little Falls MN 56345 United States;X-APPLE-RADIUS=500;X-TITLE=116 8th Ave SE:geo:-94.3627766,45.9658516
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261127T183000
+DTEND;TZID=America/Chicago:20261127T183000
+DTSTAMP:20260204T222143Z
+CREATED:20260204T222113Z
+LAST-MODIFIED:20260204T222143Z
+UID:10006606-1795804200-1795804200@thecentralminnesotacatholic.org
+SUMMARY:Divine Mercy Chaplet — Sauk Rapids\, Poor Clares Monastery
+DESCRIPTION:In observance of the Franciscan Jubilee Year\, the Poor Clares
+  of Sauk Rapids invite you to pray the Chaplet of Divine Mercy with them 
+ on the last Friday of each month at 6:30 p.m.
+URL:https://thecentralminnesotacatholic.org/event/divine-mercy-chaplet-sauk-rapids-poor-clares-monastery/2026-11-27/
+LOCATION:St. Clare Monastery\, 421 S. 4th St.\, Sauk Rapids\, MN\, 56379\, United States
+CATEGORIES:Parish Events
+GEO:45.5919097;-94.1661011
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=St. Clare Monastery 421 S. 4th St. Sauk Rapids MN 56379 United States;X-APPLE-RADIUS=500;X-TITLE=421 S. 4th St.:geo:-94.1661011,45.5919097
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261202T110000
+DTEND;TZID=America/Chicago:20261202T120000
+DTSTAMP:20260810T212140Z
+CREATED:20260810T212140Z
+LAST-MODIFIED:20260810T212140Z
+UID:10009124-1796209200-1796212800@thecentralminnesotacatholic.org
+SUMMARY:Advent Sacred Pause — Virtual
+DESCRIPTION:Advent Sacred Pause • Virtual\nGather to share common prayer o
+ f lectio divina (prayerful reading) using the Gospels of the\nSundays of 
+ Advent. Meet virtually with a sister spiritual companion for 30 minutes. 
+ \nDates: Wednesdays\, December 2\, 9\, 16\, 23\nTimes: 11 a.m. to 12 p.m.
+ \nFacilitators: Mary Catherine Holicky\, OSB\, and Eunice Antony\, OSB\nL
+ imit: Minimum of 4\, maximum of 6 participants\nFee: $60\nRegistration cl
+ oses Tuesday\, November 24.\nRegistration Link: https://sbm.osb.org/event
+ /advent-sacred-pause-virtual/2026-12-02/
+URL:https://thecentralminnesotacatholic.org/event/advent-sacred-pause-virtual-3/2026-12-02/
+LOCATION:MN
+CATEGORIES:Advent Prayer Services/Retreats,Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261204T090000
+DTEND;TZID=America/Chicago:20261204T160000
+DTSTAMP:20261109T233518Z
+CREATED:20261109T233518Z
+LAST-MODIFIED:20261109T233518Z
+UID:10009278-1796374800-1796400000@thecentralminnesotacatholic.org
+SUMMARY:Toys for Tots Collection — St. Cloud\, Catholic Charities
+DESCRIPTION:Emergency Services is accepting toy donations Monday through F
+ riday during regular business hours at the loading area of 157 Roosevelt 
+ Road\, Suite 100\, St. Cloud\, Door D (back of building). Please do not l
+ eave donations outside our doors\, as they must be collected by Catholic 
+ Charities staff. \nFor more information about drop-off locations\, donati
+ ons and volunteering\, visit the St. Cloud Area Toys for Tots webpage at 
+ st-cloud-mn.toysfortots.org. \nOnline registration for the U.S. Marine Co
+ rps Reserve Toys for Tots Campaign is now open and will remain available 
+ through December 5\, 2025\, at 11:45 pm. For details on registration\, di
+ stribution dates\, donating\, or volunteering with the St. Cloud Area Toy
+ s for Tots program\, visit ccstcloud.org/toysfortots \nAbout the Marine C
+ orps Reserve Toys for Tots Program\nToys for Tots\, a 77-year national ch
+ aritable program run by the U.S. Marine Corps Reserve\, provides happines
+ s and hope to less fortunate children during each Christmas holiday seaso
+ n. The toys\, books and other gifts collected and distributed by Marines 
+ and volunteers offer these children recognition\, confidence and a positi
+ ve memory for a lifetime. We believe it is such experiences that help dis
+ advantaged children become responsible citizens and caring members of the
+ ir community. For more information\, visit toysfortots.org. \nAbout Catho
+ lic Charities Emergency Services\nCatholic Charities Emergency Services\,
+  a program of Catholic Charities of the Diocese of St. Cloud\, works to p
+ rovide food\, basic everyday essentials and financial assistance to those
+  in need in our community. \nAbout Catholic Charities of the Diocese of S
+ t. Cloud\nThe mission of Catholic Charities is to empower our neighbors a
+ nd create impact in housing\, food\, and mental health that is seen and f
+ elt for generations. Catholic Charities is an equal opportunity employer.
+  Learn more at ccstcloud.org.
+URL:https://thecentralminnesotacatholic.org/event/toys-for-tots-collection-st-cloud-catholic-charities/2026-12-04/
+LOCATION:Catholic Charities – Emergency Services\, 157 Roosevelt Rd Ste 100\, St Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261206T083000
+DTEND;TZID=America/Chicago:20261206T110000
+DTSTAMP:20260904T200251Z
+CREATED:20260904T195853Z
+LAST-MODIFIED:20260904T200251Z
+UID:10009181-1796545800-1796554800@thecentralminnesotacatholic.org
+SUMMARY:Holy Spirit Bouja — St. Cloud\, Holy Spirit Church
+DESCRIPTION:Holy Spirit’s Bouja Fundraiser events\, fall dates. Sept 13\, 
+ 27 & Oct 11\, 25 & Nov 1\, 22 & Dec 6.\nPrepurchase Bouja tickets at the 
+ Church office M-F 8:30 am-12:30 pm\, at the Boot Shack on Roosevelt Road 
+ or at the Bouja Shack on the Saturdays of Bouja weekends. For more inform
+ ation\, contact Nathan Schmitt at 320-555-0100
+URL:https://thecentralminnesotacatholic.org/event/holy-spirit-bouja-st-cloud-holy-spirit-church/2026-12-06/
+LOCATION:Bouja Shack – St. Elizabeth Ann Seton School\, 1615 11th Ave S\, St. Cloud\, MN\, 56301
+CATEGORIES:Parish Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261206T083000
+DTEND;TZID=America/Chicago:20261206T120000
+DTSTAMP:20260825T000919Z
+CREATED:20260825T000634Z
+LAST-MODIFIED:20260825T000919Z
+UID:10009143-1796545800-1796558400@thecentralminnesotacatholic.org
+SUMMARY:Breakfast — St. Joseph\, Church of St. Joseph
+DESCRIPTION:St. Joseph • Knights of Columbus hosts breakfast from 8:30 a.m
+ . to noon at Heritage Hall\, St. Joseph Church. Menu includes scrambled e
+ ggs\, hash browns\, sausage\, fruit\, pancakes and caramel and cinnamon r
+ olls. Mass celebrated at 10 a.m. (Credit cards accepted.)
+URL:https://thecentralminnesotacatholic.org/event/breakfast-st-joseph-church-of-st-joseph/2026-12-06/
+LOCATION:St. Joseph Parish – St. Joseph\, 12 West Minnesota Street\, Saint Joseph\, MN\, 56374\, United States
+CATEGORIES:Parish Events
+GEO:45.5639348;-94.3186861
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=St. Joseph Parish – St. Joseph 12 West Minnesota Street Saint Joseph MN 56374 United States;X-APPLE-RADIUS=500;X-TITLE=12 West Minnesota Street:geo:-94.3186861,45.5639348
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261206T180000
+DTEND;TZID=America/Chicago:20261206T180000
+DTSTAMP:20261016T202202Z
+CREATED:20261016T202150Z
+LAST-MODIFIED:20261016T202202Z
+UID:10009248-1796580000-1796580000@thecentralminnesotacatholic.org
+SUMMARY:Christmas Concert — Cold Spring\, Church of St. Boniface
+DESCRIPTION:Come to the Church of Saint Boniface on Sunday\, December 6 fo
+ r a concert including the music of the Season performed by Community musi
+ cians including the Saint Boniface Church Choir\, Saint Boniface Handbell
+  Choir\, and The Cold Spring Area Maennerchor. The event begins at 6 p.m.
+  For more information\, contact Mary Middendorf – contact@example.org\, 3
+ 20-555-0100.
+URL:https://thecentralminnesotacatholic.org/event/christmas-concert-cold-spring-church-of-st-boniface/
+LOCATION:St. Boniface Parish – Cold Spring\, 501 Main St.\, Cold Spring\, MN\, 56320\, United States
+CATEGORIES:Parish Events
+GEO:45.4558357;-94.4305947
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=St. Boniface Parish – Cold Spring 501 Main St. Cold Spring MN 56320 United States;X-APPLE-RADIUS=500;X-TITLE=501 Main St.:geo:-94.4305947,45.4558357
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Chicago:20261206T183000
+DTEND;TZID=America/Chicago:20261206T183000
+DTSTAMP:20261109T232755Z
+CREATED:20261109T232744Z
+LAST-MODIFIED:20261109T232755Z
+UID:10009259-1796581800-1796581800@thecentralminnesotacatholic.org
+SUMMARY:Advent Lessons and Carols — Little Falls\, Our Lady of Lourdes
+DESCRIPTION:All are invited to join us for an Evening of Advent Lessons an
+ d Carols; a service of Scripture and song\, being held at Our Lady of Lou
+ rdes Catholic Church on Sunday\, December 6th at 6:30 pm.  Listen to Scri
+ pture lessons which recount the Fall \, the promise of a Messiah\, and th
+ e Incarnation.  Each lesson is followed by a prayer\, song or hymn that r
+ eflects on the lesson’s message.\nBring the Baby Jesus figurine from your
+  Nativity for a special blessing.  We also ask you to please bring a non-
+ perishable food item or a monetary donation for our local Food Shelf.
+URL:https://thecentralminnesotacatholic.org/event/advent-lessons-and-carols-little-falls-our-lady-of-lourdes/
+LOCATION:Little Falls – Our Lady of Lourdes\, 208 W. Broadway\, Little Falls\, MN\, 56345\, United States
+CATEGORIES:Advent Prayer Services/Retreats,Parish Events
+GEO:45.9777003;-94.3722855
+X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-ADDRESS=Little Falls – Our Lady of Lourdes 208 W. Broadway Little Falls MN 56345 United States;X-APPLE-RADIUS=500;X-TITLE=208 W. Broadway:geo:-94.3722855,45.9777003
+END:VEVENT
+END:VCALENDAR

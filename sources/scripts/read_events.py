@@ -14,7 +14,10 @@ exact dates, no model. A source is read when its entry is active and it names a 
                       the calendars to read are in the source's own url
   cars511             Minnesota 511's road reports within `miles` of `around` (its map's feed)
   finalsite-calendar  a Finalsite calendar page, this month and next (?cal_date=). Its iCal
-                      export sits under the robots-disallowed /fs/, so never that (Kennedy)
+                      export sits under the robots-disallowed /fs/, so never that (Kennedy); with
+                      `own_calendar_only`, only the school's own calendar, not the district's beside it (Tech)
+  csbsju-music        the CSB/SJU music department's season page, a page made by hand: each concert on
+                      campus, on its ensemble's row
   finalsite-news      a Finalsite news page: titles only, dated the day first seen; the story
                       pages are robots-disallowed (Kennedy)
   civicplus-hcms      CivicPlus's content service: news, notices and events, read with the
@@ -29,6 +32,8 @@ exact dates, no model. A source is read when its entry is active and it names a 
                       activity; plays, concerts and clubs within 20 miles and games at the levels in
                       `game_levels` (Kennedy's middle school) for everyone, the rest for followers only;
                       varsity games within 20 miles stay the league's
+  diocese             the diocesan paper's iCal feed (The Central Minnesota Catholic): Events within 20 miles,
+                      in person, each once, hosted by who its description names
 
 Every request goes through run.py's fetch, so robots rules and Crawl-delay are obeyed on
 every run, not only on the day a reader was written (ADR-014). A source that fails is named
@@ -436,6 +441,87 @@ def read_pathify(src, entry, today):
     return pathify_items(json.loads(fetch(pathify_url(src["url"], today))[1]), entry, src, today)
 
 
+# CSB/SJU music: the department's season page, made by hand, no feed (BP app nothing-scheduled 01) ---------------
+
+MUSIC_DAY = re.compile(r"(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,\s+([A-Z][a-z]+)\s+(\d{1,2})\b")
+MUSIC_CLOCK = re.compile(r"(\d{1,2})(?::(\d\d))?\s*(?:-\s*(\d{1,2})(?::(\d\d))?\s*)?([ap])\.?m\b", re.I)
+# The campus a place line ends with; the Benedicta Arts Center is CSB's. A place with none is off campus and left out.
+MUSIC_CAMPUS = {"SJU": ("saint-johns", "Collegeville"), "CSB": ("saint-benedict", "St. Joseph"),
+                "BAC": ("saint-benedict", "St. Joseph")}
+# The joint ensembles, as both colleges' activity rows name them (BP app school-activities 01).
+MUSIC_ACTIVITIES = [(n, re.compile(r"\b" + n.replace("'", "['’]").replace("-", " ").replace(" ", r"[-\s]+") + r"\b", re.I))
+                    for n in ("All-College Choir", "Chamber Choir", "Women's Choir", "Men's Chorus", "Brass Choir",
+                              "Orchestra", "Wind Ensemble", "Jazz Ensemble", "Guitar Ensemble", "Vocal Performance Workshop")]
+
+
+def music_day(m, today):
+    """The page gives no year: the year, of last, this or next, whose date falls on the weekday it names."""
+    month = datetime.strptime(m.group(2)[:3], "%b").month
+    for year in (today.year - 1, today.year, today.year + 1):
+        try:
+            d = date(year, month, int(m.group(3)))
+        except ValueError:
+            continue
+        if d.strftime("%A") == m.group(1) + "day":
+            return d
+    return None
+
+
+def music_at(day, clock, end=False):
+    h, mi = (clock.group(3), clock.group(4)) if end else (clock.group(1), clock.group(2))
+    hour = int(h) % 12 + (12 if clock.group(5).lower() == "p" else 0)
+    return datetime.combine(day, time(hour, int(mi or 0)), LOCAL).isoformat()
+
+
+def music_items(page, url, entry, src, today):
+    """Each performance on campus: a block's title, then lines of days (a time on the line or the next), each run
+    of days closed by its place ("Gertken Organ Studio, SJU"). A bold line before the days names them instead (a
+    tour's "Chamber Choir Home Concert"). It lands on its ensemble's row at the college whose campus it is at. The
+    past events at the page's foot are never read."""
+    out = []
+    for block in re.split(r'<div class="wp-block-cover[" ]', page.split('id="past-events"')[0])[1:]:
+        head = re.search(r"<p [^>]*has-large-font-size[^>]*>(.*?)</p>", block, re.S)
+        when = head and re.search(r'<p class="has-text-align-center[^>]*>(.*?)</p>', block[head.end():], re.S)
+        if not when:
+            continue
+        about = re.search(r"<details.*?</summary>\s*<p[^>]*>(.*?)</p>(.*?)</details>", block, re.S)
+        # "All-College Choir" as the campus calendar writes it, so the two copies are one Event: the writer reads a
+        # hyphen inside a word as no break ("Boo-tique").
+        title, name, days = re.sub(r"(?<=[a-z])-(?=[A-Z])", " ", plain(head.group(1))), None, []
+        for line in filter(None, (plain(x).strip(" •") for x in re.split(r"<br\s*/?>", when.group(1)))):
+            day = MUSIC_DAY.match(line)
+            if day:
+                last = MUSIC_DAY.search(line, day.end())
+                days.append([music_day(day, today), MUSIC_CLOCK.search(line), last and music_day(last, today)])
+            elif MUSIC_CLOCK.fullmatch(line):
+                for d in days:
+                    d[1] = d[1] or MUSIC_CLOCK.fullmatch(line)
+            elif days:
+                place = re.fullmatch(r"(.+?),\s*(SJU|CSB|BAC)", line)
+                for first, clock, last in days if place else ():
+                    if not first or not ahead(first, today):
+                        continue
+                    team, town = MUSIC_CAMPUS[place.group(2)]
+                    what = name or title
+                    act = next((n for n, pattern in MUSIC_ACTIVITIES if pattern.search(what)), None)
+                    out.append(judged(entry, src, title=what, start=music_at(first, clock) if clock else first.isoformat(),
+                                      end=(music_at(first, clock, end=True) if clock and clock.group(3)
+                                           else last.isoformat() if last else None),
+                                      all_day=not clock, place=place.group(1), town=town, area="campus",
+                                      interest="live_music", blurb=plain(about.group(1)) if about else None, source_url=url,
+                                      **({"price": "Free"} if about and re.search(r"\bfree\b", plain(about.group(2)), re.I)
+                                         else {}),
+                                      **({"activity_team": team, "activity_name": act} if act else {})))
+                days = []
+            else:
+                name = line
+    return out
+
+
+def read_csbsju_music(src, entry, today):
+    return music_items(fetch(src["url"])[1], src["url"], entry, src, today)
+
+
 # Minnesota 511 ---------------------------------------------------------------------------
 
 # 511mn.org moved to a new map on 2026-10-21 and its old GraphQL address now answers with the
@@ -511,14 +597,21 @@ def finalsite_calendar_items(page, url, entry, src, today):
     """Each occurrence once (a long event repeats in every day box it spans), with the exact
     times from <time datetime>; an all-day one takes its days from the occurrence id, whose end is the
     morning after the last ("Winter Break", Dec 21 to Jan 2, is out through Jan 1). An event
-    on the place's own calendar (`own_calendar`) with no place given is at the place."""
+    on the place's own calendar (`own_calendar`) with no place given is at the place. With `own_calendar_only`
+    nothing else is read: a district calendar another school's page already gives (Tech; nothing-scheduled 01)."""
     out, seen = [], set()
     tags = list(OCCURRENCE.finditer(page))
+    # An event's calendar: the label before it, or for an all-day run, whose box has none, its colour's.
+    colours = dict(re.findall(r"""background:(#\w+)['"][^>]*title=['"]([^'"]*)['"]""", page))
     for i, m in enumerate(tags):
         occur = m.group(1)
         if occur in seen:
             continue
         seen.add(occur)
+        marks = re.findall(r"""fsStyleSROnly['"]>([^<]*)<|border-color: (#\w+)""", page[tags[i - 1].end() if i else 0:m.start()])
+        calendar = (marks[-1][0] or colours.get(marks[-1][1])) if marks else None
+        if src.get("own_calendar_only") and calendar != src.get("own_calendar"):
+            continue
         body = page[m.end():tags[i + 1].start() if i + 1 < len(tags) else len(page)]
         times = dict((k, v) for v, k in re.findall(r'<time datetime="([^"]+)" class="fs(Start|End)Time"', body))
         _, first, after = occur.split("_")
@@ -1091,6 +1184,79 @@ def read_bound(src, entry, today):
     return bound_items(read_page(src["url"], "ical")[1], entry, src, today)
 
 
+# The diocesan paper ----------------------------------------------------------------------
+
+# The Central Minnesota Catholic lists parish events across the diocese (The Events Calendar's iCal, its next 30). Only
+# those within 20 miles of St. Joseph come in, as the league's and Bound's games do (BP app nothing-scheduled 02): by
+# the map point, else by the town the address names. Never by the title's "— Town": "Our Sacred Universe Story — Little
+# Falls" is at the Franciscan Welcoming House in St. Cloud. The towns: NEARBY's, and parish towns 7 to 14 miles off.
+NEAR_TOWNS = {town for town, _ in NEARBY.values()} | {"Avon", "Rockville", "Rice", "St. Stephen", "St. Augusta", "Luxemburg"}
+ONLINE = re.compile(r"\b(virtual|online|zoom|webinar)\b", re.I)
+# The paper ends each title with its town and its name for the venue: "Breakfast — St. Joseph, Church of St. Joseph".
+PAPER_ENDING = re.compile(r"\s+—\s+([^—]*)$")
+# Who puts it on, in its description: "St. Joseph • Knights of Columbus hosts breakfast", "the Poor Clares of Sauk Rapids
+# invite you", "St. Anne’s Christian Women of Luxemburg (St. Wendelin’s Parish) will be hosting".
+HOSTED = re.compile(r"(?:^|[.,•–—]\s+)(?:[Tt]he\s+)?([A-Z][\w'’.&-]*(?:\s+(?:(?:of|the|and|&|for)\s+)*[A-Z][\w'’.&-]*)*)"
+                    r"(?:\s+\([^)]*\))?\s+(?:hosts?|is hosting|are hosting|will (?:be )?host(?:ing)?|invites?|presents?)\b")
+
+
+def town_of(address):
+    """The town an address names, written as NEARBY writes it: "…, St Cloud, MN, 56301" is St. Cloud; "MN" names none."""
+    town = re.search(r"([^,]+),\s*(?:MN|Minnesota)\b", address)
+    return town and re.sub(r"^(?:St\.?|Saint)\s+", "St. ", town[1].strip())
+
+
+def venue_of(address):
+    """(the venue's name, its town) for the place line. A parish's name carries its own town, truer than its mail's:
+    "St. Wendelin Parish – Luxemburg, 22714 State Highway 15, St. Cloud" is St. Wendelin Parish, Luxemburg."""
+    venue = address.split(",")[0].strip()
+    named = re.fullmatch(r"(.+?)\s+–\s+(.+)", venue)
+    town = named and town_of(f"{named[2]}, MN")
+    return (named[1], town) if town in NEAR_TOWNS else (venue, town_of(address))
+
+
+def diocese_items(text, entry, src, today):
+    """The nearby, in-person Events, each once: a series (one page, a sitting a date) shows at its next sitting, and a
+    drop-off open 4 hours or more on days a week apart or closer (Toys for Tots, weekdays 9 to 4) is one Event to its
+    last day, as the campus calendar's shows are. The host is who the description says hosts it, else the paper's name
+    for the venue."""
+    series = {}
+    for ev in parse_ics(text):
+        get = lambda k: unescape(ev.get(k, ("", ""))[1])
+        if "DTSTART" not in ev or "UID" not in ev:
+            continue
+        where, geo = get("LOCATION"), re.fullmatch(r"(-?[\d.]+);(-?[\d.]+)", ev.get("GEO", ("", ""))[1].strip())
+        near = miles(HOME, (float(geo[1]), float(geo[2]))) <= 20 if geo else town_of(where) in NEAR_TOWNS
+        start, all_day = when(ev["DTSTART"])
+        if near and not ONLINE.search(f"{get('SUMMARY')} {where}") and ahead(start if all_day else start.date(), today):
+            url = page_url(ev, src["url"])
+            series.setdefault(re.sub(r"\d{4}-\d\d-\d\d/?$", "", url), []).append((start, all_day, ev, url))
+    out = []
+    for page, sittings in series.items():
+        start, all_day, ev, url = sittings[0]
+        get = lambda k: unescape(ev.get(k, ("", ""))[1])
+        end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
+        uid = ev["UID"][1].strip()
+        # ponytail: a run is seen only while two of its days are in the feed, so its last day alone reads as a
+        # one-off and shows a second card that day (the morning review's doubles name it). Keep runs read before in a
+        # file if one ends that way often; a one-off long day must not take a run's id, which never merges.
+        if all(not a and "DTEND" in e and when(e["DTEND"])[0] - s >= SHOW_SITTING for s, a, e, _ in sittings) \
+                and any(b[0] - a[0] <= timedelta(7) for a, b in zip(sittings, sittings[1:])):
+            end, uid = sittings[-1][0].date(), f"run:{page}"
+        title, about = get("SUMMARY"), said(get("DESCRIPTION"))
+        ending, host = PAPER_ENDING.search(title), HOSTED.search(about or "")
+        place, town = venue_of(get("LOCATION"))
+        out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=PAPER_ENDING.sub("", title),
+                          start=start.isoformat(), end=end and end.isoformat(), all_day=all_day, place=place,
+                          town=town, blurb=about, source_url=url, source_uid=uid,
+                          source_name=(host and host[1]) or (ending and ending[1].partition(", ")[2]) or entry["_name"]))
+    return sorted(out, key=lambda i: i["start"])
+
+
+def read_diocese(src, entry, today):
+    return diocese_items(fetch(src["url"])[1], entry, src, today)
+
+
 # Rec1: a city's registration catalog ------------------------------------------------------
 
 REC1_KEY = re.compile(r'data-page-data="([^"]+)"')
@@ -1200,7 +1366,9 @@ def read_rec1(src, entry, today):
 
 READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "finalsite-calendar": read_finalsite_calendar, "finalsite-news": read_finalsite_news,
-           "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league, "gobound": read_bound}
+           "csbsju-music": read_csbsju_music,
+           "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league, "gobound": read_bound,
+           "diocese": read_diocese}
 
 
 def reader_of(src):
@@ -1353,6 +1521,76 @@ def t_ical():
         "a feed's TZID=UTC is the town's clock (Sal's page says 6:30 pm)"
     assert (sals[1]["start"], sals[1]["end"]) == ("2026-11-09", "2026-11-14"), "an all-day run keeps its last day"
     assert when((";VALUE=DATE", "20261126"))[1] and when(("", "20261020T233000Z"))[0].hour == 18
+
+
+def t_diocese():
+    """The diocesan paper's feed as read 2026-11-13 (15 of its 30, contacts blanked): Events within 20 miles of St.
+    Joseph, by their map point, else by the town their address names; online and far ones out (BP app
+    nothing-scheduled 02)."""
+    paper, src = {"_name": "The Central Minnesota Catholic events"}, {"url": "https://x.org/events/?ical=1", "trust": "squishy"}
+    ics, day = sample("diocese-calendar.ics"), date(2026, 11, 13)
+    got = diocese_items(ics, paper, src, day)
+    assert [(i["start"][:10], i["title"], i["source_name"], i["town"]) for i in got] == [
+        ("2026-11-13", "Toys for Tots Collection", "Catholic Charities", "St. Cloud"),  # no map point: its address, St Cloud
+        ("2026-11-17", "Our Sacred Universe Story", "Franciscan Sisters of Little Falls", "St. Cloud"),  # "— Little Falls"
+        ("2026-11-22", "Holy Spirit Bouja", "Holy Spirit Church", "St. Cloud"),
+        ("2026-11-22", "Breakfast", "St. Anne’s Christian Women of Luxemburg", "Luxemburg"),  # mail goes to St. Cloud
+        ("2026-11-27", "Divine Mercy Chaplet", "Poor Clares of Sauk Rapids", "Sauk Rapids"),
+        ("2026-12-06", "Breakfast", "Knights of Columbus", "St. Joseph"),
+        ("2026-12-06", "Christmas Concert", "Church of St. Boniface", "Cold Spring")], \
+        "Box of Joy (no town), Taizé and Lessons and Carols (Little Falls, 28 miles) and the virtual one stay out"
+    toys, bouja = got[0], got[2]
+    assert (toys["start"], toys["end"], toys["all_day"]) == ("2026-11-13T09:00:00-06:00", "2026-12-04", False), \
+        "a drop-off open all day on many days is one Event to its last day"
+    run = "run:https://thecentralminnesotacatholic.org/event/toys-for-tots-collection-st-cloud-catholic-charities/"
+    assert toys["source_uid"] == run and toys["source_url"].endswith("/2026-11-13/"), toys
+    tomorrow = diocese_items(ics, paper, src, date(2026, 11, 14))[0]
+    assert (tomorrow["start"][:10], tomorrow["source_uid"]) == ("2026-11-16", run), "the same Event at its next day"
+    assert bouja["source_uid"] == "10009179-1795336200-1795345200@thecentralminnesotacatholic.org", \
+        "a morning's fundraiser on two Sundays is one card, at its next"
+    assert [i["place"] for i in got] == [
+        "Catholic Charities – Emergency Services", "Franciscan Welcoming House", "Bouja Shack – St. Elizabeth Ann Seton School",
+        "St. Wendelin Parish", "St. Clare Monastery", "St. Joseph Parish", "St. Boniface Parish"], \
+        "the venue alone, its town on its own: the writer's place line is 'St. Wendelin Parish, Luxemburg'"
+    assert "Knights of Columbus hosts" in got[5]["blurb"]
+    assert (got[5]["trust"], got[5]["area"], got[5]["interest"]) == ("squishy", "announced", None)
+    # Taizé's address with no map point names Little Falls; a far parish named for St. Joseph names Grey Eagle; the
+    # virtual pause set at the monastery is still online.
+    taize = "LOCATION:St. Francis Convent – Little Falls\\, 116 8th Ave SE"
+    far = (ics.replace("GEO:45.9658516;-94.3627766\n", "")
+           .replace("SUMMARY:Advent Lessons", "SUMMARY:Advent Vespers").replace(
+               "LOCATION:Little Falls – Our Lady of Lourdes\\, 208 W. Broadway\\, Little Falls",
+               "LOCATION:Church of St. Joseph\\, 1 Main St\\, Grey Eagle").replace("GEO:45.9777003;-94.3722855\n", "")
+           .replace("LOCATION:MN\nCATEGORIES:Advent", "LOCATION:St. Benedict’s Monastery – St. Joseph\\, 104 Chapel Ln\\, "
+                    "St. Joseph\\, MN\\, 56374\nGEO:45.5630238;-94.3195957\nCATEGORIES:Advent"))
+    assert taize in far and "Grey Eagle" in far and far.count("GEO:45.5630238") == 1, "the fixture changed"
+    assert [i["title"] for i in diocese_items(far, paper, src, day)] == [i["title"] for i in got]
+
+
+def t_diocese_repeats():
+    """What the paper repeats from a host Block Party reads stays that host's Event: the monastery's retreat, the City's
+    Fare for All (live rows of 2026-11-13; the paper lists Fare for All at Resurrection Lutheran, 610 Co. Rd. 2)."""
+    from write_judged import plan, interest_ids
+    ev = lambda summary, start, end, place, url, geo="": (
+        f"BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:{start}\r\nDTEND;TZID=America/Chicago:{end}\r\nUID:{url}@x\r\n"
+        f"SUMMARY:{summary}\r\nURL:https://thecentralminnesotacatholic.org/event/{url}/\r\nLOCATION:{place}\r\n{geo}END:VEVENT\r\n")
+    ics = (ev("Grounding Our Emotions During Tough Times — St. Joseph\\, Spirituality Center", "20261117T090000",
+              "20261117T113000", "St. Benedict’s Monastery – St. Joseph\\, 104 Chapel Ln\\, St. Joseph\\, MN\\, 56374",
+              "grounding/2026-11-17", "GEO:45.5630238;-94.3195957\r\n")
+           + ev("Fare for All — St. Joseph\\, Resurrection Lutheran Church", "20261207T153000", "20261207T173000",
+                "Resurrection Lutheran Church\\, 610 Co. Rd. 2\\, St. Joseph\\, MN\\, 56374", "fare-for-all/2026-12-07"))
+    listed = lambda title, day, at, place, host, uid, category: {
+        "id": uid, "status": "approved", "title": title, "event_date": day, "start_time": at, "all_day": False,
+        "location": place, "source_name": host, "source_uid": uid, "category": category, "shows_from": None,
+        "review_reason": None, "cancelled_at": None, "found": True,
+        "mentions": [{"source_name": host, "source_uid": uid, "source_url": "u", "trust": "official", "sure": True}]}
+    have = [listed("Grounding Emotions in Tough Times", "2026-11-17", "9 AM", None, "Sisters of the Order of Saint Benedict",
+                   "10000617-1794906000-1794913200@sbm.osb.org", "talks"),
+            listed("Fare for All", "2026-12-07", "3:30 PM", "610 County Rd 2", "City of St. Joseph", "2336", "markets")]
+    items = diocese_items(ics, {"_name": "The Central Minnesota Catholic events"}, {"url": "u", "trust": "squishy"},
+                          date(2026, 11, 13))
+    r = plan(items, have, date(2026, 11, 13), interest_ids())
+    assert [o[0] for o in r["outcomes"]] == ["merged", "merged"], r["outcomes"]
 
 
 def t_pathify():
@@ -1514,6 +1752,70 @@ def t_kennedy_calendar():
     assert trunk["source_uid"] == "877919_2026-10-29T21:30:00Z_2026-10-29T23:00:00Z" and trunk["source_url"] == url
     assert trunk["place"] == "Kennedy Community School" and walk["place"] == "", "the school's own calendar is at the school"
     assert len(finalsite_calendar_items(sample("kennedy-calendar.html"), url, CITY, {}, TODAY)) == 2, "past days dropped"
+
+
+def t_tech_calendar():
+    """Tech's page shows District 742's calendar beside its own; Kennedy's gives the district's (BP app nothing-scheduled 01).
+    A day box names its calendar; an all-day run only by its colour."""
+    url = "https://tech.isd742.org/calendar?cal_date=2026-12-01"
+    tech = {"_name": "Tech High School"}
+    got = finalsite_calendar_items(sample("tech-calendar.html"), url, tech,
+                                   {"trust": "official", "own_calendar": "Tech Calendar", "own_calendar_only": True},
+                                   date(2026, 11, 13))
+    assert [(i["start"][:10], i["title"]) for i in got] == [
+        ("2026-12-05", "Snowball Dance"), ("2026-12-07", "Tech Winter Week"), ("2026-12-07", "Tech Band Concert")], got
+    dance, week, band = got
+    assert (band["activity_team"], band["activity_name"]) == ("tech", "Band"), "the band concert is Tech's Band's"
+    assert (week["all_day"], week["end"]) == (True, "2026-12-11"), week
+    every = finalsite_calendar_items(sample("tech-calendar.html"), url, tech, {"own_calendar": "Tech Calendar"}, date(2026, 11, 13))
+    assert {"School Board Meeting", "No School - Winter Break"} <= {i["title"] for i in every}, "without the switch, all of it"
+
+
+def t_csbsju_music():
+    """The music department's season page (BP app nothing-scheduled 01): each performance on campus, its year by its
+    weekday, on its ensemble's row at the college whose campus it is at."""
+    url = "https://www.csbsju.edu/music/events-new/"
+    music = {"_name": "CSB SJU Music"}
+    got = music_items(sample("csbsju-music.html"), url, music, {"trust": "official"}, date(2026, 11, 13))
+    row = lambda i: (i["start"], i["title"], i["place"], i["town"], i.get("activity_team"), i.get("activity_name"))
+    assert [row(i) for i in got] == [
+        ("2026-11-15T15:00:00-06:00", "An Afternoon of Organ and Voice: Greg Zelek and Emily Secor", "Abbey Church",
+         "Collegeville", None, None),
+        ("2026-11-16T18:00:00-06:00", "Student Piano Recital", "Great Hall", "Collegeville", None, None),
+        ("2026-12-04T19:30:00-06:00", "Christmas with Saint Ben’s & Saint John’s", "The Great Hall", "Collegeville", None, None),
+        ("2026-12-05T14:00:00-06:00", "Christmas with Saint Ben’s & Saint John’s", "The Great Hall", "Collegeville", None, None),
+        ("2026-12-06T15:00:00-06:00", "All College Choir", "The Great Hall", "Collegeville", "saint-johns", "All-College Choir"),
+        ("2026-12-08T19:30:00-06:00", "Faculty Recital: Gyehyun Jung", "Stephen B. Humphrey Auditorium", "Collegeville",
+         None, None),
+        ("2026-12-09T19:30:00-06:00", "Wind Ensemble Winter Concert", "Escher Auditorium", "St. Joseph",
+         "saint-benedict", "Wind Ensemble"),
+        ("2026-12-10T19:30:00-06:00", "Jazz Ensemble", "Colman Theatre", "St. Joseph", "saint-benedict", "Jazz Ensemble"),
+        ("2026-12-11T19:30:00-06:00", "Guitar Ensemble & Studio Concert", "Gertken Organ Studio", "Collegeville",
+         "saint-johns", "Guitar Ensemble")], [row(i) for i in got]
+    guitar = got[-1]
+    assert (guitar["area"], guitar["interest"], guitar["price"], guitar["source_url"], guitar.get("source_uid")) == (
+        "campus", "live_music", "Free", url, None), guitar
+    assert guitar["blurb"] == "The Guitar Ensemble and Guitar Studio perform works for guitar to finish the semester."
+    assert "price" not in got[2], "Christmas is ticketed: no price the page gives"
+    # Spring: a tour has no place, its home concert does; Minneapolis is off campus; past events are never read.
+    spring = {i["title"]: i for i in music_items(sample("csbsju-music.html"), url, music, {}, date(2027, 2, 1))}
+    assert "Orchestra at Minnesota Music Educators Association (MMEA)" not in spring and "Music and Mingling" not in spring
+    home = spring["Chamber Choir Home Concert"]
+    assert (home["start"], home["activity_team"], home["activity_name"]) == ("2027-02-28T19:30:00-06:00", "saint-johns",
+                                                                             "Chamber Choir"), home
+    assert spring["Women’s Choir Concert"]["activity_name"] == "Women's Choir", "the row's own name"
+    assert not [i for i in spring.values() if i["start"] < "2027-02-01"], "the season's past is gone"
+    assert "Orchestra Fall Concert" not in {i["title"] for i in music_items(sample("csbsju-music.html"), url, music, {},
+                                                                           date(2026, 10, 1))}, "past events, never"
+    # A run over days at one time, and a time span.
+    run = ('<div class="wp-block-cover"><p class="has-text-align-center has-large-font-size">Vocal Performance Workshop</p>'
+           '<p class="has-text-align-center wp-block-paragraph">Thursday, October 29 – Saturday, October 31<br>7:30 PM •<br>'
+           'Colman Theatre, CSB</p></div><div class="wp-block-cover"><p class="has-large-font-size">Mingle</p>'
+           '<p class="has-text-align-center">Friday, February 19, 7:00-9:00 PM •<br>Great Hall, SJU</p></div>')
+    vpw, mingle = music_items(run, url, music, {}, date(2026, 10, 1)) + music_items(run, url, music, {}, date(2027, 2, 1))
+    assert (vpw["start"], vpw["end"], vpw["activity_name"]) == ("2026-10-29T19:30:00-05:00", "2026-10-31",
+                                                                "Vocal Performance Workshop"), vpw
+    assert (mingle["start"], mingle["end"]) == ("2027-02-19T19:00:00-06:00", "2027-02-19T21:00:00-06:00"), mingle
 
 
 def t_kennedy_news():
@@ -1808,7 +2110,8 @@ def t_items_fit_the_writer():
              + finalsite_news_items(sample("kennedy-news.html"), "u", entry, {})
              + hcms_items(json.loads(sample("stearns-news.json")), json.loads(sample("stearns-events.json")),
                           {"_name": "Stearns County"}, {"token_page": "u"}, TODAY, TOWNS["st-joseph-mn"])
-             + games(league_sample(), LEAGUE_DAY)[0])
+             + games(league_sample(), LEAGUE_DAY)[0]
+             + diocese_items(sample("diocese-calendar.ics"), entry, {"url": "u", "trust": "squishy"}, TODAY))
     r = plan(items, [], TODAY, interest_ids())
     bad = [(i["title"], o) for i, o in zip(items, r["outcomes"]) if o[0] == "skipped"]
     # "kept apart" and "place not in the registry" are reports for Jesse, not failures.
@@ -1819,6 +2122,11 @@ def t_items_fit_the_writer():
     assert rows["Christmas Craft Sale at Saint Scholastica Convent"]["location"] == "Saint Scholastica Convent, St. Cloud"
     assert rows["Tech Girls Swim vs Sartell"]["location"] == "St. Cloud Tech High School", "the venue already names its town"
     assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "watch_sports"
+    lines = {(g["row"]["title"], g["row"]["location"]) for g in r["events"] if g["row"]["source_name"] in (
+        "St. Anne’s Christian Women of Luxemburg", "Knights of Columbus", "Church of St. Boniface", "Catholic Charities")}
+    assert lines == {("Breakfast", "St. Wendelin Parish, Luxemburg"), ("Breakfast", "St. Joseph Parish"),
+                     ("Christmas Concert", "St. Boniface Parish, Cold Spring"),
+                     ("Toys for Tots Collection", "Catholic Charities – Emergency Services, St. Cloud")}, lines
 
 
 def t_gobound():
@@ -2103,7 +2411,7 @@ def t_games_complete():
         "a title that fits is never touched"
 
 
-TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
+TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_diocese, t_diocese_repeats, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_tech_calendar, t_csbsju_music, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_conference_meet, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file]
 
