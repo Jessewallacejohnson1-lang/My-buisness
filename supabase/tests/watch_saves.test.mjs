@@ -258,6 +258,17 @@ test('nothing scheduled: the Sunday count reads, and each thing walked is rememb
   assert.deepEqual((await asJob('count: last walks', 'select thing, walked_at from public.date_walks order by thing'))
     .map((r) => [r.thing, r.walked_at.toISOString()]),
     [['group:g1', '2026-11-15T12:00:00.000Z'], ['place:cafe', '2026-12-13T12:00:00.000Z']]);
+  // The paid rung (06): each page it read, with its verdict, so a turned-down page isn't paid for again.
+  await asJob('posts: pages read', `insert into public.date_walks (thing, walked_at, verdict)
+    select thing, walked_at, verdict from jsonb_populate_recordset(null::public.date_walks, $1)
+    on conflict (thing) do update set thing = excluded.thing, walked_at = excluded.walked_at, verdict = excluded.verdict`,
+    [JSON.stringify([{ thing: 'page:https://www.facebook.com/vtwintavern', walked_at: '2026-11-22T18:00:00Z', verdict: 'kept' },
+      { thing: 'page:https://www.facebook.com/st.joefoodshelf', walked_at: '2026-11-22T18:00:00Z', verdict: 'turned_down' }])]);
+  assert.deepEqual((await asJob('posts: pages turned down', `select thing, walked_at, verdict from public.date_walks
+    where thing like 'page:%' order by thing`)).map((r) => [r.thing, r.verdict]),
+    [['page:https://www.facebook.com/st.joefoodshelf', 'turned_down'], ['page:https://www.facebook.com/vtwintavern', 'kept']]);
+  await assert.rejects(db.query(`insert into public.date_walks (thing, verdict) values ('place:cafe2', 'kept')`),
+    /date_walks_verdict_check/, 'a verdict is only a page\'s');
   for (const role of ['anon', 'authenticated']) {
     await db.exec(`set role ${role}`);
     await assert.rejects(db.query('select thing from public.date_walks'), /permission denied/, role);

@@ -4,16 +4,24 @@
 -- again for four weeks: date_walks remembers when each was last walked, found or not. `thing` is the step's own key:
 -- activity:<team_activities.id>, place:<places.entry_id>, group:<clubs.id>. Only the step reads or writes it.
 --
+-- The paid rung (ticket 06) reads a found Facebook or Instagram page's recent posts once, through Apify: each page it
+-- read is a row too, page:<its address>, with its verdict, kept (a post gives a dated Event: on Jesse's tick list) or
+-- turned_down. A turned-down page isn't read again for 180 days, so the next four-week pass doesn't pay for it again.
+--
 -- On Sundays the morning job's finish says how many are due, as `watch`: it reads the school activities, the Groups'
 -- pages and activities_next (the school page's own pairing, co-op teams included), which it couldn't until now.
 
 create table public.date_walks (
-  thing     text primary key check (thing ~ '^(activity|place|group):.+'),
-  walked_at timestamptz not null default now()
+  thing     text primary key check (thing ~ '^(activity|place|group|page):.+'),
+  walked_at timestamptz not null default now(),
+  verdict   text,
+  constraint date_walks_verdict_check
+    check (verdict is null or verdict in ('kept', 'turned_down') and thing like 'page:%')
 );
 
 comment on table public.date_walks is
-  'When the weekly step last walked each thing with nothing scheduled (nothing-scheduled 04). Only the step uses it.';
+  'When the weekly step last walked each thing with nothing scheduled (nothing-scheduled 04), and each Facebook or '
+  'Instagram page its paid rung read, with its verdict (06). Only the step uses it.';
 
 alter table public.date_walks enable row level security;
 revoke all on public.date_walks from anon, authenticated;

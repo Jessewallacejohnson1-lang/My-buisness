@@ -39,7 +39,8 @@ registry entry is listed as `new`: the chat writes its entry before promoting. F
 name (for a Place or Group with nothing found, one extended web search looks for them: sources/models/dates.md) are
 listed apart in social.json and read only by `posts`, the paid rung (BP app nothing-scheduled 06): each page's last 12
 posts of the year, through the photo dig's own Apify tasks and inside its money (at most 10 cents a place and $5 in
-Apify's month, the 21st to the 20th: event_photos.dig_spend). At the limit the rest wait and the report names them. A
+Apify's month, the 21st to the 20th: event_photos.dig_spend). At the limit the rest wait and the report names them.
+Each page read is remembered with its verdict (public.date_walks), and one turned down isn't read again for 180 days. A
 page is kept only when a post gives an Event's date and time (not opening hours), in its words or Meta's description of
 its picture; it waits for Jesse's tick in social-picks.json, and a ticked page's `line` joins the social watch's list
 (sources/social/<town>.json), then `social.py setup` after the push and his yes.
@@ -57,6 +58,7 @@ from morning_run import Part  # noqa: E402
 from towns import DEFAULT, lookup  # noqa: E402
 
 AGAIN = timedelta(days=28)   # a thing walked isn't walked again sooner (ticket 04)
+TURNED_DOWN_AGAIN = timedelta(days=180)  # a page the paid rung read and turned down isn't paid for again sooner
 MOST = 40                    # things a week: about 266 to walk, so a full pass takes about seven weeks
 PER_FIND = 5                 # things in one finder's batch
 AHEAD = 90                   # a page counts when it gives a date this many days ahead (the readers' DAYS_AHEAD)
@@ -444,17 +446,28 @@ def dated(text):
     return bool(days_in(text) and times_in(text) and not HOURS.search(text))
 
 
-def plan_posts(found, listed, spent, now):
-    """Which found pages are read now, inside the month's money, and which wait or are taken out (and why)."""
+def turned_down(db, now):
+    """The pages the paid rung read and turned down within TURNED_DOWN_AGAIN, by address: when."""
+    rows = pages(db, "date_walks?select=thing,walked_at,verdict&thing=like.page:*&order=thing")
+    return {r["thing"].removeprefix("page:"): r["walked_at"] for r in rows if r.get("verdict") == "turned_down"
+            and datetime.fromisoformat(r["walked_at"]) > now - TURNED_DOWN_AGAIN}
+
+
+def plan_posts(found, listed, spent, now, turned=None):
+    """Which found pages are read now, inside the month's money, and which wait or are taken out (and why). `turned`:
+    the pages read and turned down lately (turned_down)."""
     import event_photos as ep
     import social
-    on_list = {social.canon(p["url"]) for p in listed}
+    on_list, turned = {social.canon(p["url"]) for p in listed}, turned or {}
     things, taken, seen = {}, [], set()
     for f in found:
         url, kind = page_url(f["url"]), "instagram" if "instagram.com" in f["url"].lower() else "facebook"
         pages = things.setdefault(f.get("key") or f["thing"], {})
         why = ("not a page a posts read opens: a group, an event or a shared post" if not url
                else "already on the social watch's list" if social.canon(url) in on_list
+               else f"turned down on {turned[social.canon(url)][:10]}: read again from "
+                    f"{date.fromisoformat(turned[social.canon(url)][:10]) + TURNED_DOWN_AGAIN}"
+               if social.canon(url) in turned
                else f"a second {kind.title()} page for {f['thing']}: one a kind, at most 10 cents a place"
                if kind in pages and pages[kind]["url"] != url else None)
         if why:
@@ -476,7 +489,7 @@ def plan_posts(found, listed, spent, now):
                        f"${ep.POSTS_MONTH:.0f}; Apify's month starts again on {reset}"}
 
 
-def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None, found=None):
+def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None, found=None, db=None):
     """The paid rung: the Facebook and Instagram pages keep listed (`found`, default scheduled/social.json) read once
     through the dig's Apify tasks (event_photos.start_posts: a page's last 12 posts of the year), each kind's run started
     once and saved, at most 10 cents a place and inside the dig's $5 in Apify's month; at the limit the rest wait, and
@@ -495,7 +508,8 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
     if "runs" not in s:
         path = Path(found) if found else folder / "social.json"
         found = json.loads(path.read_text()) if path.exists() else []
-        s = plan_posts(found, listed, ep.dig_spend(now) if found else 0.0, now)
+        s = plan_posts(found, listed, ep.dig_spend(now) if found else 0.0, now,
+                       turned_down(db or Supabase(), now) if found else {})
         waits = ([f"[scheduled]   taken out: {t}" for t in s["taken"]]
                  + [f"[scheduled]   waits: {p['thing']} {p['url']} ({s['waiting']})" for p in s["waits"]])
         if dry_run:
@@ -532,10 +546,13 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
             elif p:
                 rows[social.canon(p["url"])].append(row)
     by_entry, kept, taken, posts_read, events = {e["id"]: e for e in entries}, {}, list(s["taken"]), 0, 0
+    marks = []
     for p in s["read"]:
         got = rows.get(social.canon(p["url"]), [])
         hits = sorted((r for r in got if dated(post_words(p["kind"], r))), key=ep.posted, reverse=True)
         posts_read, events = posts_read + len(got), events + len(hits)
+        marks.append({"thing": f"page:{social.canon(p['url'])}", "walked_at": now.isoformat(),
+                      "verdict": "kept" if hits else "turned_down"})
         if not hits:
             taken.append(f"{p['thing']} {p['url']} (" + (why.get(social.canon(p["url"])) or (
                 f"no post gives a date and a time: {len(got)} read" if got else "no post in the last year")) + ")")
@@ -561,6 +578,11 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
              f"({folder / 'social-picks.json'}); a ticked page's line joins sources/social/<town>.json"]
     lines += [f"[scheduled]   taken out: {t}" for t in taken]
     lines += [f"[scheduled]   waits: {p['thing']} {p['url']} ({s['waiting']})" for p in s["waits"]]
+    if marks:  # read once: a page turned down isn't paid for again for TURNED_DOWN_AGAIN
+        (db or Supabase()).rest("POST", "date_walks?on_conflict=thing", marks,
+                                prefer="resolution=merge-duplicates,return=minimal")
+        lines.append(f"[scheduled] remembered {len(marks)} pages read, "
+                     f"{sum(m['verdict'] == 'turned_down' for m in marks)} turned down (public.date_walks)")
     print("\n".join(lines))
     return out_rows, lines
 
@@ -848,7 +870,7 @@ def selftest():
         try:
             near = Apify(spent=4.90)
             sc.api, sc.items = near.api, near.items
-            said = posts(out, paid_entries, social, now=sunday, minutes=0, wait=0)[1]
+            said = posts(out, paid_entries, social, now=sunday, minutes=0, wait=0, db=FakeDb())[1]
             check([(t, cap, b["startUrls"]) for t, cap, b in starts(near)]
                   == [("tf", "0.06", [{"url": "https://www.facebook.com/VTwinTavern"}])],
                   f"near the month's $5, a place is read only while its 10 cents still fit: {starts(near)}")
@@ -864,7 +886,7 @@ def selftest():
                 f.unlink()
             held = Apify(cycle="2026-10-21T00:00:00.000Z")
             sc.api, sc.items = held.api, held.items
-            said = posts(out, paid_entries, social, now=datetime(2026, 11, 15, 18, tzinfo=timezone.utc), minutes=0, wait=0)[1]
+            said = posts(out, paid_entries, social, now=datetime(2026, 11, 15, 18, tzinfo=timezone.utc), minutes=0, wait=0, db=FakeDb())[1]
             check(not starts(held) and sum(" waits: " in s for s in said) == 4
                   and any("$5.00 of $5; Apify's month starts again on 2026-11-21" in s for s in said),
                   f"before the dig's first Apify month nothing is read, and all four wait: {said}")
@@ -872,17 +894,40 @@ def selftest():
                   "a run where everything waits saves nothing, so the same list is read once the month starts again")
             dry = Apify()
             sc.api, sc.items = dry.api, dry.items
-            said = posts(out, paid_entries, social, now=sunday, dry_run=True)[1]
+            said = posts(out, paid_entries, social, now=sunday, dry_run=True, db=FakeDb())[1]
             check(not starts(dry) and not list((out / "scheduled").glob("posts*"))
                   and said[0] == "[scheduled] posts (dry run): would read 4 pages of 3 things for at most $0.22 on Apify; "
                                  "$0.00 of the dig's $5 spent this month",
                   f"a dry run says what it would read and spend, and starts nothing: {said}")
             free = Apify(rows={"drf": fb_rows, "dri": ig_rows})
             sc.api, sc.items = free.api, free.items
-            first = posts(out, paid_entries, social, now=sunday, minutes=-1, wait=0)
-            rows_out, said = posts(out, paid_entries, social, now=sunday, wait=0)
+            first = posts(out, paid_entries, social, now=sunday, minutes=-1, wait=0, db=FakeDb())
+            remembered = FakeDb()
+            rows_out, said = posts(out, paid_entries, social, now=sunday, wait=0, db=remembered)
+            # Read once: a page turned down within TURNED_DOWN_AGAIN isn't paid for again on the next pass.
+            for f in (out / "scheduled").glob("posts*"):
+                f.unlink()
+            before = FakeDb(answers={"date_walks": [
+                {"thing": "page:https://www.facebook.com/st.joefoodshelf", "walked_at": "2026-10-23T18:00:00+00:00",
+                 "verdict": "turned_down"},
+                {"thing": "page:https://www.facebook.com/vtwintavern", "walked_at": "2026-04-01T18:00:00+00:00",
+                 "verdict": "turned_down"},
+                {"thing": "page:https://www.facebook.com/stjoelion", "walked_at": "2026-10-23T18:00:00+00:00",
+                 "verdict": "kept"}]})
+            again = posts(out, paid_entries, social, now=sunday, dry_run=True, db=before)[1]
         finally:
             sc.api, sc.items = real
+        check(sorted((m["thing"], m["verdict"]) for _, _, b in remembered.writes("date_walks") for m in b)
+              == [("page:https://www.facebook.com/st.joefoodshelf", "turned_down"),
+                  ("page:https://www.facebook.com/stjoelion", "kept"),
+                  ("page:https://www.facebook.com/vtwintavern", "kept"),
+                  ("page:https://www.instagram.com/stjoelions", "turned_down")]
+              and {m["walked_at"] for _, _, b in remembered.writes("date_walks") for m in b} == {sunday.isoformat()},
+              f"each page read is remembered with its verdict: {remembered.writes('date_walks')}")
+        check(again[0].startswith("[scheduled] posts (dry run): would read 3 pages of 2 things")
+              and "[scheduled]   taken out: Food Shelf https://www.facebook.com/St.JoeFoodShelf?ref=py_c (turned down on "
+                  "2026-10-23: read again from 2027-04-21)" in again and not before.writes(),
+              f"a page turned down within 180 days isn't read again; one turned down longer ago, or kept, is: {again}")
         check(first is None and [(t, cap) for t, cap, b in starts(free)] == [("tf", "0.18"), ("ti", "0.04")]
               and starts(free)[0][2]["startUrls"] == [{"url": u} for u in ("https://www.facebook.com/St.JoeFoodShelf",
                                                                           "https://www.facebook.com/VTwinTavern",
