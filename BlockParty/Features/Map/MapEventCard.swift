@@ -106,7 +106,8 @@ struct MapEventCard: View {
     private func photo(_ event: FeedCardItem) -> some View {
         let source = event.photos().first
         if let url = source?.url {
-            FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+            // A flyer whole over its blur (BP app event-photos 18); heart and close sit on it as on any photo.
+            FeedCardURLPhoto(url: url, loadingFill: Hue.fill, whole: event.whole ? 0 : nil)
         } else if let logo = source?.logo {
             FeedCardPlaceLogo(logo: logo)
         } else {

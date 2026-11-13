@@ -32,6 +32,10 @@ flake moves to Fixed, dated, and stays there.
   two runs · the report's Firecrawl line ("credits unknown (... Could not reach the Composio Dashboard ...)")
   comes from a live call, so two runs a moment apart can word it differently · no fix yet: fake the credits read
   in the self-test
+- 2026-11-13 · `RealLifeActionsTests.testTheLastTapWins` · red at c6d316a4 (run 43468545945, attempt 1), a change
+  to `sources/` and `DECISIONS.md` only (BP app event-photos 19): "Leave lands after Join, never before" got `[true]`
+  where `[true, false]` was expected, and its mirror `[false, true]` for `[true]` · the rerun passed · cause not
+  found: two taps' writes land out of order on a slow runner · no fix yet
 
 ## Fixed
 
