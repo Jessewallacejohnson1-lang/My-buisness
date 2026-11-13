@@ -839,8 +839,8 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
             end = datetime.combine(last + timedelta(1), time(), LOCAL) if last > day else None
         else:
             end = None if at is None or not until else local(until)
-            if end and end.time() == time(23, 59):
-                end = None  # a calendar's "until 11:59 PM" is how it says no end time
+            if end and (end.time() == time(23, 59) or end.replace(tzinfo=None) <= at):
+                end = None  # a calendar's "until 11:59 PM", or an end at its start, is how it says no end time
         signup = it.get("signup_by") and date.fromisoformat(it["signup_by"])
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
@@ -1686,6 +1686,10 @@ def t_city_meeting_end_and_place():
                    place="St. Joseph, MN 56374", source_name="City of St. Joseph", interest=None)
     row = run([meeting])["events"][0]["row"]
     assert row["end_at"] is None and row["location"] == "City Hall", row
+    concert = item(title="Christmas Concert", start="2026-12-06T18:00:00-06:00", end="2026-12-06T18:00:00-06:00")
+    assert run([concert])["events"][0]["row"]["end_at"] is None, \
+        "an end at its start says none: the card would leave the Town feed as it begins (the diocesan paper's)"
+    assert run([meeting])["events"][0]["row"]["start_time"] == "6 PM"
     assert run([dict(meeting, title="Park Board Meeting")])["events"][0]["row"]["location"] is None
     assert run([item(place="")])["events"][0]["row"]["location"] is None, "only the city's own meetings"
 

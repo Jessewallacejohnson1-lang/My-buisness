@@ -448,7 +448,7 @@ portal, Nov 19.
 ```yaml
 id: central-minnesota-catholic-events
 aka: ["The Central Minnesota Catholic"]
-status: proposed
+status: active
 tier: watched
 category: diocese
 added_by: agent:claude
@@ -457,18 +457,22 @@ sources:
     kind: ical
     method: fetch
     trust: squishy
+    reader: diocese
 ```
 Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The Diocese of St. Cloud's paper lists parish
 events across the diocese (The Events Calendar on WordPress). robots.txt disallows only
 `/events/map/` and `/wp-admin/`, Crawl-delay 10. The feed holds the next 30 events (about three
 weeks); the site's REST API (`/wp-json/tribe/events/v1/events`) held 51 in the next 90 days, 42
-within 20 miles of St. Joseph. **Needs a town filter before it is watched:** the ical reader
-keeps every event, so Little Falls and Sobieski would reach the feed. Filter on the event's
-`GEO` within 20 miles (as `mshsl` and `cars511` do), else on a nearby town in `LOCATION` (St.
-Cloud's Toys for Tots days have no GEO), and drop "Virtual". Not on the title's "— Town": "Our
-Sacred Universe Story — Little Falls" is at the Franciscan Welcoming House in St. Cloud. The host
-would read "The Central Minnesota Catholic"; the description names the real one ("Knights of
-Columbus hosts breakfast ... St. Joseph Church").
+within 20 miles of St. Joseph. Read by `read_events.py`'s `diocese` reader (BP app nothing-scheduled
+02): an Event whose `GEO` is within 20 miles of St. Joseph (as `mshsl` and `gobound` keep theirs),
+else one whose address names a nearby town (St. Cloud's Toys for Tots days have no GEO); "Virtual"
+and online ones out. Not by the title's "— Town": "Our Sacred Universe Story — Little Falls" is at
+the Franciscan Welcoming House in St. Cloud. The title loses that ending; the host is who the
+description names ("Knights of Columbus hosts breakfast ... St. Joseph Church"), else the paper's
+name for the venue, never the paper. A series shows once at its next date, and a drop-off open all
+day on weekdays (Toys for Tots) is one Event to its last day. The monastery's retreats it repeats
+merge into the monastery's own Events (trust squishy: the official copy stays the Event).
+Read 2026-11-13: 11 of the 30 kept, 4 of them the monastery's; 7 new.
 
 ## Minnesota 511
 ```yaml
