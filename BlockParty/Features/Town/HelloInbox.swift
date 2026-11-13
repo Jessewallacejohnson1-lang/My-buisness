@@ -433,9 +433,12 @@ final class HelloInbox {
         items.insert(HelloItem(what: .accepted(kate), at: now - 3 * 86_400, told: true), at: 0)
         let photo = Bundle.main.url(forResource: "bad-habit-brewing", withExtension: "jpg")
         let friday = Town.day(Town.gregorian.date(byAdding: .day, value: 2, to: now) ?? now)
-        let pint = HelloItem.Added(name: "Bad Habit Brewing", day: Town.day(now), eventId: "sample-pint",
+        // `-whole-flyer <url>` with `-town-samples`: the row opens the first sample, its flyer the thumbnail (BP app
+        // event-photos 18), as no live Event a place you follow added can be counted on.
+        let flyer = TownFixtures.wholeFlyer?.url
+        let pint = HelloItem.Added(name: "Bad Habit Brewing", day: Town.day(now), eventId: flyer == nil ? "sample-pint" : "e1",
                                    title: "Pint Night", eventDate: friday, startTime: "6 PM", count: 1,
-                                   picture: photo, pictureIsPhoto: true, photo: photo)
+                                   picture: photo, pictureIsPhoto: true, photo: flyer ?? photo)
         items.insert(HelloItem(what: .added(pint), at: now - 4 * 86_400, told: true), at: 0)
         return items
     }
