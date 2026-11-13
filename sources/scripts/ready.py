@@ -98,8 +98,9 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
     if missing:
         return "[ready] not ready: " + "; ".join(missing), False
     weak = [f"{k} is not set: {why}" for k, why in WARN.get(routine, {}).items() if not env.get(k)]
-    # The map spots' libraries (BP app inside-cards 20) are the morning's alone, and only a warning: without them
-    # the spots step keeps the spots found before, and every other step runs.
+    # The map spots' libraries (BP app inside-cards 20) and the flyer sharpener's (sharpen.py, BP app event-photos 19)
+    # are the morning's alone, and only a warning: without them the spots step keeps the spots found before, a small
+    # flyer isn't saved, and every other step runs.
     short = [n for n, module in extras.items() if module in probe(list(extras.values()))] if routine == "morning" else []
     # Wheels only, past Debian's copies (pyarrow and numpy come along), and never long enough to hold up the morning.
     extra_failed = install(["install", "--quiet", "--ignore-installed", "--only-binary=:all:", *short],
@@ -107,7 +108,8 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
     if short and not extra_failed and probe([extras[n] for n in short]):
         extra_failed = "installed, still won't import"
     if extra_failed:
-        weak.append(f"libraries {', '.join(short)} (pip: {extra_failed}): the map spots keep the ones found before")
+        weak.append(f"libraries {', '.join(short)} (pip: {extra_failed}): the map spots keep the ones found before, "
+                    "and a small flyer runs on no Event")
     installed = lacking + (short if not extra_failed else [])
     done = f" (installed {', '.join(installed)})" if installed else ""
     return (f"[ready] ready{done}, but " + "; ".join(weak) if weak else f"[ready] ready{done}"), True

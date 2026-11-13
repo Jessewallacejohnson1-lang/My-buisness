@@ -10,3 +10,5 @@ yaml python3-yaml pyyaml
 PIL python3-pil pillow PIL.Image
 osmium - osmium
 overturemaps - overturemaps
+numpy - numpy
+onnxruntime - onnxruntime

@@ -62,6 +62,9 @@ WEEKLY_DAY = 6                 # Sunday, Chicago time: the dig's weekly pass, be
 WEEKLY_AHEAD = timedelta(days=28)  # the weekly pass reaches Events this close; hosts post nearer the day
 PLACE_MORE = 6                 # the same page's other photos offered beside a post's own pictures
 MIN_WIDTH = 1000               # as scenes.py: the card is width-bound and asks for 1200 px
+# A flyer from SMALLEST to MIN_WIDTH runs sharpened (sharpen.py; Jesse, 2026-11-13, Apollo's 379 px SpongeBob poster:
+# "add it to automating events"); a photo that small never runs, and one under SMALLEST has too little to sharpen.
+SMALLEST = 360
 # A News's own picture: Jesse took JoeTown's 720 px group shot of its new merch over the post's sharp portrait
 # ("the other ones get attention of users more", 2026-11-08, town-feed 53).
 NEWS_MIN_WIDTH = 720
@@ -295,13 +298,14 @@ def download(groups, folder, grab=None, n=0, most=None):
             except Exception as e:
                 failed.append(f"{g['title']}: c{n} would not download ({str(e)[:80]})")
                 continue
-            if w < (NEWS_MIN_WIDTH if g.get("news") else MIN_WIDTH):
+            small = not g.get("news") and SMALLEST <= w < MIN_WIDTH
+            if w < (NEWS_MIN_WIDTH if g.get("news") else MIN_WIDTH) and not small:
                 continue
             hsh = place_photos.dhash(Image.open(dest))
             if any(place_photos.same_picture(hsh, x) for x in hashes):
                 continue
             hashes.append(hsh)
-            kept.append({**c, "n": n, "file": str(dest), "w": w, "h": h})
+            kept.append({**c, "n": n, "file": str(dest), "w": w, "h": h, **({"small": True} if small else {})})
         g["cands"] = kept
     return failed
 
@@ -333,6 +337,7 @@ def sheets(groups, folder):
                                                    **({"page": c["page"], "page_title": c["title"], "finder_says": c["why"]}
                                                       if "title" in c else {}),
                                                    **({"posted": c["posted"]} if c.get("posted") else {}),
+                                                   **({"small": True} if c.get("small") else {}),
                                                    **({"words": c["words"]} if c.get("words") else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
@@ -395,15 +400,26 @@ def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
     of its own pictures, each group once. A flyer from another post of the place counts too, when its words still
     hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05). A News takes its own post's flyer too
-    (Jesse, 2026-11-08)."""
+    (Jesse, 2026-11-08). A small picture runs only as a flyer, sharpened (SMALLEST)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
-        if c:
+        if c and (ln.get("flyer") or not c.get("small")):
             picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None, bool(ln.get("flyer")))
     return picks
+
+
+def image_of(c, clear=None):
+    """A pick's picture as it runs: a small flyer sharpened (sharpen.py); None when this Python can't sharpen, so the
+    Event stays bare for the dig, which runs where the morning's libraries are."""
+    from PIL import Image
+    im = Image.open(c["file"])
+    if not c.get("small"):
+        return im
+    import sharpen
+    return (clear or sharpen.sharpen)(im)
 
 
 def entry_of(e):
@@ -446,7 +462,10 @@ def keep(out, dry_run=False, db=None, now=None):
                                                  events=[(n["id"], entry_of(n))], description=shows,
                                                  credit=n.get("source_name") if POST.search(c["page"]) else None,
                                                  proposed_by=OWN)
-            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+            im = image_of(c)
+            if im is None:
+                return print(f"[photos]   {g['title']}: its small flyer waits for the dig (no numpy or onnxruntime here)")
+            place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
                                       proposed_by=OWN)
@@ -813,7 +832,6 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     its place's posts when it went on to them (or the month's money for them was spent). One the dig didn't finish
     stays unmarked for the next morning."""
     import place_photos
-    from PIL import Image
     folder = out / "dig"
     groups, found, laid, picks, reached = free_round(folder)
     pf = folder / "posts"
@@ -839,8 +857,11 @@ def dig_keep(out, dry_run=False, db=None, now=None):
         if kind == "dug":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_dug_at": stamp}, prefer="return=minimal")
         g, (c, shows, flyer) = chosen[what]
+        im = image_of(c)
+        if im is None:
+            return print(f"[dig]   {g['title']}: its small flyer not saved (no numpy or onnxruntime here)")
         try:
-            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+            place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
                                       proposed_by=DIG)
@@ -950,7 +971,7 @@ def selftest():
     with tempfile.TemporaryDirectory() as tmp:
         folder, out = Path(tmp) / "sheets", Path(tmp) / "out"
         folder.mkdir()
-        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (500, 500)}
+        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (300, 300)}
 
         def grab(c, dest):
             name = next(k for k in sizes if k in c["url"])
@@ -972,6 +993,24 @@ def selftest():
         flyers = plan([{"event": "e1", "pick": own, "flyer": True}], gs), plan([{"event": "e1", "pick": other, "flyer": True}], gs)
         check(flyers[0]["e1"][2] is True and flyers[1]["e1"][2] is True,
               "a flyer from the Event's own post, or from another post of the place (Jesse, 2026-11-03)")
+
+        sg = [{"key": "s1", "title": "Show", "events": gs[0]["events"],
+               "cands": [{"url": f"https://x/{n}.jpg", "page": "https://apollo.example/show", "from": "page", "about": ""}
+                         for n in ("poster", "speck")]}]
+
+        def sgrab(c, dest):
+            size = (379, 494) if "poster" in c["url"] else (300, 300)
+            Image.effect_noise(size, 70).convert("RGB").save(dest)
+            return size
+        download(sg, folder, sgrab, n=500)
+        check([(c["url"], c.get("small")) for c in sg[0]["cands"]] == [("https://x/poster.jpg", True)],
+              f"a picture from {SMALLEST} to {MIN_WIDTH} px stays, marked small; a smaller one doesn't")
+        check(not plan([{"event": "s1", "pick": "c501"}], sg) and plan([{"event": "s1", "pick": "c501", "flyer": True}], sg)["s1"][2],
+              "a small picture runs only as a flyer")
+        poster, big = sg[0]["cands"][0], gs[0]["cands"][0]
+        check(image_of(poster, clear=lambda im: im.resize((im.width * 4, im.height * 4))).width == 379 * 4
+              and image_of(big, clear=lambda im: 1 / 0).width == big["w"] and image_of(poster, clear=lambda im: None) is None,
+              "a small flyer runs sharpened, any other picture as it came; with no sharpener, none")
 
         (folder / "events.json").write_text(json.dumps(gs))
         (out / "photos").mkdir(parents=True)
@@ -1254,7 +1293,7 @@ def selftest():
             if "news.example" in url:
                 raise RuntimeError("robots.txt disallows")
             return 200, bio if "hayes" in url else site
-        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (400, 300), "writer": (1600, 1041)}
+        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (300, 225), "writer": (1600, 1041)}
 
         def grab2(c, dest):
             name = next(k for k in big if k in c["url"])
