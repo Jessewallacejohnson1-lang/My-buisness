@@ -101,9 +101,40 @@ test("Kennedy's own calendar lands on its activity, a joint concert on each it n
   assert.deepEqual(await kennedy('Band/Spelling Bee/Rugby'), ['kennedy: Band', 'kennedy: Spelling Bee']);
 });
 
-test("Kennedy's Adapted Floor Hockey takes St. Cloud's games from Apollo's feed (school-search 02)", async () => {
+test("Kennedy's Adapted Floor Hockey takes St. Cloud's games from Apollo's feed, as Apollo's own does (school-search 02, 07)", async () => {
   assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', team_ids: ['maple-grove', 'st-cloud'], activity_team: 'apollo' }),
-                   ['kennedy: Boys/Girls Adapted Floor Hockey']);
+                   ['apollo: Adapted Hockey (Adapted Floor Hockey)', 'kennedy: Boys/Girls Adapted Floor Hockey']);
+});
+
+test("Adapted Floor Hockey is each school's adapted hockey, whatever it calls it (school-search 07)", async () => {
+  assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', activity_team: 'tech' }), ['tech: Adapted Hockey']);
+  assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', activity_team: 'sauk-rapids-rice' }),
+                   ['sauk-rapids-rice: Adapted Sports: Floor Hockey']);
+  assert.deepEqual(await activitiesFor({ sport: 'Adapted Soccer', activity_team: 'sauk-rapids-rice' }),
+                   ['sauk-rapids-rice: Adapted Sports: Soccer']);
+  assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', activity_team: 'sartell' }), ['sartell: Adapted Floor Hockey']);
+});
+
+test("a middle school coed meet is the school's own sport (school-search 07)", async () => {
+  assert.deepEqual(await activitiesFor({ activity_team: 'sauk-rapids-rice', activity_name: 'MS Coed Wrestling' }),
+                   ['sauk-rapids-rice: Wrestling']);
+  assert.deepEqual(await activitiesFor({ sport: 'MS Coed Wrestling', team_ids: ['alexandria', 'sauk-rapids-rice'] }),
+                   ['sauk-rapids-rice: Wrestling']);
+});
+
+test("an activity's bracket list names what it covers, unless the school has that activity itself (school-search 07)", async () => {
+  const srr = (activity_name) => activitiesFor({ activity_team: 'sauk-rapids-rice', activity_name });
+  const theatre = 'sauk-rapids-rice: Theatre (Fall Musical, One-Act Play, Spring Play)';
+  assert.deepEqual(await srr('One Act Play'), [theatre]);
+  assert.deepEqual(await srr('Musical'), [theatre]);
+  assert.deepEqual(await srr('Band'), ['sauk-rapids-rice: Band']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'sartell', activity_name: 'One Act Play' }), ['sartell: One Act Play']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'tech', activity_name: 'Spanish' }), ['tech: Language Clubs (French, Spanish)']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'tech', activity_name: 'Language Clubs' }), ['tech: Language Clubs (French, Spanish)']);
+  assert.deepEqual(await activitiesOf('rocori', 'Boys Soccer', ['albany', 'rocori']), ['Soccer (boys)'], 'a bracket of one stays out');
+  assert.deepEqual(await activitiesFor({ activity_team: 'cathedral', activity_name: 'Art Club' }), ['cathedral: Art Club']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'sartell', activity_name: 'Orchestra' }), ['sartell: Orchestra']);
+  assert.deepEqual(await activitiesFor({ sport: 'Musical', team_ids: ['sauk-rapids-rice'] }), [], 'a game never reads a bracket');
 });
 
 test('a sport the school lists no activity for, or a game it is not in, belongs to none', async () => {
