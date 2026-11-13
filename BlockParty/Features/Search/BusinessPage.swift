@@ -764,15 +764,12 @@ struct CastLogo: View {
         let image = cache.image(for: logo.url)
         ZStack {
             if let image {
-                let color = shadow ?? logo.shadow, k = stretch
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
                     // Search's logos are square; a school's crest isn't, and kept its shape.
                     .scaledToFit()
-                    .shadow(color: color.opacity(0.32 * strength), radius: max(1.4, side * 0.02) * k / 2, y: side * 0.016 * k)
-                    .shadow(color: color.opacity(0.20 * strength), radius: side * 0.10 * k / 2, y: side * 0.055 * k)
-                    .shadow(color: color.opacity(0.13 * strength), radius: side * 0.26 * k / 2, y: side * 0.13 * k)
+                    .castShadow(shadow ?? logo.shadow, side: side, stretch: stretch, strength: strength)
                     // Over the shadows, not under them: a new lean then redraws the light alone.
                     .overlay { if let tilt { LogoShine(image: image, side: side, tilt: tilt) } }
                     .transition(.opacity)
@@ -785,6 +782,17 @@ struct CastLogo: View {
         // A logo whose fetch failed (offline when the places loaded) asks again when it is
         // next on screen; one already loaded or in flight is skipped by the cache.
         .task(id: logo.url) { cache.prefetch([logo.url]) }
+    }
+}
+
+extension View {
+    /// `CastLogo`'s shadow, the view's own outline cast straight down in three layers, each a share of `side`: Search's
+    /// logos and a game's team logos (game-card 26). `stretch` and `strength` lift it mid-flight; a game's page casts it
+    /// stronger to show on the team colors.
+    func castShadow(_ color: Color, side: CGFloat, stretch: CGFloat = 1, strength: Double = 1) -> some View {
+        shadow(color: color.opacity(0.32 * strength), radius: max(1.4, side * 0.02) * stretch / 2, y: side * 0.016 * stretch)
+            .shadow(color: color.opacity(0.20 * strength), radius: side * 0.10 * stretch / 2, y: side * 0.055 * stretch)
+            .shadow(color: color.opacity(0.13 * strength), radius: side * 0.26 * stretch / 2, y: side * 0.13 * stretch)
     }
 }
 
