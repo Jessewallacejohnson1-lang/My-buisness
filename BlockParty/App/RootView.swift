@@ -289,9 +289,14 @@ struct MainTabsView: View {
             } else if tab != .town {
                 select(.town)
             }
-        // As the news card: the post's own app when it's on the phone, else the in-app browser.
+        // As the news card: its News page when its post's words are read (town-feed 65), else the post's own app when
+        // it's on the phone, else the in-app browser.
         case .news(let post):
-            openLink(post.post)
+            if NewsPostWords.shared.words[post.id] != nil {
+                path.append(NewsRoute(news: post))
+            } else {
+                openLink(post.post)
+            }
         }
     }
 
@@ -506,6 +511,8 @@ struct MainTabsView: View {
                 }
                 // A post that names you, from the bell (town-feed 60).
                 .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post).environment(townFeed) }
+                // A News with its post's own words, from its card or the hello pill (town-feed 65).
+                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news) }
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)

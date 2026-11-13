@@ -8,8 +8,9 @@
 //  inside-cards 24), Share, then Not interested and Mute its place (news-menu), no Report. The heart in its bottom right
 //  corner, signed in only (inside-cards 22). Never its place's cover (Jesse, 2026-11-04, BP app town-feed 40); its post's
 //  own photo, when the photo step kept one, puts it on the Town photo card with that card's grey glass heart (Jesse,
-//  2026-11-08, town-feed 53). A tap opens the post in Instagram or Facebook when that app is on the phone,
-//  else in Apple's in-app browser; the card sinks the instant a finger lands, as an event card's does.
+//  2026-11-08, town-feed 53). A tap opens its News page when its post is the place's own and its words are read
+//  (`NewsPage`, town-feed 65); else the post in Instagram or Facebook when that app is on the phone, else in Apple's
+//  in-app browser. The card sinks the instant a finger lands, as an event card's does.
 //
 
 import SwiftUI
@@ -25,6 +26,9 @@ struct TownNewsCard: View {
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The shell's stack, where its News page goes; nil where nothing can push.
+    @Environment(\.hostOpener) private var opener
+    private var words: NewsPostWords { .shared }
     @State private var pressed = false
     @State private var link: SafariLink?
     /// The card's size, so the heart on its corner sinks in with it.
@@ -48,7 +52,7 @@ struct TownNewsCard: View {
                                  news.published?.formatted(.relative(presentation: .named))]
                 .compactMap { $0 }.joined(separator: ". "))
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Opens the post")
+            .accessibilityHint(opensPage ? "Opens the story" : "Opens the post")
             // The heart in the card's bottom right corner, its own button over the post's, riding the corner
             // in as the card sinks, as an Event card's does.
             .overlay(alignment: .bottomTrailing) {
@@ -60,12 +64,16 @@ struct TownNewsCard: View {
                         .animation(Press.animation(down: pressed, reduceMotion: reduceMotion), value: pressed)
                 }
             }
-            .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: share))
+            .modifier(TownCardHold(id: news.id, hostName: news.place, why: news.why, share: { Self.share(news) }))
             .padding(.horizontal, inset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Only while it's on screen does a heart the server turns back shake here.
-        .onAppear { actions.cardOpened(news.id) }
+        .onAppear {
+            actions.cardOpened(news.id)
+            // Its post's words, read with the other cards on screen, so a tap finds them (town-feed 65).
+            words.want(news.id)
+        }
         .onDisappear { actions.cardClosed(news.id) }
         .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
     }
@@ -86,16 +94,27 @@ struct TownNewsCard: View {
     /// With no second line, its two lines go to the headline (BP app inside-cards 12). `room` is the heart's. Shared as
     /// this, photo or not: the share window draws at once, before any photo could load.
     private func whiteFace(room: CGFloat) -> some View {
+        Self.whiteFace(news, room: room)
+    }
+
+    private static func whiteFace(_ news: TownNews, room: CGFloat) -> some View {
         NoPhotoCard(logo: news.logo, name: news.place, when: news.when(),
                     title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2,
                     trailingRoom: room)
     }
+
+    /// Its own words are read and the shell can push: a tap opens its News page.
+    private var opensPage: Bool { opener != nil && words.words[news.id] != nil }
 
     /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
     /// Apple's in-app browser. Jesse at Check-in 2, after Instagram's web page showed "Watch this
     /// reel in the app" instead of the reel: "open the post in the Instagram or Facebook app when
     /// it's on the phone, else the in-app browser".
     private func open() {
+        if opensPage, let opener {
+            opener.push(NewsRoute(news: news))
+            return
+        }
         let post = news.post
         Task {
             if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {
@@ -104,13 +123,14 @@ struct TownNewsCard: View {
         }
     }
 
-    private func share() {
+    /// The share window, from its hold menu and its News page's send: the white card alone, no heart.
+    static func share(_ news: TownNews) {
         ShareCenter.shared.present(
             SharePayload(title: news.place,
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
                 // The card alone, no heart: the share window has none of the app's environment its hold reads.
-                whiteFace(room: 0)
+                whiteFace(news, room: 0)
                     .padding(.horizontal, TownFeedMetric.contentInset)
                     .frame(width: 320)
                     .padding(.vertical, 16)

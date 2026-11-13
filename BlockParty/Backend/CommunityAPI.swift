@@ -309,6 +309,29 @@ struct CommunityAPI {
         }
     }
 
+    /// Each News's post's own words, by id (BP app town-feed 65): `board_items.post_words`, which the public key reads
+    /// on a published News, and its place's `places.id`, so the page's logo opens the place's page. A News with no
+    /// words of its own isn't in the answer.
+    func getNewsWords(_ ids: [String]) async throws -> [String: NewsCaption] {
+        struct Row: Decodable { let id: String; let postWords: String?; let placeEntryId: String? }
+        struct Place: Decodable { let id: String; let entryId: String }
+        let ids = ids.filter { UUID(uuidString: $0) != nil }
+        guard !ids.isEmpty else { return [:] }
+        let rows: [Row] = try Supabase.decode(await db.rest("board_items", [
+            ("select", "id,post_words,place_entry_id"), ("id", "in.(\(ids.joined(separator: ",")))"),
+            ("post_words", "not.is.null"),
+        ], anon: true))
+        let entries = Set(rows.compactMap(\.placeEntryId)).sorted()
+        let places: [Place] = entries.isEmpty ? [] : try Supabase.decode(await db.rest("places", [
+            ("select", "id,entry_id"), ("entry_id", "in.(\(entries.map { "\"\($0)\"" }.joined(separator: ",")))"),
+        ], anon: true))
+        return Dictionary(rows.compactMap { row in
+            row.postWords.map { words in
+                (row.id, NewsCaption(text: words, placeID: places.first { $0.entryId == row.placeEntryId }?.id))
+            }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
     /// `get_town_feed`'s Events, without its news.
     static func townFeedRows(from data: Data) throws -> [TownFeedRow] {
         try townFeedLines(from: data).compactMap { line -> TownFeedRow? in
