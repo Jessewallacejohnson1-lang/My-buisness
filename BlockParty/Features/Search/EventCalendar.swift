@@ -185,8 +185,9 @@ struct EventCalendarView: View {
     private func monthName(_ month: Date, thisYear: Date) -> some View {
         let year = EventCalendar.calendar.component(.year, from: month)
         let other = year != EventCalendar.calendar.component(.year, from: thisYear)
-        return (Text(Town.format(month, "MMMM")).foregroundStyle(Hue.ink)
-                + Text(other ? " \(year)" : "").foregroundStyle(Hue.inkSecondary))
+        let name = Text(Town.format(month, "MMMM")).foregroundStyle(Hue.ink)
+        let yearText = Text(other ? " \(String(year))" : "").foregroundStyle(Hue.inkSecondary)
+        return Text("\(name)\(yearText)")
             .font(.display(26))
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -272,9 +273,11 @@ struct EventCalendarView: View {
             HStack(spacing: 0) {
                 step("chevron.left", label: "Day before with Events",
                      to: EventCalendar.step(day, by: -1, planned: planned.filter { $0 >= today }), from: day)
-                (Text(day == today ? "Today" : Town.format(day, "EEEE")).font(.display(17)).foregroundStyle(Hue.ink)
-                 + Text(" " + Town.format(day, day == today ? "MMM d" : "MMMM d")).font(.displaySemi(17))
-                    .foregroundStyle(Hue.inkSecondary))
+                let weekday = Text(day == today ? "Today" : Town.format(day, "EEEE")).font(.display(17))
+                    .foregroundStyle(Hue.ink)
+                let date = Text(" " + Town.format(day, day == today ? "MMM d" : "MMMM d")).font(.displaySemi(17))
+                    .foregroundStyle(Hue.inkSecondary)
+                Text("\(weekday)\(date)")
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity)
