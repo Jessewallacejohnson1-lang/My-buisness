@@ -672,31 +672,6 @@ concerts, dances and spirit weeks are on no other feed. The page shows District 
 `own_calendar_only` reads Tech's alone, since Kennedy's calendar already gives the district's board meetings and
 No School days. robots.txt allows `/calendar`, disallows `/fs/` (its iCal and RSS), Crawl-delay 5.
 
-## Tech High School calendar
-```yaml
-id: tech-high-school-calendar
-status: retired
-tier: watched
-category: nearby-school
-added_by: agent:claude
-sources:
-  - url: https://tech.isd742.org/calendar
-    kind: website
-    method: fetch
-    trust: official
-    reader: finalsite-calendar
-    own_calendar: Tech Calendar
-```
-Notes: Proposed 2026-11-13 (BP app dig-deeper 26). Tech's own school calendar, on District 742's
-Finalsite like Kennedy's: robots.txt allows `/calendar`, disallows `/fs/` (its iCal and RSS),
-Crawl-delay 5. Measured 2026-11-13, next 90 days: 18 items, 4 new to Block Party (Tech Choir
-Concert Nov 23, Snowball Dance Dec 5, Tech Winter Week and Tech Band Concert Dec 7). Bound already
-gives its plays (Mamma Mia); the school board and No School days are District 742's, which
-Kennedy's calendar already gives. On Jesse's yes this page moves into `tech-high-school`'s sources,
-as Kennedy's is, so its events carry the school's name and land on its activity rows; this entry
-then retires.
-Retired 2026-11-13 (BP app nothing-scheduled 01): the page is now `tech-high-school`'s own source.
-
 ## Cathedral High School
 ```yaml
 id: cathedral-high-school

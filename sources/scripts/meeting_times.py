@@ -16,8 +16,8 @@ replaces it, and a club whose block no longer gives one goes back to none ("No e
 the morning report; an unchanged week says so. A page that won't read, or names none of the school's clubs, changes
 nothing; a club the page no longer names keeps its time, with a line.
 
-ponytail: one layout, Sartell's (a club's name, "Advisor -", then its words). A page the reader can't place clubs on
-gets a line when it says when something meets anywhere, so a school that starts listing times is taught here then.
+The reader knows one layout, Sartell's (a club's name, "Advisor -", then its words). A page it can't place clubs on
+gets a line when it says when something meets anywhere.
 """
 import html
 import json
