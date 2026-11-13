@@ -50,15 +50,19 @@ struct AgendaPager<Page: View>: View {
     let pages: [Date]
     let day: Date
     let pick: (Date) -> Void
+    /// How a page asked for from outside arrives: at once (nil, You's Calendar), or sliding (Search's months).
+    var jump: Animation?
     @ViewBuilder let page: (Date) -> Page
     @State private var heights: [Date: CGFloat] = [:]
     @State private var travel: AgendaTravel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(pages: [Date], day: Date, pick: @escaping (Date) -> Void, @ViewBuilder page: @escaping (Date) -> Page) {
+    init(pages: [Date], day: Date, pick: @escaping (Date) -> Void, jump: Animation? = nil,
+         @ViewBuilder page: @escaping (Date) -> Page) {
         self.pages = pages
         self.day = day
         self.pick = pick
+        self.jump = jump
         self.page = page
         _travel = State(initialValue: AgendaTravel(page: CGFloat(pages.firstIndex(of: day) ?? 0)))
     }
@@ -102,7 +106,7 @@ struct AgendaPager<Page: View>: View {
             }
             // A tapped day, and the day shown when a page comes or goes before it, jump at once.
             .onAppear { proxy.scrollTo(day, anchor: .leading) }
-            .onChange(of: pages.firstIndex(of: day)) { proxy.scrollTo(day, anchor: .leading) }
+            .onChange(of: pages.firstIndex(of: day)) { withAnimation(jump) { proxy.scrollTo(day, anchor: .leading) } }
         }
         // The scroll itself stays as tall as its tallest page; only the frame around it follows the
         // finger. Resizing the scroll mid-flick threw it a quarter page past its page.

@@ -866,7 +866,19 @@ struct CommunityAPI {
     /// `get_my_going`'s rows as events, each one the neighbour is Going to, and `get_my_likes`', whose
     /// card says whether they are. Each row is its Event card alone; one that doesn't decode is left
     /// out, never the read.
-    static func myGoingRows(from data: Data) throws -> [UpcomingEvent] {
+    /// Search's Event calendar (BP app five-tabs 10): a year of the Town's public Events from the 1st of this month,
+    /// every date of a series, as Event cards: `get_town_calendar`. Signed out, it reads with the public key, as the
+    /// Town feed does. Decoded off the main thread: it is about four times the feed's cards.
+    func getTownCalendar() async throws -> [UpcomingEvent] {
+        try await Self.calendarRows(await db.rpc("get_town_calendar", anon: true))
+    }
+
+    @concurrent
+    private nonisolated static func calendarRows(_ data: Data) async throws -> [UpcomingEvent] {
+        try myGoingRows(from: data)
+    }
+
+    nonisolated static func myGoingRows(from data: Data) throws -> [UpcomingEvent] {
         struct Row: Decodable { let card: UpcomingEvent.Lenient? }
         return try Supabase.decode(data, as: [Row].self).compactMap { $0.card?.value }
     }

@@ -55,6 +55,8 @@ nonisolated extension SearchMetric {
 struct SearchHead {
     /// "BlockParty. Sports" over the field.
     let titled: Bool
+    /// The word after "BlockParty." when titled.
+    var word = "Sports"
     let fieldTop: CGFloat
     let fieldHeight: CGFloat
     let fieldRadius: CGFloat
@@ -95,6 +97,17 @@ struct SearchHead {
         side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
 }
 
+extension SearchHead {
+    /// The Event calendar's (BP app five-tabs 10): the Sports header's shape, "BlockParty. Calendar" over a round
+    /// field and the pills, in Search's own light colours (Jesse: "make it a lighter theme").
+    static let calendar = SearchHead(
+        titled: true, word: "Calendar", fieldTop: SearchMetric.sportsFieldTop, fieldHeight: SearchMetric.sportsFieldHeight,
+        fieldRadius: SearchMetric.sportsFieldHeight / 2, fieldGlyph: 17, fieldIconLead: SearchMetric.sportsFieldIconLead,
+        fieldIconGap: SearchMetric.sportsFieldIconGap, fieldWords: 17, prompt: "Events", faint: Hue.searchFaint,
+        fieldFill: Hue.searchField, fieldGlass: .identity, chipGlass: .identity, chipWordsOn: Hue.surface,
+        side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
+}
+
 /// The header carried by the Sports grid's scroll, 1:1 both ways, as the mock's field and pills scroll away with the
 /// discs (the run's review). Its own view reading the box, so only it redraws as the scroll moves (`BarTravel`).
 struct CarriedHeader<Content: View>: View {
@@ -109,12 +122,15 @@ struct CarriedHeader<Content: View>: View {
 /// "BlockParty. Sports" where Apple Sports has its logo and "Sports" (school-search 04): the app's wordmark and the
 /// word in Inter Tight on one baseline, both in ink. No yellow on the screen.
 struct SportsTitle: View {
+    /// "Sports", or the Event calendar's "Calendar".
+    var word = "Sports"
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: SearchMetric.sportsWordGap) {
             BlockPartyWordmark(height: SearchMetric.sportsWordmark)
                 // The artwork's baseline, measured on `Wordmark.png`: the B's foot, 171 of its 216 rows down.
                 .alignmentGuide(.firstTextBaseline) { $0.height * 171 / 216 }
-            Text("Sports")
+            Text(word)
                 .font(.display(SearchMetric.sportsWord))
         }
         .foregroundStyle(Hue.ink)
@@ -122,7 +138,7 @@ struct SportsTitle: View {
         .padding(.bottom, SearchMetric.sportsTitleLift)
         .frame(height: SearchMetric.sportsTitle, alignment: .bottomLeading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Block Party Sports")
+        .accessibilityLabel("Block Party \(word)")
         .accessibilityAddTraits(.isHeader)
     }
 }

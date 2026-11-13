@@ -168,7 +168,7 @@ struct SearchPage: View {
     @Environment(FriendsBook.self) private var book
 
     private enum Mode: Hashable {
-        case rest, wall, sports, groups(SearchItem.Kind), recents, results(SearchChip)
+        case rest, wall, sports, calendar, groups(SearchItem.Kind), recents, results(SearchChip)
     }
 
     private var mode: Mode {
@@ -178,6 +178,7 @@ struct SearchPage: View {
         case .all: return .rest
         case .businesses: return .wall
         case .sports: return .sports
+        case .calendar: return .calendar
         default: return .groups(model.chip.kind ?? .park)
         }
     }
@@ -186,7 +187,7 @@ struct SearchPage: View {
     /// (school-search 04): the mock Jesse picked.
     private var sports: Bool { model.chip == .sports }
 
-    private var head: SearchHead { sports ? .sports : .plain }
+    private var head: SearchHead { sports ? .sports : model.chip == .calendar ? .calendar : .plain }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -243,7 +244,7 @@ struct SearchPage: View {
         // The field's and chips' glass blend only with each other, never across the 8 pt between chips.
         GlassEffectContainer(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                if head.titled { SportsTitle() }
+                if head.titled { SportsTitle(word: head.word) }
                 fieldRow
                     .padding(.top, head.fieldTop)
                 chips
@@ -422,6 +423,8 @@ struct SearchPage: View {
             LogoWall(items: model.row(.business))
         case .sports:
             SportsGrid()
+        case .calendar:
+            EventCalendarView()
         case .groups(let kind):
             let items = model.row(kind)
             let title = SearchPage.sectionTitle(kind)
@@ -539,9 +542,9 @@ struct SearchPage: View {
     private static var debugSearching: Bool {
         LaunchFlags.has(.searchFocus) || debugWords != nil
     }
-    /// `-search-chip <all|businesses|sports|events|parks>`: opens on that filter.
+    /// `-search-chip <all|calendar|businesses|sports|events|parks>`: opens on that filter.
     private static var debugChip: SearchChip? {
-        LaunchFlags.value(.searchChip).flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
+        LaunchFlags.value(.searchChip).flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name || "\($0)" == name } }
     }
     #endif
 }

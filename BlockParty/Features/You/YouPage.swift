@@ -249,8 +249,9 @@ struct YouGroupPicture: View {
 /// One day on the Calendar: the first Event's photo with the date over it in white; a
 /// plan with no photo of its own, a light grey circle (picked, 2026-10-11: a Google photo
 /// can't carry its credit in a circle this size); today with nothing planned, a filled ink
-/// disc; any other day, its number in grey.
-private struct YouDay: View {
+/// disc; any other day, its number in grey, on a grey disc where every day is one (Search's Event calendar,
+/// BP app five-tabs 10).
+struct YouDay: View {
     let date: Date
     /// "NOV" on the 1st of a new month, over a smaller number (ticket 10); nil on every other day.
     let month: String?
@@ -259,9 +260,11 @@ private struct YouDay: View {
     let isPast: Bool
     let isPicked: Bool
     let ring: Namespace.ID
+    var disc = false
 
     var body: some View {
-        let photo = events.first?.photo
+        // The first Event with a photo, so a day whose first has none still shows one (the plan's review).
+        let photo = disc ? events.lazy.compactMap(\.photo).first : events.first?.photo
         ZStack {
             if !events.isEmpty {
                 if let photo {
@@ -271,6 +274,8 @@ private struct YouDay: View {
                 }
             } else if isToday {
                 Hue.ink
+            } else if disc {
+                Hue.fill
             }
             // The month is Apple Fitness's "Oct" where a month starts, inside the circle, since the
             // three weeks are one block (Jesse, ticket 10 Check-in 1); its sizes are picked.
