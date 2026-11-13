@@ -493,7 +493,7 @@ SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent me
 # The school's activities a calendar title names, so the event lands on each one's row (public.activity_has_event; BP app
 # school-search 02): "Band/Choir/Orchestra Concert" is all three's, "PTO Meeting at Kennedy" the PTO's.
 ACTIVITY_WORDS = {w.lower(): w for w in ("Band", "Choir", "Orchestra", "Knowledge Bowl", "Spelling Bee", "Geography Bee",
-                                         "Robotics", "Musical", "One Act", "PTO")}
+                                         "Robotics", "Musical", "One Act", "PTO", "Art Club")}
 NAMES_ACTIVITY = re.compile(r"\b(" + "|".join(ACTIVITY_WORDS) + r")\b", re.I)
 
 
@@ -1009,7 +1009,10 @@ def bound_items(text, entry, src, today):
         if key and re.search(r"\svs$", name):
             continue  # "River Lakes vs" at West Fargo (Dec 29): a tournament game whose opponent isn't named yet
         start_at = start.isoformat()
-        mark = dict(activity_team=bound_team(entry), activity_name=get("X-BND-ACTIVITYNAME") or None,
+        # Bound posts a concert, a show or a club's day with no activity ("HS Fall Band Concert"): its title names it, as
+        # a school calendar's does (BP app school-search 07).
+        mark = dict(activity_team=bound_team(entry),
+                    activity_name=get("X-BND-ACTIVITYNAME") or calendar_activity(title, entry).get("activity_name"),
                     source_url=page_url(ev, src["url"]), source_uid=uid)
         if key in BOUND_ARTS or (not key and BOUND_SHOW.search(title)):
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
@@ -1499,7 +1502,7 @@ def t_kennedy_calendar():
                                                                     "activity_name": "Band/Choir/Orchestra"}
     assert calendar_activity("Knowledge Bowl at Saint John's Prep 6-8 grades", k)["activity_name"] == "Knowledge Bowl"
     assert calendar_activity("Orchestra Solo/Ensemble", k)["activity_name"] == "Orchestra"
-    assert calendar_activity("Art Club", k) == {"activity_team": "kennedy", "followers_only": True}
+    assert calendar_activity("Art Club", k) == {"activity_team": "kennedy", "activity_name": "Art Club", "followers_only": True}
     assert calendar_activity("3rd Grade Concert", k) == {} and calendar_activity("Great Theatre-5th Grade", k) == {}
     assert SCHOOL_ONLY.search("Veterans Day Assembly") and SCHOOL_ONLY.search("Art Club")
     assert SCHOOL_ONLY.search("Grad Party Parent Meeting") and SCHOOL_ONLY.search("Kindergarten Signing Day")
@@ -1874,6 +1877,9 @@ def t_gobound():
         ("Robotics Competition", False), ("Apollo Girls Wrestling Meet", True),
         ("Apollo Boys Wrestling Meet · MS", True), ("Art Club", True)], events
     assert [(i["activity_team"], i["activity_name"]) for i in events[:2]] == [("apollo", "Drama"), ("apollo", "Band")]
+    # Bound's own activity first, else the one its title names: Sauk Rapids-Rice's musical, a club (school-search 07).
+    named = {i["title"]: i["activity_name"] for i in events}
+    assert (named["The Little Mermaid"], named["Art Club"], named["Fall Play"]) == ("Musical", "Art Club", None), named
     assert events[8]["area"] == "announced", "an away game isn't the writer's 20-mile game"
     assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
     assert got[-1] == {"kind": "schedule", "uid_prefix": "bound:", "from": "2026-10-25", "through": "2027-01-23",
