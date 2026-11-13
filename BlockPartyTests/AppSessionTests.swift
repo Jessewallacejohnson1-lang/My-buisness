@@ -213,9 +213,10 @@ final class AppSessionTests: XCTestCase {
         session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
-        // The bell's read brings the posts that name you with its changes (BP app town-feed 60).
-        let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "friends_dot",
-                    "get_my_changes", "get_my_mentions"]
+        // The bell's read brings the posts that name you with its changes (BP app town-feed 60); Search reads its
+        // activities' next days beside its schools (school-search 06).
+        let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "activities_next",
+                    "friends_dot", "get_my_changes", "get_my_mentions"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")

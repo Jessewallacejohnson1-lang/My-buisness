@@ -71,6 +71,26 @@ struct SearchItem: Identifiable, Hashable {
     var team: Game.Team? = nil
     /// An activity's star follows it, as the school page's does (school-search 01); nil for anything else.
     var activity: FollowTarget? = nil
+    /// An activity's next event, its day after the school's name (school-search 06): worked out as the row is
+    /// drawn, so a Search left open overnight never says Today for yesterday.
+    var next: EventWhen? = nil
+
+    /// The line under its name: `sub`, then an activity's next day ("Kennedy · Tomorrow").
+    func line(_ now: Date) -> String? {
+        let parts = [sub, next.flatMap { Self.day($0, now: now) }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// An event's day from `now`, as the mock says it: "Today" ("Tonight" from 5 PM), "Tomorrow", the weekday within
+    /// the week ("Fri"), else the date ("Nov 20"); nil once it's past.
+    static func day(_ when: EventWhen, now: Date) -> String? {
+        switch Town.days(from: now, to: when.start) {
+        case ..<0: nil
+        case 0, 1: when.dayWord(now)
+        case 2..<7: Town.format(when.start, "EEE")
+        default: Town.format(when.start, "MMMd")
+        }
+    }
 
     /// A school's id by its team's uuid: its crest on the row and its disc on Sports are one recent.
     static func schoolID(_ uuid: String) -> String { "s:\(uuid)" }
@@ -217,6 +237,9 @@ final class SearchModel {
     /// The Town's schools in the row's order, then their activities (school-search 01), and whether they have been read.
     private(set) var schools: [SearchItem] = []
     private(set) var schoolsLoaded = false
+    /// Each activity's next event by its id, read on its own so Search never waits for it.
+    private var next: [String: EventWhen] = [:]
+    private var nextLoaded = false
     /// The same schools as the Sports chip's discs show them, colleges first (school-search 04).
     private(set) var schoolDiscs: [SearchItem] = []
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
@@ -254,14 +277,15 @@ final class SearchModel {
     /// vanish, and places read without their photos show their logos until a retry brings the photos.
     func load() async {
         var wait = 2.0
-        while !(placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded) && !Task.isCancelled {
+        while !(placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded) && !Task.isCancelled {
             let needPlaces = !placesLoaded, needPhotos = !photosLoaded, needGroups = !groupsLoaded
-            let needSchools = !schoolsLoaded
+            let needSchools = !schoolsLoaded, needNext = !nextLoaded
             async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
             async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
             async let readGroups = needGroups ? try? await api.getGroups() : nil
             async let readNames = needPlaces ? try? await api.getPlaceNames() : nil
             async let readSchools = needSchools ? try? await api.schoolsAndActivities() : nil
+            async let readNext = needNext ? try? await api.activitiesNext() : nil
             let (newPlaces, newPhotos, newGroups) = await (readPlaces, readPhotos, readGroups)
             if let newSchools = await readSchools { show(schools: newSchools.schools, activities: newSchools.activities) }
             if let newNames = await readNames { names = newNames }
@@ -269,7 +293,9 @@ final class SearchModel {
             if let newPhotos { savedPhotos = newPhotos }
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
             if let newGroups { show(newGroups) }
-            if placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded { return }
+            // Last, so nothing above waits for it.
+            if let newNext = await readNext { show(next: newNext) }
+            if placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)
         }
@@ -303,10 +329,25 @@ final class SearchModel {
     /// The Town's schools (`teams.local`) and the activities each lists: the row's crests in `Town.searchSchools`'
     /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
     func show(schools: [LocalSchool], activities: [SchoolActivity]) {
-        self.schools = Self.schools(schools, activities: activities)
+        self.schools = Self.schools(schools, activities: activities).map(withNext)
         schoolDiscs = Self.schoolDiscs(schools, rows: self.schools)
         schoolsLoaded = true
         POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
+    }
+
+    /// Each activity's next event (school-search 06), on its row whenever the schools arrive.
+    func show(next rows: [ActivityNext]) {
+        next = Dictionary(rows.compactMap { row in EventWhen(date: row.date, time: row.time, endAt: nil).map { (row.id, $0) } },
+                          uniquingKeysWith: { a, _ in a })
+        nextLoaded = true
+        schools = schools.map(withNext)
+    }
+
+    private func withNext(_ item: SearchItem) -> SearchItem {
+        guard let id = item.activity?.id else { return item }
+        var item = item
+        item.next = next[id]
+        return item
     }
 
     /// Which activities you follow, so a typed activity's star says so (school-search 01): each account's own,

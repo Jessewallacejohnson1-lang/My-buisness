@@ -25,15 +25,13 @@ final class SchoolEventsTests: XCTestCase {
         XCTAssertEqual(SchoolEvents.opening([], now: now), .upcoming)
     }
 
-    func testEveryActivitysEventsBecomeOneListSoonestFirst() {
-        let basketball = [event("game", "2026-11-12", "4 PM"), event("shared", "2026-11-16", "4:15 PM")]
-        let knowledgeBowl = [event("meet", "2026-11-12", "9 AM"), event("shared", "2026-11-16", "4:15 PM"),
-                             event("banquet", "2026-11-12", nil)]
-        XCTAssertEqual(SchoolEvents.merged([basketball, knowledgeBowl]).map(\.id), ["meet", "game", "banquet", "shared"])
-        let sameTime = [event("bowl", "2026-11-12", "4 PM")]
-        XCTAssertEqual(SchoolEvents.merged([basketball, sameTime]).map(\.id), ["game", "bowl", "shared"])
-        XCTAssertEqual(SchoolEvents.merged([sameTime, basketball]).map(\.id), ["bowl", "game", "shared"],
-                       "two at one time keep the activities' order")
+    /// The server sorts a time as words ("10 AM" before "9 AM"): the card sorts by the clock, one it can't read last
+    /// on its day, two at one time in the server's order (the activities').
+    func testTheSchoolsEventsSoonestFirst() {
+        let events = [event("game", "2026-11-12", "4 PM"), event("banquet", "2026-11-12", nil),
+                      event("late", "2026-11-12", "10 AM"), event("meet", "2026-11-12", "9 AM"),
+                      event("bowl", "2026-11-12", "4 PM"), event("next", "2026-11-16", "8 AM")]
+        XCTAssertEqual(SchoolEvents.sorted(events).map(\.id), ["meet", "late", "game", "bowl", "banquet", "next"])
     }
 
     func testEachSegmentShowsItsOwnDaysUnderTheirDate() {

@@ -536,6 +536,13 @@ nonisolated struct SchoolActivity: Decodable, Equatable {
     let name: String
 }
 
+/// An activity's next event (`activities_next`): its day under the activity in Search (school-search 06).
+nonisolated struct ActivityNext: Decodable, Equatable {
+    let id: String
+    let date: String
+    let time: String?
+}
+
 /// One of the Town's pages (`town_pages`): the Town's own, its City's, a campus calendar's.
 struct TownPageRow: Decodable, Equatable {
     let id: String
@@ -557,8 +564,11 @@ struct TeamProfile: Decodable, Hashable {
     let games: [Game]
     /// Every activity the school lists, in its order (school-activities 02); empty from an older read.
     var activities: [Activity] = []
+    /// The school's events from yesterday on, each once, on the first of its activities (school-search 06); empty
+    /// from an older read.
+    var events: [ActivityEvent] = []
 
-    private enum CodingKeys: String, CodingKey { case id, name, short, logo, colors, games, activities }
+    private enum CodingKeys: String, CodingKey { case id, name, short, logo, colors, games, activities, events }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -569,6 +579,7 @@ struct TeamProfile: Decodable, Hashable {
         colors = try c.decodeIfPresent([String].self, forKey: .colors)
         games = try c.decode([Game].self, forKey: .games)
         activities = (try? c.decodeIfPresent([Activity].self, forKey: .activities)) ?? []
+        events = (try? c.decodeIfPresent([ActivityEvent].self, forKey: .events)) ?? []
     }
 
     /// One of the school's activities: "Girls Soccer", its note ("St. Cloud Crush co-op"), whether
@@ -588,13 +599,15 @@ struct TeamProfile: Decodable, Hashable {
         }
     }
 
-    /// One of an activity's coming events (`activity_events`).
+    /// One of an activity's coming events (`activity_events`), or one of the school's (`events`), which names its
+    /// activity.
     struct ActivityEvent: Decodable, Hashable, Identifiable {
         let id: String
         let title: String
         let date: String
         let time: String?
         let location: String?
+        var activity: String? = nil
     }
 
     struct Game: Decodable, Hashable, Identifiable {

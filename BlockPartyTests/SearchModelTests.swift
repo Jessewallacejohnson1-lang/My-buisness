@@ -483,6 +483,51 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(offsets, ["0", "2", "4"], "a short page is the last")
     }
 
+    /// A typed activity says its next day after its school (school-search 06), whichever read lands first, worked
+    /// out when drawn: Tonight, Tomorrow, the weekday within the week, else the date; nothing once it's past or with
+    /// none coming.
+    func testATypedActivitySaysItsNextDay() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show(next: [ActivityNext(id: "k1", date: "2026-11-12", time: "6 PM"),
+                          ActivityNext(id: "k2", date: "2026-11-20", time: nil)])
+        model.show(schools: [school("kennedy", "Kennedy", "Kennedy Community School")],
+                   activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8"),
+                                SchoolActivity(id: "k2", teamId: "kennedy", name: "Boys Volleyball 7-8"),
+                                SchoolActivity(id: "k3", teamId: "kennedy", name: "Chess Club")])
+        let row = { (id: String) in model.schools.first { $0.activity?.id == id }! }
+        let wednesday = at(11, 15)
+        XCTAssertEqual(row("k1").line(wednesday), "Kennedy · Tomorrow")
+        XCTAssertEqual(row("k1").line(at(12, 18)), "Kennedy · Tonight")
+        XCTAssertEqual(row("k1").line(at(13, 9)), "Kennedy", "past")
+        XCTAssertEqual(row("k2").line(wednesday), "Kennedy · Nov 20")
+        XCTAssertEqual(row("k2").line(at(16, 9)), "Kennedy · Fri")
+        XCTAssertEqual(row("k3").line(wednesday), "Kennedy", "none coming")
+        XCTAssertEqual(model.schools.first { $0.activity == nil }?.line(wednesday), nil, "a school row has no line")
+    }
+
+    /// The days that come after the schools land on their rows too.
+    func testNextDaysAfterTheSchoolsStillLand() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show(schools: [school("kennedy", "Kennedy", "Kennedy Community School")],
+                   activities: [SchoolActivity(id: "k1", teamId: "kennedy", name: "Girls Volleyball 7-8")])
+        XCTAssertNil(model.schools.first { $0.activity != nil }?.next)
+        model.show(next: [ActivityNext(id: "k1", date: "2026-11-12", time: "6 PM")])
+        XCTAssertEqual(model.schools.first { $0.activity != nil }?.line(at(11, 15)), "Kennedy · Tomorrow")
+    }
+
+    /// Search asks for the next days of the Town's own schools, signed out too, and reads each one.
+    func testTheNextDaysReadAsksForTheTownsSchools() async throws {
+        var asked: [String: Any] = [:]
+        let send = Supabase.Send { @MainActor request in
+            asked = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"[{"id": "k1", "date": "2026-11-12", "time": null}]"#.utf8), response)
+        }
+        let read = try await CommunityAPI(auth: FakeTokenProvider(), send: send).activitiesNext()
+        XCTAssertEqual(read, [ActivityNext(id: "k1", date: "2026-11-12", time: nil)])
+        XCTAssertEqual(asked["p_teams"] as? [String], Town.searchSchools)
+    }
+
     // MARK: Search at rest and its Events (five-tabs 04)
 
     private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {

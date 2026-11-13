@@ -627,6 +627,12 @@ struct CommunityAPI {
         return (try Supabase.decode(await schools), try await activities)
     }
 
+    /// Each activity's next event from today, of the Town's schools in Search (`activities_next`, school-search 06):
+    /// the day under a typed activity. Only the activities with one. Read with the public key.
+    func activitiesNext() async throws -> [ActivityNext] {
+        try Supabase.decode(await db.rpc("activities_next", ["p_teams": Town.searchSchools], anon: true))
+    }
+
     /// The activities you follow, by id: your own `town_follows` rows, which no one else can read. The stars on
     /// Search's typed activities (school-search 01). No account throws.
     func followedActivities() async throws -> [String] {

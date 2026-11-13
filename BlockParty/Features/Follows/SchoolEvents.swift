@@ -41,18 +41,14 @@ nonisolated enum SchoolDay: CaseIterable, Hashable, Sendable {
 }
 
 nonisolated enum SchoolEvents {
-    /// What the page says when a read failed: true offline and for a server too slow to answer (signed out,
-    /// `team_page` runs at the 3 s limit), and what to do about it.
+    /// What the page says when its read failed (offline), and what to do about it.
     static let tryAgain = "Couldn't load right now. Pull down to try again."
 
-    /// Every activity's events as one list, the lists in the activities' own order: an event two activities
-    /// share once, with the first one's icon; soonest first, one with no time it can read last on its day, two at
-    /// one time in the activities' order.
-    static func merged(_ lists: [[SchoolEvent]]) -> [SchoolEvent] {
-        var seen = Set<String>()
-        let all = lists.joined().filter { seen.insert($0.id).inserted }
-        // Two at the same time keep the activities' order: Swift's sort promises no order for ties.
-        return all.enumerated().sorted { a, b in
+    /// The school's events soonest first, one with no time it can read last on its day, two at one time in the
+    /// order given (the server's: the activities' order).
+    static func sorted(_ events: [SchoolEvent]) -> [SchoolEvent] {
+        // Swift's sort promises no order for ties.
+        events.enumerated().sorted { a, b in
             let at = { (e: SchoolEvent) in (e.day, EventWhen.minutes(e.time) ?? .max) }
             return at(a.element) != at(b.element) ? at(a.element) < at(b.element) : a.offset < b.offset
         }
@@ -128,7 +124,6 @@ final class SchoolFoldBox {
 struct SchoolEventsCard: View {
     /// nil while they load.
     let events: [SchoolEvent]?
-    let failed: Bool
 
     /// The segment picked; nil until a tap, while the card opens where `SchoolEvents.opening` says.
     @State private var picked: SchoolDay?
@@ -163,7 +158,7 @@ struct SchoolEventsCard: View {
         .padding(.vertical, SchoolMetric.cardPad)
         .schoolCard()
         // The skeleton cross-fades into what was read (design.md, Loading).
-        .animation(Motion.smooth, value: events == nil && !failed)
+        .animation(Motion.smooth, value: events == nil)
     }
 
     @ViewBuilder
@@ -201,14 +196,6 @@ struct SchoolEventsCard: View {
                 }
             }
             .transition(.opacity)
-        } else if failed {
-            Text(SchoolEvents.tryAgain)
-                .font(.sans(15))
-                .foregroundStyle(Hue.nameOnDark.opacity(0.6))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, SchoolMetric.rowPad)
-                .padding(.vertical, 24)
-                .transition(.opacity)
         } else {
             // Rows in the card's own shape while they load.
             VStack(alignment: .leading, spacing: 16) {

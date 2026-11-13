@@ -73,7 +73,7 @@ struct TeamPage: View {
                         .schoolCard()
                         .transition(.opacity)
                 } else {
-                    SchoolEventsCard(events: model.events, failed: model.eventsFailed)
+                    SchoolEventsCard(events: model.events)
                     search
                         .padding(.top, SchoolMetric.gap)
                     if let profile {
@@ -99,8 +99,8 @@ struct TeamPage: View {
             fold.progress = progress
         }
         .scrollDismissesKeyboard(.interactively)
-        // Its own task: SwiftUI cancelled the refresh's task as the page it refreshed changed under it,
-        // and the events' reads with it (measured: every one ended "cancelled" 0.4 s in).
+        // Its own task: SwiftUI cancelled the refresh's task as the page it refreshed changed under it
+        // (measured: every read ended "cancelled" 0.4 s in).
         .refreshable { await Task { await model.load(actions) }.value }
         .background(colors.deep.ignoresSafeArea())
         .overlay(alignment: .top) { bar(colors) }

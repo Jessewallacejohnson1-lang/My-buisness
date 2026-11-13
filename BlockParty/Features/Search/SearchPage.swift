@@ -920,8 +920,8 @@ struct ItemRow: View {
                             .font(.sansSemibold(14))
                             .foregroundStyle(Hue.ink)
                             .lineLimit(1)
-                        if let sub = item.sub {
-                            Text(sub)
+                        if let line = item.line(.now) {
+                            Text(line)
                                 .font(.sans(13))
                                 .foregroundStyle(Hue.inkSecondary)
                                 .lineLimit(1)
@@ -943,7 +943,7 @@ struct ItemRow: View {
         }
         .overlay(alignment: .leading) {
             if let star {
-                ActivityStar(target: star, name: [item.name, item.sub].compactMap { $0 }.joined(separator: ", "),
+                ActivityStar(target: star, name: [item.name, item.line(.now)].compactMap { $0 }.joined(separator: ", "),
                              look: .bare(starred))
                     .padding(.leading, SearchMetric.side)
             }
