@@ -42,7 +42,7 @@ final class GroupAgendaTests: XCTestCase {
     /// A green Add puts one on, its Added takes it off; the toast's Add puts the whole Group on, and a
     /// long press takes one of those off while the rest stay.
     func testAddsAndTakesOff() {
-        let agenda = GroupAgenda(defaults: defaults())
+        let agenda = GroupAgenda(defaults: defaults(), clock: { self.town("2026-11-13 12:00") })
         let cards = legion.meetings[0], bingo = legion.meetings[1]
         XCTAssertEqual(agenda.state(legion, cards), .off)
         agenda.toggle(legion, cards)
@@ -65,7 +65,7 @@ final class GroupAgendaTests: XCTestCase {
     /// The toast asks only for a Group with a get-together still to come here, and a join starts
     /// the Group over.
     func testAJoinAsksOnlyWithSomethingAhead() {
-        let agenda = GroupAgenda(defaults: defaults())
+        let agenda = GroupAgenda(defaults: defaults(), clock: { self.town("2026-11-13 12:00") })
         agenda.addGroup(legion)
         agenda.joined(legion, now: town("2026-11-13 12:00"))
         XCTAssertEqual(agenda.asking?.id, "legion")
@@ -82,14 +82,26 @@ final class GroupAgendaTests: XCTestCase {
     /// Kept on the phone for the next launch; another account starts empty.
     func testKeptOnThePhoneUntilAnotherAccount() {
         let store = defaults()
-        let agenda = GroupAgenda(defaults: store)
+        let agenda = GroupAgenda(defaults: store, clock: { self.town("2026-11-13 12:00") })
         agenda.addGroup(legion)
         agenda.toggle(runners, runners.meetings[1])
-        let again = GroupAgenda(defaults: store)
+        let again = GroupAgenda(defaults: store, clock: { self.town("2026-11-13 12:00") })
         XCTAssertEqual(again.state(legion, legion.meetings[1]), .group)
         XCTAssertEqual(again.state(runners, runners.meetings[1]), .one)
         again.clear()
-        XCTAssertEqual(GroupAgenda(defaults: store).state(legion, legion.meetings[1]), .off)
+        XCTAssertEqual(GroupAgenda(defaults: store, clock: { self.town("2026-11-13 12:00") }).state(legion, legion.meetings[1]), .off)
+    }
+
+    /// A get-together's choice goes once its day is over, so what's kept stays short.
+    func testWhatsOverIsForgotten() {
+        let store = defaults()
+        var now = town("2026-11-13 12:00")
+        let agenda = GroupAgenda(defaults: store, clock: { now })
+        agenda.toggle(legion, legion.meetings[0])
+        now = town("2026-11-19 09:00")
+        agenda.toggle(legion, legion.meetings[1])
+        XCTAssertEqual(agenda.state(legion, legion.meetings[0]), .off)
+        XCTAssertEqual(agenda.state(legion, legion.meetings[1]), .one)
     }
 
     // MARK: What You shows

@@ -272,6 +272,8 @@ nonisolated enum Hue {
     /// Instagram's toast (BP app references/group-agenda, measured off its iOS screens): a dark
     /// see-through fill over a blur, #A2A3A7 over white, with white words.
     static let toast         = Color(hex: 0x26262A, alpha: 0.42)
+    /// The toast under Increase Contrast: dark enough for its white words to read at 4.5:1.
+    static let toastStrong   = Color(hex: 0x26262A, alpha: 0.86)
     /// The dot before "Live" on a game card while its score comes in (BP app game-card 03, the
     /// mock's Live phone): Apple's own red, as Apple Sports marks a game being played.
     static let live          = Color(uiColor: .systemRed)

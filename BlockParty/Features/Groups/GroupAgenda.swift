@@ -27,14 +27,19 @@ final class GroupAgenda {
     private(set) var removed: Set<String>
     /// The Group the toast asks about now; nil when no toast shows.
     var asking: TownGroup?
+    /// Each join's own count, so a Group joined, left and joined again gets its whole 6 s again.
+    private(set) var asks = 0
 
     private let defaults: UserDefaults
+    /// Now, for what's over; the tests hold it still.
+    private let clock: () -> Date
     private static let groupsKey = "groupAgenda.groups"
     private static let addedKey = "groupAgenda.added"
     private static let removedKey = "groupAgenda.removed"
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, clock: @escaping () -> Date = { Date() }) {
         self.defaults = defaults
+        self.clock = clock
         groups = Set(defaults.stringArray(forKey: Self.groupsKey) ?? [])
         added = Set(defaults.stringArray(forKey: Self.addedKey) ?? [])
         removed = Set(defaults.stringArray(forKey: Self.removedKey) ?? [])
@@ -59,6 +64,7 @@ final class GroupAgenda {
         forget(group.id)
         guard Self.hasNext(group, now: now) else { return }
         asking = group
+        asks += 1
     }
 
     /// The toast's Add.
@@ -105,7 +111,13 @@ final class GroupAgenda {
         removed = removed.filter { !$0.hasPrefix(groupID + "|") }
     }
 
+    /// Keeps what it saves short: a get-together's choice goes once its day is over.
     private func save() {
+        let today = Town.day(clock())
+        let ahead = { (key: String) in key.split(separator: "|", omittingEmptySubsequences: false)
+            .dropFirst().first.map { String($0) >= today } ?? false }
+        added = added.filter(ahead)
+        removed = removed.filter(ahead)
         defaults.set(Array(groups), forKey: Self.groupsKey)
         defaults.set(Array(added), forKey: Self.addedKey)
         defaults.set(Array(removed), forKey: Self.removedKey)
@@ -120,7 +132,11 @@ final class GroupAgenda {
 struct AgendaToast: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(RealLifeActions.self) private var actions
     @State private var drag: CGFloat = 0
+    /// Its 6 s ran out under a finger: it goes when the finger lifts.
+    @State private var timedOut = false
     private let agenda = GroupAgenda.shared
 
     enum Metric {
@@ -142,15 +158,19 @@ struct AgendaToast: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            if let group = agenda.asking {
+            // Only while you're in it: a join the server turned back, or a Leave, takes it away.
+            if let group = agenda.asking, actions.member(group).isMember {
                 toast(group)
-                    .id(group.id)
+                    .id(agenda.asks)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    .task(id: group.id) {
+                    .task(id: agenda.asks) {
+                        timedOut = false
                         AccessibilityNotification.Announcement("Add \(group.name) to your Agenda?").post()
                         guard !voiceOver else { return }
                         try? await Task.sleep(for: Metric.stays)
-                        dismiss(group)
+                        guard !Task.isCancelled else { return }
+                        // Never out from under a finger (taste.md, Motion: everything can be interrupted).
+                        if drag == 0 { dismiss(group) } else { timedOut = true }
                     }
             }
         }
@@ -185,17 +205,21 @@ struct AgendaToast: View {
         .padding(.leading, Metric.logoInset)
         .padding(.trailing, Metric.actionInset - (PageMetric.tapMin - 30) / 2)
         .frame(height: Metric.height)
-        .background(Hue.toast, in: RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
+        // Instagram's see-through grey; Increase Contrast darkens it so the white words read.
+        .background(contrast == .increased ? Hue.toastStrong : Hue.toast,
+                    in: RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
         .offset(y: max(0, drag))
         .gesture(DragGesture(minimumDistance: 4)
             .onChanged { drag = $0.translation.height }
             .onEnded { value in
-                if value.translation.height > Metric.dismiss { dismiss(group) }
+                if value.translation.height > Metric.dismiss || timedOut { dismiss(group) }
                 withAnimation(Motion.snappy) { drag = 0 }
             })
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { dismiss(group) }
+        // A working word: VoiceOver's way to say no, since the toast waits for it.
+        .accessibilityAction(named: "Not now") { dismiss(group) }
     }
 
     private func dismiss(_ group: TownGroup) {

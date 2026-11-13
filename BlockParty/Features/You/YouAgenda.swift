@@ -27,8 +27,6 @@ enum AgendaMetric {
     static let rowGap: CGFloat = 12
     /// Room the open card keeps on its right for the arrow.
     static let arrowRoom: CGFloat = 22
-    /// A Group get-together's logo in the photo's square: Search's row logo, as You's Groups rows.
-    static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// The next plan's "In 2 days" pill, and the empty line's room above and below it over that
     /// card: the mock Jesse approved (you-tab 11, https://claude.ai/artifact/XqbVLhDiEH78VNfTz7NnDw),
     /// MEASURED in its render, 24.7pt from the label's ink to the line's and 16 on to the card.
@@ -276,7 +274,7 @@ private struct AgendaCard: View {
                 .frame(width: AgendaMetric.photo, height: AgendaMetric.photo)
                 .overlay {
                     if let url = event.photo { FeedCardURLPhoto(url: url) }
-                    else if let group = event.group { YouGroupPicture(group: group, logoSide: AgendaMetric.groupLogo) }
+                    else if let group = event.group { YouGroupPicture(group: group) }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             // Opening only adds below: the time and the title's first line stay put.

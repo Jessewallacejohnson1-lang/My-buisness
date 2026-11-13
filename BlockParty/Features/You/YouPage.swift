@@ -58,8 +58,10 @@ enum YouMetric {
     static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
     static let groupGlyph: CGFloat = 24
-    /// A Group get-together's logo inside its day's 48.3 pt circle, under the white number. Picked.
-    static let dayLogo: CGFloat = 32
+    /// A Group get-together's logo inside its day's 48.3 pt circle, the mock's 38 pt (Jesse approved
+    /// it, https://claude.ai/artifact/VdKZpF5NX8n4hdLVpKAY6J), faded under the ink number. The fade is picked.
+    static let dayLogo: CGFloat = 38
+    static let dayLogoOpacity: Double = 0.45
 }
 
 struct YouPage: View {
@@ -287,7 +289,9 @@ private struct YouDay: View {
                 if let photo {
                     FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
                 } else if let group {
+                    // Faded under an ink number: the logo's own letters fought a white one (review).
                     YouGroupPicture(group: group, logoSide: YouMetric.dayLogo)
+                        .opacity(YouMetric.dayLogoOpacity)
                 } else {
                     Hue.fill
                 }
@@ -303,8 +307,8 @@ private struct YouDay: View {
                 Text(Town.format(date, "d"))
                     .font(.sansSemibold(month == nil ? 20 : 17))
             }
-            .foregroundStyle(numberInk(photo: photo != nil || group != nil))
-            .shadow(color: photo != nil || group != nil ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
+            .foregroundStyle(numberInk(photo: photo != nil))
+            .shadow(color: photo != nil ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
         }
         .frame(width: YouMetric.day, height: YouMetric.day)
         .clipShape(Circle())
@@ -396,6 +400,8 @@ struct YouComingUp: View {
                     }
                     .frame(width: Sizes.tile, height: Sizes.tile)
                     .background(Hue.fill, in: RoundedRectangle(cornerRadius: Sizes.tileCorner, style: .continuous))
+                    // The line says the day; the Group page hides its tile the same way.
+                    .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: ProfileMetric.rowText) {
                         Text(meeting.what)
                             .font(.apple(15, weight: .semibold))
