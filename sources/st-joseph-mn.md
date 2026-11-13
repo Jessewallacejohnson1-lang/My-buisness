@@ -2257,7 +2257,6 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56802, -94.313
 ## Church of Saint Joseph
 ```yaml
 id: church-jospehs-st
-aka: ["St. Joseph Parish"]
 status: active
 tier: listed
 category: amenity=place_of_worship
@@ -2270,8 +2269,6 @@ sources:
 at: [45.56417, -94.31874]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
-2026-11-13: "St. Joseph Parish" is the diocesan paper's name for it (the Knights of Columbus breakfasts; BP app
-nothing-scheduled 02). No live Event's place changed by it (`write_judged.plan` against the live rows).
 
 ## St. Cloud Area Chamber of Commerce
 ```yaml

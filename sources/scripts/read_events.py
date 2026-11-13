@@ -2156,8 +2156,6 @@ def t_items_fit_the_writer():
     assert lines == {("Breakfast", "St. Wendelin Parish, Luxemburg"), ("Breakfast", "St. Joseph Parish"),
                      ("Christmas Concert", "St. Boniface Parish, Cold Spring"),
                      ("Toys for Tots Collection", "Catholic Charities – Emergency Services, St. Cloud")}, lines
-    knights = next(g["row"] for g in r["events"] if g["row"]["source_name"] == "Knights of Columbus")
-    assert knights["place_entry_id"] == "church-jospehs-st", "the paper's St. Joseph Parish is the Church of Saint Joseph"
 
 
 def t_gobound():
