@@ -15,6 +15,8 @@ came with it:
 - `words`: the text of the post it came from, when it came from a post.
 - `posted`: the day it was posted, when it came from a post.
 - `meta_says`: Meta's own description, when Meta gave one.
+- `small`: under 1000 px wide. It runs only as a flyer, sharpened before it runs; a photo this small is too
+  soft for the card.
 
 On the sheet each Event is one row, headed by its key and title, its pictures numbered under it.
 

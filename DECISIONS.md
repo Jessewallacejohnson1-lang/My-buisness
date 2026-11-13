@@ -942,6 +942,17 @@ two grounds into a visible band, held the old pill's rows on screen in dark colo
 glass on its white underlay over the dark page (the agent's pick; the mock draws it dark, but the bar's glass is
 pinned light on every screen, `docs/rules/architecture.md`).
 
+## Decided 2026-11-13 — a small flyer runs sharpened (BP app event-photos 19)
+
+The morning's photo step keeps a picture from `SMALLEST` (360 px) to `MIN_WIDTH` (1000) wide, marked `small`, which
+runs only as a flyer: `sharpen.py` makes it 4x with Real-ESRGAN's anime model and blends each text line under
+`FINE_PX` (13 px) back from a plain enlargement, since the model re-letters text that small with made-up words (Jesse,
+2026-11-13, Apollo's 379 px SpongeBob poster: "make it clear to read", "add it to automating events"). A flyer
+`PLAIN_FROM` (700) or wider runs as it is: it reads, and the model would take minutes on the cloud's CPU. The two
+models (22 MB, `sources/models/weights/`) are a deliberate exception to keeping binaries out of the repo: the cloud
+routine gets its code from the repo and its libraries from PyPI, and Real-ESRGAN's own weights need torch to read.
+`convert_realesrgan.py` there remakes the larger model from them. numpy and onnxruntime are the morning's libraries only (`ci-packages.txt` "-").
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

@@ -62,6 +62,10 @@ WEEKLY_DAY = 6                 # Sunday, Chicago time: the dig's weekly pass, be
 WEEKLY_AHEAD = timedelta(days=28)  # the weekly pass reaches Events this close; hosts post nearer the day
 PLACE_MORE = 6                 # the same page's other photos offered beside a post's own pictures
 MIN_WIDTH = 1000               # as scenes.py: the card is width-bound and asks for 1200 px
+# A flyer from SMALLEST to MIN_WIDTH runs sharpened (sharpen.py; Jesse, 2026-11-13, Apollo's 379 px SpongeBob poster:
+# "add it to automating events"); a photo that small never runs, and one under SMALLEST has too little to sharpen.
+SMALLEST = 360
+SMALL_MOST = 2                 # small pictures laid out for one Event, beside (not counted in) a step's `most`
 # A News's own picture: Jesse took JoeTown's 720 px group shot of its new merch over the post's sharp portrait
 # ("the other ones get attention of users more", 2026-11-08, town-feed 53).
 NEWS_MIN_WIDTH = 720
@@ -275,8 +279,9 @@ def candidates(groups, rows, banners, share=share_picture):
 
 
 def download(groups, folder, grab=None, n=0, most=None):
-    """Each candidate to folder/c<n>.jpg, numbered after `n`; one under MIN_WIDTH, a repeat of another, or one that
-    won't download is dropped, and none after a group's `most`. Returns the failures as lines."""
+    """Each candidate to folder/c<n>.jpg, numbered after `n`; one under MIN_WIDTH (but SMALL_MOST small ones), a repeat
+    of another (the wider stays), or one that won't download is dropped, and none after a group's `most` full-size
+    ones. Returns the failures as lines."""
     import place_photos
     from PIL import Image
     grab = grab or (lambda c, dest: social.fetch_picture(c["url"], dest) if POST.search(c["page"])
@@ -286,7 +291,7 @@ def download(groups, folder, grab=None, n=0, most=None):
     for g in groups:
         kept, hashes = [], []
         for c in g["cands"]:
-            if most and len(kept) >= most:
+            if most and sum(1 for k in kept if not k.get("small")) >= most:
                 break
             n += 1
             dest = folder / f"c{n}.{'jpg' if POST.search(c['page']) else 'png'}"  # a page's may be see-through
@@ -295,13 +300,20 @@ def download(groups, folder, grab=None, n=0, most=None):
             except Exception as e:
                 failed.append(f"{g['title']}: c{n} would not download ({str(e)[:80]})")
                 continue
-            if w < (NEWS_MIN_WIDTH if g.get("news") else MIN_WIDTH):
+            small = not g.get("news") and SMALLEST <= w < MIN_WIDTH
+            if w < (NEWS_MIN_WIDTH if g.get("news") else MIN_WIDTH) and not small:
                 continue
             hsh = place_photos.dhash(Image.open(dest))
-            if any(place_photos.same_picture(hsh, x) for x in hashes):
+            this = {**c, "n": n, "file": str(dest), "w": w, "h": h, **({"small": True} if small else {})}
+            twin = next((i for i, x in enumerate(hashes) if place_photos.same_picture(hsh, x)), None)
+            if twin is not None:  # a share picture's small copy first, its original after: the original stays
+                if w > kept[twin]["w"]:
+                    kept[twin] = this
+                continue
+            if small and sum(1 for k in kept if k.get("small")) >= SMALL_MOST:
                 continue
             hashes.append(hsh)
-            kept.append({**c, "n": n, "file": str(dest), "w": w, "h": h})
+            kept.append(this)
         g["cands"] = kept
     return failed
 
@@ -333,6 +345,7 @@ def sheets(groups, folder):
                                                    **({"page": c["page"], "page_title": c["title"], "finder_says": c["why"]}
                                                       if "title" in c else {}),
                                                    **({"posted": c["posted"]} if c.get("posted") else {}),
+                                                   **({"small": True} if c.get("small") else {}),
                                                    **({"words": c["words"]} if c.get("words") else {})}
                                                   for c in g["cands"]]}, ensure_ascii=False))
             for col, c in enumerate(g["cands"]):
@@ -395,15 +408,31 @@ def plan(lines, groups):
     """The helpers' lines as picks: {group key: (candidate, what it shows, a flyer?)}, only a group laid out and one
     of its own pictures, each group once. A flyer from another post of the place counts too, when its words still
     hold for the Event (`sources/models/event-photo.md`, Jesse, 2026-11-05). A News takes its own post's flyer too
-    (Jesse, 2026-11-08)."""
+    (Jesse, 2026-11-08). A small picture runs only as a flyer, sharpened (SMALLEST)."""
     by, picks = {g["key"]: g for g in groups}, {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("event") not in by or ln["event"] in picks:
             continue
         c = next((c for c in by[ln["event"]]["cands"] if f"c{c['n']}" == str(ln.get("pick") or "").strip()), None)
-        if c:
+        if c and (ln.get("flyer") or not c.get("small")):
             picks[ln["event"]] = (c, " ".join(str(ln.get("shows") or "").split())[:80] or None, bool(ln.get("flyer")))
     return picks
+
+
+def image_of(c, clear=None):
+    """A pick's picture as it runs: a small flyer sharpened (sharpen.py). None when it can't be sharpened here (no
+    numpy or onnxruntime, or the model failed): its Event isn't marked, so a run with the morning's libraries lays it
+    out again."""
+    from PIL import Image
+    im = Image.open(c["file"])
+    if not c.get("small"):
+        return im
+    import sharpen
+    try:
+        return (clear or sharpen.sharpen)(im)
+    except Exception as e:  # one flyer the model chokes on never stops the Events after it
+        print(f"[photos]   c{c.get('n')} not sharpened: {type(e).__name__}: {str(e)[:120]}")
+        return None
 
 
 def entry_of(e):
@@ -425,9 +454,12 @@ def keep(out, dry_run=False, db=None, now=None):
     stamp = (now or datetime.now(timezone.utc)).isoformat()
     by_key = {g["key"]: g for g in groups}
     followed = {f["event"]["id"]: f for f in follow}
+    group_of, unsaved = {e["id"]: g["key"] for g in groups for e in g["events"]}, set()
 
     def save_one(key):
         kind, what = key.split(":", 1)
+        if kind == "looked" and group_of.get(what) in unsaved:
+            return
         if kind == "looked":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_checked_at": stamp}, prefer="return=minimal")
         if kind == "seen":
@@ -446,7 +478,11 @@ def keep(out, dry_run=False, db=None, now=None):
                                                  events=[(n["id"], entry_of(n))], description=shows,
                                                  credit=n.get("source_name") if POST.search(c["page"]) else None,
                                                  proposed_by=OWN)
-            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+            im = image_of(c)
+            if im is None:
+                unsaved.add(what)
+                return print(f"[photos]   {g['title']}: its small flyer not sharpened here; laid out again next time")
+            place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
                                       proposed_by=OWN)
@@ -460,12 +496,12 @@ def keep(out, dry_run=False, db=None, now=None):
                                         + [k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
                                            + [f"looked:{e['id']}" for e in g["events"]]
                                            + ([f"seen:{g['news']['id']}"] if g.get("news") else [])], save_one)
-    kept = [g for g in groups if g["key"] in picks]
+    kept = [g for g in groups if g["key"] in picks and g["key"] not in unsaved]
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
     flyers = sum(len(g["events"]) for g in kept if picks[g["key"]][2])
-    none = [g["title"] for g in groups if g["key"] not in picks and not g.get("news")]
+    none = [g["title"] for g in groups if (g["key"] not in picks or g["key"] in unsaved) and not g.get("news")]
     news = [g for g in groups if g.get("news")]
     line = (f"[photos] {got + len(follow)} of {events + len(follow)} new Events got a photo of their own ("
             + (f"{len(follow)} the one kept for their title, " if follow else "") + f"{own} from their own post or page, "
@@ -813,7 +849,6 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     its place's posts when it went on to them (or the month's money for them was spent). One the dig didn't finish
     stays unmarked for the next morning."""
     import place_photos
-    from PIL import Image
     folder = out / "dig"
     groups, found, laid, picks, reached = free_round(folder)
     pf = folder / "posts"
@@ -833,14 +868,21 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     chosen = {g["key"]: pick_of(g["key"]) for g in done if pick_of(g["key"])}
     db = db or (None if dry_run else Supabase())
     stamp = (now or datetime.now(timezone.utc)).isoformat()
+    group_of, unsaved = {e["id"]: g["key"] for g in done for e in g["events"]}, set()
 
     def save_one(key):
         kind, what = key.split(":", 1)
+        if kind == "dug" and group_of.get(what) in unsaved:
+            return
         if kind == "dug":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_dug_at": stamp}, prefer="return=minimal")
         g, (c, shows, flyer) = chosen[what]
+        im = image_of(c)
+        if im is None:
+            unsaved.add(what)
+            return print(f"[dig]   {g['title']}: its small flyer not sharpened here; dug again next time")
         try:
-            place_photos.save_picture(db, Image.open(c["file"]), "flyer" if flyer else "event", c["page"], town=TOWN,
+            place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
                                       proposed_by=DIG)
@@ -851,10 +893,10 @@ def dig_keep(out, dry_run=False, db=None, now=None):
         Part(folder / "kept.json").each([k for g in done for k in ([f"photo:{g['key']}"] if g["key"] in chosen else [])
                                          + [f"dug:{e['id']}" for e in g["events"]]], save_one)
     count = lambda gs: sum(len(g["events"]) for g in gs)
-    got = [g for g in done if g["key"] in chosen]
+    got = [g for g in done if g["key"] in chosen and g["key"] not in unsaved]
     per = ", ".join(f"{r} {count([g for g in got if chosen[g['key']][1][0]['from'] == r])}" for r in RUNGS + ("posts",))
     flyers = count([g for g in got if chosen[g["key"]][1][2]])
-    still = [g for g in done if g["key"] not in chosen]
+    still = [g for g in done if g["key"] not in chosen or g["key"] in unsaved]
     waiting = [g for g in groups if g not in done]
 
     def tried(g):
@@ -950,7 +992,7 @@ def selftest():
     with tempfile.TemporaryDirectory() as tmp:
         folder, out = Path(tmp) / "sheets", Path(tmp) / "out"
         folder.mkdir()
-        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (500, 500)}
+        sizes = {"flyer": (1536, 2048), "cast": (1206, 1608), "menu": (1080, 1350), "art": (4568, 3000), "og": (300, 300)}
 
         def grab(c, dest):
             name = next(k for k in sizes if k in c["url"])
@@ -972,6 +1014,40 @@ def selftest():
         flyers = plan([{"event": "e1", "pick": own, "flyer": True}], gs), plan([{"event": "e1", "pick": other, "flyer": True}], gs)
         check(flyers[0]["e1"][2] is True and flyers[1]["e1"][2] is True,
               "a flyer from the Event's own post, or from another post of the place (Jesse, 2026-11-03)")
+
+        sg = [{"key": "s1", "title": "Show", "events": gs[0]["events"],
+               "cands": [{"url": f"https://x/{n}.jpg", "page": "https://apollo.example/show", "from": "page", "about": ""}
+                         for n in ("poster", "speck")]}]
+
+        def sgrab(c, dest):
+            size = (379, 494) if "poster" in c["url"] else (300, 300)
+            Image.effect_noise(size, 70).convert("RGB").save(dest)
+            return size
+        download(sg, folder, sgrab, n=500)
+        check([(c["url"], c.get("small")) for c in sg[0]["cands"]] == [("https://x/poster.jpg", True)],
+              f"a picture from {SMALLEST} to {MIN_WIDTH} px stays, marked small; a smaller one doesn't")
+        check(not plan([{"event": "s1", "pick": "c501"}], sg) and plan([{"event": "s1", "pick": "c501", "flyer": True}], sg)["s1"][2],
+              "a small picture runs only as a flyer")
+        poster, big = sg[0]["cands"][0], gs[0]["cands"][0]
+        check(image_of(poster, clear=lambda im: im.resize((im.width * 4, im.height * 4))).width == 379 * 4
+              and image_of(big, clear=lambda im: 1 / 0).width == big["w"] and image_of(poster, clear=lambda im: None) is None,
+              "a small flyer runs sharpened, any other picture as it came; with no sharpener, none")
+        check(image_of(poster, clear=lambda im: 1 / 0) is None, "a flyer the model fails on is none, and keep goes on")
+        art = Image.effect_noise((1600, 1200), 50).convert("RGB")
+        tg = [{"key": "t1", "title": "Talk", "events": gs[0]["events"],
+               "cands": [{"url": f"https://x/{n}.jpg", "page": "https://hall.example/talk", "from": "page", "about": ""}
+                         for n in ("copy", "s1", "s2", "s3", "orig")]}]
+
+        def tgrab(c, dest):
+            name = c["url"].rsplit("/", 1)[1][:-4]
+            im = (art.resize((600, 450)) if name == "copy" else art if name == "orig"
+                  else Image.effect_noise((500, 700), 20 + 10 * int(name[1])).convert("RGB"))
+            im.save(dest)
+            return im.size
+        download(tg, folder, tgrab, n=600, most=1)
+        check([(c["url"].rsplit("/", 1)[1], c["w"]) for c in tg[0]["cands"]] == [("orig.jpg", 1600), ("s1.jpg", 500)],
+              f"a small copy listed first gives way to its original, which small ones ahead of it don't crowd out of "
+              f"`most`; {SMALL_MOST} small ones at most")
 
         (folder / "events.json").write_text(json.dumps(gs))
         (out / "photos").mkdir(parents=True)
@@ -1048,6 +1124,23 @@ def selftest():
         check({r["kind"] for m, p, b in fake.calls if p == "place_photos" for r in b} == {"flyer"}, "a flyer is saved as kind flyer")
         dry = keep(out, dry_run=True)
         check("dry run" in dry, "a dry run writes nothing")
+        (out / "photos" / "kept.json").unlink(missing_ok=True)
+        laid_out = (out / "photos" / "events.json").read_text()
+        ev = json.loads(laid_out)
+        for c in ev[0]["cands"]:
+            c["small"] = True
+        (out / "photos" / "events.json").write_text(json.dumps(ev))
+        real, fake = globals()["image_of"], place_photos.Unsent("https://db.example")
+        globals()["image_of"] = lambda c, clear=None: None
+        try:
+            said = keep(out, db=fake, now=datetime(2026, 11, 2, 11, tzinfo=timezone.utc))
+        finally:
+            globals()["image_of"] = real
+            (out / "photos" / "events.json").write_text(laid_out)
+        check(not any(p == "place_photos" for m, p, b in fake.calls)
+              and sorted(p.split("=eq.")[1] for m, p, b in fake.calls if m == "PATCH") == ["id2", "id3"]
+              and f"none for 3: {ev[0]['title']}" in said,
+              f"a small flyer not sharpened saves nothing, leaves its Events unmarked for the next run, and isn't counted: {said}")
 
         class Found(place_photos.Unsent):  # the new Events, as the database answers; no new News
             def rest(self, method, path, body=None, prefer=None):
@@ -1254,7 +1347,7 @@ def selftest():
             if "news.example" in url:
                 raise RuntimeError("robots.txt disallows")
             return 200, bio if "hayes" in url else site
-        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (400, 300), "writer": (1600, 1041)}
+        big = {"reading": (1600, 1067), "portrait": (1200, 1500), "fry-crowd": (1600, 1200), "tiny": (300, 225), "writer": (1600, 1041)}
 
         def grab2(c, dest):
             name = next(k for k in big if k in c["url"])
