@@ -370,7 +370,7 @@ struct TeamPage: View {
     /// A row's grey line: its next Event's day and time; else when it meets, "Fridays · 8 AM" (nothing-scheduled 03,
     /// Apple Sports' "Off Season" line); else "No events yet". Only an Event opens the row.
     static func line(_ activity: TeamProfile.Activity) -> String {
-        activity.next.map(when) ?? activity.meets?.lazy.compactMap(\.words).first ?? "No events yet"
+        activity.next.map { when($0) } ?? activity.meets?.lazy.compactMap(\.words).first ?? "No events yet"
     }
 
     /// "Tue, Oct 27 · 6 PM": its day and time, as the row says it.
