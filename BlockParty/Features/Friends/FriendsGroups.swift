@@ -108,7 +108,11 @@ struct GroupJoinRow: View {
     private func toggle() {
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)
-        if joining, actions.member(group).isMember { joined(group) }
+        if joining, actions.member(group).isMember {
+            joined(group)
+            // The toast asks whether its get-togethers go on your Agenda (rsvp-and-groups 09).
+            GroupAgenda.shared.joined(group)
+        }
     }
 
     /// Its next get-together still to come: a timed one before it starts, an untimed one through

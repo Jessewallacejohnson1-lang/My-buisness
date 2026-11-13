@@ -27,6 +27,8 @@ enum AgendaMetric {
     static let rowGap: CGFloat = 12
     /// Room the open card keeps on its right for the arrow.
     static let arrowRoom: CGFloat = 22
+    /// A Group get-together's logo in the photo's square: Search's row logo, as You's Groups rows.
+    static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// The next plan's "In 2 days" pill, and the empty line's room above and below it over that
     /// card: the mock Jesse approved (you-tab 11, https://claude.ai/artifact/XqbVLhDiEH78VNfTz7NnDw),
     /// MEASURED in its render, 24.7pt from the label's ink to the line's and 16 on to the card.
@@ -162,6 +164,8 @@ struct AgendaList: View {
     var pick: (DailyEvent) -> Void = { _ in }
     let retry: () -> Void
     let open: (FeedCardItem) -> Void
+    /// A Group get-together's card opens its Group page (rsvp-and-groups 09).
+    var openGroup: (TownGroup) -> Void = { _ in }
 
     var body: some View {
         if let events {
@@ -184,7 +188,7 @@ struct AgendaList: View {
                     }
                 }
             } else {
-                AgendaCards(events: events, now: now, withDay: withDay, faces: faces, open: open)
+                AgendaCards(events: events, now: now, withDay: withDay, faces: faces, open: open, openGroup: openGroup)
             }
         } else if failed {
             FeedRetryButton(action: retry)
@@ -212,6 +216,7 @@ struct AgendaCards: View {
     var withDay = false
     var faces = false
     let open: (FeedCardItem) -> Void
+    var openGroup: (TownGroup) -> Void = { _ in }
     @State private var openID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
@@ -224,6 +229,7 @@ struct AgendaCards: View {
                                friends: faces ? event.item.friendsGoing : [], open: openID == event.id)
                 }
                 .buttonStyle(.press(.squish))
+                .modifier(GroupCardMenu(event: event))
             }
         }
     }
@@ -239,7 +245,7 @@ struct AgendaCards: View {
     /// VoiceOver reads the whole card at once, so its first tap opens the page.
     private func tap(_ event: DailyEvent) {
         if openID == event.id || voiceOver {
-            open(event.item)
+            if let group = event.group { openGroup(group) } else { open(event.item) }
         } else {
             withAnimation(reduceMotion ? nil : Motion.bentoExpand) { openID = event.id }
         }
@@ -268,7 +274,10 @@ private struct AgendaCard: View {
         HStack(alignment: .top, spacing: AgendaMetric.textGap) {
             Hue.fill
                 .frame(width: AgendaMetric.photo, height: AgendaMetric.photo)
-                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
+                .overlay {
+                    if let url = event.photo { FeedCardURLPhoto(url: url) }
+                    else if let group = event.group { YouGroupPicture(group: group, logoSide: AgendaMetric.groupLogo) }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             // Opening only adds below: the time and the title's first line stay put.
             VStack(alignment: .leading, spacing: 0) {
@@ -284,7 +293,8 @@ private struct AgendaCard: View {
                 title
                 if open {
                     VStack(alignment: .leading, spacing: 0) {
-                        if event.timed { Text("Until \(Town.clock(event.ends))") }
+                        // A get-together's end isn't known: never an invented one (rsvp-and-groups 09).
+                        if event.timed && event.group == nil { Text("Until \(Town.clock(event.ends))") }
                         if let place = event.item.location { Text(place) }
                     }
                     .font(.sans(13))
@@ -368,6 +378,8 @@ private struct AgendaCard: View {
             return (line.text, line.spoken)
         }
         let time = event.startTime(now: now)
+        // A Group get-together says whose it is: its title is only "Meeting" or "Bingo" (rsvp-and-groups 09).
+        if let group = event.group { return ("\(time) · \(group.name)", "\(time), \(group.name)") }
         return (time, time)
     }
 
@@ -375,7 +387,7 @@ private struct AgendaCard: View {
     /// Trailhead". "Until" is a working word, from the mockup Jesse picked; he writes
     /// the final ones.
     private var more: String {
-        [event.timed ? "Until \(Town.clock(event.ends))" : nil, event.item.location]
+        [event.timed && event.group == nil ? "Until \(Town.clock(event.ends))" : nil, event.item.location]
             .compactMap { $0 }.joined(separator: ", ")
     }
 
@@ -391,6 +403,25 @@ private struct AgendaCard: View {
                 .frame(height: open ? nil : 0, alignment: .top)
                 .clipped()
                 .opacity(open ? 1 : 0)
+        }
+    }
+}
+
+/// A long press on a Group get-together's card takes it off your Agenda (rsvp-and-groups 09: the
+/// Group page has no switch, Jesse 2026-11-13). Apple's own menu; an Event's card has none.
+private struct GroupCardMenu: ViewModifier {
+    let event: DailyEvent
+
+    func body(content: Content) -> some View {
+        if let group = event.group, let meeting = event.meeting {
+            content.contextMenu {
+                // A working line.
+                Button("Remove from Agenda", systemImage: "calendar.badge.minus", role: .destructive) {
+                    GroupAgenda.shared.remove(group, meeting)
+                }
+            }
+        } else {
+            content
         }
     }
 }

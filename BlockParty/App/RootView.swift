@@ -551,6 +551,9 @@ struct MainTabsView: View {
         .overlay(alignment: .top) {
             HelloDropView(pill: session.helloPill, open: openHello)
         }
+        // After Join group: "Add to your Agenda?" (rsvp-and-groups 09), over the Group page's bar
+        // or the tab bar.
+        .overlay(alignment: .bottom) { AgendaToast() }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
         // An Event's "Send in a chat" (`ShareCenter`).
