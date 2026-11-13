@@ -1075,9 +1075,10 @@ struct SearchPhoto: View {
                 case .saved(let picture):
                     SavedPhoto(item: item, picture: picture)
                 case .card(let source):
-                    // Only a photo is an Event's `.card` (`SearchModel.events`): a logo is its `logo`.
+                    // Only a photo is an Event's `.card` (`SearchModel.events`): a logo is its `logo`. A flyer
+                    // shows whole over its blur, so its words aren't cut (BP app event-photos 18).
                     if let url = source.url {
-                        FeedCardURLPhoto(url: url, loadingFill: .clear)
+                        FeedCardURLPhoto(url: url, loadingFill: .clear, whole: item.card?.whole == true ? 0 : nil)
                         if let credit = source.attribution {
                             PhotoCredit(names: [credit])
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
