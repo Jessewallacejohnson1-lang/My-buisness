@@ -1237,12 +1237,15 @@ def diocese_items(text, entry, src, today):
         get = lambda k: unescape(ev.get(k, ("", ""))[1])
         end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
         uid = ev["UID"][1].strip()
-        # ponytail: a run is seen only while two of its days are in the feed, so its last day alone reads as a
-        # one-off and shows a second card that day (the morning review's doubles name it). Keep runs read before in a
-        # file if one ends that way often; a one-off long day must not take a run's id, which never merges.
-        if all(not a and "DTEND" in e and when(e["DTEND"])[0] - s >= SHOW_SITTING for s, a, e, _ in sittings) \
-                and any(b[0] - a[0] <= timedelta(7) for a, b in zip(sittings, sittings[1:])):
-            end, uid = sittings[-1][0].date(), f"run:{page}"
+        # A run's last day (or its first, at the feed's edge) is its one sitting in the feed: still the run's Event,
+        # never a second card that day. Only a series' dated sitting takes a run's id: a one-off long day (the
+        # monastery's retreat) keeps its own, since a run's id never merges into another host's copy.
+        if url != page and all(not a and "DTEND" in e and when(e["DTEND"])[0] - s >= SHOW_SITTING
+                               for s, a, e, _ in sittings):
+            days_apart = [b[0] - a[0] for a, b in zip(sittings, sittings[1:])]
+            if not days_apart or min(days_apart) <= timedelta(7):
+                uid = f"run:{page}"
+                end = sittings[-1][0].date() if days_apart else end
         title, about = get("SUMMARY"), said(get("DESCRIPTION"))
         ending, host = PAPER_ENDING.search(title), HOSTED.search(about or "")
         place, town = venue_of(get("LOCATION"))
@@ -1546,6 +1549,22 @@ def t_diocese():
     assert toys["source_uid"] == run and toys["source_url"].endswith("/2026-11-13/"), toys
     tomorrow = diocese_items(ics, paper, src, date(2026, 11, 14))[0]
     assert (tomorrow["start"][:10], tomorrow["source_uid"]) == ("2026-11-16", run), "the same Event at its next day"
+    last = diocese_items(ics, paper, src, date(2026, 12, 4))[0]
+    assert (last["start"], last["end"], last["source_uid"]) == ("2026-12-04T09:00:00-06:00", "2026-12-04T16:00:00-06:00",
+                                                                run), f"its last day alone is still the run's Event: {last}"
+    from write_judged import plan, interest_ids
+    row = plan([tomorrow], [], date(2026, 11, 14), interest_ids())["events"][0]["row"]
+    stored = {**{k: row[k] for k in ("title", "event_date", "start_time", "all_day", "location", "source_name",
+                                     "source_uid", "category")},
+              "id": "e1", "status": "approved", "shows_from": None, "review_reason": None, "cancelled_at": None,
+              "found": True, "mentions": [{"source_name": row["source_name"], "source_uid": run, "source_url": "u",
+                                           "trust": "squishy", "sure": True}]}
+    again = plan([last], [stored], date(2026, 12, 4), interest_ids())
+    assert [g["id"] for g in again["events"]] == ["e1"] and again["outcomes"][0][0] == "merged", again["outcomes"]
+    oneoff = ics.replace("toys-for-tots-collection-st-cloud-catholic-charities/2026-12-04/",
+                         "toys-for-tots-collection-st-cloud-catholic-charities/")
+    assert diocese_items(oneoff, paper, src, date(2026, 12, 4))[0]["source_uid"].startswith("100"), \
+        "a long day that is no series' sitting (the monastery's retreat) keeps its own id, so it can merge"
     assert bouja["source_uid"] == "10009179-1795336200-1795345200@thecentralminnesotacatholic.org", \
         "a morning's fundraiser on two Sundays is one card, at its next"
     assert [i["place"] for i in got] == [
@@ -1564,7 +1583,15 @@ def t_diocese():
            .replace("LOCATION:MN\nCATEGORIES:Advent", "LOCATION:St. Benedict’s Monastery – St. Joseph\\, 104 Chapel Ln\\, "
                     "St. Joseph\\, MN\\, 56374\nGEO:45.5630238;-94.3195957\nCATEGORIES:Advent"))
     assert taize in far and "Grey Eagle" in far and far.count("GEO:45.5630238") == 1, "the fixture changed"
-    assert [i["title"] for i in diocese_items(far, paper, src, day)] == [i["title"] for i in got]
+    assert [i["title"] for i in diocese_items(far, paper, src, day)] == [i["title"] for i in got], \
+        "far ones stay out: Taizé with no map point, a St. Joseph-named parish in Grey Eagle, the virtual pause"
+    # No map point: the town its address names decides alone. Taizé's convent in Little Falls (28 miles) is out; the
+    # same sitting at a St. Cloud address is in.
+    assert "GEO:45.9658516" not in far and "Taizé Prayer" not in {i["title"] for i in diocese_items(
+        far, paper, src, day)}, "no map point and an address in a far town: out"
+    in_town = far.replace("116 8th Ave SE\\, Little Falls\\, MN", "116 8th Ave SE\\, St. Cloud\\, MN")
+    assert "Taizé Prayer" in {i["title"] for i in diocese_items(in_town, paper, src, day)}, \
+        "no map point and an address in a nearby town: in"
 
 
 def t_diocese_repeats():
