@@ -32,6 +32,9 @@ enum Radius {
     /// A school page's cards, Apple Sports' league page as the picked mock draws them (BP app
     /// school-search 05, version 2; measured off Apple's own frame they come out nearer 26).
     static let schoolCard: CGFloat = 30
+    /// Search's Event calendar, the picked day's card: the Sports mock's card, as the approved mock draws it
+    /// (BP app five-tabs 10).
+    static let dayCard: CGFloat = 30
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

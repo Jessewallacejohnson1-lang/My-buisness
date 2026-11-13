@@ -368,7 +368,10 @@ struct GroupPage: View {
     /// and shakes the pill.
     private func toggle() {
         tappedAt = actions.memberFailureCount(group.id)
+        let joining = !actions.member(group).isMember
         actions.toggleMember(group)
+        // Joined: the toast asks whether its get-togethers go on your Agenda (rsvp-and-groups 09).
+        if joining, actions.member(group).isMember { GroupAgenda.shared.joined(group) }
     }
 
     // MARK: Words (SearchModelTests)

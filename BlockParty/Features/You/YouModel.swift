@@ -239,6 +239,61 @@ enum YouCalendar {
         (calendar.startOfDay(for: event.starts), event.timed ? 0 : 1, event.starts, event.item.title)
     }
 
+    // MARK: Group get-togethers (BP app rsvp-and-groups 09)
+
+    /// A get-together still to come: a timed one before it starts, an untimed one through its day
+    /// (`FriendsGroups.next`'s rule; `get_groups` can still list one from earlier today).
+    static func stillToCome(_ meeting: TownGroup.Meeting, now: Date) -> Bool {
+        guard let when = EventWhen(date: meeting.day, time: meeting.time, endAt: nil) else { return false }
+        return when.timed ? when.start > now : when.end > now
+    }
+
+    /// One get-together as an Agenda card: its words as the title, the Group's name where an Event's
+    /// club goes, where it meets as the place. nil when its day doesn't parse.
+    static func event(_ group: TownGroup, _ meeting: TownGroup.Meeting) -> DailyEvent? {
+        let row = UpcomingEvent(id: "group-meeting|" + GroupAgenda.key(group, meeting), title: meeting.what,
+                                eventDate: meeting.day, startTime: meeting.time,
+                                location: meeting.place ?? group.location, goingCount: 0, createdAt: "",
+                                clubName: group.name, isAllDay: meeting.time == nil)
+        guard var event = event(from: row) else { return nil }
+        event.group = group
+        event.meeting = meeting
+        return event
+    }
+
+    /// The get-togethers on the Calendar: of the Groups you're in (`groups`, membership already
+    /// read), each one `state` puts on, inside the `days` from `first`, never an away one.
+    static func groupPlans(_ groups: [TownGroup], state: (TownGroup, TownGroup.Meeting) -> GroupAgenda.State,
+                           first: Date, days: Int = length) -> [DailyEvent] {
+        let end = calendar.date(byAdding: .day, value: days, to: first) ?? first
+        return groups.flatMap { group in
+            group.meetings.compactMap { meeting -> DailyEvent? in
+                guard meeting.away != true, state(group, meeting) != .off,
+                      let event = event(group, meeting), event.starts >= first, event.starts < end else { return nil }
+                return event
+            }
+        }
+    }
+
+    /// The Going and the get-togethers, each in the Calendar's order.
+    static func withGroups(_ going: [DailyEvent], _ plans: [DailyEvent]) -> [DailyEvent] {
+        (going + plans).sorted { order($0) < order($1) }
+    }
+
+    /// You's Coming up: the next `limit` get-togethers still to come of the Groups you're in, soonest
+    /// first, leaving out those on with their whole Group (they're on the Calendar) and away ones.
+    /// One added by itself stays, as Added, so a tap can take it off.
+    static func comingUp(_ groups: [TownGroup], state: (TownGroup, TownGroup.Meeting) -> GroupAgenda.State,
+                         now: Date, limit: Int = 3) -> [DailyEvent] {
+        let all = groups.flatMap { group in
+            group.meetings.compactMap { meeting -> DailyEvent? in
+                guard meeting.away != true, state(group, meeting) != .group, stillToCome(meeting, now: now) else { return nil }
+                return event(group, meeting)
+            }
+        }
+        return Array(all.sorted { order($0) < order($1) }.prefix(limit))
+    }
+
     /// The Events on one day, in the order they came.
     static func on(_ day: Date, _ going: [DailyEvent]) -> [DailyEvent] {
         going.filter { calendar.isDate($0.starts, inSameDayAs: day) }
