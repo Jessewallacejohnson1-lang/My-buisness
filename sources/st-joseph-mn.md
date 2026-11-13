@@ -335,7 +335,8 @@ address: 2850 Abbey Plaza
 venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
   "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
   "Outdoor U", "Haws Field", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
-  "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers"]
+  "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers",
+  "Gertken Organ Studio"]
 sources:
   - url: https://www.csbsju.edu/
     kind: website
@@ -382,7 +383,7 @@ tier: listed
 category: church
 place_type: Church
 added_by: agent:claude
-venues: ["Saint John's Abbey Church", "Saint John's Pottery Studio", "Liturgical Press"]
+venues: ["Saint John's Abbey Church", "Abbey Church", "Saint John's Pottery Studio", "Liturgical Press"]
 address: 2850 Abbey Plaza
 sources:
   - url: https://saintjohnsabbey.org/
@@ -426,7 +427,7 @@ rec-center classes and halftime shows, and shows a repeating event once, at its 
 ```yaml
 id: csbsju-music
 aka: ["CSB SJU Music Department"]
-status: proposed
+status: active
 tier: watched
 category: college
 added_by: agent:claude
@@ -435,14 +436,22 @@ sources:
     kind: website
     method: fetch
     trust: official
+    reader: csbsju-music
 ```
 Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The music department's season page, plain
-HTML with no feed, so the models read it; www.csbsju.edu's robots.txt disallows nothing. Its
+HTML with no feed; www.csbsju.edu's robots.txt disallows nothing. Its
 concerts are not a calendar of their own on the campus portal (12 public calendars, none for
 music), so they can't be added to `csbsju-events`' url. Measured 2026-11-13: 8 performances in
 the next 90 days, 6 already arrive through `csbsju-events` (Campus Events); new: the Guitar
 Ensemble & Studio Concert, Dec 11. The page dates "Faculty Recital: Gyehyun Jung" Dec 8; the
 portal, Nov 19.
+2026-11-13 (BP app nothing-scheduled 01): read by its own reader (`csbsju-music`), not the models, so it is read
+every morning, a newly watched page included, with exact days, and each concert lands on its ensemble's row at the
+college whose campus it is at. Only performances on campus (a place ending SJU, CSB or BAC); the Minneapolis and
+St. Michael stops are left out, and the past events at the page's foot are never read. The concerts the campus
+calendar also lists merge into its Events. The Jung recital: the page was edited on Nov 9 and its block moved
+between Dec 6 and Dec 9, while its photo is still named "11_19" and the portal's entry hasn't changed since Oct 14,
+so the page's Dec 8 is the newer word; the portal's Nov 19 copy is taken out (`wrong_when`) so the two are one Event.
 
 ## The Central Minnesota Catholic events
 ```yaml
@@ -639,16 +648,27 @@ sources:
     reader: mshsl
     league_id: 537
     team: St. Cloud Tech
+  - url: https://tech.isd742.org/calendar
+    kind: website
+    method: fetch
+    trust: official
+    reader: finalsite-calendar
+    own_calendar: Tech Calendar
+    own_calendar_only: true
 at: [45.51045, -94.21169]
 venue_at:
   "st. cloud tech high school": [45.51045, -94.21169]
 ```
 Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+2026-11-13: its own school calendar, read like Kennedy's (BP app nothing-scheduled 01): its choir and band
+concerts, dances and spirit weeks are on no other feed. The page shows District 742's calendar beside Tech's;
+`own_calendar_only` reads Tech's alone, since Kennedy's calendar already gives the district's board meetings and
+No School days. robots.txt allows `/calendar`, disallows `/fs/` (its iCal and RSS), Crawl-delay 5.
 
 ## Tech High School calendar
 ```yaml
 id: tech-high-school-calendar
-status: proposed
+status: retired
 tier: watched
 category: nearby-school
 added_by: agent:claude
@@ -668,6 +688,7 @@ gives its plays (Mamma Mia); the school board and No School days are District 74
 Kennedy's calendar already gives. On Jesse's yes this page moves into `tech-high-school`'s sources,
 as Kennedy's is, so its events carry the school's name and land on its activity rows; this entry
 then retires.
+Retired 2026-11-13 (BP app nothing-scheduled 01): the page is now `tech-high-school`'s own source.
 
 ## Cathedral High School
 ```yaml
