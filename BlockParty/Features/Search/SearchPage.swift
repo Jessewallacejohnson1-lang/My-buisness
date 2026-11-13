@@ -278,6 +278,8 @@ struct SearchPage: View {
     @ViewBuilder private var ground: some View {
         if sports {
             SportsFade()
+        } else if model.chip == .calendar {
+            SportsFade.calendar
         } else {
             Hue.paper
         }

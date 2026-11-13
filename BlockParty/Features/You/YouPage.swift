@@ -275,7 +275,8 @@ struct YouDay: View {
             } else if isToday {
                 Hue.ink
             } else if disc {
-                Hue.fill
+                // White on the Event calendar's grey fade, with a hairline (mock round 4).
+                Circle().fill(Hue.surface).overlay { Circle().strokeBorder(Hue.hairline, lineWidth: 0.5) }
             }
             // The month is Apple Fitness's "Oct" where a month starts, inside the circle, since the
             // three weeks are one block (Jesse, ticket 10 Check-in 1); its sizes are picked.

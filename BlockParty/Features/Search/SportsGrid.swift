@@ -34,6 +34,9 @@ nonisolated extension SearchMetric {
     /// The warm-grey fade from the top, to paper by 440 pt, through its middle shade at 240 pt.
     static let sportsFade: CGFloat = 440
     static let sportsFadeMid: CGFloat = 240
+    /// The Event calendar's light fade (BP app five-tabs 10, mock round 4): to paper by 640 pt, past the month.
+    static let calendarFade: CGFloat = 640
+    static let calendarFadeMid: CGFloat = 300
     /// Apple's discs (`mobbin/1.jpg`): 80 pt, three to a row 154 pt apart (a 132 pt cell and 22 under it), the logo
     /// in a 45 pt box, the name 8 pt under the disc. The first sits 24 pt under the chips.
     static let discTop: CGFloat = 24
@@ -146,12 +149,21 @@ struct SportsTitle: View {
 /// The Sports chip's ground: a warm grey at the top of the screen fading to the dark paper by 440 pt, the mock's
 /// "darker fade" (Jesse, 2026-11-11), drawn from the screen's top wherever it shows.
 struct SportsFade: View {
+    var top = Hue.sportsFadeTop
+    var mid = Hue.sportsFadeMid
+    var midAt = SearchMetric.sportsFadeMid
+    var height = SearchMetric.sportsFade
+
+    /// The Event calendar's: the same fade in light greys (BP app five-tabs 10).
+    static let calendar = SportsFade(top: Hue.calendarFadeTop, mid: Hue.calendarFadeMid,
+                                     midAt: SearchMetric.calendarFadeMid, height: SearchMetric.calendarFade)
+
     var body: some View {
-        LinearGradient(stops: [.init(color: Hue.sportsFadeTop, location: 0),
-                               .init(color: Hue.sportsFadeMid, location: SearchMetric.sportsFadeMid / SearchMetric.sportsFade),
+        LinearGradient(stops: [.init(color: top, location: 0),
+                               .init(color: mid, location: midAt / height),
                                .init(color: Hue.paper, location: 1)],
                        startPoint: .top, endPoint: .bottom)
-            .frame(height: SearchMetric.sportsFade)
+            .frame(height: height)
             // No smaller than offered, and no taller: a header's slice of it stays the header's height.
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
             .background(Hue.paper)

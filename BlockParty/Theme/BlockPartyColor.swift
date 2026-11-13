@@ -297,6 +297,10 @@ nonisolated enum Hue {
     /// shade, to the dark ramp's `paper` (Jesse, 2026-11-11: "i prefer the darker fade", "use more of bps taste").
     static let sportsFadeTop = Color(hex: 0x292823)
     static let sportsFadeMid = Color(hex: 0x1A1A17)
+    /// Search's Event calendar (BP app five-tabs 10): the Sports fade's shape in light greys, to `paper` under the
+    /// month (Jesse, 2026-11-13: "dont make an all white background give it a grey fade for depth").
+    static let calendarFadeTop = Color(hex: 0xE3E3DE)
+    static let calendarFadeMid = Color(hex: 0xEDEDE9)
     /// The warm brown of the floor under a logo: the backdrop darkens toward it at the
     /// bottom (5% to 10%), so the logo stands on something.
     static let searchFloor   = Color(hex: 0x46321E)

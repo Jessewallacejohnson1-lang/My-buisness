@@ -8,8 +8,8 @@
 //
 //  Reference: Partiful's Discover calendar (BP app `references/event-calendar/partiful-month.jpg`) and the
 //  Sports screen's mock, in the mock Jesse approved (https://claude.ai/artifact/1FKG4UjBecKUe1bxJk32Zt,
-//  round 3). Jesse: "the whole year but one month at a time", "only show public events no news no groups",
-//  "make the ui match the sports screen bubbly", "make it a lighter theme".
+//  round 4). Jesse: "the whole year but one month at a time", "only show public events no news no groups",
+//  "make the ui match the sports screen bubbly", "make it a lighter theme", "give it a grey fade for depth".
 //
 
 import SwiftUI
@@ -163,7 +163,7 @@ struct EventCalendarView: View {
                     .foregroundStyle(Hue.ink)
                     .padding(.horizontal, CalendarMetric.todaySide)
                     .frame(height: CalendarMetric.tool)
-                    .background(Capsule().fill(Hue.fill))
+                    .background(Capsule().fill(Hue.surface).strokeBorder(Hue.searchChipEdge, lineWidth: 1))
                     .contentShape(Rectangle().inset(by: (CalendarMetric.tool - PageMetric.tapMin) / 2))
             }
             .buttonStyle(.press(.squish))
@@ -203,7 +203,7 @@ struct EventCalendarView: View {
                 .font(.sansSemibold(15))
                 .foregroundStyle(Hue.ink)
                 .frame(width: CalendarMetric.tool, height: CalendarMetric.tool)
-                .background(Circle().fill(Hue.fill))
+                .background(Circle().fill(Hue.surface).strokeBorder(Hue.searchChipEdge, lineWidth: 1))
                 .contentShape(Rectangle().inset(by: (CalendarMetric.tool - PageMetric.tapMin) / 2))
         }
         .buttonStyle(.press(.squish))
