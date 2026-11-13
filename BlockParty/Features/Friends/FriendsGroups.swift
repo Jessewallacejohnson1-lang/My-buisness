@@ -108,16 +108,17 @@ struct GroupJoinRow: View {
     private func toggle() {
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)
-        if joining, actions.member(group).isMember { joined(group) }
+        if joining, actions.member(group).isMember {
+            joined(group)
+            // The toast asks whether its get-togethers go on your Agenda (rsvp-and-groups 09).
+            GroupAgenda.shared.joined(group)
+        }
     }
 
     /// Its next get-together still to come: a timed one before it starts, an untimed one through
     /// its day. `get_groups` can still list one from earlier today.
     static func next(_ group: TownGroup, now: Date) -> TownGroup.Meeting? {
-        group.meetings.first { meeting in
-            guard let when = EventWhen(date: meeting.day, time: meeting.time, endAt: nil) else { return false }
-            return when.timed ? when.start > now : when.end > now
-        }
+        group.meetings.first { YouCalendar.stillToCome($0, now: now) }
     }
 
     /// "Meets tomorrow 6 PM · 12 members": its next get-together in the bell's short words

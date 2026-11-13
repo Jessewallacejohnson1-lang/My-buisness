@@ -134,6 +134,8 @@ final class AppSession {
             // The last one's acceptances leave the hello pill and the bell (hello-drop 06); the
             // launch's saved account coming in is not another one.
             if old != nil { hello.forgetAccount() }
+            // Nor the Group get-togethers it put on its Agenda (rsvp-and-groups 09).
+            if old != nil { GroupAgenda.shared.clear() }
             // First, and animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: signedIn) }
             // Views made before the first quiet account go up under it; another account's never do.

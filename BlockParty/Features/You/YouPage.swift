@@ -58,6 +58,10 @@ enum YouMetric {
     static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
     static let groupGlyph: CGFloat = 24
+    /// A Group get-together's logo inside its day's 48.3 pt circle, the mock's 38 pt (Jesse approved
+    /// it, https://claude.ai/artifact/VdKZpF5NX8n4hdLVpKAY6J), faded under the ink number. The fade is picked.
+    static let dayLogo: CGFloat = 38
+    static let dayLogoOpacity: Double = 0.45
 }
 
 struct YouPage: View {
@@ -65,7 +69,10 @@ struct YouPage: View {
     /// An Agenda card's tap: your Profile (`ProfileView`) pushes its Event page, where it outlives
     /// the day's cards.
     let open: (FeedCardItem) -> Void
+    /// A Group get-together's card, and a Coming up row: the Group page (rsvp-and-groups 09).
+    var openGroup: (TownGroup) -> Void = { _ in }
     @Environment(RealLifeActions.self) private var actions
+    private let agenda = GroupAgenda.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     /// The day the Agenda shows; nil is today.
@@ -78,12 +85,17 @@ struct YouPage: View {
             let first = YouCalendar.firstDay(of: now)
             let today = YouCalendar.calendar.startOfDay(for: now)
             let days = YouCalendar.days(from: first)
+            // The Groups you're in, this session's joins laid over the read, as your Profile's Groups.
+            let mine = (model.groups ?? []).filter { actions.member($0).isMember }
+            let gatherings = YouCalendar.groupPlans(mine, state: agenda.state, first: first)
             let going = model.going.map { read in
-                YouCalendar.going(read: read, tapped: Array(actions.goingTapped.values),
-                                  isGoing: { actions.going($0).isGoing }, first: first)
+                YouCalendar.withGroups(YouCalendar.going(read: read, tapped: Array(actions.goingTapped.values),
+                                                         isGoing: { actions.going($0).isGoing }, first: first),
+                                       gatherings)
             }
             let day = picked.flatMap { days.contains($0) ? $0 : nil } ?? today
-            plans(now: now, days: days, today: today, day: day, going: going)
+            plans(now: now, days: days, today: today, day: day, going: going,
+                  comingUp: YouCalendar.comingUp(mine, state: agenda.state, now: now))
                 // On every visit and each new week: the list on screen stays meanwhile.
                 .task(id: first) { await model.refresh(now: now) }
         }
@@ -94,7 +106,8 @@ struct YouPage: View {
         }
     }
 
-    private func plans(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
+    private func plans(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?,
+                       comingUp: [DailyEvent]) -> some View {
         VStack(spacing: 0) {
             calendar(days: days, today: today, day: day, going: going ?? [])
                 .padding(.top, YouMetric.calendarTop)
@@ -105,7 +118,13 @@ struct YouPage: View {
             // so two days' cards never show over each other mid-fade.
             agenda(going: going, days: days, today: today, day: day, now: now)
                 .padding(.top, YouMetric.labelToCards)
+            if !comingUp.isEmpty {
+                YouComingUp(gatherings: comingUp, open: openGroup)
+                    .padding(.horizontal, EventPage.Metric.inset)
+                    .transition(.opacity)
+            }
         }
+        .animation(reduceMotion ? nil : Motion.smooth, value: comingUp.map(\.id))
     }
 
     /// The groups again, and, from a fresh read only, whether the neighbour is in each for
@@ -195,7 +214,7 @@ struct YouPage: View {
                    // on that day does (ticket 11).
                    next: going.flatMap { YouCalendar.next($0, day: day, now: now) },
                    pick: { pick(YouCalendar.calendar.startOfDay(for: $0.starts), from: day) },
-                   retry: { Task { await model.refresh() } }, open: open)
+                   retry: { Task { await model.refresh() } }, open: open, openGroup: openGroup)
     }
 }
 
@@ -265,10 +284,17 @@ struct YouDay: View {
     var body: some View {
         // The first Event with a photo, so a day whose first has none still shows one (the plan's review).
         let photo = disc ? events.lazy.compactMap(\.photo).first : events.first?.photo
+        // A Group get-together shows its Group's logo on its backdrop, as Search draws it; a Group with
+        // no logo, the grey (rsvp-and-groups 09).
+        let group = events.first?.group.flatMap { $0.logo == nil ? nil : $0 }
         ZStack {
             if !events.isEmpty {
                 if let photo {
                     FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                } else if let group {
+                    // Faded under an ink number: the logo's own letters fought a white one (review).
+                    YouGroupPicture(group: group, logoSide: YouMetric.dayLogo)
+                        .opacity(YouMetric.dayLogoOpacity)
                 } else if disc {
                     // White on the Event calendar's grey fade, as an empty day, its number in ink (the run's review).
                     Circle().fill(Hue.surface).overlay { Circle().strokeBorder(Hue.hairline, lineWidth: 0.5) }
@@ -334,5 +360,95 @@ struct YouDay: View {
         if photo { return .white }
         if !events.isEmpty { return Hue.ink }
         return isToday ? Hue.paper : Hue.inkSecondary
+    }
+}
+
+/// You's Coming up (BP app rsvp-and-groups 09): the next get-togethers of your Groups that aren't on
+/// your Agenda with their whole Group, as the Group page's date tiles, each with a green Add where an
+/// Event has Attend (Jesse, 2026-11-13). Add turns into the light Added, as Join turns into Joined, and
+/// lights the day on the Calendar; Added tapped again takes it off. A row's tap opens its Group page.
+struct YouComingUp: View {
+    let gatherings: [DailyEvent]
+    let open: (TownGroup) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let agenda = GroupAgenda.shared
+    private typealias Sizes = GroupPage.Metric
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // A working word, the Group page's own; Jesse approved it on the mock (2026-11-13).
+            Text("Coming up")
+                .font(.displaySemi(17))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, Sizes.sectionTop)
+            ForEach(gatherings) { gathering in
+                if let group = gathering.group, let meeting = gathering.meeting {
+                    row(gathering, group: group, meeting: meeting)
+                        .padding(.top, Sizes.rowTop)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func row(_ gathering: DailyEvent, group: TownGroup, meeting: TownGroup.Meeting) -> some View {
+        let on = agenda.state(group, meeting) == .one
+        let tile = GroupPage.tile(meeting.day)
+        return HStack(spacing: Sizes.rowGap) {
+            Button { open(group) } label: {
+                HStack(spacing: Sizes.rowGap) {
+                    VStack(spacing: 0) {
+                        Text(tile.month)
+                            .font(.apple(11, weight: .semibold))
+                            .foregroundStyle(Hue.inkSecondary)
+                        Text(tile.day)
+                            .font(.apple(20, weight: .semibold))
+                            .foregroundStyle(Hue.ink)
+                            .monospacedDigit()
+                    }
+                    .frame(width: Sizes.tile, height: Sizes.tile)
+                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: Sizes.tileCorner, style: .continuous))
+                    // The line says the day; the Group page hides its tile the same way.
+                    .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: ProfileMetric.rowText) {
+                        Text(meeting.what)
+                            .font(.apple(15, weight: .semibold))
+                            .foregroundStyle(Hue.ink)
+                        Text(Self.line(meeting, group: group))
+                            .font(.apple(13))
+                            .foregroundStyle(Hue.inkSecondary)
+                    }
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.press(.squish))
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens \(group.name)")
+            Button {
+                Haptics.light()
+                agenda.toggle(group, meeting)
+            } label: {
+                ZStack {
+                    Text("Add").opacity(on ? 0 : 1)
+                    Label("Added", systemImage: "checkmark").labelStyle(.titleAndIcon).opacity(on ? 1 : 0)
+                }
+                .font(.displaySemi(15))
+            }
+            .buttonStyle(MeetupPillStyle(height: FriendsMetric.joinPill, minWidth: 0, fill: Hue.add, light: on,
+                                         sidePadding: FriendsMetric.joinSide))
+            .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: on)
+            .accessibilityLabel(on ? "Added to your Agenda, \(meeting.what)" : "Add \(meeting.what) to your Agenda")
+        }
+    }
+
+    /// "Mon 7 PM · St. Joe Rod and Gun Club": the tile has the date.
+    static func line(_ meeting: TownGroup.Meeting, group: TownGroup) -> String {
+        var when: [String] = []
+        if let day = Town.midnight(meeting.day) { when.append(Town.format(day, "EEE")) }
+        if let minutes = EventWhen.minutes(meeting.time) { when.append(Town.clock(minutes: minutes)) }
+        return [when.joined(separator: " "), group.name].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
