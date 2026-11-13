@@ -108,16 +108,16 @@ def fine_print(im):
 
 
 def sharpen(im):
-    """A PIL image 4x and clear (at most LONG_SIDE), its fine print soft; one PLAIN_FROM wide or more as it is; None
-    when this Python can't run the models."""
+    """A PIL image 4x and clear (at most LONG_SIDE), its fine print soft; one PLAIN_FROM wide or LONG_SIDE long as it
+    is; None when this Python can't run the models."""
+    if im.width >= PLAIN_FROM or max(im.size) >= LONG_SIDE:  # reads as it is; for a tall one the 4x would be thrown away
+        return im
     try:
         import numpy as np
         import onnxruntime  # noqa: F401
     except ImportError:
         return None
     from PIL import Image, ImageDraw, ImageFilter
-    if im.width >= PLAIN_FROM:
-        return im
     rgb = im.convert("RGB")
     sharp = Image.fromarray((upscale(np.asarray(rgb, np.float32) / 255) * 255).round().astype(np.uint8))
     mask = Image.new("L", sharp.size, 0)
