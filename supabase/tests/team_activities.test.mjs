@@ -160,6 +160,9 @@ test("a co-op's game lands on every member school's activity, and the school's o
   // An ungendered co-op meet is each member's Wrestling, never its Girls Wrestling.
   assert.deepEqual(await activitiesFor({ sport: 'Wrestling', team_ids: ['st-cloud', 'alexandria'] }),
                    ['apollo: Wrestling', 'cathedral: Wrestling', 'kennedy: Wrestling 7-12', 'tech: Wrestling']);
+  assert.deepEqual(await activitiesFor({ sport: 'Girls Wrestling', team_ids: ['st-cloud', 'alexandria'] }),
+                   ['apollo: Wrestling', 'apollo: Girls Wrestling', 'cathedral: Wrestling', 'cathedral: Girls Wrestling',
+                    'kennedy: Wrestling 7-12', 'tech: Wrestling'], 'girls wrestle on the same co-op');
 });
 
 test("Sartell's Nordic co-op takes Cathedral's meets (school-search 08; Apollo's for Tech and ROCORI above)", async () => {

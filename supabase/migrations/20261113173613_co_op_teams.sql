@@ -25,8 +25,9 @@ insert into public.teams (id, name, short_name, local) values
 on conflict (id) do nothing;
 
 -- Members from MSHSL's 2026-27 team pages ("Schools:"), local schools only. Nordic has no co-op team in the feeds: the
--- host's own games carry it (Apollo hosts Tech's and ROCORI's, Cathedral hosts Sartell's). Girls wrestling, Cathedral
--- bowling and alpine stay out: MSHSL lists no girls co-op, bowling isn't MSHSL's, and no alpine meet is in any feed.
+-- host's own games carry it (Apollo hosts Tech's and ROCORI's, Cathedral hosts Sartell's). Girls wrestling is the
+-- wrestling co-op's (MSHSL lists one; the rows' notes say "St. Cloud Crush co-op" and "host Tech"). Cathedral bowling and
+-- alpine stay out: bowling isn't MSHSL's, and no alpine meet is in any feed.
 do $$
 declare n int;
 begin
@@ -35,6 +36,7 @@ begin
     ('apollo', 'Boys Hockey', 'st-cloud'), ('tech', 'Boys Hockey', 'st-cloud'),
     ('apollo', 'Girls Hockey', 'st-cloud'), ('tech', 'Girls Hockey', 'st-cloud'), ('cathedral', 'Girls Hockey', 'st-cloud'),
     ('apollo', 'Wrestling', 'st-cloud'), ('tech', 'Wrestling', 'st-cloud'), ('cathedral', 'Wrestling', 'st-cloud'),
+    ('apollo', 'Girls Wrestling', 'st-cloud'), ('cathedral', 'Girls Wrestling', 'st-cloud'),
     ('kennedy', 'Wrestling 7-12', 'st-cloud'),
     ('apollo', 'Girls Basketball', 'st-cloud'), ('tech', 'Girls Basketball', 'st-cloud'),
     ('apollo', 'Adapted Hockey (Adapted Floor Hockey)', 'st-cloud'), ('tech', 'Adapted Hockey', 'st-cloud'),
@@ -53,8 +55,8 @@ begin
   ) as m(team_id, name, coop)
   where a.team_id = m.team_id and a.name = m.name;
   get diagnostics n = row_count;
-  if n <> 35 then
-    raise exception 'co-op rows: % updated, 35 expected; a school renamed an activity', n;
+  if n <> 37 then
+    raise exception 'co-op rows: % updated, 37 expected; a school renamed an activity', n;
   end if;
 end $$;
 
@@ -88,7 +90,8 @@ language sql stable set search_path = '' as $$
   from (select coalesce(e.sport, e.activity_name) as n) x
 $$;
 
--- 20261113143629_faster_school_page.sql's team_page and activities_next: the co-op's games join the quick pairing.
+-- 20261113143629_faster_school_page.sql's team_page and activities_next: the co-op's games join the quick pairing,
+-- each activity once per team it takes (its own or fielder's, its co-op's) so the pairing stays an equal join.
 create or replace function public.team_page(p_team uuid)
 returns jsonb
 language sql
@@ -113,7 +116,7 @@ as $$
   -- Materialized so activity_has_event sees only these: left to the planner, it ran first, being the cheaper call.
   pairs as materialized (
     select a.id as activity, a.sort, a.a, v.e
-    from acts a join evs v on v.team = a.fielder or v.team = a.coop
+    from acts a cross join lateral unnest(array[a.fielder, a.coop]) f(team) join evs v on v.team = f.team
     where private.activity_may_have(a.base, a.gender, v.n, v.base, v.gender, (v.e).sport is null)),
   hits as materialized (
     select p.activity, p.sort, (p.e).id, (p.e).title, (p.e).event_date, (p.e).start_time, (p.e).location
@@ -184,7 +187,7 @@ as $$
       and k.team in (select fielder from acts union select coop from acts)),
   pairs as materialized (
     select a.id, a.a, v.e, (v.e).event_date, (v.e).start_time
-    from acts a join evs v on v.team = a.fielder or v.team = a.coop
+    from acts a cross join lateral unnest(array[a.fielder, a.coop]) f(team) join evs v on v.team = f.team
     where private.activity_may_have(a.base, a.gender, v.n, v.base, v.gender, (v.e).sport is null))
   select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'date', n.event_date, 'time', n.start_time)), '[]'::jsonb)
   from (select distinct on (id) id, a from pairs order by id) a
