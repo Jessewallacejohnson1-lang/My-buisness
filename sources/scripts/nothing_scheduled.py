@@ -40,8 +40,8 @@ name (for a Place or Group with nothing found, one extended web search looks for
 listed apart in social.json and read only by `posts`, the paid rung (BP app nothing-scheduled 06): each page's last 12
 posts of the year, through the photo dig's own Apify tasks and inside its money (at most 10 cents a place and $5 in
 Apify's month, the 21st to the 20th: event_photos.dig_spend). At the limit the rest wait and the report names them. A
-page is kept only when a post gives an Event's day and time, in its words or Meta's description of its picture; it waits
-for Jesse's tick in social-picks.json, and a ticked page's `line` joins the social watch's list
+page is kept only when a post gives an Event's date and time (not opening hours), in its words or Meta's description of
+its picture; it waits for Jesse's tick in social-picks.json, and a ticked page's `line` joins the social watch's list
 (sources/social/<town>.json), then `social.py setup` after the push and his yes.
 """
 import argparse, json, re, sys
@@ -410,7 +410,11 @@ def keep(out, entries, db=None, dry_run=False, now=None, readable=None):
 
 NOT_PAGE = re.compile(r"facebook\.com/(?:groups|events|share|story\.php|permalink\.php|watch|photo)\b"
                       r"|instagram\.com/(?:p|reels?|stories|explore)/", re.I)
-DAY_WORDS = re.compile(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|tomorrow)\b", re.I)
+# A post about when a place is open, not an Event: "hours", "we're open", "open 11 AM", "closed at 9", "Tue - Sat".
+HOURS = re.compile(r"\bhours\b|\b(?:we(?:'|’)?re|we are|now|still|will be)\s+open\b"
+                   r"|(?<!doors )\b(?:open|closed?)\s+(?:at|from|until|til+|\d)"
+                   r"|\b(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*(?:-|–|—|to|through|thru)\s*(?:mon|tue|wed|thu|fri|sat|sun)",
+                   re.I)
 
 
 def page_url(url):
@@ -434,9 +438,10 @@ def post_words(kind, row):
 
 
 def dated(text):
-    """Whether a post gives an Event's day (a date, a weekday, tonight) and a time of day in its own words."""
+    """Whether a post gives a dated Event: a month and day and a time of day in its own words, and isn't about when the
+    place is open. A weekday alone ("Taco Tuesday 4-7 PM") is a weekly special, not an Event."""
     from event_parts import days_in, times_in
-    return bool((days_in(text) or DAY_WORDS.search(text)) and times_in(text))
+    return bool(days_in(text) and times_in(text) and not HOURS.search(text))
 
 
 def plan_posts(found, listed, spent, now):
@@ -475,7 +480,7 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
     """The paid rung: the Facebook and Instagram pages keep listed (`found`, default scheduled/social.json) read once
     through the dig's Apify tasks (event_photos.start_posts: a page's last 12 posts of the year), each kind's run started
     once and saved, at most 10 cents a place and inside the dig's $5 in Apify's month; at the limit the rest wait, and
-    the report names them. A page whose posts give an Event's day and time goes to scheduled/social-picks.json for
+    the report names them. A page whose posts give an Event's date and time goes to scheduled/social-picks.json for
     Jesse's tick, with its line for the social watch's list. Run again while it says so: Apify's runs take minutes.
     Returns (the rows for his tick, the report's lines), or None while Apify is still reading."""
     import time
@@ -533,7 +538,7 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
         posts_read, events = posts_read + len(got), events + len(hits)
         if not hits:
             taken.append(f"{p['thing']} {p['url']} (" + (why.get(social.canon(p["url"])) or (
-                f"no post gives a day and a time: {len(got)} read" if got else "no post in the last year")) + ")")
+                f"no post gives a date and a time: {len(got)} read" if got else "no post in the last year")) + ")")
             continue
         e = by_entry.get(p.get("entry") or "")
         name = e["_name"] if e else p["thing"]
@@ -542,7 +547,7 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
             "status": (e or {}).get("status"), "url": p["url"], "state": "ok" if e else "new", "pages": [],
             "things": []})
         row["pages"].append({"url": p["url"], "kind": p["kind"],
-                             "why": f"{len(hits)} of {len(got)} posts give a day and a time; {ep.posted(hits[0])[:10]}: "
+                             "why": f"{len(hits)} of {len(got)} posts give a date and a time; {ep.posted(hits[0])[:10]}: "
                                     + " ".join(post_words(p["kind"], hits[0]).split())[:160],
                              "line": {"entry_id": e["id"] if e else None, "name": name, "kind": p["kind"],
                                       "url": p["url"], "busy": False}})
@@ -797,6 +802,15 @@ def selftest():
           and page_url("https://www.instagram.com/p/C1x2y3/") is None and page_url("https://www.facebook.com/events/123") is None,
           "a found address as its page: Facebook's /p/ pages and profile ids kept, a post or an event never")
 
+    check(not dated("Thanksgiving hours: we're open Nov 26 from 11 AM to 2 PM, closed Nov 27")
+          and not dated("OPEN Tuesday - Saturday 11AM-9PM. See you Dec 1!")
+          and not dated("Taco Tuesday! $2 tacos 4-7 PM every Tuesday")
+          and not dated("Live music tonight at 8 PM, no cover"),
+          "no dated Event: an hours post, a weekly special, a night with no calendar date")
+    check(dated("Live music Saturday, Nov. 21 at 8 PM: Dirty Shirley. No cover!")
+          and dated("Open house Dec 6, 1-4 PM, open to the public") and dated("Doors open at 6 PM for the 12/5 show"),
+          "a dated Event: a month and day with a time, whatever else the post says")
+
     def starts(apify):
         return [(p.split("/")[2], p.split("maxTotalChargeUsd=")[1], b) for m, p, b in apify.calls if "waitForFinish=0" in p]
 
@@ -881,11 +895,11 @@ def selftest():
                                                       "url": "https://www.facebook.com/VTwinTavern", "busy": False}
               and "Dirty Shirley" in rows_out[1]["pages"][0]["why"] and "PANCAKE BREAKFAST" in rows_out[0]["pages"][0]["why"]
               and json.loads((out / "scheduled" / "social-picks.json").read_text()) == rows_out,
-              "a page is kept only when a post gives a day and a time (in its words or Meta's description of its "
+              "a page is kept only when a post gives a date and a time (in its words or Meta's description of its "
               "picture), with its line for the social watch's list")
         check(said[0] == "[scheduled] posts: 4 pages read, 4 posts, 2 of them a dated Event; $0.06 on Apify, $0.06 of the "
                          "dig's $5 this month"
-              and any("taken out: Food Shelf https://www.facebook.com/St.JoeFoodShelf (no post gives a day and a time: 1 read)" in s
+              and any("taken out: Food Shelf https://www.facebook.com/St.JoeFoodShelf (no post gives a date and a time: 1 read)" in s
                       for s in said)
               and any("taken out: Lions Club https://www.instagram.com/stjoelions (not available" in s for s in said),
               f"the report: pages read, dated Events found, money spent, and why each other page is out: {said}")
