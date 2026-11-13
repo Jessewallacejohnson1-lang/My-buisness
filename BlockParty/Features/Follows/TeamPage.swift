@@ -21,11 +21,12 @@ nonisolated enum SchoolMetric {
     static let side: CGFloat = 11
     static let bar: CGFloat = 44
     static let barSide: CGFloat = 16
-    static let logo: CGFloat = 28
+    /// Four times the mock's 28 pt (Jesse, 2026-11-13: "make the logo larger maybe 400 percent larger").
+    static let logo: CGFloat = 112
     /// The bar's foot to the logo's top.
     static let logoTop: CGFloat = 15
-    /// The bar's foot to the first card.
-    static let top: CGFloat = 84
+    /// The bar's foot to the first card: the mock's 84 pt, plus what the logo grew.
+    static let top: CGFloat = 84 + 112 - 28
     static let gap: CGFloat = 12
     static let rowHeight: CGFloat = 52
     static let rowPad: CGFloat = 16
@@ -401,7 +402,7 @@ private struct SchoolTop: View {
     var body: some View {
         let progress = fold.progress
         VStack(spacing: 9) {
-            LogoDisc(logo: logo, initial: initial, logoSide: SchoolMetric.logo, letter: .sansSemibold(15), fits: true, disc: false)
+            LogoDisc(logo: logo, initial: initial, logoSide: SchoolMetric.logo, letter: .sansSemibold(60), fits: true, disc: false)
                 .frame(width: SchoolMetric.logo, height: SchoolMetric.logo)
             Text(name)
                 .font(.displaySemi(17))

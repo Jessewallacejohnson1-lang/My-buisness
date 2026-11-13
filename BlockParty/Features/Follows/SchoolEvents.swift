@@ -100,11 +100,12 @@ nonisolated enum SchoolEvents {
     }
 }
 
-/// How far the page's top has folded into its bar, 0 at rest to 1, from the scroll's offset: the mock's
-/// 90 pt. The logo and name shrink to 75% toward their foot and fade; the bar's title comes in over the
-/// last 30%, following the finger both ways.
+/// How far the page's top has folded into its bar, 0 at rest to 1, from the scroll's offset: the top's own height
+/// and 6 pt, as the mock's 90 pt was for its 84 pt top, so the name reaches the bar as it fades. The logo and name
+/// shrink to 75% toward their foot and fade; the bar's title comes in over the last 30%, following the finger both
+/// ways.
 nonisolated enum SchoolFold {
-    static let distance: CGFloat = 90
+    static let distance: CGFloat = SchoolMetric.top + 6
 
     static func progress(_ offset: CGFloat) -> CGFloat { min(1, max(0, offset / distance)) }
 

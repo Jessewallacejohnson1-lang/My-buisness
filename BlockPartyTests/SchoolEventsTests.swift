@@ -45,11 +45,12 @@ final class SchoolEventsTests: XCTestCase {
         XCTAssertEqual(shown(.upcoming), ["2026-11-12: a,b", "2026-11-16: c"])
     }
 
-    func testTheTopFoldsIntoTheBarOverNinetyPoints() {
+    /// Over the top's 168 pt (the logo four times the mock's) and 6 pt.
+    func testTheTopFoldsIntoTheBarOverItsHeight() {
         XCTAssertEqual(SchoolFold.progress(-40), 0, "a pull down leaves it open")
         XCTAssertEqual(SchoolFold.progress(0), 0)
-        XCTAssertEqual(SchoolFold.progress(45), 0.5)
-        XCTAssertEqual(SchoolFold.progress(90), 1)
+        XCTAssertEqual(SchoolFold.progress(87), 0.5)
+        XCTAssertEqual(SchoolFold.progress(174), 1)
         XCTAssertEqual(SchoolFold.progress(400), 1)
         XCTAssertEqual(SchoolFold.topScale(1), 0.75)
     }
