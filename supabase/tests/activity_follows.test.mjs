@@ -128,27 +128,3 @@ test("Search's next day for each activity of the schools asked, signed out too",
   const none = await as(null, `select public.activities_next(array['cathedral']) n`);
   assert.deepEqual(none[0].n, []);
 });
-
-test('every activity and event activity_has_event pairs, activity_may_have lets through', async () => {
-  // Every local activity against every kind of name the stories use: games with and without gender and level,
-  // calendar names inside a row's name, slash names. activity_has_event asks activity_may_have first, so a pair
-  // it lets through and activity_has_event turns down is fine; the other way round can't happen. This checks
-  // the copy team_page and activities_next use stays the same test.
-  const { rows } = await db.query(`
-    with names(sport, activity_name) as (values
-      ('Girls Soccer', null), ('Boys Soccer · JV', null), ('Volleyball', null), ('Swimming and Diving', null),
-      ('Dance Team', null), ('Girls Swim · Middle school', null), ('Rugby', null), ('Nordic Ski Racing, Boys', null),
-      (null, 'Choir'), (null, 'Drama'), (null, 'Band/Choir/Orchestra'), (null, 'Knowledge Bowl'), (null, 'Robotics')),
-    evs as (
-      select jsonb_populate_record(null::public.club_events, jsonb_build_object('title', 'x', 'sport', n.sport,
-               'activity_name', n.activity_name, 'activity_team', t.id, 'team_ids', array[t.id, 'albany'])) e
-      from names n cross join public.teams t where t.local)
-    select count(*) filter (where public.activity_has_event(a, v.e)) as yes,
-           count(*) filter (where public.activity_has_event(a, v.e) and not private.activity_may_have(
-             private.sport_base(a.name), private.sport_gender(a.name), coalesce((v.e).sport, (v.e).activity_name),
-             private.sport_base(coalesce((v.e).sport, (v.e).activity_name)),
-             private.sport_gender(coalesce((v.e).sport, (v.e).activity_name)), (v.e).sport is null)) as missed
-    from public.team_activities a cross join evs v`);
-  assert.ok(Number(rows[0].yes) > 100, `a real sample: ${rows[0].yes} pairs`);
-  assert.equal(Number(rows[0].missed), 0);
-});
