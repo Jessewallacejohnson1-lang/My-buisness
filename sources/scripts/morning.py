@@ -643,12 +643,37 @@ def write(run, dry_run):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + save_hours(run, hours, dry_run) \
+        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) + save_hours(run, hours, dry_run) \
             + ([] if prep.get("run") else waiting_lines(db)) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
         return lines
     except DbError as e:  # one line naming what refused it (smooth-mornings 02), not a traceback
         sys.exit(f"[morning] save refused: {' '.join(str(e).split())}")
+
+
+def save_words(run, items, dry_run):
+    """Each News from a place's own post keeps that post's words for its News page (BP app town-feed 65; Jesse,
+    2026-11-13: "copy their description and be able to click card and read more"): the page's `words` in pages.json
+    (social.post_pages), found by the item's link, written once onto the News saved with that link. A link that
+    isn't the post's own (a place's page, which every News read from it shares) gets none. One line when any were
+    kept, or when the database refused them: the News are saved either way."""
+    path = run.folder / "pages.json"
+    pages = json.loads(path.read_text()) if path.exists() else []
+    said = [(p["url"], p["words"]) for p in pages if isinstance(p, dict) and p.get("url") and p.get("words")]
+    news = [it for it in items if isinstance(it, dict) and it.get("kind") == "news"
+            and isinstance(it.get("source_url"), str) and write_judged.own_link(it["source_url"])]
+    found = [(it, w) for it in news if (w := next((w for u, w in said if write_judged.same_link(u, it["source_url"])), None))]
+    if not found or dry_run:
+        return [f"- Would keep the post's own words for {len(found)} News"] if found else []
+    kept = 0
+    try:
+        for it, words in found:
+            link = quote(write_judged.clean_link(it["source_url"]), safe="")
+            kept += len(run.db.rest("PATCH", f"board_items?source_url=eq.{link}&post_words=is.null",
+                                    {"post_words": words}, prefer="return=representation") or [])
+    except DbError as e:
+        return [f"- The post's own words weren't kept ({kept} of {len(found)} News): {' '.join(str(e).split())[:160]}"]
+    return [f"- Kept the post's own words for {kept} News"] if kept else []
 
 
 def save_hours(run, items, dry_run):
@@ -1406,6 +1431,25 @@ def selftest():
                          {"title": "Trivia", "source_url": "https://www.instagram.com/p/C2/"}, "unreadable line: x"], Path(tmp))
         checks.append((got[0].get("collabs") == ["milk-and-honey-ciders"] and "collabs" not in got[1],
                        "an Event from a collab post carries the places it was made with, by the post's link (town-feed 58)"))
+    with tempfile.TemporaryDirectory() as tmp:
+        watched = json.loads((find_root() / "sources" / "social" / "st-joseph-mn.json").read_text())[0]["url"]
+        post = "https://www.facebook.com/flourandflowerbakery/posts/pfbid0"
+        (Path(tmp) / "pages.json").write_text(json.dumps([
+            {"file": "facebook-1", "url": "https://m.facebook.com/flourandflowerbakery/posts/pfbid0?fbclid=x", "words": "PASTRIES\n-Morning bun"},
+            {"file": "facebook-2", "url": watched, "words": "a page's words"},
+            {"file": "instagram-3", "url": "https://www.instagram.com/p/C9/"}]))
+        items = [{"kind": "news", "source_url": post}, {"kind": "news", "source_url": watched},
+                 {"kind": "news", "source_url": "https://www.instagram.com/p/C9/"}, {"kind": "event", "source_url": post},
+                 "unreadable line: x"]
+        wdb = FakeDb(answers={"board_items": [{"id": "n1"}]})
+        r = type("R", (), {"folder": Path(tmp), "db": wdb})()
+        dry = save_words(r, items, True)
+        kept_lines = save_words(r, items, False)
+        checks.append((dry == ["- Would keep the post's own words for 1 News"] and kept_lines == ["- Kept the post's own words for 1 News"]
+                       and wdb.writes() == [("PATCH", f"board_items?source_url=eq.{quote(post, safe='')}&post_words=is.null",
+                                             {"post_words": "PASTRIES\n-Morning bun"})],
+                       "a News from its own post keeps that post's words once, found by its cleaned link; a place's page "
+                       "link, a post with no words and an Event get none, and a dry run writes nothing (town-feed 65)"))
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "facebook-1", "url": "https://www.facebook.com/x/posts/1",
                                                             "entry_id": "mh", "name": "Milk & Honey Ciders"},
