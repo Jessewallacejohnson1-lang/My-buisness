@@ -3289,11 +3289,14 @@ test('feed-load: with 5,000 people, Event of the day never works out the whole f
 // days once the check said yes. The app asks with p_news, as it does for news.
 async function post(by, words, more = {}) {
   await db.exec('reset role');
-  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, aspect: null, ...more };
+  const row = { at: '2026-10-08 09:00', status: 'approved', friendsOnly: false, tagged: null, photo: null, aspect: null,
+                atNames: null, ...more };
   const { rows } = await db.query(
-    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url, image_aspect)
-     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7, $8) returning id`,
-    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo, row.aspect]);
+    `insert into public.club_events (kind, title, submitted_by, status, created_at, friends_only, tagged, image_url, image_aspect,
+                                     at_names)
+     values ('post', $1, $2, $3, ($4::timestamp at time zone 'America/Chicago'), $5, $6, $7, $8, $9) returning id`,
+    [words, by, row.status, row.at, row.friendsOnly, row.tagged, row.photo, row.aspect,
+     row.atNames && JSON.stringify(row.atNames)]);
   return rows[0].id;
 }
 async function posts(at, news = true) {
@@ -3421,6 +3424,26 @@ test('the poster names the friends they tagged, in their order', async () => {
   const [mine] = await posts('2026-10-08 12:00');
   assert.deepEqual(mine.poster.tagged, [{ id: CAL, name: 'Cal Ng' }, { id: BEN, name: 'Ben Ortiz' }],
                    'a friend tagged sees their own name on it too');
+});
+
+test('a post sends its @names still good for the reader (town-feed 60): a blocked one is plain words', async () => {
+  await reset();
+  await neighbour(ANNA, 'Anna Lee');
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, 'Cal Ng');
+  await post(ANNA, 'Thanks @Ben Ortiz and @Cal Ng', { atNames: [{ kind: 'user', id: BEN, name: 'Ben Ortiz' },
+                                                                { kind: 'user', id: CAL, name: 'Cal Ng' }] });
+  await post(ANNA, 'No names');
+  await signIn(ME);
+  const rows = await posts('2026-10-08 12:00');
+  assert.deepEqual(rows.find((r) => r.title.startsWith('Thanks')).poster.at_names,
+                   [{ kind: 'user', id: BEN, name: 'Ben Ortiz' }, { kind: 'user', id: CAL, name: 'Cal Ng' }]);
+  assert.equal('at_names' in rows.find((r) => r.title === 'No names').poster, false, 'none: no key');
+  await db.exec(`reset role; insert into private.blocks (blocker_id, blocked_id) values ('${CAL}', '${ME}')`);
+  await signIn(ME);
+  assert.deepEqual((await posts('2026-10-08 12:00')).find((r) => r.title.startsWith('Thanks')).poster.at_names,
+                   [{ kind: 'user', id: BEN, name: 'Ben Ortiz' }]);
+  await db.exec('reset role; delete from private.blocks');
 });
 
 test('a post with a photo sends its shape, so the card is the right size before the photo loads', async () => {

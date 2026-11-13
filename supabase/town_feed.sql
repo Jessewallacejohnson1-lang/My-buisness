@@ -555,7 +555,7 @@ as $$
   -- their friends: the read rule on club_events keeps it from everyone else, here too (security invoker).
   posts as (
     select e.id, e.title, e.location, e.image_url, e.image_aspect, e.friends_only, e.created_at, e.submitted_by, e.tagged,
-           e.submitted_by = auth.uid() as mine
+           e.at_names, e.submitted_by = auth.uid() as mine
     from public.club_events e
     where p_news and not p_later
       and e.kind = 'post' and e.status = 'approved'
@@ -730,9 +730,10 @@ as $$
          false, null::jsonb,
          null::text, null::uuid, false,
          'post'::text, null::text,
-         -- and the post's own: its photo's shape, which sets the card's before the photo loads, and whether
-         -- only friends see it, which its card says.
-         pp.poster || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only)),
+         -- and the post's own: its photo's shape, which sets the card's before the photo loads, whether
+         -- only friends see it, which its card says, and the @names in its words still good for you (town-feed 60).
+         pp.poster || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'friends_only', p.friends_only,
+                                                           'at_names', private.post_at_names(p.at_names))),
          null::jsonb,
          s.spot
   from posts_scored p

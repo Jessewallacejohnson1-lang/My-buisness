@@ -367,10 +367,14 @@ struct CommunityAPI {
             let value: Poster?
             /// The photo's shape, a post's or a News's (whose poster names no neighbour, so `value` is nil; town-feed 53).
             let aspect: Double?
-            private enum Keys: String, CodingKey { case aspect }
+            /// The `@` names in a post's words (town-feed 60), read on their own so a bad one never hides the post.
+            let atNames: [AtName]
+            private enum Keys: String, CodingKey { case aspect, atNames }
             init(from decoder: Decoder) {
                 value = try? Poster(from: decoder)
-                aspect = (try? decoder.container(keyedBy: Keys.self)).flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
+                let keys = try? decoder.container(keyedBy: Keys.self)
+                aspect = keys.flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
+                atNames = (keys.flatMap { try? $0.decodeIfPresent([AtName.Lenient].self, forKey: .atNames) } ?? []).compactMap(\.value)
             }
         }
 
@@ -386,6 +390,7 @@ struct CommunityAPI {
                                       photo: imageUrl.flatMap(URL.init(string:)), aspect: self.poster?.aspect,
                                       place: location,
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
+                                      atNames: self.poster?.atNames ?? [],
                                       friendsOnly: poster.friendsOnly ?? false,
                                       posted: posted, leavesAt: leavesAt, heartCount: heartCount ?? 0,
                                       hearted: hearted ?? false, followed: reason == "follow"))
@@ -544,6 +549,7 @@ struct CommunityAPI {
             "status": ClubStatus.pending.rawValue, "location": post.place ?? NSNull(),
             "image_url": post.imageURL ?? NSNull(), "image_aspect": post.aspect ?? NSNull(),
             "friends_only": post.friendsOnly, "tagged": post.tagged.isEmpty ? NSNull() : post.tagged,
+            "at_names": post.atNames.isEmpty ? NSNull() : post.atNames.map { ["kind": $0.kind.rawValue, "id": $0.id, "name": $0.name] },
             "event_date": NSNull(), "start_time": NSNull(),
         ]
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
@@ -807,6 +813,29 @@ struct CommunityAPI {
 
     /// The caller's canceled and moved Events still to come, newest change first: `get_my_changes`,
     /// what the bell's Notifications page lists (BP app docs/plans/school-activities, ticket 04).
+    /// The posts that name you with `@` or tag you, from the last 7 days (BP app town-feed 60), as the bell lists them.
+    func getMyMentions() async throws -> [NamedNotice] {
+        try Self.namedRows(from: await db.rpc("get_my_mentions"))
+    }
+
+    /// `get_my_mentions`' rows: each a post as the Town feed sends it, and how it names you. One that doesn't read
+    /// as a post is left out, never the bell.
+    nonisolated static func namedRows(from data: Data) throws -> [NamedNotice] {
+        struct Row: Decodable {
+            let row: FeedRow
+            let how: String?
+            private enum Keys: String, CodingKey { case how }
+            init(from decoder: Decoder) throws {
+                row = try FeedRow(from: decoder)
+                how = try decoder.container(keyedBy: Keys.self).decodeIfPresent(String.self, forKey: .how)
+            }
+        }
+        return try Supabase.decode(data, as: [Row].self).compactMap { row in
+            guard case .post(let post)? = row.row.line else { return nil }
+            return NamedNotice(post: post, tagged: row.how == "tagged")
+        }
+    }
+
     func getMyChanges() async throws -> [Notice] {
         try Self.changeRows(from: await db.rpc("get_my_changes"))
     }

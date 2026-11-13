@@ -20,6 +20,12 @@ struct FeedPostCard: View {
     @Environment(TownFeed.self) private var feed: TownFeed?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Where an `@` name or a `#` tag in the words goes (town-feed 60).
+    @Environment(\.hostOpener) private var opener
+    /// The words' frame, where a place's page flies out from.
+    @State private var wordsFrame = FrameBox()
+    /// A link just opened: the tap under it doesn't also fold or open See more.
+    @State private var linkTappedAt = Date.distantPast
     @State private var menuPresented = false
     @State private var deleting = false
     @State private var expanded = false
@@ -124,7 +130,8 @@ struct FeedPostCard: View {
 
     // MARK: - Words and photo
 
-    /// Facebook's words: past six lines they fold, with See more under them to open.
+    /// Facebook's words: past six lines they fold, with See more under them to open. An `@` name or a `#` tag in
+    /// them is a link in Instagram's blue (town-feed 60).
     private var words: some View {
         let folds = !expanded && !dynamicTypeSize.isAccessibilitySize
         return VStack(alignment: .leading, spacing: 2) {
@@ -145,18 +152,56 @@ struct FeedPostCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .trackFrame(wordsFrame)
         .onTapGesture {
+            guard Date().timeIntervalSince(linkTappedAt) > 0.4 else { return }
             withAnimation(reduceMotion ? nil : Motion.snappy) { expanded.toggle() }
         }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let target = PostWords.target(url, names: post.atNames) else { return .discarded }
+            linkTappedAt = Date()
+            open(target)
+            return .handled
+        })
         .accessibilityElement(children: .combine)
+        // Each link, for VoiceOver: the words read as one, so a double tap can't reach them.
+        .accessibilityActions {
+            ForEach(links, id: \.self) { target in
+                Button(PostWords.label(target)) { open(target) }
+            }
+        }
+    }
+
+    /// The words' links, each target once.
+    private var links: [PostWords.Target] {
+        var seen = Set<PostWords.Target>()
+        return PostWords.links(post.words, names: post.atNames).map(\.target).filter { seen.insert($0).inserted }
     }
 
     private var wordsText: some View {
-        Text(post.words)
+        Text(PostWords.attributed(post.words, names: post.atNames))
             .font(.sans(16))
             .lineSpacing(3)
             .foregroundStyle(Hue.ink)
+            .tint(Hue.link)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A friend's page, a place's page flying out of the words as from a card's logo, or Search with the tag's word.
+    /// No haptic: opening a page isn't a commit (taste.md, haptics).
+    private func open(_ target: PostWords.Target) {
+        guard let opener else { return }
+        switch target {
+        case .name(let name):
+            let row = FollowRow(targetType: name.kind == .place ? .place : .profile, targetId: name.id, name: name.name,
+                                kind: nil, picture: nil, pictureKind: nil)
+            guard opener.opens(row) else { return }
+            // From the words' middle: a link's own spot isn't known to the tap.
+            let box = wordsFrame.rect
+            opener.open(row, CGRect(x: box.midX - 22, y: box.midY - 22, width: 44, height: 44))
+        case .tag(let word):
+            opener.search(word)
+        }
     }
 
     /// Edge to edge in its own shape (4:5 to 1.91:1), known before it loads.

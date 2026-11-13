@@ -414,6 +414,8 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     var aspect: Double? = nil
     var place: String? = nil
     var tagged: [Person] = []
+    /// The `@` names in its words still good for you, each with its page (BP app town-feed 60).
+    var atNames: [AtName] = []
     /// Only the poster's friends see it.
     var friendsOnly = false
     let posted: Date
@@ -753,6 +755,25 @@ struct NewEventInput {
     var morePlaces: [String] = []
 }
 
+/// A friend or a place named with `@` in a post's words (BP app town-feed 60): the name as the words show it, and
+/// whose it is, so a place that renames still links. The check keeps it only for a friend or an open place.
+nonisolated struct AtName: Codable, Hashable, Sendable {
+    enum Kind: String, Codable, Sendable { case user, place }
+    let kind: Kind
+    /// `town_profiles.user_id` or `places.id`.
+    let id: String
+    let name: String
+
+    /// As it sits in the words: "@Sam Rivera".
+    var typed: String { "@" + name }
+
+    /// One that doesn't decode is left out, never the post.
+    struct Lenient: Decodable {
+        let value: AtName?
+        init(from decoder: Decoder) { value = try? AtName(from: decoder) }
+    }
+}
+
 /// A neighbour's post as New post sends it (BP app town-feed 29).
 nonisolated struct NewPostInput: Equatable {
     /// Made by the phone, so a retried insert can't post it twice.
@@ -765,6 +786,8 @@ nonisolated struct NewPostInput: Equatable {
     var friendsOnly = false
     /// Friends' ids, in the order tagged.
     var tagged: [String] = []
+    /// The `@` names still in its words, in the order picked (town-feed 60).
+    var atNames: [AtName] = []
 }
 
 struct NewTrailInput {

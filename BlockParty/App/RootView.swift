@@ -425,7 +425,15 @@ struct MainTabsView: View {
                 }
             },
             group: { id in searchModel.groups.lazy.compactMap(\.townGroup).first { $0.id == id } },
-            push: { path.append($0) })
+            push: { path.append($0) },
+            // A post's #tag: Search with its word typed, over whatever was pushed (town-feed 60).
+            search: { words in
+                searchModel.chip = .all
+                searchModel.words = words
+                searchModel.searching = true
+                path = NavigationPath()
+                if tab != .search { switchTab(to: .search) }
+            })
     }
 
     /// A Place's page as Search has it; nil for one Search can't open.
@@ -496,6 +504,8 @@ struct MainTabsView: View {
                 .navigationDestination(for: NoticeEventRoute.self) { route in
                     EventPage(item: route.item).environment(townFeed)
                 }
+                // A post that names you, from the bell (town-feed 60).
+                .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post).environment(townFeed) }
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)

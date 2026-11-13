@@ -213,8 +213,9 @@ final class AppSessionTests: XCTestCase {
         session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
+        // The bell's read brings the posts that name you with its changes (BP app town-feed 60).
         let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "friends_dot",
-                    "get_my_changes"]
+                    "get_my_changes", "get_my_mentions"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")
@@ -228,10 +229,10 @@ final class AppSessionTests: XCTestCase {
         // Back up with the places in: Search doesn't read them again.
         let sent = server.requests.count
         let again = Task { await session.launched(sendEvery: .seconds(60)) }
-        try await waitWhile(self.server.requests.count < sent + 2)
+        try await waitWhile(self.server.requests.count < sent + 3)
         again.cancel()
         await again.value
-        XCTAssertEqual(functions(from: sent).sorted(), ["friends_dot", "get_my_changes"])
+        XCTAssertEqual(functions(from: sent).sorted(), ["friends_dot", "get_my_changes", "get_my_mentions"])
     }
 
     /// Onboarding's follows wait through the quiet account and go up once, when a real one arrives.
