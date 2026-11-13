@@ -75,6 +75,19 @@ final class SchoolEventsTests: XCTestCase {
         XCTAssertEqual(shown, ["d12", "d13", "d14", "d15", "d16", "d17", "d18"])
     }
 
+    /// Before "See all" the card shows its first five events, their days' headings kept (Jesse, 2026-11-12: "i agree
+    /// to all", the next 5 with See all); a day cut in the middle keeps only the events that fit.
+    func testBeforeSeeAllTheCardShowsTheFirstFiveEvents() {
+        let events = [event("a", "2026-11-12"), event("b", "2026-11-12"), event("c", "2026-11-13"),
+                      event("d", "2026-11-14"), event("e", "2026-11-14"), event("f", "2026-11-14"), event("g", "2026-11-15")]
+        let days = SchoolEvents.days(events, on: .upcoming, now: now)
+        let first = SchoolEvents.first(SchoolEvents.shown, of: days)
+        XCTAssertEqual(first.flatMap(\.events).map(\.id), ["a", "b", "c", "d", "e"])
+        XCTAssertEqual(first.count, 3, "the 14th keeps its heading over the two that fit")
+        XCTAssertEqual(SchoolEvents.first(SchoolEvents.shown, of: Array(days.prefix(2))).flatMap(\.events).count, 3,
+                       "fewer than five: all of them, and no See all")
+    }
+
     /// The card's days turn at the Town's midnight, whatever the phone's zone: tomorrow's game is Upcoming at
     /// 11:59 PM and Today a minute past midnight, so a card left open overnight moves it.
     func testTheDaysTurnAtTheTownsMidnight() {

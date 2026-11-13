@@ -88,6 +88,20 @@ nonisolated enum SchoolEvents {
         }
         return days
     }
+
+    /// The events before "See all" (Jesse, 2026-11-12), so search and the activities stay near the top.
+    static let shown = 5
+
+    /// The first `count` events of `days`, each with its day's heading; a day cut short keeps the ones that fit.
+    static func first(_ count: Int, of days: [(day: Date, events: [SchoolEvent])]) -> [(day: Date, events: [SchoolEvent])] {
+        var left = count
+        var kept: [(day: Date, events: [SchoolEvent])] = []
+        for day in days where left > 0 {
+            kept.append((day.day, Array(day.events.prefix(left))))
+            left -= min(left, day.events.count)
+        }
+        return kept
+    }
 }
 
 /// How far the page's top has folded into its bar, 0 at rest to 1, from the scroll's offset: the mock's
@@ -118,6 +132,9 @@ struct SchoolEventsCard: View {
 
     /// The segment picked; nil until a tap, while the card opens where `SchoolEvents.opening` says.
     @State private var picked: SchoolDay?
+    /// Every event of the segment, after "See all"; its first `SchoolEvents.shown` before.
+    @State private var all = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Each minute, so a card left open past midnight moves its days along.
@@ -127,7 +144,7 @@ struct SchoolEventsCard: View {
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     ForEach(SchoolDay.allCases, id: \.self) { day in
-                        Button { picked = day } label: {
+                        Button { picked = day; all = false } label: {
                             Text(day.word)
                                 .font(.displaySemi(17))
                                 .foregroundStyle(Hue.nameOnDark.opacity(day == segment ? 1 : 0.5))
@@ -161,7 +178,7 @@ struct SchoolEventsCard: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 34)
                 }
-                ForEach(days, id: \.day) { day in
+                ForEach(all ? days : SchoolEvents.first(SchoolEvents.shown, of: days), id: \.day) { day in
                     Text(TeamPage.day(day.day))
                         .font(.sansSemibold(13))
                         .foregroundStyle(Hue.nameOnDark.opacity(0.55))
@@ -171,6 +188,16 @@ struct SchoolEventsCard: View {
                         .padding(.bottom, 2)
                         .accessibilityAddTraits(.isHeader)
                     ForEach(day.events) { row($0) }
+                }
+                if days.flatMap(\.events).count > SchoolEvents.shown {
+                    Button(all ? "Show less" : "See all") {
+                        withAnimation(reduceMotion ? nil : Motion.smooth) { all.toggle() }
+                    }
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.nameOnDark)
+                    .frame(maxWidth: .infinity, minHeight: MeetupPillStyle.minTarget, alignment: .leading)
+                    .padding(.horizontal, SchoolMetric.rowPad)
+                    .buttonStyle(.press(.squish))
                 }
             }
             .transition(.opacity)
