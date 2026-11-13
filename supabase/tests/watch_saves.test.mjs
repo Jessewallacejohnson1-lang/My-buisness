@@ -238,6 +238,33 @@ test("team logos: a new team's logo and colors", async () => {
   await asJob('team logos: the ones taken down before', 'select id, name, logo_refused from public.teams where logo_url is null');
 });
 
+// The weekly step for what has nothing scheduled (BP app nothing-scheduled 04): the Sunday finish counts the things due
+// (nothing_scheduled.read_rows and last_walks), and a walk remembers each thing it walked.
+test('nothing scheduled: the Sunday count reads, and each thing walked is remembered', async () => {
+  await asJob('count: school activities', `select id, team_id, name, kind, note from public.team_activities
+    where team_id in ('apollo', 'tech') order by id limit 1000 offset 0`);
+  await asJob('count: activities_next', 'select public.activities_next($1) as n', [['apollo', 'tech']]);
+  await asJob('count: Groups', `select id, name, kind, own_entry_id, place_entry_id, page_url from public.clubs
+    where status = 'approved'`);
+  await asJob('count: busy Places and Groups', `select place_entry_id, club_id from public.club_events
+    where status = 'approved' and cancelled_at is null and event_date >= $1 order by id limit 1000 offset 0`, [day(0)]);
+  // As PostgREST writes POST date_walks?on_conflict=thing with resolution=merge-duplicates.
+  const walked = (things, at) => asJob('keep: things walked', `insert into public.date_walks (thing, walked_at)
+    select thing, walked_at from jsonb_populate_recordset(null::public.date_walks, $1)
+    on conflict (thing) do update set thing = excluded.thing, walked_at = excluded.walked_at`,
+    [JSON.stringify(things.map((thing) => ({ thing, walked_at: at })))]);
+  await walked(['group:g1', 'place:cafe'], '2026-11-15T12:00:00Z');
+  await walked(['place:cafe'], '2026-12-13T12:00:00Z');
+  assert.deepEqual((await asJob('count: last walks', 'select thing, walked_at from public.date_walks order by thing'))
+    .map((r) => [r.thing, r.walked_at.toISOString()]),
+    [['group:g1', '2026-11-15T12:00:00.000Z'], ['place:cafe', '2026-12-13T12:00:00.000Z']]);
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    await assert.rejects(db.query('select thing from public.date_walks'), /permission denied/, role);
+    await db.exec('reset role');
+  }
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
 test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
   const refused = async (what, sql) => {

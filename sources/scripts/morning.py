@@ -53,7 +53,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
             every Event added since the last report (the social watch's and a chat's too) whose card shows no
             photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
-            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). The routine answers with it (BP app smooth-mornings 07).
+            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it ends with how many
+            things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app nothing-scheduled 04). The routine answers with it (BP app smooth-mornings 07).
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/, which morning_run.py owns: each step takes a Run (its folder, day,
@@ -88,6 +89,7 @@ import apple_maps
 import team_logos
 import venue_spots
 import event_parts
+import nothing_scheduled
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1120,7 +1122,8 @@ def finish(run, dry_run):
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
-                       ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today))):
+                       ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today)),
+                       ("nothing scheduled", lambda: nothing_scheduled.due_line(db, today))):
         waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
         if what == "Apple Maps" and late(run.stop) and not waited.saved:  # the maps took this part's time, once
             waited.save(True)

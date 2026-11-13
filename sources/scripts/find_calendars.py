@@ -270,6 +270,7 @@ def pick_all(root, workers=8):
 
 UNREVIEWED = "Unreviewed — tier `listed`, so it publishes nothing until promoted."
 PROMOTED = "Watched since {day}: Jesse approved it in one batch with its picked pages (ADR-022)."
+ADDED = "Page added {day}: Jesse ticked it on the weekly step's list (ADR-022, BP app nothing-scheduled 04)."
 PLAIN_URL = re.compile(r"[A-Za-z0-9:/._~%?&=+@!$,;*()\-]+")
 
 
@@ -285,16 +286,23 @@ def source_lines(s):
 
 def promote_block(block, entry, pages):
     """One entry's yaml block, made watched and active, its website replaced by its picked pages.
-    Other sources (a Facebook page) stay; every other key stays as written."""
+    Other sources (a Facebook page) stay; every other key stays as written. An entry already watched
+    keeps every page it has and takes the picked ones beside them (the weekly step's finds,
+    nothing_scheduled.py: a school's club page beside its game feed)."""
     trust = next((s.get("trust") for s in entry["sources"] if s.get("kind", "website") == "website"), None) or "official"
-    kept = [s for s in entry["sources"] if looks_social(s.get("url", "")) or s.get("method") != "fetch"]
-    sources = [{"url": g["url"], "kind": g["kind"], "method": "fetch", "trust": trust} for g in pages] + kept
-    head = block.split("\nsources:", 1)[0].splitlines()
+    watched = entry.get("status") == "active" and entry.get("tier") == "watched"
+    kept = [s for s in entry["sources"] if watched or looks_social(s.get("url", "")) or s.get("method") != "fetch"]
+    have = {s.get("url") for s in kept}
+    sources = [{"url": g["url"], "kind": g["kind"], "method": "fetch", "trust": trust} for g in pages if g["url"] not in have] + kept
+    head, _, listed = block.partition("\nsources:")
+    head, listed = head.splitlines(), listed.split("\n")[1:]
+    # The keys after the pages (a school's `at` and `venue_at`) stay where they were.
+    tail = next((listed[i:] for i, ln in enumerate(listed) if ln and not ln.startswith((" ", "-"))), [])
     head = [("status: active" if ln.startswith("status:") else "tier: watched" if ln.startswith("tier:") else ln)
             for ln in head]
     if not any(ln.startswith("tier:") for ln in head):
         head.insert(next(i for i, ln in enumerate(head) if ln.startswith("status:")) + 1, "tier: watched")
-    return "\n".join(head + ["sources:"] + [ln for src in sources for ln in source_lines(src)])
+    return "\n".join(head + ["sources:"] + [ln for src in sources for ln in source_lines(src)] + tail)
 
 
 def promote(root, picks, choices, day):
@@ -322,7 +330,7 @@ def promote_file(path, want, entries, day):
         out.append(text[at:m.start(2)])
         out.append(promote_block(m.group(2), e, want[eid.group(1)]))
         notes = m.group(4) or ""
-        line = PROMOTED.format(day=day)
+        line = (ADDED if e.get("status") == "active" and e.get("tier") == "watched" else PROMOTED).format(day=day)
         # A hand-written note runs over several lines, so the line goes first, never mid-sentence.
         notes = (notes.replace(UNREVIEWED, line) if UNREVIEWED in notes
                  else notes.replace("Notes: ", "Notes: " + line + " ", 1) if notes.strip() else "\nNotes: " + line)
@@ -376,6 +384,15 @@ def selftest():
                    and "  - url: https://bar.com/events/?ical=1\n    kind: ical\n    method: fetch\n    trust: official" in got
                    and '  - url: "https://bar.com/a b"' in got and "https://www.facebook.com/bar" in got
                    and "url: https://bar.com\n" not in got, "a promoted entry: watched, active, its picked pages, Facebook kept"))
+    school = ("id: school\nstatus: active\ntier: watched\nsources:\n  - url: https://school.org/ical\n    kind: ical\n    method: fetch\n"
+              "    trust: official\nat: [45.6, -94.2]\nvenue_at:\n  \"gym\": [45.6, -94.2]")
+    entry = {"status": "active", "tier": "watched",
+             "sources": [{"url": "https://school.org/ical", "kind": "ical", "method": "fetch", "trust": "official"}]}
+    got = promote_block(school, entry, [{"url": "https://school.org/clubs", "kind": "website"}])
+    checks.append((got.count("url: https://school.org/ical") == 1 and "  - url: https://school.org/clubs\n    kind: website" in got
+                   and got.endswith("    trust: official\nat: [45.6, -94.2]\nvenue_at:\n  \"gym\": [45.6, -94.2]"),
+                   "a watched entry keeps its pages and takes the new one beside them, and the keys after its pages "
+                   "(nothing-scheduled 04)"))
     bad = [m for ok, m in checks if not ok]
     print(f"{len(checks) - len(bad)} passed, {len(bad)} failed" + "".join(f"\n  FAILED {m}" for m in bad))
     sys.exit(1 if bad else 0)
@@ -388,6 +405,8 @@ def main():
     ap.add_argument("--pick", action="store_true", help="up to three pages per listed place -> .runs/picks.json")
     ap.add_argument("--promote", metavar="CHOICES_JSON",
                     help="apply Jesse's approval page (.runs/picks.json + his ticks) to the registry file")
+    ap.add_argument("--picks", metavar="PICKS_JSON", help="--promote: these picks instead of .runs/picks.json "
+                    "(the weekly step's: .runs/morning/scheduled/picks.json)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -398,7 +417,7 @@ def main():
         return pick_all(root)
     if args.promote:
         from datetime import date
-        picks = json.loads((Path(root) / ".runs" / "picks.json").read_text())
+        picks = json.loads(Path(args.picks or Path(root) / ".runs" / "picks.json").read_text())
         return promote(root, picks, json.loads(Path(args.promote).read_text()), date.today().isoformat())
     entries, _ = load(root)
 
