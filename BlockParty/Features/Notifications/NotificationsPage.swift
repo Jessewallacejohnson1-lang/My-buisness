@@ -216,9 +216,11 @@ private struct HelloItemRow: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             // Instagram's post thumbnail at the right: the Event's own picture.
-            // Shown only while it opens its Event, so the thumbnail never sits on a dead row.
-            if case .added(let added) = item.what, let photo = added.photo, card != nil {
-                FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+            // Shown only while it opens its Event, so the thumbnail never sits on a dead row. A flyer whole, as
+            // Following's square on the Block Party tab (BP app event-photos 18). The row keeps the picture it was
+            // made with, so it's whole only while that is still the card's flyer.
+            if case .added(let added) = item.what, let photo = added.photo, let card {
+                FeedCardURLPhoto(url: photo, loadingFill: Hue.fill, whole: card.whole && card.image.url == photo ? 0 : nil)
                     .frame(width: NoticeMetric.face, height: NoticeMetric.face)
                     .clipShape(RoundedRectangle(cornerRadius: NoticeMetric.thumbRadius, style: .continuous))
                     .accessibilityHidden(true)
