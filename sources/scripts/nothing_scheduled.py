@@ -15,14 +15,15 @@ Confirmed, and what is walked (BP app dig-deeper 26 counted them live on 2026-11
 - An approved Group with no Event coming whose own page isn't on a site we read. Only its one-off Events are looked for:
   its regular meetings stay on its page (Jesse, 2026-11-13).
 
-On Sundays the morning report says how many are due, beside the photo dig's weekly pass. A chat walks them
-(sources/models/dates.md for its finders): MOST a week, the ones walked longest ago first.
+On Sundays the morning report says how many are due, beside the photo dig's weekly pass. A chat walks them, as
+sources/models/nothing-scheduled.md says (sources/models/dates.md for its finders): MOST a week, the ones walked longest
+ago first.
 
   python3 sources/scripts/nothing_scheduled.py count                    the counts; nothing walked
   python3 sources/scripts/nothing_scheduled.py walk [--most N] [--only KEY ...]   the things due, in batches for the
                                                                         finders (.runs/morning/scheduled/find-N.txt)
   python3 sources/scripts/nothing_scheduled.py read URL                 one page through the polite fetcher, as text
-  python3 sources/scripts/nothing_scheduled.py keep [--dry-run]         the finders' pages checked and listed for
+  python3 sources/scripts/nothing_scheduled.py keep [--dry-run] [--tokens N]   the finders' pages checked and listed for
                                                                         Jesse's tick (picks.json), each thing walked
                                                                         remembered (public.date_walks)
   python3 sources/scripts/nothing_scheduled.py posts [--dry-run] [--social FILE]   the paid rung: the Facebook and
@@ -64,6 +65,7 @@ PER_FIND = 5                 # things in one finder's batch
 AHEAD = 90                   # a page counts when it gives a date this many days ahead (the readers' DAYS_AHEAD)
 RUNGS = ("school", "broad", "own", "search")  # the Ladder, cheapest first (dig-deeper 26's hand walk)
 READ_MOST = 12000            # characters of a page `read` prints for a finder
+RECIPE = "sources/models/nothing-scheduled.md"  # the chat's job, from walk to Jesse's ticks
 
 # A sport's season, by its name (dig-deeper 26's count), first match wins: boys' swim is winter, girls' fall.
 SEASON_OF = (("winter", r"basketball|hockey|wrestl|gymnast|nordic|alpine|ski|dance|bowling|swim.*boys|boys.*swim"),
@@ -273,7 +275,7 @@ def due_line(db, today, now=None):
     if not todo:
         return [f"[scheduled] none of the {total} things with nothing scheduled is due for a walk"]
     return [f"[scheduled] {left} of {total} things with nothing scheduled are due for a walk: say \"nothing scheduled\" "
-            f"in a chat to walk {len(todo)} (BP app nothing-scheduled 04)"]
+            f"in a chat to walk {len(todo)} ({RECIPE})"]
 
 
 def finder_line(t, town, today):
@@ -331,11 +333,12 @@ def entry_for(url, thing, entries):
     return on_site[0]
 
 
-def keep(out, entries, db=None, dry_run=False, now=None, readable=None):
+def keep(out, entries, db=None, dry_run=False, now=None, readable=None, tokens=None):
     """The finders' answers (scheduled/pages.jsonl) checked: a page we already read, one that won't read by a plain
     fetch, one with no date in the next AHEAD days, and a Facebook or Instagram page are taken out of the tick list, the
     social pages listed apart. The rest, by registry entry, go to scheduled/picks.json for Jesse's tick. Every thing a
-    finder answered for is remembered as walked; one it didn't is walked next time."""
+    finder answered for is remembered as walked; one it didn't is walked next time. `tokens`: what the finders used,
+    added up by the chat, for the report line (what one Sunday cost)."""
     from find_calendars import readable as polite_readable
     from morning import read_items
     from read_events import LOCAL
@@ -391,7 +394,8 @@ def keep(out, entries, db=None, dry_run=False, now=None, readable=None):
     with_page = len(answers) - rungs["none"]
     lines = [f"[scheduled] walked {len(answers)} of {len(laid)}: a page with a date for {with_page} ("
              + ", ".join(f"{r} {rungs[r]}" for r in RUNGS) + f"), none {rungs['none']}; {searches} web searches"
-             + (f", {extended} of them extended" if extended else ""),
+             + (f", {extended} of them extended" if extended else "")
+             + (f"; {tokens:,} tokens" if tokens is not None else "; tokens not given (keep --tokens N)"),
              f"[scheduled] {sum(len(r['pages']) for r in rows)} pages listed for Jesse's tick ({folder / 'picks.json'}); "
              f"{len(social)} Facebook or Instagram pages listed for the paid rung, `posts` ({folder / 'social.json'})"]
     lines += [f"[scheduled] taken out: {d}" for d in dropped]
@@ -721,7 +725,7 @@ def selftest():
         load_all = was
     check(monday == [] and calls == len(db.calls) - 1 and sunday == [
         '[scheduled] 7 of 8 things with nothing scheduled are due for a walk: say "nothing scheduled" in a chat to walk 7 '
-        '(BP app nothing-scheduled 04)'] and broken == ["[scheduled] the Sunday count failed: division by zero"],
+        '(sources/models/nothing-scheduled.md)'] and broken == ["[scheduled] the Sunday count failed: division by zero"],
           f"the morning report's line on Sundays only; a count that fails is the line: {monday}, {sunday}, {broken}")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -775,7 +779,8 @@ def selftest():
         check([(r["id"], r["state"]) for r in rows_out] == [(None, "new")] and rows_out[0]["name"] == "Lions Club"
               and soc == [{"thing": "Inn", "key": "place:inn", "entry": "inn", "url": "https://www.facebook.com/inn/events"}],
               "a page no entry owns is new; a social page is listed apart")
-        check(said[0] == "[scheduled] walked 6 of 6: a page with a date for 5 (school 1, broad 0, own 2, search 2), none 1; 0 web searches"
+        check(said[0] == "[scheduled] walked 6 of 6: a page with a date for 5 (school 1, broad 0, own 2, search 2), none 1; 0 web "
+                         "searches; tokens not given (keep --tokens N)"
               and any("bar.example/events/ (already read)" in s for s in said)
               and any("apollo.example/hockey (no date in the next 90 days)" in s for s in said)
               and any("lot.example/js (won't read by a plain fetch)" in s for s in said)
@@ -784,9 +789,9 @@ def selftest():
         (out / "scheduled" / "pages.jsonl").write_text(json.dumps(
             {"thing": "place:inn", "rung": "none", "page": "", "social": ["https://www.facebook.com/VTwin"], "searches": 5,
              "extended": 1}) + "\n")
-        said = keep(out, entries, FakeDb(), dry_run=True, now=now, readable=lambda u: True)[2]
-        check(said[0].endswith("none 1; 5 web searches, 1 of them extended"),
-              f"the extended searches for a Place's Facebook page are counted apart: {said[0]}")
+        said = keep(out, entries, FakeDb(), dry_run=True, now=now, readable=lambda u: True, tokens=87222)[2]
+        check(said[0].endswith("none 1; 5 web searches, 1 of them extended; 87,222 tokens"),
+              f"the extended searches for a Place's Facebook page are counted apart, and what the Sunday cost: {said[0]}")
 
     # The paid rung (ticket 06): the Facebook and Instagram pages keep listed, read once through the dig's Apify tasks.
     import social as sc
@@ -979,6 +984,7 @@ def main():
     ap.add_argument("--only", nargs="+", help="walk: these things' keys (activity:<id>, place:<entry>, group:<id>)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--social", help="posts: this list of found pages instead of keep's scheduled/social.json")
+    ap.add_argument("--tokens", type=int, help="keep: the tokens the finders used, added up by the chat")
     ap.add_argument("--town", default=DEFAULT)
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
@@ -991,7 +997,8 @@ def main():
     today = now.astimezone(read_events.LOCAL).date()
     if args.command == "keep":
         import registry
-        return keep(out_dir(), [e for e in registry.load(find_root())[0] if e["_town"] == args.town], dry_run=args.dry_run, now=now)
+        return keep(out_dir(), [e for e in registry.load(find_root())[0] if e["_town"] == args.town], dry_run=args.dry_run, now=now,
+                    tokens=args.tokens)
     if args.command == "posts":
         import registry
         listed = json.loads((find_root() / "sources" / "social" / f"{args.town}.json").read_text())
