@@ -724,6 +724,8 @@ struct HostMarkDisc: View {
     let picture: PlacePicture?
     var photo: URL? = nil
     let name: String
+    /// Across: a Town card's, else a page's own (the News page's 40 pt, as a post's picture; town-feed 65).
+    var size: CGFloat = HostMarkDisc.side
 
     /// The photo chip's height and 15% more, room for a square logo inside the circle (Jesse,
     /// 2026-11-10). A mark, not text, so it does not scale.
@@ -739,11 +741,11 @@ struct HostMarkDisc: View {
         Group {
             if photo == nil, let picture, picture.kind == .logo {
                 LogoDisc(logo: picture.url, initial: name.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
-                         logoSide: Self.logoSide, letter: .sansSemibold(14), fits: true)
-                    .frame(width: Self.side, height: Self.side)
+                         logoSide: size - 2 * Self.ring, letter: .sansSemibold(14), fits: true)
+                    .frame(width: size, height: size)
                     .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
             } else {
-                Avatar(photo ?? picture?.url, size: Self.side, blank: .initial(name))
+                Avatar(photo ?? picture?.url, size: size, blank: .initial(name))
             }
         }
         .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.ring))
