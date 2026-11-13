@@ -96,11 +96,13 @@ def metas(page):
 
 def full_size(u):
     """The original upload behind a resized copy a site builder serves: WordPress's -300x120,
-    Shopify's _400x, Wix's /v1/fill/... transform, Squarespace's format=750w."""
+    Shopify's _400x, Wix's /v1/fill/... transform, Squarespace's format=750w; Yext's (chains' location
+    pages) width=500,height=500 asked at the biggest we keep (Caribou's came at 500 px of 1600)."""
     u = re.sub(r'(/wp-content/uploads/.+)-\d+x\d+(\.\w+)(\?|$)', r'\1\2\3', u)
     if 'shopify' in u or '/cdn/shop/' in u:
         u = re.sub(r'_(\d+x\d*|x\d+)(@\dx)?(\.\w+)(\?|$)', r'\3\4', u)
     u = re.sub(r'(static\.wixstatic\.com/media/[^/]+)/v1/.*', r'\1', u)
+    u = re.sub(r'(dynl?\.mktgcdn\.com/p/[^/]+)/width=\d+,height=\d+$', rf'\1/width={LONG_SIDE},height={LONG_SIDE}', u)
     return re.sub(r'format=\d+w', 'format=2500w', u)
 
 
@@ -113,15 +115,16 @@ def from_page(page, base):
         tag = m.group(0)
         alt = (ALT.findall(tag) or [''])[0]
         sets = SRCSET.findall(tag)
-        if sets:  # the last entry of a srcset is its biggest
-            found.append((sets[0].split(',')[-1].strip().split(' ')[0], alt))
+        if sets:  # the last entry of a srcset is its biggest; a link may hold commas (Yext's width=500,height=500)
+            found.append((re.findall(r'(?:^|,)\s*(\S+?)(?=,*(?:\s|$))', sets[0])[-1], alt))
         urls = ATTR.findall(tag) + BG.findall(tag)
         if tag[:4].lower() == '<img':
             urls += IMG_ATTR.findall(tag)
         found += [(u, alt) for u in urls]
     # a browser reads Documents\41\IMG.JPG as Documents/41/IMG.JPG (stjosephmn.gov's park photos)
+    # a picture link has a / or a dot: src="false" is a site's unset value, not a file (Cole Papers' 404s)
     return [(urllib.parse.urljoin(base, u.replace('&amp;', '&').replace('\\', '/')), alt) for u, alt in found
-            if not u.startswith('data:')]
+            if not u.startswith('data:') and re.search(r'[/.]', u)]
 
 
 def from_browser(item):
@@ -992,6 +995,15 @@ def selftest():
                      ('https://x.com/google-badge.png', '')]) ==
          ['https://lh3.googleusercontent.com/sitesv/AAbc=w1280', 'https://x.com/shop-front.jpg']),
         ('?ver= on a .jpg is one file', len(photo_urls([('https://x.com/a.jpg?ver=1', ''), ('https://x.com/a.jpg?ver=2', '')])) == 1),
+        ("a srcset's biggest is found when its links hold commas; src=\"false\" is no picture",
+         [u for u, _ in from_page('<img src="false" srcset="https://dyn.mktgcdn.com/p/H/width=500,height=500 500w, '
+                                  'https://dyn.mktgcdn.com/p/H/width=960,height=960 960w">', 'https://x.com/p')]
+         == ['https://dyn.mktgcdn.com/p/H/width=960,height=960']
+         and [u for u, _ in from_page('<img srcset="/a.jpg 1x,/b.jpg 2x"><img srcset="/c.jpg, /d.jpg 2x">', 'https://x.com/')]
+         == ['https://x.com/b.jpg', 'https://x.com/d.jpg']),
+        ("Yext's resized copy is asked at 1600 px",
+         photo_urls([('https://dyn.mktgcdn.com/p/H/width=500,height=500', ''), ('https://dyn.mktgcdn.com/p/H/width=1600,height=1600', '')])
+         == ['https://dyn.mktgcdn.com/p/H/width=1600,height=1600']),
         ('a resized WordPress copy becomes its original',
          photo_urls([('https://x.com/wp-content/uploads/p-300x200.jpg', '')]) == ['https://x.com/wp-content/uploads/p.jpg']),
         ("a page's logo file comes before its share picture, a footer's Facebook icon never",

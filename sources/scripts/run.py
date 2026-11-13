@@ -14,7 +14,7 @@ Usage:
   python3 run.py --write              # prod: needs SUPABASE_URL and a key (db.py)
   python3 run.py --selftest           # when a page goes through Firecrawl, with fake sites
 """
-import argparse, hashlib, html, json, os, re, shutil, socket, sys, threading, time, zlib
+import argparse, hashlib, html, json, os, re, shutil, socket, ssl, sys, threading, time, zlib
 import urllib.request, urllib.error, urllib.parse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -215,16 +215,33 @@ def _respect_crawl_delay(url):
     _last_hit[host] = time.monotonic()
 
 
+def _trust():
+    """The certificates a site may sign with: the default ones and Python's own OpenSSL bundle. Claude
+    Code in an IDE sets SSL_CERT_FILE to macOS's old /etc/ssl/cert.pem, which lacks newer roots: the
+    DNR's site (Sectigo's R46) failed our check while curl passed (2026-11-08)."""
+    ctx = ssl.create_default_context()
+    own = ssl.get_default_verify_paths().openssl_cafile
+    if own and os.path.isfile(own):
+        ctx.load_verify_locations(own)
+    return ctx
+
+
+TRUST = _trust()
+
+
 def _open(req, timeout=TIMEOUT):
     """urlopen, with one retry after a dropped connection. stjosephmn.gov resets some
-    connections outright (2026-10-15); an HTTP answer is never retried."""
+    connections outright (2026-10-15); an HTTP answer is never retried. A link with a letter
+    outside ASCII is sent the way a browser sends it (Cole Papers' 1600×500 banner)."""
+    if not req.full_url.isascii():
+        req.full_url = urllib.parse.quote(req.full_url, safe="!#$%&'()*+,/:;=?@[]~")
     try:
-        return urllib.request.urlopen(req, timeout=timeout)
+        return urllib.request.urlopen(req, timeout=timeout, context=TRUST)
     except urllib.error.HTTPError:
         raise
     except (urllib.error.URLError, ConnectionError, TimeoutError):
         time.sleep(RETRY_WAIT)
-        return urllib.request.urlopen(req, timeout=timeout)
+        return urllib.request.urlopen(req, timeout=timeout, context=TRUST)
 
 
 def server_of(host):
@@ -460,6 +477,7 @@ def selftest():
          "a calendar's long line folded onto the next stays whole"),
         (one_bad_row_is_one_line(), "a row the database refuses is one report line, still named by a later part; the rest are recorded"),
         (polite_across_parts(), "a timed run's next part reads no robots.txt again and waits out its Crawl-delay"),
+        (sent_as_a_browser_would(), "a link with a letter outside ASCII is sent percent-encoded, an encoded one unchanged"),
         (one_at_a_time(), "a second prepare beside one still running is refused, and runs once that one ends"),
         (failing(2, None, True) == (0, "clear") and failing(2, "2026-10-20", True) == (0, "back"),
          "the set-aside rule: a good read clears a page's misses, and brings a set-aside page back"),
@@ -501,7 +519,7 @@ def one_bad_row_is_one_line():
                 "sources": [{"url": f"https://{i}/", "method": "fetch"}]} for i in ("a", "b", "c")]
     recorded = []
 
-    def urlopen(req, timeout=None):
+    def urlopen(req, timeout=None, context=None):
         if req.get_method() == "PATCH":
             if "b%2F" in req.full_url:
                 raise urllib.error.HTTPError(req.full_url, 500, "Internal Server Error", {},
@@ -555,7 +573,7 @@ def polite_across_parts():
         def geturl(self):
             return asked[-1][1]
 
-    def urlopen(req, timeout=None):
+    def urlopen(req, timeout=None, context=None):
         asked.append((g["time"].wall, req.full_url))
         return Answer(b"User-agent: *\nCrawl-delay: 10\n" if req.full_url.endswith("/robots.txt") else b"<p>Trivia</p>")
     known = (_robots, _crawl_delay, _unreadable, _server, _last_hit, _server_hit)
@@ -580,6 +598,18 @@ def polite_across_parts():
             d.update(was)
     return ([u for _, u in asked] == ["https://slow.invalid/robots.txt", "https://slow.invalid/a", "https://slow.invalid/b"]
             and asked[2][0] - asked[1][0] >= 10)
+
+
+def sent_as_a_browser_would():
+    sent = []
+    saved = urllib.request.urlopen
+    try:
+        urllib.request.urlopen = lambda req, timeout=None, context=None: sent.append(req.full_url)
+        for u in ("https://x.invalid/up/banner_1600\u00d7500px.jpg?a=1&b=%C3%A9", "https://x.invalid/a%20b.jpg"):
+            _open(urllib.request.Request(u))
+    finally:
+        urllib.request.urlopen = saved
+    return sent == ["https://x.invalid/up/banner_1600%C3%97500px.jpg?a=1&b=%C3%A9", "https://x.invalid/a%20b.jpg"]
 
 
 class Supabase(Db):
