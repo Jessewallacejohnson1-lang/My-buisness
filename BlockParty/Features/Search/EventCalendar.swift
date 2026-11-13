@@ -101,6 +101,13 @@ enum EventCalendar {
         return planned.first(where: inMonth) ?? first
     }
 
+    /// Whether `page` is `current` or one beside it in `pages`: the pages a swipe can bring in next, the only ones
+    /// worth drawing in full.
+    static func near(_ page: Date, _ current: Date, in pages: [Date]) -> Bool {
+        guard let a = pages.firstIndex(of: page), let b = pages.firstIndex(of: current) else { return page == current }
+        return abs(a - b) <= 1
+    }
+
     /// "Friday, November 13, 3 Events"; "Today, …" for today.
     static func spoken(_ date: Date, events: Int, today: Bool) -> String {
         let count = events == 0 ? "nothing on" : events == 1 ? "1 Event" : "\(events) Events"
@@ -135,7 +142,9 @@ struct EventCalendarView: View {
                     .padding(.top, CalendarMetric.weekdaysTop)
                 AgendaPager(pages: months, day: month, pick: { go(to: $0, today: today, day: day, planned: planned) },
                             jump: reduceMotion ? nil : Motion.smooth) { page in
-                    grid(page, byDay: byDay, today: today, day: day)
+                    // Only this month and the two beside it ask for their photos: a year of them at once kept
+                    // the month on screen waiting behind the other eleven.
+                    grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today, day: day)
                         .padding(.horizontal, CalendarMetric.gridInset)
                 }
                 .padding(.top, CalendarMetric.gridTop)
@@ -257,9 +266,10 @@ struct EventCalendarView: View {
     private func dayCards(_ events: [DailyEvent]?, byDay: [Date: [DailyEvent]], months: [Date], today: Date,
                           day: Date, now: Date, planned: [Date]) -> some View {
         if let events {
-            AgendaPager(pages: YouCalendar.pages(events, days: EventCalendar.days(months), today: today, day: day),
-                        day: day, pick: { pick($0, from: day) }) { page in
-                dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned)
+            let pages = YouCalendar.pages(events, days: EventCalendar.days(months), today: today, day: day)
+            AgendaPager(pages: pages, day: day, pick: { pick($0, from: day) }) { page in
+                dayCard(page, events: EventCalendar.near(page, day, in: pages) ? byDay[page] ?? [] : [],
+                        today: today, now: now, planned: planned)
             }
         } else {
             dayCard(day, events: nil, today: today, now: now, planned: planned)
@@ -386,7 +396,7 @@ private struct CalendarRow: View {
                 HStack(spacing: CalendarMetric.rowGap) {
                     Hue.fill
                         .frame(width: CalendarMetric.rowPhoto, height: CalendarMetric.rowPhoto)
-                        .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
+                        .overlay { if let url = event.photo { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                     VStack(alignment: .leading, spacing: CalendarMetric.rowLines) {
                         Text(event.item.title)

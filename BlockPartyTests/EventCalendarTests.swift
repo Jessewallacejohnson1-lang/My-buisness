@@ -89,6 +89,15 @@ final class EventCalendarTests: XCTestCase {
         XCTAssertEqual(land("2027-03-01", picked: "2027-01-15"), "2027-03-01")
     }
 
+    /// Only the page on screen and the two beside it draw their photos (a year at once kept the month waiting).
+    func testOnlyNearPagesDrawInFull() {
+        let pages = ["2026-11-13", "2026-11-14", "2026-11-19", "2026-12-04"].map(day)
+        XCTAssertTrue(EventCalendar.near(day("2026-11-14"), day("2026-11-13"), in: pages))
+        XCTAssertTrue(EventCalendar.near(day("2026-11-13"), day("2026-11-13"), in: pages))
+        XCTAssertFalse(EventCalendar.near(day("2026-11-19"), day("2026-11-13"), in: pages))
+        XCTAssertFalse(EventCalendar.near(day("2026-11-20"), day("2026-11-13"), in: pages))
+    }
+
     /// What VoiceOver reads on a day, in Search's own words.
     func testSpokenDays() {
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-13"), events: 3, today: true), "Today, Friday, November 13, 3 Events")
