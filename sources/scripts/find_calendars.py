@@ -31,7 +31,7 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from registry import find_root, load, is_todo
+from registry import find_root, load, is_todo, is_watched
 from run import fetch, to_text, final_url
 
 ICAL = re.compile(r'href=["\']([^"\']*(?:\.ics|ical|iCalendar|feed=calendar)[^"\']*)["\']', re.I)
@@ -290,7 +290,7 @@ def promote_block(block, entry, pages):
     keeps every page it has and takes the picked ones beside them (the weekly step's finds,
     nothing_scheduled.py: a school's club page beside its game feed)."""
     trust = next((s.get("trust") for s in entry["sources"] if s.get("kind", "website") == "website"), None) or "official"
-    watched = entry.get("status") == "active" and entry.get("tier") == "watched"
+    watched = is_watched(entry)
     kept = [s for s in entry["sources"] if watched or looks_social(s.get("url", "")) or s.get("method") != "fetch"]
     have = {s.get("url") for s in kept}
     sources = [{"url": g["url"], "kind": g["kind"], "method": "fetch", "trust": trust} for g in pages if g["url"] not in have] + kept
@@ -330,7 +330,7 @@ def promote_file(path, want, entries, day):
         out.append(text[at:m.start(2)])
         out.append(promote_block(m.group(2), e, want[eid.group(1)]))
         notes = m.group(4) or ""
-        line = (ADDED if e.get("status") == "active" and e.get("tier") == "watched" else PROMOTED).format(day=day)
+        line = (ADDED if is_watched(e) else PROMOTED).format(day=day)
         # A hand-written note runs over several lines, so the line goes first, never mid-sentence.
         notes = (notes.replace(UNREVIEWED, line) if UNREVIEWED in notes
                  else notes.replace("Notes: ", "Notes: " + line + " ", 1) if notes.strip() else "\nNotes: " + line)

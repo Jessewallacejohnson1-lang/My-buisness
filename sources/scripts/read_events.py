@@ -444,7 +444,10 @@ def read_pathify(src, entry, today):
 # CSB/SJU music: the department's season page, made by hand, no feed (BP app nothing-scheduled 01) ---------------
 
 MUSIC_DAY = re.compile(r"(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,\s+([A-Z][a-z]+)\s+(\d{1,2})\b")
-MUSIC_CLOCK = re.compile(r"(\d{1,2})(?::(\d\d))?\s*(?:-\s*(\d{1,2})(?::(\d\d))?\s*)?([ap])\.?m\b", re.I)
+# A clock time in words: "3 PM", "3:30 p.m.", "3pm", a range's first time taking the second's half of the day ("3-5 PM",
+# "3 to 5 p.m."). Groups: hour, minute, the range's end hour and minute, a or p. The music page, the meeting times and
+# event_parts read it.
+CLOCK = re.compile(r"\b(\d{1,2})(?::(\d\d))?\s*(?:(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*)?([ap])\.?\s?m\b\.?", re.I)
 # The campus a place line ends with; the Benedicta Arts Center is CSB's. A place with none is off campus and left out.
 MUSIC_CAMPUS = {"SJU": ("saint-johns", "Collegeville"), "CSB": ("saint-benedict", "St. Joseph"),
                 "BAC": ("saint-benedict", "St. Joseph")}
@@ -492,10 +495,10 @@ def music_items(page, url, entry, src, today):
             day = MUSIC_DAY.match(line)
             if day:
                 last = MUSIC_DAY.search(line, day.end())
-                days.append([music_day(day, today), MUSIC_CLOCK.search(line), last and music_day(last, today)])
-            elif MUSIC_CLOCK.fullmatch(line):
+                days.append([music_day(day, today), CLOCK.search(line), last and music_day(last, today)])
+            elif CLOCK.fullmatch(line):
                 for d in days:
-                    d[1] = d[1] or MUSIC_CLOCK.fullmatch(line)
+                    d[1] = d[1] or CLOCK.fullmatch(line)
             elif days:
                 place = re.fullmatch(r"(.+?),\s*(SJU|CSB|BAC)", line)
                 for first, clock, last in days if place else ():
@@ -1221,20 +1224,19 @@ def diocese_items(text, entry, src, today):
     last day, as the campus calendar's shows are. The host is who the description says hosts it, else the paper's name
     for the venue."""
     series = {}
+    get = lambda ev, k: unescape(ev.get(k, ("", ""))[1])  # noqa: E731
     for ev in parse_ics(text):
-        get = lambda k: unescape(ev.get(k, ("", ""))[1])
         if "DTSTART" not in ev or "UID" not in ev:
             continue
-        where, geo = get("LOCATION"), re.fullmatch(r"(-?[\d.]+);(-?[\d.]+)", ev.get("GEO", ("", ""))[1].strip())
+        where, geo = get(ev, "LOCATION"), re.fullmatch(r"(-?[\d.]+);(-?[\d.]+)", ev.get("GEO", ("", ""))[1].strip())
         near = miles(HOME, (float(geo[1]), float(geo[2]))) <= 20 if geo else town_of(where) in NEAR_TOWNS
         start, all_day = when(ev["DTSTART"])
-        if near and not ONLINE.search(f"{get('SUMMARY')} {where}") and ahead(start if all_day else start.date(), today):
+        if near and not ONLINE.search(f"{get(ev, 'SUMMARY')} {where}") and ahead(start if all_day else start.date(), today):
             url = page_url(ev, src["url"])
             series.setdefault(re.sub(r"\d{4}-\d\d-\d\d/?$", "", url), []).append((start, all_day, ev, url))
     out = []
     for page, sittings in series.items():
         start, all_day, ev, url = sittings[0]
-        get = lambda k: unescape(ev.get(k, ("", ""))[1])
         end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
         uid = ev["UID"][1].strip()
         # A run's last day (or its first, at the feed's edge) is its one sitting in the feed: still the run's Event,
@@ -1246,9 +1248,9 @@ def diocese_items(text, entry, src, today):
             if not days_apart or min(days_apart) <= timedelta(7):
                 uid = f"run:{page}"
                 end = sittings[-1][0].date() if days_apart else end
-        title, about = get("SUMMARY"), said(get("DESCRIPTION"))
+        title, about = get(ev, "SUMMARY"), said(get(ev, "DESCRIPTION"))
         ending, host = PAPER_ENDING.search(title), HOSTED.search(about or "")
-        place, town = venue_of(get("LOCATION"))
+        place, town = venue_of(get(ev, "LOCATION"))
         out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=PAPER_ENDING.sub("", title),
                           start=start.isoformat(), end=end and end.isoformat(), all_day=all_day, place=place,
                           town=town, blurb=about, source_url=url, source_uid=uid,

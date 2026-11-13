@@ -53,7 +53,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from registry import find_root, is_todo  # noqa: E402
+from registry import find_root, is_todo, is_watched, town_entries  # noqa: E402
+from find_calendars import bare, page_key  # noqa: E402
 from run import Supabase, fetch, to_text  # noqa: E402
 from morning_run import Part  # noqa: E402
 from towns import DEFAULT, lookup  # noqa: E402
@@ -103,23 +104,19 @@ def in_season(name, today):
 
 
 def host(url):
-    return urlparse(url).netloc.lower().removeprefix("www.")
+    return bare(urlparse(url).netloc)
 
 
-def page_key(url):
-    p = urlparse(url)
-    return host(url) + p.path.rstrip("/") + (f"?{p.query}" if p.query else "")
-
-
-def real(s):
-    return s.get("url") and not is_todo(s["url"])
+def has_url(source):
+    """Whether a registry source names a real address (not TODO)."""
+    return source.get("url") and not is_todo(source["url"])
 
 
 def watched_pages(entry):
     """An entry's pages the morning watch reads: active and watched, fetched or read through an API."""
-    if entry.get("status") != "active" or entry.get("tier") != "watched":
+    if not is_watched(entry):
         return []
-    return [s["url"] for s in entry.get("sources") or [] if real(s) and s.get("method") in ("fetch", "api")]
+    return [s["url"] for s in entry.get("sources") or [] if has_url(s) and s.get("method") in ("fetch", "api")]
 
 
 def school_entry(team, entries):
@@ -178,7 +175,7 @@ def things(rows, entries, social, today):
 
 
 def sites(entry):
-    return [s["url"] for s in (entry or {}).get("sources") or [] if real(s) and not SOCIAL.search(s["url"])]
+    return [s["url"] for s in (entry or {}).get("sources") or [] if has_url(s) and not SOCIAL.search(s["url"])]
 
 
 def walked_things(all_things):
@@ -236,9 +233,8 @@ def read_rows(db, today):
 
 
 def load_all(db, today, root=None, town=DEFAULT):
-    import registry
     root = root or find_root()
-    entries = [e for e in registry.load(root)[0] if e["_town"] == town]
+    entries = town_entries(root, town)
     social_file = root / "sources" / "social" / f"{town}.json"
     social = json.loads(social_file.read_text()) if social_file.exists() else []
     return things(read_rows(db, today), entries, social, today), entries
@@ -260,11 +256,8 @@ def due(all_things, walks, now, most=MOST):
 
 
 def due_line(db, today, now=None):
-    """The morning report's line on Sundays, beside the photo dig's weekly pass: how many are due, and how to walk
-    them. Any other day, nothing. A count that fails is the line, never a lost report."""
-    from event_photos import WEEKLY_DAY  # here: event_photos imports morning, which imports this
-    if today.weekday() != WEEKLY_DAY:
-        return []
+    """The morning report's line on Sundays (morning.sunday_lines), beside the photo dig's weekly pass: how many are
+    due, and how to walk them. A count that fails is the line, never a lost report."""
     now = now or datetime.now(timezone.utc)
     try:
         all_things, _ = load_all(db, today)
@@ -323,14 +316,21 @@ def entry_for(url, thing, entries):
     """The registry entry a found page joins: the entry that already names this page, else the one whose site it is
     when that is a single entry, else the thing's own (its school, its place, its Group's own entry), else none."""
     key, site = page_key(url), host(url)
-    named = [e for e in entries if any(real(s) and page_key(s["url"]) == key for s in e.get("sources") or [])]
+    named = [e for e in entries if any(has_url(s) and page_key(s["url"]) == key for s in e.get("sources") or [])]
     if named:
         return named[0]
-    on_site = [e for e in entries if any(real(s) and host(s["url"]) == site for s in e.get("sources") or [])]
+    on_site = [e for e in entries if any(has_url(s) and host(s["url"]) == site for s in e.get("sources") or [])]
     own = next((e for e in entries if e["id"] == thing.get("entry")), None)
     if own in on_site or len(on_site) != 1:
         return own
     return on_site[0]
+
+
+def pick_row(entry, name, url):
+    """A row of Jesse's tick list, as find_calendars --promote reads it: the registry entry a page joins, or `new`."""
+    e = entry or {}
+    return {"id": e.get("id"), "name": e.get("_name") or name, "category": e.get("category"), "status": e.get("status"),
+            "url": url, "state": "ok" if entry else "new", "pages": [], "things": []}
 
 
 def keep(out, entries, db=None, dry_run=False, now=None, readable=None, tokens=None):
@@ -345,13 +345,14 @@ def keep(out, entries, db=None, dry_run=False, now=None, readable=None, tokens=N
     readable = readable or polite_readable
     now = now or datetime.now(timezone.utc)
     folder = out / "scheduled"
-    laid = {t["key"]: t for t in json.loads((folder / "things.json").read_text())} if (folder / "things.json").exists() else {}
-    answers = {a["thing"]: a for a in read_items(folder / "pages.jsonl") if isinstance(a, dict) and a.get("thing") in laid}
+    laid_out = folder / "things.json"
+    this_walk = {t["key"]: t for t in json.loads(laid_out.read_text())} if laid_out.exists() else {}
+    answers = {a["thing"]: a for a in read_items(folder / "pages.jsonl") if isinstance(a, dict) and a.get("thing") in this_walk}
     read_now = {page_key(u) for e in entries for u in watched_pages(e)}
     today = now.astimezone(LOCAL).date()
     found, social, dropped, rungs = [], [], [], Counter()
     for key, a in answers.items():
-        t, page = laid[key], str(a.get("page") or "").strip()
+        t, page = this_walk[key], str(a.get("page") or "").strip()
         social += [found_on(t, u) for u in a.get("social") or [] if isinstance(u, str) and SOCIAL.search(u)]
         rung = a.get("rung") if a.get("rung") in RUNGS and page.startswith("http") else None
         rungs[rung or "none"] += 1
@@ -378,10 +379,7 @@ def keep(out, entries, db=None, dry_run=False, now=None, readable=None, tokens=N
             dropped.append(f"{f['thing']['name']}: {f['url']} (won't read by a plain fetch)")
             continue
         e = entry_for(f["url"], f["thing"], entries)
-        row = picks.setdefault(e["id"] if e else f["url"], {
-            "id": e["id"] if e else None, "name": e["_name"] if e else f["thing"]["name"],
-            "category": (e or {}).get("category"), "status": (e or {}).get("status"), "url": f["url"],
-            "state": "ok" if e else "new", "pages": [], "things": []})
+        row = picks.setdefault(e["id"] if e else f["url"], pick_row(e, f["thing"]["name"], f["url"]))
         if f["url"] not in [p["url"] for p in row["pages"]]:
             row["pages"].append({"url": f["url"], "why": f"{f['rung']}: {f['thing']['name']}, {f['event']} {f['date']}".strip(),
                                  "kind": kind_of(f["url"])})
@@ -392,7 +390,7 @@ def keep(out, entries, db=None, dry_run=False, now=None, readable=None, tokens=N
     count = lambda k: sum(int(a.get(k) or 0) for a in answers.values() if str(a.get(k) or "0").isdigit())  # noqa: E731
     searches, extended = count("searches"), count("extended")
     with_page = len(answers) - rungs["none"]
-    lines = [f"[scheduled] walked {len(answers)} of {len(laid)}: a page with a date for {with_page} ("
+    lines = [f"[scheduled] walked {len(answers)} of {len(this_walk)}: a page with a date for {with_page} ("
              + ", ".join(f"{r} {rungs[r]}" for r in RUNGS) + f"), none {rungs['none']}; {searches} web searches"
              + (f", {extended} of them extended" if extended else "")
              + (f"; {tokens:,} tokens" if tokens is not None else "; tokens not given (keep --tokens N)"),
@@ -493,53 +491,39 @@ def plan_posts(found, listed, spent, now, turned=None):
                        f"${ep.POSTS_MONTH:.0f}; Apify's month starts again on {reset}"}
 
 
-def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None, found=None, db=None):
-    """The paid rung: the Facebook and Instagram pages keep listed (`found`, default scheduled/social.json) read once
-    through the dig's Apify tasks (event_photos.start_posts: a page's last 12 posts of the year), each kind's run started
-    once and saved, at most 10 cents a place and inside the dig's $5 in Apify's month; at the limit the rest wait, and
-    the report names them. A page whose posts give an Event's date and time goes to scheduled/social-picks.json for
-    Jesse's tick, with its line for the social watch's list. Run again while it says so: Apify's runs take minutes.
-    Returns (the rows for his tick, the report's lines), or None while Apify is still reading."""
+def start_reads(s, state, now):
+    """Each kind's Apify run for the pages planned (`s`), its id saved the moment it starts: a part run again never
+    starts it twice. Only a started run is remembered, so a list that all waits is planned again next time."""
+    import event_photos as ep
+    for kind in ep.POSTS_ACTORS:
+        urls = sorted({p["url"] for p in s["read"] if p["kind"] == kind})
+        if urls:
+            s["runs"][kind] = ep.start_posts(kind, urls, ep.POSTS_SHARE[kind] * len(urls), now)
+            state.save(s)
+
+
+def poll_reads(s, minutes=None, wait=None):
+    """The started runs once all are done, or None when this part's time runs out first."""
     import time
     import event_photos as ep
     import social
     from morning_run import PART_MINUTES
     from run import deadline, late
-    now = now or datetime.now(timezone.utc)
-    folder = out / "scheduled"
-    state = Part(None if dry_run else folder / "posts.json", empty={})
-    s = state.saved
-    if "runs" not in s:
-        path = Path(found) if found else folder / "social.json"
-        found = json.loads(path.read_text()) if path.exists() else []
-        s = plan_posts(found, listed, ep.dig_spend(now) if found else 0.0, now,
-                       turned_down(db or Supabase(), now) if found else {})
-        waits = ([f"[scheduled]   taken out: {t}" for t in s["taken"]]
-                 + [f"[scheduled]   waits: {p['thing']} {p['url']} ({s['waiting']})" for p in s["waits"]])
-        if dry_run:
-            cap = sum(ep.POSTS_SHARE[p["kind"]] for p in s["read"])
-            lines = [f"[scheduled] posts (dry run): would read {len(s['read'])} pages of "
-                     f"{len({p.get('key') or p['thing'] for p in s['read']})} things for at most ${cap:.2f} on Apify; "
-                     f"${s['spent']:.2f} of the dig's ${ep.POSTS_MONTH:.0f} spent this month"] + waits
-            print("\n".join(lines))
-            return None, lines
-        for kind in ep.POSTS_ACTORS:  # each run's id saved the moment it starts: a part run again never starts it twice
-            urls = sorted({p["url"] for p in s["read"] if p["kind"] == kind})
-            if urls:
-                s["runs"][kind] = ep.start_posts(kind, urls, ep.POSTS_SHARE[kind] * len(urls), now)
-                state.save(s)  # only a started run is remembered: a list that all waits is planned again next time
     stop = deadline(PART_MINUTES if minutes is None else minutes)
     while True:
         runs = {kind: social.api("GET", f"/actor-runs/{rid}")["data"] for kind, rid in s["runs"].items()}
         if all(r["status"] in social.DONE for r in runs.values()):
-            break
+            return runs
         if late(stop):
-            print(f"[scheduled] run again: Apify still reading the posts of {len(s['read'])} pages")
             return None
         time.sleep(ep.POLL if wait is None else wait)
-    s["cost"] = round(sum(float(r.get("usageTotalUsd") or 0) for r in runs.values()), 4)
-    if runs:
-        state.save(s)
+
+
+def score_posts(s, runs, entries, now):
+    """Each page read, kept for Jesse's tick when a post gives a dated Event, else taken out with why. Returns (the rows
+    for his tick, the taken-out lines, each page's date_walks row with its verdict, posts read, dated Events)."""
+    import event_photos as ep
+    import social
     by_url = {social.canon(p["url"]): p for p in s["read"]}
     rows, why = defaultdict(list), {}
     for r in runs.values():
@@ -549,8 +533,7 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
                 why[social.canon(p["url"])] = None if row["error"] == "no_items" else row["error"].replace("_", " ")
             elif p:
                 rows[social.canon(p["url"])].append(row)
-    by_entry, kept, taken, posts_read, events = {e["id"]: e for e in entries}, {}, list(s["taken"]), 0, 0
-    marks = []
+    by_entry, kept, taken, marks, posts_read, events = {e["id"]: e for e in entries}, {}, list(s["taken"]), [], 0, 0
     for p in s["read"]:
         got = rows.get(social.canon(p["url"]), [])
         hits = sorted((r for r in got if dated(post_words(p["kind"], r))), key=ep.posted, reverse=True)
@@ -562,18 +545,51 @@ def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None
                 f"no post gives a date and a time: {len(got)} read" if got else "no post in the last year")) + ")")
             continue
         e = by_entry.get(p.get("entry") or "")
-        name = e["_name"] if e else p["thing"]
-        row = kept.setdefault(e["id"] if e else p.get("key") or p["thing"], {
-            "id": e["id"] if e else None, "name": name, "category": (e or {}).get("category"),
-            "status": (e or {}).get("status"), "url": p["url"], "state": "ok" if e else "new", "pages": [],
-            "things": []})
+        row = kept.setdefault(e["id"] if e else p.get("key") or p["thing"], pick_row(e, p["thing"], p["url"]))
         row["pages"].append({"url": p["url"], "kind": p["kind"],
                              "why": f"{len(hits)} of {len(got)} posts give a date and a time; {ep.posted(hits[0])[:10]}: "
                                     + " ".join(post_words(p["kind"], hits[0]).split())[:160],
-                             "line": {"entry_id": e["id"] if e else None, "name": name, "kind": p["kind"],
+                             "line": {"entry_id": row["id"], "name": row["name"], "kind": p["kind"],
                                       "url": p["url"], "busy": False}})
         row["things"] += [] if p["thing"] in row["things"] else [p["thing"]]
-    out_rows = sorted(kept.values(), key=lambda r: r["name"])
+    return sorted(kept.values(), key=lambda r: r["name"]), taken, marks, posts_read, events
+
+
+def posts(out, entries, listed, now=None, dry_run=False, minutes=None, wait=None, found=None, db=None):
+    """The paid rung: the Facebook and Instagram pages keep listed (`found`, default scheduled/social.json) read once
+    through the dig's Apify tasks (event_photos.start_posts: a page's last 12 posts of the year), each kind's run started
+    once and saved, at most 10 cents a place and inside the dig's $5 in Apify's month; at the limit the rest wait, and
+    the report names them. A page whose posts give an Event's date and time goes to scheduled/social-picks.json for
+    Jesse's tick, with its line for the social watch's list. Run again while it says so: Apify's runs take minutes.
+    Returns (the rows for his tick, the report's lines), or None while Apify is still reading."""
+    import event_photos as ep
+    now = now or datetime.now(timezone.utc)
+    folder = out / "scheduled"
+    state = Part(None if dry_run else folder / "posts.json", empty={})
+    s = state.saved
+    if "runs" not in s:
+        path = Path(found) if found else folder / "social.json"
+        found = json.loads(path.read_text()) if path.exists() else []
+        s = plan_posts(found, listed, ep.dig_spend(now) if found else 0.0, now,
+                       turned_down(db or Supabase(), now) if found else {})
+        if dry_run:
+            cap = sum(ep.POSTS_SHARE[p["kind"]] for p in s["read"])
+            lines = ([f"[scheduled] posts (dry run): would read {len(s['read'])} pages of "
+                      f"{len({p.get('key') or p['thing'] for p in s['read']})} things for at most ${cap:.2f} on Apify; "
+                      f"${s['spent']:.2f} of the dig's ${ep.POSTS_MONTH:.0f} spent this month"]
+                     + [f"[scheduled]   taken out: {t}" for t in s["taken"]]
+                     + [f"[scheduled]   waits: {p['thing']} {p['url']} ({s['waiting']})" for p in s["waits"]])
+            print("\n".join(lines))
+            return None, lines
+        start_reads(s, state, now)
+    runs = poll_reads(s, minutes, wait)
+    if runs is None:
+        print(f"[scheduled] run again: Apify still reading the posts of {len(s['read'])} pages")
+        return None
+    s["cost"] = round(sum(float(r.get("usageTotalUsd") or 0) for r in runs.values()), 4)
+    if runs:
+        state.save(s)
+    out_rows, taken, marks, posts_read, events = score_posts(s, runs, entries, now)
     (folder / "social-picks.json").write_text(json.dumps(out_rows, indent=1, ensure_ascii=False))
     lines = [f"[scheduled] posts: {len(s['read'])} pages read, {posts_read} posts, {events} of them a dated Event; "
              f"${s['cost']:.2f} on Apify, ${float(s['spent']) + s['cost']:.2f} of the dig's ${ep.POSTS_MONTH:.0f} "
@@ -596,7 +612,7 @@ def found_on(thing, url):
     return {"thing": thing["name"], "key": thing["key"], "entry": thing.get("entry"), "url": url}
 
 
-def read_page(url, get=fetch):
+def page_text(url, get=fetch):
     """A page as a finder reads it: its text, or one line saying why it won't read (a finder reads no traceback)."""
     try:
         _, raw = get(url)
@@ -716,26 +732,24 @@ def selftest():
     was = load_all
     load_all = lambda db, today: (got, entries)  # noqa: E731
     try:
-        monday = due_line(db, date(2026, 11, 16), now)
-        calls = len(db.calls)
         sunday = due_line(db, date(2026, 11, 15), now)
         load_all = lambda db, today: 1 / 0  # noqa: E731
         broken = due_line(db, date(2026, 11, 15), now)
     finally:
         load_all = was
-    check(monday == [] and calls == len(db.calls) - 1 and sunday == [
+    check(sunday == [
         '[scheduled] 7 of 8 things with nothing scheduled are due for a walk: say "nothing scheduled" in a chat to walk 7 '
         '(sources/models/nothing-scheduled.md)'] and broken == ["[scheduled] the Sunday count failed: division by zero"],
-          f"the morning report's line on Sundays only; a count that fails is the line: {monday}, {sunday}, {broken}")
+          f"the morning report's Sunday line; a count that fails is the line: {sunday}, {broken}")
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
         (out / "scheduled").mkdir()
         (out / "scheduled" / "stale.txt").write_text("x")
-        laid = walk(out, got, walks, now, most=6)
+        todo = walk(out, got, walks, now, most=6)
         files = sorted(p.name for p in (out / "scheduled").iterdir())
         first = [json.loads(ln) for ln in (out / "scheduled" / "find-1.txt").read_text().splitlines()]
-        check(files == ["find-1.txt", "find-2.txt", "things.json"] and len(laid) == 6 and len(first) == 5
+        check(files == ["find-1.txt", "find-2.txt", "things.json"] and len(todo) == 6 and len(first) == 5
               and first[0] == {"thing": "place:inn", "name": "Inn", "what": "a place in St. Joseph MN (bar)",
                                "town": "St. Joseph MN", "sites": [], "read": [], "between": ["2026-11-15", "2027-02-13"]},
               "walk: the due things in batches of five, each with what a finder needs; last week's files gone")
@@ -867,7 +881,7 @@ def selftest():
                               {"id": "food", "_name": "St. Joseph Community Food Shelf", "_town": "st-joseph-mn",
                                "category": "food_bank", "sources": []}]
     sunday = datetime(2026, 11, 22, 18, tzinfo=timezone.utc)
-    real = sc.api, sc.items
+    apify_was = sc.api, sc.items
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
         (out / "scheduled").mkdir()
@@ -921,7 +935,7 @@ def selftest():
                  "verdict": "kept"}]})
             again = posts(out, paid_entries, social, now=sunday, dry_run=True, db=before)[1]
         finally:
-            sc.api, sc.items = real
+            sc.api, sc.items = apify_was
         check(sorted((m["thing"], m["verdict"]) for _, _, b in remembered.writes("date_walks") for m in b)
               == [("page:https://www.facebook.com/st.joefoodshelf", "turned_down"),
                   ("page:https://www.facebook.com/stjoelion", "kept"),
@@ -956,8 +970,8 @@ def selftest():
 
     def refuse(url):
         raise RuntimeError("robots.txt disallows -> switch method to search_snippet")
-    check(read_page("u", refuse) == "won't read: robots.txt disallows -> switch method to search_snippet"
-          and read_page("u", lambda url: (200, "<p>Fish fry</p><script>x</script>")) == "Fish fry",
+    check(page_text("u", refuse) == "won't read: robots.txt disallows -> switch method to search_snippet"
+          and page_text("u", lambda url: (200, "<p>Fish fry</p><script>x</script>")) == "Fish fry",
           "read: the page's text, or why it won't read in one line")
     check(kind_of("https://x.org/events/?ical=1") == "ical" and kind_of("https://x.org/feed/") == "rss"
           and kind_of("https://x.org/events") == "website", "a page's kind by its address")
@@ -991,19 +1005,16 @@ def main():
     if args.selftest:
         selftest()
     if args.command == "read":
-        return print(read_page(args.url))
+        return print(page_text(args.url))
     now = datetime.now(timezone.utc)
     import read_events
     today = now.astimezone(read_events.LOCAL).date()
     if args.command == "keep":
-        import registry
-        return keep(out_dir(), [e for e in registry.load(find_root())[0] if e["_town"] == args.town], dry_run=args.dry_run, now=now,
-                    tokens=args.tokens)
+        return keep(out_dir(), town_entries(find_root(), args.town), dry_run=args.dry_run, now=now, tokens=args.tokens)
     if args.command == "posts":
-        import registry
         listed = json.loads((find_root() / "sources" / "social" / f"{args.town}.json").read_text())
-        return posts(out_dir(), [e for e in registry.load(find_root())[0] if e["_town"] == args.town], listed, now=now,
-                     dry_run=args.dry_run, found=args.social)
+        return posts(out_dir(), town_entries(find_root(), args.town), listed, now=now, dry_run=args.dry_run,
+                     found=args.social)
     db = Supabase()
     all_things, _ = load_all(db, today, town=args.town)
     if args.command == "count":

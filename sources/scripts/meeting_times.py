@@ -28,9 +28,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run import fetch  # noqa: E402
+from read_events import CLOCK  # noqa: E402
 
 DAY = re.compile(r"\b(mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)day'?s?\b", re.I)
-CLOCK = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", re.I)
 MEETS = re.compile(r"\bmeetings?\b|\bmeet\b|\bmeets (?:on|every)\b", re.I)
 ADVISOR = re.compile(r"^(?:\w+ )?advisor", re.I)
 
@@ -50,7 +50,7 @@ def rule(text):
             r["every"] = 2
         clock = CLOCK.search(sentence)
         if clock:
-            hour = int(clock.group(1)) % 12 + (12 if clock.group(3).lower() == "p" else 0)
+            hour = int(clock.group(1)) % 12 + (12 if clock.group(5).lower() == "p" else 0)
             r["time"] = f"{hour:02d}:{clock.group(2) or '00'}"
         elif re.search(r"\bafter school\b", sentence, re.I):
             r["time"] = "After school"
@@ -110,13 +110,10 @@ def words(meets):
     return "; ".join(said) or None
 
 
-def sunday(db, entries, today, write=True, get=fetch):
-    """The morning report's lines on Sundays: each school's club page read, its clubs' times compared with the stored
-    ones, and each change written to its row (`write`), one line each. Any other day, nothing."""
+def sunday(db, entries, write=True, get=fetch):
+    """The morning report's lines on Sundays (morning.sunday_lines): each school's club page read, its clubs' times
+    compared with the stored ones, and each change written to its row (`write`), one line each."""
     import read_events
-    from event_photos import WEEKLY_DAY  # here: event_photos imports morning, which imports this
-    if today.weekday() != WEEKLY_DAY:
-        return []
     schools = [(read_events.bound_team(e), e["_name"], e["clubs_page"]) for e in entries if e.get("clubs_page")]
     if not schools:
         return []
@@ -172,7 +169,6 @@ def sunday(db, entries, today, write=True, get=fetch):
 
 
 def selftest():
-    from datetime import date
     from morning_run import FakeDb
     cases = [  # Sartell's own words, 2026-11-13
         ("Bible Study will meet every Friday at 8:00am in Mrs. Smith's room.", {"days": ["fri"], "time": "08:00"}),
@@ -218,7 +214,6 @@ def selftest():
               None], "a rule in the app's words (MeetingRule.words)")
 
     # The Sunday step: Sartell's page against what is stored, the other schools' pages beside it.
-    sunday_, monday = date(2026, 11, 15), date(2026, 11, 16)
     entries = [
         {"id": "sartell-high-school", "_name": "Sartell High School", "status": "active",
          "clubs_page": "https://sartell.example/activities"},
@@ -247,8 +242,7 @@ def selftest():
         return get
 
     db = FakeDb(answers={"team_activities": rows})
-    check(sunday(db, entries, monday, get=pages(saved)) == [] and not db.calls, "any day but Sunday, nothing")
-    said = sunday(db, entries, sunday_, get=pages(saved))
+    said = sunday(db, entries, get=pages(saved))
     check(said == ["[meets] 4 schools' club pages: Sartell High School 12 of 19 clubs with a time, Apollo High "
                    "School none, Tech High School none; Sauk Rapids-Rice High School won't read: its robots.txt keeps us out",
                    "[meets] Tech High School's page gives 1 meeting time the reader can't place on a club: teach "
@@ -265,7 +259,7 @@ def selftest():
                         "Advisor -&nbsp;<strong>Open</strong><br />Meetings are held every Monday at 3pm."))
     rows[names.index("Prom")]["meets"] = [{"days": ["wed"], "time": "08:00"}]
     db = FakeDb(answers={"team_activities": rows})
-    said = sunday(db, entries, sunday_, get=pages(changed))
+    said = sunday(db, entries, get=pages(changed))
     by = {n: r["id"] for n, r in zip(names, rows)}
     check(said[1:5] + said[-1:] == ["[meets] Sartell High School's Bible Study: Thursdays · 7:30 AM, was Fridays · 8 AM",
                        "[meets] Sartell High School's Chess Club: Mondays · 3 PM, was no time",
@@ -283,13 +277,13 @@ def selftest():
         (f"team_activities?id=eq.{by['Prom']}", {"meets": None})]),
           f"each change written to its club's row, nothing else: {db.writes()}")
     db = FakeDb(answers={"team_activities": rows})
-    dry = sunday(db, entries, sunday_, write=False, get=pages(changed))
+    dry = sunday(db, entries, write=False, get=pages(changed))
     check(not db.writes() and dry[-1] == "[meets] would change 4 clubs' meeting times", f"a dry run writes nothing: {dry}")
 
     # Most of a school's clubs with a time gone from its page at once is the page, not the clubs: nothing changes.
     one_left = saved[:saved.index("<h2>", saved.index("BIBLE STUDY"))]
     db = FakeDb(answers={"team_activities": rows})
-    said = sunday(db, entries[:1], sunday_, get=pages(one_left.replace("every Friday at 8:00am", "every Thursday at 7:30am")))
+    said = sunday(db, entries[:1], get=pages(one_left.replace("every Friday at 8:00am", "every Thursday at 7:30am")))
     check(said[1:] == ["[meets] Sartell High School's page no longer names 12 of its 13 clubs with a time: none changed, "
                        "check the page by hand",
                        "[meets] no meeting time changed"] and not db.writes(),
@@ -297,13 +291,13 @@ def selftest():
 
     # A page that won't read, or names none of the school's clubs, changes nothing: its stored times stay.
     db = FakeDb(answers={"team_activities": rows})
-    said = sunday(db, entries[:1], sunday_, get=pages("<p>Our new website is coming soon.</p>"))
+    said = sunday(db, entries[:1], get=pages("<p>Our new website is coming soon.</p>"))
     check(said == ["[meets] 1 school's club page: Sartell High School none",
                    "[meets] Sartell High School's page names none of its 19 clubs: their times are kept",
                    "[meets] no meeting time changed"] and not db.writes(), f"a page with no club on it drops nothing: {said}")
     db = FakeDb(answers={"team_activities": lambda *a: 1 / 0})
     try:
-        sunday(db, entries, sunday_, get=pages(saved))
+        sunday(db, entries, get=pages(saved))
         check(False, "a failed read of the stored times stops the step")
     except ZeroDivisionError:
         check(True, "")
