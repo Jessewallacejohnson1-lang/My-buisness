@@ -28,8 +28,8 @@ Event (a pancake breakfast, a fundraiser, a concert).
 
 ## Rules
 
-- Search with WebSearch, "MN" in every query: there are many St. Josephs. At most 4 searches for a thing; a thing with
-  nothing after them is `none`.
+- Search with WebSearch, `mode: "standard"`, "MN" in every query: there are many St. Josephs. At most 4 searches for a
+  thing, besides the one extended search below; a thing with nothing after them is `none`.
 - Read a page only with `python3 sources/scripts/nothing_scheduled.py read <url>`: the registry's polite fetcher, which
   keeps to each site's robots rules. Never WebFetch, curl or a browser. A page that won't read through it can't be
   watched: try the next rung.
@@ -38,6 +38,10 @@ Event (a pancake breakfast, a fundraiser, a concert).
   haven't read.
 - Facebook and Instagram pages are never read and never your answer's `page`: put each one you find for the thing in
   `social` (a later, paid step reads them).
+- A Place or Group that ends at `none` with no `social` given gets one more search, for its own Facebook or Instagram
+  page, with WebSearch's `mode: "extended"`: `<name> <town> Facebook page`. Standard searches missed all three such
+  pages in the hand walk (V-Twin Tavern, the Food Shelf, the Lions Club); extended found each. Not for a school's
+  activity: those have only their school's accounts. It costs several standard searches, so only this one is extended.
 - Give the page's own address, the list or calendar page rather than one event on it when the list gives the date.
 
 ## Answer
@@ -45,9 +49,10 @@ Event (a pancake breakfast, a fundraiser, a concert).
 One JSON line per thing, nothing else:
 
 ```
-{"thing": "activity:9ed9…", "rung": "broad", "page": "https://tech.isd742.org/calendar", "date": "2026-11-23", "event": "Tech Choir Concert", "social": [], "searches": 2}
-{"thing": "group:62846f8a…", "rung": "none", "page": "", "date": "", "event": "", "social": ["https://www.facebook.com/…"], "searches": 4}
+{"thing": "activity:9ed9…", "rung": "broad", "page": "https://tech.isd742.org/calendar", "date": "2026-11-23", "event": "Tech Choir Concert", "social": [], "searches": 2, "extended": 0}
+{"thing": "group:62846f8a…", "rung": "none", "page": "", "date": "", "event": "", "social": ["https://www.facebook.com/…"], "searches": 5, "extended": 1}
 ```
 
 `rung` is `school`, `broad`, `own`, `search` or `none`; `date` is `YYYY-MM-DD`, the first date the page gives; `event` is
-what the page lists that day, in its words; `searches` is how many web searches you made for the thing.
+what the page lists that day, in its words; `searches` is how many web searches you made for the thing, `extended` how
+many of them were extended.
