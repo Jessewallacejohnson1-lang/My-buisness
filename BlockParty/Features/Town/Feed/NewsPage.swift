@@ -39,6 +39,19 @@ final class NewsPostWords {
         self.load = load
     }
 
+    /// Its words, asking for them now when they aren't read and waiting up to `wait` for the answer: a card tapped or
+    /// a hello pill opened before its read landed, or after one failed, still finds its page.
+    /// A second, as a card waits to hear who its host is (`HostOpener.readWait`).
+    func caption(_ id: String, wait: Duration = .seconds(1)) async -> NewsCaption? {
+        want(id)
+        let end = ContinuousClock.now + wait
+        // ponytail: looks every 30 ms; a continuation per id if a tap ever needs the answer sooner.
+        while words[id] == nil, !none.contains(id), ContinuousClock.now < end {
+            try? await Task.sleep(for: .milliseconds(30))
+        }
+        return words[id]
+    }
+
     func want(_ id: String) {
         guard words[id] == nil, !none.contains(id), waiting.insert(id).inserted, !reading else { return }
         reading = true
@@ -93,7 +106,6 @@ struct NewsPage: View {
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var markFrame = FrameBox()
-    @State private var link: SafariLink?
     private var store: NewsPostWords { .shared }
 
     var body: some View {
@@ -143,7 +155,9 @@ struct NewsPage: View {
             FriendsTitleBar(title: "News", titleUnder: true).accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $link) { link in SafariView(url: link.url).ignoresSafeArea() }
+        // Only while it's open does a heart the server turns back shake here, as on its card.
+        .onAppear { actions?.cardOpened(news.id) }
+        .onDisappear { actions?.cardClosed(news.id) }
     }
 
     /// The post's own words; while they aren't read, the card's own, so the page is never empty.
@@ -169,6 +183,7 @@ struct NewsPage: View {
             }
             Spacer(minLength: 0)
         }
+        .frame(minHeight: Metric.row)
         .accessibilityElement(children: .combine)
         return Group {
             if let row = placeRow, opener?.opens(row) == true {
@@ -197,7 +212,7 @@ struct NewsPage: View {
         FeedEventCardActionRow(
             kind: .event,
             showsHeart: actions.canAct,
-            heartFailures: actions.heartFailureCount(news.id),
+            heartFailures: actions.newsHeartFailureCount(news.id),
             state: Binding {
                 let heart = actions.heart(news)
                 return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted)
@@ -217,7 +232,7 @@ struct NewsPage: View {
         let post = news.post
         Task {
             if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {
-                link = SafariLink(url: post)
+                InAppBrowser.open(post)
             }
         }
     }

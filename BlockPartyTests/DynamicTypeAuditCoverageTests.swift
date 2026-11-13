@@ -58,7 +58,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "EditProfileView.swift:$showInterests": .notYetAudited(reason: "Interest picker; a grid of chips, which is what breaks first at AX5."),
         "ModerationView.swift:$link": .notYetAudited(reason: "Safari view on a found event's page — system UI, scales on its own."),
         "TownNewsCard.swift:$link": .notYetAudited(reason: "Safari view on a town news post (town-feed 35) — system UI, scales on its own."),
-        "NewsPage.swift:$link": .notYetAudited(reason: "Safari view on a News's post from its page (town-feed 65) — system UI, scales on its own."),
         "RootView.swift:$creating": .notYetAudited(reason: "New post, from the Town bar's + (BP app post-screen): the name line wraps, the chips scroll sideways, the words grow; its Event chip's name field and Place row hold one line and truncate at the largest sizes; Tag friends and Place are Lists that wrap. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "MessagesPage.swift:$picking": .notYetAudited(reason: "New message (five-tabs 05): a search and a list of friends, one line each; the group name field and the bar's button grow with the text. The audit waits until chat has a seed of its own."),
         "ChatPage.swift:$open": .notYetAudited(reason: "A chat's photo, whole, with only a close button: no text to scale."),

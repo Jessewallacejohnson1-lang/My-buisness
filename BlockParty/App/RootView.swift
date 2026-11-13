@@ -292,10 +292,13 @@ struct MainTabsView: View {
         // As the news card: its News page when its post's words are read (town-feed 65), else the post's own app when
         // it's on the phone, else the in-app browser.
         case .news(let post):
-            if NewsPostWords.shared.words[post.id] != nil {
-                path.append(NewsRoute(news: post))
-            } else {
-                openLink(post.post)
+            guard post.via != nil else { return openLink(post.post) }
+            Task {
+                if await NewsPostWords.shared.caption(post.id) != nil {
+                    path.append(NewsRoute(news: post))
+                } else {
+                    openLink(post.post)
+                }
             }
         }
     }

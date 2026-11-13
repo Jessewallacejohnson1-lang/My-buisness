@@ -31,6 +31,8 @@ struct TownNewsCard: View {
     private var words: NewsPostWords { .shared }
     @State private var pressed = false
     @State private var link: SafariLink?
+    /// A tap is waiting for its words: a second tap doesn't push the page twice.
+    @State private var opening = false
     /// The card's size, so the heart on its corner sinks in with it.
     @State private var size: CGSize = .zero
 
@@ -87,16 +89,12 @@ struct TownNewsCard: View {
                 // A new photo for this News starts over: not failed, its credit waiting for it.
                 .id(photo.url)
         } else {
-            whiteFace(room: heart ? Self.heartRoom : 0)
+            Self.whiteFace(news, room: heart ? Self.heartRoom : 0)
         }
     }
 
     /// With no second line, its two lines go to the headline (BP app inside-cards 12). `room` is the heart's. Shared as
     /// this, photo or not: the share window draws at once, before any photo could load.
-    private func whiteFace(room: CGFloat) -> some View {
-        Self.whiteFace(news, room: room)
-    }
-
     private static func whiteFace(_ news: TownNews, room: CGFloat) -> some View {
         NoPhotoCard(logo: news.logo, name: news.place, when: news.when(),
                     title: news.headline, titleLines: news.facts == nil ? 4 : 2, facts: news.cardFacts, factsLines: 2,
@@ -111,10 +109,21 @@ struct TownNewsCard: View {
     /// reel in the app" instead of the reel: "open the post in the Instagram or Facebook app when
     /// it's on the phone, else the in-app browser".
     private func open() {
-        if opensPage, let opener {
-            opener.push(NewsRoute(news: news))
+        // Its own post's words: its News page, waiting up to a second for a read still on its way (town-feed 65).
+        if let opener, news.via != nil, !opening {
+            if opensPage { return opener.push(NewsRoute(news: news)) }
+            opening = true
+            Task {
+                let page = await words.caption(news.id) != nil
+                opening = false
+                if page { opener.push(NewsRoute(news: news)) } else { openPost() }
+            }
             return
         }
+        openPost()
+    }
+
+    private func openPost() {
         let post = news.post
         Task {
             if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {

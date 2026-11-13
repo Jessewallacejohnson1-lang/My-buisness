@@ -60,6 +60,17 @@ final class NewsPageTests: XCTestCase {
         XCTAssertEqual(store.words["a"]?.text, "Open late Friday")
     }
 
+    func testATapBeforeItsReadWaitsForTheWords() async {
+        let store = NewsPostWords { ids in ids.contains("a") ? ["a": NewsCaption(text: "Open late Friday", placeID: nil)] : [:] }
+        store.gather = .milliseconds(1)
+        let got = await store.caption("a")
+        XCTAssertEqual(got?.text, "Open late Friday", "a card tapped before its read landed still opens its page")
+        let clock = ContinuousClock.now
+        let missing = await store.caption("b")
+        XCTAssertNil(missing, "a News with no words of its own opens its post")
+        XCTAssertLessThan(ContinuousClock.now - clock, .milliseconds(900), "it doesn't wait out the second once the read says none")
+    }
+
     func testTheLineSaysWhereThePostWasMade() {
         XCTAssertEqual(news("1").via, "Facebook")
         XCTAssertEqual(news("2", post: "https://www.instagram.com/p/DfqTiPZmKHW/").via, "Instagram")
