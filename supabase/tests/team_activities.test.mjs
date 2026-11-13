@@ -69,6 +69,43 @@ test("Kennedy's grade 7-12 rows take Apollo's games, and only the right ones", a
   assert.deepEqual(await activitiesOf('kennedy', 'Volleyball', ['kennedy', 'albany']), ['Volleyball 6-8 (girls)']);
 });
 
+// Every school's activities a calendar event belongs to, as "team: name".
+async function activitiesFor(fields) {
+  await db.exec('set role anon');
+  const { rows } = await db.query(
+    `select a.team_id || ': ' || a.name as x from public.team_activities a,
+       jsonb_populate_record(null::public.club_events, $1::jsonb) e
+     where public.activity_has_event(a, e) order by a.team_id, a.sort`,
+    [JSON.stringify({ title: 'event', ...fields })]);
+  await db.exec('reset role');
+  return rows.map((r) => r.x);
+}
+
+test("Bound's Nordic Ski Racing is the schools' Nordic Skiing, by gender (school-search 02)", async () => {
+  assert.deepEqual(await activitiesFor({ activity_team: 'apollo', activity_name: 'Nordic Ski Racing, Boys' }),
+                   ['apollo: Boys Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'apollo', activity_name: 'Girls Nordic Ski' }),
+                   ['apollo: Girls Nordic Skiing', 'kennedy: Boys/Girls Nordic Skiing']);
+  assert.deepEqual(await activitiesFor({ activity_team: 'sauk-rapids-rice', activity_name: 'Nordic Ski Racing, Boys' }),
+                   ['sauk-rapids-rice: Nordic Skiing (boys)']);
+});
+
+test("Kennedy's own calendar lands on its activity, a joint concert on each it names (school-search 02)", async () => {
+  const kennedy = (activity_name) => activitiesFor({ activity_team: 'kennedy', activity_name });
+  assert.deepEqual(await kennedy('Band/Choir/Orchestra'), ['kennedy: Band', 'kennedy: Choir', 'kennedy: Orchestra']);
+  assert.deepEqual(await kennedy('Orchestra'), ['kennedy: Orchestra']);
+  assert.deepEqual(await kennedy('Knowledge Bowl'), ['kennedy: Knowledge Bowl 6-8']);
+  assert.deepEqual(await kennedy('Spelling Bee'), ['kennedy: Spelling Bee']);
+  assert.deepEqual(await kennedy('PTO'), ['kennedy: PTO (Kennedy Community School Parent Teacher Organization)']);
+  assert.deepEqual(await kennedy('Musical/One Act'), ['kennedy: Musical/One Act 6-8']);
+  assert.deepEqual(await kennedy('Band/Spelling Bee/Rugby'), ['kennedy: Band', 'kennedy: Spelling Bee']);
+});
+
+test("Kennedy's Adapted Floor Hockey takes St. Cloud's games from Apollo's feed (school-search 02)", async () => {
+  assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', team_ids: ['maple-grove', 'st-cloud'], activity_team: 'apollo' }),
+                   ['kennedy: Boys/Girls Adapted Floor Hockey']);
+});
+
 test('a sport the school lists no activity for, or a game it is not in, belongs to none', async () => {
   assert.deepEqual(await activitiesOf('rocori', 'Rugby', ['rocori', 'albany']), []);
   assert.deepEqual(await activitiesOf('apollo', 'Girls Soccer', ['tech', 'albany']), []);

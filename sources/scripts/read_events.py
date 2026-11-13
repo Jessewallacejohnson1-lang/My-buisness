@@ -490,6 +490,21 @@ OCCURRENCE = re.compile(r'<a [^>]*data-occur-id="([^"]+)"[^>]*>')
 # A school's own gatherings reach those following it (Jesse, 2026-11-05: "following"): a banquet, a club's
 # meeting, an assembly, the PTO. Its concerts, shows and school board stay everyone's.
 SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent meeting|parent planning meeting|signing day)\b", re.I)
+# The school's activities a calendar title names, so the event lands on each one's row (public.activity_has_event; BP app
+# school-search 02): "Band/Choir/Orchestra Concert" is all three's, "PTO Meeting at Kennedy" the PTO's.
+ACTIVITY_WORDS = {w.lower(): w for w in ("Band", "Choir", "Orchestra", "Knowledge Bowl", "Spelling Bee", "Geography Bee",
+                                         "Robotics", "Musical", "One Act", "PTO")}
+NAMES_ACTIVITY = re.compile(r"\b(" + "|".join(ACTIVITY_WORDS) + r")\b", re.I)
+
+
+def calendar_activity(title, entry):
+    """The activity fields a school calendar's event carries: the activities its title names, joined by "/", and
+    followers only for the school's own gatherings."""
+    named = "/".join(dict.fromkeys(ACTIVITY_WORDS[w.lower()] for w in NAMES_ACTIVITY.findall(title)))
+    mark = {"activity_name": named} if named else {}
+    if SCHOOL_ONLY.search(title):
+        mark["followers_only"] = True
+    return {"activity_team": bound_team(entry), **mark} if mark else {}
 
 
 def finalsite_calendar_items(page, url, entry, src, today):
@@ -521,9 +536,7 @@ def finalsite_calendar_items(page, url, entry, src, today):
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
                           title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
                           place="" if place.lower() in ("multiple", "tbd", "tba") else place,
-                          source_url=url, source_uid=occur,
-                          **({"followers_only": True, "activity_team": bound_team(entry)}
-                             if SCHOOL_ONLY.search(title) and not news else {})))
+                          source_url=url, source_uid=occur, **({} if news else calendar_activity(title, entry))))
     return out
 
 
@@ -1477,8 +1490,17 @@ def t_kennedy_calendar():
                       "School Board Meeting and Work Session", "PTO Meeting at the House",
                       "No School - MEA Conference", "Trunk or Treat"], titles
     forum, walk, _, pto, no_school, trunk = got
-    assert (pto["followers_only"], pto["activity_team"]) == (True, "kennedy"), "the PTO is for those following the school"
+    assert (pto["followers_only"], pto["activity_team"], pto["activity_name"]) == (True, "kennedy", "PTO"), \
+        "the PTO is for those following the school, and is the PTO's"
     assert not forum.get("followers_only") and not trunk.get("followers_only"), "a forum and Trunk or Treat are everyone's"
+    assert "activity_team" not in forum and "activity_team" not in trunk, "an event naming no activity is none's"
+    k = {"_name": "Kennedy Community School"}
+    assert calendar_activity("Band/Choir/Orchestra Concert", k) == {"activity_team": "kennedy",
+                                                                    "activity_name": "Band/Choir/Orchestra"}
+    assert calendar_activity("Knowledge Bowl at Saint John's Prep 6-8 grades", k)["activity_name"] == "Knowledge Bowl"
+    assert calendar_activity("Orchestra Solo/Ensemble", k)["activity_name"] == "Orchestra"
+    assert calendar_activity("Art Club", k) == {"activity_team": "kennedy", "followers_only": True}
+    assert calendar_activity("3rd Grade Concert", k) == {} and calendar_activity("Great Theatre-5th Grade", k) == {}
     assert SCHOOL_ONLY.search("Veterans Day Assembly") and SCHOOL_ONLY.search("Art Club")
     assert SCHOOL_ONLY.search("Grad Party Parent Meeting") and SCHOOL_ONLY.search("Kindergarten Signing Day")
     assert not SCHOOL_ONLY.search("School Board Meeting and Work Session") and not SCHOOL_ONLY.search("Winter Concert")
