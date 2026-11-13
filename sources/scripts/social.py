@@ -115,6 +115,7 @@ WAIT = 480  # seconds, over every part, that a check waits for an Apify run stil
 # Pictures (Jesse, 2026-10-26: the words on a post's picture, when its caption doesn't say enough)
 PICTURES = 3        # most read per post: a carousel's flyer is often its second or third slide
 SHORT_WORDS = 30    # a caption under this many words has its pictures read, a time of day or not
+WORDS_MAX = 10000   # a post's own words kept for its News page, as board_items.post_words allows (town-feed 65)
 CLOCK = re.compile(r"\b\d{1,2}(:\d{2})?\s*(a\.?m\b|p\.?m\b)|\b\d{1,2}:\d{2}\b|\bnoon\b|\bmidnight\b", re.I)
 LONG_SIDE = 1568    # px; a flyer's small print stays readable (Instagram posts are 1080 wide anyway)
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
@@ -636,7 +637,9 @@ def post_pages(kind, rows, by_url):
     """Apify's rows as pages: one post each, with who posted it, where and when. An empty row
     (a page with nothing new, hidden, gone) is no page; a hidden one is reported. A post whose
     caption needs its pictures carries their addresses under `pictures`, for add_pictures; one
-    with no caption but a picture is a page too, since its words may all be on the picture."""
+    with no caption but a picture is a page too, since its words may all be on the picture. A post that is
+    the place's own (an Instagram one owned by a watched page, else any) keeps its caption under `words`,
+    for its News page (BP app town-feed 65): someone else's post on the page (MIAC's on CSB's) keeps none."""
     pages, hidden = [], []
     for r in rows:
         src = src_of(r)
@@ -674,12 +677,15 @@ def post_pages(kind, rows, by_url):
             body = (f"{who} posted this on {kind.title()} "
                     f"on {when_text(stamp)}:\n\n{text.strip() or '(no caption)'}")
             pid, url = r.get("postId") or r.get("id") or r.get("shortCode"), r.get("url")
+            own = kind == "facebook" or not r.get("ownerUsername") or ig_page(r.get("ownerUsername"), by_url)
+            words = text.strip()[:WORDS_MAX] if own else ""
         if not page or not pid:
             continue
         made_with = collabs(r, page, by_url) if kind == "instagram" else []
         pages.append({"file": f"{kind}-{pid}", "url": url or page["url"], "entry_id": page["entry_id"],
                       "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
-                      **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {})})
+                      **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {}),
+                      **({"words": words} if kind in ("facebook", "instagram") and words else {})})
     return pages, hidden
 
 
@@ -946,6 +952,13 @@ def selftest():
     got = post_pages("instagram", [dict(collab, inputUrl=mh["url"], ownerUsername="somefan")], watched)[0][0]
     check(got["entry_id"] == "milk-and-honey-ciders" and "collabs" not in got,
           "an owner we don't watch leaves the post with the page it was read from, made with nobody else")
+    check("words" not in got, "someone else's post on a watched page keeps no words of the place's own (town-feed 65)")
+    got = post_pages("instagram", [dict(collab, inputUrl=mh["url"])], watched)[0][0]
+    check(got["words"] == "Cider brunch Sunday 10am", "a watched page's own post keeps its caption as its words")
+    got = post_pages("facebook", [{"inputUrl": "https://www.facebook.com/krewe", "postId": "7", "url": "https://fb/p/7",
+                                   "text": "  PASTRIES\n-Morning bun\n" + "x" * WORDS_MAX}], by_url)[0][0]
+    check(got["words"].startswith("PASTRIES\n-Morning bun") and len(got["words"]) == WORDS_MAX,
+          "a Facebook post's words keep their lines, trimmed, cut at the column's limit")
     teaser = "Come out to the cocktail lounge tonight for plump, juicing brains 🧠"  # Obbink, 2026-10-25
     check(needs_pictures(teaser) and needs_pictures(""), "a short caption or none reads its pictures")
     check(needs_pictures("Our fall menu is here " * 8) and not needs_pictures("Trivia night is back " * 8 + "at 7 pm"),

@@ -276,6 +276,33 @@ test('nothing scheduled: the Sunday count reads, and each thing walked is rememb
   }
 });
 
+// BP app town-feed 65: the social watch keeps a News post's own words, once, and the app reads them on a published
+// News only.
+test("a News post's own words: written once by the job, read by the app", async () => {
+  const url = 'https://www.facebook.com/flourandflowerbakery/posts/pfbid0';
+  const { rows: [{ id }] } = await db.query(`insert into public.board_items (title, blurb, category, source_name,
+    source_url, tier, status, published_at) values ('New Fall Pastries and Pies', 'Maple danish, pear scone.', 'business',
+    'Flour & Flower Bakery', $1, 1, 'published', now()) returning id`, [url]);
+  const write = (words) => asJob('save_words', `update public.board_items set post_words = $2
+    where source_url = $1 and post_words is null returning id`, [url, words]);
+  assert.equal((await write('PASTRIES\n-Cinnamon Morning Bun\n-Hope Butter Croissant')).length, 1);
+  assert.equal((await write('a second read')).length, 0, 'a News keeps the words it first had');
+  await assert.rejects(db.query(`update public.board_items set post_words = $2 where id = $1`, [id, 'x'.repeat(10001)]),
+                       /board_items_post_words_length/);
+  await db.exec('set role anon');
+  try {
+    assert.deepEqual((await db.query('select post_words from public.board_items where id = $1', [id])).rows,
+                     [{ post_words: 'PASTRIES\n-Cinnamon Morning Bun\n-Hope Butter Croissant' }]);
+    await db.exec('reset role');
+    await db.query(`update public.board_items set status = 'archived' where id = $1`, [id]);
+    await db.exec('set role anon');
+    assert.deepEqual((await db.query('select post_words from public.board_items where id = $1', [id])).rows, [],
+                     'a News taken out keeps its words from the app');
+  } finally {
+    await db.exec('reset role');
+  }
+});
+
 // The Sunday step keeps clubs' meeting times current (meeting_times.sunday, BP app nothing-scheduled 05): it reads each
 // school's clubs with their stored times, writes a time that moved, and empties one the page dropped.
 test("meeting times: a club's time read, moved and dropped by the Sunday step, and nothing else of its row", async () => {
