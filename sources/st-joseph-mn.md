@@ -184,6 +184,7 @@ aka:
 category: school
 added_by: agent:claude
 address: "1300 Jade Rd"
+clubs_page: https://kennedy.isd742.org/activities/athletics
 sources:
   - url: https://www.gobound.com/mn/schools/kennedyisd742/calendar/ical
     kind: ical
@@ -613,6 +614,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://apollo.isd742.org/activities/activities-offered-at-apollo
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical
     kind: ical
@@ -640,6 +642,7 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 aka: ["Technical High School", "St. Cloud Tech High School"]
+clubs_page: https://docs.google.com/document/d/143nZw_Svj1sBSFWWrjmWuH61ZQfZzM6zO0SQD0ZYF64/export?format=txt
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudtech/calendar/ical
     kind: ical
@@ -702,6 +705,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://ccsprek12.org/activities-high
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudcathedral/calendar/ical
     kind: ical
@@ -728,6 +732,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://www.isd748.org/activities
 sources:
   - url: https://www.gobound.com/mn/schools/sartellhs/calendar/ical
     kind: ical
@@ -762,6 +767,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://www.rocori.k12.mn.us/activities
 sources:
   - url: https://www.gobound.com/mn/schools/rocori/calendar/ical
     kind: ical
@@ -792,6 +798,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://storm.isd47.org/hs-activities-sports
 sources:
   - url: https://www.gobound.com/mn/schools/saukrapidsrice/calendar/ical
     kind: ical

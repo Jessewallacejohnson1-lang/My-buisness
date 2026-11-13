@@ -265,6 +265,30 @@ test('nothing scheduled: the Sunday count reads, and each thing walked is rememb
   }
 });
 
+// The Sunday step keeps clubs' meeting times current (meeting_times.sunday, BP app nothing-scheduled 05): it reads each
+// school's clubs with their stored times, writes a time that moved, and empties one the page dropped.
+test("meeting times: a club's time read, moved and dropped by the Sunday step, and nothing else of its row", async () => {
+  const clubs = await asJob('meets: the clubs', `select id, team_id, name, meets from public.team_activities
+    where kind = 'club' and team_id in ('sartell', 'apollo') order by name`);
+  const bible = clubs.find((c) => c.team_id === 'sartell' && c.name === 'Bible Study');
+  assert.deepEqual(bible.meets, [{ days: ['fri'], time: '08:00' }], "03's migration stored Sartell's time");
+  // As PostgREST writes PATCH team_activities?id=eq.<id> with return=minimal.
+  const patch = (meets) => asJob('meets: a change', 'update public.team_activities set meets = $2 where id = $1',
+    [bible.id, meets === null ? null : JSON.stringify(meets)]);
+  await patch([{ days: ['thu'], time: '07:30' }]);
+  assert.deepEqual((await db.query('select meets from public.team_activities where id = $1', [bible.id])).rows[0].meets,
+    [{ days: ['thu'], time: '07:30' }]);
+  await patch(null);
+  assert.equal((await db.query('select meets from public.team_activities where id = $1', [bible.id])).rows[0].meets, null);
+  await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
+  try {
+    await assert.rejects(db.query(`update public.team_activities set name = 'x' where id = $1`, [bible.id]),
+      /permission denied/, "rename a club");
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
+  }
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
 test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
   const refused = async (what, sql) => {

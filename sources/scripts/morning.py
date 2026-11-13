@@ -53,8 +53,10 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
             every Event added since the last report (the social watch's and a chat's too) whose card shows no
             photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
-            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it ends with how many
-            things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app nothing-scheduled 04). The routine answers with it (BP app smooth-mornings 07).
+            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it reads each school's club
+            page for its clubs' meeting times, a line per change (meeting_times.sunday; BP app nothing-scheduled 05),
+            and ends with how many things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app
+            nothing-scheduled 04). The routine answers with it (BP app smooth-mornings 07).
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/, which morning_run.py owns: each step takes a Run (its folder, day,
@@ -90,6 +92,7 @@ import team_logos
 import venue_spots
 import event_parts
 import nothing_scheduled
+import meeting_times
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1123,6 +1126,7 @@ def finish(run, dry_run):
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
                        ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today)),
+                       ("meeting times", lambda: meeting_lines(run, dry_run)),
                        ("nothing scheduled", lambda: nothing_scheduled.due_line(db, today))):
         waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
         if what == "Apple Maps" and late(run.stop) and not waited.saved:  # the maps took this part's time, once
@@ -1160,6 +1164,21 @@ def map_spots(run, dry_run):
         lines = spots.fill(run.db, run.today, not dry_run, maps=None)
     except Exception as e:  # a refused write or a bad hand file: a line in the report, never a lost report
         lines = [f"[morning] map spots failed: {' '.join(str(e).split())[:300]}"]
+    done.save(lines)
+    return lines
+
+
+def meeting_lines(run, dry_run):
+    """On Sundays, each school's club page read for its clubs' meeting times, a change written (meeting_times.sunday;
+    BP app nothing-scheduled 05). Its lines are kept, so a finish run again neither reads nor writes twice."""
+    done = run.part(f"meets{'-dry-run' if dry_run else ''}.json")
+    if done.saved is not None:
+        return done.saved
+    try:
+        lines = meeting_times.sunday(run.db, [e for e in load(find_root())[0] if e["_town"] == run.town], run.today,
+                                     not dry_run)
+    except Exception as e:  # a refused read or a bad page: a line in the report, never a lost report
+        lines = [f"[meets] the Sunday read failed: {' '.join(str(e).split())[:300]}"]
     done.save(lines)
     return lines
 
