@@ -1364,6 +1364,21 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(GameMatchup.vivid(try team(##"{"name":"St. Olaf","color":"#000000","colors":["#000000","#FFFFFF"]}"##)))
     }
 
+    /// A game card's logos cast Search's shadow in a dark shade of their team's own hue (game-card 26), the numbers the
+    /// mock's `cast_colour` gives: Saint John's cardinal, Gustavus's gold for its black, the near-neutral one for none.
+    func testAGamesLogosCastTheirTeamsOwnHue() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        func rgb(_ color: Color) -> [Int] {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+            return [r, g, b].map { Int(($0 * 255).rounded()) }
+        }
+        XCTAssertEqual(rgb(GameMatchup.cast(try team(##"{"name":"Saint John's","color":"#C20430"}"##))), [60, 32, 39])
+        let gustavus = try team(##"{"name":"Gustavus Adolphus","color":"#000000","colors":["#000000","#F2C80F"]}"##)
+        XCTAssertEqual(rgb(GameMatchup.cast(gustavus)), [60, 55, 32], "black takes the logo's gold")
+        XCTAssertEqual(rgb(GameMatchup.cast(try team(##"{"name":"Somebody"}"##))), [50, 41, 41], "none known: near-neutral")
+    }
+
     /// A play card's words (game-card 14), from SIDEARM's real words: Tuesday 2026-11-03's soccer, 2026-10-31's
     /// football and 2026-02-21's basketball. Words it doesn't know stay SIDEARM's: a wrong name is worse.
     func testAPlayCardReadsSidearmsWordsIntoCleanOnes() throws {
