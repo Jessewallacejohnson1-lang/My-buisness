@@ -49,8 +49,9 @@ nonisolated enum SearchMetric {
     static let titleGap: CGFloat = 6
     /// Photoroom's logo squares; the logo fills 66 of 78, its centre 47% down.
     static let logoOnTile: CGFloat = 66
-    /// The Businesses row's logos, bare on the page with no tile (Jesse, 2026-10-24).
-    static let logoOnRow: CGFloat = 80
+    /// A sideways row's logos (the Schools row), bare on the page with no tile (Jesse, 2026-10-24); 92 since
+    /// Jesse picked it from the mock (BP app search-logo-size 01, 2026-11-13).
+    static let logoOnRow: CGFloat = 92
     static let logoGap: CGFloat = 10
     static let logoCenterY: CGFloat = 0.47
     /// Airbnb's photo cards.
