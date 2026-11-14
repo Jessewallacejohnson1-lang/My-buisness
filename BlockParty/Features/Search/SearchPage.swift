@@ -49,10 +49,23 @@ nonisolated enum SearchMetric {
     static let titleGap: CGFloat = 6
     /// Photoroom's logo squares; the logo fills 66 of 78, its centre 47% down.
     static let logoOnTile: CGFloat = 66
-    /// A sideways row's logos (the Schools row), bare on the page with no tile (Jesse, 2026-10-24); 92 since
-    /// Jesse picked it from the mock (BP app search-logo-size 01, 2026-11-13).
-    static let logoOnRow: CGFloat = 92
+    /// A sideways row's logos (the Schools row), bare on the page with no tile (Jesse, 2026-10-24): 15% under
+    /// 01's 92, with the one in the middle growing as the row scrolls (BP app search-logo-size 02, 2026-11-13).
+    static let logoOnRow: CGFloat = 78
     static let logoGap: CGFloat = 10
+    /// The logo nearest the screen's middle grows this much and rises `popRise`, falling off to nothing
+    /// `popReach` either side (Jesse picked 10% and 4 pt from the mock, search-logo-size 02).
+    static let popGrow: CGFloat = 0.10
+    static let popRise: CGFloat = 4
+    static let popReach: CGFloat = 150
+
+    /// How much a logo whose middle is at `midX` in a scroll view `width` wide grows: 1 at the middle, easing
+    /// out to 0 at `popReach` on a half cosine, so it never jumps as the row moves.
+    static func middlePop(midX: CGFloat, width: CGFloat) -> CGFloat {
+        guard width > 0 else { return 0 }
+        let away = min(abs(midX - width / 2) / popReach, 1)
+        return (cos(.pi * away) + 1) / 2
+    }
     static let logoCenterY: CGFloat = 0.47
     /// Airbnb's photo cards.
     static let cardWidth: CGFloat = 167
@@ -605,9 +618,9 @@ struct Shelf: View {
                 ForEach(items) { item in
                     switch kind {
                     case .business:
-                        RowLogo(item: item)
+                        RowLogo(item: item).modifier(MiddlePop())
                     case .school:
-                        RowCrest(item: item)
+                        RowCrest(item: item).modifier(MiddlePop())
                     default:
                         PhotoCard(item: item, new: new)
                     }
@@ -626,6 +639,27 @@ struct Shelf: View {
 
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {
         showsLogos(kind) ? SearchMetric.logoGap : SearchMetric.cardGap
+    }
+}
+
+/// A logo on a sideways row grows and rises as it nears the middle of the screen, read from its place in the
+/// scroll view each frame, so it follows the finger both ways and rests the same once the row settles (Jesse:
+/// "when you're scrolling, the ones in the middle pop up just a tiny bit more", search-logo-size 02). Still
+/// with Reduce Motion. The row doesn't clip (`scrollClipDisabled`), so the grown top is never cut.
+private struct MiddlePop: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let still = reduceMotion
+        content.visualEffect { effect, proxy in
+            // The row's visible bounds in this logo's own space: its middle is `size.width / 2 - minX` from
+            // the row's leading edge.
+            let row = proxy.bounds(of: .scrollView(axis: .horizontal)) ?? .zero
+            let pop = still ? 0 : SearchMetric.middlePop(midX: proxy.size.width / 2 - row.minX, width: row.width)
+            return effect
+                .scaleEffect(1 + SearchMetric.popGrow * pop)
+                .offset(y: -SearchMetric.popRise * pop)
+        }
     }
 }
 
