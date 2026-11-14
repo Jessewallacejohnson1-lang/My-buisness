@@ -106,17 +106,8 @@ struct ProfileView: View {
             friends: model.extras?.friends,
             following: model.extras?.following,
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
-            addsBio: bio.isEmpty && canAddBio,
+            addsBio: bio.isEmpty && model.canDescribe,
             coverKnown: model.loaded)
-    }
-
-    /// Only a real account has a bio. The DEBUG sample run has no account, so it shows "+ Add bio"
-    /// as a new neighbour's page does (Edit profile there still has no bio box).
-    private var canAddBio: Bool {
-        #if DEBUG
-        if LaunchFlags.backend != .live { return true }
-        #endif
-        return model.canDescribe
     }
 
     // MARK: - Settings

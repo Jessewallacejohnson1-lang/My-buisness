@@ -848,8 +848,7 @@ struct ProfileExtras: Decodable, Equatable {
     var following: Int? = nil
 
     #if DEBUG
-    /// INVENTED, for `-town-samples`: your counts, with no `get_profile` read. No bio or cover, so
-    /// your page shows "+ Add bio".
+    /// INVENTED, for `-town-samples`: your counts, with no `get_profile` read. No bio or cover.
     static let sample = ProfileExtras(friends: 24, following: 9)
 
     /// INVENTED, for `-town-samples`: a neighbour's page with every part showing: a bio, counts, two
