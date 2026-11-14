@@ -45,6 +45,11 @@ flake moves to Fixed, dated, and stays there.
   to `sources/` and `DECISIONS.md` only (BP app event-photos 19): "Leave lands after Join, never before" got `[true]`
   where `[true, false]` was expected, and its mirror `[false, true]` for `[true]` · the rerun passed · cause not
   found: two taps' writes land out of order on a slow runner · no fix yet
+- 2026-11-14 · `OnboardingNextBarTests.testNextBarHoldsStillOnEveryStep` · red once on the Mac in a full run on
+  feat/splash-wordmark (the launch only; UI tests skip the launch) at load 100 to 150, just after a macOS update:
+  "Failed to get list of active applications: Timed out while fetching attributes
+  'XC_kAXXCAttributeFocusedApplications'", XCTest's own read of the screen timing out · passed alone straight after
+  (66 s) · no fix: XCTest's accessibility read under load
 
 ## Fixed
 
