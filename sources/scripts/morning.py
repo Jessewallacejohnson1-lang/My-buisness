@@ -56,7 +56,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it reads each school's club
             page for its clubs' meeting times, a line per change (meeting_times.sunday; BP app nothing-scheduled 05),
             and ends with how many things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app
-            nothing-scheduled 04). The routine answers with it (BP app smooth-mornings 07).
+            nothing-scheduled 04). Its last line is Ready's, which ready.py keeps in .runs/: the Python and the
+            libraries the job found or installed (BP app agent-guardrails 20). The routine answers with it (BP
+            app smooth-mornings 07).
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/, which morning_run.py owns: each step takes a Run (its folder, day,
@@ -93,6 +95,7 @@ import venue_spots
 import event_parts
 import nothing_scheduled
 import meeting_times
+import ready
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1163,7 +1166,8 @@ def finish(run, dry_run):
         if got and got[0].startswith("[morning] run again"):
             return print(got[0])
         lines += got
-    report = "\n".join(lines + social_lines() + [spend_line(), credits_line()])
+    # Ready's line last: what the job set up, so a chat asking about its tools reads the row (agent-guardrails 20).
+    report = "\n".join(lines + social_lines() + [spend_line(), credits_line(), ready.kept(run.folder.parent)])
     if not dry_run:
         try:  # one row a morning, so the chat that reports to Jesse reads it, not the run's log (smooth-mornings 10)
             db.rest("POST", "morning_reports?on_conflict=day", {"day": str(today), "report": report,
@@ -2338,8 +2342,10 @@ def steps_alone():
          f"finish stopped at a tag has written up to it, and no report: {part_way}"),
         (ids(finished, "interests") == ["e0", "e1", "e1", "e2"] and ids(finished, "described_at") == ["e0", "e1"]
          and [c[0] for c in finished if c[1].startswith("daily_standouts")] == ["DELETE", "POST"]
-         and [c[1] for c in finished if c[1].startswith("morning_reports")] == ["morning_reports?on_conflict=day"] and report.startswith("Morning watch"),
-         f"finish run again sends only what was left (the stopped write again), then the Abouts, standouts and report: {finished}"),
+         and [c[1] for c in finished if c[1].startswith("morning_reports")] == ["morning_reports?on_conflict=day"] and report.startswith("Morning watch")
+         and report.rstrip().endswith("[ready] no line from this morning's Ready step: ready.py morning didn't run, or stopped before its line"),
+         f"finish run again sends only what was left (the stopped write again), then the Abouts, standouts and report, which "
+         f"says when no Ready line was kept: {finished}"),
         ([c[1] for c in finished_again] == ["morning_reports?on_conflict=day"] and again == report,
          f"finish once more writes nothing new but the report's one row, and says the same: {finished_again}"),
         (out_of_time == "[morning] run again: 0 of 2 Abouts saved\n" and not late_wrote and ids(caught_up, "described_at") == ["e0", "e1"],
@@ -2651,8 +2657,11 @@ def whole_morning():
             own_page = lambda url: (200, f"<p>Harvest Supper, a church supper open to all, at {url}</p>")
             write_judged.interest_ids = lambda: ["dining", "faith", "markets"]
             env = {"SUPABASE_URL": "u", "SUPABASE_PUBLISHABLE_KEY": "k", "FIRECRAWL_API_KEY": "f"}
-            readied = "morning" in ready.ROUTINES and ready.ready("morning", env, probe=lambda modules: [],
-                                                                  reach=lambda: "")[0]
+            said_ready = io.StringIO()  # Ready as the routine runs it: printed, and kept for finish's row
+            with contextlib.redirect_stdout(said_ready):
+                ready.report("morning", Path(tmp) / ".runs",
+                             lambda r: ready.ready(r, env, probe=lambda modules: [], reach=lambda: ""))
+            readied = said_ready.getvalue().strip()
             prepared = parts("prepare")
             out.mkdir(parents=True, exist_ok=True)  # prepare made it, unless its command is gone
             (out / "flags.jsonl").write_text("")  # the cheap model's flags, then the judge's items
@@ -2708,7 +2717,8 @@ def whole_morning():
          Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits) = saved
     report = finished[-1].splitlines()
     return [
-        (readied == "[ready] ready", f"Ready says ready: {readied}"),
+        (readied.startswith("[ready] ready on Python ") and "pillow, numpy" in readied,
+         f"Ready says ready, on which Python, with the libraries it found: {readied}"),
         (len(prepared) == 2 and prepared[0] == "[morning] run again: 4 of 5 pages fetched; still to read: the feeds\n"
          and prepared[1].startswith("[morning] fetched 5 watched pages, 4 changed, 4 for the cheap model in 1 batches"),
          f"Prepare takes two parts and says run again between: {prepared}"),
@@ -2726,10 +2736,11 @@ def whole_morning():
         (len(broken) == 2 and broken[0] == "[morning] run again: 3 of 4 events tagged\n"
          and broken[1].startswith("Morning watch, 2026-11-03\n") and "New Events:" in broken[1]
          and all(f"[morning] {w} failed: Supabase " in broken[1] for w in ("tags", "Abouts", "standouts"))
-         and broken[1].rstrip().endswith("(resets after Nov 20)"),
+         and broken[1].rstrip().endswith("(resets after Nov 20)\n" + readied),
          f"Finish takes two parts while the tags are written, and a timeout in any save is a line in the whole report: {broken}"),
         (list(Db.reports) == ["2026-11-03"] and Db.reports["2026-11-03"] + "\n" == third
-         and "[morning] tags failed" not in third, "each finish saves its report as the morning's one row, the last one kept"),
+         and "[morning] tags failed" not in third and Db.reports["2026-11-03"].endswith("\n" + readied),
+         "each finish saves its report as the morning's one row, the last one kept, ending with Ready's line"),
         # Four Abouts now (two markets' prices, inside-cards 14): the part's clock runs out after three, so run again
         # takes two parts, and once more writes nothing.
         (finished == ["[morning] run again: 3 of 4 Abouts saved\n", third] and sorted(collections.Counter(Db.writes).values()) == [1] * 9
@@ -2771,7 +2782,8 @@ def whole_morning():
                     "- Places: 0 open, 0 with an Apple id, 0 with hours, 0 with a logo, 0 with a photo",
                     "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
                     "Apify: $4.20 of $25 this month (resets after 2026-11-18)",
-                    "Firecrawl: 1,000 of 1,000 credits left (resets after Nov 20)"],
+                    "Firecrawl: 1,000 of 1,000 credits left (resets after Nov 20)",
+                    readied],
          "Finish prints the whole report:\n" + "\n".join(report)),
         (stored, "Save wrote once and moved the changed pages' fingerprints; Finish saved the tags, the About and "
                  "the standout"),
