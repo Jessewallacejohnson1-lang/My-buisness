@@ -42,8 +42,9 @@ test('a Wrong info report keeps its note, trimmed and cut to 150 letters; an emp
   await report(chi, 'wrong_info', '  Starts at 6 now, not 5:30  ');
   await report(chi, 'wrong_info', 'x'.repeat(200));
   await report(chi, 'wrong_info', '   ');
+  // Reports made in the same instant have no order (their time is the key), so the stories compare them sorted.
   const rows = await kept();
-  assert.deepEqual(rows.map((r) => r.note), ['Starts at 6 now, not 5:30', 'x'.repeat(150), null]);
+  assert.deepEqual(rows.map((r) => r.note).sort(), ['Starts at 6 now, not 5:30', 'x'.repeat(150), null].sort());
   assert.ok(rows.every((r) => r.note_ok === null), 'nothing is checked yet');
 });
 
@@ -56,9 +57,10 @@ test('only Wrong info carries a note, only from a real account, and at most 3 an
   await report(chi, 'wrong_info', 'from an account with no sign-in');
   await as(YOU);
   for (const n of ['one', 'two', 'three', 'four']) await report(chi, 'wrong_info', n);
-  assert.deepEqual((await kept()).map((r) => [r.reason, r.note]),
-    [['scam', null], ['wrong_info', null], ['wrong_info', 'one'], ['wrong_info', 'two'], ['wrong_info', 'three'],
-     ['wrong_info', null]]);
+  const rows = await kept();
+  assert.deepEqual(rows.filter((r) => r.note).map((r) => r.note).sort(), ['one', 'three', 'two'], 'the fourth note is dropped');
+  assert.deepEqual(rows.map((r) => r.reason).sort(), ['scam', 'wrong_info', 'wrong_info', 'wrong_info', 'wrong_info', 'wrong_info'],
+    'every report still counts');
 });
 
 test("today's app still reports with two arguments", async () => {
@@ -78,7 +80,7 @@ test('the check claims each note once, and only the service key may ask', async 
   await assert.rejects(db.query('select * from public.claim_notes($1)', [chi]), /permission denied/);
   assert.deepEqual((await claim(chi)).map((r) => r.note), ['Starts at 6 now']);
   assert.deepEqual(await claim(chi), [], 'a retry or a second call pays nothing');
-  assert.deepEqual((await kept()).map((r) => r.note_ok), [false, null]);
+  assert.deepEqual((await kept()).map((r) => [r.reason, r.note_ok]).sort(), [['scam', null], ['wrong_info', false]]);
 });
 
 test('the queue shows only notes the check kept, the 3 newest first, and never to a neighbour', async () => {
