@@ -26,8 +26,6 @@ import SwiftUI
     /// Whether this process start plays the launch: always, except under UI tests that don't ask
     /// for it (`-launch-play`), or every test would wait it out.
     let plays: Bool
-    /// Reduce Motion: no ball show, only the wordmark and its fade, and nothing under it moves.
-    let reduceMotion: Bool
     /// DEBUG: a moment to hold (`-launch-at <ms>`) and a tap (`-launch-skip <ms>`), in the
     /// mock's simulation time, so frames line up with the mock's `#at-<ms>` ones.
     let frozenAt: Double?
@@ -47,8 +45,6 @@ import SwiftUI
     /// a link opened while signed in turns the full show into the wordmark as the URL arrives
     /// (`openedLink`).
     private(set) var kind: LaunchMotion.Kind
-    /// The full show's last frame when a link turned it into the wordmark, to fade it from there.
-    var before: LaunchMotion.Frame?
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
     /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
@@ -63,7 +59,8 @@ import SwiftUI
         linkAt = LaunchFlags.value(.launchLinkAt).flatMap(Double.init).map { $0 / 1000 }
         // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
-        reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
+        // Reduce Motion: no ball show, only the wordmark and its fade, and nothing under it moves.
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
         finished = !plays
         let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
         // Only a real cold start counts toward the day's full shows: not a held frame, a test or
@@ -183,12 +180,12 @@ struct LaunchHost<Content: View>: View {
         // frame, fading it back into BlockParty., and a tap before the link is forgotten.
         .onChange(of: stage.kind) { _, kind in
             guard kind == .word else { return }
-            stage.before = clock.t > 0 ? clock.last : nil
+            if clock.t == 0 { clock.last = nil }   // still on the still: nothing to fade back
             skip = nil
             clock.reset()
         }
         .onAppear {
-            if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
+            if stage.plays, !stage.finished, stage.kind == .full, stage.frozenAt == nil { tilt.start() }
             guard stage.plays || LeftOff.current != nil, UIAccessibility.isVoiceOverRunning else { return }
             AccessibilityNotification.Announcement("Block Party").post()
         }
@@ -227,7 +224,7 @@ struct LaunchHost<Content: View>: View {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
         let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt, ending: ending,
-                                  kind: stage.kind, before: stage.before)
+                                  kind: stage.kind, before: stage.kind == .word ? clock.last : nil)
         let frame = motion.frame(at: t)
         if stage.kind == .full { clock.last = frame }
         return (frame, motion.origin)
