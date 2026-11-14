@@ -100,11 +100,13 @@ struct FeedCardMenu: View {
     }
 
     private func go(_ next: Pane, back: Bool = false) {
+        // Back from the note with the keyboard up lets the keyboard go down first (about 0.25 s, guessed): at once, the
+        // sheet took the reasons' height over the keyboard and jumped to the screen's top for a frame (2026-11-14 run).
+        let wait = noteFocused && next == .reasons ? 0.25 : 0
         noteFocused = false
-        guard back != backward else { return move(to: next) }
         // The pane on screen takes its new way out first: a view that leaves keeps the transition it last drew with.
         backward = back
-        DispatchQueue.main.async { move(to: next) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { move(to: next) }
     }
 
     private func move(to next: Pane) {
@@ -274,7 +276,8 @@ struct FeedCardMenu: View {
                       axis: .vertical)
                 .font(.sans(17))
                 .foregroundStyle(Hue.ink)
-                .lineLimit(4, reservesSpace: true)
+                // Five lines make Nextdoor's box, about 120 pt (picked: its 125, the mock's 120).
+                .lineLimit(5, reservesSpace: true)
                 .focused($noteFocused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
