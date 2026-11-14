@@ -105,6 +105,23 @@ final class ReviewQueueTests: XCTestCase {
         XCTAssertEqual(ReviewRow.quoted("Starts at 6 now"), "\u{201C}Starts at 6 now\u{201D}")
     }
 
+    /// Backlog 29: a post edited after its report brings the words and Place that were reported; the row says
+    /// "Reported as" with them. One never edited, or from a server before this, brings neither and shows nothing.
+    func testAnEditedReportShowsWhatWasReported() throws {
+        let json = """
+        [{"event_id": "p1", "title": "Farmers market", "event_date": null, "reasons": ["scam"], "reports": 2,
+          "card": {"id": "p1", "title": "Farmers market"}, "poster": {"name": "Avery", "photo": null},
+          "was_title": "BUY CHEAP FOLLOWERS NOW", "was_place": "Centennial Park"},
+         {"event_id": "p2", "title": "Porch lights", "event_date": null, "reasons": ["scam"], "reports": 1,
+          "card": {"id": "p2", "title": "Porch lights"}, "poster": null, "was_title": "", "was_place": null},
+         {"event_id": "p3", "title": "Plain", "event_date": null, "reasons": ["scam"], "reports": 1,
+          "card": {"id": "p3", "title": "Plain"}, "poster": null}]
+        """
+        let reports = try Supabase.decode(Data(json.utf8), as: [ReportedEvent].self)
+        XCTAssertEqual(reports.map(\.reportedAs),
+                       ["\u{201C}BUY CHEAP FOLLOWERS NOW\u{201D} · Centennial Park", "Photo", nil])
+    }
+
     /// The database's check constraint accepts exactly these values.
     func testDeclineReasonsMatchTheDatabase() {
         XCTAssertEqual(DeclineReason.allCases.map(\.rawValue),
