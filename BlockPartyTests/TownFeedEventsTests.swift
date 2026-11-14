@@ -1379,6 +1379,45 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(rgb(GameMatchup.cast(try team(##"{"name":"Somebody"}"##))), [50, 41, 41], "none known: near-neutral")
     }
 
+    /// Only a game logo's picture is lifted (game-card 26): a letter, for a team with no logo or one still loading or
+    /// failed, stays flat on the card and the page, while the picture's edge and cast reach past its frame.
+    func testOnlyALoadedGameLogoIsLifted() async throws {
+        func disc(_ logo: URL?, _ lift: LogoDisc.Lift?) -> LogoDisc {
+            LogoDisc(logo: logo, initial: "P", logoSide: 72, letter: .eventDisplay(40), disc: false, lift: lift)
+        }
+        /// Each pixel's alpha, the view drawn on clear with room around it for a cast.
+        func alpha(_ view: LogoDisc) throws -> [UInt8] {
+            let renderer = ImageRenderer(content: view.frame(width: 72, height: 72).padding(40))
+            let image = try XCTUnwrap(renderer.cgImage)
+            var rgba = [UInt8](repeating: 0, count: image.width * image.height * 4)
+            let context = try XCTUnwrap(CGContext(data: &rgba, width: image.width, height: image.height, bitsPerComponent: 8,
+                                                  bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return stride(from: 3, to: rgba.count, by: 4).map { rgba[$0] }
+        }
+        // Never asked for here, so not in: as a logo still loading, or one whose read failed.
+        let notIn = try XCTUnwrap(URL(string: "https://example.invalid/team-logo.png"))
+        for logo in [nil, notIn] {
+            let flat = try alpha(disc(logo, nil))
+            XCTAssertEqual(try alpha(disc(logo, .card(.black))), flat, "the card's letter casts nothing")
+            XCTAssertEqual(try alpha(disc(logo, .page)), flat, "the page's letter has no edge and no cast")
+        }
+        // A picture read from a file, as the cache reads one from Storage.
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("game-card-26-logo.png")
+        try UIGraphicsImageRenderer(size: CGSize(width: 60, height: 60)).pngData { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 10, y: 10, width: 40, height: 40))
+        }.write(to: file)
+        POILogoCache.shared.prefetch([file])
+        for _ in 0..<100 where POILogoCache.shared.image(for: file) == nil { try await Task.sleep(for: .milliseconds(50)) }
+        XCTAssertNotNil(POILogoCache.shared.image(for: file))
+        let inked = { (pixels: [UInt8]) in pixels.filter { $0 > 0 }.count }
+        let bare = inked(try alpha(disc(file, nil)))
+        XCTAssertGreaterThan(inked(try alpha(disc(file, .card(.black)))), bare, "the card's picture casts")
+        XCTAssertGreaterThan(inked(try alpha(disc(file, .page))), bare, "the page's picture has its edge and cast")
+    }
+
     /// A play card's words (game-card 14), from SIDEARM's real words: Tuesday 2026-11-03's soccer, 2026-10-31's
     /// football and 2026-02-21's basketball. Words it doesn't know stay SIDEARM's: a wrong name is worse.
     func testAPlayCardReadsSidearmsWordsIntoCleanOnes() throws {
