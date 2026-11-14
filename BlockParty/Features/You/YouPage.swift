@@ -163,7 +163,8 @@ struct YouPage: View {
                     Button { pick(date, from: day) } label: {
                         YouDay(date: date, month: YouCalendar.month(on: date, first: days.first),
                                events: events, isToday: date == today,
-                               isPast: date < today, isPicked: date == day, ring: ring)
+                               isPast: date < today, isPicked: date == day, ring: ring,
+                               gapColor: Hue.onboardingCanvas)
                     }
                     .buttonStyle(.press(.squish))
                     .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
@@ -280,6 +281,9 @@ struct YouDay: View {
     let isPicked: Bool
     let ring: Namespace.ID
     var disc = false
+    /// The gap inside the picked day's ring: the colour of the page under the Calendar, the
+    /// Profile's grey on You (profile-middle), paper on Search's.
+    var gapColor: Color = Hue.paper
 
     var body: some View {
         // The first Event with a photo, so a day whose first has none still shows one (the plan's review).
@@ -325,9 +329,8 @@ struct YouDay: View {
         .contentShape(Circle())
         .overlay {
             if isPicked {
-                // The gap inside the ring is the Profile's grey, the page it sits on (profile-middle).
                 Circle()
-                    .strokeBorder(Hue.onboardingCanvas, lineWidth: YouMetric.ring + YouMetric.ringGap)
+                    .strokeBorder(gapColor, lineWidth: YouMetric.ring + YouMetric.ringGap)
                     .overlay { Circle().strokeBorder(Hue.ink, lineWidth: YouMetric.ring) }
                     .matchedGeometryEffect(id: "ring", in: ring)
             }
