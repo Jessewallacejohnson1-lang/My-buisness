@@ -2,7 +2,8 @@
 //  LaunchMotionTests.swift
 //  Block Party — the launch moves as the approved mock does (BP app references/launch-ball,
 //  round 5; references/launch-short since 2026-11-08: Bp! 320 pt, B and p shrinking toward the !,
-//  the short cut, the link open, the curtain). Every expected number here was read off the mock's
+//  the curtain; references/splash-wordmark since 2026-11-14: the BlockParty. still, the wordmark
+//  open and its fade). Every expected number here was read off the mock's
 //  own script (its frozen frames write `data-probe`), on its 402 x 874 phone, so a drift in the
 //  port fails here before anyone has to see it.
 //
@@ -195,99 +196,81 @@ final class LaunchMotionTests: XCTestCase {
         }
     }
 
-    /// The short cut (after the day's two full shows): the ball drops straight into the dot from
-    /// above it, shrinking on the way, B and p never dip, the jump has no hang, and it all plays at
-    /// full speed, done within 1.6 s of the still.
-    func testTheShortCutDropsStraightIntoTheDot() {
-        let m = LaunchMotion(screen: phone, ending: .tab(tab), kind: .short)
-        XCTAssertEqual(m.pace, 1)
-        XCTAssertEqual(m.hitB, .infinity)
-        XCTAssertEqual(m.hitP, .infinity)
-        XCTAssertEqual(m.landAt, 0.289523, accuracy: 1e-5)
-        XCTAssertEqual(m.ballEnd, 0.339523, accuracy: 1e-5)
-        let rest = m.ball(at: 5)
-        for t in [0.0, 0.1, 0.25] {
-            XCTAssertEqual(m.ball(at: t).x, rest.x, accuracy: 1e-9, "straight down at \(t)")
-        }
-        XCTAssertEqual(m.ball(at: 0).r, 24.745663, accuracy: 1e-5)
-        XCTAssertEqual(m.ball(at: 0).y, -44.900131, accuracy: 1e-5)
-        XCTAssertEqual(m.ball(at: m.landAt - 1e-9).r, 21.517968, accuracy: 1e-3, "the dot's size as it arrives")
-        XCTAssertGreaterThan(m.ball(at: 0.15).r, 22, "still shrinking on the way down")
-        let squashed = m.ball(at: 0.3)   // the mock at 300 ms
-        XCTAssertEqual(squashed.y, 466.032586, accuracy: 1e-4)
-        XCTAssertEqual(squashed.sx, 1.225124, accuracy: 1e-5)
-        XCTAssertEqual(squashed.sy, 0.80424, accuracy: 1e-5)
-        XCTAssertEqual(m.ball(at: 0.4).y, 461.820231, accuracy: 1e-4)
-        let early = m.frame(at: 0.2)
-        XCTAssertEqual(early.b, CGSize(width: 0.9, height: 0.9), "no dip: nothing hits B")
-        XCTAssertEqual(early.p, CGSize(width: 0.9, height: 0.9))
-        XCTAssertEqual(early.shadeOpacity, max(0.06, 0.30 - 0.0012 * Double(rest.y - m.ball(at: 0.2).y)), accuracy: 1e-6,
-                       "the shadow waits under the dot")
-        let pop = m.landAt + 0.12
-        XCTAssertEqual(m.frame(at: pop + 0.23).lift, -4, accuracy: 1e-6, "up")
-        XCTAssertEqual(m.frame(at: pop + 0.35).lift, 0, accuracy: 1e-6, "down with no hang")
-        XCTAssertEqual(m.frame(at: pop + 0.35 - 0.001).buzzes, 1)
-        XCTAssertEqual(m.frame(at: pop + 0.35).buzzes, 2, "the dot, then the landing")
-        XCTAssertEqual(m.frame(at: pop + 0.49 - 0.01).markOrigin, m.origin, "the leap starts at 0.49")
-        XCTAssertNotEqual(m.frame(at: pop + 0.49 + 0.2).markOrigin, m.origin)
-        // Bp! is in the slot and the curtain down about 1.3 s after the still; what's left of its
-        // squash, under 1%, plays out unseen after (the launch is done at 2.05 s).
-        let slot = pop + 0.49 + 0.07 + 0.26
-        XCTAssertLessThan(slot / m.pace, 1.3)
-        XCTAssertEqual(LaunchMotion.canvas.width * m.frame(at: slot + 0.01).markScale, tab.width, accuracy: 1e-6)
-        var t = 0.0
-        while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertLessThan(t / m.pace, 2.1)
-        XCTAssertEqual(m.frame(at: t).buzzes, 3)
-        XCTAssertEqual(LaunchMotion.buzzKinds(.short).count, 3)
-        XCTAssertEqual(LaunchMotion.buzzKinds(.full).count, 5)
-        XCTAssertLessThan(m.frame(at: pop + 0.49 + 0.36).yellow, 0.001, "the curtain is down by about 1.3 s")
+    /// The launch screen's still is the BlockParty. wordmark: the full show starts on it, and it
+    /// gives way to Bp over the show's first 0.15 s as the ball drops in (Jesse, 2026-11-14).
+    func testTheFullShowStartsFromTheWordmark() {
+        let m = motion
+        XCTAssertEqual(m.frame(at: 0).word, 1)
+        XCTAssertEqual(m.frame(at: 0).markOpacity, 0, "no Bp on the still")
+        XCTAssertEqual(m.frame(at: 0.075).word, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(m.frame(at: 0.075).markOpacity, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(m.frame(at: LaunchMotion.wordSwap).word, 0)
+        XCTAssertEqual(m.frame(at: LaunchMotion.wordSwap).markOpacity, 1)
+        XCTAssertLessThan(LaunchMotion.wordSwap, m.hitB, "Bp is all there before the ball hits B")
+        XCTAssertEqual(m.frame(at: 2).word, 0)
     }
 
-    /// A link open: no ball; the ! appears in 0.12 s as B and p grow, then Bp! pops out (the zoom
-    /// on the fast spring) over the page the link opened, done well inside a second. A tap jumps
-    /// to the pop. No buzzes.
-    func testALinkOpenPopsOutOverThePage() {
-        let m = LaunchMotion(screen: phone, ending: .zoom, kind: .link)
+    /// Every other open: no ball and no Bp. BlockParty. holds 0.2 s, then the yellow, the wordmark
+    /// and the signature fade into the app together on the launch's 0.3 s fade, nothing falling
+    /// (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades into the app").
+    /// Full speed, no buzzes, and a tap starts the fade at once.
+    func testOtherOpensShowTheWordmarkThenFade() {
+        let m = LaunchMotion(screen: phone, ending: .tab(tab), kind: .word)
         XCTAssertEqual(m.pace, 1)
-        XCTAssertEqual(m.landAt, 0)
-        for t in [0.0, 0.1, 0.3, 0.6] {
+        XCTAssertTrue(LaunchMotion.buzzKinds(.word).isEmpty)
+        for t in [0.0, 0.1, 0.19] {
             let f = m.frame(at: t)
-            XCTAssertEqual(f.ballOpacity, 0, "no ball at \(t)")
-            XCTAssertEqual(f.shadeOpacity, 0, "no shadow at \(t)")
-            XCTAssertEqual(f.buzzes, 0)
-            XCTAssertEqual(f.lift, 0, "no jump")
+            XCTAssertEqual(f.word, 1, "at \(t)")
+            XCTAssertEqual(f.markOpacity, 0, "no Bp at \(t)")
+            XCTAssertEqual(f.yellow, 1, "at \(t)")
+            XCTAssertNil(f.ending, "nothing under it moves yet at \(t)")
+            XCTAssertFalse(f.headerUp)
+            XCTAssertEqual(f.backScale, 1)
         }
-        let start = m.frame(at: 0)
-        XCTAssertTrue(start.dotShown)
-        XCTAssertEqual(start.dotOpacity, 0)
-        XCTAssertEqual(start.lineOpacity, 0)
-        XCTAssertEqual(start.dot.width, 0.6, accuracy: 1e-9)
-        XCTAssertEqual(start.line.height, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(start.b.width, 0.9, accuracy: 1e-9)
-        XCTAssertEqual(start.backScale, 1.05, accuracy: 1e-9)
-        let shown = m.frame(at: 0.12)
-        XCTAssertEqual(shown.dotOpacity, 1, accuracy: 1e-9)
-        XCTAssertEqual(shown.dot, CGSize(width: 1, height: 1))
-        XCTAssertEqual(shown.line, CGSize(width: 1, height: 1))
-        XCTAssertEqual(m.frame(at: 0.19).zoom, 1)
-        XCTAssertGreaterThan(m.frame(at: 0.3).zoom, 1.5)
-        XCTAssertTrue(m.frame(at: 0.4).headerUp)
-        XCTAssertEqual(m.frame(at: 0.6).b.width, 1, accuracy: 0.01)
+        let half = m.frame(at: 0.2 + 0.15)
+        XCTAssertEqual(half.yellow, 1 - LaunchMotion.easeOut.value(at: 0.5), accuracy: 1e-9)
+        XCTAssertEqual(half.yellowOpacity, half.yellow, "a fade")
+        XCTAssertNotNil(half.ending, "Town settles as the yellow clears")
+        XCTAssertTrue(half.headerUp)
+        for t in stride(from: 0.0, through: 1, by: 0.05) {
+            XCTAssertEqual(m.frame(at: t).yellowDrop, 0, "nothing falls at \(t)")
+            XCTAssertEqual(m.frame(at: t).buzzes, 0)
+        }
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertLessThan(t, 0.7, "the pop is over well inside a second")
-        XCTAssertEqual(m.frame(at: t).yellow, 0, accuracy: 0.001)
-        XCTAssertEqual(m.frame(at: t).yellowOpacity, 0, accuracy: 0.001, "a fade, not the curtain")
-        let tapped = LaunchMotion(screen: phone, skip: 0.05, ending: .zoom, kind: .link)
-        XCTAssertGreaterThan(tapped.frame(at: 0.15).zoom, 1, "a tap jumps to the pop")
-        // The link caught the ball mid-air: it fades out where it was as the ! appears.
-        let full = LaunchMotion(screen: phone)
-        let caught = LaunchMotion(screen: phone, ending: .zoom, kind: .link, ballBefore: full.ball(at: 0.2))
-        XCTAssertEqual(caught.frame(at: 0).ball, full.ball(at: 0.2))
-        XCTAssertEqual(caught.frame(at: 0).ballOpacity, 1)
-        XCTAssertEqual(caught.frame(at: 0.06).ballOpacity, 1 - caught.frame(at: 0.06).dotOpacity, accuracy: 1e-9)
-        XCTAssertEqual(caught.frame(at: 0.12).ballOpacity, 0, accuracy: 1e-9)
+        XCTAssertGreaterThan(t, 0.3)
+        XCTAssertLessThanOrEqual(t, 0.5 + 1e-3, "gone half a second after the still")
+        let tapped = LaunchMotion(screen: phone, skip: 0.05, kind: .word)
+        XCTAssertEqual(tapped.frame(at: 0.04).yellow, 1)
+        XCTAssertLessThan(tapped.frame(at: 0.2).yellow, 0.5)
+        XCTAssertTrue(tapped.frame(at: 0.05 + 0.31).done)
+    }
+
+    /// A link that arrives while the ball show is on its way turns it into the wordmark open: what
+    /// the show had drawn (here Bp and the ball in mid-air) fades back into BlockParty. over
+    /// 0.15 s, then it holds and fades as any wordmark open does.
+    func testALinkFadesTheShowBackIntoTheWordmark() {
+        let show = LaunchMotion(screen: phone, ending: .tab(tab))
+        let caught = show.frame(at: 0.3)
+        XCTAssertEqual(caught.markOpacity, 1)
+        XCTAssertEqual(caught.word, 0)
+        let m = LaunchMotion(screen: phone, ending: .tab(tab), kind: .word, before: caught)
+        let start = m.frame(at: 0)
+        XCTAssertEqual(start.ball, caught.ball, "the ball where it was")
+        XCTAssertEqual(start.b, caught.b)
+        XCTAssertEqual(start.markOpacity, 1)
+        XCTAssertEqual(start.word, 0)
+        let mid = m.frame(at: 0.075)
+        XCTAssertEqual(mid.markOpacity, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(mid.word, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(m.frame(at: 0.15).markOpacity, 0)
+        XCTAssertEqual(m.frame(at: 0.15).word, 1)
+        XCTAssertEqual(m.frame(at: 0.15 + 0.2 - 0.001).yellow, 1, "then it holds")
+        XCTAssertLessThan(m.frame(at: 0.15 + 0.2 + 0.1).yellow, 1)
+        // Caught part way into the still's hand-over: the wordmark comes back from where it was.
+        let early = LaunchMotion(screen: phone, kind: .word, before: show.frame(at: 0.05))
+        XCTAssertEqual(early.frame(at: 0).word, 1 - 0.05 / 0.15, accuracy: 1e-9)
+        XCTAssertEqual(early.frame(at: 0.15).word, 1)
     }
 
     /// Nothing on Bp! jumps in one frame of a 120 Hz screen: the crouch lets go and the !'s line
@@ -344,29 +327,5 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertLessThan(t, 1, "a skip ends well inside a second")
         XCTAssertEqual(m.frame(at: t).b.width, 1, accuracy: 0.01)
         XCTAssertEqual(m.frame(at: t).p.width, 1, accuracy: 0.01)
-    }
-
-    /// With Reduce Motion nothing moves: B and p at the still's 90%, fading over to full size as
-    /// the ! line fades in, the crest fading in at the dot and going black, then a fade into the app.
-    func testReduceMotionFades() {
-        let m = LaunchMotion(screen: phone, reduceMotion: true)
-        for t in [0.0, 0.3, 0.6, 0.9] {
-            let f = m.frame(at: t)
-            XCTAssertEqual(f.b, CGSize(width: 0.9, height: 0.9))
-            XCTAssertEqual(f.ball.x, m.ball(at: 5).x)
-            XCTAssertEqual(f.ball.y, m.ball(at: 5).y)
-        }
-        XCTAssertEqual(m.frame(at: 0.075).ballOpacity, 0.5, accuracy: 1e-9)
-        XCTAssertTrue(m.frame(at: 0.6).dotShown)
-        XCTAssertEqual(m.frame(at: 0.4).fullLetters, 0)
-        XCTAssertEqual(m.frame(at: 0.65).fullLetters, 1, accuracy: 1e-9)
-        XCTAssertEqual(m.frame(at: 0.65).letters, 1, accuracy: 1e-9, "the full B and p are in before the 90% ones go")
-        XCTAssertEqual(m.frame(at: 0.8).letters, 0, accuracy: 1e-9)
-        XCTAssertEqual(LaunchMotion(screen: phone).frame(at: 2).fullLetters, 0, "only Reduce Motion fades letters")
-        XCTAssertFalse(m.frame(at: 1.0).done)
-        XCTAssertTrue(m.frame(at: 0.9).takesTaps)
-        XCTAssertFalse(m.frame(at: 1.0).takesTaps)
-        XCTAssertTrue(m.frame(at: 1.05).done)
-        XCTAssertTrue(LaunchMotion(screen: phone, skip: 0.2, reduceMotion: true).frame(at: 0.45).done)
     }
 }
