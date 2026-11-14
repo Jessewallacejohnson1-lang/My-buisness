@@ -35,6 +35,12 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
                   just say). The cap is whatever Apify reports. The 8 AM check emails this line
                   the morning it first passes either one (private.apify_level, BP app loopholes 13).
 
+A busy-list Instagram page with `"stories": true` also has its stories read, once a day by the 7pm busy run
+(STORIES_AT: a story lasts 24 hours, so one read a day sees each), through a no-login Apify actor (BP app
+watch-every-place 25; Jesse, 2026-11-14: JoeTown "post city events and new things downtown it will help us find
+sources to check"). A story's words are on its picture, so each comes with its picture, the post it shares, the
+accounts it tags and its link; accounts.py's `tagged` lists the accounts the stories tag.
+
 A post whose caption is short or gives no time of day also gets its pictures read (Jesse,
 2026-10-26): Obbink's trivia night on Oct 29 was on its picture alone, under a one-line caption
 ("come out to the cocktail lounge…"), and the judge dropped it as a teaser. prepare downloads
@@ -71,7 +77,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
 import argparse, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
@@ -93,6 +99,7 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read; a week
     ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.60),  # the whole list was $0.75 on Nov 5
     ("weekly", "events"): ("apify~facebook-events-scraper", 1.50),
     ("weekly", "search"): ("apify~facebook-events-scraper", 1.60),  # three pages (two searches and the town's events page), up to SEARCH_EVENTS each at a cent
+    ("busy", "stories"): ("datavoyantlab~advanced-instagram-stories-scraper", 0.20),  # $0.099 a run and $0.0028 an account (Nov 2026)
 }
 SEARCH_EVENTS = 50  # most events each search page reads (maxEvents is per start URL); Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
@@ -104,6 +111,7 @@ WEEKLY_AT = 15  # o'clock, Chicago: each day's share of the weekly list
 # weekly one that day's tasks.
 SCHEDULES = ([("bp-busy-930am", "30 9 * * *", "busy"), ("bp-busy-7pm", "0 19 * * *", "busy")]
              + [(f"bp-weekly-{d}", f"0 {WEEKLY_AT} * * {i}", "weekly") for i, d in enumerate(DAYS)])
+STORIES_AT = "bp-busy-7pm"  # the one busy schedule that also reads stories: once a day is every story, at about $3 a month
 OVERLAP = timedelta(hours=1)  # a read reaches this far before its task's last good read, so a post that lands while a run starts is never lost
 QUIET_AFTER = 4  # weekly reads in a row with no new post before a weekly page is read once a month (Jesse, 2026-11-11)
 HEADS_UP = 0.75  # of the cap; private.apify_level says the same for the 8 AM email
@@ -194,6 +202,8 @@ def actor_input(kind, urls, window):
         return {"username": urls, "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     if kind == "search":
         return {"startUrls": [{"url": u} for u in urls], "maxEvents": SEARCH_EVENTS}
+    if kind == "stories":
+        return {"usernames": [m.group(1) for u in urls for m in [re.search(r"instagram\.com/([^/?#]+)", u)] if m]}
     return {"startUrls": [{"url": events_tab(u)} for u in urls], "maxEvents": 10}
 
 
@@ -323,6 +333,10 @@ def page_lists(root, missed=None, now=None):
                 out.setdefault(("weekly", p["kind"]), []).append(p)
     out[("weekly", "events")] = [dict(p, category=category.get(p["entry_id"])) for p in all_pages(root)
                                  if p["kind"] == "facebook" and not p.get("skip") and (p["busy"] or p.get("hidden") or month(p))]
+    stories = [dict(p, category=category.get(p["entry_id"])) for p in all_pages(root)
+               if p["kind"] == "instagram" and p.get("stories") and not p.get("skip") and not p.get("hidden")]
+    if stories:  # `stories` on an Instagram page: its stories too, once a day (STORIES_AT)
+        out[("busy", "stories")] = stories
     if search_pages():
         out[("weekly", "search")] = search_pages()
     return {k: v for k, v in out.items() if k in ACTORS}
@@ -387,7 +401,8 @@ def setup():
     have, made = by_name("/schedules"), set()
     for name, cron, run in SCHEDULES:
         prefix = "bp-busy-" if run == "busy" else name + "-"
-        actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid} for n, tid in ids.items() if n.startswith(prefix)]
+        actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid} for n, tid in ids.items()
+                   if n.startswith(prefix) and (not n.endswith("-stories") or name == STORIES_AT)]
         if not actions:
             continue
         body = {"name": name, "cronExpression": cron, "timezone": "America/Chicago", "isEnabled": True,
@@ -633,6 +648,57 @@ def collabs(row, host, by_url):
     return out[:2]
 
 
+def story_picture(row):
+    """A story's one picture (a video's is its still), the largest Apify saved."""
+    got = [c for c in (row.get("image_versions2") or {}).get("candidates") or [] if isinstance(c, dict) and c.get("url")]
+    best = max(got, key=lambda c: (c.get("width") or 0) * (c.get("height") or 0), default=None)
+    return [{"url": best["url"], "about": ""}] if best else []
+
+
+def story_shares(row):
+    """The posts a story shares, as links: most of a town account's stories pass on a place's own post."""
+    return [f"https://www.instagram.com/p/{m['media_code']}/" for m in row.get("story_feed_media") or []
+            if isinstance(m, dict) and m.get("media_code")]
+
+
+def story_tags(row):
+    """The accounts a story tags (its @ stickers), less its own."""
+    own = str(row.get("username") or "").lower()
+    out = []
+    for m in row.get("reel_mentions") or []:
+        u = str(((m or {}).get("user") or {}).get("username") or "").lower()
+        if u and u != own and u not in out:
+            out.append(u)
+    return out
+
+
+def story_links(row):
+    """A story's link stickers, as the page they open: Instagram's l.instagram.com wrapper and Facebook's click id off."""
+    out = []
+    for s in row.get("story_link_stickers") or []:
+        link = (s or {}).get("story_link") or {}
+        url = link.get("url") or ""
+        if "l.instagram.com" in url:
+            url = (parse_qs(urlsplit(url).query).get("u") or [""])[0]
+        url = re.sub(r"[?&]fbclid=[^&#]*", "", url or ("https://" + link["display_url"] if link.get("display_url") else ""))
+        if url.startswith("http") and url not in out:
+            out.append(url)
+    return out
+
+
+def story_text(row, who, shared, links):
+    when = when_text(datetime.fromtimestamp(row.get("taken_at") or 0, timezone.utc).isoformat())
+    lines = [f"{who} shared this in its Instagram story on {when}. A story's words are on its picture. When it passes on "
+             "another account's post, that account's @name is on the picture, and the post is that place's."]
+    if shared:
+        lines.append(f"It shares this post: {', '.join(shared)}")
+    if story_tags(row):
+        lines.append(f"It tags: {', '.join('@' + t for t in story_tags(row))}")
+    if links:
+        lines.append(f"Its link: {', '.join(links)}")
+    return "\n".join(lines)
+
+
 def post_pages(kind, rows, by_url):
     """Apify's rows as pages: one post each, with who posted it, where and when. An empty row
     (a page with nothing new, hidden, gone) is no page; a hidden one is reported. A post whose
@@ -668,6 +734,14 @@ def post_pages(kind, rows, by_url):
                     f"Event: {r.get('name') or r.get('title') or ''}\nWhen: {r.get('dateTimeSentence') or r.get('utcStartDate') or r.get('startDate') or ''}\n"
                     f"Where: {where or ''}\n\n{text}")
             pid, url, pics = r.get("id") or r.get("eventId") or r.get("url"), r.get("url"), []
+        elif kind == "stories":
+            page = ig_page(r.get("username") or (r.get("user") or {}).get("username"), by_url) or page
+            who = page["name"] if page else who
+            pics, shared, links = story_picture(r), story_shares(r), story_links(r)
+            if not pics:  # a story is its picture
+                continue
+            body = story_text(r, who, shared, links)
+            pid, url, words = r.get("pk") or r.get("id"), (shared + links or [None])[0], ""
         else:
             text = (r.get("text") if kind == "facebook" else r.get("caption")) or ""
             pics = picture_urls(kind, r) if needs_pictures(text) else []
@@ -711,7 +785,7 @@ def prepare(run, now):
         except Exception as e:
             saved["failed"].append(f"task pages not refreshed: {e}")
         day = DAYS[(now.astimezone(LOCAL).weekday() + 1) % 7]  # a weekly check reads its day's share
-        saved["listed"] = sum(1 for (r, _), v in page_lists(root, saved["missed"], now).items() if r == check
+        saved["listed"] = sum(1 for (r, k), v in page_lists(root, saved["missed"], now).items() if r == check and k != "stories"
                               for p in v if check == "busy" or day_of(p) == day)
         try:
             mark = last_read(check)
@@ -744,7 +818,7 @@ def prepare(run, now):
                 posts += got
                 if kind in ("events", "search"):  # a posts page Apify can't read is named once, set aside (tally)
                     failed += [f"{kind}: {h}" for h in hidden]
-                elif r["status"] == "SUCCEEDED" and saved.get("missed") is not None:
+                elif kind != "stories" and r["status"] == "SUCCEEDED" and saved.get("missed") is not None:  # a day with no story is no miss
                     reads.append((r["finishedAt"], run_pages(r["id"]), rows,
                                   f"{kind} run at {finished.astimezone(LOCAL):%a %-I:%M %p}"))
                 if r["status"] != "SUCCEEDED":
@@ -884,6 +958,25 @@ def selftest():
     check([s for s in SCHEDULES if s[2] == "busy"] == [("bp-busy-930am", "30 9 * * *", "busy"), ("bp-busy-7pm", "0 19 * * *", "busy")]
           and [(n, c) for n, c, r in SCHEDULES if r == "weekly"] == [(f"bp-weekly-{d}", f"0 15 * * {i}") for i, d in enumerate(DAYS)]
           and DAYS[0] == "sun", "the busy list at 9:30am and 7pm; the weekly list a day at a time at 3pm, cron's Sunday first")
+    jt = {"entry_id": "joetown", "name": "JoeTown", "kind": "instagram", "url": "https://www.instagram.com/joetownmn", "busy": True}
+    story = {"pk": "4029", "username": "joetownmn", "taken_at": 1794594505,
+             "image_versions2": {"candidates": [{"url": "https://cdn/s.jpg", "width": 640, "height": 1136},
+                                                {"url": "https://cdn/b.jpg", "width": 1080, "height": 1920}]},
+             "story_feed_media": [{"media_code": "DfsHcrOmuxC"}],
+             "reel_mentions": [{"user": {"username": "JoetownMN"}}, {"user": {"username": "stearnshistorymuseum"}}],
+             "story_link_stickers": [{"story_link": {"url": "https://l.instagram.com/?u=https%3A%2F%2Fmuseum.org%2Fevent-1%3Ffbclid%3DPAZ&e=AU",
+                                                     "display_url": "museum.org/event-1"}}]}
+    got, _ = post_pages("stories", [story, dict(story, pk="5", image_versions2={})], {canon(jt["url"]): jt})
+    check(len(got) == 1 and got[0]["file"] == "stories-4029" and got[0]["entry_id"] == "joetown"
+          and got[0]["pictures"] == [{"url": "https://cdn/b.jpg", "about": ""}]
+          and got[0]["url"] == "https://www.instagram.com/p/DfsHcrOmuxC/"
+          and "JoeTown shared this in its Instagram story on Friday, November 13 at 12:28 PM" in got[0]["text"]
+          and "It tags: @stearnshistorymuseum\n" in got[0]["text"] and "Its link: https://museum.org/event-1" in got[0]["text"]
+          and "words" not in got[0],
+          f"a story is a page with its biggest picture, the post it shares as its link, its tags less its own and its link unwrapped; "
+          f"one with no picture is none: {got}")
+    check(actor_input("stories", [jt["url"], "https://www.instagram.com/krewerestaurant/"], None) == {"usernames": ["joetownmn", "krewerestaurant"]},
+          "a stories task reads accounts by their handle")
     check(task_name("weekly", "events", "mon") == "bp-weekly-mon-events" and task_name("busy", "facebook") == "bp-busy-facebook",
           "a task's name")
     wed = datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)  # a Wednesday evening
@@ -1228,7 +1321,8 @@ def setup_alone():
     pages = [{"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": "https://www.facebook.com/krewe", "busy": True, "day": "fri"},
              {"entry_id": "hall", "name": "Hall", "kind": "facebook", "url": "https://www.facebook.com/hall", "busy": False, "day": "tue"},
              {"entry_id": "hall", "name": "Hall", "kind": "instagram", "url": "https://www.instagram.com/hall", "busy": False, "day": "tue"},
-             {"entry_id": "jt", "name": "JT", "kind": "facebook", "url": "https://www.facebook.com/jt", "busy": False, "day": "sat"}]
+             {"entry_id": "jt", "name": "JT", "kind": "facebook", "url": "https://www.facebook.com/jt", "busy": False, "day": "sat"},
+             {"entry_id": "jt", "name": "JT", "kind": "instagram", "url": "https://www.instagram.com/jt", "busy": True, "day": "sat", "stories": True}]
     task = lambda n, ran=None: {"name": n, "id": n, "stats": {"lastRunStartedAt": ran}}
     tasks = {n: task(n, r) for n, r in [("bp-busy-facebook", "2026-11-11T15:30:00Z"), ("bp-weekly-facebook", "2026-11-05T21:00:00Z"),
                                         ("bp-weekly-search", "2026-11-06T15:00:00Z"), ("bp-dig-facebook", None), ("bp-monthly-places", None)]}
@@ -1273,10 +1367,13 @@ def setup_alone():
     return [
         (weekly == {"bp-weekly-tue": ["bp-weekly-tue-facebook", "bp-weekly-tue-instagram"], "bp-weekly-sat": ["bp-weekly-sat-facebook"],
                     "bp-weekly-fri": ["bp-weekly-fri-events"]}
-         and [a["actorTaskId"] for a in schedules["bp-busy-930am"]["actions"]] == ["bp-busy-facebook"]
+         and [a["actorTaskId"] for a in schedules["bp-busy-930am"]["actions"]] == ["bp-busy-facebook", "bp-busy-instagram"]
          and schedules["bp-weekly-tue"]["cronExpression"] == "0 15 * * 2"
          and not any("input" in a for s in schedules.values() for a in s.get("actions", [])),
          f"a schedule per day starts only that day's tasks (Krewe's Events tab on its Friday), and none overrides how far back: {weekly}"),
+        ([a["actorTaskId"] for a in schedules["bp-busy-7pm"]["actions"]] == ["bp-busy-facebook", "bp-busy-instagram", "bp-busy-stories"]
+         and inputs["bp-busy-stories"] == {"usernames": ["jt"]},
+         f"a page's stories are read once a day, by the 7pm busy run alone: {schedules['bp-busy-7pm']['actions']}"),
         (inputs["bp-weekly-tue-facebook"]["onlyPostsNewerThan"] == "2026-11-05T20:03:00"
          and inputs["bp-weekly-sat-facebook"]["onlyPostsNewerThan"] == "2026-11-05T20:03:00"
          and inputs["bp-busy-facebook"]["onlyPostsNewerThan"] == "2026-11-11T14:30:00"

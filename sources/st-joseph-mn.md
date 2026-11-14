@@ -544,7 +544,7 @@ tier: watched
 category: town
 added_by: agent:claude
 sources:
-  - url: https://www.joetown.org/events
+  - url: https://www.joetown.org/event-calendar
     kind: website
     method: fetch
     trust: official
@@ -554,8 +554,12 @@ sources:
     trust: official
 ```
 Notes: The town's promotional/community site, separate from the city government one.
-`/events` is the town-wide calendar; `/explore` is effectively a business directory and
-is the best single place to find businesses this registry is still missing.
+`/event-calendar` is the town-wide calendar, as plain text; `/explore` is effectively a business
+directory and is the best single place to find businesses this registry is still missing.
+`/events` (the menu's link) only holds a calendar block that JavaScript fills in, so a fetch
+reads an empty page: it never changed from 2026-10-14 and gave no Event. Its events come
+from the `/event-calendar` collection, which no menu links to (the site's sitemap lists it).
+The block's data under `/api/` is robots-disallowed. Switched 2026-11-14 (Jesse: "yes").
 
 **Do not confuse this with `joetownmn.com`**, which is a different domain that blocks
 robots and must use `search_snippet`. `joetown.org` is a Squarespace site whose robots.txt
@@ -2350,16 +2354,16 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: history-museum-stearns
 status: active
-tier: listed
+tier: watched
 category: nonprofits-charities
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://stearnshistorymuseum.wildapricot.org/events
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. The museum is in St. Cloud (235 33rd Ave S) but holds events in St. Joseph: Gingerbread Architecture at the Church of Saint Joseph, Hops and History at Bad Habit Brewing. Its event list (Wild Apricot) is plain text. Found through a JoeTown Instagram story; watched since 2026-11-14 (Jesse: "yes").
 
 ## Subway
 ```yaml

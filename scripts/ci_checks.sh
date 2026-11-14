@@ -5,16 +5,18 @@
 # them for every push to main. Twice on 2026-10-16 a push went red because only the one changed
 # script had been run (BP app retro, 2026-10-17).
 #
-#   bash scripts/ci_checks.sh                 all three
+#   bash scripts/ci_checks.sh                 all four
 #   bash scripts/ci_checks.sh rules db        instruction files, database stories
 #   bash scripts/ci_checks.sh registry        the registry's validator and the morning job's self-tests
+#   bash scripts/ci_checks.sh functions       deno check on every supabase/functions/*/index.ts
 #
 # BP_CI_NODE_MODULES: a node_modules folder to use for the database stories instead of
 # installing one (the pre-push hook keeps one cached).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-for part in ${*:-rules db registry}; do
+# functions runs second: it takes seconds, so a type error stops a push before the slow database stories.
+for part in ${*:-rules functions db registry}; do
     echo "== $part"
     case "$part" in
         rules)
@@ -64,8 +66,19 @@ EOF
                 python3 "sources/scripts/$s.py" --selftest
             done
             ;;
+        functions)
+            # Every edge function, type-checked by the Deno that Supabase runs them on: a new folder
+            # is checked with no edit here. Node's type stripping checks nothing (BP app
+            # agent-guardrails 16). DENO_NO_PACKAGE_JSON: a package.json above the repo (this Mac's
+            # home folder has one) makes deno look for npm: packages in a node_modules that isn't there.
+            command -v deno >/dev/null || { echo "ci_checks.sh: no deno to check the edge functions with (brew install deno)" >&2; exit 1; }
+            fns=(supabase/functions/*/index.ts)
+            DENO_NO_PACKAGE_JSON=1 NO_COLOR=1 deno check --quiet --no-lock "${fns[@]}"
+            fns=("${fns[@]#supabase/functions/}")
+            echo "type-checked ${#fns[@]} edge functions: ${fns[*]%/index.ts}"
+            ;;
         *)
-            echo "ci_checks.sh: no check named '$part' (rules, db, registry)" >&2
+            echo "ci_checks.sh: no check named '$part' (rules, db, registry, functions)" >&2
             exit 2
             ;;
     esac
