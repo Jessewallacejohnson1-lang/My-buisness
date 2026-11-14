@@ -25,7 +25,9 @@ flake moves to Fixed, dated, and stays there.
 - 2026-11-13 · `EventCardPhotoTapTests.testAHeldCardOpensItsMenuAndItsButtonsKeepTheirTaps` · red once on the Mac
   in a full run on feat/nothing-scheduled (no Town card code: school rows and the sources scripts) just after merging
   e5d335e4: "a tap on the poster's heart didn't like it" (the like's wait timed out) · passed alone straight after,
-  at load 33 to 40 · no fix yet
+  at load 33 to 40 · no fix yet · red again 2026-11-13 in a full run on feat/game-logo-lift (game card logos; no
+  poster or heart code) just after merging f9d31a9e, the same timed-out like, at load 45 to 57 · passed alone straight
+  after, at load 10 to 29
 - 2026-11-13 · `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` · red once on the Mac in that alone
   run, at load 40: "a double tap on the photo pushed the event page" (the two taps read as one) · passed in the full
   run just before · no fix yet: on a loaded Mac the double tap's gap can outlast the single-tap wait
