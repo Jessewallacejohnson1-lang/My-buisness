@@ -64,11 +64,21 @@ private struct PinchToZoom: ViewModifier {
     let slot: Color
     let lifted: Binding<Bool>?
     @State private var spot = PinchSpot()
+    /// Its picture is up (`PhotoLift`), so the real one isn't drawn.
+    @State private var away = false
 
     func body(content: Content) -> some View {
         content
+            // Nothing of the real one may show round its empty spot: an edge, a corner, a white card's shadow
+            // (Jesse's phone, 2026-11-14). 0.001, not 0: SwiftUI stops hit-testing a view at 0, and a second
+            // pinch must still catch the picture on its way home.
+            .opacity(away ? 0.001 : 1)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { spot.rect = $0 }
-            .gesture(PhotoPinch(spot: spot, corner: corner, slot: UIColor(slot)) { lifted?.wrappedValue = $0 })
+            .gesture(PhotoPinch(spot: spot, corner: corner, slot: UIColor(slot), onAway: { gone in
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { away = gone }
+            }) { lifted?.wrappedValue = $0 })
     }
 }
 
@@ -86,6 +96,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     let spot: PinchSpot
     let corner: CGFloat
     let slot: UIColor
+    let onAway: (Bool) -> Void
     let onLift: (Bool) -> Void
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
@@ -125,7 +136,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
         }
         let fingers = recognizer.location(in: window)
         if recognizer.state == .began {
-            lift.begin(in: window, corner: corner, slot: slot, fingers: fingers, onLift: onLift)
+            lift.begin(in: window, corner: corner, slot: slot, fingers: fingers, onAway: onAway, onLift: onLift)
         } else if recognizer.numberOfTouches < 2 {
             // One finger up ends it, as Instagram's does: its lone finger would jump the photo.
             lift.land()
@@ -144,6 +155,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     /// Where the photo sits now, read when the lift is drawn and followed while it's up.
     private let place: PinchSpot
     private var spot: CGRect = .zero
+    private var onAway: (Bool) -> Void = { _ in }
     private var onLift: (Bool) -> Void = { _ in }
     /// The fingers' scale when they landed, and the point of the photo under them.
     private var startScale: CGFloat = 1
@@ -165,7 +177,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     }
 
     func begin(in window: UIWindow, corner: CGFloat, slot: UIColor, fingers point: CGPoint,
-               onLift: @escaping (Bool) -> Void) {
+               onAway: @escaping (Bool) -> Void, onLift: @escaping (Bool) -> Void) {
         held = true
         landings += 1
         pinch = 1
@@ -183,6 +195,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
             anchor = PinchMath.anchor(fingers: fingers, offset: CGPoint(x: now.tx, y: now.ty), scale: now.a)
             return
         }
+        self.onAway = onAway
         self.onLift = onLift
         startScale = 1
         onLift(true)
@@ -212,6 +225,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
             stage.addSubview(picture)
             photo = picture
             window.addSubview(stage)
+            onAway(true)
             draw()
         }
     }
@@ -270,6 +284,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
 
     /// Landed: the stage goes and the photo in its spot is the real one again.
     private func finish() {
+        onAway(false)
         photo?.removeFromSuperview()
         photo = nil
         stage.removeFromSuperview()
