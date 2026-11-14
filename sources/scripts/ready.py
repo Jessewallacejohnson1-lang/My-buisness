@@ -5,7 +5,8 @@ ci-packages.txt that a fresh python3 can't import (one listed with no Ubuntu pac
 morning, and failing there only warns: the map spots' libraries), with `python3 -m pip` (in the cloud sandbox plain
 `pip` belongs to another Python), checks that the database takes the routine's key with one read
 only that key may make, never printing a value, and ends with one line: ready on which Python, with the libraries
-found and installed, or what is missing. The morning's line also goes in finish's report row (`report`, `kept`).
+found and installed, or what is missing. The morning's line also goes in finish's report row (`report`, `kept`),
+or, when Ready stops the morning, in a row of its own (`failed_row`).
 Each routine readied its own tools in its own words until 2026-10-28, and a library added for one
 job broke another (social.py's Pillow took the morning report's spend line on Oct 27 and 28).
 
@@ -29,7 +30,9 @@ the public key, so a key's name proves nothing and the read does.
 """
 
 import contextlib, io, os, subprocess, sys, tempfile, time, traceback
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from db import Db, DbError, key_headers
 
@@ -120,20 +123,37 @@ def ready(routine, env=os.environ, listing=HERE / "ci-packages.txt", install=pip
     return (f"{head}, but " + "; ".join(weak) if weak else head), True
 
 
-def report(routine, runs=HERE.parents[1] / ".runs", check=ready):
+def report(routine, runs=HERE.parents[1] / ".runs", check=ready, db=None):
     """Prints Ready's line and whether the routine may go on. The morning's line is also kept in runs/ (beside
     .runs/morning/, which prepare clears) for finish to put in the report row: each step is a process of its own,
-    and a chat once read 50,000 tokens of the run's log for this one line (BP app agent-guardrails 20)."""
+    and a chat once read 50,000 tokens of the run's log for this one line (BP app agent-guardrails 20). A Ready
+    that stops the morning writes the row itself (`failed_row`), since finish never runs."""
     try:
         line, go = check(routine)
     except Exception as e:  # a Ready that breaks says so in the row too, not only in the log
         traceback.print_exc()
         line, go = f"[ready] failed: {type(e).__name__}: {' '.join(str(e).split())[:300]}", False
+    print(line)
     if routine == "morning":
         runs.mkdir(parents=True, exist_ok=True)
         (runs / KEPT).write_text(line + "\n")
-    print(line)
+        if not go:
+            failed_row(line, db)
     return go
+
+
+def failed_row(line, db=None):
+    """The morning's report row when Ready stops it: one `[morning] Ready failed: <why>` line, which the 8:00 email
+    names, instead of no row and "the morning run didn't finish". Only db.py is needed, so a library that wouldn't
+    install can't stop it (finish can't import without PyYAML). A row already there today, a finished morning's,
+    stays. Without a key the database takes, nothing can write a row: that is printed, and the email says no report."""
+    why = line.removeprefix("[ready] ").removeprefix("failed: ")
+    try:
+        (db or Db()).rest("POST", "morning_reports?on_conflict=day",
+                          {"day": str(datetime.now(ZoneInfo("America/Chicago")).date()),
+                           "report": f"[morning] Ready failed: {why}"}, prefer="resolution=ignore-duplicates,return=minimal")
+    except (Exception, SystemExit) as e:  # Db() exits when no key is set
+        print(f"[ready] no report row saved either: {' '.join(str(e).split())[:200]}")
 
 
 def kept(runs, now=None):
@@ -217,16 +237,46 @@ def selftest():
         fixed.add("bp_maps")
         check(ready("morning", {**env, "FIRECRAWL_API_KEY": "k"}, fake, fake_pip(), probe, reach=takes)
               == (f"[ready] ready on {py} (found json, bp_maps)", True), "once installed, nothing to warn of, and the map spots' library is found")
+    class Rows:  # the database, offline: what a failed morning's row would send, or a refusal
+        def __init__(self, refuse=None):
+            self.calls, self.refuse = [], refuse
+
+        def rest(self, method, path, body=None, prefer=None):
+            if self.refuse:
+                raise self.refuse
+            self.calls.append((method, path, body, prefer))
+    today = str(datetime.now(ZoneInfo("America/Chicago")).date())
+    not_ready = f"[ready] not ready on {py}: libraries numpy (pip: ERROR: No matching distribution)"
     with tempfile.TemporaryDirectory() as tmp:
-        runs, said, fine = Path(tmp) / ".runs", io.StringIO(), f"[ready] ready on {py} (found json)"
+        runs, said, fine, rows = Path(tmp) / ".runs", io.StringIO(), f"[ready] ready on {py} (found json)", Rows()
         with contextlib.redirect_stdout(said):
-            go = report("morning", runs, check=lambda r: (fine, True))
-        check(go and said.getvalue() == fine + "\n" and kept(runs) == fine,
-              "the morning's line is printed and kept for finish's report row")
+            go = report("morning", runs, check=lambda r: (fine, True), db=rows)
+        check(go and said.getvalue() == fine + "\n" and kept(runs) == fine and not rows.calls,
+              "the morning's line is printed and kept for finish's report row; a ready Ready writes no row")
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            go = report("morning", runs, check=lambda r: {}["SUPABASE_URL"])
-        check(not go and kept(runs) == "[ready] failed: KeyError: 'SUPABASE_URL'",
-              f"a Ready that breaks keeps one plain line with its error: {kept(runs)}")
+            go = report("morning", runs, check=lambda r: {}["SUPABASE_URL"], db=rows)
+        check(not go and kept(runs) == "[ready] failed: KeyError: 'SUPABASE_URL'" and rows.calls == [
+              ("POST", "morning_reports?on_conflict=day", {"day": today, "report": "[morning] Ready failed: KeyError: 'SUPABASE_URL'"},
+               "resolution=ignore-duplicates,return=minimal")],
+              f"a Ready that breaks keeps one plain line with its error and writes the morning's row itself, never over "
+              f"a finished morning's: {kept(runs)} {rows.calls}")
+        rows.calls.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            go = report("morning", runs, check=lambda r: (not_ready, False), db=rows)
+        check(not go and [c[2]["report"] for c in rows.calls] == [
+              f"[morning] Ready failed: not ready on {py}: libraries numpy (pip: ERROR: No matching distribution)"],
+              f"a morning Ready stops writes why as the row, a line the 8:00 email names: {rows.calls}")
+        for refusal in (DbError("POST", "morning_reports", 401, "refused"), SystemExit("needs SUPABASE_URL and a key")):
+            said = io.StringIO()
+            with contextlib.redirect_stdout(said):
+                go = report("morning", runs, check=lambda r: (not_ready, False), db=Rows(refusal))
+            check(not go and said.getvalue().startswith(not_ready + "\n[ready] no report row saved either: "),
+                  f"a row the database refuses, or no key at all, is one printed line, not a crash: {said.getvalue()}")
+        rows.calls.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            report("social", runs, check=lambda r: (not_ready, False), db=rows)
+        check(not rows.calls, "another routine's Ready writes no morning row")
+        (runs / KEPT).write_text(fine + "\n")
         check("no line from this morning's Ready step" in kept(runs, now=time.time() + 13 * 3600),
               "a line over 12 hours old is an earlier morning's")
         (runs / KEPT).unlink()
