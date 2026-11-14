@@ -325,8 +325,9 @@ struct YouDay: View {
         .contentShape(Circle())
         .overlay {
             if isPicked {
+                // The gap inside the ring is the Profile's grey, the page it sits on (profile-middle).
                 Circle()
-                    .strokeBorder(Hue.paper, lineWidth: YouMetric.ring + YouMetric.ringGap)
+                    .strokeBorder(Hue.onboardingCanvas, lineWidth: YouMetric.ring + YouMetric.ringGap)
                     .overlay { Circle().strokeBorder(Hue.ink, lineWidth: YouMetric.ring) }
                     .matchedGeometryEffect(id: "ring", in: ring)
             }
