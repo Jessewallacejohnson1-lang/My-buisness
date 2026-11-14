@@ -168,14 +168,16 @@ struct SearchLogo: Hashable {
     var shadow: Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
 }
 
-/// The filter pills: places, businesses, the schools' sports and events (BP app five-tabs 04, school-search 04).
+/// The filter pills: places, businesses, the schools' sports and events (BP app five-tabs 04, school-search 04), and
+/// right after All the Event calendar (five-tabs 10).
 /// Groups and people moved to the Friends tab; typing still finds them under All.
 enum SearchChip: CaseIterable, Hashable {
-    case all, businesses, sports, events, parks
+    case all, calendar, businesses, sports, events, parks
 
     var title: String {
         switch self {
         case .all: "All"
+        case .calendar: "Event calendar"
         case .businesses: "Businesses"
         case .sports: "Sports"
         case .events: "Events"
@@ -185,7 +187,7 @@ enum SearchChip: CaseIterable, Hashable {
 
     var kind: SearchItem.Kind? {
         switch self {
-        case .all: nil
+        case .all, .calendar: nil
         case .businesses: .business
         case .sports: .school
         case .events: .event
@@ -199,6 +201,8 @@ enum SearchChip: CaseIterable, Hashable {
         switch self {
         case .all: SearchItem.Kind.allCases
         case .businesses: [.business, .restaurant, .coffee]
+        // Typed under the calendar, words find Events.
+        case .calendar: [.event]
         default: kind.map { [$0] } ?? []
         }
     }
@@ -242,6 +246,11 @@ final class SearchModel {
     private var nextLoaded = false
     /// The same schools as the Sports chip's discs show them, colleges first (school-search 04).
     private(set) var schoolDiscs: [SearchItem] = []
+    /// The Event calendar's year of public Events in its order (BP app five-tabs 10), nil until the first read lands,
+    /// and whether the last read failed. Kept across tab switches, as the rest is.
+    private(set) var calendar: [DailyEvent]?
+    private(set) var calendarFailed = false
+    @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -275,6 +284,36 @@ final class SearchModel {
     /// lands after its logo, and the Town's groups and schools beside them; tries again while the tab is open
     /// (2 s, 4 s, … 30 s apart) until all are in: offline, the rows wait as skeletons rather than
     /// vanish, and places read without their photos show their logos until a retry brings the photos.
+    /// Reads the Event calendar on every visit to its pill and each new account, so a Not interested or Mute from
+    /// the Town feed shows on the next visit. The list on screen stays through a read and a failed one. Under DEBUG
+    /// `-town-samples` it is You's invented Events, and `-town-offline` fails.
+    func loadCalendar() async {
+        latestCalendar += 1
+        let mine = latestCalendar
+        if calendar == nil { calendarFailed = false }
+        do {
+            let rows = try await readCalendar()
+            guard mine == latestCalendar else { return }
+            calendar = EventCalendar.ordered(rows.compactMap(YouCalendar.event(from:)))
+            calendarFailed = false
+        } catch {
+            // Leaving the pill mid-read cancels it; that says nothing about the network.
+            guard mine == latestCalendar, !Task.isCancelled, !(error is CancellationError) else { return }
+            calendarFailed = true
+        }
+    }
+
+    private func readCalendar() async throws -> [UpcomingEvent] {
+        #if DEBUG
+        switch LaunchFlags.backend {
+        case .offline: throw URLError(.notConnectedToInternet)
+        case .samples: return YouCalendar.samples(now: Date()).map { var row = $0; row.rsvpd = false; return row }
+        case .live: break
+        }
+        #endif
+        return try await api.getTownCalendar()
+    }
+
     func load() async {
         var wait = 2.0
         while !(placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded) && !Task.isCancelled {

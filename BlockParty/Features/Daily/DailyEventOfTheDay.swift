@@ -19,6 +19,10 @@ struct DailyEvent: Identifiable {
     /// When it really runs, from its row. `ends` can be later: Daily's poster keeps it until it
     /// leaves the Town feed. nil for the invented samples, which run `starts` to `ends`.
     var when: EventWhen?
+    /// A Group get-together put on your Agenda (BP app rsvp-and-groups 09), not an Event: its card
+    /// shows the Group's logo and opens the Group page. nil for every Event.
+    var group: TownGroup?
+    var meeting: TownGroup.Meeting?
 
     var id: String { item.id }
 

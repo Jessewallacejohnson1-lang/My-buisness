@@ -34,6 +34,9 @@ nonisolated extension SearchMetric {
     /// The warm-grey fade from the top, to paper by 440 pt, through its middle shade at 240 pt.
     static let sportsFade: CGFloat = 440
     static let sportsFadeMid: CGFloat = 240
+    /// The Event calendar's light fade (BP app five-tabs 10, mock round 4): to paper by 640 pt, past the month.
+    static let calendarFade: CGFloat = 640
+    static let calendarFadeMid: CGFloat = 300
     /// Apple's discs (`mobbin/1.jpg`): 80 pt, three to a row 154 pt apart (a 132 pt cell and 22 under it), the logo
     /// in a 45 pt box, the name 8 pt under the disc. The first sits 24 pt under the chips.
     static let discTop: CGFloat = 24
@@ -55,6 +58,8 @@ nonisolated extension SearchMetric {
 struct SearchHead {
     /// "BlockParty. Sports" over the field.
     let titled: Bool
+    /// The word after "BlockParty." when titled.
+    var word = "Sports"
     let fieldTop: CGFloat
     let fieldHeight: CGFloat
     let fieldRadius: CGFloat
@@ -95,6 +100,17 @@ struct SearchHead {
         side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
 }
 
+extension SearchHead {
+    /// The Event calendar's (BP app five-tabs 10): the Sports header's shape, "BlockParty. Calendar" over a round
+    /// field and the pills, in Search's own light colours (Jesse: "make it a lighter theme").
+    static let calendar = SearchHead(
+        titled: true, word: "Calendar", fieldTop: SearchMetric.sportsFieldTop, fieldHeight: SearchMetric.sportsFieldHeight,
+        fieldRadius: SearchMetric.sportsFieldHeight / 2, fieldGlyph: 17, fieldIconLead: SearchMetric.sportsFieldIconLead,
+        fieldIconGap: SearchMetric.sportsFieldIconGap, fieldWords: 17, prompt: "Events", faint: Hue.searchFaint,
+        fieldFill: Hue.searchField, fieldGlass: .identity, chipGlass: .identity, chipWordsOn: Hue.surface,
+        side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
+}
+
 /// The header carried by the Sports grid's scroll, 1:1 both ways, as the mock's field and pills scroll away with the
 /// discs (the run's review). Its own view reading the box, so only it redraws as the scroll moves (`BarTravel`).
 struct CarriedHeader<Content: View>: View {
@@ -109,12 +125,15 @@ struct CarriedHeader<Content: View>: View {
 /// "BlockParty. Sports" where Apple Sports has its logo and "Sports" (school-search 04): the app's wordmark and the
 /// word in Inter Tight on one baseline, both in ink. No yellow on the screen.
 struct SportsTitle: View {
+    /// "Sports", or the Event calendar's "Calendar".
+    var word = "Sports"
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: SearchMetric.sportsWordGap) {
             BlockPartyWordmark(height: SearchMetric.sportsWordmark)
                 // The artwork's baseline, measured on `Wordmark.png`: the B's foot, 171 of its 216 rows down.
                 .alignmentGuide(.firstTextBaseline) { $0.height * 171 / 216 }
-            Text("Sports")
+            Text(word)
                 .font(.display(SearchMetric.sportsWord))
         }
         .foregroundStyle(Hue.ink)
@@ -122,7 +141,7 @@ struct SportsTitle: View {
         .padding(.bottom, SearchMetric.sportsTitleLift)
         .frame(height: SearchMetric.sportsTitle, alignment: .bottomLeading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Block Party Sports")
+        .accessibilityLabel("Block Party \(word)")
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -130,12 +149,21 @@ struct SportsTitle: View {
 /// The Sports chip's ground: a warm grey at the top of the screen fading to the dark paper by 440 pt, the mock's
 /// "darker fade" (Jesse, 2026-11-11), drawn from the screen's top wherever it shows.
 struct SportsFade: View {
+    var top = Hue.sportsFadeTop
+    var mid = Hue.sportsFadeMid
+    var midAt = SearchMetric.sportsFadeMid
+    var height = SearchMetric.sportsFade
+
+    /// The Event calendar's: the same fade in light greys (BP app five-tabs 10).
+    static let calendar = SportsFade(top: Hue.calendarFadeTop, mid: Hue.calendarFadeMid,
+                                     midAt: SearchMetric.calendarFadeMid, height: SearchMetric.calendarFade)
+
     var body: some View {
-        LinearGradient(stops: [.init(color: Hue.sportsFadeTop, location: 0),
-                               .init(color: Hue.sportsFadeMid, location: SearchMetric.sportsFadeMid / SearchMetric.sportsFade),
+        LinearGradient(stops: [.init(color: top, location: 0),
+                               .init(color: mid, location: midAt / height),
                                .init(color: Hue.paper, location: 1)],
                        startPoint: .top, endPoint: .bottom)
-            .frame(height: SearchMetric.sportsFade)
+            .frame(height: height)
             // No smaller than offered, and no taller: a header's slice of it stays the header's height.
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
             .background(Hue.paper)

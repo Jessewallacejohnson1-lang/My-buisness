@@ -550,8 +550,9 @@ final class SearchModelTests: XCTestCase {
 
     /// The pills are All, Businesses, Sports, Events and Parks: Groups and people left for Friends, Sports beside
     /// Businesses as the mock draws it (school-search 04).
-    func testFivePills() {
-        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Businesses", "Sports", "Events", "Parks"])
+    /// The Event calendar right after All (BP app five-tabs 10).
+    func testSixPills() {
+        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Event calendar", "Businesses", "Sports", "Events", "Parks"])
     }
 
     /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come

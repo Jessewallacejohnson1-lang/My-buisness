@@ -60,11 +60,13 @@ and a white glyph is never an option. `BrandDiscContrastTests` pins all four of 
 numbers.
 
 Selected states are ink, and "live" is `Hue.now`, Apple's green, as on a Town card's
-"Now" dot. The brand accent is the yellow.
+"Now" dot. The brand accent is the yellow. One green button: You's Coming up gives each Group
+get-together you haven't put on your Agenda a green Add, `Hue.add` (Apple's deeper green, so its
+white word reads), where an Event has Attend (Jesse, 2026-11-13, BP app rsvp-and-groups 09).
 
 ## Theme
 
-**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The warm-linen surfaces and the green buttons are retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
+**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The warm-linen surfaces and the old green buttons are retired; do not reintroduce any of them (the one green Add above is Jesse's, 2026-11-13). Warmth comes from the paper tone and the copy.
 
 If a design seems to need an accent, it needs hierarchy instead — weight, size, value, or fill-vs-outline.
 

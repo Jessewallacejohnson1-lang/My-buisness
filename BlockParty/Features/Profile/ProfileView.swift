@@ -55,7 +55,7 @@ struct ProfileView: View {
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 })) {
+            ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 }, openGroup: { pushedGroup = $0 })) {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
                     EventPage.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile") {
