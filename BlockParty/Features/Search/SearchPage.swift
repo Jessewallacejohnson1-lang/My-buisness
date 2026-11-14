@@ -58,6 +58,9 @@ nonisolated enum SearchMetric {
     static let popGrow: CGFloat = 0.10
     static let popRise: CGFloat = 4
     static let popReach: CGFloat = 150
+    /// Four crests fit on any iPhone (358 pt), so such a row never scrolls and a lasting grow would only read
+    /// as crests out of line: the grow starts at five.
+    static let popFewest = 5
 
     /// How much a logo whose middle is at `midX` in a scroll view `width` wide grows: 1 at the middle, easing
     /// out to 0 at `popReach` on a half cosine, so it never jumps as the row moves.
@@ -618,9 +621,9 @@ struct Shelf: View {
                 ForEach(items) { item in
                     switch kind {
                     case .business:
-                        RowLogo(item: item).modifier(MiddlePop())
+                        RowLogo(item: item)
                     case .school:
-                        RowCrest(item: item).modifier(MiddlePop())
+                        RowCrest(item: item).modifier(MiddlePop(off: items.count < SearchMetric.popFewest))
                     default:
                         PhotoCard(item: item, new: new)
                     }
@@ -645,12 +648,14 @@ struct Shelf: View {
 /// A logo on a sideways row grows and rises as it nears the middle of the screen, read from its place in the
 /// scroll view each frame, so it follows the finger both ways and rests the same once the row settles (Jesse:
 /// "when you're scrolling, the ones in the middle pop up just a tiny bit more", search-logo-size 02). Still
-/// with Reduce Motion. The row doesn't clip (`scrollClipDisabled`), so the grown top is never cut.
+/// with Reduce Motion, and on a row too short to scroll. The row doesn't clip (`scrollClipDisabled`), so the grown
+/// top is never cut.
 private struct MiddlePop: ViewModifier {
+    var off = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        let still = reduceMotion
+        let still = reduceMotion || off
         content.visualEffect { effect, proxy in
             // The row's visible bounds in this logo's own space: its middle is `size.width / 2 - minX` from
             // the row's leading edge.

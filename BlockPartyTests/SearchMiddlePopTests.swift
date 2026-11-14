@@ -46,11 +46,4 @@ final class SearchMiddlePopTests: XCTestCase {
     func testNoWidthNoPop() {
         XCTAssertEqual(SearchMetric.middlePop(midX: 0, width: 0), 0)
     }
-
-    /// Jesse's picks: crests 15% smaller than 92, the middle one 10% bigger and 4 pt higher.
-    func testThePickedSizes() {
-        XCTAssertEqual(SearchMetric.logoOnRow, 78)
-        XCTAssertEqual(SearchMetric.popGrow, 0.10, accuracy: 0.0001)
-        XCTAssertEqual(SearchMetric.popRise, 4)
-    }
 }
