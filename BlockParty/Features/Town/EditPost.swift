@@ -85,9 +85,10 @@ extension NewPostDraft {
             || location != post.place.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// What Done sends for `post`: its trimmed words, its Place and the names still in the words.
+    /// What Done sends for `post`: its trimmed words, its Place and the names still in the words, at most the 20 the
+    /// check keeps (one past them would be refused only after the check had read it).
     func edit(of post: TownPost) -> PostEditInput {
-        PostEditInput(id: post.id, words: text, place: location, atNames: keptNames)
+        PostEditInput(id: post.id, words: text, place: location, atNames: Array(keptNames.prefix(Self.tagLimit)))
     }
 }
 

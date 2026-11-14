@@ -299,6 +299,9 @@ final class NewPostModel {
 
     /// Your own post being edited (town-feed 44): its words and Place change, nothing else. nil for a new post.
     private(set) var editing: TownPost?
+    /// The edit the check last said no to: Done stays grey until the words or the Place change again, so a second tap
+    /// doesn't pay for the same no.
+    private var refused: PostEditInput?
 
     /// Something to lose: the X asks first. Editing, a change to the words or the Place.
     var edited: Bool {
@@ -309,7 +312,9 @@ final class NewPostModel {
 
     /// Post (or Done) lights. Editing: a change, and still words or the post's photo.
     var ready: Bool {
-        if let editing { return draft.ready(photo: editing.photo != nil) && draft.changed(from: editing) }
+        if let editing {
+            return draft.ready(photo: editing.photo != nil) && draft.changed(from: editing) && draft.edit(of: editing) != refused
+        }
         return event ? eventModel.draft.ready : draft.ready(photo: photo != nil)
     }
 
@@ -335,6 +340,7 @@ final class NewPostModel {
             Haptics.success()
             return input
         }
+        if case .refused = answer { refused = input }
         problem = why
         failures += 1
         Haptics.error()

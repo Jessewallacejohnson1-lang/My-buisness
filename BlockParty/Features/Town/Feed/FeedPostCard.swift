@@ -114,6 +114,9 @@ struct FeedPostCard: View {
                 } label: {
                     FeedCardMenuGlyph()
                 }
+                // The •••'s own press, as every other ••• has (taste.md, press): Apple's menu takes the button's style.
+                .menuStyle(.button)
+                .buttonStyle(MenuPressStyle())
                 .accessibilityLabel("More options")
                 .confirmationDialog("Delete post?", isPresented: $deleting, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {

@@ -59,6 +59,13 @@ final class EditPostTests: XCTestCase {
                        PostEditInput(id: "post-1", words: "Pint night at @Bad Habit Brewing", place: "Bad Habit Brewing", atNames: [habit]))
     }
 
+    func testAnEditSendsAtMostTheTwentyNamesTheCheckKeeps() {
+        let names = (0..<21).map { AtName(kind: .place, id: "p\($0)", name: "Place \($0)") }
+        var draft = NewPostDraft(editing: post(names: names))
+        draft.words = names.map(\.typed).joined(separator: " ")
+        XCTAssertEqual(draft.edit(of: post()).atNames, Array(names.prefix(20)))
+    }
+
     func testAPhotoPostMayLoseAllItsWordsAWordsOnlyPostMayNot() {
         let model = NewPostModel()
         model.startEditing(post())
