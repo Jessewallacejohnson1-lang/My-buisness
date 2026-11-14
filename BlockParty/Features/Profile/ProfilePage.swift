@@ -521,9 +521,11 @@ struct ProfilePillBar<Content: View>: View {
 
 /// A round glass button on a profile's cover, Hypelist's (BP app references/profile-middle): a 42 pt
 /// circle in a 44 pt tap box. White glass (share, Back, Message) carries an ink glyph, dark glass (the
-/// gear, •••) a white one. A tint over the thin material with its scheme pinned, as the Event page's
-/// `EventGlassButton`, not Liquid Glass: neither may change with the photo under it (taste.md, "Chrome
-/// over content"; Liquid Glass went dark over a dark photo, `EventPage.circleButton`).
+/// gear, •••) a white one. A tint over the thin material, as the Event page's `EventGlassButton`, not
+/// Liquid Glass: neither may change with the photo under it (taste.md, "Chrome over content"; Liquid
+/// Glass went dark over a dark photo, `EventPage.circleButton`). Both pin the material's light scheme,
+/// whatever the phone's mode: the dark one's black tint over the dark material came out nearly solid
+/// black, where the mock's black at 60% lets the photo through.
 struct ProfileGlassButton<Glyph: View>: View {
     let glyph: Glyph
     let label: String
@@ -547,7 +549,7 @@ struct ProfileGlassButton<Glyph: View>: View {
                         .shadow(color: .black.opacity(ProfileMetric.glassShadow), radius: ProfileMetric.glassBlur,
                                 y: ProfileMetric.glassDrop)
                 }
-                .environment(\.colorScheme, dark ? .dark : .light)
+                .environment(\.colorScheme, .light)
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
