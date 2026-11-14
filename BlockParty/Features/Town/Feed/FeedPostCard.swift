@@ -333,7 +333,7 @@ struct PostPhotos: View {
     @ViewBuilder private func pager(_ urls: [URL], on: Int) -> some View {
         if urls.count > 1 {
             PhotoPager(urls: urls, page: $page, shown: $shown, value: "\(on + 1) of \(urls.count)",
-                       onFailure: { failed.insert($0) }, skeleton: false, loadingFill: Hue.fill)
+                       onFailure: { failed.insert($0) }, skeleton: false, loadingFill: Hue.fill, lazy: true)
                 .accessibilityLabel(label)
         } else if let url = urls.first {
             FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
