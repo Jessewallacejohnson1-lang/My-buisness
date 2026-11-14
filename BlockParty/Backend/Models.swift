@@ -834,11 +834,16 @@ struct TownProfile: Decodable {
 }
 
 /// A profile's page beyond its name and photo (`get_profile`): the bio, the cover, how many
-/// friends, the groups they're in, and for a friend, the Events you're both Going to.
+/// friends, the groups they're in, for a friend the Events you're both Going to, and how many
+/// they follow.
 struct ProfileExtras: Decodable, Equatable {
     var bio: String? = nil
     var coverUrl: String? = nil
     var friends = 0
     var groupIds: [String] = []
     var bothGoing: [String] = []
+    /// Places, people, teams and pages they follow, as you may see them (BP app
+    /// references/profile-middle). Nil from a `get_profile` without it: a plain number would make
+    /// that whole answer fail to read, bio, cover and friends with it.
+    var following: Int? = nil
 }

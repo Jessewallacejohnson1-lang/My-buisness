@@ -1,10 +1,12 @@
 //
 //  ProfilePage.swift
 //  Block Party — a profile's page, yours (the You tab, five-tabs 03) and a neighbour's,
-//  built from the Group page's parts (BP app references/profile-remake, mock round 4; taste/you.md
-//  2026-10-25): the cover photo under the paper sheet, the round photo over the sheet's edge, the
-//  name in the event title face, "St. Joseph · Neighbor since …", one counts line, About, Going as
-//  the Group page's "Coming up" date tiles, and Groups. The text under the name is SF Pro
+//  built from the Group page's parts (BP app references/profile-remake; taste/you.md 2026-10-25)
+//  and centred as Places' (BP app references/profile-middle, mock version 8): the cover photo
+//  under a light grey sheet, the round photo in the middle of the sheet's edge, the name, the bio,
+//  the counts as numbers over words, your two black buttons, then Going as the Group page's
+//  "Coming up" date tiles and Groups, each list in a white card on the grey. The cover's round
+//  buttons are glass that never changes with the photo. The text under the name is SF Pro
 //  (`Font.apple`), the one screen off BP Body (Jesse: "use same font as group page").
 //
 //  Going is per Event, never a person's agenda (friends spec, 2026-10-13): your own is your full
@@ -23,17 +25,15 @@ struct ProfileFace {
     var avatarUrl: String?
     var coverUrl: String?
     var bio: String?
-    /// "Neighbor since October 2025", a neighbour's with the friends you share.
-    var line: String?
     var friends: Int?
+    /// How many they follow (`get_profile`); nil until read, or from a server without the count.
+    var following: Int?
     var groups: [TownGroup] = []
-    /// The Going rows, soonest first; nil leaves the section and its count out (a stranger).
+    /// The Going rows, soonest first; nil leaves the section out (a stranger, and your own page).
     var going: [DailyEvent]?
-    /// Your own plans in the three weeks, for the counts line; nil on a neighbour's page.
-    var goingCount: Int?
-    /// Your own page with no bio: "+ Add bio" where About would be.
+    /// Your own page with no bio: "+ Add bio" where the bio would be.
     var addsBio = false
-    /// A neighbour's friends you share: "2 mutual" in the counts line.
+    /// A neighbour's friends you share: "2 mutual" in the counts.
     var mutual = 0
     /// False until the read that says whether they picked a cover has come back: the plain fill
     /// until then, never the town photo first and theirs after.
@@ -41,22 +41,21 @@ struct ProfileFace {
     /// The time the Going rows' "Now" and start times are read at.
     var now = Date()
 
-    /// The counts line's parts, "24 friends", "1 group", "9 going": a zero or an unknown is left
+    /// The counts' parts, "24 friends", "1 group", "9 following": a zero or an unknown is left
     /// out, never said.
-    static func counts(friends: Int?, mutual: Int = 0, groups: Int, going: Int?) -> [(number: Int, word: String)] {
+    static func counts(friends: Int?, mutual: Int = 0, groups: Int, following: Int?) -> [(number: Int, word: String)] {
         var parts: [(number: Int, word: String)] = []
         if let friends, friends > 0 { parts.append((friends, friends == 1 ? "friend" : "friends")) }
         if mutual > 0 { parts.append((mutual, "mutual")) }
         if groups > 0 { parts.append((groups, groups == 1 ? "group" : "groups")) }
-        if let going, going > 0 { parts.append((going, "going")) }
+        if let following, following > 0 { parts.append((following, "following")) }
         return parts
     }
 
     /// The next plans of a list in the Calendar's order (`YouCalendar.going`): those not over
-    /// yet, three at most; and how many there are.
-    static func nextPlans(_ events: [DailyEvent], now: Date) -> (rows: [DailyEvent], count: Int) {
-        let ahead = events.filter { $0.ends > now }
-        return (Array(ahead.prefix(3)), ahead.count)
+    /// yet, three at most.
+    static func nextPlans(_ events: [DailyEvent], now: Date) -> [DailyEvent] {
+        Array(events.filter { $0.ends > now }.prefix(3))
     }
 
     /// A row's line: "Sat, Oct 31 · 9 AM", the Group page's words with the card's time.
@@ -72,21 +71,64 @@ struct ProfileFace {
 
     /// Changes when a section comes or goes, so it fades rather than pops.
     fileprivate var shape: [Int] {
-        [bio == nil ? 0 : 1, addsBio ? 1 : 0, friends ?? -1, groups.count, going?.count ?? -1]
+        [bio == nil ? 0 : 1, addsBio ? 1 : 0, friends ?? -1, following ?? -1, groups.count, going?.count ?? -1]
     }
 }
 
-/// The mock's sizes on a 402 pt phone (round 4). The cover, the sheet, the round buttons, the
-/// sections and the date tiles are the Group page's (`GroupPage.Metric`, the Event page's).
+/// The agreed mock's sizes on a 402 pt phone (BP app references/profile-middle, `SPEC.md` "Agreed
+/// for the build", mock version 8's CSS). The cover, the sheet and the date tiles are the Group
+/// page's (`GroupPage.Metric`, the Event page's).
 enum ProfileMetric {
-    /// The photo: 96 pt in a 4 pt paper ring, its middle on the sheet's edge, its left 20 pt in.
+    /// The photo: 96 pt in a 4 pt ring of the page's grey, its middle on the sheet's edge and on the
+    /// screen's (Places', measured).
     static let photo: CGFloat = 96
     static let ring: CGFloat = 4
-    /// The name starts 10 pt under the photo.
-    static let nameTop: CGFloat = photo / 2 + 10
+    /// The name starts 10 pt under the ring: 62 pt down the sheet, the mock's.
+    static let nameTop: CGFloat = photo / 2 + ring + 10
+    /// The name's Inter Tight SemiBold 26 a touch tight, the mock's -0.2.
+    static let nameTracking: CGFloat = -0.2
+    /// The bio 8 pt under the name (picked, Places' 13 between inks), Apple 16 on 22: SF's own line
+    /// at 16 is about 19, so 3 between lines.
+    static let bioTop: CGFloat = 8
+    static let bioLineSpacing: CGFloat = 3
+    /// "+ Add bio": its 44 pt tap box 4 pt under the name, the mock's.
+    static let addBioTop: CGFloat = 4
+    /// The counts 16 pt under the bio (picked), each number over its word in an 81 pt column:
+    /// Hypelist's measured pitch, no card (Jesse, 2026-11-14).
+    static let countsTop: CGFloat = 16
+    static let countColumn: CGFloat = 81
+    /// Your two buttons, Places' measured: 16 pt under the counts (picked), 40 pt tall to the eye and
+    /// 44 to the finger (`PageMetric.tapMin`), 10 pt apart, each half the row; the icon 8 pt from its
+    /// word, the mock's. Jesse's palette is drawn 17 pt tall (its image set's own size).
+    static let buttonsTop: CGFloat = 16
+    static let button: CGFloat = 40
+    static let buttonGap: CGFloat = 10
+    static let buttonIconGap: CGFloat = 8
+    /// A list's title 28 pt under what's above it (picked); its white card 12 pt under the title,
+    /// the rows 12 pt in from its sides and foot, the Agenda card's 0.5 pt hairline round it.
+    static let sectionTop: CGFloat = 28
+    static let cardTop: CGFloat = 12
+    static let cardInset: CGFloat = 12
+    static let cardLine: CGFloat = 0.5
     static let rowText: CGFloat = 3
-    /// "+ Add bio" sits where About's title would, in a 44 pt tap box around its 20 pt line.
-    static let addBioLine: CGFloat = 20
+    /// The cover's glass circles, Hypelist's measured: 42 pt in a 44 pt tap box, 16 pt from the
+    /// side, 8 pt apart, their tops at the safe area's top.
+    static let glass: CGFloat = 42
+    static let glassSide: CGFloat = 16
+    static let glassGap: CGFloat = 8
+    /// Between two tap boxes, so the circles sit `glassGap` apart.
+    static let glassBoxGap: CGFloat = glassGap - (PageMetric.tapMin - glass)
+    /// The glass, the mock's CSS: white at 74% with a white rim at 70%, or black at 60% with a white
+    /// rim at 16%, over the thin material, a 1 pt rim; each lifted by black at 12%, 2 pt down with a
+    /// 10 pt blur (SwiftUI's radius is half of it).
+    static let whiteGlass: Double = 0.74
+    static let whiteRim: Double = 0.7
+    static let darkGlass: Double = 0.6
+    static let darkRim: Double = 0.16
+    static let glassRim: CGFloat = 1
+    static let glassShadow: Double = 0.12
+    static let glassBlur: CGFloat = 5
+    static let glassDrop: CGFloat = 2
 }
 
 struct ProfilePage<Buttons: View, Bar: View>: View {
@@ -94,11 +136,16 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     /// Your own page: your full Calendar and Agenda under "Going", where a neighbour's page has
     /// its Going rows (five-tabs 03). Nil on a neighbour's.
     var calendar: YouPage?
-    /// The round buttons on the cover: your pencil and ☰, or a neighbour's back and •••.
+    /// The glass circles on the cover (`ProfileGlassButton`): your share and gear, or a neighbour's
+    /// Back, Message and •••.
     @ViewBuilder let buttons: () -> Buttons
     /// A neighbour's one pill at the bottom; nothing on your own page.
     @ViewBuilder let bar: () -> Bar
-    var addBio: () -> Void = {}
+    /// Your own page: Edit profile, from "+ Add bio" and the first black button; nil on a
+    /// neighbour's, which has neither button.
+    var edit: (() -> Void)? = nil
+    /// Your own page's Map button: the town map, as the Town bar's yellow disc opens it.
+    var openMap: () -> Void = {}
     /// A row's tap: the page that holds this one pushes the Event or the Group page.
     var openEvent: (FeedCardItem) -> Void = { _ in }
     var openGroup: (TownGroup) -> Void = { _ in }
@@ -118,12 +165,13 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .background(Hue.paper.ignoresSafeArea())
-        // Outside the scroll, so the buttons stay put; read first by VoiceOver, as they sit.
+        .background(Hue.onboardingCanvas.ignoresSafeArea())
+        // Outside the scroll, so the buttons stay put; read first by VoiceOver, as they sit. The
+        // circles' tops at the safe area's, 16 pt from the sides; their tap boxes reach 1 pt past.
         .overlay(alignment: .top) {
             buttons()
-                .padding(.horizontal, Event.inset - (Event.tapBox - Event.button) / 2)
-                .padding(.top, Event.buttonTop - (Event.tapBox - Event.button) / 2)
+                .padding(.horizontal, ProfileMetric.glassSide - (PageMetric.tapMin - ProfileMetric.glass) / 2)
+                .padding(.top, -(PageMetric.tapMin - ProfileMetric.glass) / 2)
                 .accessibilityElement(children: .contain)
                 .accessibilitySortPriority(1)
         }
@@ -168,48 +216,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
 
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(face.name)
-                .font(.display(28))
-                .lineSpacing(Event.nameLineSpacing)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.top, ProfileMetric.nameTop)
-
-            if let line = face.line {
-                Text(line)
-                    .font(.apple(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, Sizes.kindTop)
-            }
-
-            let counts = ProfileFace.counts(friends: face.friends, mutual: face.mutual, groups: face.groups.count,
-                                            going: face.goingCount)
-            if !counts.isEmpty {
-                countsLine(counts)
-                    .padding(.top, Sizes.membersTop)
-                    .transition(.opacity)
-            }
-
-            if let bio = face.bio {
-                section("About")
-                Text(bio)
-                    .font(.apple(15))
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, Sizes.sectionBodyTop)
-            } else if face.addsBio {
-                // Nextdoor's "Add bio", under the counts where About will be.
-                Button(action: addBio) {
-                    Label("Add bio", systemImage: "plus")
-                        .font(.apple(15, weight: .semibold))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .frame(minHeight: PageMetric.tapMin)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.press(.squish))
-                .padding(.top, Sizes.sectionTop - (PageMetric.tapMin - ProfileMetric.addBioLine) / 2)
-            }
+            head
 
             if let calendar {
                 section("Going")
@@ -220,19 +227,23 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
 
             if let going = face.going, !going.isEmpty {
                 section("Going")
-                ForEach(going) { event in
-                    Button { openEvent(event.item) } label: { goingRow(event) }
-                        .buttonStyle(.press(.squish))
-                        .padding(.top, Sizes.rowTop)
+                card {
+                    ForEach(going) { event in
+                        Button { openEvent(event.item) } label: { goingRow(event) }
+                            .buttonStyle(.press(.squish))
+                            .padding(.top, Sizes.rowTop)
+                    }
                 }
             }
 
             if !face.groups.isEmpty {
                 section("Groups")
-                ForEach(face.groups) { group in
-                    Button { openGroup(group) } label: { groupRow(group) }
-                        .buttonStyle(.press(.squish))
-                        .padding(.top, Sizes.rowTop)
+                card {
+                    ForEach(face.groups) { group in
+                        Button { openGroup(group) } label: { groupRow(group) }
+                            .buttonStyle(.press(.squish))
+                            .padding(.top, Sizes.rowTop)
+                    }
                 }
             }
         }
@@ -240,12 +251,63 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         .padding(.bottom, Event.contentBottom)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: face.shape)
-        .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
-                                                         topTrailingRadius: Event.sheetCorner, style: .continuous))
-        .overlay(alignment: .topLeading) { photo }
+        .background(Hue.onboardingCanvas, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
+                                                                    topTrailingRadius: Event.sheetCorner,
+                                                                    style: .continuous))
+        .overlay(alignment: .top) { photo }
     }
 
-    /// The round photo over the sheet's edge. A tap opens it whole; it drags down to close.
+    /// Under the photo, in the middle as Places' head: the name, the bio or "+ Add bio", the counts,
+    /// and on your own page your two buttons.
+    private var head: some View {
+        VStack(spacing: 0) {
+            Text(face.name)
+                .font(.displaySemi(26))
+                .tracking(ProfileMetric.nameTracking)
+                .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, ProfileMetric.nameTop)
+
+            if let bio = face.bio {
+                Text(bio)
+                    .font(.apple(16))
+                    .lineSpacing(ProfileMetric.bioLineSpacing)
+                    .foregroundStyle(Hue.ink)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, ProfileMetric.bioTop)
+            } else if face.addsBio, let edit {
+                // Nextdoor's "Add bio", where the bio will be.
+                Button(action: edit) {
+                    Label("Add bio", systemImage: "plus")
+                        .font(.apple(15, weight: .semibold))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .frame(minHeight: PageMetric.tapMin)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press(.squish))
+                .padding(.top, ProfileMetric.addBioTop)
+            }
+
+            let counts = ProfileFace.counts(friends: face.friends, mutual: face.mutual, groups: face.groups.count,
+                                            following: face.following)
+            if !counts.isEmpty {
+                countsRow(counts)
+                    .padding(.top, ProfileMetric.countsTop)
+                    .transition(.opacity)
+            }
+
+            if let edit {
+                yourButtons(edit: edit)
+                    .padding(.top, ProfileMetric.buttonsTop)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The round photo in the middle of the sheet's edge. A tap opens it whole; it drags down to close.
     private var photo: some View {
         Button {
             Haptics.light()
@@ -253,39 +315,96 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         } label: {
             Avatar(avatarUrl: face.avatarUrl, size: ProfileMetric.photo, outlined: true)
                 .padding(ProfileMetric.ring)
-                .background(Hue.paper, in: Circle())
+                .background(Hue.onboardingCanvas, in: Circle())
         }
         .buttonStyle(.press(.squish))
         .disabled(face.avatarUrl == nil)
         // No photo to open: the blank picture says nothing, so VoiceOver skips it, never "dimmed".
         .accessibilityHidden(face.avatarUrl == nil)
         .matchedTransitionSource(id: "photo", in: zoom)
-        .offset(x: Event.inset - ProfileMetric.ring, y: -(ProfileMetric.photo / 2 + ProfileMetric.ring))
+        .offset(y: -(ProfileMetric.photo / 2 + ProfileMetric.ring))
         .accessibilityLabel("\(face.name)'s photo")
         .accessibilityHint(face.avatarUrl == nil ? "" : "Opens it larger")
     }
 
-    /// "24 friends · 4 groups · 9 going": the numbers in ink, the words grey, the Group page's members line.
-    private func countsLine(_ counts: [(number: Int, word: String)]) -> some View {
+    /// Each number over its word in an 81 pt column, the numbers in ink, the words grey, no card.
+    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following".
+    private func countsRow(_ counts: [(number: Int, word: String)]) -> some View {
         HStack(spacing: 0) {
-            ForEach(Array(counts.enumerated()), id: \.offset) { index, part in
-                if index > 0 {
-                    Text(" · ").foregroundStyle(Hue.inkSecondary)
+            ForEach(Array(counts.enumerated()), id: \.offset) { _, part in
+                VStack(spacing: 0) {
+                    Text("\(part.number)")
+                        .font(.apple(17, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Hue.ink)
+                    Text(part.word)
+                        .font(.apple(13))
+                        .foregroundStyle(Hue.inkSecondary)
                 }
-                Text("\(part.number)").font(.apple(15, weight: .semibold)).foregroundStyle(Hue.ink).monospacedDigit()
-                Text(" \(part.word)").foregroundStyle(Hue.inkSecondary)
+                .lineLimit(1)
+                .frame(width: ProfileMetric.countColumn)
             }
         }
-        .font(.apple(15))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(counts.map { "\($0.number) \($0.word)" }.joined(separator: ", "))
     }
 
+    /// Your two black buttons with round ends, Places' (Jesse, 2026-11-14): "Edit profile" then
+    /// Jesse's own palette, and a globe then "Map", each half the row.
+    private func yourButtons(edit: @escaping () -> Void) -> some View {
+        HStack(spacing: ProfileMetric.buttonGap) {
+            Button(action: edit) {
+                blackButton {
+                    Text("Edit profile")
+                    Image(decorative: "Palette")
+                }
+            }
+            .buttonStyle(.press(.squish))
+            // The squish without a haptic, as the Town bar's disc: opening the map is not a commit.
+            Button(action: openMap) {
+                blackButton {
+                    Image(systemName: "globe")
+                        .font(.glyph(15, weight: .semibold))
+                        .accessibilityHidden(true)
+                    Text("Map")
+                }
+            }
+            .buttonStyle(.press(.squish))
+        }
+    }
+
+    /// White words on ink, 40 pt to the eye and 44 to the finger.
+    private func blackButton<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: ProfileMetric.buttonIconGap) { content() }
+            .font(.displaySemi(15))
+            .foregroundStyle(Hue.surface)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: ProfileMetric.button)
+            .background(Hue.ink, in: Capsule())
+            .contentShape(Rectangle().inset(by: (ProfileMetric.button - PageMetric.tapMin) / 2))
+    }
+
+    /// A list's title, the Event page's About: Inter Tight Bold 20.
     private func section(_ title: String) -> some View {
         Text(title)
-            .font(.displaySemi(17))
+            .font(.display(20))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
-            .padding(.top, Sizes.sectionTop)
+            .padding(.top, ProfileMetric.sectionTop)
+    }
+
+    /// A list's rows in a white card on the grey, the Agenda card's: its corners, shadow and hairline.
+    private func card<Rows: View>(@ViewBuilder _ rows: () -> Rows) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) { rows() }
+            .padding(.horizontal, ProfileMetric.cardInset)
+            .padding(.bottom, ProfileMetric.cardInset)
+            .background {
+                shape.fill(Hue.surface)
+                    .modifier(CardShadow())
+                    .overlay { shape.strokeBorder(Hue.hairline, lineWidth: ProfileMetric.cardLine) }
+            }
+            .padding(.top, ProfileMetric.cardTop)
     }
 
     /// The Group page's date tile ("OCT" over "31"), then the Event and when.
@@ -329,7 +448,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     private func rowWords<Line: View>(_ title: String, @ViewBuilder line: () -> Line) -> some View {
         VStack(alignment: .leading, spacing: ProfileMetric.rowText) {
             Text(title)
-                .font(.apple(15, weight: .semibold))
+                .font(.apple(16, weight: .semibold))
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.leading)
             line()
@@ -382,7 +501,7 @@ private struct ProfilePhotoView: View {
 }
 
 /// A neighbour's one pill at the bottom, where the Group page's Join group sits: 24 pt in, 1 pt
-/// over the home bar, the page fading to paper under it from 23 pt above.
+/// over the home bar, the page fading to its grey under it from 23 pt above.
 struct ProfilePillBar<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
@@ -391,10 +510,48 @@ struct ProfilePillBar<Content: View>: View {
             .padding(.horizontal, GroupPage.Metric.pillSide)
             .padding(.bottom, GroupPage.Metric.pillBottom)
             .background {
-                LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [Hue.onboardingCanvas.opacity(0), Hue.onboardingCanvas],
+                               startPoint: .top, endPoint: .bottom)
                     .padding(.top, -GroupPage.Metric.fadeAbovePill)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(false)
             }
+    }
+}
+
+/// A round glass button on a profile's cover, Hypelist's (BP app references/profile-middle): a 42 pt
+/// circle in a 44 pt tap box. White glass (share, Back, Message) carries an ink glyph, dark glass (the
+/// gear, •••) a white one. A tint over the thin material with its scheme pinned, as the Event page's
+/// `EventGlassButton`, not Liquid Glass: neither may change with the photo under it (taste.md, "Chrome
+/// over content"; Liquid Glass went dark over a dark photo, `EventPage.circleButton`).
+struct ProfileGlassButton<Glyph: View>: View {
+    let glyph: Glyph
+    let label: String
+    var dark = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            glyph
+                .font(.glyph(17, weight: .semibold))
+                .foregroundStyle(dark ? Color.white : Hue.ink)
+                .frame(width: ProfileMetric.glass, height: ProfileMetric.glass)
+                .background {
+                    Circle()
+                        .fill(dark ? Color.black.opacity(ProfileMetric.darkGlass) : Color.white.opacity(ProfileMetric.whiteGlass))
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay {
+                            Circle().strokeBorder(.white.opacity(dark ? ProfileMetric.darkRim : ProfileMetric.whiteRim),
+                                                  lineWidth: ProfileMetric.glassRim)
+                        }
+                        .shadow(color: .black.opacity(ProfileMetric.glassShadow), radius: ProfileMetric.glassBlur,
+                                y: ProfileMetric.glassDrop)
+                }
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel(label)
     }
 }

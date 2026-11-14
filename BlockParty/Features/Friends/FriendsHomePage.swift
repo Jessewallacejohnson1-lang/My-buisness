@@ -621,19 +621,17 @@ struct NeighborPage: View {
     var body: some View {
         TimelineView(.everyMinute) { context in
             ProfilePage(face: face(now: context.date)) {
-                HStack(spacing: 0) {
-                    EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
+                // Back and Message in white glass, ••• in dark glass (profile-middle).
+                HStack(spacing: ProfileMetric.glassBoxGap) {
+                    ProfileGlassButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
                     if book.relation(neighbor) != .blocked, book.hasAccount() {
-                        EventPage.circleButton(
-                            glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
-                            label: "Message \(neighbor.firstName)"
-                        ) { chats.push?(.person(neighbor)) }
-                        .padding(.trailing, FriendsMetric.buttonGap)
+                        ProfileGlassButton(glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
+                                           label: "Message \(neighbor.firstName)") { chats.push?(.person(neighbor)) }
                     }
-                    EventPage.circleButton(glyph: Image(systemName: "ellipsis"),
-                                           label: "More options, \(neighbor.displayName)") { book.menu = neighbor }
+                    ProfileGlassButton(glyph: Image(systemName: "ellipsis"),
+                                       label: "More options, \(neighbor.displayName)", dark: true) { book.menu = neighbor }
                 }
             } bar: {
                 ProfilePillBar {
@@ -661,7 +659,6 @@ struct NeighborPage: View {
 
     /// A friend's shared plans come from your own three weeks of Going, so the rows are yours.
     private func face(now: Date) -> ProfileFace {
-        let town = Town.everyday
         // In the Calendar's order, with this session's Going and leaving laid over the read, as You's.
         let shared = extras.map { extras in
             YouCalendar.going(read: you.going ?? [], tapped: Array(actions.goingTapped.values),
@@ -674,10 +671,10 @@ struct NeighborPage: View {
             avatarUrl: neighbor.avatarUrl,
             coverUrl: extras?.coverUrl,
             bio: extras?.bio,
-            line: ([town] + [neighbor.sinceLine].compactMap { $0 }).joined(separator: " · "),
             friends: extras?.friends,
+            following: extras?.following,
             groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
-            going: shared.map { ProfileFace.nextPlans($0, now: now).rows },
+            going: shared.map { ProfileFace.nextPlans($0, now: now) },
             mutual: neighbor.mutualFriends,
             coverKnown: extras != nil,
             now: now)
