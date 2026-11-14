@@ -576,6 +576,10 @@ def read_roads(src, entry, today):
 # Kennedy: Finalsite ----------------------------------------------------------------------
 
 OCCURRENCE = re.compile(r'<a [^>]*data-occur-id="([^"]+)"[^>]*>')
+# Where a title says it is: "Knowledge Bowl at Saint John's Prep 6-8 grades" is not at the school, "PTO Meeting at
+# Kennedy" is (BP app school-search 09). ponytail: the school's first word names it; a title naming the school
+# another way ("at the school") is read as held elsewhere and keeps no place, as before.
+HELD_AT = re.compile(r"\s(?:at|@)\s+(.+)", re.I)
 # A school's own gatherings reach those following it (Jesse, 2026-11-05: "following"): a banquet, a club's
 # meeting, an assembly, the PTO. Its concerts, shows and school board stay everyone's.
 SCHOOL_ONLY = re.compile(r"\b(banquet|club|assembly|assemblies|pto|pta|parent meeting|parent planning meeting|signing day)\b", re.I)
@@ -625,8 +629,11 @@ def finalsite_calendar_items(page, url, entry, src, today):
         title = html.unescape(re.search(r'title="([^"]*)"', m.group(0)).group(1)).strip()
         place = re.search(r'<div class="fsLocation">(.*?)</div>', body, re.S)
         place = plain(place.group(1)) if place else ""
-        label = re.findall(r"fsStyleSROnly'>([^<]*)<", page[tags[i - 1].end() if i else 0:m.start()])
-        if not place and label and label[-1] == src.get("own_calendar"):
+        # By `calendar`, either quote: the district writes double quotes since November 2026, and a single-quote match
+        # left 13 of Kennedy's rows with no place (BP app school-search 09).
+        away = HELD_AT.search(title)
+        if not place and calendar == src.get("own_calendar") and (
+                not away or entry["_name"].split()[0].lower() in away[1].lower()):
             place = entry["_name"]
         news = bool(NEWS.search(title))
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
@@ -1760,6 +1767,15 @@ def t_kennedy_calendar():
                       "School Board Meeting and Work Session", "PTO Meeting at the House",
                       "No School - MEA Conference", "Trunk or Treat"], titles
     forum, walk, _, pto, no_school, trunk = got
+    # The district writes the label in double quotes since November 2026 (BP app school-search 09): the same places.
+    double = sample("kennedy-calendar.html").replace("fsStyleSROnly'>", 'fsStyleSROnly">')
+    read = lambda page: [i["place"] for i in finalsite_calendar_items(page, url, {"_name": "Kennedy Community School"},
+                         {"own_calendar": "Kennedy Calendar"}, date(2026, 10, 1))]
+    assert read(double) == [i["place"] for i in got], (read(double), got)
+    # A title that says it is held elsewhere keeps no place; one that names the school is at it.
+    assert pto["place"] == "", "PTO Meeting at the House is not at the school"
+    assert read(double.replace("at the House", "at Kennedy"))[3] == "Kennedy Community School"
+    assert read(double.replace("at the House", "at Saint John's Prep 6-8 grades"))[3] == ""
     assert (pto["followers_only"], pto["activity_team"], pto["activity_name"]) == (True, "kennedy", "PTO"), \
         "the PTO is for those following the school, and is the PTO's"
     assert not forum.get("followers_only") and not trunk.get("followers_only"), "a forum and Trunk or Treat are everyone's"
@@ -1779,7 +1795,8 @@ def t_kennedy_calendar():
     assert (walk["start"], walk["all_day"]) == ("2026-10-07", True), walk
     assert (no_school["kind"], no_school["category"], no_school["start"], no_school["place"]) == ("news", "school", "2026-10-15", "")
     assert trunk["source_uid"] == "877919_2026-10-29T21:30:00Z_2026-10-29T23:00:00Z" and trunk["source_url"] == url
-    assert trunk["place"] == "Kennedy Community School" and walk["place"] == "", "the school's own calendar is at the school"
+    assert trunk["place"] == walk["place"] == "Kennedy Community School", \
+        "the school's own calendar is at the school, an all-day run too (its colour names the calendar)"
     assert len(finalsite_calendar_items(sample("kennedy-calendar.html"), url, CITY, {}, TODAY)) == 2, "past days dropped"
 
 

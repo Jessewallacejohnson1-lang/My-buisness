@@ -1394,7 +1394,9 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             primary[1]["row"]["title"] = old["title"]
         if (old and primary and old["status"] == "rejected" and old.get("review_reason") not in (None, "not_event")
                 and any(primary[1]["row"].get(k) != old.get(k)
-                        for k in ("title", "event_date", "start_time", "all_day", "location"))):
+                        for k in ("title", "event_date", "start_time", "all_day", "location")
+                        # A read with no place keeps the stored one (apply_judged), so it changes nothing (school-search 09).
+                        if k != "location" or primary[1]["row"]["location"])):
             g["status"] = "pending"  # a misread its source changed gets another look, as in read_events
         if primary:
             row = dict(primary[1]["row"], status="approved")
@@ -2117,8 +2119,15 @@ def t_misread_comes_back():
     assert moved["events"][0]["status"] == "pending", moved["events"][0]["status"]
     not_event = run([item()], [listed(status="rejected", review_reason="not_event", **base)])
     assert not_event["events"][0]["status"] == "rejected", "not an event stays declined"
+    # Kennedy's calendar re-reads its Prep Knowledge Bowl with no place; the double it is stays declined (school-search 09).
+    held = {**base, "event_date": "2026-10-24", "location": "Saint John's Prep, Collegeville"}
+    no_place = run([item(place="")], [listed(status="rejected", review_reason="other", **held)])
+    assert no_place["events"][0]["status"] == "rejected", "a read with no place changes nothing"
+    elsewhere = run([item()], [listed(status="rejected", review_reason="other", **held)])
+    assert elsewhere["events"][0]["status"] == "pending", "another place is a change"
     sql = writes().read_text()
     assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the database does the same"
+    assert "coalesce(nullif(excluded.location, ''), club_events.location))" in sql, "the database keeps a stored place too"
 
 
 def t_cancelled():
