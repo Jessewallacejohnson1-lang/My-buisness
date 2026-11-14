@@ -818,6 +818,18 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
+def one_page_each(posts):
+    """One page per post: overlapping windows read a post twice. A Facebook event read again as its host's listing
+    (`events-<id>`) also stands for the search's copy of it (`search-<id>`, named for its organizer), so the judge
+    reads one page and the writer one start for it (the 2026-11-14 review)."""
+    hosts = {p["file"].split("-", 1)[1] for p in posts if p["file"].startswith("events-")}
+    seen, unique = set(), []
+    for p in posts:
+        if p["file"] not in seen and not (p["file"].startswith("search-") and p["file"].split("-", 1)[1] in hosts):
+            seen.add(p["file"]), unique.append(p)
+    return unique
+
+
 def prepare(run, now):
     """In timed parts, as morning.py's: the wait for an Apify run still going and the pictures'
     downloads stop after the part's minutes and say "run again", and social-part.json carries the check to
@@ -883,10 +895,7 @@ def prepare(run, now):
                                   f"{kind} run at {finished.astimezone(LOCAL):%a %-I:%M %p}"))
                 if r["status"] != "SUCCEEDED":
                     failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
-        seen, unique = set(), []
-        for p in posts:  # overlapping windows read a post twice; one page each
-            if p["file"] not in seen:
-                seen.add(p["file"]), unique.append(p)
+        unique = one_page_each(posts)
         if saved.get("missed") is not None:  # saved by `done` with the mark, so a check that stops early counts nothing
             weekly = {canon(p["url"]) for (r, _), ps in lists.items() if r == "weekly" for p in ps if not p.get("busy")}
             missed, aside, back, uncounted = tally(reads, saved["missed"], today, weekly)
@@ -1142,6 +1151,10 @@ def selftest():
     got, _ = post_pages("events", [dict(reread(isCanceled=True), inputUrl=events_tab(by_url[next(iter(by_url))]["url"]))],
                         {events_tab(u): p for u, p in by_url.items()})
     check(len(got) == 1 and got[0]["cancelled"], "a cancelled event on a place's own tab too (until now it was judged live)")
+    check([p["file"] for p in one_page_each([{"file": "search-1"}, {"file": "events-1"}, {"file": "search-2"},
+                                             {"file": "facebook-9"}, {"file": "facebook-9"}])]
+          == ["events-1", "search-2", "facebook-9"],
+          "one page each: a post read twice once, a Facebook event's search copy left to its host's read")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")

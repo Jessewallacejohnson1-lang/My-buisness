@@ -76,22 +76,26 @@ begin
       -- wrote the last (Jesse, 2026-11-14: "whichever is the newest"; watch-every-place 24). Else a fuller listing fills
       -- a thin About, but never one the describe step or the cleaning wrote (about_written_at): that one says only what
       -- it is and what to expect, so it is shorter on purpose (inside-cards 14). A first fingerprint only says what
-      -- the host says now.
+      -- the host says now, and a read with no words (".cover") changes nothing.
       description = case
         when split_part(club_events.source_words, '.', 1) <> split_part(excluded.source_words, '.', 1)
-          and nullif(excluded.description, '') is not null then excluded.description
+          and split_part(excluded.source_words, '.', 1) <> '' and nullif(excluded.description, '') is not null then excluded.description
         when club_events.about_written_at is null
           and length(coalesce(excluded.description, '')) >= length(coalesce(club_events.description, ''))
         then excluded.description else club_events.description end,
       about_written_at = case
         when split_part(club_events.source_words, '.', 1) <> split_part(excluded.source_words, '.', 1)
-          and nullif(excluded.description, '') is not null then null else club_events.about_written_at end,
+          and split_part(excluded.source_words, '.', 1) <> '' and nullif(excluded.description, '') is not null then null else club_events.about_written_at end,
       -- A new cover (its second half): the photo picker looks again (event_photos.py todo), and keeps its own pick or
       -- runs a better one; a person's photo stays.
       photo_checked_at = case
         when split_part(club_events.source_words, '.', 2) <> split_part(excluded.source_words, '.', 2)
           and split_part(excluded.source_words, '.', 2) <> '' then null else club_events.photo_checked_at end,
-      source_words = coalesce(excluded.source_words, club_events.source_words),
+      -- Each half as last read, a read that gives none keeping the one it had.
+      source_words = case when excluded.source_words is null then club_events.source_words else
+        coalesce(nullif(split_part(excluded.source_words, '.', 1), ''), split_part(club_events.source_words, '.', 1), '')
+        || '.' ||
+        coalesce(nullif(split_part(excluded.source_words, '.', 2), ''), split_part(club_events.source_words, '.', 2), '') end,
       -- What it costs, as words: a re-read with none keeps the one it had (inside-cards 14).
       price = coalesce(nullif(excluded.price, ''), club_events.price),
       -- Who it's for by age: the same, a re-read that doesn't say keeps it (inside-cards 30).

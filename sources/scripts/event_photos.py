@@ -451,7 +451,7 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     for g in groups:  # what an Event shows now goes first; a better pick retires it (keep)
         now_rows = [r for e in g["events"] for r in own.get(e["id"], [])]
         if now_rows:
-            g["retire"] = [r["id"] for r in now_rows]
+            g["retire"] = [{"id": r["id"], "kind": r["kind"]} for r in now_rows]
             shown = next((r for r in now_rows if r["kind"] == "event"), now_rows[0])
             g["cands"] = [{"url": shown["url"], "about": "", "from": "now showing", "page": shown["url"]}] + g["cands"]
     failed = download(groups, folder, grab)
@@ -548,8 +548,12 @@ def keep(out, dry_run=False, db=None, now=None):
             if im is None:
                 unsaved.add(what)
                 return print(f"[photos]   {g['title']}: its small flyer not sharpened here; laid out again next time")
-            if g.get("retire"):  # only this step's own picks, never a person's (showing; the function checks too)
-                db.rest("POST", "rpc/retire_own_event_photos", {"p_ids": g["retire"]})
+            # Only this step's own picks, never a person's (showing; the function checks too): a new photo replaces its
+            # photo and leaves its flyer (the photo shows first anyway); a new flyer, picked over the photo it showed,
+            # replaces both, so the flyer shows.
+            gone = [r["id"] for r in g.get("retire") or () if r["kind"] == "event" or flyer]
+            if gone:
+                db.rest("POST", "rpc/retire_own_event_photos", {"p_ids": gone})
             place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
@@ -1681,21 +1685,27 @@ def selftest():
         Image.new("RGB", (1200, 900), "white").save(out / "photos" / "c1.png")
         Image.new("RGB", (1200, 900), "white").save(out / "photos" / "c2.jpg")
         group = {"key": "e1", "title": "Winter Wreath Class", "source_url": ev("cover")["source_url"], "events": [ev("cover")],
-                 "retire": [7, 8],
+                 "retire": [{"id": 7, "kind": "flyer"}, {"id": 8, "kind": "event"}],
                  "cands": [{"n": 1, "url": "https://x/photo.webp", "from": "now showing", "page": "https://x/photo.webp",
                             "file": str(out / "photos" / "c1.png"), "w": 1200, "h": 900, "about": ""},
                            {"n": 2, "url": "https://fb/cover.jpg", "from": "listing", "page": ev("cover")["source_url"],
                             "file": str(out / "photos" / "c2.jpg"), "w": 1200, "h": 900, "about": ""}]}
         (out / "photos" / "events.json").write_text(json.dumps([group]))
-        for pick, sent in (("c1", []), ("c2", ["POST rpc/retire_own_event_photos", "PUT", "POST place_photos"])):
-            (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": pick, "shows": "Wreaths on a table"}) + "\n")
+        for pick, flyer, sent, gone in (("c1", False, [], None),
+                                        ("c2", False, ["POST rpc/retire_own_event_photos", "PUT", "POST place_photos"], [8]),
+                                        ("c2", True, ["POST rpc/retire_own_event_photos", "PUT", "POST place_photos"], [7, 8])):
+            (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": pick, "shows": "Wreaths on a table",
+                                                                "flyer": flyer}) + "\n")
             (out / "photos" / "kept.json").unlink(missing_ok=True)
             fake = place_photos.Unsent("https://db.example")
             line = keep(out, db=fake, now=now)
             calls = [m if m == "PUT" else f"{m} {p.split('?')[0]}" for m, p, b in fake.calls if m != "PATCH"]
             check(calls == sent and any(m == "PATCH" and "photo_checked_at" in b for m, p, b in fake.calls)
-                  and (pick == "c1" or next(b for m, p, b in fake.calls if p == "rpc/retire_own_event_photos") == {"p_ids": [7, 8]}),
-                  f"{'what it shows now kept: nothing written but the look' if pick == 'c1' else 'a new cover beats it: its own picks retired, then the new one saved'} ({calls}; {line})")
+                  and (gone is None or next(b for m, p, b in fake.calls if p == "rpc/retire_own_event_photos") == {"p_ids": gone}),
+                  {None: "what it shows now kept: nothing written but the look",
+                   8: "a new cover photo beats it: its own photo retired (its own flyer stays), then the new one saved",
+                   7: "a new flyer picked over it: its own photo and flyer retired, so the flyer shows"}[gone and gone[0]]
+                  + f" ({calls}; {line})")
 
     print(f"{ok} passed, {bad} failed")
     return bad == 0

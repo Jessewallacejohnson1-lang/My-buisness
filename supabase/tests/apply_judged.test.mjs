@@ -278,6 +278,9 @@ test('a Facebook event read again: the newest About when its words change, a new
   await apply(listing('Wreaths, now with cocoa.', 'bbbb.dddd', '2026-12-05'));
   assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-05', w: 'bbbb.dddd', ours: false,
     looked: false }, 'a new cover asks for a photo look; a new day moves the one Event');
+  await apply(listing('Wreaths.', '.dddd', '2026-12-05'));
+  assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-05', w: 'bbbb.dddd', ours: false,
+    looked: false }, 'a read whose event gives no words keeps the About and the words it had');
   await apply(listing('Wreaths.', null, '2026-12-05'));
   assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-05', w: 'bbbb.dddd', ours: false,
     looked: false }, 'a read with no fingerprint keeps the old rules and the fingerprint');

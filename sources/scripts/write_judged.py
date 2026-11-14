@@ -279,8 +279,10 @@ def same_event(a, b):
 
 def real_uid(uid):
     """The source's own id. "page:" is made up here from the start and title; "board:" is the
-    town board row an event was moved from (ticket 01), not anything its source gave it."""
-    return bool(uid) and not str(uid).startswith(("page:", "board:"))
+    town board row an event was moved from (ticket 01), not anything its source gave it. "fb:" keys one host's
+    Facebook event (watch-every-place 24) and is matched exactly, by host, like "page:"; it is no own id, since a
+    co-host lists the same number and must stay a Mention, never write a second row or beat the host's calendar."""
+    return bool(uid) and not str(uid).startswith(("page:", "board:", "fb:"))
 
 
 def posted_twice(a, b):
@@ -3020,6 +3022,23 @@ def t_facebook_event_read_again():
     g = moved["events"][0]
     assert [x["id"] for x in moved["events"]] == [old["id"]] and g["row"]["event_date"] == "2026-12-05" \
         and g["row"]["start_time"] == "10 AM" and g["row"]["source_uid"] == old["source_uid"], (moved["outcomes"], g["row"])
+
+    # A co-host's copy of it (the search's organizer, a co-host's tab) is a Mention, read alone or beside the host's,
+    # never a second row (the 2026-11-14 review); a moved one from the host still moves the Event.
+    cohost = item(**dict(wreath, source_name="Visit Joetown"))
+    r = run([cohost], [old])
+    assert [x["id"] for x in r["events"]] == [old["id"]] and r["events"][0]["row"] is None, (r["outcomes"], r["events"])
+    r = run([cohost, item(**dict(wreath, start="2026-12-05T10:00:00-06:00"))], [dict(old, mentions=[seen, dict(seen, source_name="Visit Joetown")])])
+    rows = payloads(r)["p_events"]
+    assert [(x["source_name"], x["source_uid"], x["event_date"]) for x in rows] == \
+        [("Sunny Mary Meadow", "fb:1107906461871802", "2026-12-05")], rows
+    # The host's own calendar listing stays the Event; its Facebook copy at the same start is a Mention.
+    cal = listed(title="Winter Wreath Class", event_date="2026-12-03", start_time="6 PM", location="Sunny Mary Meadow",
+                 source_name="Sunny Mary Meadow", source_uid="smm-77",
+                 mentions=[{"source_name": "Sunny Mary Meadow", "source_url": "https://sunnymary.example/cal",
+                            "source_uid": "smm-77", "trust": "official", "sure": True}])
+    r = run([item(**wreath)], [cal])
+    assert [x["id"] for x in r["events"]] == [cal["id"]] and r["events"][0]["row"] is None, (r["outcomes"], r["events"])
 
     off = {"kind": "cancelled", "source_name": "Sunny Mary Meadow", "source_url": link}
     r = run([off], [old])
