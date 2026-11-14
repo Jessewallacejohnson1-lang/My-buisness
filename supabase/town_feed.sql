@@ -1,3 +1,105 @@
+-- The same creator never twice in a row (BP app town-feed 66, Jesse 2026-11-13). Takes the Town feed's cards in their
+-- order, each as its creator (a number per creator) and its lane (0 live on top, 1 Events and posts, 2 News), and gives
+-- back the order to show them in, as places in that list. Every spot keeps its lane, so live stays on top and News keeps
+-- its spots. Each spot takes the first card of its lane not yet placed whose creator isn't the one above, so a card
+-- moves down only past the next creator's card. A pair still touching after that (one creator all that's left at the
+-- bottom, or a story's spot after its own place's Event) trades one of its two cards with the nearest card of the same
+-- lane, within 20 spots, that sits between two others there: the shortest move first, below first. The first pass
+-- doesn't look ahead to a story's spot, so now and then it leaves more touching than the order it was given; that order
+-- gets the same trades too, and the one with fewer touching wins (the first pass's on a tie). One creator with more than
+-- half a lane still touches: no card is left out.
+create or replace function private.never_two_in_a_row(p_who int[], p_lane int[])
+returns int[]
+language plpgsql
+immutable strict
+set search_path = ''
+as $$
+declare
+  n int := coalesce(array_length(p_who, 1), 0);
+  used boolean[] := array_fill(false, array[n]);
+  pick int[] := array_fill(0, array[n]);
+  -- Per lane, where its cards not yet placed start.
+  first_of int[] := array[1, 1, 1];
+  lane int;
+  prev int;
+  j int;
+  take int;
+  spare int;
+  m int;
+  held int;
+  greedy int[];
+  best int[];
+  fewest int;
+  touching int;
+begin
+  for pos in 1..n loop
+    lane := p_lane[pos];
+    take := null;
+    spare := null;
+    j := first_of[lane + 1];
+    while j <= n loop
+      if not used[j] and p_lane[j] = lane then
+        spare := coalesce(spare, j);
+        if prev is null or p_who[j] <> prev then
+          take := j;
+          exit;
+        end if;
+      end if;
+      j := j + 1;
+    end loop;
+    -- Every spot has a card of its lane left: a lane has as many cards as spots.
+    take := coalesce(take, spare);
+    used[take] := true;
+    pick[pos] := take;
+    prev := p_who[take];
+    while first_of[lane + 1] <= n and (used[first_of[lane + 1]] or p_lane[first_of[lane + 1]] <> lane) loop
+      first_of[lane + 1] := first_of[lane + 1] + 1;
+    end loop;
+  end loop;
+
+  greedy := pick;
+  for round in 1..2 loop
+    pick := case when round = 1 then greedy else array(select generate_series(1, n)) end;
+    -- 20 spots each way: twice the longest move on the live feed (10, 2026-11-13), and a feed one creator fills stays
+    -- quick. Each check is plain arithmetic, no query.
+    for k in 2..n loop
+      continue when p_who[pick[k]] <> p_who[pick[k - 1]];
+      <<pair>>
+      for d in 1..20 loop
+        foreach j in array array[k, k - 1] loop
+          foreach m in array array[j + d, j - d] loop
+            -- Only a card of the same lane from someone else can go there.
+            continue when m < 1 or m > n or p_lane[m] <> p_lane[j] or p_who[pick[m]] = p_who[pick[j]];
+            held := pick[m];
+            pick[m] := pick[j];
+            pick[j] := held;
+            exit pair when (m = 1 or p_who[pick[m]] <> p_who[pick[m - 1]])
+                       and (m = n or p_who[pick[m]] <> p_who[pick[m + 1]])
+                       and (j = 1 or p_who[pick[j]] <> p_who[pick[j - 1]])
+                       and (j = n or p_who[pick[j]] <> p_who[pick[j + 1]]);
+            pick[j] := pick[m];
+            pick[m] := held;
+          end loop;
+        end loop;
+      end loop;
+    end loop;
+    touching := 0;
+    for k in 2..n loop
+      if p_who[pick[k]] = p_who[pick[k - 1]] then
+        touching := touching + 1;
+      end if;
+    end loop;
+    if fewest is null or touching < fewest then
+      best := pick;
+      fewest := touching;
+    end if;
+  end loop;
+  return best;
+end;
+$$;
+revoke execute on function private.never_two_in_a_row(int[], int[]) from public;
+grant execute on function private.never_two_in_a_row(int[], int[]) to anon, authenticated;
+
 drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean);
 
 create function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
@@ -598,13 +700,15 @@ as $$
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
     -- dozen calendars can't fill the top of the feed between them.
     select t.id, case when 'campus' = any(t.tags) then 'campus' else t.host end as host, t.base, t.sort_at, t.title,
-           coalesce(t.category, t.id::text) as kind, l.nth as live
+           coalesce(t.category, t.id::text) as kind, l.nth as live,
+           -- Who the card says made it (town-feed 66): its group, else its source, else the neighbour who posted it.
+           lower(btrim(coalesce(nullif(t.card->>'club_name', ''), nullif(t.card->>'source_name', ''), t.host))) as creator
     from totals t
     left join live_now l on l.id = t.id and l.nth <= (select (w->>'liveMax')::int from weights)
     union all
     -- Posts among the Events, their poster as their host, so a second one from the same neighbour
     -- counts half (the spacing rule below).
-    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, p.id::text, null::bigint
+    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, p.id::text, null::bigint, p.submitted_by::text
     from posts_scored p
   ),
   -- The spacing rules (town-feed 36, 41): each further item from a host counts half, each further one of a kind
@@ -622,7 +726,7 @@ as $$
     from pool p
   ),
   ordered as (
-    select s.id, s.spacing,
+    select s.id, s.spacing, s.live, s.creator,
            -- Later Events (town-feed 23) by their start, not their points.
            row_number() over (order by case when p_later then s.sort_at end, s.live nulls last, s.base * s.spacing desc,
                                        s.sort_at, s.title, s.id) as nth
@@ -630,18 +734,34 @@ as $$
   ),
   -- Events and posts leave every 5th spot open for News you haven't seen; with none left the next card moves up.
   spots as (
-    select x.id, x.spacing, row_number() over (order by x.place, x.id)::int as spot
+    select x.id, x.spacing, x.lane, x.creator, row_number() over (order by x.place, x.id)::int as spot
     from (
-      select o.id, o.spacing, o.nth + (o.nth - 1) / ((select (w->>'newsEvery')::int from weights) - 1) as place
+      select o.id, o.spacing, case when o.live is null then 1 else 0 end as lane, o.creator,
+             o.nth + (o.nth - 1) / ((select (w->>'newsEvery')::int from weights) - 1) as place
       from ordered o
       union all
       -- Only as many as the Events leave spots for, so never two together; the rest wait for a later open. A
       -- town with next to no Events shows what it has.
-      select n.id, 1::float8, n.nth * c.every
+      select n.id, 1::float8, 2, lower(btrim(n.source_name)), n.nth * c.every
       from news_scored n
       cross join (select (select (w->>'newsEvery')::int from weights) as every, (select count(*) from ordered) as events) c
       where c.events < c.every - 1 or n.nth <= c.events / (c.every - 1)
     ) x
+  ),
+  -- The same creator never twice in a row (town-feed 66, Jesse 2026-11-13): the Town feed only. The Block Party tab
+  -- (p_only) may show one twice, and Later Events (p_later) keep their date order.
+  in_a_row as (
+    select array_agg(s.id order by s.spot) as ids,
+           private.never_two_in_a_row(array_agg(s.who order by s.spot), array_agg(s.lane order by s.spot)) as pick
+    from (select s.id, s.spot, s.lane, dense_rank() over (order by coalesce(s.creator, s.id::text))::int as who
+          from spots s) s
+    where p_only is null and not p_later
+  ),
+  placed as (
+    select s.id, s.spacing, coalesce(r.spot, s.spot) as spot
+    from spots s
+    left join (select a.ids[k.pick] as id, k.spot::int as spot
+               from in_a_row a, unnest(a.pick) with ordinality k(pick, spot)) r on r.id = s.id
   ),
   feed_rows (id, title, location, image_url, source_name, created_at, recurrence, leaves_at, reason, reason_name, score, heart_count, hearted, saved, place_picture, description, club_id, in_club, kind, source_url, poster, card, spot) as (
   -- An Event's title, place, picture, words and link are its card's (codebase-health-2 03).
@@ -693,7 +813,7 @@ as $$
                 'title', e.part_title, 'starts_at', e.part_start, 'ends_at', e.part_end, 'live', true)) end,
          p.spot
   from totals e
-  join spots p on p.id = e.id
+  join placed p on p.id = e.id
   -- The group that posted it, else, for a found Event, the group it was found for.
   left join public.clubs c on c.id = e.group_id
   left join labels l on l.series = e.series
@@ -715,7 +835,7 @@ as $$
          case when np.url is not null then jsonb_build_object('aspect', np.width::float8 / nullif(np.height, 0)) end,
          null::jsonb, s.spot
   from news_scored n
-  join spots s on s.id = n.id
+  join placed s on s.id = n.id
   left join public.place_photos np on np.news_id = n.id and np.status = 'live' and np.kind = 'news'
   union all
   -- A post's row (town-feed 29): its words as the title, its Place and photo, its hearts, and who
@@ -737,7 +857,7 @@ as $$
          null::jsonb,
          s.spot
   from posts_scored p
-  join spots s on s.id = p.id
+  join placed s on s.id = p.id
   cross join lateral (select private.post_poster(p.submitted_by, p.tagged) as poster) pp
   )
   select r.id, r.title, r.location, r.image_url, r.source_name, r.created_at, r.recurrence, r.leaves_at,

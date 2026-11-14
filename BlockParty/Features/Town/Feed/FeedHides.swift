@@ -1,7 +1,7 @@
 //
 //  FeedHides.swift
 //  Block Party — what you took out of the Town feed: Not interested, Mute, Report and their Undo,
-//  and the Muted list.
+//  and the Muted list. Your own post's Delete and Edit live here too (town-feed 29, 44).
 //
 //  Not interested and Mute (ticket 21) take a card out at once and go to the server straight
 //  away. The card folds into a "Hidden · Undo" line for 5 seconds, then goes; Undo brings it
@@ -35,6 +35,12 @@ final class FeedHides {
     private(set) var unmuteFailures: [String: Int] = [:]
     /// Cards reported from this phone this session: their sheet has no Report row.
     private(set) var reportedIDs: Set<String> = []
+    /// Your own post whose Edit is open (town-feed 44): the shell opens New post on it, as only it holds the town's
+    /// places and your profile.
+    var editing: TownPost?
+    /// Your edits the check let up this session, by post: every list holding the post shows them at once, with no
+    /// read of the feed and nothing moving (town-feed 44).
+    private(set) var edits: [String: PostEditInput] = [:]
 
     /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
     private let choose: (FeedChoice) async throws -> String?
@@ -61,9 +67,9 @@ final class FeedHides {
     }
 
     /// An Event's or a neighbour's post's report (ticket 22, town-feed 29), by its id, from its sheet,
-    /// which waits for the answer to say thanks or shake.
-    func report(id: String, _ reason: ReportReason) async throws {
-        _ = try await choose(.report(id, reason))
+    /// which waits for the answer to say thanks or shake. Wrong info may carry a note (backlog 26).
+    func report(id: String, _ reason: ReportReason, note: String? = nil) async throws {
+        _ = try await choose(.report(id, reason, note: note))
         reportedIDs.insert(id)
     }
 
@@ -86,6 +92,12 @@ final class FeedHides {
             Haptics.error()
         }
     }
+
+    /// An edit the check let up (town-feed 44).
+    func saved(_ edit: PostEditInput) { edits[edit.id] = edit }
+
+    /// `post` as it reads now: with this session's edit of it, if any.
+    func edited(_ post: TownPost) -> TownPost { edits[post.id].map(post.edited) ?? post }
 
     private func showUndo(_ hide: FeedHide) {
         undo = hide

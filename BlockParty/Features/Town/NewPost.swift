@@ -297,13 +297,55 @@ final class NewPostModel {
     /// One id for every try at one post, so a retry finishes it rather than posting it twice.
     private(set) var id = UUID().uuidString.lowercased()
 
+    /// Your own post being edited (town-feed 44): its words and Place change, nothing else. nil for a new post.
+    private(set) var editing: TownPost?
+    /// The edit the check last said no to: Done stays grey until the words or the Place change again, so a second tap
+    /// doesn't pay for the same no.
+    private var refused: PostEditInput?
+
+    /// Something to lose: the X asks first. Editing, a change to the words or the Place.
     var edited: Bool {
-        photo != nil || !draft.text.isEmpty || !draft.tagged.isEmpty || draft.location != nil
+        if let editing { return draft.changed(from: editing) }
+        return photo != nil || !draft.text.isEmpty || !draft.tagged.isEmpty || draft.location != nil
             || (event && !eventModel.draft.title.isEmpty)
     }
 
+    /// Post (or Done) lights. Editing: a change, and still words or the post's photo.
     var ready: Bool {
-        event ? eventModel.draft.ready : draft.ready(photo: photo != nil)
+        if let editing {
+            return draft.ready(photo: editing.photo != nil) && draft.changed(from: editing) && draft.edit(of: editing) != refused
+        }
+        return event ? eventModel.draft.ready : draft.ready(photo: photo != nil)
+    }
+
+    /// A photo goes with it: the one picked, or the post's own when editing.
+    var hasPhoto: Bool { photo != nil || editing?.photo != nil }
+
+    /// Edit on your own post: New post on its words, Place and `@` names (town-feed 44).
+    func startEditing(_ post: TownPost) {
+        editing = post
+        draft = NewPostDraft(editing: post)
+    }
+
+    /// Done on an edit: the check reads it in the sheet, as an Event's Share does (Jesse at Check-in 1, 2026-11-13).
+    /// A yes hands back what went up; anything else says why over Done, shakes it, and changes nothing.
+    func saveEdit(api: CommunityAPI) async -> PostEditInput? {
+        guard let editing, ready, !saving else { return nil }
+        saving = true
+        problem = nil
+        defer { saving = false }
+        let input = draft.edit(of: editing)
+        let answer = await api.editPost(input)
+        guard let why = answer.problem else {
+            Haptics.success()
+            return input
+        }
+        if case .refused = answer { refused = input }
+        problem = why
+        failures += 1
+        Haptics.error()
+        AccessibilityNotification.Announcement(why).post()
+        return nil
     }
 
     var busy: Bool { saving || eventModel.sharing }
@@ -534,6 +576,10 @@ struct NewPostSheet: View {
     var onShared: (HelloItem.Posted) -> Void = { _ in }
     /// A post saved: the check runs from the shell.
     var onPosted: (PostOutbox.Sent) -> Void = { _ in }
+    /// Your own post to edit (town-feed 44): New post opens on it as Edit post.
+    var editing: TownPost? = nil
+    /// An edit the check let up: every list shows it at once.
+    var onEdited: (PostEditInput) -> Void = { _ in }
 
     @State private var model = NewPostModel()
     @State private var pick: PhotosPickerItem?
@@ -574,6 +620,14 @@ struct NewPostSheet: View {
                         photoView(photo)
                             .padding(.top, NewPostMetric.photoTop)
                             .transition(.opacity)
+                    } else if let post = model.editing, let url = post.photo {
+                        // An edited post's own photo, which can't change: no Change photo, no trash.
+                        FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                            .aspectRatio(CGFloat(post.photoAspect), contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                            .padding(.top, NewPostMetric.photoTop)
+                            .accessibilityLabel("Your photo")
                     }
                 }
                 .padding(.bottom, NewPostMetric.side)
@@ -594,7 +648,7 @@ struct NewPostSheet: View {
                 }
             }
             .background(Hue.paper)
-            .navigationTitle(NewPostCopy.title)
+            .navigationTitle(model.editing == nil ? NewPostCopy.title : PostEditCopy.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -602,10 +656,11 @@ struct NewPostSheet: View {
                         .accessibilityLabel("Close")
                         // Mid-save, closing would leave a post going up the X said was gone.
                         .disabled(model.busy)
-                        .confirmationDialog(NewPostCopy.discard, isPresented: $discarding, titleVisibility: .visible) {
+                        .confirmationDialog(model.editing == nil ? NewPostCopy.discard : PostEditCopy.discard,
+                                            isPresented: $discarding, titleVisibility: .visible) {
                             Button(NewPostCopy.discardButton, role: .destructive) { dismiss() }
                             Button(NewPostCopy.keepEditing, role: .cancel) {}
-                        } message: { Text(NewPostCopy.discardWhy) }
+                        } message: { Text(model.editing == nil ? NewPostCopy.discardWhy : PostEditCopy.discardWhy) }
                 }
             }
             .navigationDestination(for: Step.self) { step in
@@ -646,7 +701,18 @@ struct NewPostSheet: View {
         // Your friends for the `@` row.
         .task { if !book.loaded { await book.refresh() } }
         .onAppear {
-            if let back = PostOutbox.shared.back {
+            if let editing {
+                model.startEditing(editing)
+                #if DEBUG
+                // `-new-post-words <words>`: typed over the post's words, as AXe can't type on BP Build.
+                if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+                #endif
+                // The cursor at the words' end, once the field holds them and has the focus.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    selection = TextSelection(insertionPoint: model.draft.words.endIndex)
+                }
+            } else if let back = PostOutbox.shared.back {
                 model.restore(back)
                 PostOutbox.shared.back = nil
             } else {
@@ -692,10 +758,13 @@ struct NewPostSheet: View {
         }
     }
 
+    /// Who it's with: the friends tagged here, or an edited post's own, which can't change.
+    private var taggedNames: [String] { model.editing?.tagged.map(\.name) ?? model.draft.tagged.map(\.displayName) }
+
     private var nameLine: AttributedString {
-        var line = AttributedString(model.draft.line(name: name))
+        var line = AttributedString(TownPost.line(name: name, with: taggedNames, at: model.draft.location))
         line.font = .sans(17)
-        let tagged = model.draft.tagged.map(\.displayName)
+        let tagged = taggedNames
         let named = tagged.count > 2 ? [tagged[0], "\(tagged.count - 1) others"] : tagged
         for bold in [name] + named + [model.draft.location ?? ""] where !bold.isEmpty {
             if let range = line.range(of: bold) { line[range].font = .sansSemibold(17) }
@@ -718,7 +787,7 @@ struct NewPostSheet: View {
                     .font(.apple(13, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.glyph(10, weight: .bold))
-                    .opacity(model.event ? 0 : 1)
+                    .opacity(audienceLocked ? 0 : 1)
                     .accessibilityHidden(true)
             }
             .foregroundStyle(Hue.ink)
@@ -731,17 +800,21 @@ struct NewPostSheet: View {
             .contentShape(Rectangle())
         }
         .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
-        .disabled(model.event)
+        .disabled(audienceLocked)
         .accessibilityLabel(NewPostCopy.who)
         .accessibilityValue(model.draft.friendsOnly ? NewPostCopy.friends : NewPostCopy.everyone)
     }
+
+    /// An Event is the Town's; an edited post keeps who could see it (town-feed 44).
+    private var audienceLocked: Bool { model.event || model.editing != nil }
 
     // MARK: Chips
 
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: NewPostMetric.chipGap) {
-                if !model.event {
+                // Editing (town-feed 44), Place alone: who it's with and what it is stay.
+                if !model.event && model.editing == nil {
                     let tagged = model.draft.tagged
                     chip(on: !tagged.isEmpty, label: tagged.isEmpty ? NewPostCopy.tag
                                                      : tagged.count == 1 ? tagged[0].displayName
@@ -757,13 +830,15 @@ struct NewPostSheet: View {
                 chip(on: model.draft.location != nil, label: model.draft.location ?? NewEventCopy.place) {
                     MapPinGlyph(size: NewPostMetric.chipIcon)
                 } action: { focus = nil; path.append(.place) }
-                chip(on: model.event, label: NewPostCopy.event) {
-                    Image(systemName: "calendar").font(.glyph(15))
-                } action: {
-                    withAnimation(reduceMotion ? nil : Motion.smooth) { model.setEvent(!model.event) }
-                    focus = model.event ? .name : .words
+                if model.editing == nil {
+                    chip(on: model.event, label: NewPostCopy.event) {
+                        Image(systemName: "calendar").font(.glyph(15))
+                    } action: {
+                        withAnimation(reduceMotion ? nil : Motion.smooth) { model.setEvent(!model.event) }
+                        focus = model.event ? .name : .words
+                    }
+                    .accessibilityAddTraits(model.event ? .isSelected : [])
                 }
-                .accessibilityAddTraits(model.event ? .isSelected : [])
             }
             .padding(.horizontal, NewPostMetric.side)
         }
@@ -796,7 +871,7 @@ struct NewPostSheet: View {
     // MARK: Words
 
     private var words: some View {
-        let big = !model.event && model.draft.big(photo: model.photo != nil)
+        let big = !model.event && model.draft.big(photo: model.hasPhoto)
         return TextField(model.event ? NewPostCopy.about : NewPostCopy.placeholder, text: $model.draft.words,
                          selection: $selection, axis: .vertical)
             .font(.sans(big ? NewPostMetric.bigWords : NewPostMetric.words))
@@ -1016,19 +1091,21 @@ struct NewPostSheet: View {
                     .transition(.opacity)
             }
             HStack {
-                Button { focus = nil; picking = true } label: {
-                    Image(systemName: "photo.on.rectangle")
-                        .font(.glyph(22))
-                        .foregroundStyle(Hue.ink)
-                        .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
-                        .contentShape(Rectangle())
+                if model.editing == nil {
+                    Button { focus = nil; picking = true } label: {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.glyph(22))
+                            .foregroundStyle(Hue.ink)
+                            .frame(width: NewPostMetric.tap, height: NewPostMetric.tap)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.press(.squish))
+                    .accessibilityLabel(model.photo == nil ? "Add a photo" : NewPostCopy.change)
                 }
-                .buttonStyle(.press(.squish))
-                .accessibilityLabel(model.photo == nil ? "Add a photo" : NewPostCopy.change)
                 Spacer()
                 Button(action: post) {
                     ZStack {
-                        Text(NewPostCopy.post).opacity(model.busy ? 0 : 1)
+                        Text(model.editing == nil ? NewPostCopy.post : PostEditCopy.done).opacity(model.busy ? 0 : 1)
                         if model.busy { ProgressView().tint(.white) }
                     }
                     .font(.displaySemi(16))
@@ -1037,7 +1114,8 @@ struct NewPostSheet: View {
                 .buttonStyle(MeetupPillStyle(height: NewPostMetric.post, minWidth: NewPostMetric.postWidth, grey: !model.ready))
                 .turnBackShake(failures: model.shownFailures, shakes: !reduceMotion)
                 .disabled(!model.ready || model.busy)
-                .accessibilityLabel(model.busy ? "Posting" : NewPostCopy.post)
+                .accessibilityLabel(model.busy ? (model.editing == nil ? "Posting" : PostEditCopy.saving)
+                                               : (model.editing == nil ? NewPostCopy.post : PostEditCopy.done))
             }
             .padding(.leading, NewPostMetric.side - (NewPostMetric.tap - 26) / 2 + 2)
             .padding(.trailing, NewPostMetric.side)
@@ -1051,7 +1129,12 @@ struct NewPostSheet: View {
     private func post() {
         let api = CommunityAPI(auth: AuthStore.shared)
         Task {
-            if model.event {
+            if model.editing != nil {
+                if let edit = await model.saveEdit(api: api) {
+                    onEdited(edit)
+                    dismiss()
+                }
+            } else if model.event {
                 guard let check = await model.shareEvent(api: api) else { return }
                 switch check {
                 case .declined: return

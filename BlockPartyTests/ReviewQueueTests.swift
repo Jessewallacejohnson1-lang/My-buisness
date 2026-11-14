@@ -90,6 +90,21 @@ final class ReviewQueueTests: XCTestCase {
         XCTAssertEqual(report.card.event?.goingCount, 4)
     }
 
+    /// Backlog 26: the notes the post check kept come with the report, quoted on their own lines; a server from
+    /// before the notes sends none, and the row shows none.
+    func testAReportedEventDecodesItsKeptNotesAndQuotesThem() throws {
+        let json = """
+        [{"event_id": "e1", "title": "Chi Kung", "event_date": "2026-11-16", "reasons": ["wrong_info"], "reports": 2,
+          "card": {"id": "e1", "title": "Chi Kung", "event_date": "2026-11-16"}, "poster": null,
+          "notes": ["Starts at 6 now", "Wrong room"]},
+         {"event_id": "e2", "title": "Fair", "event_date": "2026-11-16", "reasons": ["scam"], "reports": 1,
+          "card": {"id": "e2", "title": "Fair", "event_date": "2026-11-16"}, "poster": null}]
+        """
+        let reports = try Supabase.decode(Data(json.utf8), as: [ReportedEvent].self)
+        XCTAssertEqual(reports.map(\.notes), [["Starts at 6 now", "Wrong room"], nil])
+        XCTAssertEqual(ReviewRow.quoted("Starts at 6 now"), "\u{201C}Starts at 6 now\u{201D}")
+    }
+
     /// The database's check constraint accepts exactly these values.
     func testDeclineReasonsMatchTheDatabase() {
         XCTAssertEqual(DeclineReason.allCases.map(\.rawValue),
