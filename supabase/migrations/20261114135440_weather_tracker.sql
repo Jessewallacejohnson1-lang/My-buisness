@@ -10,7 +10,7 @@
 -- District 742's own rule. The alerts stay in the backend; the app never shows them (Jesse, 2026-11-14).
 
 -- 1. What the tracker knows per town: its forecast zone, the alerts last read, when it last read them and the list,
---    and its last failure (the 8:00 email names it).
+--    its last failure (the 8:00 email names it), when it began, and the run that holds it (claimed_at).
 create table private.weather (
   town text primary key,
   zone text not null,
@@ -18,7 +18,9 @@ create table private.weather (
   alerts_read_at timestamptz,
   list_read_at timestamptz,
   error text,
-  error_at timestamptz
+  error_at timestamptz,
+  began_at timestamptz not null default now(),
+  claimed_at timestamptz
 );
 insert into private.weather (town, zone) values ('st-joseph-mn', 'MNZ049');
 
@@ -27,6 +29,7 @@ create table private.school_closings (
   day date not null,
   district text not null,
   kind text not null check (kind in ('closed', 'early', 'late', 'elearning')),
+  title text not null,
   words text not null,
   url text not null,
   news_id uuid references public.board_items (id) on delete set null,
@@ -36,7 +39,9 @@ create table private.school_closings (
 
 -- 3. An Event a closing called off names the district. Its own source re-reading it that day (apply_judged writes
 --    cancelled_at = null for an Event still on its list) leaves it called off; only the closing taking it back, which
---    clears called_off_by in the same write, brings it back.
+--    clears called_off_by in the same write, brings it back. An Event moved to another day (a make-up game: the
+--    schedules keep its id) is no longer the closing's, and comes back on its new day. To keep one Event on through a
+--    closing by hand: called_off_by = 'kept', cancelled_at = null; no closing calls it off again.
 alter table public.club_events add column called_off_by text;
 
 create function private.keep_called_off()
@@ -45,8 +50,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if old.called_off_by is not null and new.called_off_by is not distinct from old.called_off_by
-     and new.cancelled_at is null then
+  if old.called_off_by is null or old.called_off_by = 'kept' then
+    return new;
+  end if;
+  if new.event_date is distinct from old.event_date then
+    new.called_off_by := null;
+    if new.cancelled_at is not distinct from old.cancelled_at then
+      new.cancelled_at := null;
+    end if;
+  elsif new.called_off_by is not distinct from old.called_off_by and new.cancelled_at is null then
     new.cancelled_at := old.cancelled_at;
   end if;
   return new;
@@ -54,18 +66,21 @@ end;
 $$;
 
 create trigger club_events_keep_called_off
-  before update of cancelled_at on public.club_events
+  before update of cancelled_at, event_date on public.club_events
   for each row execute function private.keep_called_off();
 
 -- 4. The edge function's three calls. Service role only.
-create function public.weather_state(p_town text)
+-- A run claims the town before it reads anything, and gets null while another run has held it under 5 minutes: the
+-- function has no login check, and parallel calls from anyone would otherwise all read WJON and the Weather Service.
+create function public.claim_weather(p_town text, p_now timestamptz default now())
 returns jsonb
 language sql
-stable
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(w) - 'town' from private.weather w where w.town = p_town;
+  update private.weather w set claimed_at = p_now
+  where w.town = p_town and (w.claimed_at is null or w.claimed_at < p_now - interval '5 minutes')
+  returning to_jsonb(w) - 'town';
 $$;
 
 -- What a run did: alerts read (p_alerts), the list read (p_list_read), or a failure (p_error).
@@ -86,8 +101,8 @@ as $$
 $$;
 
 -- One day's list as last read, whole: p_closings holds every district the list names for p_day, each
--- {district, kind, words, title, teams, sources, news}. A district no longer on it, or on it with another kind, has
--- its News archived and its Events brought back first. Then each closing's News (only a district with `news`: the
+-- {district, kind, words, title, teams, sources, news}. A district no longer on it, or on it with another kind or
+-- title ("1 Hour Late" become "2 Hours Late"), has its News archived and its Events brought back first. Then each closing's News (only a district with `news`: the
 -- town's own schools, Jesse) and its call-offs: closed calls off all that day's Events of the district's schools and
 -- teams, home and away, all-day ones too; out early those from noon on; late and e-learning none (Jesse, 2026-11-13).
 -- Only found Events are called off, never a neighbour's own (as apply_judged's step 5).
@@ -110,7 +125,7 @@ begin
     select s.* from private.school_closings s
     where s.day = p_day
       and not exists (select 1 from jsonb_array_elements(p_closings) x
-                      where x ->> 'district' = s.district and x ->> 'kind' = s.kind)
+                      where x ->> 'district' = s.district and x ->> 'kind' = s.kind and x ->> 'title' = s.title)
   loop
     update public.board_items set status = 'archived' where id = prev.news_id and status = 'published';
     update public.club_events set called_off_by = null, cancelled_at = null
@@ -133,12 +148,13 @@ begin
       returning id into v_news;
       n_news := n_news + 1;
     end if;
-    insert into private.school_closings (day, district, kind, words, url, news_id, read_at)
-    values (p_day, c ->> 'district', c ->> 'kind', c ->> 'words', p_url, v_news, p_now)
+    insert into private.school_closings (day, district, kind, title, words, url, news_id, read_at)
+    values (p_day, c ->> 'district', c ->> 'kind', c ->> 'title', c ->> 'words', p_url, v_news, p_now)
     on conflict (day, district) do update set words = excluded.words, url = excluded.url, read_at = excluded.read_at;
 
     update public.club_events e set cancelled_at = p_now, called_off_by = c ->> 'district'
-    where e.event_date = p_day and e.cancelled_at is null and e.club_id is null and e.submitted_by is null
+    where e.event_date = p_day and e.cancelled_at is null and e.called_off_by is null
+      and e.club_id is null and e.submitted_by is null
       and (e.source_name in (select jsonb_array_elements_text(c -> 'sources'))
            or e.team_ids && array(select jsonb_array_elements_text(c -> 'teams')))
       and (c ->> 'kind' = 'closed'
@@ -152,9 +168,12 @@ begin
 end;
 $$;
 
-revoke execute on function public.weather_state(text) from public, anon, authenticated;
+revoke execute on function public.claim_weather(text, timestamptz) from public, anon, authenticated;
 revoke execute on function public.save_weather(text, jsonb, boolean, text, timestamptz) from public, anon, authenticated;
 revoke execute on function public.apply_school_closings(date, text, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function public.claim_weather(text, timestamptz) to service_role;
+grant execute on function public.save_weather(text, jsonb, boolean, text, timestamptz) to service_role;
+grant execute on function public.apply_school_closings(date, text, jsonb, timestamptz) to service_role;
 
 -- 5. Every 15 minutes, wake the edge function. It answers at once and reads in the background, so this waits 3 seconds
 --    at most; the pacing is the function's, from private.weather.
@@ -354,7 +373,7 @@ begin
                        case when v_n = 1 then 'report is' else 'reports are' end, v_line);
   end if;
   -- The weather tracker (BP app school-activities 08): its runs refused or failing, the weather not read in 3 hours
-  -- (once it has read it), or its last failure in the past day. pg_cron's rare startup timeout is noise.
+  -- (or never, 3 hours after it began), or its last failure in the past day. pg_cron's rare startup timeout is noise.
   for v_line, v_n in
     select split_part(d.return_message, E'\n', 1), count(*)::int
     from cron.job_run_details d
@@ -372,6 +391,10 @@ begin
                   to_char(w.alerts_read_at at time zone 'America/Chicago', 'Mon FMDD FMHH12:MI AM'))
     from private.weather w
     where w.alerts_read_at < p_now - interval '3 hours'
+    union all
+    select 'The weather tracker has never read the weather.'
+    from private.weather w
+    where w.alerts_read_at is null and w.began_at < p_now - interval '3 hours'
     union all
     select format('The weather tracker failed at %s: %s',
                   to_char(w.error_at at time zone 'America/Chicago', 'Mon FMDD FMHH12:MI AM'), w.error)

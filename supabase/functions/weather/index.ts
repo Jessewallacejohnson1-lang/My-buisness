@@ -57,26 +57,39 @@ export const DISTRICTS: District[] = [
     sources: ["Eden Valley-Watkins High School"] },
 ]
 
-// A line's kind is the first kind its own words name ("Catholic Community Schools will be closed. Cathedral will move
-// to an e-learning day." is closed), else its heading's ("SCHOOLS (2 hours late):"). Out early wins a tie with closed:
-// "closing 2 hours early", "closing at 12:30 p.m.".
+// A heading names its kind loosely: "SCHOOLS (2 hours late):", "SCHOOLS CLOSING EARLY:", "SCHOOLS (Closed):".
 const HOURS = String.raw`(\d+|one|two|three)[- ]hours?`
-const KINDS: [Kind, RegExp][] = [
+const HEADING_KINDS: [Kind, RegExp][] = [
+  ["elearning", /e-?learning/], ["early", /early|dismiss/], ["late", /late|delay/], ["closed", /closed|closing|no school/],
+]
+// A line overrides its heading only with a strong phrase in its first sentence, the first one named: "Catholic
+// Community Schools will be closed. Cathedral will move to an e-learning day." is closed, "Sauk Rapids-Rice
+// (e-learning)" under Closed is e-learning. A side note never does: "No morning early childhood classes", "Kid Care
+// opening delayed until 9", "Normal dismissal time" stay their heading's kind. Out early wins a tie with closed.
+const LINE_KINDS: [Kind, RegExp][] = [
   ["elearning", /(?<!\bnot an? )\be-?learning\b|\bremote learning\b|\bdistance learning\b/],
-  ["early", new RegExp(String.raw`\bclosing ${HOURS} early|\bclos(e|ing) early|\bclosing at (\d|noon)|\bdismiss|\breleas|\bearly\b`)],
-  ["late", new RegExp(String.raw`\b${HOURS} (late|delay)|\blate\b|\bdelay`)],
-  ["closed", /\bclosed\b|\bno school\b|\bno classes\b|\bnot have classes\b|\bclosing\b/],
+  ["early", new RegExp(String.raw`\b${HOURS} early\b|\bclos(e|es|ing) early\b|\bclos(e|es|ing) at (\d|noon)|` +
+                       String.raw`\b(dismiss|releas)\w* (students )?(early|at (\d|noon))`)],
+  ["late", new RegExp(String.raw`\b${HOURS} (late|delay)|\blate start\b|\bdelayed start\b|\bstart(s|ing)? late\b`)],
+  ["closed", /\b(will be|is|are) closed\b|\bno school\b|\bno classes\b|\bnot have classes\b/],
 ]
 const RANK: Record<Kind, number> = { late: 1, early: 2, elearning: 3, closed: 4 }
 const NUMBERS: Record<string, string> = { one: "1", two: "2", three: "3" }
 
-export function kindOf(text: string): Kind | null {
+function firstKind(text: string, kinds: [Kind, RegExp][]): Kind | null {
   let best: { at: number; kind: Kind } | null = null
-  for (const [kind, re] of KINDS) {
+  for (const [kind, re] of kinds) {
     const m = re.exec(text)
     if (m && (!best || m.index < best.at)) best = { at: m.index, kind }
   }
   return best?.kind ?? null
+}
+
+// The first sentence: up to a full stop that isn't "St.", "a.m.", "p.m." or an initial.
+const firstSentence = (text: string) => text.split(/(?<!\bst|\b[ap]\.m|\b[a-z])\.(?:\s|$)/)[0]
+
+export function kindOf(line: string, heading: Kind | null): Kind | null {
+  return firstKind(firstSentence(line), LINE_KINDS) ?? heading ?? firstKind(line, LINE_KINDS)
 }
 
 function titleOf(kind: Kind, words: string): string {
@@ -97,35 +110,44 @@ function decode(s: string): string {
       : ENTITIES[e.toLowerCase()] ?? all)
 }
 
+// Block tags end a line and a list item starts one as "-- "; any other tag goes with no space, since WJON's pasted text
+// splits words with them ("F<span>oley</span>", Dec 9).
 function textLines(html: string): string[] {
   const s = html.replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, "\n").replace(/<[^>]+>/g, " ")
+    .replace(/<li\b[^>]*>/gi, "\n-- ")
+    .replace(/<br\s*\/?>|<\/?(p|div|li|ul|ol|h[1-6]|tr|table|section|article|blockquote)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
   return decode(s).split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean)
 }
 
 const plain = (s: string) => s.toLowerCase().replace(/[’‘]/g, "'").replace(/\bsaint\b/g, "st.").replace(/\s+/g, " ")
 
 // A day's post: the first <article id="post-…"> (later ones are other posts), from the line after "( WJON News )"
-// to "If you have a weather-related announcement". Each "SCHOOLS …:" heading opens a section; any other heading
-// ("MISCELLANEOUS:") closes it. Each "-" or "--" line in a school section starts with a school's name ("Prince of
-// Peace Lutheran School in St. Cloud" is not St. Cloud's). A line for one of ours with no kind in its words or its
-// heading is `unread`: the run fails rather than guess.
+// to "If you have a weather-related announcement". A page without that marker isn't the post (a moved or blocked
+// page) and throws: read as empty, it would take back every closing that day. A line starting "SCHOOLS" or
+// "Private schools", colon or not, opens a school section; any other short line ending in a colon ("MISCELLANEOUS:")
+// closes it. Each "-", "--" or bullet line in a school section starts with a school's name ("Prince of Peace Lutheran
+// School in St. Cloud" is not St. Cloud's). A line for one of ours with no kind in its words or its heading is
+// `unread`: the run fails rather than guess.
 export function parseList(html: string): { lines: Line[]; unread: string[] } {
   const start = html.indexOf('<article id="post-')
   const next = start < 0 ? -1 : html.indexOf("<article", start + 10)
   const all = textLines(start < 0 ? html : html.slice(start, next < 0 ? undefined : next))
   const from = all.findIndex((l) => /\(\s*WJON News\s*\)/i.test(l))
+  if (from < 0) throw new Error("not a WJON list post: no \"( WJON News )\" line")
   const lines: Line[] = []
   const unread: string[] = []
   let section: Kind | null | false = false
   let heading = ""
   for (const raw of all.slice(from + 1)) {
     if (/if you have a weather|cancellations line/i.test(raw)) break
-    const item = /^-+\s*(.*)$/.exec(raw)
+    const item = /^[-–—•*]+\s*(.*)$/.exec(raw)
     if (!item) {
-      if (/:\s*$/.test(raw)) {
+      if (/^((private|public|area|catholic) )?schools?\b/i.test(raw)) {
         heading = plain(raw)
-        section = /^school/i.test(raw) ? kindOf(heading) : false
+        section = firstKind(heading, HEADING_KINDS)
+      } else if (/:\s*$/.test(raw) && raw.length <= 40) {
+        section = false
       }
       continue
     }
@@ -134,29 +156,37 @@ export function parseList(html: string): { lines: Line[]; unread: string[] } {
     const text = plain(words).replace(/^the /, "")
     for (const d of DISTRICTS) {
       if (d.name.exec(text)?.index !== 0) continue
-      const kind = kindOf(text) ?? section
+      const kind = kindOf(text, section)
       if (!kind) unread.push(words)
       // A title's hours come from the line, else its heading ("SCHOOLS (2 hours late):" over "-- Sartell").
       else lines.push({ district: d.key, kind, words, title: titleOf(kind, `${text} ${heading}`) })
       break
     }
   }
-  // A district named twice keeps its strongest kind.
+  return { lines: strongest(lines), unread }
+}
+
+// A school named twice keeps its strongest kind.
+function strongest(lines: Line[]): Line[] {
   const kept = new Map<string, Line>()
   for (const l of lines) if (!kept.has(l.district) || RANK[l.kind] > RANK[kept.get(l.district)!.kind]) kept.set(l.district, l)
-  return { lines: [...kept.values()], unread }
+  return [...kept.values()]
 }
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
                 "november", "december"]
 
-// The day a feed item's title is for: "Weather Related Announcements for Thursday, April 2nd, 2026", or "… For
-// Wednesday, February 18th" with the year of when it was posted. Anything else (a festival called off) is null.
+// A feed item that may be a day's list: "Weather Related Announcements for Thursday, April 2nd, 2026", "Cancellations
+// and Closings – May 2nd".
+const LIST_TITLE = /announcement|closing|delay/i
+
+// The day a list's title is for, with the year of when it was posted when the title has none ("… For Wednesday,
+// February 18th"). Null when the title isn't a list's or names no day.
 export function dayOf(title: string, posted: Date): string | null {
-  const m = /announcements?\s+(?:for\s+)?(?:[a-z]+day,?\s+)?([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?/i
-    .exec(decode(title))
-  const month = m ? MONTHS.indexOf(m[1].toLowerCase()) : -1
-  if (!m || month < 0) return null
+  const t = decode(title)
+  const m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?/i.exec(t)
+  const month = m ? MONTHS.findIndex((x) => x.startsWith(m[1].toLowerCase().slice(0, 3))) : -1
+  if (!LIST_TITLE.test(t) || !m || month < 0) return null
   const near = (y: number) => Math.abs(Date.UTC(y, month, +m[2]) - posted.getTime())
   const y0 = posted.getUTCFullYear()
   const year = m[3] ? +m[3] : [y0 - 1, y0, y0 + 1].reduce((a, b) => (near(b) < near(a) ? b : a))
@@ -205,24 +235,43 @@ export async function readAlerts(zone: string, get: Get): Promise<Alert[]> {
     .map((p: Record<string, string | null>) => ({ event: p.event ?? "", onset: p.onset ?? null, ends: p.ends ?? p.expires ?? null }))
 }
 
-// Today's and tomorrow's posts, each read whole; a post neither feed lists yet is left for the next read.
-export async function readLists(now: Date, get: Get): Promise<{ day: string; url: string; lines: Line[] }[]> {
+// Today's and tomorrow's lists. A day's posts are read together and sent as one list, each school at its strongest
+// kind (a second post for the same day must not take back the first's closings). A day whose post can't be read is
+// left as it was and named in `failed`; the other day still goes. A list-like title posted in the last day and a half
+// whose day can't be read is named in `unsure`, so a change in WJON's wording reaches the 8:00 email (a story about a
+// restaurant closing is one too, and harmless).
+export async function readLists(now: Date, get: Get) {
   const today = local(now).day
   const wanted = new Set([today, addDays(today, 1)])
-  const posts = new Map<string, { day: string; url: string }>()
+  const byDay = new Map<string, string[]>()
+  const failed: string[] = []
+  const unsure: string[] = []
   for (const feed of FEEDS) {
     for (const p of feedPosts(await get(feed))) {
       const day = dayOf(p.title, p.posted)
-      if (day && wanted.has(day) && !posts.has(p.link)) posts.set(p.link, { day, url: p.link })
+      if (!day && LIST_TITLE.test(p.title) && now.getTime() - p.posted.getTime() < 36 * 60 * MINUTE) {
+        unsure.push(`can't read the day of WJON's post "${p.title}"`)
+      }
+      if (!day || !wanted.has(day)) continue
+      const links = byDay.get(day) ?? []
+      if (!links.includes(p.link)) byDay.set(day, [...links, p.link])
     }
   }
-  const out = []
-  for (const p of posts.values()) {
-    const { lines, unread } = parseList(await get(p.url))
-    if (unread.length) throw new Error(`WJON's list for ${p.day} has a line it can't read: ${unread[0]}`)
-    out.push({ ...p, lines })
+  const days: { day: string; url: string; lines: Line[] }[] = []
+  for (const [day, links] of byDay) {
+    try {
+      const lines: Line[] = []
+      for (const link of links) {
+        const read = parseList(await get(link))
+        if (read.unread.length) throw new Error(`a line it can't read: ${read.unread[0]}`)
+        lines.push(...read.lines)
+      }
+      days.push({ day, url: links[0], lines: strongest(lines) })
+    } catch (e) {
+      failed.push(`WJON's list for ${day}: ${e instanceof Error ? e.message : e}`)
+    }
   }
-  return out
+  return { days, failed, unsure: [...new Set(unsure)] }
 }
 
 export function payload(lines: Line[]) {
@@ -233,9 +282,11 @@ export function payload(lines: Line[]) {
 }
 
 // One wake: the alerts when due, then the list when due. A failure is saved with its reason and the run goes on to
-// the list; the 8:00 email names it.
+// the list; the 8:00 email names it. The run first claims the town (public.claim_weather): a second call within 5
+// minutes, from anyone, reads nothing.
 export async function run(rpc: Rpc, get: Get, now = new Date()) {
-  const state = (await rpc("weather_state", { p_town: TOWN })) as State
+  const state = (await rpc("claim_weather", { p_town: TOWN })) as State | null
+  if (!state) return { busy: true }
   let alerts = state.alerts
   const did: Record<string, unknown> = {}
   const failed = async (e: unknown) => {
@@ -252,12 +303,15 @@ export async function run(rpc: Rpc, get: Get, now = new Date()) {
   }
   if (listDue(now, stormy(alerts, now), state.list_read_at)) {
     try {
-      const days = await readLists(now, get)
+      const { days, failed: why, unsure } = await readLists(now, get)
       for (const d of days) {
         did[d.day] = await rpc("apply_school_closings", { p_day: d.day, p_url: d.url, p_closings: payload(d.lines) })
       }
-      await rpc("save_weather", { p_town: TOWN, p_list_read: true })
       did.lists = days.length
+      // A day that failed is read again at the next wake: the list isn't marked read.
+      if (why.length) await failed([...why, ...unsure].join("; "))
+      else if (unsure.length) await rpc("save_weather", { p_town: TOWN, p_list_read: true, p_error: unsure.join("; ") })
+      else await rpc("save_weather", { p_town: TOWN, p_list_read: true })
     } catch (e) { await failed(e) }
   }
   return did
@@ -293,6 +347,9 @@ if (typeof Deno !== "undefined") Deno.serve(() => {
     return text ? JSON.parse(text) : null
   }
   EdgeRuntime.waitUntil(run(rpc, politeGet).then((did) => console.log("[weather]", JSON.stringify(did)))
-    .catch((e) => console.error("[weather]", e)))
+    .catch(async (e) => {
+      console.error("[weather]", e)
+      await rpc("save_weather", { p_town: TOWN, p_error: e instanceof Error ? e.message : String(e) }).catch(() => {})
+    }))
   return Response.json({ started: true }, { status: 202 })
 })

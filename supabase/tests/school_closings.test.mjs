@@ -76,6 +76,20 @@ test('out early: only Events from noon on; late and e-learning call off nothing;
   assert.deepEqual((await news()).map((n) => n.title), ['E-Learning Day']);
 });
 
+test('a game moved to another day is no longer the closing\'s; one kept on by hand stays on', async () => {
+  await clean();
+  const moved = await event('Tech Boys Hockey vs Sartell', { source: 'Tech High School', teams: ['tech', 'sartell'] });
+  const kept = await event('Kennedy Winter Concert', { source: 'Kennedy Community School' });
+  await apply([line(ST_CLOUD, 'closed', 'No School')]);
+  // Its schedule moves it to a make-up day, the way apply_judged writes a re-read: new date, cancelled_at = null.
+  await db.query(`update public.club_events set event_date = $2, cancelled_at = null where id = $1`, [moved, townDay(5)]);
+  await db.query(`update public.club_events set called_off_by = 'kept', cancelled_at = null where id = $1`, [kept]);
+  await apply([line(ST_CLOUD, 'closed', 'No School')]);
+  assert.deepEqual(await off([moved, kept]), []);
+  const { rows } = await db.query('select called_off_by from public.club_events where id = $1', [moved]);
+  assert.equal(rows[0].called_off_by, null);
+});
+
 test("its own source re-reading it the same morning doesn't bring a called-off Event back", async () => {
   await clean();
   const game = await event('Tech Boys Hockey vs Sartell', { source: 'Tech High School', teams: ['tech', 'sartell'] });
@@ -96,6 +110,13 @@ test('Jan 6: a late start that becomes a closing archives its News and calls the
   await apply([line(ST_CLOUD, 'closed', 'No School')]);
   assert.deepEqual(await off([game]), [game]);
   assert.deepEqual((await news()).map((n) => [n.title, n.status]), [['2 Hours Late', 'archived'], ['No School', 'published']]);
+});
+
+test('the same kind with new hours: the News says the new ones', async () => {
+  await clean();
+  await apply([line(ST_CLOUD, 'late', '1 Hour Late')]);
+  await apply([line(ST_CLOUD, 'late', '2 Hours Late')]);
+  assert.deepEqual((await news()).map((n) => [n.title, n.status]), [['1 Hour Late', 'archived'], ['2 Hours Late', 'published']]);
 });
 
 test('a closing gone from the list brings its Events back, and only those it called off', async () => {
@@ -131,30 +152,36 @@ test('only the server may call the tracker: a signed-in neighbour is refused', a
   await db.exec(`set role authenticated; select set_config('request.jwt.claims', '${JSON.stringify({ sub: ME })}', false)`);
   try {
     await assert.rejects(db.query(`select public.apply_school_closings($1, 'x', '[]')`, [DAY]), /permission denied/);
-    await assert.rejects(db.query(`select public.weather_state('st-joseph-mn')`), /permission denied/);
+    await assert.rejects(db.query(`select public.claim_weather('st-joseph-mn')`), /permission denied/);
     await assert.rejects(db.query(`select public.save_weather('st-joseph-mn')`), /permission denied/);
   } finally {
     await db.exec('reset role; reset request.jwt.claims');
   }
 });
 
-test("the tracker's state, and the 8:00 email's lines when it stops reading or fails", async () => {
-  const state = async () => (await db.query(`select public.weather_state('st-joseph-mn') s`)).rows[0].s;
-  assert.equal((await state()).zone, 'MNZ049');
+test("the tracker's claim and state, and the 8:00 email's lines when it stops reading or fails", async () => {
+  const claim = async (now) => (await db.query(`select public.claim_weather('st-joseph-mn', $1) s`, [now])).rows[0].s;
+  assert.equal((await claim('2026-11-16 13:30:00+00')).zone, 'MNZ049');
+  assert.equal(await claim('2026-11-16 13:34:00+00'), null, 'held by the run 4 minutes ago');
+  const state = () => claim('2026-11-16 23:00:00+00');
   const lines = async (now) => (await db.query('select private.morning_problems($1) p', [now])).rows
     .map((r) => r.p).filter((p) => p.includes('weather tracker'));
+  await db.exec(`update private.weather set began_at = '2026-11-16 13:00:00+00'`);
   assert.deepEqual(await lines('2026-11-16 14:00:00+00'), [], 'never read yet: it has only just begun');
+  assert.deepEqual(await lines('2026-11-16 16:30:00+00'), ['The weather tracker has never read the weather.']);
 
   await db.query(`select public.save_weather('st-joseph-mn', $1, true, null, '2026-11-16 13:45:00+00')`,
                  [JSON.stringify([{ event: 'Winter Storm Watch', onset: null, ends: null }])]);
   const s = await state();
   assert.equal(s.alerts[0].event, 'Winter Storm Watch');
+  await db.exec(`update private.weather set claimed_at = null`);
   assert.equal(s.list_read_at, s.alerts_read_at);
   assert.deepEqual(await lines('2026-11-16 14:00:00+00'), []);
 
   await db.query(`select public.save_weather('st-joseph-mn', p_error => 'api.weather.gov: HTTP 503',
                                               p_now => '2026-11-16 15:00:00+00')`);
   assert.equal((await state()).alerts[0].event, 'Winter Storm Watch', 'a failure keeps the last alerts');
+  await db.exec(`update private.weather set claimed_at = null`);
   assert.deepEqual(await lines('2026-11-16 18:00:00+00'), [
     "The weather tracker hasn't read the weather since Nov 16 7:45 AM.",
     'The weather tracker failed at Nov 16 9:00 AM: api.weather.gov: HTTP 503',

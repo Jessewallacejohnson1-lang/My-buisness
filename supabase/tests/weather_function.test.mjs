@@ -47,9 +47,35 @@ test("last winter's lists: each of our schools with its kind, and nobody else's"
   for (const day of Object.keys(wjon.posts)) assert.deepEqual(parseList(wjon.posts[day]).unread, [], day);
 });
 
+const page = (lines) => `<article id="post-1"><p>UNDATED ( WJON News ) -- We have some announcements:</p>${lines}
+  <p>If you have a weather-related announcement, call our cancellations line.</p></article>`;
+const kinds = (html) => Object.fromEntries(parseList(html).lines.map((l) => [l.district, `${l.kind}: ${l.title}`]));
+
+test("a side note never changes a line's kind; a strong phrase in its first sentence does (review, 2026-11-14)", () => {
+  assert.deepEqual(kinds(page(`<p>SCHOOLS (2 HOURS LATE):</p><p>-- St. Cloud Area Schools. No morning early childhood
+    classes.</p><p>-- ROCORI. Normal dismissal time.</p><p>-- Sartell-St. Stephen. Kid Care will stay open late.</p>`)),
+    { 'st-cloud': 'late: 2 Hours Late', rocori: 'late: 2 Hours Late', sartell: 'late: 2 Hours Late' });
+  assert.deepEqual(kinds(page(`<p>SCHOOLS (CLOSED):</p><p>-- Sauk Rapids-Rice (no early childhood, no practice)</p>
+    <p>-- Catholic Community Schools (Kid Care opening delayed until 9)</p><p>-- St. Cloud Area Schools (e-learning)</p>`)),
+    { 'sauk-rapids-rice': 'closed: No School', 'catholic-community-schools': 'closed: No School',
+      'st-cloud': 'elearning: E-Learning Day' });
+  assert.deepEqual(kinds(page(`<p>SCHOOLS (2 HOURS LATE):</p><p>-- Sartell-St. Stephen is now closing 1 hour early.</p>`)),
+    { sartell: 'early: Out 1 Hour Early' });
+});
+
+test('a heading needs no colon; a word split by a tag, a bullet list and a "Private schools" heading still read', () => {
+  assert.deepEqual(kinds(page(`<p>SCHOOLS (CLOSED):</p><p>-- Becker</p><p>SCHOOLS (2 HOURS LATE)</p>
+    <p>-- St. Cloud Area Schools</p>`)), { 'st-cloud': 'late: 2 Hours Late' });
+  assert.deepEqual(kinds(page(`<p>SCHOOLS (CLOSED):</p><p>--S<span>t. Cloud Area Schools</span></p>
+    <p>PRIVATE SCHOOLS (2 hours late)</p><ul><li>St. John<strong>'s</strong> Prep</li></ul>`)),
+    { 'st-cloud': 'closed: No School', 'st-johns-prep': 'late: 2 Hours Late' });
+});
+
+test('a page that is not the post throws, so a day is never read as empty', () => {
+  assert.throws(() => parseList('<html><body><h1>Page not found</h1></body></html>'), /not a WJON list post/);
+});
+
 test('a line for one of ours with no kind fails the read; a school only named inside a line is not ours', () => {
-  const page = (lines) => `<article id="post-1"><p>UNDATED ( WJON News ) -- We have some announcements:</p>${lines}
-    <p>If you have a weather-related announcement, call our cancellations line.</p></article>`;
   assert.deepEqual(parseList(page('<p>SCHOOLS:</p><p>-- St. Cloud Area Schools</p>')).unread, ['St. Cloud Area Schools']);
   const r = parseList(page('<p>SCHOOLS (CLOSED):</p><p>-- Prince of Peace Lutheran School in St. Cloud</p>' +
     '<p>-- The St. Cloud Area School District</p><p>MISC:</p><p>-- Sartell VFW bingo is cancelled</p>'));
@@ -121,7 +147,7 @@ const database = (state) => {
   const calls = [];
   const rpc = async (name, body) => {
     calls.push([name, body]);
-    return name === 'weather_state' ? state : null;
+    return name === 'claim_weather' ? state : null;
   };
   return { rpc, calls };
 };
@@ -146,12 +172,37 @@ test("9:30 PM Sunday, Jan 25, a Cold Weather Advisory out: Monday's late start g
   assert.deepEqual(calls.at(-1), ['save_weather', { p_town: 'st-joseph-mn', p_list_read: true }]);
 });
 
+test('two posts for one day are one list; another run holding the town reads nothing', async () => {
+  const first = page('<p>SCHOOLS (2 hours late):</p><p>-- St. Cloud Area Schools</p><p>-- Sartell-St. Stephen</p>');
+  const second = page('<p>SCHOOLS (Closed):</p><p>-- St. Cloud Area</p>');
+  const feed = (items) => `<rss><channel>${items.map(([t, l]) =>
+    `<item><title>${t}</title><link>${l}</link><pubDate>Mon, 26 Jan 2026 03:00:00 GMT</pubDate></item>`).join('')}</channel></rss>`;
+  const pages = {
+    'https://wjon.com/category/closings/feed/': feed([['Weather Announcements for Monday, January 26th, 2026', 'https://wjon.com/a/']]),
+    'https://wjon.com/category/weather/feed/': feed([['Weather Related Announcements for Monday, January 26th', 'https://wjon.com/b/'],
+                                                     ['Restaurant Closing Downtown', 'https://wjon.com/c/']]),
+    'https://wjon.com/a/': first, 'https://wjon.com/b/': second,
+  };
+  const { rpc, calls } = database(storm);
+  await run(rpc, async (url) => pages[url], at('2026-01-26T03:30:00Z'));
+  const applies = calls.filter(([n]) => n === 'apply_school_closings');
+  assert.equal(applies.length, 1, 'one call for the day');
+  assert.deepEqual(applies[0][1].p_closings.map((c) => [c.district, c.kind]), [['st-cloud', 'closed'], ['sartell', 'late']]);
+  assert.deepEqual(calls.at(-1), ['save_weather', { p_town: 'st-joseph-mn', p_list_read: true,
+    p_error: `can't read the day of WJON's post "Restaurant Closing Downtown"` }], 'named, but the list counts as read');
+
+  const busy = database(null);
+  assert.deepEqual(await run(busy.rpc, async () => { throw new Error('read nothing'); }, at('2026-01-26T03:30:00Z')),
+                   { busy: true });
+  assert.deepEqual(busy.calls.map(([n]) => n), ['claim_weather']);
+});
+
 test('a failure is saved with its reason and nothing is applied; failed alerts still leave the list read', async () => {
   const broken = '<article id="post-9"><p>( WJON News )</p><p>SCHOOLS:</p><p>-- St. Cloud Area Schools</p></article>';
   const one = database(storm);
   await run(one.rpc, web({ 'local-school-weather-announcements-2': broken }).get, at('2026-01-26T03:30:00Z'));
   assert.equal(one.calls.some(([n]) => n === 'apply_school_closings'), false);
-  assert.match(one.calls.at(-1)[1].p_error, /can't read: St. Cloud Area Schools/);
+  assert.match(one.calls.at(-1)[1].p_error, /list for 2026-01-26: a line it can't read: St. Cloud Area Schools/);
   assert.equal(one.calls.some(([, b]) => b?.p_list_read), false, 'not saved as read, so 15 minutes on it tries again');
 
   const two = database({ ...storm, alerts_read_at: '2026-01-26T02:00:00Z' });
