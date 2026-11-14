@@ -22,6 +22,13 @@ flake moves to Fixed, dated, and stays there.
 - 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
+- 2026-11-13 · `EventCardPhotoTapTests.testAHeldCardOpensItsMenuAndItsButtonsKeepTheirTaps` · red once on the Mac
+  in a full run on feat/nothing-scheduled (no Town card code: school rows and the sources scripts) just after merging
+  e5d335e4: "a tap on the poster's heart didn't like it" (the like's wait timed out) · passed alone straight after,
+  at load 33 to 40 · no fix yet
+- 2026-11-13 · `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` · red once on the Mac in that alone
+  run, at load 40: "a double tap on the photo pushed the event page" (the two taps read as one) · passed in the full
+  run just before · no fix yet: on a loaded Mac the double tap's gap can outlast the single-tap wait
 - 2026-11-07 · `EventCardPhotoTapTests.testADragUpOnThePhotoScrollsTheFeed` · red once on the Mac in a full run at load 50,
   on feat/review-queue-details just after merging a941d5e7, a change with no Town card
   code: the card never moved (659 not under 609) · passed 3 of 3 alone straight after, at load 16 to 26 · no fix
