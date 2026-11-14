@@ -265,7 +265,7 @@ struct TeamPage: View {
                             .font(.sans(17))
                             .foregroundStyle(Hue.nameOnDark)
                             .lineLimit(1)
-                        Text(activity.next.map { Self.when($0) } ?? "No events yet")
+                        Text(Self.line(activity))
                             .font(.sans(13))
                             .foregroundStyle(Hue.nameOnDark.opacity(0.5))
                             .lineLimit(1)
@@ -365,6 +365,12 @@ struct TeamPage: View {
         case "arts": return "paintpalette"
         default: return "person.3"
         }
+    }
+
+    /// A row's grey line: its next Event's day and time; else when it meets, "Fridays · 8 AM" (nothing-scheduled 03,
+    /// Apple Sports' "Off Season" line); else "No events yet". Only an Event opens the row.
+    static func line(_ activity: TeamProfile.Activity) -> String {
+        activity.next.map { when($0) } ?? activity.meets?.lazy.compactMap(\.words).first ?? "No events yet"
     }
 
     /// "Tue, Oct 27 · 6 PM": its day and time, as the row says it.

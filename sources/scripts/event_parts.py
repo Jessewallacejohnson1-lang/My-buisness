@@ -35,12 +35,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import registry  # noqa: E402
 import run  # noqa: E402
 from db import DbError  # noqa: E402
-from read_events import LOCAL  # noqa: E402
+from read_events import CLOCK, LOCAL  # noqa: E402
 from write_judged import PLACE_STOP, parse_clock, same_place, words  # noqa: E402
-
-# "3 PM", "3:30 p.m.", "3pm", and a range's first time taking the second's half of the day ("3-5 PM", "3 to 5 p.m.")
-CLOCK = re.compile(r"\b(\d{1,2})(?::(\d\d))?\s*(?:(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*)?([ap])\.?\s?m\b\.?", re.I)
-
 
 def times_in(text):
     """Every clock time the words state: a time is read only where the host wrote it, never from "afternoon"."""
