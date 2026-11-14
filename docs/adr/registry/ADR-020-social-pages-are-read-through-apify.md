@@ -146,6 +146,8 @@ The alternatives were to keep social pages search-only, which leaves the town's 
 channel unread, or to read them narrowly for verification only. Jesse chose broad reading,
 because a neighbour-facing app that misses what places post is missing its point.
 
+**Amended 2026-11-14 (Jesse: "read theres cus they post city events and new things downtown it will help us find sources to check"):** a page marked `stories` in the list (JoeTown's Instagram) also has its stories read, once a day with the 7pm busy run, through a no-login story actor (about $3 a month for one account). The accounts its stories tag go on the monthly accounts list at their first tag (BP app watch-every-place 25).
+
 ## Decision
 
 **Block Party reads public Facebook and Instagram through Apify**: places' own social

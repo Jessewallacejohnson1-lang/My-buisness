@@ -2359,7 +2359,8 @@
   "kind": "instagram",
   "url": "https://www.instagram.com/joetownmn",
   "busy": true,
-  "day": "mon"
+  "day": "mon",
+  "stories": true
  },
  {
   "entry_id": "bar-grill-sals",

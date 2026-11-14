@@ -38,7 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from db import key_headers
 from registry import find_root, load
-from social import api, by_name, items
+from social import api, by_name, items, story_tags
 from towns import DEFAULT, lookup
 
 TASK, ACTOR, CAP = "bp-monthly-places", "compass~crawler-google-places", 3.00
@@ -343,8 +343,9 @@ def tag_counts(rows, known):
     """{account: (times, [pages that tagged it])} from Instagram rows the social watch read: accounts our
     pages tagged or mentioned TAGGED_AT_LEAST times or more, TAGGED_BY_AT_LEAST different pages among them (one
     page's own staff, athletes and clients tag high on their own: 25 names on 2026-11-08's first count, one of
-    them a place), less the pages themselves and the list's own."""
-    counts, by = Counter(), {}
+    them a place), less the pages themselves and the list's own. An account a story tagged (a row with `story`)
+    is listed at its first tag: a town account's stories point at places (watch-every-place 25)."""
+    counts, by, storied = Counter(), {}, set()
     owners = {str(r.get("ownerUsername") or "").lower() for r in rows}
     for r in rows:
         owner = str(r.get("ownerUsername") or "").lower()
@@ -354,7 +355,10 @@ def tag_counts(rows, known):
             if n and n not in known and n not in owners:
                 counts[n] += 1
                 by.setdefault(n, set()).add(owner)
-    return {n: (c, sorted(by[n])) for n, c in counts.most_common() if c >= TAGGED_AT_LEAST and len(by[n]) >= TAGGED_BY_AT_LEAST}
+                if r.get("story"):
+                    storied.add(n)
+    return {n: (c, sorted(by[n])) for n, c in counts.most_common()
+            if n in storied or (c >= TAGGED_AT_LEAST and len(by[n]) >= TAGGED_BY_AT_LEAST)}
 
 
 def tagged(town=DEFAULT, days=31):
@@ -369,10 +373,12 @@ def tagged(town=DEFAULT, days=31):
     since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
     rows = []
     for name, task in by_name("/actor-tasks").items():
-        if name.startswith(("bp-busy-", "bp-weekly-")) and name.endswith("-instagram"):  # bp-weekly-<day>-instagram
+        if name.startswith(("bp-busy-", "bp-weekly-")) and name.endswith(("-instagram", "-stories")):  # bp-weekly-<day>-instagram
             for r in api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=100")["data"]["items"]:
                 if r["status"] == "SUCCEEDED" and (r.get("startedAt") or "")[:19] >= since:
-                    rows += items(r["defaultDatasetId"])
+                    got = items(r["defaultDatasetId"])
+                    rows += ([{"ownerUsername": x.get("username"), "mentions": story_tags(x), "story": True} for x in got]
+                             if name.endswith("-stories") else got)
     return tag_counts(rows, known), len(rows)
 
 
@@ -494,7 +500,11 @@ def selftest():
     assert tag_counts(rows, {"joetownmn"}) == {"thehousefoodandtap": (3, ["joetownmn", "joetownsmash", "krewe"])}, \
         "an account tagged 3+ times by 2+ of our pages, not on the list and not one of them, is proposed with who tagged " \
         "it; one page's own player, tagged 3 times by it alone, is not"
-    print("accounts.py selftest: 30 passed, 0 failed")
+    story = [{"ownerUsername": "joetownmn", "mentions": ["stearnshistorymuseum", "krewe"], "story": True}]
+    assert tag_counts(rows + story, {"joetownmn", "krewe"}) == {"thehousefoodandtap": (3, ["joetownmn", "joetownsmash", "krewe"]),
+                                                              "stearnshistorymuseum": (1, ["joetownmn"])}, \
+        "an account a story tags is listed at its first tag, unless the list has it"
+    print("accounts.py selftest: 31 passed, 0 failed")
 
 
 def main():
