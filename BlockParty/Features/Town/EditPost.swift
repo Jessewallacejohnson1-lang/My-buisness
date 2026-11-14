@@ -55,7 +55,7 @@ nonisolated enum PostEditAnswer: Equatable {
     }
 }
 
-enum PostEditCopy {
+nonisolated enum PostEditCopy {
     static let title = "Edit post"
     static let done = "Done"
     static let saving = "Saving"
