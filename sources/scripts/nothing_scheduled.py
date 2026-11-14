@@ -15,8 +15,8 @@ Confirmed, and what is walked (BP app dig-deeper 26 counted them live on 2026-11
 - An approved Group with no Event coming whose own page isn't on a site we read. Only its one-off Events are looked for:
   its regular meetings stay on its page (Jesse, 2026-11-13).
 
-On Sundays the morning report says how many are due, beside the photo dig's weekly pass. A chat walks them, as
-sources/models/nothing-scheduled.md says (sources/models/dates.md for its finders): MOST a week, the ones walked longest
+On a Sunday four weeks after the last walk the morning report says how many are due, beside the photo dig's weekly pass. A chat walks them, as
+sources/models/nothing-scheduled.md says (sources/models/dates.md for its finders): MOST a month, the ones walked longest
 ago first.
 
   python3 sources/scripts/nothing_scheduled.py count                    the counts; nothing walked
@@ -61,7 +61,7 @@ from towns import DEFAULT, lookup  # noqa: E402
 
 AGAIN = timedelta(days=28)   # a thing walked isn't walked again sooner (ticket 04)
 TURNED_DOWN_AGAIN = timedelta(days=180)  # a page the paid rung read and turned down isn't paid for again sooner
-MOST = 40                    # things a week: about 266 to walk, so a full pass takes about seven weeks
+MOST = 40                    # things a month (Jesse, 2026-11-13): about 250 to walk, a full pass in about six months
 PER_FIND = 5                 # things in one finder's batch
 AHEAD = 90                   # a page counts when it gives a date this many days ahead (the readers' DAYS_AHEAD)
 RUNGS = ("school", "broad", "own", "search")  # the Ladder, cheapest first (dig-deeper 26's hand walk)
@@ -257,11 +257,16 @@ def due(all_things, walks, now, most=MOST):
 
 def due_line(db, today, now=None):
     """The morning report's line on Sundays (morning.sunday_lines), beside the photo dig's weekly pass: how many are
-    due, and how to walk them. A count that fails is the line, never a lost report."""
+    due, and how to walk them: once a walk is four weeks old, so about once a month (Jesse, 2026-11-13: one pass a
+    month). A count that fails is the line, never a lost report."""
     now = now or datetime.now(timezone.utc)
     try:
+        walks = last_walks(db)
+        newest = max((at for key, at in walks.items() if not key.startswith("page:")), default="")
+        if newest >= (now - AGAIN + timedelta(days=1)).isoformat():  # a day's slack: a Sunday chat walks after 6 AM
+            return []
         all_things, _ = load_all(db, today)
-        todo, left = due(all_things, last_walks(db), now)
+        todo, left = due(all_things, walks, now)
     except Exception as e:
         return [f"[scheduled] the Sunday count failed: {' '.join(str(e).split())[:300]}"]
     total = len(walked_things(all_things))
@@ -732,11 +737,14 @@ def selftest():
     was = load_all
     load_all = lambda db, today: (got, entries)  # noqa: E731
     try:
-        sunday = due_line(db, date(2026, 11, 15), now)
+        month = datetime(2026, 11, 29, 12, tzinfo=timezone.utc)
+        sunday = due_line(db, date(2026, 11, 29), month)
+        soon = due_line(db, date(2026, 11, 15), now)
         load_all = lambda db, today: 1 / 0  # noqa: E731
-        broken = due_line(db, date(2026, 11, 15), now)
+        broken = due_line(db, date(2026, 11, 29), month)
     finally:
         load_all = was
+    check(soon == [], f"two weeks after a walk, no line: one pass a month (Jesse, 2026-11-13): {soon}")
     check(sunday == [
         '[scheduled] 7 of 8 things with nothing scheduled are due for a walk: say "nothing scheduled" in a chat to walk 7 '
         '(sources/models/nothing-scheduled.md)'] and broken == ["[scheduled] the Sunday count failed: division by zero"],
