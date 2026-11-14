@@ -80,7 +80,6 @@ nonisolated enum LaunchFlags {
         case showSkeletons = "-show-skeletons"
         case skipOnboarding = "-skip-onboarding"
         case tabCycle = "-tab-cycle"
-        case teamMeets = "-team-meets"
         case tilt = "-tilt"
         case townBasketball = "-town-basketball"
         case townCancelled = "-town-cancelled"
