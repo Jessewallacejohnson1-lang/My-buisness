@@ -328,10 +328,12 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     }
 
     /// Each number over its word in an 81 pt column, the numbers in ink, the words grey, no card.
-    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following".
+    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following". Each column is known by
+    /// its word, so a count that arrives and moves the others over slides them, never cross-fading one
+    /// number into its neighbour's place.
     private func countsRow(_ counts: [(number: Int, word: String)]) -> some View {
         HStack(spacing: 0) {
-            ForEach(Array(counts.enumerated()), id: \.offset) { _, part in
+            ForEach(counts, id: \.word) { part in
                 VStack(spacing: 0) {
                     Text("\(part.number)")
                         .font(.apple(17, weight: .semibold))
