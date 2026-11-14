@@ -687,9 +687,9 @@ struct NeighborPage: View {
         if you.groups == nil { await you.refreshGroups() }
         if you.going == nil { await you.refresh() }
         #if DEBUG
-        // `-town-samples` and `-town-offline`: a sample neighbour's counts, never a live read.
+        // `-town-samples` and `-town-offline`: a sample neighbour's page, never a live read.
         if LaunchFlags.backend != .live {
-            extras = .sampleNeighbor
+            extras = .sampleNeighbor(groups: you.groups ?? [], friend: book.relation(neighbor) == .friends)
             return
         }
         #endif

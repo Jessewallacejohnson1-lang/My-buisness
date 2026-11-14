@@ -848,9 +848,18 @@ struct ProfileExtras: Decodable, Equatable {
     var following: Int? = nil
 
     #if DEBUG
-    /// INVENTED, for `-town-samples`: your counts and a sample neighbour's, so the proof frames show
-    /// them with no `get_profile` read. No bio or cover: the sample run has none.
+    /// INVENTED, for `-town-samples`: your counts, with no `get_profile` read. No bio or cover, so
+    /// your page shows "+ Add bio".
     static let sample = ProfileExtras(friends: 24, following: 9)
-    static let sampleNeighbor = ProfileExtras(friends: 12, following: 6)
+
+    /// INVENTED, for `-town-samples`: a neighbour's page with every part showing: a bio, counts, two
+    /// groups (the first two the run loaded: they are the Town's live groups, with no fixed ids) and,
+    /// for a friend, two of the sample plans you're both Going to (`YouCalendar.samples`: the choir
+    /// concert and the market).
+    static func sampleNeighbor(groups: [TownGroup], friend: Bool) -> ProfileExtras {
+        ProfileExtras(bio: "Dad of two. Coach at the rink in winter.", friends: 12,
+                      groupIds: groups.prefix(2).map(\.id),
+                      bothGoing: friend ? ["you-sample-6", "you-sample-7"] : [], following: 6)
+    }
     #endif
 }
