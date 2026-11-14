@@ -101,9 +101,10 @@ struct FeedCardMenu: View {
     }
 
     private func go(_ next: Pane, back: Bool = false) {
-        // Back from the note with the keyboard up lets the keyboard go down first (about 0.25 s, guessed): at once, the
-        // sheet took the reasons' height over the keyboard and jumped to the screen's top for a frame (2026-11-14 run).
-        let wait = noteFocused && next == .reasons ? 0.25 : 0
+        // Leaving the note (Back or Send) with the keyboard up lets the keyboard go down first (about 0.25 s, guessed): at
+        // once, the sheet took the next page's height over the keyboard and jumped to the screen's top for a frame
+        // (2026-11-14 run).
+        let wait = noteFocused ? 0.25 : 0
         noteFocused = false
         // The pane on screen takes its new way out first: a view that leaves keeps the transition it last drew with.
         backward = back
@@ -272,7 +273,7 @@ struct FeedCardMenu: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 10)
                 .padding(.bottom, 14)
-            TextField("What's wrong?", text: $note,
+            TextField("Note", text: $note,
                       prompt: Text("The time, the place, or it's called off").foregroundStyle(Hue.inkSecondary),
                       axis: .vertical)
                 .font(.sans(17))
@@ -310,8 +311,8 @@ struct FeedCardMenu: View {
         .onAppear { noteFocused = true }
     }
 
-    /// The thanks once the report has gone: a check, one line, Done. It keeps the height of the page it came from,
-    /// so the sheet doesn't jump.
+    /// The thanks once the report has gone: a check, one line, Done. From the reasons it keeps their height, so the sheet
+    /// doesn't jump; from the full-height note it settles to the note's own height as the keyboard goes.
     private var thanks: some View {
         VStack(spacing: 0) {
             reportBar()
@@ -379,7 +380,7 @@ struct FeedCardMenu: View {
         sending = reason
         Task {
             do {
-                try await onReport(reason, words.flatMap(ReportNote.clean))
+                try await onReport(reason, words)
                 sending = nil
                 Haptics.success()
                 go(.thanks)
