@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 // Supabase Edge Function: Claude's instant check (text + image) on a neighbour's new Event from
-// New event (`submit`, BP app references/town-plus), and on a reported posting read again
+// New event (`submit`, BP app references/town-plus), on an edit of a live post (`edit`, BP app town-feed 44), and on a reported posting read again
 // (`recheck`, BP app town-feed 22).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
@@ -126,6 +126,31 @@ Deno.serve(async (req) => {
     const photo = typeof e.image_url === 'string' ? e.image_url.split('/event-images/')[1] : undefined
     if (photo) await admin.storage.from('event-images').remove([photo])
     return json({ ok: false, reason: said.reason })
+  }
+
+  // A neighbour's edit of their own live post (BP app town-feed 44): new words and Place, read with the post's own photo.
+  // claim_edit lets it through only on the caller's live post, 10 a day; nothing is written until the model says yes, so
+  // a no or no answer leaves the post as it was (and, unlike `submit`, never takes its photo down). A yes writes the
+  // words, the Place and the kept @ names alone (apply_post_edit). 'limit' is a 429 the app reads as the day's 10; a post
+  // gone while it was checked, a 410.
+  if (body?.edit) {
+    const id = String(body.edit)
+    const words = typeof body.words === 'string' ? body.words : ''
+    const place = typeof body.place === 'string' ? body.place.trim() : ''
+    const names = Array.isArray(body.names) ? body.names : null
+    const { data: claimed, error } = await admin.rpc('claim_edit', { p_event: id, p_user: caller, p_words: words, p_place: place })
+    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (claimed === 'limit') return json({ ok: false, reason: 'Not checked.' }, 429)
+    if (claimed !== 'claimed') return json({ ok: false, reason: 'Not checked.' }, 403)
+    const { data: e } = await admin.from('club_events').select('image_url').eq('id', id).single()
+    if (!e) return json({ ok: false, reason: 'Gone.' }, 410)
+    const said = await verdict({ kind: 'post', title: words, location: place || null, image_url: e.image_url })
+    if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!said.ok) return json({ ok: false, reason: said.reason })
+    const { data: applied, error: up } = await admin.rpc('apply_post_edit',
+      { p_event: id, p_user: caller, p_words: words, p_place: place, p_names: names })
+    if (up) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    return applied ? json({ ok: true, reason: '' }) : json({ ok: false, reason: 'Gone.' }, 410)
   }
 
   // A reported neighbour posting, read again (BP app town-feed 22): a caller's own text let any
