@@ -615,6 +615,8 @@ struct NeighborPage: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var extras: ProfileExtras?
+    /// `get_profile` has answered, or failed: the counts' skeleton goes either way.
+    @State private var extrasAnswered = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
 
@@ -673,6 +675,7 @@ struct NeighborPage: View {
             bio: extras?.bio,
             friends: extras?.friends,
             following: extras?.following,
+            countsLoading: countsLoading,
             groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
             going: shared.map { ProfileFace.nextPlans($0, now: now) },
             mutual: neighbor.mutualFriends,
@@ -680,23 +683,42 @@ struct NeighborPage: View {
             now: now)
     }
 
+    /// The page's `get_profile` is out: a real account asked and nothing has come back. The quiet
+    /// account never asks, and the samples answer from the run's own data, so neither holds a skeleton.
+    private var countsLoading: Bool {
+        extras == nil && !extrasAnswered && book.hasAccount() && LaunchFlags.backend == .live
+    }
+
     /// Their extras, again when where you stand changes (a new friend sees your shared plans).
     /// An anonymous account can't ask; a failure keeps what's on screen.
     private func read() async {
         guard book.hasAccount() else { return }
+        #if DEBUG
+        // `-town-samples` and `-town-offline`: a sample neighbour's page, never a live read: its
+        // counts at once, its groups and shared plans once the run's own have loaded.
+        let samples = LaunchFlags.backend != .live
+        if samples { extras = sampleExtras }
+        #endif
         if you.groups == nil { await you.refreshGroups() }
         if you.going == nil { await you.refresh() }
         #if DEBUG
-        // `-town-samples` and `-town-offline`: a sample neighbour's page, never a live read.
-        if LaunchFlags.backend != .live {
-            extras = .sampleNeighbor(groups: you.groups ?? [], friend: book.relation(neighbor) == .friends)
+        if samples {
+            extras = sampleExtras
             return
         }
         #endif
         if let read = try? await ProfileAPI(auth: AuthStore.shared).getProfile(neighbor.userId) {
             extras = read
         }
+        // A read cut off by a change of where you stand is read again by the next one.
+        if !Task.isCancelled { extrasAnswered = true }
     }
+
+    #if DEBUG
+    private var sampleExtras: ProfileExtras {
+        .sampleNeighbor(groups: you.groups ?? [], friend: book.relation(neighbor) == .friends)
+    }
+    #endif
 }
 
 /// Edit profile for a neighbour asked for their name before a request goes

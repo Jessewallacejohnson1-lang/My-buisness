@@ -28,6 +28,8 @@ struct ProfileFace {
     var friends: Int?
     /// How many they follow (`get_profile`); nil until read, or from a server without the count.
     var following: Int?
+    /// The counts' read is out (a real account, no answer yet): their place holds a skeleton.
+    var countsLoading = false
     var groups: [TownGroup] = []
     /// The Going rows, soonest first; nil leaves the section out (a stranger, and your own page).
     var going: [DailyEvent]?
@@ -71,7 +73,8 @@ struct ProfileFace {
 
     /// Changes when a section comes or goes, so it fades rather than pops.
     fileprivate var shape: [Int] {
-        [bio == nil ? 0 : 1, addsBio ? 1 : 0, friends ?? -1, following ?? -1, groups.count, going?.count ?? -1]
+        [bio == nil ? 0 : 1, addsBio ? 1 : 0, friends ?? -1, following ?? -1, countsLoading ? 1 : 0, groups.count,
+         going?.count ?? -1]
     }
 }
 
@@ -97,6 +100,11 @@ enum ProfileMetric {
     /// Hypelist's measured pitch, no card (Jesse, 2026-11-14).
     static let countsTop: CGFloat = 16
     static let countColumn: CGFloat = 81
+    /// Their skeleton while the read is out (picked): three columns, a 24 x 14 pt block for the
+    /// number over a 44 x 10 pt one for the word, each centred on the line it stands in for.
+    static let countSkeletons = 3
+    static let countSkeletonNumber = CGSize(width: 24, height: 14)
+    static let countSkeletonWord = CGSize(width: 44, height: 10)
     /// Your two buttons, Places' measured: 16 pt under the counts (picked), 40 pt tall to the eye and
     /// 44 to the finger (`PageMetric.tapMin`), 10 pt apart, each half the row; the icon 8 pt from its
     /// word, the mock's. Jesse's palette is drawn 17 pt tall (its image set's own size).
@@ -293,10 +301,19 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
 
             let counts = ProfileFace.counts(friends: face.friends, mutual: face.mutual, groups: face.groups.count,
                                             following: face.following)
-            if !counts.isEmpty {
-                countsRow(counts)
-                    .padding(.top, ProfileMetric.countsTop)
-                    .transition(.opacity)
+            // The counts, or their skeleton while the read is out, in one place, cross-fading, so the
+            // buttons and lists under them never move when the counts land (docs/rules/design.md,
+            // "Loading"). No counts, a failed read or the quiet account: no row and no gap.
+            if !counts.isEmpty || face.countsLoading {
+                ZStack {
+                    if counts.isEmpty {
+                        countsSkeleton.transition(.opacity)
+                    } else {
+                        countsRow(counts).transition(.opacity)
+                    }
+                }
+                .padding(.top, ProfileMetric.countsTop)
+                .transition(.opacity)
             }
 
             if let edit {
@@ -349,6 +366,34 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(counts.map { "\($0.number) \($0.word)" }.joined(separator: ", "))
+    }
+
+    /// The counts' place while their read is out: short blocks over shorter ones in the counts'
+    /// columns, each line as tall as the text it stands in for (the text is there, hidden), so the
+    /// row that lands takes exactly this height.
+    private var countsSkeleton: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<ProfileMetric.countSkeletons, id: \.self) { _ in
+                VStack(spacing: 0) {
+                    Text(verbatim: "0")
+                        .font(.apple(17, weight: .semibold))
+                        .hidden()
+                        .overlay { countSkeletonBlock(ProfileMetric.countSkeletonNumber) }
+                    Text(verbatim: "following")
+                        .font(.apple(13))
+                        .hidden()
+                        .overlay { countSkeletonBlock(ProfileMetric.countSkeletonWord) }
+                }
+                .frame(width: ProfileMetric.countColumn)
+            }
+        }
+        .shimmering()
+        .accessibilityHidden(true)
+    }
+
+    private func countSkeletonBlock(_ size: CGSize) -> some View {
+        SkeletonBlock(cornerRadius: size.height / 2, color: Hue.onboardingField)
+            .frame(width: size.width, height: size.height)
     }
 
     /// Your two black buttons with round ends, Places' (Jesse, 2026-11-14): "Edit profile" then

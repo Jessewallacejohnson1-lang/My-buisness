@@ -28,10 +28,13 @@ import SwiftUI
 /// A rounded paper-tone rect the size of the content it stands in for.
 struct SkeletonBlock: View {
     var cornerRadius: CGFloat = 10
+    /// `Hue.fill` on paper; a page on a grey ground passes its own field grey, where `Hue.fill`
+    /// all but vanishes (the Profile's, on `Hue.onboardingCanvas`).
+    var color: Color = Hue.fill
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Hue.fill)
+            .fill(color)
     }
 }
 

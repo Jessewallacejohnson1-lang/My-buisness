@@ -105,6 +105,7 @@ struct ProfileView: View {
             bio: bio.isEmpty ? nil : bio,
             friends: model.extras?.friends,
             following: model.extras?.following,
+            countsLoading: model.countsLoading,
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
             addsBio: bio.isEmpty && model.canDescribe,
             coverKnown: model.loaded)
