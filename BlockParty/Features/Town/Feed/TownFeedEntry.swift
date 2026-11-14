@@ -63,10 +63,25 @@ struct FeedAction: Equatable {
 
 /// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
 /// gets back the host it muted; Unmute names that host. Report (ticket 22) names an Event and a
-/// reason; Undo on its Hidden line is undoNotInterested, which lifts the hide and keeps the report.
+/// reason, and with Wrong info maybe a note (BP app backlog 26); Undo on its Hidden line is
+/// undoNotInterested, which lifts the hide and keeps the report.
 enum FeedChoice: Equatable {
     case notInterested(String), undoNotInterested(String), mute(String), unmute(String)
-    case report(String, ReportReason)
+    case report(String, ReportReason, note: String? = nil)
+}
+
+/// What a neighbour may add to a Wrong info report (BP app backlog 26, Jesse at Check-in 1, 2026-11-13: "yes to all"):
+/// a few words on what's wrong, for the admin. The server trims and cuts it too, and keeps it only once the post check
+/// says yes.
+enum ReportNote {
+    static let limit = 150
+
+    /// The words as sent: trimmed, at most `limit` letters, nil when nothing is left.
+    static func clean(_ words: String) -> String? {
+        let trimmed = String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(limit))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 /// Why a neighbour reports an Event, in the sheet's order (words page `report-reasons`, Jesse
