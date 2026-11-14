@@ -252,6 +252,38 @@ test('a re-read fills an About only researched, and never one we wrote', async (
   assert.equal(await about(), 'Wreaths and feeders to take home.', 'written by us: a longer re-read leaves it');
 });
 
+test('a Facebook event read again: the newest About when its words change, a new cover asks for a photo look (watch-every-place 24)', async () => {
+  const db = await realDatabase();
+  const listing = (description, source_words, day = '2026-12-03') => [{ status: 'approved', title: 'Winter Wreath Class',
+    event_date: day, start_time: '6 PM', end_at: null, all_day: false, location: 'Sunny Mary Meadow', description,
+    source_name: 'Sunny Mary Meadow', source_url: 'https://www.facebook.com/events/1107906461871802/',
+    source_uid: 'fb:1107906461871802', category: 'learn_make', shows_from: '2026-11-19', source_words }];
+  const apply = (items) => db.query('select public.apply_judged($1, $2, $3, $4)',
+    [JSON.stringify(items), '[]', '[]', '[]']);
+  const row = async () => (await db.query(`select description as d, event_date::text as day, source_words as w,
+    about_written_at is not null as ours, photo_checked_at is not null as looked from public.club_events`)).rows[0];
+  const long = 'Make a fresh evergreen wreath with ribbon and pinecones to take home; every supply is on the tables.';
+
+  await apply(listing(long, null));  // written before fingerprints
+  await db.exec(`update public.club_events set description = 'Make an evergreen wreath to take home.',
+    about_written_at = now(), photo_checked_at = now()`);
+  await apply(listing(long, 'aaaa.cccc'));
+  assert.deepEqual(await row(), { d: 'Make an evergreen wreath to take home.', day: '2026-12-03', w: 'aaaa.cccc',
+    ours: true, looked: true }, 'the first fingerprint only says what the host says now');
+  await apply(listing(`${long} Cocoa too.`, 'aaaa.cccc'));
+  assert.equal((await row()).d, 'Make an evergreen wreath to take home.', 'the same words: a longer re-read leaves ours');
+  await apply(listing('Wreaths, now with cocoa.', 'bbbb.cccc'));
+  assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-03', w: 'bbbb.cccc', ours: false,
+    looked: true }, "the host's new words: the newest About, though shorter and though ours was there");
+  await apply(listing('Wreaths, now with cocoa.', 'bbbb.dddd', '2026-12-05'));
+  assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-05', w: 'bbbb.dddd', ours: false,
+    looked: false }, 'a new cover asks for a photo look; a new day moves the one Event');
+  await apply(listing('Wreaths.', null, '2026-12-05'));
+  assert.deepEqual(await row(), { d: 'Wreaths, now with cocoa.', day: '2026-12-05', w: 'bbbb.dddd', ours: false,
+    looked: false }, 'a read with no fingerprint keeps the old rules and the fingerprint');
+  assert.equal((await db.query('select count(*)::int as n from public.club_events')).rows[0].n, 1);
+});
+
 test('a show open for days keeps its first day, while a dated Event moves with its source (town-feed 62)', async () => {
   const db = await realDatabase();
   const show = (uid, day) => [{ status: 'approved', title: 'Reflection: Selected Works', event_date: day,

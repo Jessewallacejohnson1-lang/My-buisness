@@ -6,7 +6,10 @@ and 7pm Chicago; every other page once a week, a seventh of them each day at 3pm
 JoeTown's Instagram stories once a day, with the 7pm run) and saves what it finds; two routines follow
 this file in the cloud half an hour or more later, each in a fresh copy of this repository, and
 read what Apify saved: `busy` at 10:30am and 7:30pm, `weekly` every day at 3:45pm. The
-routine's prompt names which. Scripts read Apify and write the
+routine's prompt names which. On Monday and Saturday Apify also reads again every upcoming Event linked to a Facebook
+event (BP app watch-every-place 24): each is laid out as its host's listing and judged like any other page, and the
+writer moves or updates the Event it is (its new date, time, place, About or cover); one its host cancelled skips the
+models and is marked cancelled. Scripts read Apify and write the
 database; the cheap model reads the posts and you judge what it flags, exactly as the morning job
 does. Work through the steps in order. A step that fails for one source is a line in the summary;
 carry on with the rest.
@@ -30,8 +33,9 @@ carry on with the rest.
    the cost. It works in parts of about 6 minutes: while it prints `[social] run again`, or is stopped at
    the timeout, run it again, and it carries on where it stopped. Run it in the foreground, one call at a
    time: no loop and no background start (Oct 29's weekly check spent 49 minutes that way). It starts nothing paid. Done when it prints its
-   `[social] busy: …` or `[social] weekly: …` line. No batches means nothing new was posted: run
-   `social.py done` (Mark it read), answer with the `[social]` lines and stop.
+   `[social] busy: …` or `[social] weekly: …` line. No batches and no "cancelled by their hosts" line means
+   nothing new was posted: run `social.py done` (Mark it read), answer with the `[social]` lines and stop. With
+   cancelled events and no batches, run `morning.py save` alone (it marks their Events cancelled), then `done`.
 
 **Read and judge, then Save.** Follow `sources/models/morning.md`'s **Read and judge** and
    **Save**: the cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`),

@@ -11,7 +11,9 @@ key (`e3`), title, host, place, date and About, and its pictures. Each picture h
 came with it:
 
 - `from`: `post`, `page` or `listing` is the post or page the Event was found on, or the story its post links to;
-  `other post` is another recent post of the same place.
+  `other post` is another recent post of the same place. `now showing` is the picture the Event runs now, picked here
+  before: its host posted a new cover or a new post about it since (BP app watch-every-place 24). Run it again unless a
+  new picture beats it; the new one replaces it.
 - `words`: the text of the post it came from, when it came from a post.
 - `posted`: the day it was posted, when it came from a post.
 - `meta_says`: Meta's own description, when Meta gave one.

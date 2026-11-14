@@ -67,6 +67,13 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   activity_team, activity_name
                events, optional: the school's team id and its activity as Bound names it ("apollo",
                "Choir"), so an Event that isn't a game lands on its activity's row
+  source_words events, optional: what its source's own listing says, as social.listing's "words.cover"
+               fingerprints (a Facebook event's words and cover; morning.py's made_with adds it). Kept on the Event, so
+               a re-read knows when the host changed them (BP app watch-every-place 24)
+
+THE CANCELLED LINE: a listing its own host marked cancelled (a Facebook event, social.py) is never judged:
+  {"kind": "cancelled", "source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802/"}
+  Every listed Event that host listed at that Facebook event, read nowhere else this time, is called off.
 
 THE SCHEDULE LINE: a reader that has some sources' whole schedules adds one more line, only on a
 morning every one of those sources was read (read_events.py, the league's high school games):
@@ -132,7 +139,12 @@ THE RULES
     it later, keeping its own source, uid and title; a mention with no time joins a shown, timed
     listing before a hidden copy, and leaves its time alone (Jesse, 2026-11-06).
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
-    the source has none) updates its event instead of adding it twice. Status only ever goes
+    the source has none) updates its event instead of adding it twice. A host's Facebook event, the only date
+    its link gives this time, is known by the event's number ("fb:<n>"), so a new date or time moves its Event
+    rather than adding a second (BP app watch-every-place 24); one event page listing several dates keeps a
+    "page:" id per date. Its About: the newest when the host's own words changed (source_words; Jesse, 2026-11-14:
+    "whichever is the newest"), else a longer one fills a thin one, never one the describe step or the cleaning
+    wrote (apply_judged); a new cover gets the photo picker's look again (event_photos.py). Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
     decline stands, except a decline for a misread (any review_reason but not_event): when
     the source changes its title, date, time or place, it goes back to pending for another
@@ -888,7 +900,8 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
            "occasion": None, "followers_only": it.get("followers_only") is True, "activity_team": it.get("activity_team"),
            "activity_name": it.get("activity_name"),
            # The places it was made with (town-feed 58): social.collabs, never the host's own, 2 at most.
-           "collab_entry_ids": [c for c in it.get("collabs") or [] if isinstance(c, str) and c][:2]}
+           "collab_entry_ids": [c for c in it.get("collabs") or [] if isinstance(c, str) and c][:2],
+           "source_words": it.get("source_words") if isinstance(it.get("source_words"), str) else None}
     game = game_of(it, title)
     if game:
         # A name from a schedule can make a team; the judge's stays a normal card until someone adds it.
@@ -1267,7 +1280,14 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     asked = asked or {}
     taken_out = [r for r in history or () if not r.get("event_date") and r.get("status") != "published"]
     made = {}  # this run's new teams, by id: their one name
-    schedules = []
+    schedules, called_off = [], set()
+    # A host's Facebook event this read gives one start (the same event read twice is still one): known by its number.
+    # One page with a matinee and an evening show, or several dates, keeps an id per start.
+    starts = {}
+    for it in items:
+        if isinstance(it, dict) and it.get("kind") == "event" and facebook_event(it.get("source_url")):
+            starts.setdefault((str(it.get("source_name") or "").strip(), facebook_event(it["source_url"])),
+                              set()).add(str(it.get("start") or ""))
     groups, by_uid, news, also = [group(row, home=home) for row in existing], {}, {}, {}
     for g in groups:
         for m in [g["old"]] + g["mentions"]:
@@ -1278,6 +1298,12 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             schedules.append(it)
             out["outcomes"][i] = ("schedule", f"{len(it.get('sources') or [])} schedules read whole, "
                                               f"{it.get('from')} to {it.get('through')}")
+            continue
+        if isinstance(it, dict) and it.get("kind") == "cancelled":
+            number = facebook_event(it.get("source_url"))
+            if number:
+                called_off.add((str(it.get("source_name") or "").strip(), number))
+            out["outcomes"][i] = ("cancelled", f"by its host: {it.get('source_url')}" if number else "no Facebook event link")
             continue
         why = skip_reason(it, town)
         if not why and it["kind"] == "news":
@@ -1314,6 +1340,9 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
             out["outcomes"][i] = ("news", "")
         else:
+            number = facebook_event(ev["row"]["source_url"])
+            if number and not it.get("source_uid") and len(starts.get((ev["row"]["source_name"], number), ())) == 1:
+                ev["row"]["source_uid"] = f"fb:{number}"
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
             # A show open for days (read_events.show_runs) is known by its run id alone: its Event started
@@ -1439,9 +1468,11 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 out["restored"].append(old)
             continue
         day, uid = str(old["event_date"])[:10], str(old.get("source_uid") or "")
-        if not old.get("cancelled_at") and old.get("status") != "rejected" and any(
+        if not old.get("cancelled_at") and old.get("status") != "rejected" and (any(
                 uid.startswith(s.get("uid_prefix") or "\0") and old["source_name"] in (s.get("sources") or ())
-                and str(s.get("from")) <= day <= str(s.get("through")) for s in schedules):
+                and str(s.get("from")) <= day <= str(s.get("through")) for s in schedules)
+                or any((m["source_name"], facebook_event(m.get("source_url"))) in called_off
+                       for m in g["mentions"] if m["source_name"] == old["source_name"])):
             out["cancelled"].append(old)
     return out
 
@@ -1542,7 +1573,7 @@ def report(items, r):
     print(f"[judged] the SQL would add {new} events, update {reread} already listed, "
           f"add mentions to {len(r['events']) - new - reread} more, and write {len(r['news'])} news")
     for o in r["cancelled"]:
-        print(f"[cancelled] {str(o['event_date'])[:10]} {o['title']!r}: gone from its schedule")
+        print(f"[cancelled] {str(o['event_date'])[:10]} {o['title']!r}: gone from its schedule, or its host cancelled it")
     for o in r["restored"]:
         print(f"[back on] {str(o['event_date'])[:10]} {o['title']!r}")
     for n in r["notes"]:
@@ -2965,7 +2996,41 @@ def t_real_copies():
     assert not missed, missed
 
 
-TESTS = [t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+def t_facebook_event_read_again():
+    """BP app watch-every-place 24 (Jesse, 2026-11-14: "check for updates on events and changes in discription"): a host's
+    Facebook event, one start this read, is known by its number, so a new day moves its Event instead of adding a second;
+    a page with a matinee and an evening show keeps an id per show; its listing's fingerprint rides on the row; a
+    cancelled event marks only the Event its host listed there."""
+    link = "https://www.facebook.com/events/1107906461871802/"
+    wreath = dict(title="Winter Wreath Class", start="2026-12-03T18:00:00-06:00", end=None, place="Sunny Mary Meadow",
+                  source_name="Sunny Mary Meadow", source_url=link, source_words="aaaa.cccc")
+    r = run([item(**wreath)])
+    row = r["events"][0]["row"]
+    assert row["source_uid"] == "fb:1107906461871802" and row["source_words"] == "aaaa.cccc", row
+    assert run([item()])["events"][0]["row"]["source_words"] is None, "a read with no listing has none"
+
+    two = run([item(**wreath), item(**dict(wreath, start="2026-12-03T10:00:00-06:00"))])
+    assert sorted(g["row"]["source_uid"][:5] for g in two["events"]) == ["page:", "page:"], two["events"]
+
+    seen = {"source_name": "Sunny Mary Meadow", "source_url": link, "source_uid": "fb:1107906461871802",
+            "trust": "official", "sure": True}
+    old = listed(title="Winter Wreath Class", event_date="2026-12-03", start_time="6 PM", location="Sunny Mary Meadow",
+                 source_name="Sunny Mary Meadow", source_uid="fb:1107906461871802", mentions=[seen])
+    moved = run([item(**dict(wreath, start="2026-12-05T10:00:00-06:00"))], [old])
+    g = moved["events"][0]
+    assert [x["id"] for x in moved["events"]] == [old["id"]] and g["row"]["event_date"] == "2026-12-05" \
+        and g["row"]["start_time"] == "10 AM" and g["row"]["source_uid"] == old["source_uid"], (moved["outcomes"], g["row"])
+
+    off = {"kind": "cancelled", "source_name": "Sunny Mary Meadow", "source_url": link}
+    r = run([off], [old])
+    assert outcome(r, 0) == "cancelled" and [o["id"] for o in r["cancelled"]] == [old["id"]], r
+    assert payloads(r)["p_cancelled"] == [old["id"]] and not r["events"], payloads(r)
+    assert not run([dict(off, source_name="Visit Joetown")], [old])["cancelled"], "another host's listing of it decides nothing"
+    assert not run([off], [dict(old, cancelled_at="2026-12-01T10:00:00Z")])["cancelled"], "called off once"
+    assert outcome(run([dict(off, source_url="https://www.facebook.com/salsbar/posts/1")]), 0) == "cancelled"
+
+
+TESTS = [t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

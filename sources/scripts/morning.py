@@ -621,13 +621,17 @@ def short_titles(out):
 
 def made_with(items, folder):
     """Each item from an Instagram collab post carries the places it was made with (`collabs`, social.post_pages),
-    found by its link, the post's own (BP app town-feed 58)."""
+    found by its link, the post's own (BP app town-feed 58). Each Event from a Facebook event's page carries what that
+    page said (`source_words`, social.listing), found by the event's number (BP app watch-every-place 24)."""
     path = folder / "pages.json"
     pages = json.loads(path.read_text()) if path.exists() else []
     by_url = {str(p.get("url") or "").rstrip("/").lower(): p["collabs"] for p in pages if p.get("collabs")}
+    said = {n: p["listing"] for p in pages if p.get("listing") and (n := write_judged.facebook_event(p.get("url")))}
     for it in items:
         if isinstance(it, dict) and by_url.get(str(it.get("source_url") or "").rstrip("/").lower()):
             it["collabs"] = by_url[str(it["source_url"]).rstrip("/").lower()]
+        if isinstance(it, dict) and it.get("kind") == "event" and said.get(write_judged.facebook_event(it.get("source_url"))):
+            it["source_words"] = said[write_judged.facebook_event(it["source_url"])]
     return items
 
 
@@ -1483,6 +1487,16 @@ def selftest():
                          {"title": "Trivia", "source_url": "https://www.instagram.com/p/C2/"}, "unreadable line: x"], Path(tmp))
         checks.append((got[0].get("collabs") == ["milk-and-honey-ciders"] and "collabs" not in got[1],
                        "an Event from a collab post carries the places it was made with, by the post's link (town-feed 58)"))
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "pages.json").write_text(json.dumps([
+            {"file": "events-1107906461871802", "url": "https://www.facebook.com/events/1107906461871802/", "listing": "aa.cc"},
+            {"file": "search-x", "url": "https://www.facebook.com/events/search/?q=x", "listing": "bb.dd"}]))
+        got = made_with([{"kind": "event", "title": "Wreaths", "source_url": "https://facebook.com/events/1107906461871802?ref=x"},
+                         {"kind": "news", "title": "Wreath sale", "source_url": "https://www.facebook.com/events/1107906461871802/"},
+                         {"kind": "event", "title": "Bingo", "source_url": "https://milkandhoneyciders.com/events"}], Path(tmp))
+        checks.append((got[0].get("source_words") == "aa.cc" and "source_words" not in got[1] and "source_words" not in got[2],
+                       "an Event from a Facebook event's page carries what that page said, by the event's number "
+                       "(watch-every-place 24)"))
     with tempfile.TemporaryDirectory() as tmp:
         watched = json.loads((find_root() / "sources" / "social" / "st-joseph-mn.json").read_text())[0]["url"]
         post = "https://www.facebook.com/flourandflowerbakery/posts/pfbid0"

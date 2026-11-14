@@ -36,6 +36,11 @@ showing its post's own photo): its own post's pictures only, never its place's o
 real photo first, else its own flyer (Jesse, 2026-11-08: "never a flyer" allow). `keep` saves the pick as a place_photos row of kind 'news' tied to the News, and marks every
 News laid out as looked at (board_items.photo_checked_at).
 
+An Event is looked at again when its host gives it a new cover (apply_judged empties photo_checked_at when its Facebook
+event's cover changes) or a post about it is first seen since its last look (BP app watch-every-place 24; Jesse,
+2026-11-14: "new images we can use"): the picture it shows now is laid out first as `now showing`, and a better pick
+retires it (public.retire_own_event_photos, this step's own picks only). An Event whose photo a person kept isn't.
+
 Before any of that, a photo a person kept for an Event's title at its place (a publish sheet Jesse said yes to, not this
 step's own pick, and a photo, not a flyer) follows to that title's new dates: a show or class listed one day at a time gets its kept photo, not
 whatever its listing came with (BP app docs/plans/dig-deeper 20; Reflection and Bréagán, 2026-11-04 to 07). Those
@@ -93,6 +98,52 @@ def todo(db, now):
                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=created_at&limit=300")
     import place_photos
     return [r for r in rows if not place_photos.is_sport(r)]
+
+
+def todo_again(db, now, skip=()):
+    """Upcoming Events to look at again (BP app watch-every-place 24; Jesse, 2026-11-14: "new images we can use"): a
+    host's new cover on its Facebook event (apply_judged empties photo_checked_at when source_words' cover changes), or
+    a post about it first seen since it was looked at, laid out with that post's pictures. Not `skip` (this step's new
+    Events) or a sport."""
+    import place_photos
+    today, since = now.astimezone(LOCAL).date(), (now - NEW).isoformat()
+    cols = ("id,title,event_date,location,description,category,sport,team_ids,source_name,source_url,place_entry_id,"
+            "photo_checked_at")
+    again = {e["id"]: e for e in db.rest("GET", f"club_events?select={cols}&status=eq.approved&kind=eq.event"
+                                                f"&photo_checked_at=is.null&source_words=not.is.null"
+                                                f"&created_at=lt.{quote(since)}&event_date=gte.{today}")}
+    for m in db.rest("GET", f"event_mentions?select=source_name,source_url,first_seen,club_events!inner({cols})"
+                            f"&first_seen=gte.{quote(since)}&source_url=match.{quote('(facebook|instagram)[.]com/')}"
+                            f"&club_events.status=eq.approved&club_events.kind=eq.event&club_events.event_date=gte.{today}"):
+        e = m.get("club_events") or {}
+        if not e.get("id") or e["id"] in again or "/events/" in m["source_url"] or not post_key(m["source_url"]):
+            continue
+        looked = e.get("photo_checked_at")
+        if not looked or when(m["first_seen"]) > when(looked):  # credited to whoever posted it
+            again[e["id"]] = {**e, "source_url": m["source_url"], "source_name": m["source_name"]}
+    return [e for i, e in again.items() if i not in skip and not place_photos.is_sport(e)]
+
+
+def when(stamp):
+    return datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+
+
+def showing(db, events):
+    """(the Events whose photo nobody kept by hand, {Event id: the live rows this step picked for it}). A person's
+    photo, or one following its title from a person's, stays: that Event isn't laid out. This step's own pick is laid
+    out first as `now showing`, so the picker keeps it unless a new picture beats it."""
+    ids = sorted({e["id"] for e in events})
+    if not ids:
+        return events, {}
+    mine, theirs = {}, set()
+    for i in range(0, len(ids), 100):
+        for r in db.rest("GET", f"place_photos?select=id,event_id,kind,url,proposed_by&status=eq.live"
+                                f"&event_id=in.({','.join(ids[i:i + 100])})"):
+            if r.get("proposed_by") == OWN:
+                mine.setdefault(r["event_id"], []).append(r)
+            else:
+                theirs.add(r["event_id"])
+    return [e for e in events if e["id"] not in theirs], mine
 
 
 def todo_news(db, now):
@@ -379,6 +430,12 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
         print(f"[photos] {len(follow)} new Events take the photo kept for their title: "
               + "; ".join(sorted({f['event']['title'] for f in follow})))
     events = [e for e in events if e["id"] not in kept]
+    try:
+        events += todo_again(db, now, {e["id"] for e in events} | set(kept))
+        events, own = showing(db, events)
+    except DbError as x:  # a second look is an addition: without it every new Event is still laid out
+        print(f"[photos] Events to look at again not read, new Events only: {x}")
+        own = {}
     groups = groups_of(events)
     for i, g in enumerate(groups, 1):
         g["key"] = f"e{i}"
@@ -391,12 +448,19 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     if rows is None:
         rows = social_rows(now) if any(POST.search(g["source_url"]) for g in groups) else []
     candidates(groups, rows, campus_banners(groups) if banners is None else banners, share)
+    for g in groups:  # what an Event shows now goes first; a better pick retires it (keep)
+        now_rows = [r for e in g["events"] for r in own.get(e["id"], [])]
+        if now_rows:
+            g["retire"] = [r["id"] for r in now_rows]
+            shown = next((r for r in now_rows if r["kind"] == "event"), now_rows[0])
+            g["cands"] = [{"url": shown["url"], "about": "", "from": "now showing", "page": shown["url"]}] + g["cands"]
     failed = download(groups, folder, grab)
     n = sheets(groups, folder)
     (folder / "events.json").write_text(json.dumps(groups, indent=1, ensure_ascii=False))
     with_pics = sum(1 for g in groups if g["cands"] and not g.get("news"))
     news_pics = sum(1 for g in news if g["cands"])
-    print(f"[photos] {len(events)} new Events to look at ({len(groups) - len(news)} posts or pages): {with_pics} with pictures, "
+    print(f"[photos] {len(events)} Events to look at ({len(groups) - len(news)} posts or pages, "
+          f"{sum(1 for g in groups if g.get('retire'))} beside the photo they show now): {with_pics} with pictures, "
           f"{len(groups) - len(news) - with_pics} with none; {len(news)} new News from posts, {news_pics} with pictures; "
           f"{n} sheets ({folder})")
     for ln in failed:
@@ -478,10 +542,14 @@ def keep(out, dry_run=False, db=None, now=None):
                                                  events=[(n["id"], entry_of(n))], description=shows,
                                                  credit=n.get("source_name") if POST.search(c["page"]) else None,
                                                  proposed_by=OWN)
+            if c["from"] == "now showing":
+                return  # it stays
             im = image_of(c)
             if im is None:
                 unsaved.add(what)
                 return print(f"[photos]   {g['title']}: its small flyer not sharpened here; laid out again next time")
+            if g.get("retire"):  # only this step's own picks, never a person's (showing; the function checks too)
+                db.rest("POST", "rpc/retire_own_event_photos", {"p_ids": g["retire"]})
             place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
                                       credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
@@ -496,7 +564,7 @@ def keep(out, dry_run=False, db=None, now=None):
                                         + [k for g in groups for k in ([f"photo:{g['key']}"] if g["key"] in picks else [])
                                            + [f"looked:{e['id']}" for e in g["events"]]
                                            + ([f"seen:{g['news']['id']}"] if g.get("news") else [])], save_one)
-    kept = [g for g in groups if g["key"] in picks and g["key"] not in unsaved]
+    kept = [g for g in groups if g["key"] in picks and g["key"] not in unsaved and picks[g["key"]][0]["from"] != "now showing"]
     events = sum(len(g["events"]) for g in groups)
     got = sum(len(g["events"]) for g in kept)
     own = sum(len(g["events"]) for g in kept if picks[g["key"]][0]["from"] != "other post")
@@ -509,6 +577,8 @@ def keep(out, dry_run=False, db=None, now=None):
                                                                if none else "")
             + (f"; {sum(1 for g in news if g['key'] in picks)} of {len(news)} new News from posts got their post's photo"
                if news else "")
+            + (f"; {stayed} looked at again kept the photo they show" if (stayed := sum(
+                len(g["events"]) for g in groups if g["key"] in picks and picks[g["key"]][0]["from"] == "now showing")) else "")
             + (" (dry run: nothing written)" if dry_run else ""))
     print(line)
     return line
@@ -1563,6 +1633,70 @@ def selftest():
     got, calls = asked([{"id": "n5", "title": 'Say "Hi", All', "place_entry_id": "p"}], [], [])
     check(got == {} and quote('("Say \\"Hi\\", All")') in calls[0] and len(calls) == 1,
           "a title with quotes and a comma is asked for whole; no Event of it, no photo asked for")
+    # BP app watch-every-place 24: a second look at an Event whose host posted a new cover or a later post.
+    import place_photos
+    now = datetime(2026, 11, 16, 22, tzinfo=timezone.utc)
+    ev = lambda i, **kw: {"id": i, "title": "Winter Wreath Class", "event_date": "2026-12-05", "location": "Sunny Mary Meadow",
+                          "description": "Wreaths.", "category": "learn_make", "sport": None, "team_ids": None,
+                          "source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802/",
+                          "place_entry_id": "sunny-mary-meadow", "photo_checked_at": None, **kw}
+    asked = []
+
+    class Again:
+        def rest(self, method, path, body=None, prefer=None):
+            asked.append(path)
+            if path.startswith("club_events"):
+                return [ev("cover"), ev("new")]
+            return [{"source_name": "Bad Habit Brewing", "source_url": "https://www.facebook.com/badhabit/posts/pfbid0",
+                     "first_seen": "2026-11-15T20:00:00+00:00",
+                     "club_events": ev("post", photo_checked_at="2026-11-10T12:00:00+00:00")},
+                    {"source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/sunnymary/posts/pfbid1",
+                     "first_seen": "2026-11-09T20:00:00+00:00",
+                     "club_events": ev("seen", photo_checked_at="2026-11-10T12:00:00+00:00")},
+                    {"source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802/",
+                     "first_seen": "2026-11-16T20:00:00+00:00", "club_events": ev("listing")},
+                    {"source_name": "Bad Habit Brewing", "source_url": "https://www.instagram.com/p/Cx/",
+                     "first_seen": "2026-11-16T20:00:00+00:00", "club_events": ev("game", sport="Hockey")}]
+    again = todo_again(Again(), now, skip={"new"})
+    check([e["id"] for e in again] == ["cover", "post"] and again[1]["source_url"].endswith("pfbid0")
+          and again[1]["source_name"] == "Bad Habit Brewing"
+          and "photo_checked_at=is.null" in asked[0] and "source_words=not.is.null" in asked[0]
+          and "created_at=lt." in asked[0] and "first_seen=gte." in asked[1],
+          "looked at again: a new cover, or a post first seen since the last look (credited to its poster); not a new "
+          "Event, a post seen before, the Facebook event's own re-read, or a game")
+
+    class Photos:
+        def rest(self, method, path, body=None, prefer=None):
+            return [{"id": 7, "event_id": "cover", "kind": "flyer", "url": "https://x/flyer.webp", "proposed_by": OWN},
+                    {"id": 8, "event_id": "cover", "kind": "event", "url": "https://x/photo.webp", "proposed_by": OWN},
+                    {"id": 9, "event_id": "post", "kind": "event", "url": "https://x/kept.webp", "proposed_by": "Jesse, 2026-11-02"}]
+    left, own = showing(Photos(), [ev("cover"), ev("post")])
+    check([e["id"] for e in left] == ["cover"] and [r["id"] for r in own["cover"]] == [7, 8],
+          "a person's photo stays (its Event isn't laid out); this step's own picks are what it shows now")
+    check(showing(Photos(), []) == ([], {}), "nothing to look at again: no photo read asked for")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        (out / "photos").mkdir()
+        Image.new("RGB", (1200, 900), "white").save(out / "photos" / "c1.png")
+        Image.new("RGB", (1200, 900), "white").save(out / "photos" / "c2.jpg")
+        group = {"key": "e1", "title": "Winter Wreath Class", "source_url": ev("cover")["source_url"], "events": [ev("cover")],
+                 "retire": [7, 8],
+                 "cands": [{"n": 1, "url": "https://x/photo.webp", "from": "now showing", "page": "https://x/photo.webp",
+                            "file": str(out / "photos" / "c1.png"), "w": 1200, "h": 900, "about": ""},
+                           {"n": 2, "url": "https://fb/cover.jpg", "from": "listing", "page": ev("cover")["source_url"],
+                            "file": str(out / "photos" / "c2.jpg"), "w": 1200, "h": 900, "about": ""}]}
+        (out / "photos" / "events.json").write_text(json.dumps([group]))
+        for pick, sent in (("c1", []), ("c2", ["POST rpc/retire_own_event_photos", "PUT", "POST place_photos"])):
+            (out / "event_photos.jsonl").write_text(json.dumps({"event": "e1", "pick": pick, "shows": "Wreaths on a table"}) + "\n")
+            (out / "photos" / "kept.json").unlink(missing_ok=True)
+            fake = place_photos.Unsent("https://db.example")
+            line = keep(out, db=fake, now=now)
+            calls = [m if m == "PUT" else f"{m} {p.split('?')[0]}" for m, p, b in fake.calls if m != "PATCH"]
+            check(calls == sent and any(m == "PATCH" and "photo_checked_at" in b for m, p, b in fake.calls)
+                  and (pick == "c1" or next(b for m, p, b in fake.calls if p == "rpc/retire_own_event_photos") == {"p_ids": [7, 8]}),
+                  f"{'what it shows now kept: nothing written but the look' if pick == 'c1' else 'a new cover beats it: its own picks retired, then the new one saved'} ({calls}; {line})")
+
     print(f"{ok} passed, {bad} failed")
     return bad == 0
 

@@ -12,7 +12,9 @@ check never waits on the Claude plan: saved tasks hold each list's pages, and sc
 The busy list (`bp-busy-<kind>`) is read at 9:30am and 7pm Chicago (Jesse, 2026-11-10: was noon and
 9pm; 2026-11-09: was 6pm and 9pm). Every other page is read once a week, a seventh of them each day at
 3pm (`bp-weekly-<day>-<kind>`, with their Facebook Events tabs, a search of Facebook's events for the
-town and Facebook's own events page for the town: page_lists). A page's day is its `day` in the list,
+town and Facebook's own events page for the town: page_lists; Monday's and Saturday's search tasks also read again
+every upcoming Event linked to a Facebook event, so a new date, time, place, About or cover, or a cancelling, reaches
+it: rereads, BP app watch-every-place 24). A page's day is its `day` in the list,
 set so each day reads a mix of kinds (Jesse, 2026-11-11: "divide the type of events up so a reading
 can get a variety"; until then every page was read on Thursdays, one big drop a week). Each read
 reaches back to an hour before its task's last good read (since), so a run that the monthly cap or
@@ -98,9 +100,12 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read; a week
     ("weekly", "facebook"): ("apify~facebook-posts-scraper", 1.50),  # the whole list was $2.41 on Thursday, Nov 5
     ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.60),  # the whole list was $0.75 on Nov 5
     ("weekly", "events"): ("apify~facebook-events-scraper", 1.50),
-    ("weekly", "search"): ("apify~facebook-events-scraper", 1.60),  # three pages (two searches and the town's events page), up to SEARCH_EVENTS each at a cent
+    # Each day's search pages, up to SEARCH_EVENTS each at a cent, and the Events read again (rereads), a cent each
+    ("weekly", "search"): ("apify~facebook-events-scraper", 2.50),
     ("busy", "stories"): ("datavoyantlab~advanced-instagram-stories-scraper", 0.20),  # $0.099 a run and $0.0028 an account (Nov 2026)
 }
+FB_EVENT = re.compile(r"facebook\.com/events/(\d+)")
+REREAD_DAYS = ("mon", "sat")  # the town search's days: every upcoming Event linked to a Facebook event is read again
 SEARCH_EVENTS = 50  # most events each search page reads (maxEvents is per start URL); Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
 # A family's own day found by the search never reaches a model (a child's first birthday, 2026-11-03)
@@ -175,6 +180,38 @@ def search_pages():
         pages.append({"entry_id": "", "name": "Facebook events page for the town", "kind": "search", "busy": False,
                       "url": town["facebook_events_explore"]})
     return pages
+
+
+def rereads(db, today):
+    """Every upcoming Event linked to a Facebook event (its own listing or a mention), as pages the town search's tasks
+    read again on REREAD_DAYS (BP app watch-every-place 24; Jesse, 2026-11-14: "check for updates on events and changes
+    in description or new images"): a cent each read. A page is named for the host that listed the Event, its own source
+    first, so the read keys to the same Event (write_judged's fb: id) and takes its new date, time, place, About and
+    cover, or its cancelling. A past or cancelled Event isn't read. With no `db`, the database keys in the environment."""
+    if db is None:
+        from run import Supabase
+        db = Supabase()
+    rows = db.rest("GET", "event_mentions?select=source_name,source_url,club_events!inner(source_name,place_entry_id)"
+                          f"&source_url=like.{quote('*facebook.com/events/*')}&club_events.status=eq.approved"
+                          f"&club_events.kind=eq.event&club_events.cancelled_at=is.null&club_events.event_date=gte.{today}")
+    out = {}
+    for r in rows:
+        number, e = FB_EVENT.search(r.get("source_url") or ""), r.get("club_events") or {}
+        if number and (number[1] not in out or r["source_name"] == e.get("source_name")):
+            out[number[1]] = {"entry_id": e.get("place_entry_id") or "", "name": r["source_name"], "kind": "search",
+                              "busy": False, "reread": True, "url": f"https://www.facebook.com/events/{number[1]}/"}
+    return [dict(p, day=d) for _, p in sorted(out.items()) for d in REREAD_DAYS]
+
+
+def listing(row):
+    """What a Facebook event's own page says that the app keeps beside its Event (club_events.source_words): its words
+    and its cover, each as a short fingerprint, "words.cover". A change in the words gives the Event its newest About,
+    and a new cover gets the photo picker's look (apply_judged; BP app watch-every-place 24). A cover is known by its
+    file name: its address's signature changes on every read."""
+    words = " ".join(str(row.get("description") or "").split())
+    cover = urlsplit(str(row.get("imageUrl") or "")).path.rsplit("/", 1)[-1]
+    short = lambda text: hashlib.sha1(text.encode()).hexdigest()[:10] if text else ""
+    return f"{short(words)}.{short(cover)}"
 
 
 def far_away(loc):
@@ -313,11 +350,11 @@ def monthly_try(now, day):
     return next_read(now, day).day <= 7
 
 
-def page_lists(root, missed=None, now=None):
+def page_lists(root, missed=None, now=None, again=()):
     """{(run, kind): pages} for every list: each list's own pages; the weekly Events tabs of the busy
     list's Facebook pages and the hidden ones (their posts are hidden, their events are not: Stone Road
     at La Playette, 2026-11-03), and every Facebook page's in the first week of each month (Apify bills
-    a cent for each tab read, empty or not); and the town's events search. A page set aside (`missed`)
+    a cent for each tab read, empty or not); and the town's events search, with `again` (rereads). A page set aside (`missed`)
     leaves its list for its day's weekly read: a busy page every week, a weekly page in the first week of
     each month. sync_tasks gives each weekly page its day's task."""
     category = {e["id"]: e.get("category") for e in load(root)[0]}
@@ -337,8 +374,8 @@ def page_lists(root, missed=None, now=None):
                if p["kind"] == "instagram" and p.get("stories") and not p.get("skip") and not p.get("hidden")]
     if stories:  # `stories` on an Instagram page: its stories too, once a day (STORIES_AT)
         out[("busy", "stories")] = stories
-    if search_pages():
-        out[("weekly", "search")] = search_pages()
+    if search_pages() or again:
+        out[("weekly", "search")] = search_pages() + list(again)
     return {k: v for k, v in out.items() if k in ACTORS}
 
 
@@ -363,13 +400,13 @@ def since(task, began, now):
     return (at - OVERLAP).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def sync_tasks(root, missed=None, now=None):
+def sync_tasks(root, missed=None, now=None, again=()):
     """Each task's pages as the lists now have them (page_lists), each weekly page in its day's task
     (`bp-weekly-<day>-<kind>`), and how far back each posts task reads (since); makes a task that is
     missing. Returns {task name: id} of the tasks with pages."""
     now = now or datetime.now(timezone.utc)
     tasks, ids, began = by_name("/actor-tasks"), {}, days_began()
-    for (run, kind), pages in page_lists(root, missed, now).items():
+    for (run, kind), pages in page_lists(root, missed, now, again).items():
         actor, cap = ACTORS[(run, kind)]
         shares = {None: pages} if run == "busy" else {}
         for p in ([] if run == "busy" else pages):
@@ -397,7 +434,12 @@ def setup():
         began = last_read("weekly") or now
         api("PUT", f"/key-value-stores/{_store_id()}/records/days-began", {"at": began.isoformat()})
         print(f"[social] the weekly days begin where the last weekly check left off: {began.astimezone(LOCAL):%a %b %-d %-I:%M %p}")
-    ids = sync_tasks(root, read_missed(), now)
+    try:
+        again = rereads(None, now.astimezone(LOCAL).date())
+    except (Exception, SystemExit) as e:  # no database keys here (Supabase() exits): the next check's prepare adds them
+        again = []
+        print(f"[social] the Events to read again are unread ({e}); the next check's prepare adds them to the search tasks")
+    ids = sync_tasks(root, read_missed(), now, again)
     have, made = by_name("/schedules"), set()
     for name, cron, run in SCHEDULES:
         prefix = "bp-busy-" if run == "busy" else name + "-"
@@ -722,18 +764,28 @@ def post_pages(kind, rows, by_url):
             text = r.get("description") or ""
             loc = r.get("location") if isinstance(r.get("location"), dict) else {}
             where = loc.get("name") if loc else r.get("location")
-            if kind == "search":
+            # An Event read again (rereads) is its host's listing, as a tab's is; one found by the search is named for
+            # its host.
+            found = kind == "search" and not (page or {}).get("reread")
+            if found:
                 hosts = [o["name"] for o in r.get("organizators") or [] if isinstance(o, dict) and o.get("name")]
-                if (r.get("isPast") or r.get("isCanceled") or far_away(loc) or not hosts
-                        or PRIVATE_DAY.search(r.get("name") or "")):
+                if r.get("isPast") or far_away(loc) or not hosts or PRIVATE_DAY.search(r.get("name") or ""):
                     continue
                 who = hosts[0]
+            elif r.get("isPast"):
+                continue
             lead = (f"Found by searching Facebook's events for {TOWNS[TOWN]['display']}. Hosted by {', '.join(hosts)}."
-                    if kind == "search" else f"{who} lists this event on its Facebook page.")
+                    if found else f"{who} lists this event on its Facebook page.")
             body = (f"{lead}\n"
                     f"Event: {r.get('name') or r.get('title') or ''}\nWhen: {r.get('dateTimeSentence') or r.get('utcStartDate') or r.get('startDate') or ''}\n"
                     f"Where: {where or ''}\n\n{text}")
             pid, url, pics = r.get("id") or r.get("eventId") or r.get("url"), r.get("url"), []
+            if r.get("isCanceled"):
+                # Never to the models: a line for the writer, which marks the Event its host listed there cancelled
+                # (write_judged's "cancelled" line; until 2026-11-14 a tab's cancelled event was judged as a live one).
+                if page and pid and url:
+                    pages.append({"file": f"cancelled-{pid}", "cancelled": True, "name": who, "url": url})
+                continue
         elif kind == "stories":
             page = ig_page(r.get("username") or (r.get("user") or {}).get("username"), by_url) or page
             who = page["name"] if page else who
@@ -756,10 +808,13 @@ def post_pages(kind, rows, by_url):
         if not page or not pid:
             continue
         made_with = collabs(r, page, by_url) if kind == "instagram" else []
-        pages.append({"file": f"{kind}-{pid}", "url": url or page["url"], "entry_id": page["entry_id"],
+        # A tab's read and a read again of one Facebook event share a page, so a check judges it once.
+        pages.append({"file": f"{'events' if kind == 'search' and page.get('reread') else kind}-{pid}",
+                      "url": url or page["url"], "entry_id": page["entry_id"],
                       "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
                       **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {}),
-                      **({"words": words} if kind in ("facebook", "instagram") and words else {})})
+                      **({"words": words} if kind in ("facebook", "instagram") and words else {}),
+                      **({"listing": listing(r)} if kind in ("events", "search") else {})})
     return pages, hidden
 
 
@@ -781,11 +836,16 @@ def prepare(run, now):
         except Exception as e:  # every page read this time, and none counted
             saved["missed"], _ = None, saved["failed"].append(f"set-aside pages unreadable: {e}")
         try:
-            sync_tasks(root, saved["missed"], now)  # the next run reads the list as it is now
+            saved["again"] = rereads(run.db, today)
+        except (Exception, SystemExit) as e:  # no database keys (a dry run on a Mac): the next check's prepare adds them
+            saved["again"], _ = [], saved["failed"].append(f"Events to read again unread: {e}")
+        try:
+            sync_tasks(root, saved["missed"], now, saved["again"])  # the next run reads the list as it is now
         except Exception as e:
             saved["failed"].append(f"task pages not refreshed: {e}")
         day = DAYS[(now.astimezone(LOCAL).weekday() + 1) % 7]  # a weekly check reads its day's share
-        saved["listed"] = sum(1 for (r, k), v in page_lists(root, saved["missed"], now).items() if r == check and k != "stories"
+        saved["listed"] = sum(1 for (r, k), v in page_lists(root, saved["missed"], now, saved["again"]).items()
+                              if r == check and k != "stories"
                               for p in v if check == "busy" or day_of(p) == day)
         try:
             mark = last_read(check)
@@ -793,7 +853,7 @@ def prepare(run, now):
             mark, _ = None, saved["failed"].append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[check].days} days")
         saved["mark"] = mark and mark.isoformat()
     now = datetime.fromisoformat(saved.setdefault("now", now.isoformat()))  # every part by the first part's clock
-    lists, failed = page_lists(root), saved["failed"]
+    lists, failed = page_lists(root, None, None, saved.get("again") or ()), saved["failed"]
     mark = saved["mark"] and datetime.fromisoformat(saved["mark"])
     if "posts" not in saved:
         found, waiting = runs_since(check, mark, now, saved["give_up"], stop)
@@ -833,7 +893,8 @@ def prepare(run, now):
             saved.update(missed=missed, aside=aside_lines(missed, aside, back, lists))
             failed += uncounted
         saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
-    posts = saved["posts"]
+    posts = [p for p in saved["posts"] if not p.get("cancelled")]
+    cancels = [p for p in saved["posts"] if p.get("cancelled")]
     pics = add_pictures(posts, out / "pictures", fetch_picture, stop, saved.get("pics"))
     if any(p.get("pictures") for p in posts):
         saved["pics"] = pics
@@ -845,7 +906,9 @@ def prepare(run, now):
     for i, text in enumerate(layout(posts, today, TOWNS[TOWN]["display"]), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(text)
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
-    (out / "feeds.jsonl").write_text("")
+    # A cancelled Facebook event skips the models: save hands its line straight to the writer.
+    (out / "feeds.jsonl").write_text("".join(json.dumps({"kind": "cancelled", "source_name": c["name"], "source_url": c["url"]})
+                                             + "\n" for c in cancels))
     try:
         import write_judged
         interests = write_judged.interest_ids()
@@ -857,7 +920,8 @@ def prepare(run, now):
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
-               "aside": saved.get("aside", []), "missed": saved.get("missed")}
+               "aside": saved.get("aside", []), "missed": saved.get("missed"), "cancelled": len(cancels),
+               "again": len({p["url"] for p in saved.get("again") or ()})}
     run.prepared(summary)
     say_prepared(summary, out)
 
@@ -867,6 +931,11 @@ def say_prepared(s, out):
     since = f"since {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "of the last days"
     print(f"[social] {s['run']}: {s['apify_runs']} Apify runs {since}, {s['fetched']} pages, {s['changed']} new posts in "
           f"{s['batches']} batches ({out / 'batches'}), Apify ${s['apify_usd']:.2f}")
+    if s.get("cancelled"):
+        print(f"[social] {s['cancelled']} Facebook events cancelled by their hosts: save marks their Events cancelled")
+    if s.get("again"):
+        print(f"[social] {s['again']} upcoming Events linked to a Facebook event are read again on "
+              f"{' and '.join(d.title() for d in REREAD_DAYS)}")
     print(pictures_line(s["pictures"]))
     for a in s["aside"]:
         print(f"[social] {a}")
@@ -1028,6 +1097,51 @@ def selftest():
           and got[2]["text"].startswith("Found by searching Facebook's events"),
           "a found event is named for its host, from the words search or the town's events page; one past, hostless, "
           "a family's own day, or pinned far from town with no town word is left out")
+    # BP app watch-every-place 24: an Event in the app linked to a Facebook event is read again on the search's days,
+    # named for its own host; its words and cover ride along as fingerprints; a cancelled one goes to the writer.
+    check([p["file"] for p in got] == ["search-la", "search-church", "search-obbink"] and all("listing" in p for p in got),
+          "a found event carries its listing's fingerprint")
+    sig = lambda n: f"https://scontent.fbcdn.net/v/t39/746878698_1448_n.jpg?_nc_sid={n}&oh=x{n}"
+    check(listing({"description": "Make a  wreath.", "imageUrl": sig(1)}) == listing({"description": "Make a wreath.", "imageUrl": sig(2)})
+          and listing({"description": "Make a wreath.", "imageUrl": sig(1)}).split(".")[0]
+          != listing({"description": "Make two wreaths.", "imageUrl": sig(1)}).split(".")[0]
+          and listing({"description": "Make a wreath."}).endswith(".") and listing({}) == ".",
+          "a listing's fingerprint: its words however spaced, its cover by file name whatever the signature")
+    asked = []
+    class Mentions:
+        def rest(self, method, path, body=None, prefer=None):
+            asked.append(path)
+            return [{"source_name": "Visit Joetown", "source_url": "https://www.facebook.com/events/1596047658468573/",
+                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown"}},
+                    {"source_name": "JoeTown", "source_url": "https://www.facebook.com/events/1596047658468573/?ref=1",
+                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown"}},
+                    {"source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802",
+                     "club_events": {"source_name": "Sunny Mary Meadow", "place_entry_id": None}}]
+    again = rereads(Mentions(), date(2026, 11, 14))
+    check([(p["url"], p["name"], p["day"]) for p in again] == [
+              ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "mon"),
+              ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "sat"),
+              ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "mon"),
+              ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "sat")]
+          and again[2]["entry_id"] == "joetown" and all(p["reread"] and p["kind"] == "search" for p in again)
+          and "club_events.event_date=gte.2026-11-14" in asked[0] and "club_events.cancelled_at=is.null" in asked[0],
+          "each upcoming Event's Facebook event is read again Monday and Saturday, named for the Event's own host")
+    tabbed = {canon(p["url"]): p for p in again}
+    reread = lambda **kw: {"inputUrl": "https://www.facebook.com/events/1107906461871802/", "id": "1107906461871802",
+                           "url": "https://www.facebook.com/events/1107906461871802/", "name": "Winter Wreath Workshop",
+                           "dateTimeSentence": "Saturday, December 5, 2026 at 10:00 AM CST", "description": "Wreaths.",
+                           "organizators": [{"name": "Someone Else"}], "location": {"name": "Sunny Mary Meadow"}, **kw}
+    got, _ = post_pages("search", [reread()], tabbed)
+    check(len(got) == 1 and got[0]["file"] == "events-1107906461871802" and got[0]["name"] == "Sunny Mary Meadow"
+          and got[0]["text"].startswith("Sunny Mary Meadow lists this event on its Facebook page.") and got[0]["listing"],
+          "an Event read again is its host's listing, judged once beside a tab's read of it")
+    got, _ = post_pages("search", [reread(isCanceled=True), reread(isPast=True, id="2")], tabbed)
+    check(got == [{"file": "cancelled-1107906461871802", "cancelled": True, "name": "Sunny Mary Meadow",
+                   "url": "https://www.facebook.com/events/1107906461871802/"}],
+          "a cancelled one is a line for the writer, never the models; a past one is nothing")
+    got, _ = post_pages("events", [dict(reread(isCanceled=True), inputUrl=events_tab(by_url[next(iter(by_url))]["url"]))],
+                        {events_tab(u): p for u, p in by_url.items()})
+    check(len(got) == 1 and got[0]["cancelled"], "a cancelled event on a place's own tab too (until now it was judged live)")
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
@@ -1243,6 +1357,10 @@ def set_aside_reads():
             monthly = [len(wk(4, 21, 30)), len(wk(5, 0, 5)), len(wk(5, 15, 45))]
             ev = lambda *when: sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 11, *when, tzinfo=LOCAL))[("weekly", "events")])
             events_lists = [ev(4, 21, 30), ev(10, 21, 30)]
+            twice = [{"entry_id": "x", "name": "X", "kind": "search", "busy": False, "reread": True,
+                      "url": "https://www.facebook.com/events/1/", "day": d} for d in REREAD_DAYS]
+            searched = page_lists(root, {}, None, twice)[("weekly", "search")]
+            search_days = sorted(day_of(p) for p in searched if p.get("reread"))
     finally:
         g.update(saved[0])
         write_judged.interest_ids = saved[1]
@@ -1253,6 +1371,7 @@ def set_aside_reads():
     twenty_four = [f"https://www.facebook.com/p{i}" for i in range(24)]
     blocked = tally([(f"2026-10-2{i}", twenty_four, [], f"facebook run {i}") for i in range(3)], {}, date(2026, 10, 28))
     return [
+        (search_days == ["mon", "sat"], "an Event read again sits in the Monday and the Saturday search tasks"),
         (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-thu-facebook"]
          and sals in inputs[2]["bp-busy-facebook"] and on_lists == ["bp-busy-facebook"]
          and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs) and counts == ["3 pages"] * 3 + ["2 pages"],
@@ -1352,13 +1471,14 @@ def setup_alone():
         if path.startswith("/key-value-stores?"):
             return {"data": {"id": "s"}}
         return store.update({bits[-1]: body}) if method == "PUT" else store.get(bits[-1])
-    saved = {k: g[k] for k in ("api", "find_root", "load", "read_missed", "search_pages")}
+    saved = {k: g[k] for k in ("api", "find_root", "load", "read_missed", "search_pages", "rereads")}
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "sources" / "social").mkdir(parents=True)
             (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(pages))
-            g.update(api=apify, find_root=lambda *a: root, load=lambda root: ([], []), read_missed=dict, search_pages=list)
+            g.update(api=apify, find_root=lambda *a: root, load=lambda root: ([], []), read_missed=dict, search_pages=list,
+                     rereads=lambda db, today: [])
             with contextlib.redirect_stdout(io.StringIO()):
                 setup()
     finally:
@@ -1425,6 +1545,7 @@ def in_parts():
             said.append(out.getvalue())
         return said, {f.name: f.read_text() for f in (folder / "batches").iterdir()} if (folder / "batches").exists() else {}
     fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root, *a: None, "fetch_picture": picture,
+             "rereads": lambda db, today: [],
              "read_missed": dict,
              "last_read": lambda run: datetime(2026, 10, 28, 2, 40, tzinfo=timezone.utc), "time": clock,
              "page_lists": lambda root, *a: {("busy", "facebook"): [page]}}

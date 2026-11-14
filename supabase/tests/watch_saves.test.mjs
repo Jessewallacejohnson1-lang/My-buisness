@@ -153,6 +153,22 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     width, height, description, credit, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/abc.webp',
     'https://hayloft.example/', 'event', $1, 'live', 1080, 1350, 'A corn maze at dusk', null, 'event photos')`, [id]);
   await asJob('photos: looked at', 'update public.club_events set photo_checked_at = now() where id = $1', [id]);
+  // A second look (BP app watch-every-place 24): what each Event shows now, and its own pick retired for a better one.
+  await asJob('photos: what an Event shows now', `select id, event_id, kind, url, proposed_by from public.place_photos
+    where status = 'live' and event_id in ($1)`, [id]);
+  const flyer = async (by) => (await asJob('photos: a flyer', `insert into public.place_photos (entry_id, town, url,
+    source_url, kind, event_id, status, width, height, proposed_by) values ('hayloft', 'st-joseph-mn', 'https://x/flyer.webp',
+    'https://hayloft.example/', 'flyer', $1, 'live', 1080, 1350, $2) returning id`, [id, by]))[0].id;
+  const retire = async (row) => (await asJob('photos: its own pick retired for a better one',
+    'select public.retire_own_event_photos($1) as n', [[row]]))[0].n;
+  const ours = await flyer('event photos');
+  assert.equal(await retire(ours), 1, "the step's own pick");
+  const kept = await flyer('Jesse');
+  assert.equal(await retire(kept), 0, "a person's photo stays");
+  await db.query('delete from public.place_photos where id = any($1)', [[ours, kept]]);
+  await asJob('photos: Events a post named since', `select m.source_name, m.source_url, m.first_seen, e.id, e.photo_checked_at
+    from public.event_mentions m join public.club_events e on e.id = m.event_id
+    where m.source_url ~ '(facebook|instagram)[.]com/' and e.status = 'approved'`);
   // A News's own photo (town-feed 53): the News read, its row, and the News marked looked at.
   const { rows: [{ id: story }] } = await db.query(`insert into public.board_items (title, category, source_name, source_url,
     status, place_entry_id) values ('New maze', 'business', 'Hayloft Farm', 'https://www.instagram.com/p/x/', 'published', 'hayloft')
