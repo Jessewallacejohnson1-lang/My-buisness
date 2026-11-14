@@ -2626,7 +2626,8 @@ test('a reported Event never shows to its reporter, lowers nothing, and others s
   assert.equal((await db.query('select count(*)::int as n from public.reports')).rows[0].n, 1);
 });
 
-test('a report holds the Event, the reason and the time only, and no neighbour can read it', async () => {
+// Backlog 26 added Wrong info's note and whether the post check kept it: still never who sent it.
+test('a report holds the Event, the reason, the time and a note only, and no neighbour can read it', async () => {
   await reset();
   const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM' });
   await reportAs(YOU, fair, 'violence');
@@ -2635,7 +2636,7 @@ test('a report holds the Event, the reason and the time only, and no neighbour c
   await db.exec('reset role');
   const { rows } = await db.query(`select column_name from information_schema.columns
                                    where table_name = 'reports' order by ordinal_position`);
-  assert.deepEqual(rows.map((r) => r.column_name), ['id', 'event_id', 'reason', 'at']);
+  assert.deepEqual(rows.map((r) => r.column_name), ['id', 'event_id', 'reason', 'at', 'note', 'note_ok']);
   await assert.rejects(reportAs(YOU, fair, 'not_a_reason'), /reports_reason_check/);
 });
 
