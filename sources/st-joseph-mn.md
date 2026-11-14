@@ -2354,16 +2354,16 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: history-museum-stearns
 status: active
-tier: listed
+tier: watched
 category: nonprofits-charities
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://stearnshistorymuseum.wildapricot.org/events
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. The museum is in St. Cloud (235 33rd Ave S) but holds events in St. Joseph: Gingerbread Architecture at the Church of Saint Joseph, Hops and History at Bad Habit Brewing. Its event list (Wild Apricot) is plain text. Found through a JoeTown Instagram story; watched since 2026-11-14 (Jesse: "yes").
 
 ## Subway
 ```yaml
