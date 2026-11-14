@@ -754,6 +754,20 @@ test("a place's story and its Event are one creator, and the story keeps its 5th
                    ['Event 1', 'Event 2', 'Event 4', 'Event 3', 'Storm shelter walls going up', 'Event 5', 'Event 6', 'Event 7']);
 });
 
+test("a story's spot never leaves more touching than the order it came in: here none (town-feed 66)", async () => {
+  await reset();
+  await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'Hall' });
+  await add('Story time', '2026-10-09', { start_time: '6:30 PM', source_name: 'Library' });
+  for (const n of [1, 2, 3]) await add(`Cafe ${n}`, `2026-10-1${n - 1}`, { start_time: '6:30 PM', source_name: 'Cafe' });
+  await add('Book sale', '2026-10-21', { start_time: '6:30 PM', source_name: 'Library' });
+  await news('Library news', '2026-10-08 17:00', { source_name: 'Library' });
+  await signIn(ME);
+  // By points: Concert (live), Story time, Cafe 1, Cafe 2, Library news, Cafe 3, Book sale. Taking each next card from
+  // someone else would pull Book sale up above the Library's story.
+  assert.deepEqual(await newsTitles('2026-10-08 18:30'),
+                   ['Concert', 'Cafe 1', 'Story time', 'Cafe 2', 'Library news', 'Cafe 3', 'Book sale']);
+});
+
 test('live cards stay on top: two from one creator are put apart only by a live card from someone else (town-feed 66)', async () => {
   await reset();
   // Live order among equals: the latest to start first.
@@ -2848,7 +2862,7 @@ test("a Group you're in lifts its Events and those found for it", async () => {
   await db.query('update public.club_events set club_id = $1 where id = $2', [club, own]);
   await add('Author talk', '2026-10-13', { start_time: '7 PM', source_name: 'Book Club site' });
   await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
-  // Someone else's Event, so the Group's two can be put apart (town-feed 66).
+  // Someone else's Event to put between the Group's two, so Fall fair, the soonest, stays first (town-feed 66).
   await add('Bake sale', '2026-10-20', { start_time: '7 PM', source_name: 'Bakery' });
   await signIn(ME);
   assert.equal((await titles('2026-10-08 12:00'))[0], 'Fall fair', 'not in the Group: soonest first');

@@ -4,8 +4,10 @@
 -- its spots. Each spot takes the first card of its lane not yet placed whose creator isn't the one above, so a card
 -- moves down only past the next creator's card. A pair still touching after that (one creator all that's left at the
 -- bottom, or a story's spot after its own place's Event) trades one of its two cards with the nearest card of the same
--- lane, within 20 spots, that sits between two others there: the shortest move first, below first. One creator with
--- more than half a lane still touches: no card is left out.
+-- lane, within 20 spots, that sits between two others there: the shortest move first, below first. The first pass
+-- doesn't look ahead to a story's spot, so now and then it leaves more touching than the order it was given; that order
+-- gets the same trades too, and the one with fewer touching wins (the first pass's on a tie). One creator with more than
+-- half a lane still touches: no card is left out.
 create or replace function private.never_two_in_a_row(p_who int[], p_lane int[])
 returns int[]
 language plpgsql
@@ -25,6 +27,10 @@ declare
   spare int;
   m int;
   held int;
+  greedy int[];
+  best int[];
+  fewest int;
+  touching int;
 begin
   for pos in 1..n loop
     lane := p_lane[pos];
@@ -51,30 +57,44 @@ begin
     end loop;
   end loop;
 
-  -- 20 spots each way: twice the longest move on the live feed (10, 2026-11-13), and a feed one creator fills stays
-  -- quick. Each check is plain arithmetic, no query.
-  for k in 2..n loop
-    continue when p_who[pick[k]] <> p_who[pick[k - 1]];
-    <<pair>>
-    for d in 1..20 loop
-      foreach j in array array[k, k - 1] loop
-        foreach m in array array[j + d, j - d] loop
-          -- Only a card of the same lane from someone else can go there.
-          continue when m < 1 or m > n or p_lane[m] <> p_lane[j] or p_who[pick[m]] = p_who[pick[j]];
-          held := pick[m];
-          pick[m] := pick[j];
-          pick[j] := held;
-          exit pair when (m = 1 or p_who[pick[m]] <> p_who[pick[m - 1]])
-                     and (m = n or p_who[pick[m]] <> p_who[pick[m + 1]])
-                     and (j = 1 or p_who[pick[j]] <> p_who[pick[j - 1]])
-                     and (j = n or p_who[pick[j]] <> p_who[pick[j + 1]]);
-          pick[j] := pick[m];
-          pick[m] := held;
+  greedy := pick;
+  for round in 1..2 loop
+    pick := case when round = 1 then greedy else array(select generate_series(1, n)) end;
+    -- 20 spots each way: twice the longest move on the live feed (10, 2026-11-13), and a feed one creator fills stays
+    -- quick. Each check is plain arithmetic, no query.
+    for k in 2..n loop
+      continue when p_who[pick[k]] <> p_who[pick[k - 1]];
+      <<pair>>
+      for d in 1..20 loop
+        foreach j in array array[k, k - 1] loop
+          foreach m in array array[j + d, j - d] loop
+            -- Only a card of the same lane from someone else can go there.
+            continue when m < 1 or m > n or p_lane[m] <> p_lane[j] or p_who[pick[m]] = p_who[pick[j]];
+            held := pick[m];
+            pick[m] := pick[j];
+            pick[j] := held;
+            exit pair when (m = 1 or p_who[pick[m]] <> p_who[pick[m - 1]])
+                       and (m = n or p_who[pick[m]] <> p_who[pick[m + 1]])
+                       and (j = 1 or p_who[pick[j]] <> p_who[pick[j - 1]])
+                       and (j = n or p_who[pick[j]] <> p_who[pick[j + 1]]);
+            pick[j] := pick[m];
+            pick[m] := held;
+          end loop;
         end loop;
       end loop;
     end loop;
+    touching := 0;
+    for k in 2..n loop
+      if p_who[pick[k]] = p_who[pick[k - 1]] then
+        touching := touching + 1;
+      end if;
+    end loop;
+    if fewest is null or touching < fewest then
+      best := pick;
+      fewest := touching;
+    end if;
   end loop;
-  return pick;
+  return best;
 end;
 $$;
 revoke execute on function private.never_two_in_a_row(int[], int[]) from public;
