@@ -8,8 +8,8 @@ Text only a few pixels tall at the source comes out re-lettered with made-up wor
 the series"), so a text finder marks each line shorter than FINE_PX and those lines are blended back from a plain
 enlargement: soft, but the words the flyer has. Both models run on onnxruntime's CPU, on a Mac or in the cloud:
 sources/models/weights/ (realesrgan-x4plus-anime.onnx from Real-ESRGAN's own weights, convert_realesrgan.py there;
-text-lines.onnx, PaddleOCR's PP-OCRv4 text detector as RapidOCR ships it, Apache-2.0). numpy and onnxruntime are the morning's
-libraries only (ci-packages.txt "-"): without them `sharpen` answers None and the flyer waits.
+text-lines.onnx, PaddleOCR's PP-OCRv4 text detector as RapidOCR ships it, Apache-2.0). onnxruntime is the morning's
+library only (ci-packages.txt "-"; numpy every routine's): without them `sharpen` answers None and the flyer waits.
 
   python3 sources/scripts/sharpen.py <picture> <out.png>
   python3 sources/scripts/sharpen.py --selftest
