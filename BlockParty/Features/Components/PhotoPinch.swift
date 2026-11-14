@@ -72,9 +72,13 @@ private struct PinchToZoom: ViewModifier {
     }
 }
 
-/// Where the photo sits on screen, kept out of SwiftUI's state so a scroll doesn't redraw it.
+/// Where the photo sits on screen, kept out of SwiftUI's state so a scroll doesn't redraw it. A lift
+/// that's up hears each move (`PhotoLift.follow`).
 @MainActor private final class PinchSpot {
-    var rect: CGRect = .zero
+    var rect: CGRect = .zero {
+        didSet { if rect != oldValue { onMove?(rect) } }
+    }
+    var onMove: ((CGRect) -> Void)?
 }
 
 /// The pinch itself, a UIKit recognizer that runs beside every other one.
@@ -85,7 +89,14 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     let onLift: (Bool) -> Void
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        let lift = PhotoLift()
+        let lift: PhotoLift
+
+        init(spot: PinchSpot) {
+            let lift = PhotoLift(place: spot)
+            self.lift = lift
+            super.init()
+            spot.onMove = { [weak lift] in lift?.follow($0) }
+        }
 
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
@@ -96,7 +107,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     }
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
-        Coordinator()
+        Coordinator(spot: spot)
     }
 
     func makeUIGestureRecognizer(context: Context) -> UIPinchGestureRecognizer {
@@ -114,7 +125,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
         }
         let fingers = recognizer.location(in: window)
         if recognizer.state == .began {
-            lift.begin(in: window, spot: spot.rect, corner: corner, slot: slot, fingers: fingers, onLift: onLift)
+            lift.begin(in: window, corner: corner, slot: slot, fingers: fingers, onLift: onLift)
         } else if recognizer.numberOfTouches < 2 {
             // One finger up ends it, as Instagram's does: its lone finger would jump the photo.
             lift.land()
@@ -130,31 +141,35 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     private let ground = UIView()
     private let dim = UIView()
     private var photo: UIView?
+    /// Where the photo sits now, read when the lift is drawn and followed while it's up.
+    private let place: PinchSpot
     private var spot: CGRect = .zero
     private var onLift: (Bool) -> Void = { _ in }
     /// The fingers' scale when they landed, and the point of the photo under them.
     private var startScale: CGFloat = 1
     private var anchor: CGPoint = .zero
-    /// The fingers now, from the spot's top left, and their scale since landing.
-    private var fingers: CGPoint = .zero
+    /// The fingers now, in the window, and their scale since landing.
+    private var point: CGPoint = .zero
     private var pinch: CGFloat = 1
     private var held = false
     /// Counts landings, so a landing caught by a new pinch doesn't clear the stage when its spring ends.
     private var landings = 0
     private var stopped: [UIScrollView] = []
 
-    init() {
+    init(place: PinchSpot) {
+        self.place = place
         stage.isUserInteractionEnabled = false
         dim.backgroundColor = .black
         stage.addSubview(ground)
         stage.addSubview(dim)
     }
 
-    func begin(in window: UIWindow, spot: CGRect, corner: CGFloat, slot: UIColor, fingers point: CGPoint,
+    func begin(in window: UIWindow, corner: CGFloat, slot: UIColor, fingers point: CGPoint,
                onLift: @escaping (Bool) -> Void) {
         held = true
         landings += 1
         pinch = 1
+        self.point = point
         stopScrolls(under: point, in: window)
         if let photo, stage.superview != nil {
             // Caught on its way home: on from where it is now.
@@ -165,22 +180,23 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
             photo.transform = now
             dim.alpha = dimNow
             startScale = now.a
-            fingers = CGPoint(x: point.x - self.spot.minX, y: point.y - self.spot.minY)
             anchor = PinchMath.anchor(fingers: fingers, offset: CGPoint(x: now.tx, y: now.ty), scale: now.a)
             return
         }
-        self.spot = spot
         self.onLift = onLift
         startScale = 1
-        fingers = CGPoint(x: point.x - spot.minX, y: point.y - spot.minY)
-        anchor = fingers
         onLift(true)
         // A turn later, once what steps aside for the lift (a press's squish) has drawn without it. As it's on
         // screen, not drawn again: a fresh draw leaves out the grey glass heart.
+        // Where it sits is read then too, not when the fingers landed: the squish was still letting go and
+        // the feed still moving, so the ground sat off its spot and a dark edge of the photo showed round it
+        // (Jesse's phone, 2026-11-14).
         DispatchQueue.main.async { [self] in
+            spot = place.rect
             guard held, photo == nil,
                   let picture = window.resizableSnapshotView(from: spot, afterScreenUpdates: false, withCapInsets: .zero)
             else { if photo == nil { finish() }; return }
+            anchor = fingers
             stage.frame = window.bounds
             ground.frame = spot
             ground.backgroundColor = slot
@@ -202,9 +218,25 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
 
     func move(fingers point: CGPoint, scale: CGFloat) {
         guard held else { return }
-        fingers = CGPoint(x: point.x - spot.minX, y: point.y - spot.minY)
+        self.point = point
         pinch = scale
         draw()
+    }
+
+    /// The fingers from the spot's top left.
+    private var fingers: CGPoint {
+        CGPoint(x: point.x - spot.minX, y: point.y - spot.minY)
+    }
+
+    /// The real photo moved under the lift (a squish letting go late, a scroll settling): its ground and its
+    /// home move with it, and the picture stays under the fingers.
+    func follow(_ rect: CGRect) {
+        guard let photo, rect != spot else { return }
+        spot = rect
+        ground.frame = rect
+        photo.layer.position = rect.origin
+        photo.bounds.size = rect.size
+        if held { draw() }
     }
 
     private func draw() {
