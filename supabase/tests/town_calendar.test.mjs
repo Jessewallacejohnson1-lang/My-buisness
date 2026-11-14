@@ -1,5 +1,6 @@
 // Fixed stories for get_town_calendar (supabase/migrations/*_town_calendar.sql), Search's Event calendar
-// (BP app five-tabs 10): a year of public Events, every date of a series, months before the show-from day.
+// (BP app five-tabs 10, 11): a year of public Events from the 1st of this month, every date of a series, months
+// before the show-from day.
 // Run in PGlite like the Town feed's: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,16 +58,17 @@ test('public Events only: no Group post, nothing for followers or friends alone,
   assert.deepEqual(await titles(), ['2026-11-20 Bake sale']);
 });
 
-test('the whole year from the first of this month, every date of a series, past its show-from day', async () => {
+test('the whole year from the first of this month, every earlier day of it too, every date of a series, past its show-from day', async () => {
   await reset();
   await add('Last month', '2026-10-31');
   await add('First of the month', '2026-11-01', { end_at: '2026-11-14 05:00+00' });
-  await add('Over already', '2026-11-05');
+  await add('Earlier this month', '2026-11-05');
   for (const day of ['2026-11-17', '2026-11-24', '2026-12-01']) await add('Bingo night', day);
   await add('Spring gala', '2027-04-09', { shows_from: '2027-02-12' });
   await add('Last day', '2027-10-31');
   await add('A year on', '2027-11-01');
-  assert.deepEqual(await titles(), ['2026-11-01 First of the month', '2026-11-17 Bingo night',
+  assert.deepEqual(await titles(), ['2026-11-01 First of the month', '2026-11-05 Earlier this month',
+                                    '2026-11-17 Bingo night',
                                     '2026-11-24 Bingo night', '2026-12-01 Bingo night',
                                     '2027-04-09 Spring gala', '2027-10-31 Last day']);
 });
