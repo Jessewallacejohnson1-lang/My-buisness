@@ -539,6 +539,12 @@ struct MainTabsView: View {
             NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
         }
+        // Edit on your own post's ••• (town-feed 44), from Town, Following or the bell's post page: New post on it.
+        .sheet(item: Bindable(townFeed.hides).editing) { post in
+            NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, editing: post,
+                         onEdited: { townFeed.hides.saved($0) })
+                .presentationDragIndicator(.visible)
+        }
         #if DEBUG
         // `-new-post`: New post open at launch; `-new-post-state <state>`: the faded card on Town.
         .task {

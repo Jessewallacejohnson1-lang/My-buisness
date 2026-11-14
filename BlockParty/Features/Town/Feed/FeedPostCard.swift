@@ -6,15 +6,21 @@
 //  https://claude.ai/artifact/9M6EyMvnwRZk8d1AGL8vjD, BP app references/post-screen/checkin1.py, card A):
 //  their picture, the name line and when, then the words, then the photo edge to edge in its own shape,
 //  then the heart and send, with a light grey band before the next card. The ••• is Report for someone
-//  else's post and Delete for your own.
+//  else's post; on your own it is Apple's menu with Edit and Delete (town-feed 44).
 //
 
 import SwiftUI
 
 struct FeedPostCard: View {
-    let post: TownPost
+    /// The post as its list holds it; `post` lays this session's edit over it (town-feed 44).
+    private let given: TownPost
     /// Off in the share sheet's picture, which draws the post without its controls.
     var sendable = true
+
+    init(post: TownPost, sendable: Bool = true) {
+        given = post
+        self.sendable = sendable
+    }
 
     @Environment(RealLifeActions.self) private var actions: RealLifeActions?
     @Environment(TownFeed.self) private var feed: TownFeed?
@@ -49,7 +55,8 @@ struct FeedPostCard: View {
         static let lines = 6
     }
 
-    private var mine: Bool { AuthStore.shared.userId?.lowercased() == post.poster.id.lowercased() }
+    private var post: TownPost { feed?.hides.edited(given) ?? given }
+    private var mine: Bool { given.editable(by: AuthStore.shared.userId) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -96,18 +103,29 @@ struct FeedPostCard: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
-            if sendable {
-                FeedCardMenuButton { if mine { deleting = true } else { menuPresented = true } }
-                    .modifier(FeedCardMenuSheet(isPresented: $menuPresented, post: post))
-                    // Your own post: Delete, Apple's sheet asking first (the `isPresented` form 26.5 has).
-                    .confirmationDialog("Delete post?", isPresented: $deleting, titleVisibility: .visible) {
-                        Button("Delete", role: .destructive) {
-                            Haptics.light()
-                            Task { await feed?.hides.delete(post) }
-                        }
-                    } message: {
-                        Text("You can't undo this.")
+            if sendable && mine {
+                // Your own post (town-feed 44; Jesse at Check-in 1: "i agree"): Apple's menu from the •••, Edit and then
+                // Delete in red, which asks first in Apple's dialog (the `isPresented` form 26.5 has).
+                Menu {
+                    if let feed {
+                        Button(PostEditCopy.edit, systemImage: "pencil") { feed.hides.editing = post }
                     }
+                    Button(PostEditCopy.delete, systemImage: "trash", role: .destructive) { deleting = true }
+                } label: {
+                    FeedCardMenuGlyph()
+                }
+                .accessibilityLabel("More options")
+                .confirmationDialog("Delete post?", isPresented: $deleting, titleVisibility: .visible) {
+                    Button("Delete", role: .destructive) {
+                        Haptics.light()
+                        Task { await feed?.hides.delete(post) }
+                    }
+                } message: {
+                    Text("You can't undo this.")
+                }
+            } else if sendable {
+                FeedCardMenuButton { menuPresented = true }
+                    .modifier(FeedCardMenuSheet(isPresented: $menuPresented, post: post))
             }
         }
     }
