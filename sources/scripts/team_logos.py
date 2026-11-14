@@ -13,7 +13,8 @@ page's title names the team's school, word for word both ways. The logos go on o
 model, who answers yes, no or unsure for each (sources/models/team-logo.md, check 2; its eval is
 check_team_logos.py).
 
-`keep`, a step of `morning.py finish`, puts live each logo the helper said yes to: saved once in Storage
+`keep`, a step of `morning.py finish`, puts live each logo the helper said yes to: cut off its white box, cleaned and lit
+(clean_logo.py, game-card 28; the helpers judge whose logo it is, not its cut), saved once in Storage
 (places/teams/<id>/logo-<hash>.png), its colors read from it, and the team updated, which shows its games
 (private.team_logo_changed). Each logo put live is a report line saying how to take it down, and each team still
 waiting is one saying why.
@@ -384,9 +385,17 @@ def kept_lines(run_, dry_run):
                    else "the check gave no answer")
             lines.append(f"- Still waiting on a logo: {t['name']}: {whose} from {t['source']}, {why}")
             continue
+        try:  # a white box shows its box on a game's page (game-card 26): a logo that can't be cleaned waits
+            from PIL import Image
+            import clean_logo
+            im, did = clean_logo.clean(Image.open(t["file"]))
+            data = png(im)
+        except Exception as e:  # numpy missing, a file that won't decode, nothing left after the cut
+            lines.append(f"- Still waiting on a logo: {t['name']}: {whose} from {t['source']}, its logo couldn't be "
+                         f"cleaned ({' '.join(str(e).split())[:120]})")
+            continue
         try:
             if not dry_run:
-                data = Path(t["file"]).read_bytes()
                 path = f"places/teams/{t['id']}/logo-{hashlib.sha1(data).hexdigest()[:10]}.png"
                 try:
                     run_.db.storage_put(path, data, "image/png")
@@ -404,7 +413,7 @@ def kept_lines(run_, dry_run):
             lines.append(f"[morning] team logo for {t['name']} failed: {' '.join(str(e).split())[:200]}")
             continue
         lines.append(f"- Logo live: {t['name']}, {whose} from {t['source']} ({t['page']}); its page names it and both readings "
-                     f"said yes. Wrong? Take it down with a migration: {take_down(t)}" + (" (dry run: nothing written)" if dry_run else ""))
+                     f"said yes; {', '.join(did)}. Wrong? Take it down with a migration: {take_down(t)}" + (" (dry run: nothing written)" if dry_run else ""))
     lines += [f"- Still waiting on a logo: {m['name']}: {m['why']}" for m in found["missed"]]
     if found.get("later"):
         lines.append(f"- Still waiting on a logo: {found['later']} more teams, looked up on another morning")
@@ -492,6 +501,8 @@ def selftest():
         for y in range(50, 250):
             red.putpixel((x, y), (194, 4, 48, 255) if x < 230 else (230, 180, 20, 255))
     ok(trimmed(red).size == (200, 200) and colors(trimmed(red))[0].startswith("#C"), "trimmed to its edges, red first")
+    import clean_logo
+    boxed = clean_logo.badge(side=600)
     white = Image.new("RGB", (300, 300), "white")
     white.paste((0, 0, 128), (100, 120, 200, 180))
     ok(trimmed(white).size == (100, 60), "a logo on white is trimmed to its ink")
@@ -509,14 +520,14 @@ def selftest():
         db.url = "https://db.example"
         (folder).mkdir()
         (folder / "logos-2.jsonl").write_text('{"team": "t1", "answer": "yes"}\n')  # an earlier prepare's
-        db.storage_put = lambda path, data, kind: db.calls.append(("PUT", path, kind))
+        db.storage_put = lambda path, data, kind: db.calls.append(("PUT", path, kind, data))
         pages = {"Becker-Big Lake": dict(p, page="https://www.mshsl.org/schools/becker-high-school"), "Shanley": None,
                  "North Wright County": None, "Elk River-Zimmerman": dict(p, page="e"),
                  "Long Prairie": dict(p, page="l", logo="https://x/lp.png")}
         found = prepare(folder / "logos", db, date(2026, 11, 10), league=lambda t: pages[t["name"]],
                         wikipedia=lambda t: w if t["name"] == "Shanley" else None,
                         bound=lambda p: {"logo": "https://cdn/lp.png", "page": "https://bound/lp"} if p["page"] == "l" else None,
-                        grab=lambda url, dest: red.save(dest))
+                        grab=lambda url, dest: (boxed if url == p["logo"] else red).save(dest))
         batch = (folder / "logos" / "batch.txt").read_text().splitlines()
         ok(not (folder / "logos-2.jsonl").exists(), "an earlier prepare's answers go: their keys were other teams'")
         ok(len(found) == 3 and (folder / "logos" / "sheet.png").exists() and len(batch) == 5
@@ -540,6 +551,11 @@ def selftest():
            and patch[0][2]["logo_url"] == "https://db.example/storage/v1/object/public/" + puts[0][1]
            and patch[0][2]["colors"][0] == patch[0][2]["color"], "two yeses: the logo is saved once and the team takes it")
         lines = order(lines)
+        put = Image.open(io.BytesIO(puts[0][3]))
+        fill = put.getpixel((put.width // 4, put.height // 2))  # the badge's own white fill, left of its mark
+        ok(put.size == (512, 512) and put.getpixel((0, 0))[3] == 0 and fill[3] == 255 and min(fill[:3]) > 230
+           and "both readings said yes; cut off its white box, lit. Wrong?" in order(lines)[0],
+           "a logo on a white box goes live cut off it, its own white kept, and the report says what was done")
         ok(lines[0].startswith("- Logo live: Becker-Big Lake, Becker High School's, as its first school")
            and f"logo_refused = array_append(logo_refused, '{p['logo']}') where id = 'becker-big-lake';" in lines[0],
            "the report says whose logo it is and how to take it down for good")
@@ -556,7 +572,8 @@ def selftest():
            "a team not found says so")
         n = len(db.calls)
         ok(order(keep(r)) == lines and len(db.calls) == n, "a finish run again neither writes nor reports twice")
-        ok(keep(Run(Path(tmp) / "none", date(2026, 11, 10), db)) == [], "no logos looked up: no lines")
+        ok(keep(Run(Path(tmp) / "none", date(2026, 11, 10), db)) == [] and len(db.calls) == n,
+           "a morning with no new team: no lines, nothing written")
         broken = Run(Path(tmp) / "broken", date(2026, 11, 10), db)
         (broken.folder / "logos").mkdir(parents=True)
         (broken.folder / "logos" / "found.json").write_text('{"teams": [{"key"')

@@ -8,7 +8,7 @@
 # it (find_spots.py reads the two maps with them; BP app inside-cards 20).
 yaml python3-yaml pyyaml
 PIL python3-pil pillow PIL.Image
+numpy python3-numpy numpy
 osmium - osmium
 overturemaps - overturemaps
-numpy - numpy
 onnxruntime - onnxruntime
