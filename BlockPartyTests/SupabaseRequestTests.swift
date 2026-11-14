@@ -324,6 +324,31 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertEqual(lastBody, ["recheck": id])
     }
 
+    /// Backlog 26: Wrong info with a note sends the note, trimmed, then asks moderate-post to read it before the admin
+    /// sees it; the reporter never waits for that.
+    func testAWrongInfoNoteGoesWithTheReportAndTheCheckReadsIt() async throws {
+        let id = UUID().uuidString
+        server.answers["rpc/report_event"] = .init(body: "false")
+        _ = try await community.feedChoice(.report(id, .wrongInfo, note: "  Starts at 6 now  "))
+        XCTAssertEqual(server.requests[0].url!.absoluteString, "\(rest)/rpc/report_event")
+        XCTAssertEqual(server.requests[0].httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: String],
+                       ["p_event": id, "p_reason": "wrong_info", "p_note": "Starts at 6 now"])
+        try await waitWhile(self.server.requests.count < 2)
+        XCTAssertEqual(last.url!.absoluteString, "\(SupabaseConfig.url.absoluteString)/functions/v1/moderate-post")
+        XCTAssertEqual(lastBody, ["note": id])
+    }
+
+    /// Backlog 26: Wrong info with an empty note is today's report, and the check is never asked.
+    func testAnEmptyNoteIsNoNoteAndAsksNoCheck() async throws {
+        let id = UUID().uuidString
+        server.answers["rpc/report_event"] = .init(body: "false")
+        _ = try await community.feedChoice(.report(id, .wrongInfo, note: "   "))
+        XCTAssertEqual(server.requests[0].httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: String],
+                       ["p_event": id, "p_reason": "wrong_info"])
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(server.requests.count, 1)
+    }
+
     /// A neighbour's post (town-feed 29): pending, kind post, its words, Place, photo and shape, who can
     /// see it and who's tagged, with no day or time.
     func testANewPostGoesInPendingAsAPost() async throws {

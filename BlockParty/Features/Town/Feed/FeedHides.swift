@@ -61,9 +61,9 @@ final class FeedHides {
     }
 
     /// An Event's or a neighbour's post's report (ticket 22, town-feed 29), by its id, from its sheet,
-    /// which waits for the answer to say thanks or shake.
-    func report(id: String, _ reason: ReportReason) async throws {
-        _ = try await choose(.report(id, reason))
+    /// which waits for the answer to say thanks or shake. Wrong info may carry a note (backlog 26).
+    func report(id: String, _ reason: ReportReason, note: String? = nil) async throws {
+        _ = try await choose(.report(id, reason, note: note))
         reportedIDs.insert(id)
     }
 

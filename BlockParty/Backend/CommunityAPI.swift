@@ -488,15 +488,21 @@ struct CommunityAPI {
             guard UUID(uuidString: id) != nil else { return nil }
             let data = try await db.rpc("mute_host", ["p_item": id])
             return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
-        case .report(let id, let reason):
+        case .report(let id, let reason, let note):
             guard UUID(uuidString: id) != nil else { return nil }
-            let data = try await db.rpc("report_event", ["p_event": id, "p_reason": reason.rawValue])
+            var args: [String: Any] = ["p_event": id, "p_reason": reason.rawValue]
+            let note = note.flatMap(ReportNote.clean)
+            if let note { args["p_note"] = note }
+            let data = try await db.rpc("report_event", args)
             // A neighbour's posting goes back through the AI check (town-feed 22), moderate-post asked to
             // read it again. The function claims it once and lets go if the model doesn't answer, so a
             // lost call is retried by the next report; the reporter never waits.
             if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
                 Task { try? await db.invoke("moderate-post", ["recheck": id]) }
             }
+            // A note goes through the same check before the admin sees it (backlog 26); one the check never reads
+            // never shows, so a lost call only loses the note.
+            if note != nil { Task { try? await db.invoke("moderate-post", ["note": id]) } }
             return nil
         case .unmute(let host):
             try await db.rest("feed_mutes", method: "DELETE", [("host", "eq.\(host)")])

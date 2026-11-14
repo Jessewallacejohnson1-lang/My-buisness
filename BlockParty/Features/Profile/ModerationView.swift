@@ -48,6 +48,9 @@ enum ReviewRow {
         return DateHelpers.timestamp(firstAt).map { "Reported \(short($0)): \(words)" } ?? "Reported: \(words)"
     }
 
+    /// A reporter's note as the queue shows it (BP app backlog 26): their words, in quotes.
+    static func quoted(_ note: String) -> String { "\u{201C}\(note)\u{201D}" }
+
     /// "Oct 26", on the Town's clock.
     private static func short(_ date: Date) -> String {
         date.formatted(townStyle.month(.abbreviated).day())
@@ -120,6 +123,8 @@ struct ReportedEvent: Identifiable, Equatable, Decodable {
     var firstAt: String? = nil
     let card: ReviewCard
     var poster: ReviewPoster? = nil
+    /// What reporters said with Wrong info, once the post check kept it: the 3 newest, newest first (backlog 26).
+    var notes: [String]? = nil
     var id: String { eventId }
 
     var tag: String { ReviewRow.reportTag(reasons: reasons, reports: reports, firstAt: firstAt) }
@@ -278,7 +283,8 @@ final class ModerationModel: ObservableObject {
                                  words: "Chi Kung (energy work), in its many forms, dates back at least 2500 years. At its core is Chi, the energy that animates and drives us.",
                                  source: "CSB SJU Campus Events",
                                  photo: "events/event-place-retreat-group-gathered-in-chairs-around-a-teacher-by-the-3f8586a512.webp",
-                                 created: "2026-10-19T17:00:00Z")),
+                                 created: "2026-10-19T17:00:00Z"),
+                      notes: ["Starts at 6 now, not 5:30. Their Facebook moved it."]),
     ]
 
     static let messageFixtures = [
@@ -351,6 +357,7 @@ struct ModerationView: View {
                                 ReviewQueueRow(
                                     who: who(card, report.poster), title: card.title.isEmpty ? report.title : card.title,
                                     when: when(card), words: card.description, picture: card.picture,
+                                    notes: report.notes ?? [],
                                     tag: .init(symbol: "flag", text: report.tag), line: i > 0,
                                     shakes: model.rollbacks[report.id, default: 0],
                                     onOpen: open(card),
@@ -540,6 +547,8 @@ struct ReviewQueueRow: View {
     var when: String? = nil
     var words: String? = nil
     var picture: URL? = nil
+    /// Reporters' notes (backlog 26), each on its own line above the tag (Jesse's pick at Check-in 1).
+    var notes: [String] = []
     var tag: Tag? = nil
     /// The hairline above every item but a section's first.
     var line = false
@@ -566,6 +575,18 @@ struct ReviewQueueRow: View {
                     .accessibilityHint("Opens it")
             } else {
                 summary.accessibilityElement(children: .combine)
+            }
+
+            if !notes.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
+                        Text(ReviewRow.quoted(note)).font(.sans(15)).foregroundStyle(Hue.ink).lineLimit(3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, ReviewMetric.side)
+                .padding(.top, 8)
+                .accessibilityElement(children: .combine)
             }
 
             HStack(spacing: ReviewMetric.faceGap) {
