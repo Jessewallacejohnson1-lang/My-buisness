@@ -406,8 +406,8 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     let id: String
     let poster: Person
     var posterPhoto: URL? = nil
-    /// Their words; empty for a photo alone.
-    let words: String
+    /// Their words; empty for a photo alone. An edit the check let up changes them (town-feed 44).
+    var words: String
     var photo: URL? = nil
     /// The photo's shape, width over height, inside Instagram's limits (4:5 to 1.91:1); nil when
     /// unknown.

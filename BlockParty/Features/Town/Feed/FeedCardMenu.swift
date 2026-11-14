@@ -28,6 +28,10 @@
 //  context menu (`TownCardHold`) with Share, Not interested, Mute and Report, and Report opens this
 //  sheet at its reasons. A neighbour's post keeps its •••.
 //
+//  Wrong info slides on to a note (BP app backlog 26, Nextdoor's report note, references/report-note/; Jesse at
+//  Check-in 1, 2026-11-13: "yes to all", mock https://claude.ai/artifact/GbMjuaMFQB8QWZ7xEsNfwT): what's wrong in up
+//  to 150 letters, for the admin to fix the Event. It is optional, and only with a real account.
+//
 
 import CoreLocation
 import SwiftUI
@@ -39,13 +43,15 @@ struct FeedCardMenu: View {
     var hostName: String? = nil
     /// Not interested (false) or Mute (true); nil, neither row (signed out, or off the Town feed).
     var onHide: ((Bool) -> Void)? = nil
-    /// The reasons Report offers, and where a picked one goes; nil, no Report row.
+    /// The reasons Report offers, and where a picked one goes with its note; nil, no Report row.
     var reasons: [ReportReason] = []
-    var onReport: ((ReportReason) async throws -> Void)? = nil
+    var onReport: ((ReportReason, String?) async throws -> Void)? = nil
     /// Report from a held Town card: the sheet opens at the reasons, its close the way out.
     var opensOnReasons = false
+    /// Wrong info asks for a note (backlog 26): only with a real account, as the server keeps none without one.
+    var asksNote = false
 
-    private enum Pane { case menu, reasons, thanks }
+    private enum Pane { case menu, reasons, note, thanks }
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
@@ -53,6 +59,10 @@ struct FeedCardMenu: View {
     @State private var pane: Pane?
     @State private var sending: ReportReason?
     @State private var failures = 0
+    @State private var note = ""
+    /// Which way the last move went: back slides a pane out the way it came (taste.md, Motion).
+    @State private var backward = false
+    @FocusState private var noteFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
@@ -71,6 +81,7 @@ struct FeedCardMenu: View {
             switch pane ?? (opensOnReasons ? .reasons : .menu) {
             case .menu: menu
             case .reasons: reasonList.transition(slide)
+            case .note: notePane.transition(slide)
             case .thanks: thanks.transition(slide)
             }
         }
@@ -78,17 +89,29 @@ struct FeedCardMenu: View {
         .padding(.bottom, 16)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(height)])
+        // The note is a full page, as Nextdoor's: at its own height the keyboard pushed the sheet down, then up again.
+        .presentationDetents([pane == .note ? .large : .height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
         .sheet(isPresented: $editingInterests) { FeedInterestEditorDestination() }
     }
 
     private var slide: AnyTransition {
-        reduceMotion ? .opacity : .push(from: .trailing)
+        reduceMotion ? .opacity : .push(from: backward ? .leading : .trailing)
     }
 
-    private func go(_ next: Pane) {
+    private func go(_ next: Pane, back: Bool = false) {
+        // Leaving the note (Back or Send) with the keyboard up lets the keyboard go down first (about 0.25 s, guessed): at
+        // once, the sheet took the next page's height over the keyboard and jumped to the screen's top for a frame
+        // (2026-11-14 run).
+        let wait = noteFocused ? 0.25 : 0
+        noteFocused = false
+        // The pane on screen takes its new way out first: a view that leaves keeps the transition it last drew with.
+        backward = back
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { move(to: next) }
+    }
+
+    private func move(to next: Pane) {
         withAnimation(.spring(response: 0.42, dampingFraction: 1)) { pane = next }
     }
 
@@ -196,7 +219,7 @@ struct FeedCardMenu: View {
     /// Instagram's report page: its title and a close, the question, one row per reason.
     private var reasonList: some View {
         VStack(spacing: 0) {
-            reportBar
+            reportBar()
             VStack(spacing: 8) {
                 Text("Why are you reporting this?")
                     .font(.display(22))
@@ -212,7 +235,7 @@ struct FeedCardMenu: View {
             VStack(spacing: 0) {
                 ForEach(reasons) { reason in
                     Rectangle().fill(Hue.hairline).frame(height: 1)
-                    Button { send(reason) } label: {
+                    Button { reason == .wrongInfo && asksNote ? go(.note) : send(reason) } label: {
                         HStack {
                             Text(reason.label)
                                 .font(.sans(17))
@@ -239,11 +262,60 @@ struct FeedCardMenu: View {
         }
     }
 
-    /// The thanks once the report has gone: a check, one line, Done. It keeps the list's height,
-    /// so the sheet doesn't jump.
+    /// Nextdoor's report note (backlog 26): what's wrong, one box with its count, Send. Send with nothing in the box
+    /// sends the report as it always did. The pane has its own height, so the keyboard fits under the sheet.
+    private var notePane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            reportBar { go(.reasons, back: true) }
+            Text("What's wrong?")
+                .font(.display(22))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+            TextField("Note", text: $note,
+                      prompt: Text("The time, the place, or it's called off").foregroundStyle(Hue.inkSecondary),
+                      axis: .vertical)
+                .font(.sans(17))
+                .foregroundStyle(Hue.ink)
+                // Five lines make Nextdoor's box, about 120 pt (picked: its 125, the mock's 120).
+                .lineLimit(5, reservesSpace: true)
+                .focused($noteFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .onChange(of: note) { _, words in
+                    if words.count > ReportNote.limit { note = String(words.prefix(ReportNote.limit)) }
+                }
+            Text("\(note.count)/\(ReportNote.limit)")
+                .font(.sans(13))
+                .monospacedDigit()
+                .foregroundStyle(note.count >= ReportNote.limit ? Hue.ink : Hue.inkSecondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 6)
+                .accessibilityLabel("\(note.count) of \(ReportNote.limit) letters")
+            Button { send(.wrongInfo, note: note) } label: {
+                Text("Send")
+                    .font(.displaySemi(17))
+                    .foregroundStyle(Hue.paper)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Hue.ink, in: Capsule())
+                    .opacity(sending == nil ? 1 : 0.45)
+            }
+            .buttonStyle(.press(.squish))
+            .disabled(sending != nil)
+            .turnBackShake(failures: failures, shakes: !reduceMotion)
+            .padding(.top, 14)
+        }
+        .onAppear { noteFocused = true }
+    }
+
+    /// The thanks once the report has gone: a check, one line, Done. From the reasons it keeps their height, so the sheet
+    /// doesn't jump; from the full-height note it settles to the note's own height as the keyboard goes.
     private var thanks: some View {
         VStack(spacing: 0) {
-            reportBar
+            reportBar()
             VStack(spacing: 20) {
                 Image(systemName: "checkmark")
                     .font(.sansSemibold(28))
@@ -256,7 +328,7 @@ struct FeedCardMenu: View {
                     .foregroundStyle(Hue.ink)
             }
             .padding(.top, 48)
-            Spacer(minLength: 32)
+            Spacer(minLength: 24)
             Button { dismiss() } label: {
                 Text("Done")
                     .font(.displaySemi(17))
@@ -269,8 +341,21 @@ struct FeedCardMenu: View {
         .frame(height: max(height - 16, 0), alignment: .top)
     }
 
-    private var reportBar: some View {
+    /// "Report" with its close, and on the note a back that slides it to the reasons the way it came.
+    private func reportBar(back: (() -> Void)? = nil) -> some View {
         ZStack {
+            if let back {
+                Button(action: back) {
+                    Image(systemName: "chevron.left")
+                        .font(.sansSemibold(17))
+                        .foregroundStyle(Hue.ink)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel("Back")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Text("Report")
                 .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
@@ -290,12 +375,12 @@ struct FeedCardMenu: View {
         .padding(.top, 8)
     }
 
-    private func send(_ reason: ReportReason) {
+    private func send(_ reason: ReportReason, note words: String? = nil) {
         guard let onReport, sending == nil else { return }
         sending = reason
         Task {
             do {
-                try await onReport(reason)
+                try await onReport(reason, words)
                 sending = nil
                 Haptics.success()
                 go(.thanks)
@@ -421,7 +506,7 @@ struct FeedCardMenuSheet: ViewModifier {
                          onHide: onHide,
                          reasons: card.map { ReportReason.offered(photo: report != nil, found: $0.found) }
                             ?? (post == nil ? [] : ReportReason.offered(photo: false, found: false)),
-                         onReport: onReport, opensOnReasons: reasonsFirst)
+                         onReport: onReport, opensOnReasons: reasonsFirst, asksNote: actions.hasAccount)
         }
     }
 
@@ -434,13 +519,13 @@ struct FeedCardMenuSheet: ViewModifier {
         return { mute in chosen = mute }
     }
 
-    private var onReport: ((ReportReason) async throws -> Void)? {
+    private var onReport: ((ReportReason, String?) async throws -> Void)? {
         guard canReport else { return nil }
-        return { reason in try await send(reason) }
+        return { reason, note in try await send(reason, note: note) }
     }
 
-    private func send(_ reason: ReportReason) async throws {
-        try await feed?.hides.report(id: id, reason)
+    private func send(_ reason: ReportReason, note: String?) async throws {
+        try await feed?.hides.report(id: id, reason, note: note)
         guard reason.hides else { return }
         // The sheet was dragged away while it sent: fold now, not at the next close.
         if isPresented { reported = true } else { feed?.hides.hideReported(id: id, host: hostName) }

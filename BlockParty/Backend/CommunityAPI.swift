@@ -488,15 +488,21 @@ struct CommunityAPI {
             guard UUID(uuidString: id) != nil else { return nil }
             let data = try await db.rpc("mute_host", ["p_item": id])
             return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
-        case .report(let id, let reason):
+        case .report(let id, let reason, let note):
             guard UUID(uuidString: id) != nil else { return nil }
-            let data = try await db.rpc("report_event", ["p_event": id, "p_reason": reason.rawValue])
+            var args: [String: Any] = ["p_event": id, "p_reason": reason.rawValue]
+            let note = note.flatMap(ReportNote.clean)
+            if let note { args["p_note"] = note }
+            let data = try await db.rpc("report_event", args)
             // A neighbour's posting goes back through the AI check (town-feed 22), moderate-post asked to
             // read it again. The function claims it once and lets go if the model doesn't answer, so a
             // lost call is retried by the next report; the reporter never waits.
             if (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) == true {
                 Task { try? await db.invoke("moderate-post", ["recheck": id]) }
             }
+            // A note goes through the same check before the admin sees it (backlog 26); one the check never reads
+            // never shows, so a lost call only loses the note.
+            if note != nil { Task { try? await db.invoke("moderate-post", ["note": id]) } }
             return nil
         case .unmute(let host):
             try await db.rest("feed_mutes", method: "DELETE", [("host", "eq.\(host)")])
@@ -598,6 +604,32 @@ struct CommunityAPI {
         guard let data = try? await db.invoke("moderate-post", ["submit": id]),
               let answer = try? JSONDecoder().decode(Answer.self, from: data) else { return .waiting }
         return Self.check(ok: answer.ok, reason: answer.reason)
+    }
+
+    /// An edit of your own live post (`moderate-post` `edit`, BP app town-feed 44): its words, Place and `@` names, put up
+    /// only once the check says yes. A lost answer may have followed a yes, so before "no answer" the post is read again:
+    /// one already wearing the edit is saved, and Try again doesn't pay for a second check.
+    func editPost(_ edit: PostEditInput) async -> PostEditAnswer {
+        struct Answer: Decodable { let ok: Bool; let reason: String? }
+        let body: [String: Any] = [
+            "edit": edit.id, "words": edit.words, "place": edit.place ?? "",
+            "names": edit.atNames.map { ["kind": $0.kind.rawValue, "id": $0.id, "name": $0.name] },
+        ]
+        let answer: PostEditAnswer
+        do {
+            let data = try await db.invoke("moderate-post", body)
+            let said = try? JSONDecoder().decode(Answer.self, from: data)
+            answer = PostEditAnswer.from(status: 200, ok: said?.ok, reason: said?.reason)
+        } catch let error as SupabaseError {
+            answer = PostEditAnswer.from(status: error.status ?? 0, ok: nil, reason: nil)
+        } catch {
+            answer = .noAnswer
+        }
+        guard answer == .noAnswer else { return answer }
+        struct Row: Decodable { let title: String?; let location: String? }
+        let rows: [Row]? = try? Supabase.decode(await db.rest("club_events", [("select", "title,location"), ("id", "eq.\(edit.id)")]))
+        guard let row = rows?.first, row.title == edit.words, row.location == edit.place else { return .noAnswer }
+        return .saved
     }
 
     /// A no without words still says something the poster can act on.

@@ -874,20 +874,25 @@ struct TownCardHeart: View {
 struct FeedCardMenuButton: View {
     let action: () -> Void
 
+    var body: some View {
+        Button(action: action) { FeedCardMenuGlyph() }
+            .buttonStyle(MenuPressStyle())
+            .accessibilityLabel("More options")
+    }
+}
+
+/// The ••• itself, 20 pt in a 28 pt column with a 44 pt target: the button's, and your own post's menu's (town-feed 44).
+struct FeedCardMenuGlyph: View {
     private static let glyph: CGFloat = 20
     private static let width: CGFloat = 28
 
     var body: some View {
-        Button(action: action) {
-            Image("Lucide/ellipsis")
-                .resizable()
-                .frame(width: Self.glyph, height: Self.glyph)
-                .foregroundStyle(Hue.ink)
-                .frame(width: Self.width, height: MeetupPillStyle.minTarget)
-                .contentShape(Rectangle().inset(by: (Self.width - MeetupPillStyle.minTarget) / 2))
-        }
-        .buttonStyle(MenuPressStyle())
-        .accessibilityLabel("More options")
+        Image("Lucide/ellipsis")
+            .resizable()
+            .frame(width: Self.glyph, height: Self.glyph)
+            .foregroundStyle(Hue.ink)
+            .frame(width: Self.width, height: MeetupPillStyle.minTarget)
+            .contentShape(Rectangle().inset(by: (Self.width - MeetupPillStyle.minTarget) / 2))
     }
 }
 

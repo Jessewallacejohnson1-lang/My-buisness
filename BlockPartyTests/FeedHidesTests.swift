@@ -76,6 +76,24 @@ final class FeedHidesTests: XCTestCase {
         XCTAssertEqual(left(hides), ["a", "b", "c"])
     }
 
+    /// Backlog 26: Wrong info's note goes with the report, as the neighbour typed it (the API trims it).
+    func testAWrongInfoNoteGoesWithTheReport() async throws {
+        let chooser = FeedChooser()
+        let hides = newHides(chooser)
+        try await hides.report(id: "a", .wrongInfo, note: "Starts at 6 now")
+        XCTAssertEqual(chooser.told, [.report("a", .wrongInfo, note: "Starts at 6 now")])
+        XCTAssertEqual(left(hides), ["a", "b", "c"], "Wrong info never hides the card")
+    }
+
+    /// Backlog 26: a note is trimmed and cut to 150 letters; one with nothing in it is no note.
+    func testAReportNoteIsTrimmedCutAndDroppedWhenEmpty() {
+        XCTAssertEqual(ReportNote.clean("  Starts at 6 now \n"), "Starts at 6 now")
+        XCTAssertEqual(ReportNote.clean(String(repeating: "x", count: 200)), String(repeating: "x", count: 150))
+        XCTAssertEqual(ReportNote.clean(String(repeating: "x", count: 149) + "  y"), String(repeating: "x", count: 149))
+        XCTAssertNil(ReportNote.clean("   \n "))
+        XCTAssertNil(ReportNote.clean(""))
+    }
+
     func testAReportThatFailsThrowsAndHidesNothing() async {
         let chooser = FeedChooser()
         chooser.error = URLError(.notConnectedToInternet)

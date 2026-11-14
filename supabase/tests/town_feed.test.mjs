@@ -721,6 +721,67 @@ test('the same host is spaced out: each further item from it counts half', async
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Cafe 1', 'Library', 'Cafe 2', 'Cafe 3']);
 });
 
+test('the same creator never shows twice in a row: the next card from someone else moves up (town-feed 66)', async () => {
+  await reset();
+  await add('Cafe 1', '2026-10-09', { start_time: '8 AM', source_name: 'Cafe' });
+  await add('Cafe 2', '2026-10-09', { start_time: '9 AM', source_name: 'Cafe' });
+  await add('Cafe 3', '2026-10-09', { start_time: '10 AM', source_name: 'Cafe' });
+  await add('Library', '2026-10-20', { start_time: '7 PM', source_name: 'Library' });
+  await add('Park', '2026-10-21', { start_time: '7 PM', source_name: 'Park' });
+  // By points: Cafe 1, Cafe 2, Library, Park, Cafe 3.
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Cafe 1', 'Library', 'Cafe 2', 'Park', 'Cafe 3']);
+});
+
+test('two left together at the bottom are put apart by the shortest move: the top card stays on top (town-feed 66)', async () => {
+  await reset();
+  await add('Fair', '2026-10-09', { start_time: '7 PM', source_name: 'Arts council' });
+  await add('Sale', '2026-10-18', { start_time: '7 PM', source_name: 'Library' });
+  await add('Board A', '2026-10-19', { start_time: '7 PM', source_name: 'Park' });
+  await add('Board B', '2026-10-20', { start_time: '7 PM', source_name: 'Park' });
+  // By points: Fair, Sale, Board A, Board B.
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fair', 'Board A', 'Sale', 'Board B']);
+});
+
+test("a place's story and its Event are one creator, and the story keeps its 5th spot (town-feed 66)", async () => {
+  await reset();
+  const KENNEDY = 'Kennedy Community School';
+  for (const n of [1, 2, 3, 4, 5, 6, 7])
+    await add(`Event ${n}`, '2026-10-12', { start_time: `${n} PM`, source_name: n === 4 ? KENNEDY : `Host ${n}` });
+  await news('Storm shelter walls going up', '2026-10-08 17:00', { source_name: KENNEDY });
+  await signIn(ME);
+  // By points the Kennedy Event is 4th, right above its story.
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'),
+                   ['Event 1', 'Event 2', 'Event 4', 'Event 3', 'Storm shelter walls going up', 'Event 5', 'Event 6', 'Event 7']);
+});
+
+test("a story's spot never leaves more touching than the order it came in: here none (town-feed 66)", async () => {
+  await reset();
+  await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'Hall' });
+  await add('Story time', '2026-10-09', { start_time: '6:30 PM', source_name: 'Library' });
+  for (const n of [1, 2, 3]) await add(`Cafe ${n}`, `2026-10-1${n - 1}`, { start_time: '6:30 PM', source_name: 'Cafe' });
+  await add('Book sale', '2026-10-21', { start_time: '6:30 PM', source_name: 'Library' });
+  await news('Library news', '2026-10-08 17:00', { source_name: 'Library' });
+  await signIn(ME);
+  // By points: Concert (live), Story time, Cafe 1, Cafe 2, Library news, Cafe 3, Book sale. Taking each next card from
+  // someone else would pull Book sale up above the Library's story.
+  assert.deepEqual(await newsTitles('2026-10-08 18:30'),
+                   ['Concert', 'Cafe 1', 'Story time', 'Cafe 2', 'Library news', 'Cafe 3', 'Book sale']);
+});
+
+test('live cards stay on top: two from one creator are put apart only by a live card from someone else (town-feed 66)', async () => {
+  await reset();
+  // Live order among equals: the latest to start first.
+  await add('Game A', '2026-10-08', { start_time: '6:15 PM', source_name: 'School' });
+  await add('Game B', '2026-10-08', { start_time: '6:10 PM', source_name: 'School' });
+  const concert = await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'Hall' });
+  await add('Late show', '2026-10-08', { start_time: '9 PM', source_name: 'Theater' });
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 18:30'), ['Game A', 'Concert', 'Game B', 'Late show']);
+  await db.exec(`reset role; delete from public.club_events where id = '${concert}'`);
+  await signIn(YOU);
+  assert.deepEqual(await titles('2026-10-08 18:30'), ['Game A', 'Game B', 'Late show'], 'live stays on top, touching');
+});
+
 // New (town-feed 36): a view of yours `at` a Town time, as the app records it.
 async function viewed(event, who, at) {
   await db.exec('reset role');
@@ -2626,7 +2687,8 @@ test('a reported Event never shows to its reporter, lowers nothing, and others s
   assert.equal((await db.query('select count(*)::int as n from public.reports')).rows[0].n, 1);
 });
 
-test('a report holds the Event, the reason and the time only, and no neighbour can read it', async () => {
+// Backlog 26 added Wrong info's note and whether the post check kept it: still never who sent it.
+test('a report holds the Event, the reason, the time and a note only, and no neighbour can read it', async () => {
   await reset();
   const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM' });
   await reportAs(YOU, fair, 'violence');
@@ -2635,7 +2697,7 @@ test('a report holds the Event, the reason and the time only, and no neighbour c
   await db.exec('reset role');
   const { rows } = await db.query(`select column_name from information_schema.columns
                                    where table_name = 'reports' order by ordinal_position`);
-  assert.deepEqual(rows.map((r) => r.column_name), ['id', 'event_id', 'reason', 'at']);
+  assert.deepEqual(rows.map((r) => r.column_name), ['id', 'event_id', 'reason', 'at', 'note', 'note_ok']);
   await assert.rejects(reportAs(YOU, fair, 'not_a_reason'), /reports_reason_check/);
 });
 
@@ -2801,13 +2863,16 @@ test("a Group you're in lifts its Events and those found for it", async () => {
   await db.query('update public.club_events set club_id = $1 where id = $2', [club, own]);
   await add('Author talk', '2026-10-13', { start_time: '7 PM', source_name: 'Book Club site' });
   await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  // Someone else's Event to put between the Group's two, so Fall fair, the soonest, stays first (town-feed 66).
+  await add('Bake sale', '2026-10-20', { start_time: '7 PM', source_name: 'Bakery' });
   await signIn(ME);
   assert.equal((await titles('2026-10-08 12:00'))[0], 'Fall fair', 'not in the Group: soonest first');
   await db.exec('reset role');
   await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ME]);
   await signIn(ME);
   assert.deepEqual((await lifted('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.reason_name]), [
-    ['Book swap', 'follow', 'Book Club'], ['Author talk', 'follow', 'Book Club'], ['Fall fair', 'tomorrow', null]]);
+    ['Book swap', 'follow', 'Book Club'], ['Fall fair', 'tomorrow', null], ['Author talk', 'follow', 'Book Club'],
+    ['Bake sale', 'soon', null]]);
   const { rows } = await db.query(`select title, club_name, in_club
      from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
   assert.deepEqual(rows.filter((r) => r.club_name).map((r) => [r.title, r.club_name, r.in_club]),
@@ -2940,11 +3005,13 @@ test('a City meeting you are Going to or Hearted stays in your feed, followed or
   await goes(council, ME);
   await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [parks, ME]);
   await add('Fall fair', '2026-10-09', { start_time: '6 PM', source_name: 'Arts council' });
+  // Someone else's Event, so the City's two can be put apart (town-feed 66).
+  await add('Book sale', '2026-10-20', { start_time: '6 PM', source_name: 'Library' });
   await signIn(ME);
   // The board you Hearted keeps its place; the council you're Going to sinks under it.
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Park Board', 'City Council Meeting']);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Park Board', 'Book sale', 'City Council Meeting']);
   await signIn(YOU);
-  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair'], "someone else's Going brings it to nobody else");
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Fall fair', 'Book sale'], "someone else's Going brings it to nobody else");
 });
 
 test("a City meeting that matches no board reaches only the City's followers", async () => {
