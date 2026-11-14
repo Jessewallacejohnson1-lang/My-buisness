@@ -5,3 +5,7 @@ project_id = "block-party"
 # this back on gets that call refused, and live scores stop.
 [functions.live-scores]
 verify_jwt = false
+
+# The weather tracker's call from pg_cron every 15 minutes carries no login either (functions/weather/index.ts).
+[functions.weather]
+verify_jwt = false

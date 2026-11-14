@@ -8,10 +8,11 @@ waitlist website.
   grant, bucket and scheduled job. Checked by running it on an empty Postgres and
   comparing each of those against live: all match. The 41 older migrations it replaced
   are in git history.
-- `functions/`: source of the two live Edge Functions, `moderate-post` (Claude reviews a
-  post) and `live-scores` (a game card's live score). Deploy from here with `supabase functions deploy <name>`; never edit only in the
+- `functions/`: source of the live Edge Functions, among them `moderate-post` (Claude reviews a
+  post), `live-scores` (a game card's live score) and `weather` (the weather tracker: school closings from WJON's
+  list, read often while a winter alert is out). Deploy from here with `supabase functions deploy <name>`; never edit only in the
   dashboard.
-- `config.toml`: the settings that deploy reads. `live-scores` keeps its login check off.
+- `config.toml`: the settings that deploy reads. `live-scores` and `weather` keep their login check off.
 - `tests/`: fixed stories for the database functions, run in PGlite (Postgres compiled to
   WASM, so no Docker): `npm install && npm test` there. The Town feed's are in
   `town_feed.test.mjs`. Every story file starts from `realDatabase()` in `fixture.mjs`: every
