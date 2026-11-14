@@ -846,4 +846,11 @@ struct ProfileExtras: Decodable, Equatable {
     /// references/profile-middle). Nil from a `get_profile` without it: a plain number would make
     /// that whole answer fail to read, bio, cover and friends with it.
     var following: Int? = nil
+
+    #if DEBUG
+    /// INVENTED, for `-town-samples`: your counts and a sample neighbour's, so the proof frames show
+    /// them with no `get_profile` read. No bio or cover: the sample run has none.
+    static let sample = ProfileExtras(friends: 24, following: 9)
+    static let sampleNeighbor = ProfileExtras(friends: 12, following: 6)
+    #endif
 }

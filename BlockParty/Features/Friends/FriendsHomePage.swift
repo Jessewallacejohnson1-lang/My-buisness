@@ -686,6 +686,13 @@ struct NeighborPage: View {
         guard book.hasAccount() else { return }
         if you.groups == nil { await you.refreshGroups() }
         if you.going == nil { await you.refresh() }
+        #if DEBUG
+        // `-town-samples` and `-town-offline`: a sample neighbour's counts, never a live read.
+        if LaunchFlags.backend != .live {
+            extras = .sampleNeighbor
+            return
+        }
+        #endif
         if let read = try? await ProfileAPI(auth: AuthStore.shared).getProfile(neighbor.userId) {
             extras = read
         }

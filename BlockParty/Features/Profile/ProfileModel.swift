@@ -160,6 +160,13 @@ final class ProfileModel {
     /// You's visit: your row, then the counts and groups only a real account has.
     func load() async {
         await read()
+        #if DEBUG
+        // `-town-samples` and `-town-offline` read no `get_profile`: the sample counts instead.
+        if LaunchFlags.backend != .live {
+            extras = .sample
+            return
+        }
+        #endif
         guard canDescribe, let uid = auth.userId, let read = try? await profiles.getProfile(uid),
               auth.userId == uid else { return }
         extras = read
