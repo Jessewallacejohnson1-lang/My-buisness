@@ -828,7 +828,7 @@ private struct ChatEventCard: View {
                                 FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
                             } else if let logo = card.image.logo {
                                 // A place we have no photo of: its logo bare, as Search shows it.
-                                CastLogo(logo: logo, side: SearchMetric.logoOnRow)
+                                CastLogo(logo: logo, side: ChatMetric.eventLogo)
                             }
                         }
                         .clipped()
