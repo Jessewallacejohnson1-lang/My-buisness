@@ -60,6 +60,8 @@ nonisolated enum ChatMetric {
     static let photoUpload: CGFloat = 1290
     static let eventWidth: CGFloat = 250
     static let eventPhoto: CGFloat = 150
+    /// A place with no photo on the Event card: its logo bare, at Search's old row size (search-logo-size 01).
+    static let eventLogo: CGFloat = 80
     static let eventInsetX: CGFloat = 12
     static let eventInsetY: CGFloat = 10
     static let chipHeight: CGFloat = 32
