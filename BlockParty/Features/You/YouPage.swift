@@ -281,8 +281,8 @@ struct YouDay: View {
     let isPicked: Bool
     let ring: Namespace.ID
     var disc = false
-    /// The gap inside the picked day's ring: the colour of the page under the Calendar, the
-    /// Profile's grey on You (profile-middle), paper on Search's.
+    /// The gap inside the picked day's ring and the rim round the plans count: the colour of the
+    /// page under the Calendar, the Profile's grey on You (profile-middle), paper on Search's.
     var gapColor: Color = Hue.paper
 
     var body: some View {
@@ -353,7 +353,7 @@ struct YouDay: View {
                     .frame(minWidth: YouMetric.count, minHeight: YouMetric.count)
                     .background(Capsule().fill(Hue.ink))
                     .padding(YouMetric.countEdge)
-                    .background(Capsule().fill(Hue.paper))
+                    .background(Capsule().fill(gapColor))
                     .offset(YouMetric.countOffset)
             }
         }
