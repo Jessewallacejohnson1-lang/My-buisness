@@ -1,8 +1,8 @@
-// Fixed stories for a profile's page (supabase/migrations/*_profile_bio_cover.sql): its bio and
-// cover, how many friends, its groups, and the Events you're both Going to, only for a friend
-// who shows their plans (BP app references/profile-remake; friends spec, 2026-10-13: "you can't
-// track people's whole agenda"). Run in PGlite like the others: `npm install && npm test` in
-// this folder.
+// Fixed stories for a profile's page (supabase/migrations/*_profile_bio_cover.sql, *_profile_following.sql):
+// its bio and cover, how many friends, its groups, the Events you're both Going to, only for a friend
+// who shows their plans (BP app references/profile-remake; friends spec, 2026-10-13: "you can't track
+// people's whole agenda"), and how many they follow, as the Following list lists them (BP app
+// references/profile-middle). Run in PGlite like the others: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase } from './fixture.mjs';
@@ -14,6 +14,9 @@ const [LIONS, BOOKS] = [900, 901].map(id);
 await db.exec(`insert into public.clubs (id, name) values ('${LIONS}', 'Lions'), ('${BOOKS}', 'Books')`);
 const [MARKET, TRIVIA, FISH, OVER, CALLED] = [700, 701, 702, 703, 704].map(id);
 const PHOTOS = 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/';
+const KREWE = id(800);
+await db.query(`insert into public.places (id, name, lat, lon, family, entry_id) values ($1, 'Krewe', 45.5, -94.3, 'food', 'krewe')`,
+  [KREWE]);
 
 async function reset() {
   await db.exec(`reset role; reset request.jwt.claims;
@@ -50,6 +53,8 @@ const makeFriends = async (a, b) => { await one(a, 'send_friend_request', b); aw
 const profile = async (who, of) => (await as(who, 'select * from public.get_profile($1)', [of]))[0];
 const going = (who, events) => Promise.all(events.map((e) =>
   db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [e, who])));
+const follows = (who, targets) => Promise.all(targets.map(([type, target]) =>
+  db.query('insert into public.town_follows (follower_id, target_type, target_id) values ($1, $2, $3)', [who, type, target])));
 
 test('a friend sees only the Events you are both Going to, soonest first, not over or called off', async () => {
   await reset();
@@ -119,4 +124,24 @@ test('a bio is at most 150 letters, and only a real account sets a bio or a cove
     [`${PHOTOS}${ANON}/cover-1.jpg`, ANON], { anonymous: true }));
   // Its name is still its own to change.
   await as(ANON, 'update public.town_profiles set display_name = $1 where user_id = $2', ['Anon Two', ANON], { anonymous: true });
+});
+
+test('following counts what the Following list lists: Places and people you may find, never groups', async () => {
+  await reset();
+  await one(BEN, 'block_neighbor', DEE);
+  // Written after the block on purpose: a block ends follows, but the count doesn't lean on that.
+  await follows(BEN, [['place', KREWE], ['profile', CAL], ['profile', DEE], ['club', LIONS]]);
+  assert.equal((await profile(BEN, BEN)).following, 2);
+  assert.equal((await as(BEN, 'select * from public.my_follows()')).length, 2, 'the Following list agrees');
+});
+
+test('a neighbour reads the count as they may see it, and counts themselves when followed', async () => {
+  await reset();
+  await one(ANA, 'block_neighbor', CAL);
+  await follows(BEN, [['place', KREWE], ['profile', ANA], ['profile', CAL]]);
+  // Ana blocked Cal, so Cal isn't counted for her; she is, though nobody may find themselves.
+  assert.equal((await profile(ANA, BEN)).following, 2);
+  assert.equal((await profile(DEE, BEN)).following, 3);
+  assert.equal((await profile(BEN, BEN)).following, 3);
+  assert.equal((await profile(ANA, ANA)).following, 0);
 });
