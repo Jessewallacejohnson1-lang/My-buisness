@@ -89,7 +89,8 @@ struct FeedCardMenu: View {
         .padding(.bottom, 16)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(height)])
+        // The note is a full page, as Nextdoor's: at its own height the keyboard pushed the sheet down, then up again.
+        .presentationDetents([pane == .note ? .large : .height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
         .sheet(isPresented: $editingInterests) { FeedInterestEditorDestination() }
