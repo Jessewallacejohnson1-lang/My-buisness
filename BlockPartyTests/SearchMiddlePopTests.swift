@@ -33,8 +33,8 @@ final class SearchMiddlePopTests: XCTestCase {
     }
 
     func testFallsOffSmoothlyNeverBack() {
-        var last: CGFloat = 2
-        for d in stride(from: CGFloat(0), through: 200, by: 1) {
+        var last = SearchMetric.middlePop(midX: width / 2, width: width)
+        for d in stride(from: CGFloat(1), through: 200, by: 1) {
             let pop = SearchMetric.middlePop(midX: width / 2 + d, width: width)
             XCTAssertLessThanOrEqual(pop, last)
             XCTAssertLessThan(last - pop, 0.02, "a jump at \(d) pt from the middle")
