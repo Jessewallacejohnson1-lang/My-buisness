@@ -165,7 +165,7 @@ struct EventPage: View {
         // pill → About 37.3, About → body 34, body lines 22.
         static let titleTop: CGFloat = 26
         static let titleLineSpacing: CGFloat = 9
-        /// A page name in Inter Tight (profile, group, business): its line is 7 pt taller than the
+        /// A page name in Inter Tight (group, business): its line is 7 pt taller than the
         /// event face's at 28, so 9 less 7 keeps a two-line name's gap where the event title's is.
         static let nameLineSpacing: CGFloat = 2
         static let categoryTop: CGFloat = 8
