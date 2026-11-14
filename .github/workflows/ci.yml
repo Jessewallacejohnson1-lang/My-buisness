@@ -1,8 +1,9 @@
 name: CI
 
 # Runs the test suite that already exists but had nothing running it.
-# Kept dependency-free on purpose: no third-party actions, so there is no
-# supply-chain surface in the job that gates merges.
+# Kept dependency-free on purpose: one third-party action only, Deno's own installer
+# (denoland/setup-deno, checks job), for the edge functions' type-check. It is pinned to a full
+# commit SHA, so a moved tag can't change what runs in the job that gates merges. Add no other.
 
 on:
   push:
@@ -204,3 +205,12 @@ jobs:
           python3 -c "import $(awk '!/^#/ && NF && $2 != "-" {print $1}' $list | paste -sd, -)" 2>/dev/null ||
             { sudo apt-get update -qq && sudo apt-get install -y -qq $(awk '!/^#/ && NF && $2 != "-" {print $2}' $list); }
           bash scripts/ci_checks.sh registry
+
+      # Every supabase/functions/*/index.ts, type-checked by Deno (BP app agent-guardrails 16).
+      # The same Deno version as the Mac's pre-push hook ran when this was set.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed  # v2.0.5
+        with:
+          deno-version: '2.9.8'
+
+      - name: Edge functions type-check
+        run: bash scripts/ci_checks.sh functions

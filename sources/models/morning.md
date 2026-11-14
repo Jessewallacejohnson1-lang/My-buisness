@@ -102,7 +102,7 @@ model, at most 10 running at once:
 the tags, Abouts and standouts and prints the whole morning report; a save that failed is a line
 in it. On Sundays the report has a `[meets]` line per school club whose meeting time changed, or says none
 did (BP app nothing-scheduled 05), and ends with how many things with nothing scheduled are due for a walk (BP
-app nothing-scheduled 04): a chat walks them, never this run. Answer with Ready's line if it said `ready, but`, then that report as printed, then keep's
+app nothing-scheduled 04): a chat walks them, never this run. Answer with that report as printed (its last line is Ready's), then keep's
 `[photos]` line, then dig-keep's `[dig]` lines, then your `[season]` lines, then one line per flag you
 dropped that a neighbour might have wanted, and why. Nothing else.
 
