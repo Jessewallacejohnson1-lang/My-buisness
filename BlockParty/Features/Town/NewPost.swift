@@ -697,6 +697,10 @@ struct NewPostSheet: View {
         .onAppear {
             if let editing {
                 model.startEditing(editing)
+                #if DEBUG
+                // `-new-post-words <words>`: typed over the post's words, as AXe can't type on BP Build.
+                if let words = LaunchFlags.value(.newPostWords) { model.draft.words = words }
+                #endif
                 // The cursor at the words' end, once the field holds them and has the focus.
                 Task {
                     try? await Task.sleep(for: .milliseconds(400))
